@@ -1,0 +1,116 @@
+plugins {
+  id 'java'
+}
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(javaVersion as int)
+  }
+}
+
+configurations {
+  gwt
+}
+
+def gwtVersion = "2.11.0"
+
+dependencies {
+  implementation "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
+
+  implementation "com.badlogicgames.gdx:gdx:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-backend-gwt:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-box2d-gwt:${gdxVersion}"
+  implementation("net.onedaybeard.artemis:artemis-odb-gwt:${artemisOdbVersion}") {
+    exclude group: "com.google.gwt", module: "gwt-user"
+  }
+  implementation "net.onedaybeard.artemis:artemis-odb-serializer:${artemisOdbVersion}"
+  implementation "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}"
+
+  gwt "org.gwtproject:gwt-user:${gwtVersion}"
+  gwt "org.gwtproject:gwt-dev:${gwtVersion}"
+
+  gwt "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
+  gwt "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}:sources@jar"
+
+  gwt "com.badlogicgames.gdx:gdx:${gdxVersion}:sources@jar"
+  gwt "com.badlogicgames.gdx:gdx-backend-gwt:${gdxVersion}:sources@jar"
+  gwt "com.badlogicgames.gdx:gdx-box2d-gwt:${gdxVersion}"
+  gwt "com.badlogicgames.gdx:gdx-box2d-gwt:${gdxVersion}:sources@jar"
+
+  gwt "net.onedaybeard.artemis:artemis-odb:${artemisOdbVersion}:sources@jar"
+  gwt "net.onedaybeard.artemis:artemis-odb-gwt:${artemisOdbVersion}:sources@jar"
+  gwt("net.onedaybeard.artemis:artemis-odb-gwt:${artemisOdbVersion}") {
+    exclude group: "com.google.gwt", module: "gwt-user"
+  }
+  gwt "net.onedaybeard.artemis:artemis-odb-serializer:${artemisOdbVersion}:sources@jar"
+  gwt "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}:sources@jar"
+}
+
+tasks.register('compileGwt', JavaExec) {
+  group = 'build'
+  description = 'Compile HTML player with GWT.'
+
+  dependsOn classes
+  mainClass = 'com.google.gwt.dev.Compiler'
+
+  classpath =
+          configurations.gwt +
+                  sourceSets.main.runtimeClasspath +
+                  sourceSets.main.output +
+                  files(sourceSets.main.java.srcDirs)
+
+  inputs.files(
+          sourceSets.main.java.srcDirs,
+          sourceSets.main.resources.srcDirs,
+          fileTree('src/main/webapp')
+  )
+
+  outputs.dir(layout.buildDirectory.dir('gwt-dist'))
+
+  doFirst {
+    delete layout.buildDirectory.dir('gwt-unitCache')
+    delete layout.buildDirectory.dir('gwt-dist')
+    mkdir layout.buildDirectory.dir('gwt-dist').get().asFile
+  }
+
+  args = [
+          '-war', layout.buildDirectory.dir('gwt-dist').get().asFile.absolutePath,
+          '-style', 'PRETTY',
+          '-logLevel', 'INFO',
+          'games.pixscape.html.GdxDefinition'
+  ]
+}
+
+tasks.register('copyGwtDistToTemplate', Copy) {
+  dependsOn 'compileGwt'
+  duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
+  def templateDir = rootProject.file('src/main/resources/html-preview-template')
+
+  doFirst {
+    // assets.font is static Studio template content and must not be deleted by
+    // the generated html-player refresh.
+    delete(
+            new File(templateDir, 'htmlplayer'),
+            new File(templateDir, 'WEB-INF/deploy/htmlplayer')
+    )
+    templateDir.mkdirs()
+  }
+
+  from(layout.buildDirectory.dir('gwt-dist')) {
+    include 'htmlplayer/**'
+    include 'WEB-INF/deploy/htmlplayer/**'
+  }
+
+  from('src/main/webapp') {
+    include '**/*'
+  }
+
+  from(project.file('assets.font')) {
+    into 'assets.font'
+    include '**/*'
+  }
+
+  into templateDir
+}

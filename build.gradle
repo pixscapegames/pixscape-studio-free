@@ -1,0 +1,329 @@
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+plugins {
+  id 'application'
+  id 'org.beryx.runtime' version "${beryxRuntimePluginVersion}"
+  id 'org.graalvm.buildtools.native' version "${graalNativePluginVersion}" apply false
+}
+
+group = 'games.pixscape'
+version = appVersion
+
+java {
+  toolchain {
+    languageVersion = JavaLanguageVersion.of(javaVersion as int)
+  }
+}
+
+allprojects {
+  apply plugin: 'idea'
+
+  idea {
+    module {
+      outputDir = file('build/classes/java/main')
+      testOutputDir = file('build/classes/java/test')
+    }
+  }
+}
+
+application {
+  mainClass = 'games.pixscape.studio.PixscapeStudioApplication'
+}
+
+dependencies {
+  implementation "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
+
+  implementation "com.github.tommyettinger:libgdx-utils:${utilsVersion}"
+  implementation "com.badlogicgames.gdx:gdx-freetype:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
+  implementation "com.badlogicgames.gdx-controllers:gdx-controllers-core:${gdxControllersVersion}"
+
+  implementation "com.badlogicgames.gdx:gdx-box2d:${gdxVersion}"
+  implementation "com.badlogicgames.gdx:gdx-box2d-platform:${gdxVersion}:natives-desktop"
+  implementation "com.github.tommyettinger:libgdx-utils-box2d:${utilsBox2dVersion}"
+  implementation "com.badlogicgames.box2dlights:box2dlights:${box2dlightsVersion}"
+
+  implementation "space.earlygrey:shapedrawer:${shapeDrawerVersion}"
+  implementation "com.kotcrab.vis:vis-ui:${visUiVersion}"
+
+  implementation "com.github.tommyettinger:libgdx-texturepacker:${texturePackerOnlyVersion}"
+  implementation "com.github.tommyettinger:libgdx-textureunpacker:${textureUnpackerOnlyVersion}"
+
+  testImplementation "junit:junit:${junitVersion}"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-headless:${gdxVersion}"
+}
+
+sourceSets {
+  main {
+    resources {
+      srcDir 'src/main/resources'
+    }
+  }
+}
+
+tasks.named('processResources', Copy).configure {
+  // The checked-in HTML preview template is reused during normal Studio runs.
+  // Rebuild it explicitly with buildHtmlPreviewTemplate, or pass
+  // -PrefreshHtmlPreviewTemplate=true when changing html-player sources.
+  if (providers.gradleProperty("refreshHtmlPreviewTemplate").map { it.toBoolean() }.orElse(false).get()) {
+    dependsOn 'buildHtmlPreviewTemplate'
+  }
+
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+  from('assets') {
+    into 'assets'
+  }
+  from('icons') {
+    into 'icons'
+  }
+}
+
+tasks.named('run', JavaExec).configure {
+  workingDir = file("${projectDir}/assets")
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+}
+
+tasks.named('test', Test).configure {
+  useJUnit()
+}
+
+tasks.register('distFat', Jar) {
+  dependsOn configurations.runtimeClasspath
+  archiveClassifier = 'all'
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+  manifest {
+    attributes(
+            'Main-Class': application.mainClass.get()
+    )
+  }
+
+  from {
+    configurations.runtimeClasspath.get().collect { dep ->
+      dep.isDirectory() ? dep : zipTree(dep)
+    }
+  }
+  from sourceSets.main.output
+}
+
+tasks.named('jar', Jar).configure {
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+def currentOs = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT)
+def isWindows = currentOs.contains("win")
+def isLinux = currentOs.contains("linux")
+def isMac = currentOs.contains("mac")
+
+runtime {
+  modules = ['java.se', 'jdk.unsupported', 'jdk.httpserver']
+  options = ['--strip-debug', '--no-header-files', '--no-man-pages']
+
+  launcher {
+    noConsole = true
+    jvmArgs = [
+            '--enable-native-access=ALL-UNNAMED',
+            '-Xms512m',
+            '-Xmx2g'
+    ] + (isMac ? ['-XstartOnFirstThread', '-Djava.awt.headless=true'] : [])
+  }
+
+  jpackage {
+    imageName = appName
+    installerName = appName
+    appVersion = project.version.toString()
+
+    imageOptions = ['--verbose']
+    installerOptions = [
+            '--verbose',
+            '--vendor', appVendor
+    ]
+
+    if (isWindows) {
+      installerType = 'app-image'
+
+      def iconFile = file('icons/pixscape_icon.ico')
+      if (iconFile.exists()) {
+        imageOptions += ['--icon', iconFile.absolutePath]
+      }
+    } else if (isLinux) {
+      installerType = 'deb'
+
+      def iconFile = file('icons/pixscape_icon.png')
+      if (iconFile.exists()) {
+        imageOptions += ['--icon', iconFile.absolutePath]
+        installerOptions += ['--icon', iconFile.absolutePath]
+      }
+
+      installerOptions += [
+              '--linux-shortcut',
+              '--linux-menu-group', 'Development',
+              '--linux-deb-maintainer', 'info@pixscape.games'
+      ]
+    } else if (isMac) {
+      installerType = 'dmg'
+
+      def iconFile = file('icons/icon.icns')
+      if (iconFile.exists()) {
+        imageOptions += ['--icon', iconFile.absolutePath]
+        installerOptions += ['--icon', iconFile.absolutePath]
+      }
+
+      installerOptions += [
+              '--mac-package-identifier', appId,
+              '--mac-package-name', appName
+      ]
+    }
+  }
+}
+
+tasks.register('packageWindowsZip', Zip) {
+  group = 'distribution'
+  description = 'Build Windows portable ZIP from jpackage app image'
+  dependsOn 'jpackageImage'
+  onlyIf { isWindows }
+
+  archiveBaseName = appName
+  archiveVersion = project.version.toString()
+  archiveClassifier = 'windows'
+  destinationDirectory = layout.buildDirectory.dir('distributions')
+
+  from(layout.buildDirectory.dir("jpackage/${appName}")) {
+    into appName
+  }
+}
+
+tasks.register('packageLinuxDeb') {
+  group = 'distribution'
+  description = 'Build Linux DEB installer with jpackage'
+  dependsOn 'jpackage'
+  onlyIf { isLinux }
+}
+
+tasks.register('packageMacDmg') {
+  group = 'distribution'
+  description = 'Build macOS DMG installer with jpackage'
+  dependsOn 'jpackage'
+  onlyIf { isMac }
+}
+
+if ((findProperty('enableGraalNative') ?: 'false').toString().toBoolean()) {
+  apply plugin: 'org.graalvm.buildtools.native'
+
+  graalvmNative {
+    binaries {
+      named("main") {
+        imageName = appName.toLowerCase().replaceAll("\\s+", "-")
+        mainClass = application.mainClass.get()
+      }
+    }
+  }
+}
+
+def buildInfoPackage = "games.pixscape.studio"
+def buildInfoClassName = "BuildInfo"
+def generatedBuildInfoDir = file("$buildDir/generated/sources/buildInfo/java/main")
+def buildDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+tasks.register("generateBuildInfo") {
+  outputs.dir(generatedBuildInfoDir)
+
+  inputs.property("appName", providers.gradleProperty("appName").orElse("pixscape-studio"))
+  inputs.property("appId", providers.gradleProperty("appId").orElse("games.pixscape.studio"))
+  inputs.property("appVendor", providers.gradleProperty("appVendor").orElse("Pixscape"))
+  inputs.property("appVersion", providers.gradleProperty("appVersion").orElse("0.0.0"))
+  inputs.property("pixscapeRuntimeVersion", providers.gradleProperty("pixscapeRuntimeVersion").orElse("0.0.0"))
+  inputs.property("gdxVersion", providers.gradleProperty("gdxVersion").orElse("unknown"))
+  inputs.property("utilsVersion", providers.gradleProperty("utilsVersion").orElse("unknown"))
+  inputs.property("gdxControllersVersion", providers.gradleProperty("gdxControllersVersion").orElse("unknown"))
+  inputs.property("box2dlightsVersion", providers.gradleProperty("box2dlightsVersion").orElse("unknown"))
+  inputs.property("utilsBox2dVersion", providers.gradleProperty("utilsBox2dVersion").orElse("unknown"))
+  inputs.property("shapeDrawerVersion", providers.gradleProperty("shapeDrawerVersion").orElse("unknown"))
+  inputs.property("visUiVersion", providers.gradleProperty("visUiVersion").orElse("unknown"))
+  inputs.property("texturePackerOnlyVersion", providers.gradleProperty("texturePackerOnlyVersion").orElse("unknown"))
+  inputs.property("textureUnpackerOnlyVersion", providers.gradleProperty("textureUnpackerOnlyVersion").orElse("unknown"))
+  inputs.property("javaVersion", providers.gradleProperty("javaVersion").orElse("unknown"))
+  inputs.property("gradleVersion", providers.gradleProperty("gradleVersion").orElse("unknown"))
+  inputs.property("buildDate", buildDate)
+
+  doLast {
+    def file = new File(generatedBuildInfoDir, "${buildInfoPackage.replace('.', '/')}/${buildInfoClassName}.java")
+    file.parentFile.mkdirs()
+
+    def appName = providers.gradleProperty("appName").orElse("pixscape-studio").get()
+    def appId = providers.gradleProperty("appId").orElse("games.pixscape.studio").get()
+    def appVendor = providers.gradleProperty("appVendor").orElse("Pixscape").get()
+    def appVersion = providers.gradleProperty("appVersion").orElse("0.0.0").get()
+    def pixscapeRuntimeVersion = providers.gradleProperty("pixscapeRuntimeVersion").orElse("0.0.0").get()
+    def gdxVersion = providers.gradleProperty("gdxVersion").orElse("unknown").get()
+    def utilsVersion = providers.gradleProperty("utilsVersion").orElse("unknown").get()
+    def gdxControllersVersion = providers.gradleProperty("gdxControllersVersion").orElse("unknown").get()
+    def box2dlightsVersion = providers.gradleProperty("box2dlightsVersion").orElse("unknown").get()
+    def utilsBox2dVersion = providers.gradleProperty("utilsBox2dVersion").orElse("unknown").get()
+    def shapeDrawerVersion = providers.gradleProperty("shapeDrawerVersion").orElse("unknown").get()
+    def visUiVersion = providers.gradleProperty("visUiVersion").orElse("unknown").get()
+    def texturePackerOnlyVersion = providers.gradleProperty("texturePackerOnlyVersion").orElse("unknown").get()
+    def textureUnpackerOnlyVersion = providers.gradleProperty("textureUnpackerOnlyVersion").orElse("unknown").get()
+    def javaVersion = providers.gradleProperty("javaVersion").orElse("unknown").get()
+    def gradleVersion = providers.gradleProperty("gradleVersion").orElse("unknown").get()
+    def buildDateValue = buildDate
+
+    file.text = """\
+package ${buildInfoPackage};
+
+public final class ${buildInfoClassName} {
+    private BuildInfo() {}
+
+    public static final String APP_NAME = "${escapeJava(appName)}";
+    public static final String APP_ID = "${escapeJava(appId)}";
+    public static final String APP_VENDOR = "${escapeJava(appVendor)}";
+    public static final String APP_VERSION = "${escapeJava(appVersion)}";
+    public static final String PIXSCAPE_RUNTIME_VERSION = "${escapeJava(pixscapeRuntimeVersion)}";
+
+    public static final String JAVA_VERSION = "${escapeJava(javaVersion)}";
+    public static final String GRADLE_VERSION = "${escapeJava(gradleVersion)}";
+    public static final String BUILD_DATE = "${escapeJava(buildDateValue)}";
+
+    public static final String GDX_VERSION = "${escapeJava(gdxVersion)}";
+    public static final String LIBGDX_UTILS_VERSION = "${escapeJava(utilsVersion)}";
+    public static final String GDX_CONTROLLERS_VERSION = "${escapeJava(gdxControllersVersion)}";
+    public static final String BOX2DLIGHTS_VERSION = "${escapeJava(box2dlightsVersion)}";
+    public static final String LIBGDX_UTILS_BOX2D_VERSION = "${escapeJava(utilsBox2dVersion)}";
+    public static final String SHAPEDRAWER_VERSION = "${escapeJava(shapeDrawerVersion)}";
+    public static final String VISUI_VERSION = "${escapeJava(visUiVersion)}";
+    public static final String TEXTUREPACKER_VERSION = "${escapeJava(texturePackerOnlyVersion)}";
+    public static final String TEXTUREUNPACKER_VERSION = "${escapeJava(textureUnpackerOnlyVersion)}";
+  
+}
+""".stripIndent()
+  }
+}
+
+sourceSets {
+  main {
+    java {
+      srcDir generatedBuildInfoDir
+    }
+  }
+}
+
+tasks.named("compileJava") {
+  dependsOn("generateBuildInfo")
+}
+
+static String escapeJava(String s) {
+  return s
+          .replace("\\", "\\\\")
+          .replace("\"", "\\\"")
+          .replace("\r", "\\r")
+          .replace("\n", "\\n")
+}
+
+tasks.register('buildHtmlPreviewTemplate') {
+  group = 'build'
+  description = 'Build html-player and copy output into html-preview-template.'
+  dependsOn ':html-player:copyGwtDistToTemplate'
+}

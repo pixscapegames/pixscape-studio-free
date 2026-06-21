@@ -1,0 +1,170 @@
+package games.pixscape.studio.ui.property;
+
+import com.artemis.ComponentMapper;
+import com.artemis.World;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisTable;
+import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
+import com.kotcrab.vis.ui.widget.spinner.Spinner;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.widget.UiBinders;
+
+public final class TiledMapProperties extends VisTable {
+
+    private final World world;
+    private final ComponentMapper<TiledLayerComponent> mTiled;
+    private final Runnable markPreviewSaveRequired;
+
+    private final VisLabel tiledWidthValue = new VisLabel();
+    private final VisLabel tiledHeightValue = new VisLabel();
+    private final VisLabel tiledProjectionValue = new VisLabel();
+    private final VisLabel tiledTileWidthValue = new VisLabel();
+    private final VisLabel tiledTileHeightValue = new VisLabel();
+
+    private final IntSpinnerModel originXModel = new IntSpinnerModel(0, -100000, 100000, 1);
+    private final IntSpinnerModel originYModel = new IntSpinnerModel(0, -100000, 100000, 1);
+
+    private final Spinner tiledOriginXSpinner;
+    private final Spinner tiledOriginYSpinner;
+
+    private final UiBinders.IntSpinnerBinder tiledOriginXBinder;
+    private final UiBinders.IntSpinnerBinder tiledOriginYBinder;
+
+    public TiledMapProperties(World world, Runnable markPreviewSaveRequired) {
+        super(true);
+        this.world = world;
+        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.mTiled = world.getMapper(TiledLayerComponent.class);
+
+        top().left();
+        defaults().left().top().pad(1);
+
+        tiledOriginXSpinner = new Spinner("", originXModel);
+        tiledOriginXSpinner.getTextField().setTouchable(Touchable.disabled);
+
+        tiledOriginYSpinner = new Spinner("", originYModel);
+        tiledOriginYSpinner.getTextField().setTouchable(Touchable.disabled);
+
+        tiledOriginXBinder = new UiBinders.IntSpinnerBinder(
+                world,
+                tiledOriginXSpinner,
+                originXModel,
+                mTiled::has,
+                eid -> Math.round(mTiled.get(eid).originX),
+                (eid, value) -> {
+                    TiledLayerComponent t = mTiled.get(eid);
+                    float v = value;
+                    t.originX = v;
+                    t.data.originX = v;
+                    t.data.rebuildWithNewSize(t.mapWidthCells, t.mapHeightCells);
+                    world.getSystem(DirtyTrackerSystem.class).layer(eid);
+                    flagPreviewSaveRequired();
+                }
+        );
+
+        tiledOriginYBinder = new UiBinders.IntSpinnerBinder(
+                world,
+                tiledOriginYSpinner,
+                originYModel,
+                mTiled::has,
+                eid -> Math.round(mTiled.get(eid).originY),
+                (eid, value) -> {
+                    TiledLayerComponent t = mTiled.get(eid);
+                    float v = value;
+                    t.originY = v;
+                    t.data.originY = v;
+                    t.data.rebuildWithNewSize(t.mapWidthCells, t.mapHeightCells);
+                    world.getSystem(DirtyTrackerSystem.class).layer(eid);
+                    flagPreviewSaveRequired();
+                }
+        );
+
+        add(new VisLabel("TILED MAP"))
+                .colspan(2)
+                .center()
+                .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
+                .row();
+
+        add(new VisLabel("Projection:")).left();
+        add(tiledProjectionValue).left().growX().row();
+
+        add(new VisLabel("Tile Width:")).left();
+        add(tiledTileWidthValue).left().row();
+
+        add(new VisLabel("Tile Height:")).left();
+        add(tiledTileHeightValue).left().row();
+
+        add(new VisLabel("Origin X:")).left();
+        add(tiledOriginXSpinner).width(80).left().growX().row();
+
+        add(new VisLabel("Origin Y:")).left();
+        add(tiledOriginYSpinner).width(80).left().growX().row();
+
+        add(new VisLabel("Width (cells):")).left();
+        add(tiledWidthValue).left().row();
+
+        add(new VisLabel("Height (cells):")).left();
+        add(tiledHeightValue).left().row();
+    }
+
+    public void setLayerEntityId(int layerEntityId) {
+        TiledLayerComponent t = mTiled.getSafe(layerEntityId, null);
+        SceneMeta sceneMeta = currentSceneMeta();
+
+        if (t != null) {
+            tiledWidthValue.setText(String.valueOf(t.mapWidthCells));
+            tiledHeightValue.setText(String.valueOf(t.mapHeightCells));
+
+            tiledProjectionValue.setText(buildTiledProjectionLabel(sceneMeta));
+            tiledTileWidthValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileWidth) : "?");
+            tiledTileHeightValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileHeight) : "?");
+
+            originXModel.setStep(Math.max(1, t.data.tileWidth));
+            originYModel.setStep(Math.max(1, t.data.tileHeight));
+
+            tiledOriginXBinder.setEntityId(layerEntityId);
+            tiledOriginYBinder.setEntityId(layerEntityId);
+        } else {
+            tiledWidthValue.setText("?");
+            tiledHeightValue.setText("?");
+            tiledProjectionValue.setText(buildTiledProjectionLabel(sceneMeta));
+            tiledTileWidthValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileWidth) : "?");
+            tiledTileHeightValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileHeight) : "?");
+
+            originXModel.setStep(1);
+            originYModel.setStep(1);
+
+            tiledOriginXBinder.setEntityId(-1);
+            tiledOriginYBinder.setEntityId(-1);
+        }
+
+        invalidateHierarchy();
+    }
+
+    private void flagPreviewSaveRequired() {
+        if (markPreviewSaveRequired != null) {
+            markPreviewSaveRequired.run();
+        }
+    }
+
+    private SceneMeta currentSceneMeta() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        return cfg != null ? cfg.getCurrentSceneMeta() : null;
+    }
+
+    private String buildTiledProjectionLabel(SceneMeta sceneMeta) {
+        if (sceneMeta == null || !sceneMeta.tiledEnabled || sceneMeta.tiledProjection == null) {
+            return "Unknown";
+        }
+
+        return switch (sceneMeta.tiledProjection) {
+            case ISO -> "Isometric";
+            case ORTHO -> "Orthogonal";
+        };
+    }
+}

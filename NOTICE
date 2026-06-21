@@ -1,0 +1,19 @@
+Pixscape Studio Free
+Copyright (c) 2026 Pixscape Games
+
+Pixscape Studio Free is released under the Apache License, Version 2.0.
+
+Pixscape Runtime is a separate open-source project released under the
+Apache License, Version 2.0.
+
+This product includes third-party components and assets. See
+THIRD_PARTY_NOTICES.txt for known third-party notices and items requiring
+license confirmation before public release.
+
+The file src/main/java/games/pixscape/studio/StartupHelper.java includes
+the following separate notice:
+
+  Copyright 2020 damios
+
+  Licensed under the Apache License, Version 2.0.
+

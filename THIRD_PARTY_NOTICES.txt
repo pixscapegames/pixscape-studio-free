@@ -1,0 +1,113 @@
+Pixscape Studio Free - Third-Party Notices
+==========================================
+
+Pixscape Studio Free is released under the Apache License, Version 2.0.
+This file records known third-party components and assets used by the project.
+
+Known source-level attribution
+------------------------------
+
+StartupHelper.java
+  Path: src/main/java/games/pixscape/studio/StartupHelper.java
+  Notice visible in source:
+    Copyright 2020 damios
+    Licensed under the Apache License, Version 2.0.
+
+Gradle dependency components
+----------------------------
+
+The following dependencies are declared in the Gradle build. License metadata
+should be checked against the exact resolved artifacts before public release.
+
+  games.pixscape:pixscape-runtime
+    Pixscape Runtime, separate open-source project under Apache License 2.0.
+
+  com.badlogicgames.gdx:gdx
+  com.badlogicgames.gdx:gdx-freetype
+  com.badlogicgames.gdx:gdx-backend-lwjgl3
+  com.badlogicgames.gdx:gdx-backend-gwt
+  com.badlogicgames.gdx:gdx-platform:natives-desktop
+  com.badlogicgames.gdx:gdx-box2d
+  com.badlogicgames.gdx:gdx-box2d-platform:natives-desktop
+  com.badlogicgames.gdx:gdx-box2d-gwt
+    LibGDX components. License confirmation required against resolved artifacts.
+
+  com.badlogicgames.gdx-controllers:gdx-controllers-core
+    LibGDX controllers component. License confirmation required.
+
+  com.github.tommyettinger:libgdx-utils
+  com.github.tommyettinger:libgdx-utils-box2d
+  com.github.tommyettinger:libgdx-texturepacker
+  com.github.tommyettinger:libgdx-textureunpacker
+    LibGDX utility components. License confirmation required.
+
+  com.badlogicgames.box2dlights:box2dlights
+    Box2DLights component. License confirmation required.
+
+  space.earlygrey:shapedrawer
+    ShapeDrawer. The application About dialog currently identifies this as MIT.
+    Confirm against the resolved artifact before public release.
+
+  com.kotcrab.vis:vis-ui
+    VisUI. License confirmation required.
+
+  net.onedaybeard.artemis:artemis-odb-gwt
+  net.onedaybeard.artemis:artemis-odb-serializer
+  net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx
+    Artemis-ODB components. License confirmation required.
+
+  org.gwtproject:gwt-user
+  org.gwtproject:gwt-dev
+    GWT Project components. License confirmation required.
+
+  junit:junit
+  com.badlogicgames.gdx:gdx-backend-headless
+    Test dependencies. License confirmation required.
+
+Known bundled/generated assets and resources
+--------------------------------------------
+
+  assets/ui/skin/default.fnt
+  assets/ui/skin/font-small.fnt
+  assets/ui/skin/uiskin.atlas
+  assets/ui/skin/uiskin.png
+    LibGDX/VisUI-style skin and bitmap font resources are bundled with the
+    Studio UI. Confirm exact origin and license before public release.
+
+  assets/ui/scpm/pixscape_data/*
+    Source UI image fragments for the Pixscape Studio skin. Confirm which files
+    are Pixscape-owned and which derive from third-party UI skins before public
+    release.
+
+  icons/pixscape_icon.ico
+  icons/pixscape_icon.png
+    Pixscape branding assets. Trademark rights are not granted by Apache 2.0.
+
+  src/main/resources/html-preview-template/*
+    Intentionally versioned HTML preview template. Includes generated GWT
+    output, GWT chrome resources, LibGDX-related shader/font resources, and
+    Pixscape HTML preview files. Confirm generated third-party notices before
+    public release.
+
+  html-player/src/main/webapp/index.html
+  html-player/src/main/resources/games/pixscape/html/GdxDefinition.gwt.xml
+    HTML preview player source resources.
+
+Items requiring license confirmation before public release
+---------------------------------------------------------
+
+Requires confirmation: exact origin and license of all files under
+assets/ui/skin/.
+
+Requires confirmation: exact origin and license of all files under
+assets/ui/scpm/.
+
+Requires confirmation: exact origin and license of the generated GWT chrome
+files under src/main/resources/html-preview-template/htmlplayer/gwt/chrome/.
+
+Requires confirmation: whether symbol maps and generated GWT JavaScript under
+src/main/resources/html-preview-template/ should be distributed as source,
+generated artifacts, or both.
+
+Requires confirmation: trademark/branding treatment for icons/pixscape_icon.ico
+and icons/pixscape_icon.png.
