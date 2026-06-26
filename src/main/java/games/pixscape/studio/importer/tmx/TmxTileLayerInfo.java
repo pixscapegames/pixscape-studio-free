@@ -1,6 +1,9 @@
 package games.pixscape.studio.importer.tmx;
 
+import java.util.List;
+
 public record TmxTileLayerInfo(String name,
+                               String originalName,
                                boolean visible,
                                float opacity,
                                float offsetX,
@@ -12,7 +15,12 @@ public record TmxTileLayerInfo(String name,
                                String encoding,
                                String compression,
                                int nonEmptyTileCount,
-                               boolean hasTransformFlags) implements TmxLayerInfo {
+                               boolean hasTransformFlags,
+                               List<TmxTileCellInfo> cells) implements TmxLayerInfo {
+
+    public TmxTileLayerInfo {
+        cells = List.copyOf(cells);
+    }
 
     @Override
     public TmxLayerKind kind() {

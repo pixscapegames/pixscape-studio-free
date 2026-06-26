@@ -7,6 +7,7 @@
 - Added TMX preflight diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, image layers, tile animations and ignored custom properties.
 - Added tests for TMX preflight analysis, including CSV, external TSX, base64/zlib data, isometric maps, nested groups and invalid map cases.
 - Added a reusable tileset asset import service for atlas and folder-based tilesets.
+- Added a side-effect-free TMX import planner that converts valid preflight results into Pixscape-oriented import plans.
 
 ### Changed
 - Moved asset import from `Resources > Import assets` to `File > Import > Assets...`.
@@ -17,6 +18,7 @@
 - Added characterization tests for tile and tileset asset metadata persistence.
 - Added tiled-cell capacity budget tests.
 - Added tileset asset import service tests.
+- Added TMX import planner tests covering external TSX files, multiple tilesets, GID resolution, transform flags, nested groups and blocking diagnostics.
 
 ### Notes
 - TMX import UI and scene conversion are not included yet.

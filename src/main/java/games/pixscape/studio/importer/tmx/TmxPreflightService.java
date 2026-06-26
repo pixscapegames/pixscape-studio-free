@@ -292,6 +292,7 @@ public final class TmxPreflightService {
 
         int nonEmpty = 0;
         boolean hasTransformFlags = false;
+        List<TmxTileCellInfo> cells = new ArrayList<>();
         String encoding = data != null ? data.getAttribute("encoding", null) : null;
         String compression = data != null ? data.getAttribute("compression", null) : null;
 
@@ -311,7 +312,8 @@ public final class TmxPreflightService {
         }
 
         if (gids != null) {
-            for (int rawGid : gids) {
+            for (int i = 0; i < gids.length; i++) {
+                int rawGid = gids[i];
                 int cleanGid = TmxGidSupport.cleanGid(rawGid);
                 if (cleanGid == 0) continue;
                 nonEmpty++;
@@ -320,6 +322,21 @@ public final class TmxPreflightService {
                 if (tileset == null) {
                     state.blocking("TMX_GID_UNRESOLVED", "Tile layer references a GID that does not resolve to any tileset: " + cleanGid, name);
                 }
+                int tilesetFirstGid = tileset != null ? tileset.firstGid() : -1;
+                int localTileId = tileset != null ? cleanGid - tileset.firstGid() : -1;
+                cells.add(new TmxTileCellInfo(
+                        i % Math.max(width, 1),
+                        i / Math.max(width, 1),
+                        rawGid,
+                        cleanGid,
+                        tilesetFirstGid,
+                        localTileId,
+                        TmxGidSupport.hasTransformFlags(rawGid),
+                        TmxGidSupport.horizontalFlip(rawGid),
+                        TmxGidSupport.verticalFlip(rawGid),
+                        TmxGidSupport.diagonalFlip(rawGid),
+                        TmxGidSupport.hexagonal120Flag(rawGid)
+                ));
             }
         }
 
@@ -328,6 +345,7 @@ public final class TmxPreflightService {
         state.nonEmptyTileCount += nonEmpty;
         state.layers.add(new TmxTileLayerInfo(
                 name,
+                layer.getAttribute("name", layer.getName()),
                 visible,
                 opacity,
                 offsetX,
@@ -339,7 +357,8 @@ public final class TmxPreflightService {
                 encoding,
                 compression,
                 nonEmpty,
-                hasTransformFlags
+                hasTransformFlags,
+                cells
         ));
         warnIgnoredLayerAttributes(layer, state, name, opacity);
     }
