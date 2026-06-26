@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class AssetMetaDatabaseTilesetTileMetadataTest {
@@ -44,6 +45,25 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         Path tmp = Files.createTempFile("asset-meta-db", ".json");
         FileHandle file = new FileHandle(tmp.toFile());
         db.save(file);
+
+        String assetsJson = Files.readString(tmp);
+        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TilesetAssetMeta\""));
+        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TileAssetMeta\""));
+        assertTrue(assetsJson.contains("\"type\": \"TILESET\""));
+        assertTrue(assetsJson.contains("\"type\": \"TILE\""));
+        assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id));
+        assertTrue(assetsJson.contains("\"sheetIndex\": 10"));
+        assertTrue(assetsJson.contains("\"cellX\": 2"));
+        assertTrue(assetsJson.contains("\"cellY\": 1"));
+        assertTrue(assetsJson.contains("\"imageWidth\": 128"));
+        assertTrue(assetsJson.contains("\"imageHeight\": 64"));
+        assertTrue(assetsJson.contains("\"tileWidth\": 16"));
+        assertTrue(assetsJson.contains("\"tileHeight\": 16"));
+        assertTrue(assetsJson.contains("\"columns\": 8"));
+        assertTrue(assetsJson.contains("\"rows\": 4"));
+        assertTrue(assetsJson.contains("\"spacing\": 1"));
+        assertTrue(assetsJson.contains("\"margin\": 2"));
+        assertFalse(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.AssetMeta\""));
 
         AssetMetaDatabase loaded = AssetMetaDatabase.load(file);
         assertTrue(loaded.findByLogicalPath("tiles/terrain") instanceof TilesetAssetMeta);

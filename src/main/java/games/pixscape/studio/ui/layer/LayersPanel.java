@@ -363,14 +363,14 @@ public class LayersPanel extends DockablePanel {
         int available = budget - currentlyUsed;
 
         String message =
-                "Tiled capacity exceeded.\n\n" +
+                "Reserved tiled-cell capacity exceeded.\n\n" +
                         "Current usage : " + currentlyUsed + " cells\n" +
                         "Requested     : " + requested + " cells\n" +
                         "Available     : " + Math.max(available, 0) + " cells\n" +
                         "Maximum       : " + budget + " cells\n\n" +
-                        "Reduce the layer size or remove existing tiled layers.";
+                        "Reduce the new layer size or remove existing tiled layers.";
 
-        VisDialog dialog = new VisDialog("Tiled Capacity Exceeded");
+        VisDialog dialog = new VisDialog("Tiled Cell Capacity Exceeded");
         dialog.text(message);
         dialog.button("OK");
         dialog.setModal(true);

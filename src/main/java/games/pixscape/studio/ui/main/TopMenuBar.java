@@ -50,6 +50,7 @@ public class TopMenuBar extends MenuBar {
 
     private final MenuItem projectSettings;
 
+    private final MenuItem importMenuItem;
     private final MenuItem save;
     private final MenuItem saveAs;
     private final PopupMenu recentProjectsMenu;
@@ -113,6 +114,18 @@ public class TopMenuBar extends MenuBar {
         });
         refreshRecentProjectsMenu();
 
+        PopupMenu importMenu = new PopupMenu();
+        importMenuItem = new MenuItem("Import");
+        importMenuItem.setSubMenu(importMenu);
+
+        MenuItem importAssetsItem = new MenuItem("Assets...");
+        onClick(importAssetsItem, () -> new ImportDialog(
+                app,
+                items -> sceneService.importAssets(items),
+                directory -> sceneService.importTilesetDirectory(directory)
+        ).show(app.getUiStage()));
+        importMenu.addItem(importAssetsItem);
+
         save = new MenuItem("Save");
         onClick(save, () -> runSaveWithProgress(null));
 
@@ -156,18 +169,6 @@ public class TopMenuBar extends MenuBar {
         // RESOURCES
         // --------------------------------------------------------------------
         resourcesMenu = new Menu("Resources");
-
-        MenuItem importAssetsItem = new MenuItem("Import assets");
-        importAssetsItem.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                new ImportDialog(
-                        app,
-                        items -> sceneService.importAssets(items),
-                        directory -> sceneService.importTilesetDirectory(directory)
-                ).show(app.getUiStage());
-            }
-        });
 
         MenuItem handleShadersItem = new MenuItem("Shader manager");
         onClick(handleShadersItem, this::onHandleShadersClicked);
@@ -257,6 +258,7 @@ public class TopMenuBar extends MenuBar {
         file.addItem(newScene);
         file.addItem(open);
         file.addItem(recentProjects);
+        file.addItem(importMenuItem);
         file.addItem(save);
         file.addItem(saveAs);
         file.addSeparator();
@@ -272,7 +274,6 @@ public class TopMenuBar extends MenuBar {
         editMenu.addItem(redo);
         addMenu(editMenu);
 
-        resourcesMenu.addItem(importAssetsItem);
         resourcesMenu.addItem(handleShadersItem);
         addMenu(resourcesMenu);
 
@@ -545,6 +546,7 @@ public class TopMenuBar extends MenuBar {
 
     public void beginProject() {
         projectSettings.setDisabled(false);
+        importMenuItem.setDisabled(false);
         save.setDisabled(false);
         saveAs.setDisabled(false);
         editMenu.openButton.setDisabled(false);
@@ -553,6 +555,7 @@ public class TopMenuBar extends MenuBar {
 
     public void onStart() {
         projectSettings.setDisabled(true);
+        importMenuItem.setDisabled(true);
         save.setDisabled(true);
         saveAs.setDisabled(true);
         editMenu.openButton.setDisabled(true);
