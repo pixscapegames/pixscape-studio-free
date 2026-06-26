@@ -40,13 +40,16 @@ import games.pixscape.studio.configuration.ProjectRenameService;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
+import games.pixscape.studio.service.asset.TilesetAssetImportService;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
 import games.pixscape.studio.service.atlas.*;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
@@ -2472,40 +2475,14 @@ public final class SceneService {
     }
 
     private int importTilesetAtlasAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
-        if (!isImage(item.file)) {
-            warnUnsupported(item.file);
-            return 0;
-        }
-
-        String base = baseName(item.file.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(ctx.tilesRoot, base);
-
-        int tileW = Math.max(1, item.tileWidth);
-        int tileH = Math.max(1, item.tileHeight);
-
-        ImageSize size = readImageSize(item.file);
-        int imageW = size.width;
-        int imageH = size.height;
-
-        int columns = Math.max(1, imageW / tileW);
-        int rows = Math.max(1, imageH / tileH);
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateTilesetMeta(
-                base,
-                item,
-                imageW,
-                imageH,
-                tileW,
-                tileH,
-                columns,
-                rows
-        );
-
-        splitTilesetSource(item.file, tilesetDir, tileW, tileH);
-        registerSplitTilesAsTileAssets(base, tilesetDir, columns, tilesetMeta);
-        copyTilesetSourceFile(base, item, tilesetDir, tilesetMeta);
-
-        return 1;
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importAtlas(new TilesetAtlasImportRequest(
+                        item.file,
+                        ctx.tilesRoot,
+                        item.tileWidth,
+                        item.tileHeight
+                ));
+        return result.importedCount();
     }
 
     public int importTilesetDirectory(FileHandle directory) {
@@ -2592,37 +2569,9 @@ public final class SceneService {
     }
 
     private int importTilesetFolderAsset(AssetImportContext ctx, FileHandle directory) {
-        if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            StudioLog.warn("Tileset directory import failed: invalid directory.");
-            return 0;
-        }
-
-        String base = baseName(directory.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(ctx.tilesRoot, base);
-
-        FileHandle[] sourceTiles = listTilesetFolderImages(directory);
-        if (sourceTiles == null || sourceTiles.length == 0) {
-            StudioLog.warn("Tileset directory import skipped: no PNG files found in " + directory.name());
-            return 0;
-        }
-
-        FolderTilesetInfo info = analyzeFolderTileset(sourceTiles);
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateFolderTilesetMeta(
-                base,
-                sourceTiles.length,
-                info.referenceTileWidth,
-                info.referenceTileHeight
-        );
-
-        registerFolderTilesAsTileAssets(
-                base,
-                tilesetDir,
-                sourceTiles,
-                tilesetMeta
-        );
-
-        return 1;
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importDirectory(new TilesetDirectoryImportRequest(directory, ctx.tilesRoot));
+        return result.importedCount();
     }
 
     private int importSpritesheetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
@@ -2814,334 +2763,6 @@ public final class SceneService {
         }
 
         return sb.toString();
-    }
-
-    private FileHandle[] listTilesetFolderImages(FileHandle directory) {
-        if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            return new FileHandle[0];
-        }
-
-        FileHandle[] files = directory.list((dir, name) ->
-                name != null && name.toLowerCase(Locale.ROOT).endsWith(StudioFs.EXT_PNG)
-        );
-
-        if (files == null) {
-            return new FileHandle[0];
-        }
-
-        Arrays.sort(files, (a, b) -> compareNaturally(a.name(), b.name()));
-        return files;
-    }
-
-    private FolderTilesetInfo analyzeFolderTileset(FileHandle[] sourceTiles) {
-        if (sourceTiles == null || sourceTiles.length == 0) {
-            return new FolderTilesetInfo(0, 0, true);
-        }
-
-        int minWidth = Integer.MAX_VALUE;
-        int minHeight = Integer.MAX_VALUE;
-        boolean uniform = true;
-
-        ImageSize first = readImageSize(sourceTiles[0]);
-        int firstWidth = first.width;
-        int firstHeight = first.height;
-
-        for (FileHandle tile : sourceTiles) {
-            if (tile == null || !tile.exists() || tile.isDirectory()) continue;
-
-            ImageSize size = readImageSize(tile);
-
-            minWidth = Math.min(minWidth, size.width);
-            minHeight = Math.min(minHeight, size.height);
-
-            if (size.width != firstWidth || size.height != firstHeight) {
-                uniform = false;
-            }
-        }
-
-        if (!uniform) {
-            StudioLog.warn(
-                    "Tileset directory contains mixed PNG sizes. " +
-                            "Using smallest size as logical tile reference: " +
-                            minWidth + "x" + minHeight
-            );
-        }
-
-        return new FolderTilesetInfo(minWidth, minHeight, uniform);
-    }
-
-    private TilesetAssetMeta createOrUpdateFolderTilesetMeta(String base,
-                                                             int tileCount,
-                                                             int referenceTileWidth,
-                                                             int referenceTileHeight) {
-        String tilesetLogical = StudioFs.PREFIX_TILES + base;
-
-        TilesetAssetMeta tilesetMeta = requireTilesetMeta(
-                assetMetaDatabase.registerIfAbsent(
-                        AssetType.TILESET,
-                        tilesetLogical,
-                        null,
-                        AssetMeta.AssetScope.USER
-                )
-        );
-
-        tilesetMeta.imageWidth = 0;
-        tilesetMeta.imageHeight = 0;
-        tilesetMeta.sourceRelPath = null;
-        tilesetMeta.tileWidth = referenceTileWidth;
-        tilesetMeta.tileHeight = referenceTileHeight;
-        tilesetMeta.columns = Math.max(1, tileCount);
-        tilesetMeta.rows = 1;
-        tilesetMeta.spacing = 0;
-        tilesetMeta.margin = 0;
-
-        return tilesetMeta;
-    }
-
-    private void registerFolderTilesAsTileAssets(String base,
-                                                 FileHandle tilesetDir,
-                                                 FileHandle[] sourceTiles,
-                                                 TilesetAssetMeta tilesetMeta) {
-        if (sourceTiles == null) return;
-
-        for (int sheetIndex = 0; sheetIndex < sourceTiles.length; sheetIndex++) {
-            FileHandle src = sourceTiles[sheetIndex];
-            if (src == null || !src.exists() || src.isDirectory()) continue;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String ext = src.extension();
-            String newFileName = sheetIndex + "__a" + tileMeta.id + "." + ext;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                src.copyTo(dst);
-            }
-
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = sheetIndex;
-            tileMeta.cellY = 0;
-        }
-    }
-
-    private int compareNaturally(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-
-        int ia = 0;
-        int ib = 0;
-        int na = a.length();
-        int nb = b.length();
-
-        while (ia < na && ib < nb) {
-            char ca = a.charAt(ia);
-            char cb = b.charAt(ib);
-
-            if (Character.isDigit(ca) && Character.isDigit(cb)) {
-                int sa = ia;
-                int sb = ib;
-
-                while (ia < na && Character.isDigit(a.charAt(ia))) ia++;
-                while (ib < nb && Character.isDigit(b.charAt(ib))) ib++;
-
-                String pa = a.substring(sa, ia);
-                String pb = b.substring(sb, ib);
-
-                int cmp = compareNumericStrings(pa, pb);
-                if (cmp != 0) return cmp;
-                continue;
-            }
-
-            int cmp = Character.compare(
-                    Character.toLowerCase(ca),
-                    Character.toLowerCase(cb)
-            );
-            if (cmp != 0) return cmp;
-
-            ia++;
-            ib++;
-        }
-
-        return Integer.compare(na, nb);
-    }
-
-    private int compareNumericStrings(String a, String b) {
-        int ia = 0;
-        int ib = 0;
-
-        while (ia < a.length() && a.charAt(ia) == '0') ia++;
-        while (ib < b.length() && b.charAt(ib) == '0') ib++;
-
-        int la = a.length() - ia;
-        int lb = b.length() - ib;
-
-        if (la != lb) {
-            return Integer.compare(la, lb);
-        }
-
-        for (int i = 0; i < la; i++) {
-            char ca = a.charAt(ia + i);
-            char cb = b.charAt(ib + i);
-            if (ca != cb) {
-                return Character.compare(ca, cb);
-            }
-        }
-
-        return Integer.compare(a.length(), b.length());
-    }
-
-    private FileHandle prepareTilesetDirectory(FileHandle tilesRoot, String base) {
-        FileHandle tilesetDir = tilesRoot.child(base);
-        tilesetDir.mkdirs();
-        return tilesetDir;
-    }
-
-    private TilesetAssetMeta createOrUpdateTilesetMeta(String base,
-                                                       ImportDialog.ImportItem item,
-                                                       int imageWidth,
-                                                       int imageHeight,
-                                                       int tileWidth,
-                                                       int tileHeight,
-                                                       int columns,
-                                                       int rows) {
-        String tilesetLogical = StudioFs.PREFIX_TILES + base;
-
-        TilesetAssetMeta tilesetMeta = requireTilesetMeta(
-                assetMetaDatabase.registerIfAbsent(
-                        AssetType.TILESET,
-                        tilesetLogical,
-                        null,
-                        AssetMeta.AssetScope.USER
-                )
-        );
-
-        tilesetMeta.imageWidth = imageWidth;
-        tilesetMeta.imageHeight = imageHeight;
-        tilesetMeta.tileWidth = tileWidth;
-        tilesetMeta.tileHeight = tileHeight;
-        tilesetMeta.columns = columns;
-        tilesetMeta.rows = rows;
-        tilesetMeta.spacing = 0;
-        tilesetMeta.margin = 0;
-
-        return tilesetMeta;
-    }
-
-    private void splitTilesetSource(FileHandle sourceFile,
-                                    FileHandle tilesetDir,
-                                    int tileWidth,
-                                    int tileHeight) {
-        splitGridImage(
-                sourceFile,
-                tilesetDir,
-                tileWidth,
-                tileHeight,
-                null
-        );
-    }
-
-    private void registerSplitTilesAsTileAssets(String base,
-                                                FileHandle tilesetDir,
-                                                int columns,
-                                                TilesetAssetMeta tilesetMeta) {
-        FileHandle[] files = tilesetDir.list((dir, name) ->
-                name.endsWith(StudioFs.EXT_PNG) && isNumericBaseName(name));
-
-        sortByNumericBaseName(files);
-
-        if (files == null) {
-            return;
-        }
-
-        for (FileHandle f : files) {
-            int sheetIndex = Integer.parseInt(AssetHelper.removeExtension(f.name()));
-            int cellX = sheetIndex % columns;
-            int cellY = sheetIndex / columns;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String newFileName = sheetIndex + "__a" + tileMeta.id + StudioFs.EXT_PNG;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                f.moveTo(dst);
-            }
-
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = cellX;
-            tileMeta.cellY = cellY;
-        }
-    }
-
-    private void copyTilesetSourceFile(String base,
-                                       ImportDialog.ImportItem item,
-                                       FileHandle tilesetDir,
-                                       TilesetAssetMeta tilesetMeta) {
-        String sheetFileName = base + "__a" + tilesetMeta.id + "." + item.file.extension();
-        FileHandle sheetDst = tilesetDir.child(sheetFileName);
-
-        if (!sheetDst.exists()) {
-            item.file.copyTo(sheetDst);
-        }
-
-        tilesetMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + sheetFileName;
-    }
-
-    private TilesetAssetMeta requireTilesetMeta(AssetMeta meta) {
-        if (meta instanceof TilesetAssetMeta tilesetMeta) {
-            return tilesetMeta;
-        }
-        throw new IllegalStateException("Expected TilesetAssetMeta but got: " + meta);
-    }
-
-    private TileAssetMeta requireTileMeta(AssetMeta meta) {
-        if (meta instanceof TileAssetMeta tileMeta) {
-            return tileMeta;
-        }
-        throw new IllegalStateException("Expected TileAssetMeta but got: " + meta);
-    }
-
-    private boolean isNumericBaseName(String fileName) {
-        String base = AssetHelper.removeExtension(fileName);
-        if (base == null || base.isBlank()) return false;
-
-        for (int i = 0; i < base.length(); i++) {
-            if (!Character.isDigit(base.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void sortByNumericBaseName(FileHandle[] files) {
-        if (files == null) return;
-
-        Arrays.sort(files, Comparator.comparingInt(
-                f -> Integer.parseInt(AssetHelper.removeExtension(f.name()))
-        ));
     }
 
     private ImageSize readImageSize(FileHandle file) {
@@ -3510,8 +3131,6 @@ public final class SceneService {
     private record ImageSize(int width, int height) {
     }
 
-    private record FolderTilesetInfo(int referenceTileWidth, int referenceTileHeight, boolean uniform) {
-    }
 }
 
 
