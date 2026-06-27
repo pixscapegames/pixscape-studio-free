@@ -102,7 +102,7 @@ tasks.register('distFat', Jar) {
   }
 
   from {
-    configurations.runtimeClasspath.get().collect { dep ->
+    configurations.runtimeClasspath.collect { dep ->
       dep.isDirectory() ? dep : zipTree(dep)
     }
   }
