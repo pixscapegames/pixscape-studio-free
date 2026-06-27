@@ -42,6 +42,9 @@ import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
+import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
+import games.pixscape.studio.importer.tmx.TmxSceneImportService;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
@@ -1719,6 +1722,112 @@ public final class SceneService {
                     )
             );
         }
+    }
+
+    public TmxSceneImportResult importTmxAsNewScene(TmxSceneImportRequest request) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) {
+            throw new IllegalStateException("No project is loaded.");
+        }
+        String previousSceneName = cfg.getCurrentSceneName();
+        if (cfg.getCurrentSceneName() != null) {
+            saveCurrentSceneOnly(cfg);
+        }
+
+        ensureAssetMetaDatabaseLoaded();
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        TmxSceneImportService importService = new TmxSceneImportService(cfg, projectDir, assetMetaDatabase);
+        TmxSceneImportResult result = importService.importScene(request);
+
+        if (result.imported()) {
+            try {
+                activateImportedTmxScene(cfg, projectDir, result);
+            } catch (RuntimeException activationFailure) {
+                throw recoverTmxImportActivationFailure(
+                        result,
+                        previousSceneName,
+                        activationFailure,
+                        () -> restorePreviousSceneAfterTmxActivationFailure(cfg, previousSceneName, projectDir)
+                );
+            }
+        }
+
+        return result;
+    }
+
+    private void activateImportedTmxScene(ProjectConfig cfg,
+                                          FileHandle projectDir,
+                                          TmxSceneImportResult result) {
+        clearWorldAndRenderState();
+        loadScene(cfg, result.sceneName(), projectDir);
+        assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        app.getBottomBar().refreshSelectBox();
+        refreshAssetsPanel();
+        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + " - " + result.sceneName() + ")");
+        StudioLog.info("TMX scene imported: " + result.sceneName());
+    }
+
+    private void restorePreviousSceneAfterTmxActivationFailure(ProjectConfig cfg,
+                                                              String previousSceneName,
+                                                              FileHandle projectDir) {
+        if (cfg == null || !hasSceneName(previousSceneName) || cfg.getSceneMeta(previousSceneName) == null) {
+            unloadProjectToEmptyEditor();
+            return;
+        }
+
+        cfg.setCurrentSceneByName(previousSceneName);
+        loadScene(cfg, previousSceneName, projectDir);
+        assertCurrentSceneMetadataIntegrity(cfg, previousSceneName, "importTmxAsNewScene.restorePrevious");
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        app.getBottomBar().refreshSelectBox();
+        refreshAssetsPanel();
+    }
+
+    static IllegalStateException recoverTmxImportActivationFailure(TmxSceneImportResult result,
+                                                                   String previousSceneName,
+                                                                   RuntimeException activationFailure,
+                                                                   Runnable previousSceneRestorer) {
+        RuntimeException failure = activationFailure != null
+                ? activationFailure
+                : new IllegalStateException("TMX import activation failed.");
+
+        boolean rollbackSucceeded = false;
+        boolean rollbackAvailable = result != null && result.rollback() != null;
+        if (rollbackAvailable) {
+            try {
+                result.rollback().rollback();
+                rollbackSucceeded = true;
+            } catch (RuntimeException rollbackFailure) {
+                failure = attachRollbackFailure(failure, rollbackFailure);
+            }
+        }
+
+        boolean previousRestoreAttempted = hasSceneName(previousSceneName) && previousSceneRestorer != null;
+        boolean previousRestoreSucceeded = false;
+        if (previousRestoreAttempted) {
+            try {
+                previousSceneRestorer.run();
+                previousRestoreSucceeded = true;
+            } catch (RuntimeException restoreFailure) {
+                failure = attachRollbackFailure(failure, restoreFailure);
+            }
+        }
+
+        String message;
+        if (rollbackSucceeded && previousRestoreSucceeded) {
+            message = "TMX scene import activation failed; imported scene was rolled back and previous scene was restored.";
+        } else if (rollbackSucceeded) {
+            message = "TMX scene import activation failed; imported scene was rolled back.";
+        } else if (!rollbackAvailable && previousRestoreSucceeded) {
+            message = "TMX scene import activation failed; no import rollback transaction was available, but previous scene was restored.";
+        } else if (!rollbackAvailable) {
+            message = "TMX scene import activation failed and no import rollback transaction was available.";
+        } else {
+            message = "TMX scene import activation failed and rollback did not complete.";
+        }
+
+        return new IllegalStateException(message, failure);
     }
 
     public void deleteScene(String sceneName) {
