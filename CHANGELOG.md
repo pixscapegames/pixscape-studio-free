@@ -8,6 +8,9 @@
 - Added tests for TMX preflight analysis, including CSV, external TSX, base64/zlib data, isometric maps, nested groups and invalid map cases.
 - Added a reusable tileset asset import service for atlas and folder-based tilesets.
 - Added a side-effect-free TMX import planner that converts valid preflight results into Pixscape-oriented import plans.
+- Added programmatic TMX scene materialization that can create a new Pixscape scene from a valid TMX import plan.
+- Added TMX import rollback handling for failed scene materialization.
+- Added tests for TMX scene materialization, tile coordinate conversion, transform flags and failure handling.
 
 ### Changed
 - Moved asset import from `Resources > Import assets` to `File > Import > Assets...`.
@@ -22,5 +25,6 @@
 
 ### Notes
 - TMX import UI and scene conversion are not included yet.
+- Importing TMX layers into the current scene is not included yet.
 
 ## 0.2.0 - First Open Source Release
