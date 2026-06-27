@@ -25,6 +25,8 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.studio.BuildInfo;
 import games.pixscape.studio.PixscapeStudioApplication;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
+import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.RecentProjectsService;
@@ -33,6 +35,8 @@ import games.pixscape.studio.ui.asset.ImportDialog;
 import games.pixscape.studio.ui.config.ProjectSettingsWindow;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockablePanel;
+import games.pixscape.studio.ui.importer.TmxImportDialog;
+import games.pixscape.studio.ui.importer.TmxImportUiSupport;
 import games.pixscape.studio.ui.log.LogWindow;
 import games.pixscape.studio.ui.shaders.ShaderManagerDialog;
 import games.pixscape.studio.ui.widget.CheckBoxMenuItem;
@@ -125,6 +129,10 @@ public class TopMenuBar extends MenuBar {
                 directory -> sceneService.importTilesetDirectory(directory)
         ).show(app.getUiStage()));
         importMenu.addItem(importAssetsItem);
+
+        MenuItem importTmxItem = new MenuItem("Tiled map (.tmx)...");
+        onClick(importTmxItem, this::openTmxImportChooser);
+        importMenu.addItem(importTmxItem);
 
         save = new MenuItem("Save");
         onClick(save, () -> runSaveWithProgress(null));
@@ -620,6 +628,116 @@ public class TopMenuBar extends MenuBar {
         });
 
         getTable().getStage().addActor(chooser.fadeIn());
+    }
+
+    private void openTmxImportChooser() {
+        if (!hasLoadedProjectForImport()) {
+            Dialogs.showOKDialog(
+                    app.getUiStage(),
+                    "Project not loaded",
+                    "Open or create a Pixscape project before importing a Tiled map."
+            );
+            return;
+        }
+
+        FileChooser chooser = new FileChooser(studioProjectDirectoryOrDefault(), FileChooser.Mode.OPEN);
+        chooser.setSelectionMode(FileChooser.SelectionMode.FILES);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setFavoriteFolderButtonVisible(true);
+        chooser.setShowSelectionCheckboxes(true);
+        chooser.setPrefsName("tmx-import.json");
+
+        final FileTypeFilter typeFilter = new FileTypeFilter(true);
+        typeFilter.addRule("Tiled map (*.tmx)", "tmx");
+        chooser.setFileTypeFilter(typeFilter);
+
+        chooser.setListener(new StreamingFileChooserListener() {
+            @Override
+            public void selected(FileHandle file) {
+                prepareTmxImport(file);
+            }
+        });
+
+        app.getUiStage().addActor(chooser.fadeIn());
+    }
+
+    private boolean hasLoadedProjectForImport() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        return cfg != null
+                && cfg.projectFileName != null
+                && !cfg.projectFileName.isBlank()
+                && cfg.projectDirectoryPath != null
+                && !cfg.projectDirectoryPath.isBlank()
+                && cfg.getCurrentSceneMeta() != null;
+    }
+
+    private FileHandle studioProjectDirectoryOrDefault() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg != null && cfg.projectDirectoryPath != null && !cfg.projectDirectoryPath.isBlank()) {
+            return Gdx.files.absolute(cfg.projectDirectoryPath);
+        }
+        return StudioFs.defaultUserProjectsRoot();
+    }
+
+    private void prepareTmxImport(FileHandle file) {
+        if (file == null || file.isDirectory() || !"tmx".equalsIgnoreCase(file.extension())) {
+            Dialogs.showOKDialog(
+                    app.getUiStage(),
+                    "Tiled map not selected",
+                    "Choose a .tmx file to import."
+            );
+            return;
+        }
+
+        try {
+            TmxImportUiSupport.TmxImportPreparation preparation = TmxImportUiSupport.prepare(file);
+            if (!preparation.planResult().hasPlan() || preparation.hasBlockingDiagnostics()) {
+                Dialogs.showOKDialog(
+                        app.getUiStage(),
+                        "Tiled map cannot be imported",
+                        TmxImportUiSupport.formatDiagnostics(preparation.diagnostics())
+                );
+                return;
+            }
+
+            new TmxImportDialog(
+                    preparation,
+                    sceneName -> importTmxAsNewScene(file, sceneName)
+            ).show(app.getUiStage());
+        } catch (RuntimeException ex) {
+            Gdx.app.error("TopMenuBar", "TMX import preflight failed: " + file.path(), ex);
+            Dialogs.showOKDialog(
+                    app.getUiStage(),
+                    "Tiled map import failed",
+                    PreviewLaunchSupport.userMessageFor(ex)
+            );
+        }
+    }
+
+    private void importTmxAsNewScene(FileHandle file, String sceneName) {
+        try {
+            TmxSceneImportResult result = sceneService.importTmxAsNewScene(new TmxSceneImportRequest(file, sceneName));
+            if (result.imported()) {
+                Dialogs.showOKDialog(
+                        app.getUiStage(),
+                        "Tiled map imported",
+                        TmxImportUiSupport.formatSuccessMessage(result)
+                );
+            } else {
+                Dialogs.showOKDialog(
+                        app.getUiStage(),
+                        "Tiled map import failed",
+                        TmxImportUiSupport.formatFailureMessage(result)
+                );
+            }
+        } catch (RuntimeException ex) {
+            Gdx.app.error("TopMenuBar", "TMX import failed: " + file.path(), ex);
+            Dialogs.showOKDialog(
+                    app.getUiStage(),
+                    "Tiled map import failed",
+                    PreviewLaunchSupport.userMessageFor(ex)
+            );
+        }
     }
 
     private void openRecentProject(String path) {
