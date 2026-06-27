@@ -1,9 +1,15 @@
+/*
+ * Copyright 2026 Laurent Robbens
+ * SPDX-License-Identifier: Apache-2.0
+ * @license magnet:?xt=urn:btih:8e4f440f4c65981c5bf93c76d35135ba5064d8b7&dn=apache-2.0.txt Apache-2.0
+ */
+
 var $wnd = $wnd || window.parent;
 var __gwtModuleFunction = $wnd.htmlplayer;
 var $sendStats = __gwtModuleFunction.__sendStats;
 $sendStats('moduleStartup', 'moduleEvalStart');
 var $gwt_version = "2.11.0";
-var $strongName = 'D26BAEC8BD6E1A72DDA37627EA187747';
+var $strongName = 'EB5F481285F7F04AE4E810A44E4DD50E';
 var $gwt = {};
 var $doc = $wnd.document;
 var $moduleName, $moduleBase;
@@ -80446,22 +80452,22 @@ _.swap = function swap_1(i_0, k){
 var Lcom_badlogic_gdx_graphics_g3d_particles_ParallelArray$ObjectChannel_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParallelArray/ObjectChannel', 350, Lcom_badlogic_gdx_graphics_g3d_particles_ParallelArray$Channel_2_classLit);
 function $clinit_ParticleChannels(){
   $clinit_ParticleChannels = emptyMethod;
-  Life = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$0methodref$lambda$5$Type, 3);
-  Position_1 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$1methodref$lambda$5$Type, 3);
-  PreviousPosition = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$2methodref$lambda$5$Type, 3);
-  Color_3 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$3methodref$lambda$5$Type, 4);
-  TextureRegion_6 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$4methodref$lambda$5$Type, 6);
-  Rotation2D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$5methodref$lambda$5$Type, 2);
-  Rotation3D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$6methodref$lambda$5$Type, 4);
-  Scale = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$7methodref$lambda$5$Type, 1);
-  ModelInstance_0 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$8methodref$lambda$8$Type, 1);
-  ParticleController = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$9methodref$lambda$9$Type, 1);
-  Acceleration = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$10methodref$lambda$5$Type, 3);
-  AngularVelocity2D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$11methodref$lambda$5$Type, 1);
-  AngularVelocity3D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$12methodref$lambda$5$Type, 3);
-  Interpolation = new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$13methodref$lambda$5$Type, 2);
-  Interpolation4 = new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$14methodref$lambda$5$Type, 4);
-  new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$15methodref$lambda$5$Type, 6);
+  Life = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$0methodref$lambda$7$Type, 3);
+  Position_1 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$1methodref$lambda$7$Type, 3);
+  PreviousPosition = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$2methodref$lambda$7$Type, 3);
+  Color_3 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$3methodref$lambda$7$Type, 4);
+  TextureRegion_6 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$4methodref$lambda$7$Type, 6);
+  Rotation2D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$5methodref$lambda$7$Type, 2);
+  Rotation3D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$6methodref$lambda$7$Type, 4);
+  Scale = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$7methodref$lambda$7$Type, 1);
+  ModelInstance_0 = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$8methodref$lambda$14$Type, 1);
+  ParticleController = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$9methodref$lambda$8$Type, 1);
+  Acceleration = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$10methodref$lambda$7$Type, 3);
+  AngularVelocity2D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$11methodref$lambda$7$Type, 1);
+  AngularVelocity3D = new ParallelArray$ChannelDescriptor(currentGlobalId++, new ParticleChannels$12methodref$lambda$7$Type, 3);
+  Interpolation = new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$13methodref$lambda$7$Type, 2);
+  Interpolation4 = new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$14methodref$lambda$7$Type, 4);
+  new ParallelArray$ChannelDescriptor(-1, new ParticleChannels$15methodref$lambda$7$Type, 6);
 }
 
 function ParticleChannels(){
@@ -80473,150 +80479,150 @@ defineClass(882, 1, {882:1}, ParticleChannels);
 _.currentId = 0;
 var Acceleration, AngularVelocity2D, AngularVelocity3D, Color_3, Interpolation, Interpolation4, Life, ModelInstance_0, ParticleController, Position_1, PreviousPosition, Rotation2D, Rotation3D, Scale, TextureRegion_6, currentGlobalId = 0;
 var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels', 882, Ljava_lang_Object_2_classLit);
-function ParticleChannels$0methodref$lambda$5$Type(){
+function ParticleChannels$0methodref$lambda$7$Type(){
 }
 
-defineClass(1480, 1, $intern_603, ParticleChannels$0methodref$lambda$5$Type);
+defineClass(1480, 1, $intern_603, ParticleChannels$0methodref$lambda$7$Type);
 _.get_2 = function get_19(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$0methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/0methodref$lambda$5$Type', 1480, Ljava_lang_Object_2_classLit);
-function ParticleChannels$10methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$0methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/0methodref$lambda$7$Type', 1480, Ljava_lang_Object_2_classLit);
+function ParticleChannels$10methodref$lambda$7$Type(){
 }
 
-defineClass(1490, 1, $intern_603, ParticleChannels$10methodref$lambda$5$Type);
+defineClass(1490, 1, $intern_603, ParticleChannels$10methodref$lambda$7$Type);
 _.get_2 = function get_20(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$10methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/10methodref$lambda$5$Type', 1490, Ljava_lang_Object_2_classLit);
-function ParticleChannels$11methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$10methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/10methodref$lambda$7$Type', 1490, Ljava_lang_Object_2_classLit);
+function ParticleChannels$11methodref$lambda$7$Type(){
 }
 
-defineClass(1491, 1, $intern_603, ParticleChannels$11methodref$lambda$5$Type);
+defineClass(1491, 1, $intern_603, ParticleChannels$11methodref$lambda$7$Type);
 _.get_2 = function get_21(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$11methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/11methodref$lambda$5$Type', 1491, Ljava_lang_Object_2_classLit);
-function ParticleChannels$12methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$11methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/11methodref$lambda$7$Type', 1491, Ljava_lang_Object_2_classLit);
+function ParticleChannels$12methodref$lambda$7$Type(){
 }
 
-defineClass(1492, 1, $intern_603, ParticleChannels$12methodref$lambda$5$Type);
+defineClass(1492, 1, $intern_603, ParticleChannels$12methodref$lambda$7$Type);
 _.get_2 = function get_22(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$12methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/12methodref$lambda$5$Type', 1492, Ljava_lang_Object_2_classLit);
-function ParticleChannels$13methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$12methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/12methodref$lambda$7$Type', 1492, Ljava_lang_Object_2_classLit);
+function ParticleChannels$13methodref$lambda$7$Type(){
 }
 
-defineClass(1493, 1, $intern_603, ParticleChannels$13methodref$lambda$5$Type);
+defineClass(1493, 1, $intern_603, ParticleChannels$13methodref$lambda$7$Type);
 _.get_2 = function get_23(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$13methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/13methodref$lambda$5$Type', 1493, Ljava_lang_Object_2_classLit);
-function ParticleChannels$14methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$13methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/13methodref$lambda$7$Type', 1493, Ljava_lang_Object_2_classLit);
+function ParticleChannels$14methodref$lambda$7$Type(){
 }
 
-defineClass(1494, 1, $intern_603, ParticleChannels$14methodref$lambda$5$Type);
+defineClass(1494, 1, $intern_603, ParticleChannels$14methodref$lambda$7$Type);
 _.get_2 = function get_24(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$14methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/14methodref$lambda$5$Type', 1494, Ljava_lang_Object_2_classLit);
-function ParticleChannels$15methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$14methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/14methodref$lambda$7$Type', 1494, Ljava_lang_Object_2_classLit);
+function ParticleChannels$15methodref$lambda$7$Type(){
 }
 
-defineClass(1495, 1, $intern_603, ParticleChannels$15methodref$lambda$5$Type);
+defineClass(1495, 1, $intern_603, ParticleChannels$15methodref$lambda$7$Type);
 _.get_2 = function get_25(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$15methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/15methodref$lambda$5$Type', 1495, Ljava_lang_Object_2_classLit);
-function ParticleChannels$1methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$15methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/15methodref$lambda$7$Type', 1495, Ljava_lang_Object_2_classLit);
+function ParticleChannels$1methodref$lambda$7$Type(){
 }
 
-defineClass(1481, 1, $intern_603, ParticleChannels$1methodref$lambda$5$Type);
+defineClass(1481, 1, $intern_603, ParticleChannels$1methodref$lambda$7$Type);
 _.get_2 = function get_26(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$1methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/1methodref$lambda$5$Type', 1481, Ljava_lang_Object_2_classLit);
-function ParticleChannels$2methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$1methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/1methodref$lambda$7$Type', 1481, Ljava_lang_Object_2_classLit);
+function ParticleChannels$2methodref$lambda$7$Type(){
 }
 
-defineClass(1482, 1, $intern_603, ParticleChannels$2methodref$lambda$5$Type);
+defineClass(1482, 1, $intern_603, ParticleChannels$2methodref$lambda$7$Type);
 _.get_2 = function get_27(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$2methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/2methodref$lambda$5$Type', 1482, Ljava_lang_Object_2_classLit);
-function ParticleChannels$3methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$2methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/2methodref$lambda$7$Type', 1482, Ljava_lang_Object_2_classLit);
+function ParticleChannels$3methodref$lambda$7$Type(){
 }
 
-defineClass(1483, 1, $intern_603, ParticleChannels$3methodref$lambda$5$Type);
+defineClass(1483, 1, $intern_603, ParticleChannels$3methodref$lambda$7$Type);
 _.get_2 = function get_28(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$3methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/3methodref$lambda$5$Type', 1483, Ljava_lang_Object_2_classLit);
-function ParticleChannels$4methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$3methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/3methodref$lambda$7$Type', 1483, Ljava_lang_Object_2_classLit);
+function ParticleChannels$4methodref$lambda$7$Type(){
 }
 
-defineClass(1484, 1, $intern_603, ParticleChannels$4methodref$lambda$5$Type);
+defineClass(1484, 1, $intern_603, ParticleChannels$4methodref$lambda$7$Type);
 _.get_2 = function get_29(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$4methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/4methodref$lambda$5$Type', 1484, Ljava_lang_Object_2_classLit);
-function ParticleChannels$5methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$4methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/4methodref$lambda$7$Type', 1484, Ljava_lang_Object_2_classLit);
+function ParticleChannels$5methodref$lambda$7$Type(){
 }
 
-defineClass(1485, 1, $intern_603, ParticleChannels$5methodref$lambda$5$Type);
+defineClass(1485, 1, $intern_603, ParticleChannels$5methodref$lambda$7$Type);
 _.get_2 = function get_30(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$5methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/5methodref$lambda$5$Type', 1485, Ljava_lang_Object_2_classLit);
-function ParticleChannels$6methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$5methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/5methodref$lambda$7$Type', 1485, Ljava_lang_Object_2_classLit);
+function ParticleChannels$6methodref$lambda$7$Type(){
 }
 
-defineClass(1486, 1, $intern_603, ParticleChannels$6methodref$lambda$5$Type);
+defineClass(1486, 1, $intern_603, ParticleChannels$6methodref$lambda$7$Type);
 _.get_2 = function get_31(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$6methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/6methodref$lambda$5$Type', 1486, Ljava_lang_Object_2_classLit);
-function ParticleChannels$7methodref$lambda$5$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$6methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/6methodref$lambda$7$Type', 1486, Ljava_lang_Object_2_classLit);
+function ParticleChannels$7methodref$lambda$7$Type(){
 }
 
-defineClass(1487, 1, $intern_603, ParticleChannels$7methodref$lambda$5$Type);
+defineClass(1487, 1, $intern_603, ParticleChannels$7methodref$lambda$7$Type);
 _.get_2 = function get_32(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(F_classLit, $intern_476, 27, arg0, 15, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$7methodref$lambda$5$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/7methodref$lambda$5$Type', 1487, Ljava_lang_Object_2_classLit);
-function ParticleChannels$8methodref$lambda$8$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$7methodref$lambda$7$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/7methodref$lambda$7$Type', 1487, Ljava_lang_Object_2_classLit);
+function ParticleChannels$8methodref$lambda$14$Type(){
 }
 
-defineClass(1488, 1, $intern_603, ParticleChannels$8methodref$lambda$8$Type);
+defineClass(1488, 1, $intern_603, ParticleChannels$8methodref$lambda$14$Type);
 _.get_2 = function get_33(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(Lcom_badlogic_gdx_graphics_g3d_ModelInstance_2_classLit, {854:1, 3:1, 4:1, 5:1}, 724, arg0, 0, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$8methodref$lambda$8$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/8methodref$lambda$8$Type', 1488, Ljava_lang_Object_2_classLit);
-function ParticleChannels$9methodref$lambda$9$Type(){
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$8methodref$lambda$14$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/8methodref$lambda$14$Type', 1488, Ljava_lang_Object_2_classLit);
+function ParticleChannels$9methodref$lambda$8$Type(){
 }
 
-defineClass(1489, 1, $intern_603, ParticleChannels$9methodref$lambda$9$Type);
+defineClass(1489, 1, $intern_603, ParticleChannels$9methodref$lambda$8$Type);
 _.get_2 = function get_34(arg0){
   return $clinit_ParticleChannels() , initUnidimensionalArray(Lcom_badlogic_gdx_graphics_g3d_particles_ParticleController_2_classLit, $intern_434, 87, arg0, 0, 1);
 }
 ;
-var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$9methodref$lambda$9$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/9methodref$lambda$9$Type', 1489, Ljava_lang_Object_2_classLit);
+var Lcom_badlogic_gdx_graphics_g3d_particles_ParticleChannels$9methodref$lambda$8$Type_2_classLit = createForClass('com.badlogic.gdx.graphics.g3d.particles', 'ParticleChannels/9methodref$lambda$8$Type', 1489, Ljava_lang_Object_2_classLit);
 function $init(channel){
   fill_12(channel.data_0, channel.data_0.length, 1);
 }
@@ -105662,7 +105668,7 @@ function Stage_1(viewport, batch){
   this.pointerTouched = initUnidimensionalArray(Z_classLit, $intern_389, 27, 20, 16, 1);
   this.pointerScreenX = initUnidimensionalArray(I_classLit, $intern_480, 27, 20, 15, 1);
   this.pointerScreenY = initUnidimensionalArray(I_classLit, $intern_480, 27, 20, 15, 1);
-  this.touchFocuses = new SnapshotArray_0(new Stage$3methodref$lambda$0$Type);
+  this.touchFocuses = new SnapshotArray_0(new Stage$3methodref$lambda$3$Type);
   this.debugTableUnderMouse = ($clinit_Table$Debug() , none);
   this.debugColor = new Color_0(0, 1, 0, 0.8500000238418579);
   if (!viewport)
@@ -106128,15 +106134,15 @@ _.get_8 = function get_62(){
 }
 ;
 var Lcom_badlogic_gdx_scenes_scene2d_Stage$2methodref$ctor$Type_2_classLit = createForClass('com.badlogic.gdx.scenes.scene2d', 'Stage/2methodref$ctor$Type', $intern_524, Ljava_lang_Object_2_classLit);
-function Stage$3methodref$lambda$0$Type(){
+function Stage$3methodref$lambda$3$Type(){
 }
 
-defineClass($intern_46, 1, $intern_603, Stage$3methodref$lambda$0$Type);
+defineClass($intern_46, 1, $intern_603, Stage$3methodref$lambda$3$Type);
 _.get_2 = function get_63(arg0){
   return initUnidimensionalArray(Lcom_badlogic_gdx_scenes_scene2d_Stage$TouchFocus_2_classLit, $intern_455, 278, arg0, 0, 1);
 }
 ;
-var Lcom_badlogic_gdx_scenes_scene2d_Stage$3methodref$lambda$0$Type_2_classLit = createForClass('com.badlogic.gdx.scenes.scene2d', 'Stage/3methodref$lambda$0$Type', $intern_46, Ljava_lang_Object_2_classLit);
+var Lcom_badlogic_gdx_scenes_scene2d_Stage$3methodref$lambda$3$Type_2_classLit = createForClass('com.badlogic.gdx.scenes.scene2d', 'Stage/3methodref$lambda$3$Type', $intern_46, Ljava_lang_Object_2_classLit);
 function Stage$TouchFocus(){
 }
 
@@ -240360,3 +240366,4 @@ $sendStats('moduleStartup', 'end');
 $gwt && $gwt.permProps && __gwtModuleFunction.__moduleStartupDone($gwt.permProps);
 //# sourceURL=htmlplayer-0.js
 
+/* @license-end */

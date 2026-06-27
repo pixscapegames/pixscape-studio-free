@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 Laurent Robbens
+ * SPDX-License-Identifier: Apache-2.0
+ * @license magnet:?xt=urn:btih:8e4f440f4c65981c5bf93c76d35135ba5064d8b7&dn=apache-2.0.txt Apache-2.0
+ */
+
 function htmlplayer(){
   var $wnd_0 = window;
   var $doc_0 = document;
@@ -336,7 +342,7 @@ function htmlplayer(){
     }
     var strongName;
     try {
-      strongName = 'D26BAEC8BD6E1A72DDA37627EA187747';
+      strongName = 'EB5F481285F7F04AE4E810A44E4DD50E';
       var idx = strongName.indexOf(':');
       if (idx != -1) {
         softPermutationId = parseInt(strongName.substring(idx + 1), 10);
@@ -414,3 +420,5 @@ function htmlplayer(){
 }
 
 htmlplayer.succeeded = htmlplayer();
+
+/* @license-end */

@@ -7,6 +7,8 @@ plugins {
   id 'org.graalvm.buildtools.native' version "${graalNativePluginVersion}" apply false
 }
 
+apply from: file('gradle/htmlPlayerLibreJs.gradle')
+
 group = 'games.pixscape'
 version = appVersion
 
@@ -326,4 +328,81 @@ tasks.register('buildHtmlPreviewTemplate') {
   group = 'build'
   description = 'Build html-player and copy output into html-preview-template.'
   dependsOn ':html-player:copyGwtDistToTemplate'
+}
+
+def htmlPreviewTemplateDir = file('src/main/resources/html-preview-template')
+def htmlPreviewWebappDir = file('html-player/src/main/webapp')
+
+tasks.register('ensureHtmlPlayerLibreJsLicenses') {
+  group = 'build'
+  description = 'Add Apache-2.0 SPDX and LibreJS markers to HTML player JavaScript.'
+
+  inputs.dir(htmlPreviewTemplateDir)
+  inputs.dir(htmlPreviewWebappDir)
+
+  doLast {
+    htmlPlayerLibreJs.wrapJavaScriptFiles(fileTree(htmlPreviewTemplateDir) { include '**/*.js' })
+    htmlPlayerLibreJs.wrapJavaScriptFiles(fileTree(htmlPreviewWebappDir) { include '**/*.js' })
+  }
+}
+
+tasks.register('checkHtmlPlayerLibreJsLicenses') {
+  group = 'verification'
+  description = 'Verify HTML player JavaScript has Apache-2.0 SPDX and LibreJS markers.'
+
+  inputs.dir(htmlPreviewTemplateDir)
+  inputs.dir(htmlPreviewWebappDir)
+
+  doLast {
+    def problems = []
+    problems += htmlPlayerLibreJs.licenseProblemsInDirectory(htmlPreviewTemplateDir)
+    problems += htmlPlayerLibreJs.licenseProblemsInDirectory(htmlPreviewWebappDir)
+
+    if (!problems.isEmpty()) {
+      throw new GradleException("HTML player LibreJS license check failed:\n" + problems.join('\n'))
+    }
+  }
+}
+
+tasks.register('testHtmlPlayerLibreJsLicenseWrapping') {
+  group = 'verification'
+  description = 'Exercise the HTML player LibreJS JavaScript wrapping helper.'
+
+  doLast {
+    def wrapped = htmlPlayerLibreJs.ensureJavaScriptText("console.log('x');\n")
+    assert wrapped.contains('SPDX-License-Identifier: Apache-2.0')
+    assert wrapped.contains('@license')
+    assert wrapped.contains('Apache-2.0')
+    assert wrapped.endsWith('/* @license-end */')
+
+    assert htmlPlayerLibreJs.ensureJavaScriptText(wrapped) == wrapped
+
+    def withoutFooter = wrapped.replace('/* @license-end */', '').replaceFirst(/[ \t\r\n\f]+$/, '')
+    def footerRestored = htmlPlayerLibreJs.ensureJavaScriptText(withoutFooter)
+    assert footerRestored == wrapped
+
+    def source = "console.log('has footer');\n\n/* @license-end */"
+    def headerRestored = htmlPlayerLibreJs.ensureJavaScriptText(source)
+    assert headerRestored.contains('SPDX-License-Identifier: Apache-2.0')
+    assert headerRestored.contains('@license')
+    assert headerRestored.endsWith('/* @license-end */')
+    assert headerRestored.count('/* @license-end */') == 1
+
+    def spdxWithoutLicenseMarker = "/* SPDX-License-Identifier: Apache-2.0 */\nconsole.log('partial');\n\n/* @license-end */"
+    def licenseMarkerRestored = htmlPlayerLibreJs.ensureJavaScriptText(spdxWithoutLicenseMarker)
+    assert licenseMarkerRestored.contains(htmlPlayerLibreJs.apacheLicenseMarker)
+
+    def tempDir = new File(buildDir, 'tmp/html-player-librejs-test')
+    delete tempDir
+    tempDir.mkdirs()
+    def badFile = new File(tempDir, 'bad.js')
+    badFile.text = "console.log('missing');"
+    def problems = htmlPlayerLibreJs.licenseProblemsInDirectory(tempDir)
+    assert problems.any { it.contains('bad.js') && it.contains('SPDX-License-Identifier: Apache-2.0') }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'checkHtmlPlayerLibreJsLicenses'
+  dependsOn 'testHtmlPlayerLibreJsLicenseWrapping'
 }

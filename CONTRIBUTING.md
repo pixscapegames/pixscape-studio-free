@@ -39,12 +39,32 @@ GWT bundle manually.
 Do not remove or replace that template casually. Maintainers may refresh it
 when the HTML preview player changes.
 
+HTML player JavaScript must keep the Apache-2.0 SPDX notice and LibreJS
+`@license` / `@license-end` markers. Regenerate it with
+`buildHtmlPreviewTemplate` so generated GWT JavaScript is wrapped
+automatically, and run `checkHtmlPlayerLibreJsLicenses` before release.
+
 ## Issues and Pull Requests
 
-Please keep issues and pull requests focused. A good contribution usually
-describes the problem, explains the intended behavior, and includes a small
-test or manual validation note when practical.
+GitHub Issues are used for reproducible technical bugs in Pixscape Studio Free.
+
+Before opening a bug report:
+
+- Search existing issues to avoid duplicates.
+- Use the bug report form.
+- Include clear steps to reproduce the issue.
+- Explain the expected behavior and the actual behavior.
+- Include your Pixscape Studio Free version, operating system, and relevant logs when possible.
+
+General feedback, product ideas, partnerships, questions, or non-technical requests should be sent by email instead:
+
+```text
+info@pixscape.games
+```
+
+Security vulnerabilities must not be reported as public issues. Please follow the instructions in SECURITY.md.
+
+Please keep pull requests focused. A good pull request usually describes the problem, explains the intended behavior, and includes a small test or manual validation note when practical.
 
 By intentionally submitting a contribution to this repository, you agree that
 your contribution is submitted under the Apache License, Version 2.0.
-

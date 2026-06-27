@@ -1,0 +1,149 @@
+import java.nio.file.Files
+import java.nio.charset.StandardCharsets
+import java.io.IOException
+
+def apacheLicenseMarker = "@license magnet:?xt=urn:btih:8e4f440f4c65981c5bf93c76d35135ba5064d8b7&dn=apache-2.0.txt Apache-2.0"
+def licenseEndMarker = "/* @license-end */"
+
+def htmlPlayerLibreJsApi = [
+        apacheLicenseMarker: apacheLicenseMarker,
+        licenseEndMarker    : licenseEndMarker,
+
+        detectLineSeparator: { String text ->
+          if (text.contains("\r\n")) return "\r\n"
+          if (text.contains("\n")) return "\n"
+          return System.lineSeparator()
+        },
+
+        rtrim: { String text ->
+          return text.replaceFirst(/[ \t\r\n\f]+$/, "")
+        },
+
+        hasApacheSpdx: { String text ->
+          return text.contains("SPDX-License-Identifier: Apache-2.0")
+        },
+
+        hasApacheLicenseMarker: { String text ->
+          return (text =~ /(?m)@license\s+.*Apache-2\.0/).find()
+        },
+
+        hasLicenseEnd: { String text ->
+          return text.contains(licenseEndMarker)
+        },
+
+        apacheHeaderFor: { String text, String lineSeparator ->
+          def lines = ["/*"]
+          if (!text.contains("Copyright 2026 Laurent Robbens")) {
+            lines += " * Copyright 2026 Laurent Robbens"
+          }
+          if (!text.contains("SPDX-License-Identifier: Apache-2.0")) {
+            lines += " * SPDX-License-Identifier: Apache-2.0"
+          }
+          if (!((text =~ /(?m)@license\s+.*Apache-2\.0/).find())) {
+            lines += " * ${apacheLicenseMarker}"
+          }
+          lines += " */"
+          return lines.join(lineSeparator) + lineSeparator + lineSeparator
+        },
+
+        ensureJavaScriptText: { String original ->
+          def api = project.ext.htmlPlayerLibreJs
+          def lineSeparator = api.detectLineSeparator(original)
+          def text = original
+
+          if (!api.hasApacheSpdx(text) || !api.hasApacheLicenseMarker(text)) {
+            text = api.apacheHeaderFor(text, lineSeparator) + text
+          }
+
+          def hasFinalLicenseEnd = text ==~ /(?s).*\/\* @license-end \*\/\s*$/
+          if (!hasFinalLicenseEnd) {
+            if (api.hasLicenseEnd(text)) {
+              text = text.replace(licenseEndMarker, "")
+            }
+            text = api.rtrim(text)
+            if (!text.isEmpty()) {
+              text += lineSeparator + lineSeparator
+            }
+            text += licenseEndMarker
+          }
+
+          return text
+        },
+
+        wrapJavaScriptFile: { File file ->
+          def api = project.ext.htmlPlayerLibreJs
+          def original = Files.readString(file.toPath(), StandardCharsets.UTF_8)
+          def wrapped = api.ensureJavaScriptText(original)
+          if (wrapped != original) {
+            def attempts = 0
+            while (true) {
+              try {
+                Files.writeString(file.toPath(), wrapped, StandardCharsets.UTF_8)
+                break
+              } catch (IOException e) {
+                if (attempts >= 20) {
+                  throw e
+                }
+                attempts++
+                Thread.sleep(250)
+              }
+            }
+          }
+        },
+
+        wrapJavaScriptFiles: { FileTree files ->
+          def api = project.ext.htmlPlayerLibreJs
+          files.matching { include "**/*.js" }.files.sort { a, b -> a.path <=> b.path }.each { File file ->
+            api.wrapJavaScriptFile(file)
+          }
+        },
+
+        licenseProblemsInDirectory: { File directory ->
+          def api = project.ext.htmlPlayerLibreJs
+          def problems = []
+          if (!directory.exists()) {
+            problems += "${directory}: directory does not exist"
+            return problems
+          }
+
+          def jsFiles = []
+          Files.walk(directory.toPath()).withCloseable { paths ->
+            paths.filter { path -> Files.isRegularFile(path) && path.toString().endsWith(".js") }
+                    .forEach { path -> jsFiles += path.toFile() }
+          }
+
+          jsFiles.sort { a, b -> a.path <=> b.path }.each { File file ->
+            def text = Files.readString(file.toPath(), StandardCharsets.UTF_8)
+            def missing = []
+            if (!api.hasApacheSpdx(text)) missing += "SPDX-License-Identifier: Apache-2.0"
+            if (!api.hasApacheLicenseMarker(text)) missing += "@license Apache-2.0"
+            if (!api.hasLicenseEnd(text)) missing += "@license-end"
+            if (!(text ==~ /(?s).*\/\* @license-end \*\/\s*$/)) missing += "final @license-end"
+            if (!missing.isEmpty()) {
+              problems += "${file}: missing ${missing.join(', ')}"
+            }
+          }
+
+          def htmlFiles = []
+          Files.walk(directory.toPath()).withCloseable { paths ->
+            paths.filter { path -> Files.isRegularFile(path) && path.toString().endsWith(".html") }
+                    .forEach { path -> htmlFiles += path.toFile() }
+          }
+
+          htmlFiles.sort { a, b -> a.path <=> b.path }.each { File file ->
+            def text = Files.readString(file.toPath(), StandardCharsets.UTF_8)
+            def matcher = text =~ /(?is)<script(?![^>]*\bsrc\s*=)[^>]*>(.*?)<\/script>/
+            matcher.each { match ->
+              def body = match[1].trim()
+              if (!body.isEmpty()
+                      && (!api.hasApacheLicenseMarker(body) || !api.hasLicenseEnd(body))) {
+                problems += "${file}: inline script lacks LibreJS Apache-2.0 markers"
+              }
+            }
+          }
+
+          return problems
+        }
+]
+
+ext.htmlPlayerLibreJs = htmlPlayerLibreJsApi

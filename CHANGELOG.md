@@ -7,6 +7,7 @@
 - Added a TMX import pipeline with preflight validation, import planning, scene materialization and rollback handling.
 - Added TMX diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, image layers, tile animations and ignored custom properties.
 - Added a reusable tileset asset import service for atlas and folder-based tilesets.
+- Added Apache-2.0 / LibreJS-compatible license notices to HTML player JavaScript.
 
 ### Changed
 - Moved asset import from `Resources > Import assets` to `File > Import > Assets...`.

@@ -2,6 +2,8 @@ plugins {
   id 'java'
 }
 
+apply from: rootProject.file('gradle/htmlPlayerLibreJs.gradle')
+
 java {
   toolchain {
     languageVersion = JavaLanguageVersion.of(javaVersion as int)
@@ -87,6 +89,7 @@ tasks.register('copyGwtDistToTemplate', Copy) {
   duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
   def templateDir = rootProject.file('src/main/resources/html-preview-template')
+  def templateJsFiles = project.fileTree(templateDir) { include '**/*.js' }
 
   doFirst {
     // assets.font is static Studio template content and must not be deleted by
@@ -113,4 +116,8 @@ tasks.register('copyGwtDistToTemplate', Copy) {
   }
 
   into templateDir
+
+  doLast {
+    htmlPlayerLibreJs.wrapJavaScriptFiles(templateJsFiles)
+  }
 }
