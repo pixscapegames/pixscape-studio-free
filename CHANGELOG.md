@@ -17,11 +17,15 @@
 - Clarified the tiled-cell capacity exceeded dialog wording.
 - Refactored tileset import materialization out of `SceneService`.
 
+### Fixed
+- Fixed Preview startup when a Studio project is opened without its exported runtime project. Pixscape now triggers the normal save/export flow before launching Preview instead of failing on a missing runtime export.
+
 ### Tests
 - Added characterization tests for tile and tileset asset metadata persistence.
 - Added tiled-cell capacity budget tests.
 - Added tileset asset import service tests.
 - Added TMX import planner tests covering external TSX files, multiple tilesets, GID resolution, transform flags, nested groups and blocking diagnostics.
+- Added regression coverage for Preview save/export requirements when the runtime export is missing.
 
 ### Notes
 - TMX import UI and scene conversion are not included yet.

@@ -13,6 +13,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Timer;
@@ -63,6 +64,10 @@ import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.*;
 
 import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;
@@ -197,7 +202,85 @@ public final class SceneService {
     }
 
     public boolean requiresSaveBeforePreview() {
-        return historyManager.isDirty() || previewSaveRequired;
+        return historyManager.isDirty()
+                || previewSaveRequired
+                || isRuntimeExportMissingOrUnusableForPreview(ProjectConfig.getInstance());
+    }
+
+    static boolean isRuntimeExportMissingOrUnusableForPreview(ProjectConfig cfg) {
+        if (cfg == null) {
+            return false;
+        }
+
+        String exportRootPath = cfg.exportRootPathDir;
+        if (exportRootPath == null || exportRootPath.isBlank()) {
+            return false;
+        }
+
+        final Path exportRoot;
+        try {
+            exportRoot = Path.of(exportRootPath);
+        } catch (InvalidPathException ex) {
+            return false;
+        }
+
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        if (!Files.isDirectory(runtimeRoot)) {
+            return true;
+        }
+
+        Path projectFile = runtimeRoot.resolve(RuntimeExport.PROJECT_JSON);
+        if (!Files.isRegularFile(projectFile) || isEmptyFile(projectFile)) {
+            return true;
+        }
+
+        String currentSceneName = cfg.getCurrentSceneName();
+        if (currentSceneName == null || currentSceneName.isBlank()) {
+            return false;
+        }
+
+        try {
+            JsonValue root = new JsonReader().parse(Files.readString(projectFile));
+            if (root == null || !root.isObject()) {
+                return true;
+            }
+            String kind = root.getString("projectKind", null);
+            if (!RuntimeExport.RUNTIME_PROJECT_KIND.equals(kind)) {
+                return true;
+            }
+
+            JsonValue scenes = root.get("scenes");
+            if (scenes == null || !scenes.isObject()) {
+                return true;
+            }
+            JsonValue scene = scenes.get(currentSceneName);
+            if (scene == null || !scene.isObject()) {
+                return true;
+            }
+
+            String sceneFileName = RuntimeFs.filenameOnly(scene.getString("file", null));
+            if (sceneFileName == null || sceneFileName.isBlank()) {
+                return true;
+            }
+
+            String scenesDir = root.getString("scenesDir", RuntimeFs.DIR_SCENES);
+            if (scenesDir == null || scenesDir.isBlank()) {
+                scenesDir = RuntimeFs.DIR_SCENES;
+            }
+
+            Path sceneFile = runtimeRoot.resolve(scenesDir).resolve(sceneFileName);
+            return !Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile);
+        } catch (RuntimeException | IOException ex) {
+            return true;
+        }
+    }
+
+    private static boolean isEmptyFile(Path file) {
+        try {
+            return Files.size(file) <= 0L;
+        } catch (IOException ex) {
+            return true;
+        }
     }
 
     private void clearPreviewSaveRequired() {
