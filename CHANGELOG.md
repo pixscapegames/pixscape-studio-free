@@ -19,6 +19,7 @@
 
 ### Fixed
 - Fixed Preview startup when a Studio project is opened without its exported runtime project. Pixscape now triggers the normal save/export flow before launching Preview instead of failing on a missing runtime export.
+- Fixed remove the Studio “always on top / foreground” behavior
 
 ### Tests
 - Added characterization tests for tile and tileset asset metadata persistence.
