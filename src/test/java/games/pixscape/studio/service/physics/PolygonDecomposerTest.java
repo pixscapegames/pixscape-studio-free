@@ -1,6 +1,5 @@
 package games.pixscape.studio.service.physics;
 
-import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.studio.component.physics.ConvexPolygonPartData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -112,9 +111,9 @@ public class PolygonDecomposerTest {
     private static float[] regularPolygon(int count, float radius) {
         float[] verts = new float[count * 2];
         for (int i = 0; i < count; i++) {
-            float t = (MathUtils.PI2 * i) / count;
-            verts[i * 2] = (MathUtils.cos(t) * radius);
-            verts[i * 2 + 1] = (MathUtils.sin(t) * radius);
+            double t = (Math.PI * 2d * i) / count;
+            verts[i * 2] = (float) (Math.cos(t) * radius);
+            verts[i * 2 + 1] = (float) (Math.sin(t) * radius);
         }
         return verts;
     }

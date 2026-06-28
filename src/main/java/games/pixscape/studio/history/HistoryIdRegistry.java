@@ -1,8 +1,7 @@
 package games.pixscape.studio.history;
 
-import it.unimi.dsi.fastutil.ints.Int2LongOpenHashMap;
-import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
-
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -15,16 +14,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class HistoryIdRegistry {
 
     // entityId -> historyId
-    private final Int2LongOpenHashMap entityToHistory = new Int2LongOpenHashMap();
+    private final Map<Integer, Long> entityToHistory = new HashMap<>();
     // historyId -> entityId
-    private final Long2IntOpenHashMap historyToEntity = new Long2IntOpenHashMap();
+    private final Map<Long, Integer> historyToEntity = new HashMap<>();
 
     private final AtomicLong seq = new AtomicLong(1L);
-
-    public HistoryIdRegistry() {
-        entityToHistory.defaultReturnValue(-1L);
-        historyToEntity.defaultReturnValue(-1);
-    }
 
     private long nextHistoryId() {
         return seq.getAndIncrement();
@@ -35,7 +29,7 @@ public final class HistoryIdRegistry {
      */
     public long ensureForEntity(int entityId) {
         if (entityId < 0) return -1L;
-        long hid = entityToHistory.get(entityId);
+        long hid = entityToHistory.getOrDefault(entityId, -1L);
         if (hid != -1L) return hid;
         hid = nextHistoryId();
         bind(entityId, hid);
@@ -43,11 +37,11 @@ public final class HistoryIdRegistry {
     }
 
     public long historyIdOfEntity(int entityId) {
-        return entityToHistory.get(entityId);
+        return entityToHistory.getOrDefault(entityId, -1L);
     }
 
     public int entityOfHistoryId(long historyId) {
-        return historyToEntity.get(historyId);
+        return historyToEntity.getOrDefault(historyId, -1);
     }
 
     /**
@@ -59,13 +53,13 @@ public final class HistoryIdRegistry {
         if (entityId < 0 || historyId <= 0) return;
 
         // 1) if entityId was already bound, remove the old inverse
-        long oldHid = entityToHistory.get(entityId);
+        long oldHid = entityToHistory.getOrDefault(entityId, -1L);
         if (oldHid != -1L && oldHid != historyId) {
             historyToEntity.remove(oldHid);
         }
 
         // 2) if historyId was already bound, remove the old inverse
-        int oldEntity = historyToEntity.get(historyId);
+        int oldEntity = historyToEntity.getOrDefault(historyId, -1);
         if (oldEntity != -1 && oldEntity != entityId) {
             entityToHistory.remove(oldEntity);
         }
@@ -80,7 +74,8 @@ public final class HistoryIdRegistry {
 
     public void unbindEntity(int entityId) {
         if (entityId < 0) return;
-        long hid = entityToHistory.remove(entityId);
+        Long removed = entityToHistory.remove(entityId);
+        long hid = removed == null ? -1L : removed;
         if (hid != -1L) {
             historyToEntity.remove(hid);
         }
@@ -88,7 +83,8 @@ public final class HistoryIdRegistry {
 
     public void unbindHistoryId(long historyId) {
         if (historyId <= 0) return;
-        int e = historyToEntity.remove(historyId);
+        Integer removed = historyToEntity.remove(historyId);
+        int e = removed == null ? -1 : removed;
         if (e != -1) {
             entityToHistory.remove(e);
         }
