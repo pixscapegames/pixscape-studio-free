@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -124,8 +125,8 @@ final class SpatialBlockPhysicsSync {
         TransformComponent transform =
                 world.getMapper(TransformComponent.class).getSafe(layerEntityId, null);
         float ppm = pixelsPerMeter();
-        float cos = transform != null ? (float) Math.cos(transform.rotationRad) : 1f;
-        float sin = transform != null ? (float) Math.sin(transform.rotationRad) : 0f;
+        float cos = transform != null ? MathUtils.cos(transform.rotationRad) : 1f;
+        float sin = transform != null ? MathUtils.sin(transform.rotationRad) : 0f;
         float tx = transform != null ? transform.x : 0f;
         float ty = transform != null ? transform.y : 0f;
 
@@ -347,8 +348,8 @@ final class SpatialBlockPhysicsSync {
             transform.rotationRad = rotationRad;
             transform.scaleX = scaleX;
             transform.scaleY = scaleY;
-            transform.cos = (float) Math.cos(rotationRad);
-            transform.sin = (float) Math.sin(rotationRad);
+            transform.cos = MathUtils.cos(rotationRad);
+            transform.sin = MathUtils.sin(rotationRad);
             transform.absCos = Math.abs(transform.cos);
             transform.absSin = Math.abs(transform.sin);
             transform.invScaleX = scaleX != 0f ? 1f / scaleX : 1f;
