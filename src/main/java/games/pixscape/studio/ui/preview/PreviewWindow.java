@@ -3,7 +3,6 @@ package games.pixscape.studio.ui.preview;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
-import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -20,7 +19,6 @@ import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.debug.StudioFrameProfiler;
 import games.pixscape.studio.logging.StudioLogLevel;
-import org.lwjgl.glfw.GLFW;
 
 public final class PreviewWindow extends ApplicationAdapter {
 
@@ -88,12 +86,8 @@ public final class PreviewWindow extends ApplicationAdapter {
 
         benchMode = false;
         Gdx.graphics.setVSync(PREVIEW_VSYNC_NORMAL);
-
-        GLFW.glfwSetWindowAttrib(
-                ((Lwjgl3Graphics) Gdx.graphics).getWindow().getWindowHandle(),
-                GLFW.GLFW_FLOATING,
-                GLFW.GLFW_TRUE
-        );
+        // Preview is a top-level OS window; do not mark it floating/always-on-top.
+        // It must yield normally when the user Alt+Tabs to another application.
     }
 
     @Override
