@@ -8,6 +8,7 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.*;
@@ -692,13 +693,13 @@ public final class GizmoSystem extends BaseSystem {
 
         float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
         float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (float) Math.toRadians(polygon != null ? polygon.angleDeg : 0f);
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
 
-        float fixtureCos = (float) Math.cos(fixtureAngleRad);
-        float fixtureSin = (float) Math.sin(fixtureAngleRad);
+        float fixtureCos = MathUtils.cos(fixtureAngleRad);
+        float fixtureSin = MathUtils.sin(fixtureAngleRad);
 
-        float bodyCos = (float) Math.cos(t.rotationRad);
-        float bodySin = (float) Math.sin(t.rotationRad);
+        float bodyCos = MathUtils.cos(t.rotationRad);
+        float bodySin = MathUtils.sin(t.rotationRad);
 
         for (int i = 0; i < count; i++) {
             float lx = localVertsMeters[i * 2];
@@ -1417,8 +1418,8 @@ public final class GizmoSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float cos = (float) Math.cos(ta.rotationRad);
-        float sin = (float) Math.sin(ta.rotationRad);
+        float cos = MathUtils.cos(ta.rotationRad);
+        float sin = MathUtils.sin(ta.rotationRad);
 
         float dxWu = motor.linearOffsetX * ppm;
         float dyWu = motor.linearOffsetY * ppm;
@@ -1471,8 +1472,8 @@ public final class GizmoSystem extends BaseSystem {
         if (wheel == null || ta == null || anchorA == null) return;
 
         float axisLen = HandleHelper.pxToWorld(ctx.cam, 20f);
-        float cos = (float) Math.cos(ta.rotationRad);
-        float sin = (float) Math.sin(ta.rotationRad);
+        float cos = MathUtils.cos(ta.rotationRad);
+        float sin = MathUtils.sin(ta.rotationRad);
         float dx = wheel.axisX * cos - wheel.axisY * sin;
         float dy = wheel.axisX * sin + wheel.axisY * cos;
         float mag2 = dx * dx + dy * dy;
@@ -1698,15 +1699,15 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private static float anchorWorldX_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
         float rx_m = localAx_m * cos - localAy_m * sin;
         return t.x + rx_m * ppm;
     }
 
     private static float anchorWorldY_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
         float ry_m = localAx_m * sin + localAy_m * cos;
         return t.y + ry_m * ppm;
     }

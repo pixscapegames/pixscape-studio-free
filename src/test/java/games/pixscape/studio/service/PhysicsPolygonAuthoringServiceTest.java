@@ -2,6 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
@@ -157,9 +158,9 @@ public class PhysicsPolygonAuthoringServiceTest {
     private static float[] decagon() {
         float[] verts = new float[20];
         for (int i = 0; i < 10; i++) {
-            double t = (Math.PI * 2d * i) / 10d;
-            verts[i * 2] = (float) Math.cos(t);
-            verts[i * 2 + 1] = (float) Math.sin(t);
+            float t = (MathUtils.PI2 * i) / 10f;
+            verts[i * 2] = MathUtils.cos(t);
+            verts[i * 2 + 1] = MathUtils.sin(t);
         }
         return verts;
     }

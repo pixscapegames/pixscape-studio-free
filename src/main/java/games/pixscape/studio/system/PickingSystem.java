@@ -9,6 +9,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -201,7 +202,7 @@ public final class PickingSystem extends BaseSystem {
         static final int HEIGHT = 4;
     }
 
-    public static float SNAP_STEP_RAD = (float) Math.toRadians(1.0);
+    public static float SNAP_STEP_RAD =  MathUtils.degreesToRadians;
     private final int MY_TAG = EventFlow.tag(this);
 
     private final Vector2 tmpA = new Vector2();
@@ -1311,8 +1312,8 @@ public final class PickingSystem extends BaseSystem {
                                               Vector2 out) {
         float dx = mouseWorldX - bodyX;
         float dy = mouseWorldY - bodyY;
-        float cos = (float) Math.cos(bodyRotationRad);
-        float sin = (float) Math.sin(bodyRotationRad);
+        float cos = MathUtils.cos(bodyRotationRad);
+        float sin = MathUtils.sin(bodyRotationRad);
         float localXWorld = dx * cos + dy * sin;
         float localYWorld = -dx * sin + dy * cos;
         out.set(localXWorld / ppm, localYWorld / ppm);
@@ -1448,8 +1449,8 @@ public final class PickingSystem extends BaseSystem {
         float dx = wx - t.x;
         float dy = wy - t.y;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float localX = dx * cos + dy * sin;
         float localY = -dx * sin + dy * cos;
@@ -1750,13 +1751,13 @@ public final class PickingSystem extends BaseSystem {
 
         float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
         float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (float) Math.toRadians(polygon != null ? polygon.angleDeg : 0f);
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
 
-        float fixtureCos = (float) Math.cos(fixtureAngleRad);
-        float fixtureSin = (float) Math.sin(fixtureAngleRad);
+        float fixtureCos = MathUtils.cos(fixtureAngleRad);
+        float fixtureSin = MathUtils.sin(fixtureAngleRad);
 
-        float bodyCos = (float) Math.cos(t.rotationRad);
-        float bodySin = (float) Math.sin(t.rotationRad);
+        float bodyCos = MathUtils.cos(t.rotationRad);
+        float bodySin = MathUtils.sin(t.rotationRad);
 
         for (int i = 0; i < count; i++) {
             float lx = localVertsMeters[i * 2];
@@ -1888,13 +1889,13 @@ public final class PickingSystem extends BaseSystem {
 
         float offsetX = polygon != null ? polygon.offsetX : 0f;
         float offsetY = polygon != null ? polygon.offsetY : 0f;
-        float angleRad = (float) Math.toRadians(polygon != null ? polygon.angleDeg : 0f);
+        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
 
         float dx = bodyLocalX - offsetX;
         float dy = bodyLocalY - offsetY;
 
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
 
         float lx = dx * cos + dy * sin;
         float ly = -dx * sin + dy * cos;
@@ -2326,8 +2327,8 @@ public final class PickingSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float cos = (float) Math.cos(ta.rotationRad);
-        float sin = (float) Math.sin(ta.rotationRad);
+        float cos = MathUtils.cos(ta.rotationRad);
+        float sin = MathUtils.sin(ta.rotationRad);
 
         float dxWu = motor.linearOffsetX * ppm;
         float dyWu = motor.linearOffsetY * ppm;
@@ -2414,14 +2415,14 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private static float rotateX(float x, float y, float angleRad) {
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
         return x * cos - y * sin;
     }
 
     private static float rotateY(float x, float y, float angleRad) {
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
         return x * sin + y * cos;
     }
 
@@ -2741,8 +2742,8 @@ public final class PickingSystem extends BaseSystem {
         float dyWorld = my - oldDrag.y;
         if (dxWorld == 0f && dyWorld == 0f) return true;
 
-        float cos = (float) Math.cos(bodyT.rotationRad);
-        float sin = (float) Math.sin(bodyT.rotationRad);
+        float cos = MathUtils.cos(bodyT.rotationRad);
+        float sin = MathUtils.sin(bodyT.rotationRad);
 
         // monde -> local body
         float dxLocalPx = dxWorld * cos + dyWorld * sin;
@@ -2770,8 +2771,8 @@ public final class PickingSystem extends BaseSystem {
 
         if (dxWorld == 0f && dyWorld == 0f) return true;
 
-        float cos = (float) Math.cos(bodyT.rotationRad);
-        float sin = (float) Math.sin(bodyT.rotationRad);
+        float cos = MathUtils.cos(bodyT.rotationRad);
+        float sin = MathUtils.sin(bodyT.rotationRad);
 
         float dxLocalPx = dxWorld * cos + dyWorld * sin;
         float dyLocalPx = -dxWorld * sin + dyWorld * cos;
@@ -2925,8 +2926,8 @@ public final class PickingSystem extends BaseSystem {
         float cx = t.x + t.originX;
         float cy = t.y + t.originY;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float dx = mx - cx;
         float dy = my - cy;
@@ -3434,7 +3435,7 @@ public final class PickingSystem extends BaseSystem {
         float radius = readLightRadius(entityId);
         if (mConeLight != null && mConeLight.has(entityId)) {
             float angle = t.rotationRad;
-            out.set(t.x + (float) Math.cos(angle) * radius, t.y + (float) Math.sin(angle) * radius);
+            out.set(t.x + MathUtils.cos(angle) * radius, t.y + MathUtils.sin(angle) * radius);
         } else {
             out.set(t.x + radius, t.y);
         }
