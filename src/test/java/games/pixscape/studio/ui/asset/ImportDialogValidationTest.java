@@ -28,6 +28,40 @@ public class ImportDialogValidationTest {
     }
 
     @Test
+    public void importItem_tilesetSlicingDefaultsToCompactGrid() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+
+        assertEquals(32, item.tileWidth);
+        assertEquals(32, item.tileHeight);
+        assertEquals(0, item.tileMargin);
+        assertEquals(0, item.tileSpacing);
+    }
+
+    @Test
+    public void importValidation_tsxIsSupportedButNotImageOrParticle() throws Exception {
+        File file = File.createTempFile("tileset", ".tsx");
+        file.deleteOnExit();
+        FileHandle handle = new FileHandle(file);
+
+        assertTrue(ImportDialogValidation.isSupportedImportFile(handle));
+        assertTrue(ImportDialogValidation.isTsxFile(handle));
+        assertFalse(ImportDialogValidation.isSupportedImage(handle));
+        assertFalse(ImportDialogValidation.isParticleFile(handle));
+    }
+
+    @Test
+    public void importItem_applySlicingSettingsUpdatesTilesetValues() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+
+        item.applySlicingSettings(16, 24, 2, 3);
+
+        assertEquals(16, item.tileWidth);
+        assertEquals(24, item.tileHeight);
+        assertEquals(2, item.tileMargin);
+        assertEquals(3, item.tileSpacing);
+    }
+
+    @Test
     public void spinnerValidation_positiveIntegerRule() {
         assertTrue(ImportDialogValidation.isPositiveInteger("1"));
         assertTrue(ImportDialogValidation.isPositiveInteger("32"));
@@ -48,6 +82,7 @@ public class ImportDialogValidationTest {
     @Test
     public void spinnerValidation_divisibilityForSheets() {
         assertTrue(ImportDialogValidation.isDivisibleForType(ImportDialog.ImportType.TILESET, 96, "32"));
+        assertTrue(ImportDialogValidation.isDivisibleForType(ImportDialog.ImportType.TILESET, 100, "32"));
         assertFalse(ImportDialogValidation.isDivisibleForType(ImportDialog.ImportType.SPRITESHEET, 100, "32"));
         assertTrue(ImportDialogValidation.isDivisibleForType(ImportDialog.ImportType.IMAGE, 100, "32"));
     }
@@ -77,6 +112,78 @@ public class ImportDialogValidationTest {
         item.tileHeight = 19;
 
         assertFalse(ImportDialogValidation.hasDivisibilityIssue(item));
+    }
+
+    @Test
+    public void importValidation_tilesetAllowsNonDivisibleImageWhenTilesFit() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.type = ImportDialog.ImportType.TILESET;
+        item.imageWidth = 8;
+        item.imageHeight = 8;
+        item.tileWidth = 2;
+        item.tileHeight = 2;
+        item.tileMargin = 1;
+        item.tileSpacing = 1;
+
+        ImportDialogValidation.TilesetSlicingPreview preview = ImportDialogValidation.calculateTilesetSlicing(item);
+
+        assertFalse(ImportDialogValidation.hasDivisibilityIssue(item));
+        assertFalse(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+        assertFalse(ImportDialogValidation.hasTilesetSlicingIssue(item));
+        assertEquals(2, preview.columns());
+        assertEquals(2, preview.rows());
+        assertEquals(4, preview.tileCount());
+        assertEquals(2, preview.unusedRightPixels());
+        assertEquals(2, preview.unusedBottomPixels());
+    }
+
+    @Test
+    public void importValidation_spritesheetStillRequiresDivisibility() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("sheet.png"));
+        item.type = ImportDialog.ImportType.SPRITESHEET;
+        item.imageWidth = 100;
+        item.imageHeight = 64;
+        item.tileWidth = 32;
+        item.tileHeight = 16;
+
+        assertTrue(ImportDialogValidation.hasDivisibilityIssue(item));
+    }
+
+    @Test
+    public void importValidation_tilesetRejectsInvalidSlicingSettings() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.type = ImportDialog.ImportType.TILESET;
+        item.imageWidth = 8;
+        item.imageHeight = 8;
+        item.tileWidth = 2;
+        item.tileHeight = 2;
+
+        item.tileMargin = -1;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+
+        item.tileMargin = 0;
+        item.tileSpacing = -1;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+
+        item.tileSpacing = 0;
+        item.tileWidth = ImportDialogValidation.MAX_IMAGE_SIZE + 1;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+    }
+
+    @Test
+    public void importValidation_tilesetRejectsWhenNoTileFits() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.type = ImportDialog.ImportType.TILESET;
+        item.imageWidth = 8;
+        item.imageHeight = 8;
+        item.tileWidth = 9;
+        item.tileHeight = 2;
+        item.tileMargin = 0;
+        item.tileSpacing = 0;
+
+        assertFalse(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+        assertTrue(ImportDialogValidation.hasTilesetSlicingIssue(item));
+        assertFalse(ImportDialogValidation.calculateTilesetSlicing(item).hasTiles());
     }
 
     @Test

@@ -37,18 +37,19 @@ public final class TilesetAssetImportService {
             return TilesetImportResult.skipped();
         }
 
-        String base = baseName(sourceFile.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
-
-        int tileW = Math.max(1, request.tileWidth());
-        int tileH = Math.max(1, request.tileHeight());
+        int tileW = request.tileWidth();
+        int tileH = request.tileHeight();
+        int spacing = request.spacing();
+        int margin = request.margin();
+        validateAtlasSlicing(tileW, tileH, spacing, margin);
 
         ImageSize size = readImageSize(sourceFile);
         int imageW = size.width;
         int imageH = size.height;
+        AtlasGrid grid = calculateAtlasGrid(imageW, imageH, tileW, tileH, spacing, margin);
 
-        int columns = Math.max(1, imageW / tileW);
-        int rows = Math.max(1, imageH / tileH);
+        String base = atlasBaseName(request);
+        FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
 
         TilesetAssetMeta tilesetMeta = createOrUpdateTilesetMeta(
                 base,
@@ -56,12 +57,14 @@ public final class TilesetAssetImportService {
                 imageH,
                 tileW,
                 tileH,
-                columns,
-                rows
+                grid.columns(),
+                grid.rows(),
+                spacing,
+                margin
         );
 
-        splitTilesetSource(sourceFile, tilesetDir, tileW, tileH);
-        Map<Integer, Integer> tileAssetIds = registerSplitTilesAsTileAssets(base, tilesetDir, columns, tilesetMeta);
+        splitTilesetSource(sourceFile, tilesetDir, tileW, tileH, spacing, margin);
+        Map<Integer, Integer> tileAssetIds = registerSplitTilesAsTileAssets(base, tilesetDir, grid.columns(), tilesetMeta);
         copyTilesetSourceFile(base, sourceFile, tilesetDir, tilesetMeta);
 
         return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
@@ -107,7 +110,18 @@ public final class TilesetAssetImportService {
     public record TilesetAtlasImportRequest(FileHandle sourceFile,
                                             FileHandle tilesRoot,
                                             int tileWidth,
-                                            int tileHeight) {
+                                            int tileHeight,
+                                            int spacing,
+                                            int margin,
+                                            String tilesetName) {
+        public TilesetAtlasImportRequest(FileHandle sourceFile,
+                                         FileHandle tilesRoot,
+                                         int tileWidth,
+                                         int tileHeight,
+                                         int spacing,
+                                         int margin) {
+            this(sourceFile, tilesRoot, tileWidth, tileHeight, spacing, margin, null);
+        }
     }
 
     public record TilesetDirectoryImportRequest(FileHandle directory,
@@ -206,7 +220,9 @@ public final class TilesetAssetImportService {
                                                        int tileWidth,
                                                        int tileHeight,
                                                        int columns,
-                                                       int rows) {
+                                                       int rows,
+                                                       int spacing,
+                                                       int margin) {
         String tilesetLogical = StudioFs.PREFIX_TILES + base;
 
         TilesetAssetMeta tilesetMeta = requireTilesetMeta(
@@ -224,8 +240,8 @@ public final class TilesetAssetImportService {
         tilesetMeta.tileHeight = tileHeight;
         tilesetMeta.columns = columns;
         tilesetMeta.rows = rows;
-        tilesetMeta.spacing = 0;
-        tilesetMeta.margin = 0;
+        tilesetMeta.spacing = spacing;
+        tilesetMeta.margin = margin;
 
         return tilesetMeta;
     }
@@ -233,12 +249,16 @@ public final class TilesetAssetImportService {
     private void splitTilesetSource(FileHandle sourceFile,
                                     FileHandle tilesetDir,
                                     int tileWidth,
-                                    int tileHeight) {
+                                    int tileHeight,
+                                    int spacing,
+                                    int margin) {
         splitGridImage(
                 sourceFile,
                 tilesetDir,
                 tileWidth,
                 tileHeight,
+                spacing,
+                margin,
                 null
         );
     }
@@ -488,6 +508,8 @@ public final class TilesetAssetImportService {
                                 FileHandle outputDir,
                                 int tileWidth,
                                 int tileHeight,
+                                int spacing,
+                                int margin,
                                 String prefix) {
         if (sourceFile == null || !sourceFile.exists()) {
             throw new IllegalArgumentException("Source image is missing");
@@ -495,9 +517,7 @@ public final class TilesetAssetImportService {
         if (outputDir == null) {
             throw new IllegalArgumentException("Output directory is null");
         }
-        if (tileWidth <= 0 || tileHeight <= 0) {
-            throw new IllegalArgumentException("Tile size must be > 0");
-        }
+        validateAtlasSlicing(tileWidth, tileHeight, spacing, margin);
 
         outputDir.mkdirs();
 
@@ -505,36 +525,30 @@ public final class TilesetAssetImportService {
         try {
             int imageWidth = source.getWidth();
             int imageHeight = source.getHeight();
+            AtlasGrid grid = calculateAtlasGrid(imageWidth, imageHeight, tileWidth, tileHeight, spacing, margin);
 
-            int columns = imageWidth / tileWidth;
-            int rows = imageHeight / tileHeight;
-
-            if (columns <= 0 || rows <= 0) {
-                throw new IllegalStateException(
-                        "Image is smaller than the requested grid size: "
-                                + imageWidth + "x" + imageHeight
-                                + " for tiles " + tileWidth + "x" + tileHeight
-                );
-            }
-
-            if ((imageWidth % tileWidth) != 0 || (imageHeight % tileHeight) != 0) {
+            if (grid.ignoredRightPixels() > 0 || grid.ignoredBottomPixels() > 0) {
                 StudioLog.warn(
                         "Grid split will ignore extra pixels: image="
                                 + imageWidth + "x" + imageHeight
                                 + ", tile=" + tileWidth + "x" + tileHeight
+                                + ", spacing=" + spacing
+                                + ", margin=" + margin
                 );
             }
 
             int index = 0;
 
-            for (int y = 0; y < rows; y++) {
-                for (int x = 0; x < columns; x++) {
+            for (int row = 0; row < grid.rows(); row++) {
+                int sourceY = margin + row * (tileHeight + spacing);
+                for (int column = 0; column < grid.columns(); column++) {
+                    int sourceX = margin + column * (tileWidth + spacing);
                     Pixmap tile = new Pixmap(tileWidth, tileHeight, source.getFormat());
                     try {
                         tile.drawPixmap(
                                 source,
                                 0, 0,
-                                x * tileWidth, y * tileHeight,
+                                sourceX, sourceY,
                                 tileWidth, tileHeight
                         );
 
@@ -552,6 +566,51 @@ public final class TilesetAssetImportService {
         }
     }
 
+    private void validateAtlasSlicing(int tileWidth, int tileHeight, int spacing, int margin) {
+        if (tileWidth <= 0 || tileHeight <= 0) {
+            throw new IllegalArgumentException("Tile size must be > 0");
+        }
+        if (spacing < 0 || margin < 0) {
+            throw new IllegalArgumentException("Tileset spacing and margin must be >= 0");
+        }
+    }
+
+    private AtlasGrid calculateAtlasGrid(int imageWidth,
+                                         int imageHeight,
+                                         int tileWidth,
+                                         int tileHeight,
+                                         int spacing,
+                                         int margin) {
+        int columns = countTilesOnAxis(imageWidth, tileWidth, spacing, margin);
+        int rows = countTilesOnAxis(imageHeight, tileHeight, spacing, margin);
+        if (columns <= 0 || rows <= 0) {
+            throw new IllegalStateException(
+                    "Image is smaller than the requested grid size: "
+                            + imageWidth + "x" + imageHeight
+                            + " for tiles " + tileWidth + "x" + tileHeight
+                            + ", spacing=" + spacing
+                            + ", margin=" + margin
+            );
+        }
+
+        int lastTileRight = margin + ((columns - 1) * (tileWidth + spacing)) + tileWidth;
+        int lastTileBottom = margin + ((rows - 1) * (tileHeight + spacing)) + tileHeight;
+        return new AtlasGrid(
+                columns,
+                rows,
+                Math.max(0, imageWidth - lastTileRight),
+                Math.max(0, imageHeight - lastTileBottom)
+        );
+    }
+
+    private int countTilesOnAxis(int imageSize, int tileSize, int spacing, int margin) {
+        int count = 0;
+        for (int position = margin; position <= imageSize - tileSize; position += tileSize + spacing) {
+            count++;
+        }
+        return count;
+    }
+
     private String buildSplitTileFileName(String prefix, int index) {
         if (prefix == null || prefix.isBlank()) {
             return index + StudioFs.EXT_PNG;
@@ -567,9 +626,36 @@ public final class TilesetAssetImportService {
         return StudioFs.baseName(name);
     }
 
+    private String atlasBaseName(TilesetAtlasImportRequest request) {
+        String requestedName = request.tilesetName();
+        if (requestedName != null && !requestedName.isBlank()) {
+            String sanitized = sanitizeBaseName(requestedName);
+            if (!sanitized.isBlank()) {
+                return sanitized;
+            }
+        }
+        return baseName(request.sourceFile().name());
+    }
+
+    private String sanitizeBaseName(String name) {
+        String base = baseName(name);
+        if (base == null || base.isBlank()) {
+            return "";
+        }
+
+        String sanitized = base
+                .replaceAll("[^A-Za-z0-9 _-]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return sanitized.isBlank() ? "" : sanitized;
+    }
+
     private record ImageSize(int width, int height) {
     }
 
     private record FolderTilesetInfo(int referenceTileWidth, int referenceTileHeight, boolean uniform) {
+    }
+
+    private record AtlasGrid(int columns, int rows, int ignoredRightPixels, int ignoredBottomPixels) {
     }
 }

@@ -179,21 +179,6 @@ public final class TmxSceneImportService {
             );
         }
 
-        for (TmxTilesetPlan tileset : plan.tilesets()) {
-            if (tileset.spacing() != 0 || tileset.margin() != 0) {
-                return TmxSceneImportResult.rejected(
-                        TmxSceneImportStatus.UNSUPPORTED_TILESET_SPACING_MARGIN,
-                        planResult,
-                        new TmxDiagnostic(
-                                TmxDiagnosticSeverity.BLOCKING,
-                                "TMX_TILESET_SPACING_MARGIN_UNSUPPORTED",
-                                "Tileset '" + tileset.name()
-                                        + "' uses spacing or margin, which is not supported by Studio tileset import yet.",
-                                tileset.sourceTsxPath() != null ? tileset.sourceTsxPath() : tileset.resolvedImagePath()
-                        )
-                );
-            }
-        }
         return null;
     }
 
@@ -241,7 +226,9 @@ public final class TmxSceneImportService {
                     image,
                     tilesRoot,
                     tileset.tileWidth(),
-                    tileset.tileHeight()
+                    tileset.tileHeight(),
+                    tileset.spacing(),
+                    tileset.margin()
             ));
             if (result.importedCount() <= 0) {
                 throw new IllegalStateException("Tileset import failed: " + tileset.name());

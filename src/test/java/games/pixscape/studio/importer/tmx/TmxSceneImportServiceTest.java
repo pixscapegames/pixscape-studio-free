@@ -28,6 +28,8 @@ import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -271,23 +273,48 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
-    public void importSceneRejectsSpacingMarginTilesetsBeforeMutation() throws Exception {
+    public void importSceneImportsTilesetsWithSpacingAndMargin() throws Exception {
         Harness h = harness("tmx-import-spacing-margin");
+        int[] tileColors = {
+                0xFF0000FF,
+                0x00FF00FF,
+                0x0000FFFF,
+                0xFFFF00FF
+        };
+        writeSpacedAtlas(h.projectDir.child("terrain.png"), 8, 8, 2, 2, 1, 1, tileColors);
         FileHandle tmx = writeTmx(h.root.resolve("spacing.tmx"), """
-                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
-                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1" spacing="1">
-                    <image source="terrain.png" width="17" height="16"/>
+                <map orientation="orthogonal" width="2" height="2" tilewidth="2" tileheight="2">
+                  <tileset firstgid="1" name="terrain" tilewidth="2" tileheight="2" tilecount="4" columns="2" spacing="1" margin="1">
+                    <image source="terrain.png" width="8" height="8"/>
                   </tileset>
-                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                  <layer name="Ground" width="2" height="2"><data encoding="csv">1,2,3,4</data></layer>
                 </map>
                 """);
 
         TmxSceneImportResult result = h.importer().importScene(request(tmx, "Spacing"));
 
-        assertEquals(TmxSceneImportStatus.UNSUPPORTED_TILESET_SPACING_MARGIN, result.status());
-        assertEquals("Main", h.cfg.getCurrentSceneName());
-        assertFalse(h.cfg.getScenesMap().containsKey("Spacing"));
-        assertEquals(0, h.db.assets.size);
+        assertTrue(result.imported());
+        assertEquals(1, result.importedTilesetCount());
+        assertEquals(4, result.importedTileCount());
+
+        TilesetAssetMeta tileset = requireTileset(h.db.findByLogicalPath("tiles/terrain"));
+        assertEquals(2, tileset.tileWidth);
+        assertEquals(2, tileset.tileHeight);
+        assertEquals(2, tileset.columns);
+        assertEquals(2, tileset.rows);
+        assertEquals(1, tileset.spacing);
+        assertEquals(1, tileset.margin);
+
+        int tile0 = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id;
+        int tile1 = requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id;
+        int tile2 = requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id;
+        int tile3 = requireTile(h.db.findByLogicalPath("tiles/terrain/3")).id;
+
+        TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
+        assertTileAsset(tiled, 0, 1, tile0);
+        assertTileAsset(tiled, 1, 1, tile1);
+        assertTileAsset(tiled, 0, 0, tile2);
+        assertTileAsset(tiled, 1, 0, tile3);
     }
 
     @Test
@@ -388,6 +415,32 @@ public class TmxSceneImportServiceTest {
         }
     }
 
+    private static void writeSpacedAtlas(FileHandle file,
+                                         int width,
+                                         int height,
+                                         int tileWidth,
+                                         int tileHeight,
+                                         int spacing,
+                                         int margin,
+                                         int[] tileColors) {
+        file.parent().mkdirs();
+        Pixmap pixmap = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        try {
+            pixmap.setColor(0xFF00FFFF);
+            pixmap.fill();
+            int index = 0;
+            for (int y = margin; y <= height - tileHeight; y += tileHeight + spacing) {
+                for (int x = margin; x <= width - tileWidth; x += tileWidth + spacing) {
+                    pixmap.setColor(tileColors[index++]);
+                    pixmap.fillRectangle(x, y, tileWidth, tileHeight);
+                }
+            }
+            PixmapIO.writePNG(file, pixmap);
+        } finally {
+            pixmap.dispose();
+        }
+    }
+
     private static World loadImportedWorld(Harness h, TmxSceneImportResult result) {
         World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
         SceneLoader.loadScene(world, h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()), false);
@@ -438,6 +491,28 @@ public class TmxSceneImportServiceTest {
         assertEquals(expectedX, tiled.tileXs.get(sparseIndex));
         assertEquals(expectedY, tiled.tileYs.get(sparseIndex));
         assertTrue(tiled.tileAssetIds.get(sparseIndex) > 0);
+    }
+
+    private static void assertTileAsset(TiledLayerComponent tiled, int expectedX, int expectedY, int expectedAssetId) {
+        for (int i = 0; i < tiled.tileXs.size; i++) {
+            if (tiled.tileXs.get(i) == expectedX && tiled.tileYs.get(i) == expectedY) {
+                assertEquals(expectedAssetId, tiled.tileAssetIds.get(i));
+                return;
+            }
+        }
+        throw new AssertionError("Missing tile cell " + expectedX + "," + expectedY);
+    }
+
+    private static TilesetAssetMeta requireTileset(AssetMeta meta) {
+        assertNotNull(meta);
+        assertTrue(meta instanceof TilesetAssetMeta);
+        return (TilesetAssetMeta) meta;
+    }
+
+    private static TileAssetMeta requireTile(AssetMeta meta) {
+        assertNotNull(meta);
+        assertTrue(meta instanceof TileAssetMeta);
+        return (TileAssetMeta) meta;
     }
 
     private record Harness(Path root,

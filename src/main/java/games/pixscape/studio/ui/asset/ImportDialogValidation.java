@@ -17,7 +17,7 @@ final class ImportDialogValidation {
 
     static boolean isSupportedImportFile(FileHandle file) {
         if (file == null || !file.exists() || file.isDirectory()) return false;
-        return isSupportedImage(file) || isParticleFile(file);
+        return isSupportedImage(file) || isParticleFile(file) || isTsxFile(file);
     }
 
     static boolean isSupportedImage(FileHandle file) {
@@ -30,6 +30,12 @@ final class ImportDialogValidation {
         if (file == null || !file.exists() || file.isDirectory()) return false;
         String ext = file.extension() == null ? "" : file.extension().toLowerCase();
         return "p".equals(ext);
+    }
+
+    static boolean isTsxFile(FileHandle file) {
+        if (file == null || !file.exists() || file.isDirectory()) return false;
+        String ext = file.extension() == null ? "" : file.extension().toLowerCase();
+        return "tsx".equals(ext);
     }
 
     static int[] readImageDimensions(FileHandle file) {
@@ -71,8 +77,25 @@ final class ImportDialogValidation {
         return Integer.parseInt(input.trim()) <= MAX_IMAGE_SIZE;
     }
 
+    static boolean isNonNegativeInteger(String input) {
+        if (input == null) return false;
+        String normalized = input.trim();
+        if (normalized.isEmpty()) return false;
+
+        try {
+            return Integer.parseInt(normalized) >= 0;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
+    static boolean isNonNegativeIntegerWithinMaxSize(String input) {
+        if (!isNonNegativeInteger(input)) return false;
+        return Integer.parseInt(input.trim()) <= MAX_IMAGE_SIZE;
+    }
+
     static boolean isDivisibleForType(ImportDialog.ImportType type, int sheetDimension, String input) {
-        if (!isSheetType(type)) return true;
+        if (type != ImportDialog.ImportType.SPRITESHEET) return true;
         if (sheetDimension <= 0) return true;
         if (!isPositiveInteger(input)) return false;
 
@@ -81,7 +104,7 @@ final class ImportDialogValidation {
     }
 
     static boolean hasDivisibilityIssue(ImportDialog.ImportItem item) {
-        if (item == null || !isSheetType(item.type)) return false;
+        if (item == null || item.type != ImportDialog.ImportType.SPRITESHEET) return false;
         if (item.imageWidth <= 0 || item.imageHeight <= 0) return false;
 
         String widthText = item.tileWidthField != null
@@ -94,6 +117,68 @@ final class ImportDialogValidation {
 
         return !isDivisibleForType(item.type, item.imageWidth, widthText)
                 || !isDivisibleForType(item.type, item.imageHeight, heightText);
+    }
+
+    static boolean hasInvalidTilesetSlicingSettings(ImportDialog.ImportItem item) {
+        if (item == null || item.type != ImportDialog.ImportType.TILESET) return false;
+        return !isPositiveWithinMax(item.tileWidth)
+                || !isPositiveWithinMax(item.tileHeight)
+                || !isNonNegativeWithinMax(item.tileMargin)
+                || !isNonNegativeWithinMax(item.tileSpacing);
+    }
+
+    static boolean hasTilesetSlicingIssue(ImportDialog.ImportItem item) {
+        if (item == null || item.type != ImportDialog.ImportType.TILESET) return false;
+        if (item.imageWidth <= 0 || item.imageHeight <= 0) return false;
+        return !calculateTilesetSlicing(
+                item.imageWidth,
+                item.imageHeight,
+                item.tileWidth,
+                item.tileHeight,
+                item.tileSpacing,
+                item.tileMargin
+        ).hasTiles();
+    }
+
+    static TilesetSlicingPreview calculateTilesetSlicing(ImportDialog.ImportItem item) {
+        if (item == null) return TilesetSlicingPreview.invalid();
+        return calculateTilesetSlicing(
+                item.imageWidth,
+                item.imageHeight,
+                item.tileWidth,
+                item.tileHeight,
+                item.tileSpacing,
+                item.tileMargin
+        );
+    }
+
+    static TilesetSlicingPreview calculateTilesetSlicing(int imageWidth,
+                                                         int imageHeight,
+                                                         int tileWidth,
+                                                         int tileHeight,
+                                                         int spacing,
+                                                         int margin) {
+        if (imageWidth <= 0 || imageHeight <= 0) return TilesetSlicingPreview.invalid();
+        if (!isPositiveWithinMax(tileWidth) || !isPositiveWithinMax(tileHeight)) return TilesetSlicingPreview.invalid();
+        if (!isNonNegativeWithinMax(margin) || !isNonNegativeWithinMax(spacing)) return TilesetSlicingPreview.invalid();
+
+        int columns = countTilesOnAxis(imageWidth, tileWidth, spacing, margin);
+        int rows = countTilesOnAxis(imageHeight, tileHeight, spacing, margin);
+        if (columns <= 0 || rows <= 0) {
+            return new TilesetSlicingPreview(imageWidth, imageHeight, 0, 0, 0, 0, false);
+        }
+
+        int lastTileRight = margin + ((columns - 1) * (tileWidth + spacing)) + tileWidth;
+        int lastTileBottom = margin + ((rows - 1) * (tileHeight + spacing)) + tileHeight;
+        return new TilesetSlicingPreview(
+                imageWidth,
+                imageHeight,
+                columns,
+                rows,
+                Math.max(0, imageWidth - lastTileRight),
+                Math.max(0, imageHeight - lastTileBottom),
+                true
+        );
     }
 
     static boolean hasInvalidImageDimensions(ImportDialog.ImportItem item) {
@@ -118,10 +203,46 @@ final class ImportDialogValidation {
         return tileWidth > MAX_IMAGE_SIZE || tileHeight > MAX_IMAGE_SIZE;
     }
 
+    private static boolean isPositiveWithinMax(int value) {
+        return value > 0 && value <= MAX_IMAGE_SIZE;
+    }
+
+    private static boolean isNonNegativeWithinMax(int value) {
+        return value >= 0 && value <= MAX_IMAGE_SIZE;
+    }
+
+    private static int countTilesOnAxis(int imageSize, int tileSize, int spacing, int margin) {
+        int count = 0;
+        for (int position = margin; position <= imageSize - tileSize; position += tileSize + spacing) {
+            count++;
+        }
+        return count;
+    }
+
     private static int dimensionFromFieldOrValue(VisValidatableTextField field, int fallback) {
         if (field == null) return fallback;
         String text = field.getText();
         if (!isPositiveInteger(text)) return -1;
         return Integer.parseInt(text.trim());
+    }
+
+    record TilesetSlicingPreview(int imageWidth,
+                                 int imageHeight,
+                                 int columns,
+                                 int rows,
+                                 int unusedRightPixels,
+                                 int unusedBottomPixels,
+                                 boolean validSettings) {
+        static TilesetSlicingPreview invalid() {
+            return new TilesetSlicingPreview(0, 0, 0, 0, 0, 0, false);
+        }
+
+        int tileCount() {
+            return columns * rows;
+        }
+
+        boolean hasTiles() {
+            return validSettings && columns > 0 && rows > 0;
+        }
     }
 }

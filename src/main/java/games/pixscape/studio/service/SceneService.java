@@ -54,6 +54,8 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
+import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
+import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.service.atlas.*;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
@@ -2622,6 +2624,7 @@ public final class SceneService {
         return switch (type) {
             case IMAGE -> importImageAsset(ctx, item);
             case TILESET -> importTilesetAtlasAsset(ctx, item);
+            case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
         };
@@ -2668,13 +2671,43 @@ public final class SceneService {
 
     private int importTilesetAtlasAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
         TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
-                .importAtlas(new TilesetAtlasImportRequest(
-                        item.file,
-                        ctx.tilesRoot,
-                        item.tileWidth,
-                        item.tileHeight
-                ));
+                .importAtlas(tilesetAtlasImportRequestForManualImport(item, ctx.tilesRoot));
         return result.importedCount();
+    }
+
+    private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importAtlas(tilesetAtlasImportRequestForTsxImport(item.file, ctx.tilesRoot));
+        return result.importedCount();
+    }
+
+    static TilesetAtlasImportRequest tilesetAtlasImportRequestForManualImport(ImportDialog.ImportItem item,
+                                                                              FileHandle tilesRoot) {
+        return new TilesetAtlasImportRequest(
+                item.file,
+                tilesRoot,
+                item.tileWidth,
+                item.tileHeight,
+                item.tileSpacing,
+                item.tileMargin
+        );
+    }
+
+    static TilesetAtlasImportRequest tilesetAtlasImportRequestForTsxImport(FileHandle tsxFile,
+                                                                            FileHandle tilesRoot) {
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsxFile);
+        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
+                ? descriptor.name()
+                : baseName(tsxFile.name());
+        return new TilesetAtlasImportRequest(
+                descriptor.imageFile(),
+                tilesRoot,
+                descriptor.tileWidth(),
+                descriptor.tileHeight(),
+                descriptor.spacing(),
+                descriptor.margin(),
+                tilesetName
+        );
     }
 
     public int importTilesetDirectory(FileHandle directory) {
@@ -3055,9 +3088,16 @@ public final class SceneService {
         return f != null && StudioFs.isParticleFile(f.name());
     }
 
+    private static boolean isTsx(FileHandle f) {
+        return f != null && "tsx".equalsIgnoreCase(f.extension());
+    }
+
     private static ImportDialog.ImportType resolveAuto(FileHandle f) {
         if (f != null && StudioFs.isParticleFile(f.name())) {
             return ImportDialog.ImportType.PARTICLE_EFFECT;
+        }
+        if (isTsx(f)) {
+            return ImportDialog.ImportType.TILESET_TSX;
         }
         if (isImage(f)) {
             return ImportDialog.ImportType.IMAGE;

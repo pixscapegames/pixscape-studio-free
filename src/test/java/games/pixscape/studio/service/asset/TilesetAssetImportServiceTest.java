@@ -19,6 +19,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -27,6 +28,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class TilesetAssetImportServiceTest {
 
@@ -60,7 +62,7 @@ public class TilesetAssetImportServiceTest {
         writePng(source, 32, 32, 0.1f, 0.6f, 0.2f, 1f);
 
         TilesetImportResult result = service.importAtlas(
-                new TilesetAtlasImportRequest(source, tilesRoot, 16, 16)
+                new TilesetAtlasImportRequest(source, tilesRoot, 16, 16, 0, 0)
         );
 
         assertEquals(1, result.importedCount());
@@ -90,6 +92,142 @@ public class TilesetAssetImportServiceTest {
             assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id + ".png", tile.sourceRelPath);
             assertTrue(projectDir.child(tile.sourceRelPath).exists());
         }
+    }
+
+    @Test
+    public void importAtlasHonorsMarginAndSpacingWhenSlicing() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-atlas-import-spaced");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("terrain.png");
+
+        int[] tileColors = {
+                0xFF0000FF,
+                0x00FF00FF,
+                0x0000FFFF,
+                0xFFFF00FF
+        };
+        writeSpacedAtlas(source, 8, 8, 2, 2, 1, 1, tileColors);
+
+        TilesetImportResult result = service.importAtlas(
+                new TilesetAtlasImportRequest(source, tilesRoot, 2, 2, 1, 1)
+        );
+
+        assertEquals(1, result.importedCount());
+        assertEquals(4, result.localTileAssetIds().size());
+
+        TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/terrain"));
+        assertEquals(8, tileset.imageWidth);
+        assertEquals(8, tileset.imageHeight);
+        assertEquals(2, tileset.tileWidth);
+        assertEquals(2, tileset.tileHeight);
+        assertEquals(2, tileset.columns);
+        assertEquals(2, tileset.rows);
+        assertEquals(1, tileset.spacing);
+        assertEquals(1, tileset.margin);
+
+        for (int i = 0; i < 4; i++) {
+            TileAssetMeta tile = requireTile(db.findByLogicalPath("tiles/terrain/" + i));
+            assertEquals(tileset.id, tile.tilesetId);
+            assertEquals(i, tile.sheetIndex);
+            assertEquals(i % 2, tile.cellX);
+            assertEquals(i / 2, tile.cellY);
+            assertEquals(Integer.valueOf(tile.id), result.localTileAssetIds().get(i));
+            assertPngSize(projectDir.child(tile.sourceRelPath), 2, 2);
+            assertPngPixels(projectDir.child(tile.sourceRelPath), tileColors[i]);
+        }
+    }
+
+    @Test
+    public void importTsxTilesetParsesDescriptorAndImportsAtlas() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-tsx-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("gfx").child("terrain.png");
+        writeSpacedAtlas(source, 8, 8, 2, 2, 1, 1, new int[]{
+                0xFF0000FF,
+                0x00FF00FF,
+                0x0000FFFF,
+                0xFFFF00FF
+        });
+        FileHandle tsx = projectDir.child("tilesets").child("terrain.tsx");
+        writeString(tsx, """
+                <tileset name="Terrain TSX" tilewidth="2" tileheight="2" spacing="1" margin="1" tilecount="4" columns="2">
+                  <image source="../gfx/terrain.png" width="8" height="8"/>
+                </tileset>
+                """);
+
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsx);
+        TilesetImportResult result = service.importAtlas(new TilesetAtlasImportRequest(
+                descriptor.imageFile(),
+                tilesRoot,
+                descriptor.tileWidth(),
+                descriptor.tileHeight(),
+                descriptor.spacing(),
+                descriptor.margin(),
+                descriptor.name()
+        ));
+
+        assertEquals(1, result.importedCount());
+        assertEquals("tiles/Terrain TSX", result.tilesetLogicalPath());
+        assertEquals(4, result.localTileAssetIds().size());
+        for (int i = 0; i < 4; i++) {
+            assertTrue(result.localTileAssetIds().containsKey(i));
+        }
+
+        TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/Terrain TSX"));
+        assertEquals(8, tileset.imageWidth);
+        assertEquals(8, tileset.imageHeight);
+        assertEquals(2, tileset.tileWidth);
+        assertEquals(2, tileset.tileHeight);
+        assertEquals(2, tileset.columns);
+        assertEquals(2, tileset.rows);
+        assertEquals(1, tileset.spacing);
+        assertEquals(1, tileset.margin);
+    }
+
+    @Test
+    public void parseTsxMissingImageFailsWithClearMessage() throws Exception {
+        Path temp = Files.createTempDirectory("tileset-tsx-missing-image");
+        FileHandle tsx = new FileHandle(temp.resolve("terrain.tsx").toFile());
+        writeString(tsx, """
+                <tileset name="Terrain" tilewidth="16" tileheight="16">
+                  <image source="missing.png" width="16" height="16"/>
+                </tileset>
+                """);
+
+        assertTsxImportError(tsx, "TSX tileset image is missing: missing.png");
+    }
+
+    @Test
+    public void parseTsxImageCollectionFailsWithClearMessage() throws Exception {
+        Path temp = Files.createTempDirectory("tileset-tsx-image-collection");
+        FileHandle tsx = new FileHandle(temp.resolve("terrain.tsx").toFile());
+        writeString(tsx, """
+                <tileset name="Terrain" tilewidth="16" tileheight="16">
+                  <tile id="0"><image source="tile0.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+
+        assertTsxImportError(tsx, "Image collection TSX tilesets are not supported yet.");
+    }
+
+    @Test
+    public void parseInvalidTsxFailsWithClearMessage() throws Exception {
+        Path temp = Files.createTempDirectory("tileset-tsx-invalid");
+        FileHandle wrongRoot = new FileHandle(temp.resolve("wrong.tsx").toFile());
+        writeString(wrongRoot, "<map></map>");
+        assertTsxImportError(wrongRoot, "TSX file is invalid.");
+
+        FileHandle invalidXml = new FileHandle(temp.resolve("invalid.tsx").toFile());
+        writeString(invalidXml, "<tileset>");
+        assertTsxImportError(invalidXml, "TSX file is invalid.");
     }
 
     @Test
@@ -178,11 +316,64 @@ public class TilesetAssetImportServiceTest {
         }
     }
 
+    private static void writeString(FileHandle file, String text) {
+        file.parent().mkdirs();
+        file.writeString(text, false, StandardCharsets.UTF_8.name());
+    }
+
+    private static void assertTsxImportError(FileHandle tsx, String expectedMessage) {
+        try {
+            new TsxTilesetImportParser().parse(tsx);
+            fail("Expected TSX parser failure");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(expectedMessage, ex.getMessage());
+        }
+    }
+
+    private static void writeSpacedAtlas(FileHandle file,
+                                         int width,
+                                         int height,
+                                         int tileWidth,
+                                         int tileHeight,
+                                         int spacing,
+                                         int margin,
+                                         int[] tileColors) {
+        file.parent().mkdirs();
+        Pixmap pixmap = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        try {
+            pixmap.setColor(0xFF00FFFF);
+            pixmap.fill();
+            int index = 0;
+            for (int y = margin; y <= height - tileHeight; y += tileHeight + spacing) {
+                for (int x = margin; x <= width - tileWidth; x += tileWidth + spacing) {
+                    pixmap.setColor(tileColors[index++]);
+                    pixmap.fillRectangle(x, y, tileWidth, tileHeight);
+                }
+            }
+            PixmapIO.writePNG(file, pixmap);
+        } finally {
+            pixmap.dispose();
+        }
+    }
+
     private static void assertPngSize(FileHandle file, int width, int height) {
         Pixmap pixmap = new Pixmap(file);
         try {
             assertEquals(width, pixmap.getWidth());
             assertEquals(height, pixmap.getHeight());
+        } finally {
+            pixmap.dispose();
+        }
+    }
+
+    private static void assertPngPixels(FileHandle file, int expectedRgba) {
+        Pixmap pixmap = new Pixmap(file);
+        try {
+            for (int y = 0; y < pixmap.getHeight(); y++) {
+                for (int x = 0; x < pixmap.getWidth(); x++) {
+                    assertEquals(expectedRgba, pixmap.getPixel(x, y));
+                }
+            }
         } finally {
             pixmap.dispose();
         }
