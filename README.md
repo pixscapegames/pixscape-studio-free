@@ -166,6 +166,40 @@ On Unix-like systems:
 
 Generated outputs such as `.gradle/`, `build/`, `html-player/build/`, and `html-player/war/` are local build artifacts and should not be committed.
 
+## Linux Distribution Builds
+
+Build the reproducible Linux x64 tar.gz distribution:
+
+```sh
+./gradlew linuxTarGz
+```
+
+This writes:
+
+```text
+build/distributions/Pixscape-Studio-Free-<version>-linux-x64.tar.gz
+build/distributions/Pixscape-Studio-Free-<version>-linux-x64.tar.gz.sha256
+```
+
+Build the optional x86_64 AppImage with `appimagetool`:
+
+```sh
+./gradlew appImage -Pappimagetool=/path/to/appimagetool
+```
+
+`appimagetool` is not committed to this repository. The Gradle task looks for it in this order:
+
+* `-Pappimagetool=/path/to/appimagetool`
+* `APPIMAGETOOL=/path/to/appimagetool`
+* an executable named `appimagetool` on `PATH`
+
+The AppImage build writes:
+
+```text
+build/distributions/Pixscape-Studio-Free-<version>-x86_64.AppImage
+build/distributions/Pixscape-Studio-Free-<version>-x86_64.AppImage.sha256
+```
+
 ## HTML Preview Template
 
 The directory `src/main/resources/html-preview-template/` is intentionally versioned.
