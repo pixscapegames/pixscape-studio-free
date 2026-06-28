@@ -48,10 +48,11 @@ public final class TmxImportPlanner {
         List<TmxLayerPlan> layers = new ArrayList<>();
         for (int i = 0; i < report.layers().size(); i++) {
             TmxLayerInfo layer = report.layers().get(i);
-            if (!(layer instanceof TmxTileLayerInfo tileLayer)) {
-                continue;
+            if (layer instanceof TmxTileLayerInfo tileLayer) {
+                layers.add(buildTileLayerPlan(i, tileLayer, tilesetByFirstGid));
+            } else if (layer instanceof TmxImageLayerInfo imageLayer) {
+                layers.add(buildImageLayerPlan(i, imageLayer));
             }
-            layers.add(buildTileLayerPlan(i, tileLayer, tilesetByFirstGid));
         }
 
         return new TmxImportPlan(
@@ -145,6 +146,27 @@ public final class TmxImportPlanner {
                 Math.max(0, layer.width()) * (long) Math.max(0, layer.height()),
                 layer.nonEmptyTileCount(),
                 cells
+        );
+    }
+
+    private TmxImageLayerPlan buildImageLayerPlan(int sourceLayerIndex,
+                                                  TmxImageLayerInfo layer) {
+        return new TmxImageLayerPlan(
+                layer.name(),
+                layer.originalName(),
+                sourceLayerIndex,
+                layer.visible(),
+                layer.parallaxX(),
+                layer.parallaxY(),
+                layer.offsetX(),
+                layer.offsetY(),
+                layer.opacity(),
+                layer.x(),
+                layer.y(),
+                layer.imageSource(),
+                layer.imageWidth(),
+                layer.imageHeight(),
+                layer.resolvedImagePath()
         );
     }
 

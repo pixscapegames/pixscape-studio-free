@@ -194,7 +194,7 @@ public class TmxPreflightServiceTest {
     }
 
     @Test
-    public void objectAndImageLayersWarnButTileLayersStillAnalyze() throws Exception {
+    public void objectLayersWarnAndImageLayersAnalyze() throws Exception {
         Path dir = Files.createTempDirectory("tmx-preflight-other-layers");
         writeFile(dir.resolve("terrain.png"), "fake image");
         writeFile(dir.resolve("background.png"), "fake image");
@@ -204,7 +204,9 @@ public class TmxPreflightServiceTest {
                     <image source="terrain.png" width="16" height="16"/>
                   </tileset>
                   <objectgroup name="Objects"/>
-                  <imagelayer name="Backdrop"><image source="background.png"/></imagelayer>
+                  <imagelayer name="Backdrop" visible="0" opacity="0.5" offsetx="3" offsety="4" parallaxx="2" parallaxy="0.25" x="10" y="20">
+                    <image source="background.png" width="64" height="32"/>
+                  </imagelayer>
                   <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
                 </map>
                 """);
@@ -213,9 +215,68 @@ public class TmxPreflightServiceTest {
 
         assertFalse(report.hasBlockingDiagnostics());
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
         assertEquals(1, report.tileLayerCount());
         assertEquals(3, report.layers().size());
+        TmxImageLayerInfo image = (TmxImageLayerInfo) report.layers().get(1);
+        assertEquals("Backdrop", image.name());
+        assertFalse(image.visible());
+        assertEquals(0.5f, image.opacity(), 0.0001f);
+        assertEquals(3f, image.offsetX(), 0.0001f);
+        assertEquals(4f, image.offsetY(), 0.0001f);
+        assertEquals(2f, image.parallaxX(), 0.0001f);
+        assertEquals(0.25f, image.parallaxY(), 0.0001f);
+        assertEquals(10f, image.x(), 0.0001f);
+        assertEquals(20f, image.y(), 0.0001f);
+        assertEquals("background.png", image.imageSource());
+        assertEquals(64, image.imageWidth());
+        assertEquals(32, image.imageHeight());
+        assertTrue(image.imageExists());
+    }
+
+    @Test
+    public void imageLayerMissingImageSourceReturnsBlockingDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-missing-source");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <imagelayer name="Backdrop"><image/></imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_IMAGE_LAYER_SOURCE_MISSING"));
+    }
+
+    @Test
+    public void imageLayerUnsupportedAttributesWarn() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-warnings");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        writeFile(dir.resolve("background.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16" parallaxoriginx="8">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <imagelayer name="Backdrop" repeatx="1" tintcolor="#ff00ff">
+                    <properties><property name="ignored" value="1"/></properties>
+                    <image source="background.png" trans="ff00ff"/>
+                  </imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_MAP_PARALLAX_ORIGIN_IGNORED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TINT_IGNORED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TRANSPARENT_COLOR_IGNORED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));
     }
 
     @Test

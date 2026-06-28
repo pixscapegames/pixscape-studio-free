@@ -13,14 +13,20 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
+import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TintComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.tiled.TileTransformFlags;
+import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -131,8 +137,8 @@ public class TmxSceneImportServiceTest {
         TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported"));
         World world = loadImportedWorld(h, result);
 
-        int ground = layerEntity(world, 0);
-        int above = layerEntity(world, 1);
+        int ground = layerEntity(world, 0, true);
+        int above = layerEntity(world, 1, true);
         assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(above).visible);
@@ -140,6 +146,65 @@ public class TmxSceneImportServiceTest {
         assertEquals(0.5f, world.getMapper(LayerParallaxComponent.class).get(above).factorY, 0.0001f);
         assertEquals(3f, world.getMapper(TiledLayerComponent.class).get(above).originX, 0.0001f);
         assertEquals(4f, world.getMapper(TiledLayerComponent.class).get(above).originY, 0.0001f);
+    }
+
+    @Test
+    public void importSceneCreatesImageLayersAsClassicLayersWithSprite() throws Exception {
+        Harness h = harness("tmx-import-image-layer");
+        writePng(h.projectDir.child("background.png"), 64, 32);
+        FileHandle tmx = writeTmx(h.root.resolve("image-layer.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                  <imagelayer name="Backdrop" visible="0" opacity="0.5" offsetx="3" offsety="4" x="10" y="20" parallaxx="2" parallaxy="0.25">
+                    <image source="background.png" width="64" height="32"/>
+                  </imagelayer>
+                  <layer name="Above" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported"));
+        World world = loadImportedWorld(h, result);
+
+        int ground = layerEntity(world, 0, true);
+        int backdrop = layerEntity(world, 1, false);
+        int above = layerEntity(world, 2, true);
+        assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
+        assertEquals("Backdrop", world.getMapper(LayerMetaComponent.class).get(backdrop).name);
+        assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
+        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(backdrop).type);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(backdrop).visible);
+        assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorX, 0.0001f);
+        assertEquals(0.25f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorY, 0.0001f);
+
+        int sprite = drawableInLayer(world, 1);
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(sprite);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(sprite);
+        AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).get(sprite);
+        TintComponent tint = world.getMapper(TintComponent.class).get(sprite);
+
+        assertEquals(13f, transform.x, 0.0001f);
+        assertEquals(24f, transform.y, 0.0001f);
+        assertEquals(0f, transform.originX, 0.0001f);
+        assertEquals(0f, transform.originY, 0.0001f);
+        assertEquals(64f, dimensions.width, 0.0001f);
+        assertEquals(32f, dimensions.height, 0.0001f);
+        assertTrue(assetRef.assetId > 0);
+        assertEquals(result.sceneTag(), assetRef.atlasTag);
+        assertEquals(0x80FFFFFF, tint.getRgba());
+
+        AssetMeta imageMeta = h.db.findById(assetRef.assetId);
+        assertNotNull(imageMeta);
+        assertTrue(imageMeta.sourceRelPath.startsWith(StudioFs.DIR_ORIG_IMAGES + "/"));
+        assertTrue(h.projectDir.child(imageMeta.sourceRelPath).exists());
+        assertTrue(h.cfg.getSceneMeta("Imported").runtimeAvailability.spriteAssetIds.contains(assetRef.assetId));
+        assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
+                .child(StudioFs.DIR_INPUT)
+                .child(result.sceneTag())
+                .child(new FileHandle(imageMeta.sourceRelPath).name())
+                .exists());
     }
 
     @Test
@@ -338,10 +403,13 @@ public class TmxSceneImportServiceTest {
         return world.getMapper(TiledLayerComponent.class).get(entities.get(0));
     }
 
-    private static int layerEntity(World world, int index) {
+    private static int layerEntity(World world, int index, boolean requireTiled) {
         ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
+        Aspect.Builder aspect = requireTiled
+                ? Aspect.all(LayerComponent.class, TiledLayerComponent.class)
+                : Aspect.all(LayerComponent.class);
         IntBag entities = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class))
+                .get(aspect)
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
@@ -350,6 +418,20 @@ public class TmxSceneImportServiceTest {
             }
         }
         throw new AssertionError("Missing layer index " + index);
+    }
+
+    private static int drawableInLayer(World world, int layerIndex) {
+        ComponentMapper<EntityIndexComponent> indices = world.getMapper(EntityIndexComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, AssetRefComponent.class))
+                .getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (indices.get(entity).getLayerIndex() == layerIndex) {
+                return entity;
+            }
+        }
+        throw new AssertionError("Missing drawable in layer " + layerIndex);
     }
 
     private static void assertCell(TiledLayerComponent tiled, int sparseIndex, int expectedX, int expectedY) {

@@ -17,6 +17,7 @@ final class TmxSceneImportTransaction {
     private final byte[] projectSnapshot;
     private final byte[] assetsSnapshot;
     private final Array<ProjectFileCleanupService.FileSnapshotEntry> origTilesSnapshot;
+    private final Array<ProjectFileCleanupService.FileSnapshotEntry> origImagesSnapshot;
     private final String previousCurrentSceneName;
     private final int previousNextSceneIndex;
 
@@ -29,6 +30,7 @@ final class TmxSceneImportTransaction {
         this.projectSnapshot = ProjectFileCleanupService.snapshotFile(projectFile);
         this.assetsSnapshot = ProjectFileCleanupService.snapshotFile(assetsFile);
         this.origTilesSnapshot = ProjectFileCleanupService.snapshotDirectory(projectDir.child(StudioFs.DIR_ORIG_TILES));
+        this.origImagesSnapshot = ProjectFileCleanupService.snapshotDirectory(projectDir.child(StudioFs.DIR_ORIG_IMAGES));
         this.previousCurrentSceneName = cfg.getCurrentSceneName();
         this.previousNextSceneIndex = cfg.nextSceneIndex;
     }
@@ -45,6 +47,10 @@ final class TmxSceneImportTransaction {
         ProjectFileCleanupService.restoreDirectoryFromSnapshot(
                 projectDir.child(StudioFs.DIR_ORIG_TILES),
                 origTilesSnapshot
+        );
+        ProjectFileCleanupService.restoreDirectoryFromSnapshot(
+                projectDir.child(StudioFs.DIR_ORIG_IMAGES),
+                origImagesSnapshot
         );
 
         if (createdSceneTag != null && !createdSceneTag.isBlank()) {

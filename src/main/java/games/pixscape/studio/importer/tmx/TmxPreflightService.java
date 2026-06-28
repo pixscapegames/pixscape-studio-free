@@ -2,6 +2,7 @@ package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.XmlReader;
+import games.pixscape.studio.io.StudioFs;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -58,6 +59,9 @@ public final class TmxPreflightService {
         TmxMapInfo mapInfo = readMapInfo(map, state);
         state.mapInfo = mapInfo;
 
+        if (map.hasAttribute("parallaxoriginx") || map.hasAttribute("parallaxoriginy")) {
+            state.warning("TMX_MAP_PARALLAX_ORIGIN_IGNORED", "Map parallax origin is detected but Pixscape has no equivalent.", "map");
+        }
         warnIgnoredProperties(map, state, "map");
         readTilesets(map, tmxFile, mapInfo, state);
         state.tilesets.sort(Comparator.comparingInt(TmxTilesetInfo::firstGid));
@@ -237,7 +241,7 @@ public final class TmxPreflightService {
                 case "group" -> readGroup(child, context, state);
                 case "layer" -> readTileLayer(child, context, state);
                 case "objectgroup" -> readGenericLayer(child, context, state, TmxLayerKind.OBJECT);
-                case "imagelayer" -> readGenericLayer(child, context, state, TmxLayerKind.IMAGE);
+                case "imagelayer" -> readImageLayer(child, context, state);
                 default -> {
                 }
             }
@@ -272,10 +276,76 @@ public final class TmxPreflightService {
         state.layers.add(new TmxGenericLayerInfo(kind, name, visible, opacity, offsetX, offsetY, parallaxX, parallaxY));
         if (kind == TmxLayerKind.OBJECT) {
             state.warning("TMX_OBJECT_LAYER_OUT_OF_SCOPE", "Object layers are not part of the first import scope yet.", name);
-        } else if (kind == TmxLayerKind.IMAGE) {
-            state.warning("TMX_IMAGE_LAYER_OUT_OF_SCOPE", "Image layers are not part of the first import scope yet.", name);
         }
         warnIgnoredLayerAttributes(layer, state, name, opacity);
+    }
+
+    private void warnIgnoredImageLayerAttributes(XmlReader.Element layer,
+                                                 AnalysisState state,
+                                                 String location) {
+        warnIgnoredProperties(layer, state, location);
+        if (layer.hasAttribute("blendmode")) {
+            state.warning("TMX_LAYER_BLENDMODE_IGNORED", "Layer blend mode is detected but ignored by preflight.", location);
+        }
+    }
+
+    private void readImageLayer(XmlReader.Element layer, LayerContext context, AnalysisState state) {
+        String name = layerName(layer, context);
+        String originalName = layer.getAttribute("name", layer.getName());
+        boolean visible = context.visible() && intAttribute(layer, "visible", 1) != 0;
+        float opacity = context.opacity() * floatAttribute(layer, "opacity", 1f);
+        float offsetX = context.offsetX() + floatAttribute(layer, "offsetx", 0f);
+        float offsetY = context.offsetY() + floatAttribute(layer, "offsety", 0f);
+        float parallaxX = context.parallaxX() * floatAttribute(layer, "parallaxx", 1f);
+        float parallaxY = context.parallaxY() * floatAttribute(layer, "parallaxy", 1f);
+        float x = floatAttribute(layer, "x", 0f);
+        float y = floatAttribute(layer, "y", 0f);
+
+        XmlReader.Element image = layer.getChildByName("image");
+        String imageSource = image != null ? image.getAttribute("source", null) : null;
+        int imageWidth = image != null ? intAttribute(image, "width", 0) : 0;
+        int imageHeight = image != null ? intAttribute(image, "height", 0) : 0;
+        FileHandle resolvedImage = imageSource != null ? fileResolver.resolveRelative(new FileHandle(state.sourcePath), imageSource) : null;
+        boolean imageExists = resolvedImage != null && resolvedImage.exists() && !resolvedImage.isDirectory();
+
+        if (image == null) {
+            state.blocking("TMX_IMAGE_LAYER_IMAGE_MISSING", "Image layer has no image element.", name);
+        } else if (imageSource == null || imageSource.isBlank()) {
+            state.blocking("TMX_IMAGE_LAYER_SOURCE_MISSING", "Image layer image source is missing.", name);
+        } else if (!imageExists) {
+            state.blocking("TMX_IMAGE_LAYER_IMAGE_MISSING", "Image layer image is missing: " + imageSource, imageSource);
+        } else if (!StudioFs.isImageFile(imageSource)) {
+            state.blocking("TMX_IMAGE_LAYER_IMAGE_UNSUPPORTED", "Image layer image format is not supported: " + imageSource, imageSource);
+        }
+
+        state.layers.add(new TmxImageLayerInfo(
+                name,
+                originalName,
+                visible,
+                opacity,
+                offsetX,
+                offsetY,
+                parallaxX,
+                parallaxY,
+                x,
+                y,
+                imageSource,
+                imageWidth,
+                imageHeight,
+                pathOf(resolvedImage),
+                imageExists
+        ));
+
+        if (layer.hasAttribute("repeatx") || layer.hasAttribute("repeaty")) {
+            state.warning("TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED", "Image layer repeatx/repeaty is detected but not supported yet.", name);
+        }
+        if (layer.hasAttribute("tintcolor")) {
+            state.warning("TMX_IMAGE_LAYER_TINT_IGNORED", "Image layer tint color is detected but ignored.", name);
+        }
+        if (image != null && image.hasAttribute("trans")) {
+            state.warning("TMX_IMAGE_LAYER_TRANSPARENT_COLOR_IGNORED", "Image layer transparent color is detected but ignored.", name);
+        }
+        warnIgnoredImageLayerAttributes(layer, state, name);
     }
 
     private void readTileLayer(XmlReader.Element layer, LayerContext context, AnalysisState state) {

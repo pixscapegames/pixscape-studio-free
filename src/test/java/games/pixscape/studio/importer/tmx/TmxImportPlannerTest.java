@@ -186,7 +186,7 @@ public class TmxImportPlannerTest {
     }
 
     @Test
-    public void objectAndImageWarningsDoNotPreventPlanning() throws Exception {
+    public void imageLayersArePlannedInSourceOrderAndObjectWarningsDoNotPreventPlanning() throws Exception {
         Path dir = Files.createTempDirectory("tmx-plan-warnings");
         writeFile(dir.resolve("terrain.png"), "fake image");
         writeFile(dir.resolve("background.png"), "fake image");
@@ -196,7 +196,9 @@ public class TmxImportPlannerTest {
                     <image source="terrain.png" width="16" height="16"/>
                   </tileset>
                   <objectgroup name="Objects"/>
-                  <imagelayer name="Backdrop"><image source="background.png"/></imagelayer>
+                  <imagelayer name="Backdrop" offsetx="3" offsety="4" x="10" y="20" opacity="0.5" parallaxx="2" parallaxy="0.25">
+                    <image source="background.png" width="64" height="32"/>
+                  </imagelayer>
                   <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
                 </map>
                 """);
@@ -205,9 +207,23 @@ public class TmxImportPlannerTest {
 
         assertEquals(TmxImportPlanStatus.PLAN_CREATED_WITH_WARNINGS, result.status());
         assertTrue(result.hasPlan());
-        assertEquals(1, result.plan().layers().size());
+        assertEquals(2, result.plan().layers().size());
+        assertEquals(List.of("Backdrop", "Ground"), result.plan().layers().stream().map(TmxLayerPlan::name).toList());
+        TmxImageLayerPlan image = (TmxImageLayerPlan) result.plan().layers().get(0);
+        assertEquals(1, image.sourceLayerIndex());
+        assertEquals("Backdrop", image.originalName());
+        assertEquals(3f, image.offsetX(), 0.0001f);
+        assertEquals(4f, image.offsetY(), 0.0001f);
+        assertEquals(10f, image.x(), 0.0001f);
+        assertEquals(20f, image.y(), 0.0001f);
+        assertEquals(0.5f, image.opacity(), 0.0001f);
+        assertEquals(2f, image.parallaxX(), 0.0001f);
+        assertEquals(0.25f, image.parallaxY(), 0.0001f);
+        assertEquals("background.png", image.imageSource());
+        assertEquals(64, image.imageWidth());
+        assertEquals(32, image.imageHeight());
         assertTrue(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
-        assertTrue(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
+        assertFalse(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
     }
 
     @Test

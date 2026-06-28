@@ -8,6 +8,9 @@
 - Added TMX diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, image layers, tile animations and ignored custom properties.
 - Added a reusable tileset asset import service for atlas and folder-based tilesets.
 - Added Apache-2.0 / LibreJS-compatible license notices to HTML player JavaScript.
+- Added TMX image layer import. Tiled image layers are imported as editable Pixscape Classic layers containing the referenced image as a normal sprite.
+- Preserved image layer visibility, opacity, offsets and parallax factors where supported.
+- Added diagnostics for missing image sources/files and unsupported image layer repeat, tint and transparency options.
 
 ### Changed
 - Moved asset import from `Resources > Import assets` to `File > Import > Assets...`.
@@ -30,7 +33,10 @@
 ### Notes
 - TMX import currently creates a new scene; importing TMX layers into the current scene is not included yet.
 - TMX reimport and synchronization are not included yet.
-- TMX object layers and image layers are detected and reported, but not imported yet.
+- TMX image layers are imported as editable Pixscape Classic layers containing the referenced image as a normal sprite.
+- TMX image layer visibility, opacity, offset and parallax are preserved where supported.
+- TMX object layers are detected and reported, but not imported yet.
 - TMX support is limited to the first supported import scope; unsupported map features are reported before import.
+
 
 ## 0.2.0 - First Open Source Release
