@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.BlendMode;
@@ -17,13 +18,16 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
@@ -118,7 +122,7 @@ public final class TmxSceneImportService {
             ImportAssetsResult importedAssets = importAssets(plan, meta);
             World world = buildImportedWorld(
                     plan,
-                    importedAssets.tileAssetIdsByTileset(),
+                    importedAssets.cellLogicalIdsByTileset(),
                     importedAssets.imageAssetsBySourceLayer(),
                     createdSceneTag
             );
@@ -213,12 +217,15 @@ public final class TmxSceneImportService {
     }
 
     private ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
-        Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset = new HashMap<>();
         Set<Integer> importedTileAssetIds = new HashSet<>();
         Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer = new HashMap<>();
         Set<Integer> importedImageAssetIds = new HashSet<>();
         int importedTilesetCount = 0;
+        boolean tileAnimationsChanged = false;
 
+        FileHandle tileAnimationsFile = projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        TileAnimationsMetaDatabase tileAnimationsDb = TileAnimationsIO.load(tileAnimationsFile);
         FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
         for (TmxTilesetPlan tileset : plan.tilesets()) {
             FileHandle image = new FileHandle(tileset.resolvedImagePath());
@@ -234,12 +241,31 @@ public final class TmxSceneImportService {
                 throw new IllegalStateException("Tileset import failed: " + tileset.name());
             }
             importedTilesetCount += result.importedCount();
-            tileAssetIdsByTileset.put(tileset.planIndex(), result.localTileAssetIds());
+            Map<Integer, Integer> cellLogicalIds = new HashMap<>(result.localTileAssetIds());
             for (Integer assetId : result.localTileAssetIds().values()) {
                 if (assetId == null || assetId <= 0) continue;
                 importedTileAssetIds.add(assetId);
                 runtimeAvailabilityService.addTiledTile(meta, assetId);
             }
+            Map<Integer, Integer> animationIds = TiledAnimationImportSupport.importTileAnimations(
+                    assetDb,
+                    tileAnimationsDb,
+                    tileset.name(),
+                    tileset.tileAnimations(),
+                    result.localTileAssetIds()
+            );
+            if (!animationIds.isEmpty()) {
+                tileAnimationsChanged = true;
+                for (Map.Entry<Integer, Integer> entry : animationIds.entrySet()) {
+                    if (entry == null || entry.getKey() == null || entry.getValue() == null) continue;
+                    cellLogicalIds.put(entry.getKey(), entry.getValue());
+                    runtimeAvailabilityService.addTiledAnimation(meta, entry.getValue());
+                }
+            }
+            cellLogicalIdsByTileset.put(tileset.planIndex(), cellLogicalIds);
+        }
+        if (tileAnimationsChanged) {
+            TileAnimationsIO.save(tileAnimationsDb, tileAnimationsFile);
         }
 
         FileHandle imagesRoot = projectDir.child(StudioFs.DIR_ORIG_IMAGES);
@@ -256,7 +282,7 @@ public final class TmxSceneImportService {
 
         return new ImportAssetsResult(
                 importedTilesetCount,
-                tileAssetIdsByTileset,
+                cellLogicalIdsByTileset,
                 importedTileAssetIds,
                 imageAssetsBySourceLayer,
                 importedImageAssetIds
@@ -429,22 +455,22 @@ public final class TmxSceneImportService {
     private void populateTiles(World world,
                                int layerEntity,
                                TmxTileLayerPlan tileLayer,
-                               Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset) {
+                               Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerEntity);
         for (TmxTileCellPlan cell : tileLayer.cells()) {
-            Map<Integer, Integer> tileAssetIds = tileAssetIdsByTileset.get(cell.tilesetPlanIndex());
-            if (tileAssetIds == null) {
+            Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
+            if (logicalIds == null) {
                 throw new IllegalStateException("Missing imported tileset for cell gid " + cell.cleanGid());
             }
-            Integer assetId = tileAssetIds.get(cell.localTileId());
-            if (assetId == null || assetId <= 0) {
+            Integer logicalId = logicalIds.get(cell.localTileId());
+            if (logicalId == null || logicalId <= 0) {
                 throw new IllegalStateException("Missing imported tile asset for local tile " + cell.localTileId());
             }
             int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
             int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
             byte flags = transformFlags(cell.transform());
-            tiled.data.setTile(gx, gy, assetId, flags);
-            TiledSparseStorageHelper.setTile(tiled, gx, gy, assetId, flags);
+            tiled.data.setTile(gx, gy, logicalId, flags);
+            TiledSparseStorageHelper.setTile(tiled, gx, gy, logicalId, flags);
         }
     }
 
@@ -517,7 +543,7 @@ public final class TmxSceneImportService {
     }
 
     private record ImportAssetsResult(int importedTilesetCount,
-                                      Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
+                                      Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
                                       Set<Integer> importedTileAssetIds,
                                       Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                       Set<Integer> importedImageAssetIds) {

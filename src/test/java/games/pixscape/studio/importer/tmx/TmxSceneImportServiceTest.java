@@ -13,6 +13,8 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
@@ -22,18 +24,23 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TintComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.TileAnimationProjectDefData;
+import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
 import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.io.TileAnimationsIO;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -246,6 +253,79 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void importSceneCreatesTiledAnimationMetadataAndMapsAnimatedCells() throws Exception {
+        Harness h = harness("tmx-import-tile-animation");
+        FileHandle tmx = animatedTileTmx(h, "animated.tmx", "1,2,0,0");
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated"));
+
+        assertTrue(result.imported());
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
+        );
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertTrue(def.id > 0);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id, def.frameAssetIds[0]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id, def.frameAssetIds[1]);
+        assertEquals(100, def.frameDurationsMs[0]);
+        assertEquals(150, def.frameDurationsMs[1]);
+        assertTrue(h.cfg.getSceneMeta("Animated").runtimeAvailability.tiledAnimationIds.contains(def.id));
+
+        TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
+        assertTileAsset(tiled, 0, 1, def.id);
+        assertTileAsset(tiled, 1, 1, requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id);
+    }
+
+    @Test
+    public void importScenePreservesTransformFlagsOnAnimatedCells() throws Exception {
+        Harness h = harness("tmx-import-animated-transform-flags");
+        long hFlipAnimated = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1);
+        FileHandle tmx = animatedTileTmx(h, "animated-flags.tmx", hFlipAnimated + ",0,0,0");
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated Flags"));
+
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
+        );
+        TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
+        assertTileAsset(tiled, 0, 1, animations.animations.get(0).id);
+        assertEquals(TileTransformFlags.FLIP_H, tiled.tileTransformFlags.get(0));
+    }
+
+    @Test
+    public void importSceneRuntimeExportWritesImportedTileAnimations() throws Exception {
+        Harness h = harness("tmx-import-animation-runtime-export");
+        FileHandle tmx = animatedTileTmx(h, "animated.tmx", "1,0,0,0");
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated"));
+        assertTrue(result.imported());
+        RuntimeExport.exportRuntime(h.cfg, h.projectDir, new FileHandle(h.root.resolve("export").toFile()));
+
+        FileHandle runtimeAnimations = new FileHandle(h.root
+                .resolve("export")
+                .resolve(RuntimeExport.RUNTIME_DIR_NAME)
+                .resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
+                .toFile());
+        TileAnimationsMetaDatabase exported = TileAnimationsIO.load(runtimeAnimations);
+        assertEquals(1, exported.animations.size);
+        TileAnimationProjectDefData def = exported.animations.get(0);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id, def.frameAssetIds[0]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id, def.frameAssetIds[1]);
+        assertEquals(100, def.frameDurationsMs[0]);
+        assertEquals(150, def.frameDurationsMs[1]);
+
+        JsonValue profiles = new JsonReader().parse(new FileHandle(h.root
+                .resolve("export")
+                .resolve(RuntimeExport.RUNTIME_DIR_NAME)
+                .resolve("tileset-profiles.json")
+                .toFile()));
+        JsonValue tileIds = profiles.get("tilesets").get(0).get("tileAssetIds");
+        assertTrue(containsJsonInt(tileIds, def.frameAssetIds[0]));
+        assertTrue(containsJsonInt(tileIds, def.frameAssetIds[1]));
+    }
+
+    @Test
     public void importSceneRejectsPlansAboveFixedTiledBudgetBeforeMutation() throws Exception {
         Harness h = harness("tmx-import-budget");
         writePng(h.projectDir.child("wide.png"), 16, 16);
@@ -382,6 +462,7 @@ public class TmxSceneImportServiceTest {
         AssetMetaDatabase db = new AssetMetaDatabase();
         db.save(projectDir.child(StudioFs.FILE_ASSETS_JSON));
         ProjectConfig.ProjectIO.saveProject(cfg, StudioFs.requireStudioProjectFile(cfg));
+        Files.writeString(root.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
         writePng(projectDir.child("terrain.png"), 32, 32);
         return new Harness(root, projectDir, cfg, db);
     }
@@ -391,6 +472,23 @@ public class TmxSceneImportServiceTest {
                 <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
                   <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
                     <image source="terrain.png" width="32" height="32"/>
+                  </tileset>
+                  <layer name="Ground" width="2" height="2"><data encoding="csv">%s</data></layer>
+                </map>
+                """.formatted(csv));
+    }
+
+    private static FileHandle animatedTileTmx(Harness h, String name, String csv) throws Exception {
+        return writeTmx(h.root.resolve(name), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0">
+                      <animation>
+                        <frame tileid="1" duration="100"/>
+                        <frame tileid="2" duration="150"/>
+                      </animation>
+                    </tile>
                   </tileset>
                   <layer name="Ground" width="2" height="2"><data encoding="csv">%s</data></layer>
                 </map>
@@ -501,6 +599,18 @@ public class TmxSceneImportServiceTest {
             }
         }
         throw new AssertionError("Missing tile cell " + expectedX + "," + expectedY);
+    }
+
+    private static boolean containsJsonInt(JsonValue array, int value) {
+        if (array == null || !array.isArray()) {
+            return false;
+        }
+        for (JsonValue item = array.child; item != null; item = item.next) {
+            if (item.asInt() == value) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static TilesetAssetMeta requireTileset(AssetMeta meta) {

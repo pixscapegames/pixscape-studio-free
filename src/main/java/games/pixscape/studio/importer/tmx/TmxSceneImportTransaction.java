@@ -2,6 +2,7 @@ package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
@@ -14,8 +15,10 @@ final class TmxSceneImportTransaction {
     private final AssetMetaDatabase assetDb;
     private final FileHandle projectFile;
     private final FileHandle assetsFile;
+    private final FileHandle tileAnimationsFile;
     private final byte[] projectSnapshot;
     private final byte[] assetsSnapshot;
+    private final byte[] tileAnimationsSnapshot;
     private final Array<ProjectFileCleanupService.FileSnapshotEntry> origTilesSnapshot;
     private final Array<ProjectFileCleanupService.FileSnapshotEntry> origImagesSnapshot;
     private final String previousCurrentSceneName;
@@ -27,8 +30,10 @@ final class TmxSceneImportTransaction {
         this.assetDb = assetDb;
         this.projectFile = StudioFs.requireStudioProjectFile(cfg);
         this.assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        this.tileAnimationsFile = projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
         this.projectSnapshot = ProjectFileCleanupService.snapshotFile(projectFile);
         this.assetsSnapshot = ProjectFileCleanupService.snapshotFile(assetsFile);
+        this.tileAnimationsSnapshot = ProjectFileCleanupService.snapshotFile(tileAnimationsFile);
         this.origTilesSnapshot = ProjectFileCleanupService.snapshotDirectory(projectDir.child(StudioFs.DIR_ORIG_TILES));
         this.origImagesSnapshot = ProjectFileCleanupService.snapshotDirectory(projectDir.child(StudioFs.DIR_ORIG_IMAGES));
         this.previousCurrentSceneName = cfg.getCurrentSceneName();
@@ -60,6 +65,7 @@ final class TmxSceneImportTransaction {
 
         ProjectFileCleanupService.restoreFileFromSnapshot(projectFile, projectSnapshot);
         ProjectFileCleanupService.restoreFileFromSnapshot(assetsFile, assetsSnapshot);
+        ProjectFileCleanupService.restoreFileFromSnapshot(tileAnimationsFile, tileAnimationsSnapshot);
         restoreAssetDbFromSnapshot();
     }
 

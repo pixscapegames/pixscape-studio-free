@@ -5,7 +5,15 @@ import com.badlogic.gdx.utils.XmlReader;
 import games.pixscape.studio.importer.tmx.TmxFileResolver;
 import games.pixscape.studio.io.StudioFs;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class TsxTilesetImportParser {
+
+    public static final String TILE_ANIMATION_EMPTY = "TMX_TILE_ANIMATION_EMPTY";
+    public static final String TILE_ANIMATION_TILE_ID_OUT_OF_RANGE = "TMX_TILE_ANIMATION_TILE_ID_OUT_OF_RANGE";
+    public static final String TILE_ANIMATION_FRAME_TILE_ID_OUT_OF_RANGE = "TMX_TILE_ANIMATION_FRAME_TILE_ID_OUT_OF_RANGE";
+    public static final String TILE_ANIMATION_FRAME_DURATION_INVALID = "TMX_TILE_ANIMATION_FRAME_DURATION_INVALID";
 
     private final TmxFileResolver fileResolver;
 
@@ -77,8 +85,116 @@ public final class TsxTilesetImportParser {
                 spacing,
                 margin,
                 intAttribute(tileset, "tilecount", 0),
-                intAttribute(tileset, "columns", 0)
+                intAttribute(tileset, "columns", 0),
+                parseTileAnimationsForStandalone(
+                        tileset,
+                        intAttribute(tileset, "tilecount", 0)
+                )
         );
+    }
+
+    private static List<TsxTilesetDescriptor.TileAnimation> parseTileAnimationsForStandalone(XmlReader.Element tileset,
+                                                                                             int tileCount) {
+        List<String> failures = new ArrayList<>();
+        List<TsxTilesetDescriptor.TileAnimation> animations = parseTileAnimations(
+                tileset,
+                tileCount,
+                (code, message, location) -> failures.add(message)
+        );
+        if (!failures.isEmpty()) {
+            throw new IllegalArgumentException(failures.get(0));
+        }
+        return animations;
+    }
+
+    public static List<TsxTilesetDescriptor.TileAnimation> parseTileAnimations(XmlReader.Element tileset,
+                                                                               int tileCount,
+                                                                               TileAnimationDiagnosticSink diagnostics) {
+        List<TsxTilesetDescriptor.TileAnimation> animations = new ArrayList<>();
+        if (tileset == null) {
+            return animations;
+        }
+
+        for (int i = 0; i < tileset.getChildCount(); i++) {
+            XmlReader.Element tile = tileset.getChild(i);
+            if (!"tile".equals(tile.getName())) continue;
+
+            XmlReader.Element animation = tile.getChildByName("animation");
+            if (animation == null) continue;
+
+            int baseLocalTileId = intAttribute(tile, "id", -1);
+            String baseLocation = "tile " + baseLocalTileId;
+            boolean valid = true;
+
+            if (!isValidLocalTileId(baseLocalTileId, tileCount)) {
+                report(
+                        diagnostics,
+                        TILE_ANIMATION_TILE_ID_OUT_OF_RANGE,
+                        "Tile animation base tile id is outside the tileset tile range: " + baseLocalTileId,
+                        baseLocation
+                );
+                valid = false;
+            }
+
+            if (animation.getChildCount() == 0) {
+                report(
+                        diagnostics,
+                        TILE_ANIMATION_EMPTY,
+                        "Tile animation has no frames: tile " + baseLocalTileId,
+                        baseLocation
+                );
+                valid = false;
+            }
+
+            List<TsxTilesetDescriptor.Frame> frames = new ArrayList<>();
+            for (int f = 0; f < animation.getChildCount(); f++) {
+                XmlReader.Element frame = animation.getChild(f);
+                if (!"frame".equals(frame.getName())) continue;
+
+                int frameLocalTileId = intAttribute(frame, "tileid", -1);
+                int durationMs = intAttribute(frame, "duration", 0);
+                String frameLocation = "tile " + baseLocalTileId + " animation frame " + f;
+
+                if (!isValidLocalTileId(frameLocalTileId, tileCount)) {
+                    report(
+                            diagnostics,
+                            TILE_ANIMATION_FRAME_TILE_ID_OUT_OF_RANGE,
+                            "Tile animation frame tile id is outside the tileset tile range: " + frameLocalTileId,
+                            frameLocation
+                    );
+                    valid = false;
+                }
+
+                if (durationMs <= 0) {
+                    report(
+                            diagnostics,
+                            TILE_ANIMATION_FRAME_DURATION_INVALID,
+                            "Tile animation frame duration must be > 0 ms: tile "
+                                    + baseLocalTileId + ", frame " + f,
+                            frameLocation
+                    );
+                    valid = false;
+                }
+
+                frames.add(new TsxTilesetDescriptor.Frame(frameLocalTileId, durationMs));
+            }
+
+            if (frames.isEmpty() && animation.getChildCount() > 0) {
+                report(
+                        diagnostics,
+                        TILE_ANIMATION_EMPTY,
+                        "Tile animation has no frame elements: tile " + baseLocalTileId,
+                        baseLocation
+                );
+                valid = false;
+            }
+
+            if (valid) {
+                animations.add(new TsxTilesetDescriptor.TileAnimation(baseLocalTileId, frames));
+            }
+        }
+
+        return animations;
     }
 
     private boolean hasPerTileImages(XmlReader.Element tileset) {
@@ -91,6 +207,19 @@ public final class TsxTilesetImportParser {
         return false;
     }
 
+    private static boolean isValidLocalTileId(int localTileId, int tileCount) {
+        return localTileId >= 0 && (tileCount <= 0 || localTileId < tileCount);
+    }
+
+    private static void report(TileAnimationDiagnosticSink diagnostics,
+                               String code,
+                               String message,
+                               String location) {
+        if (diagnostics != null) {
+            diagnostics.report(code, message, location);
+        }
+    }
+
     private static int intAttribute(XmlReader.Element element, String name, int defaultValue) {
         try {
             return element.getIntAttribute(name, defaultValue);
@@ -101,5 +230,10 @@ public final class TsxTilesetImportParser {
 
     private static boolean isPng(FileHandle file) {
         return file != null && StudioFs.EXT_PNG.substring(1).equalsIgnoreCase(file.extension());
+    }
+
+    @FunctionalInterface
+    public interface TileAnimationDiagnosticSink {
+        void report(String code, String message, String location);
     }
 }

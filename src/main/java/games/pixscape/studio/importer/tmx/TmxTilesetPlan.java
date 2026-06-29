@@ -1,5 +1,9 @@
 package games.pixscape.studio.importer.tmx;
 
+import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
+
+import java.util.List;
+
 public record TmxTilesetPlan(int planIndex,
                              int firstGid,
                              String name,
@@ -16,5 +20,10 @@ public record TmxTilesetPlan(int planIndex,
                              int margin,
                              boolean external,
                              int localTileIdStart,
-                             int localTileIdEndExclusive) {
+                             int localTileIdEndExclusive,
+                             List<TsxTilesetDescriptor.TileAnimation> tileAnimations) {
+
+    public TmxTilesetPlan {
+        tileAnimations = tileAnimations == null ? List.of() : List.copyOf(tileAnimations);
+    }
 }

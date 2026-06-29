@@ -3,6 +3,8 @@ package games.pixscape.studio.importer.tmx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.XmlReader;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
+import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -12,6 +14,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.zip.GZIPInputStream;
@@ -134,7 +137,7 @@ public final class TmxPreflightService {
         if (tsxFile == null || !tsxFile.exists() || tsxFile.isDirectory()) {
             state.blocking("TMX_TSX_MISSING", "External TSX file is missing: " + source, source);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true));
+                    null, 0, 0, null, false, true, Collections.emptyList()));
             return;
         }
 
@@ -144,7 +147,7 @@ public final class TmxPreflightService {
         } catch (RuntimeException ex) {
             state.blocking("TMX_TSX_INVALID_XML", "External TSX XML could not be parsed: " + ex.getMessage(), tsxPath);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true));
+                    null, 0, 0, null, false, true, Collections.emptyList()));
             return;
         }
 
@@ -191,14 +194,17 @@ public final class TmxPreflightService {
             if (child.getChildByName("image") != null) {
                 hasPerTileImages = true;
             }
-            if (child.getChildByName("animation") != null) {
-                state.warning("TMX_TILE_ANIMATION_IGNORED", "Tile animations are detected but ignored by preflight.", name);
-            }
             warnIgnoredProperties(child, state, "tile");
         }
         if (hasPerTileImages) {
             state.blocking("TMX_IMAGE_COLLECTION_TILESET", "Image collection tilesets are not supported.", name);
         }
+
+        List<TsxTilesetDescriptor.TileAnimation> tileAnimations = TsxTilesetImportParser.parseTileAnimations(
+                tileset,
+                tileCount,
+                (code, message, location) -> state.blocking(code, message, location)
+        );
 
         warnIgnoredProperties(tileset, state, "tileset");
 
@@ -230,7 +236,8 @@ public final class TmxPreflightService {
                 imageHeight,
                 pathOf(resolvedImage),
                 imageExists,
-                external
+                external,
+                tileAnimations
         );
     }
 

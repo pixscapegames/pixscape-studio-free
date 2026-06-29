@@ -108,6 +108,28 @@ public class SceneServicePreviewSaveGuardContractTest {
     }
 
     @Test
+    public void sceneUsedTiledAnimationChecksFrameProfilesInsteadOfAnimationId() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-tiled-animation-frame-profiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot, "Main", tiledSceneJson(9001));
+        writeTileAnimations(exportRoot, 9001, 1451, 1486);
+        writeTilesetProfiles(exportRoot, 1451, 1486);
+
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void sceneUsedTiledAnimationWithMissingFrameProfileRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-tiled-animation-missing-frame-profile");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot, "Main", tiledSceneJson(9001));
+        writeTileAnimations(exportRoot, 9001, 1451, 1486);
+        writeTilesetProfiles(exportRoot, 1451);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
     public void copiedStudioProjectWithMissingRuntimeExportRequiresSaveWithoutCrash() throws Exception {
         Path studioProjectDir = Files.createTempDirectory("preview-copied-studio-project");
         Path exportRoot = Files.createTempDirectory("preview-copied-export-root");
@@ -226,6 +248,42 @@ public class SceneServicePreviewSaveGuardContractTest {
                           ]
                         }
                         """.formatted(ids),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private static void writeTileAnimations(Path exportRoot,
+                                            int animationId,
+                                            int... frameAssetIds) throws Exception {
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        Files.createDirectories(runtimeRoot);
+
+        StringBuilder frameIds = new StringBuilder();
+        StringBuilder durations = new StringBuilder();
+        for (int i = 0; i < frameAssetIds.length; i++) {
+            if (i > 0) {
+                frameIds.append(", ");
+                durations.append(", ");
+            }
+            frameIds.append(frameAssetIds[i]);
+            durations.append(100);
+        }
+
+        Files.writeString(
+                runtimeRoot.resolve("tiled-animations.json"),
+                """
+                        {
+                          "version": "1",
+                          "animations": [
+                            {
+                              "name": "anim",
+                              "id": %d,
+                              "frameAssetIds": [%s],
+                              "frameDurationsMs": [%s]
+                            }
+                          ]
+                        }
+                        """.formatted(animationId, frameIds, durations),
                 StandardCharsets.UTF_8
         );
     }

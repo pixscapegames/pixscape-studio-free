@@ -6,12 +6,13 @@
 
 * Added `File > Import > Tiled map (.tmx)...` for importing supported Tiled maps as new Pixscape scenes.
 * Added a TMX import pipeline with preflight validation, import planning, scene materialization and rollback handling.
-* Added TMX diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, tile animations and ignored custom properties.
+* Added TMX diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, invalid tile animations and ignored custom properties.
 * Added TMX image layer import. Tiled image layers are imported as editable Pixscape Classic layers containing the referenced image as a normal sprite.
 * Preserved image layer visibility, opacity, offsets and parallax factors where supported.
 * Added diagnostics for missing image sources/files and unsupported image layer repeat, tint and transparency options.
 * Added standalone `.tsx` tileset import for Tiled single-image tilesets.
 * Added TSX parsing for tile width, tile height, spacing, margin and relative image source resolution.
+* Added Tiled tile animation import from TSX/TMX single-image tilesets, mapped to Pixscape tiled animation metadata.
 * Added margin and spacing support to atlas tileset import.
 * Added explicit tileset profile metadata for imported tilesets, separating native tile size from logical cell size.
 * Added a `Tileset profile...` import dialog for manual PNG atlas and folder-based tileset imports.
@@ -33,6 +34,7 @@
 * Sprite sheet import keeps its stricter divisibility validation.
 * Tiled map properties now label logical dimensions as cell width and cell height.
 * Runtime export now writes tileset profiles for tile assets used by exported scenes, without mutating Runtime Availability.
+* Runtime export now writes imported tiled animations to `tiled-animations.json` and includes their frame tile IDs in `tileset-profiles.json`.
 * Clarified the tiled-cell capacity exceeded dialog wording.
 
 ### Fixed
@@ -40,6 +42,7 @@
 * Fixed Preview startup when a Studio project is opened without its exported runtime project. Pixscape now triggers the normal save/export flow before launching Preview instead of failing on a missing runtime export.
 * Fixed Preview launches using stale runtime exports when the current scene or tileset profile manifest is out of date.
 * Fixed empty `tileset-profiles.json` exports when tiled scenes use tile assets but Runtime Availability has no explicit tiled tiles.
+* Fixed `tileset-profiles.json` coverage for imported tiled animation frames used by exported scenes.
 * Fixed Studio atlas-backed tiled rendering losing profile metadata after tileset import, scene reload or atlas rebind.
 * Fixed profiled tiles disappearing in Preview when exported scenes referenced tile IDs missing from `tileset-profiles.json`.
 * Fixed the Studio “always on top / foreground” behavior.
@@ -56,6 +59,7 @@
 * Added regression coverage for Preview save/export requirements when the runtime export is missing or stale.
 * Added coverage for margin/spacing atlas slicing, metadata persistence and row-major tile IDs.
 * Added coverage for standalone TSX import, relative image resolution, missing image errors, invalid TSX files and unsupported image collection tilesets.
+* Added coverage for TSX tile animation parsing, invalid tile animation diagnostics, TMX tiled animation materialization, transform flags and runtime export.
 * Added coverage for tileset profile metadata serialization, migration defaults and import propagation.
 * Added coverage for tileset profile validation, slicing layout, reference-cell defaults and preview placement helpers.
 * Added coverage for runtime tileset profile export, Preview manifest validation and Runtime Availability separation.
@@ -68,9 +72,9 @@
 * TMX image layers are imported as editable Pixscape Classic layers containing the referenced image as a normal sprite.
 * TMX image layer visibility, opacity, offset and parallax are preserved where supported.
 * TMX object layers are detected and reported, but not imported yet.
-* TMX tile animations are detected and reported, but not imported yet.
+* TMX tile animations from supported TSX/TMX single-image tilesets are imported as Pixscape tiled animations.
 * TMX support is limited to the first supported import scope; unsupported map features are reported before import.
-* Standalone TSX import currently supports single-image tilesets only.
+* Standalone TSX import currently supports single-image tilesets, including tile animation metadata.
 * Tileset profiles are stored as global tileset metadata; per-tile profile overrides are not included yet.
 
 ## 0.2.0 - First Open Source Release

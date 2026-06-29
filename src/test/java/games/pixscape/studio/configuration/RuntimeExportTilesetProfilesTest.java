@@ -4,9 +4,11 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.io.TileAnimationsIO;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -244,6 +246,90 @@ public class RuntimeExportTilesetProfilesTest {
         assertEquals(2, tileAssetIds.size);
         assertEquals(first.id, tileAssetIds.get(0).asInt());
         assertEquals(second.id, tileAssetIds.get(1).asInt());
+    }
+
+    @Test
+    public void exportRuntimeWritesTilesetProfilesForTiledAnimationFramesWhenRuntimeAvailabilityTilesAreEmpty() throws Exception {
+        Path studioDir = Files.createTempDirectory("pixscape-studio-export-tiled-animation-profiles-studio");
+        Path userDir = Files.createTempDirectory("pixscape-studio-export-tiled-animation-profiles-user");
+
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Tiled Animation Profiles Export";
+        cfg.projectFileName = "tiled-animation-profiles-export";
+        cfg.exportRootPathDir = userDir.toString();
+        cfg.createSceneMeta("Main");
+
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetMeta tileset = (TilesetAssetMeta) db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/terrain",
+                "orig/tiles/terrain.png",
+                AssetMeta.AssetScope.USER
+        );
+        tileset.tileWidth = 32;
+        tileset.tileHeight = 32;
+        tileset.referenceCellWidth = 32;
+        tileset.referenceCellHeight = 32;
+        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.anchor = TilesetAnchor.TOP_CENTER;
+        tileset.renderSize = TilesetRenderSize.NATIVE;
+
+        TileAssetMeta firstFrame = (TileAssetMeta) db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/frame-a",
+                "orig/tiles/terrain.png",
+                AssetMeta.AssetScope.USER
+        );
+        firstFrame.tilesetId = tileset.id;
+
+        TileAssetMeta secondFrame = (TileAssetMeta) db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/frame-b",
+                "orig/tiles/terrain.png",
+                AssetMeta.AssetScope.USER
+        );
+        secondFrame.tilesetId = tileset.id;
+
+        db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.createEmpty();
+        TileAnimationProjectDefData animation = new TileAnimationProjectDefData();
+        animation.id = 9001;
+        animation.name = "terrain_anim_0";
+        animation.frameAssetIds = new int[]{firstFrame.id, secondFrame.id};
+        animation.frameDurationsMs = new int[]{100, 150};
+        animations.animations.add(animation);
+        TileAnimationsIO.save(
+                animations,
+                new FileHandle(studioDir.resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON).toFile())
+        );
+
+        Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
+        Files.writeString(
+                studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"),
+                tiledSceneJson(animation.id),
+                StandardCharsets.UTF_8
+        );
+
+        assertTrue(cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.isEmpty());
+
+        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
+
+        Path runtimeDir = userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        JsonValue projectRoot = new JsonReader().parse(
+                new FileHandle(runtimeDir.resolve(RuntimeExport.PROJECT_JSON).toFile())
+        );
+        JsonValue runtimeAvailability = projectRoot.get("scenes").get("Main").get("runtimeAvailability");
+        assertEquals(0, runtimeAvailability.get("tiledTiles").size);
+        assertTrue(cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.isEmpty());
+
+        JsonValue root = new JsonReader().parse(
+                new FileHandle(runtimeDir.resolve(TILESET_PROFILES_JSON).toFile())
+        );
+        JsonValue tileAssetIds = root.get("tilesets").get(0).get("tileAssetIds");
+        assertEquals(2, tileAssetIds.size);
+        assertEquals(firstFrame.id, tileAssetIds.get(0).asInt());
+        assertEquals(secondFrame.id, tileAssetIds.get(1).asInt());
     }
 
     @Test(expected = GdxRuntimeException.class)

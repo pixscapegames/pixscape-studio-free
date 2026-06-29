@@ -50,6 +50,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
+import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
@@ -300,25 +301,48 @@ public final class SceneService {
                                                          Path runtimeRoot,
                                                          JsonValue runtimeProjectRoot) throws IOException {
         Set<Integer> out = new HashSet<>();
-        collectRuntimeAvailabilityTileAssetIds(cfg, out);
-        collectRuntimeSceneTileAssetIds(runtimeRoot, runtimeProjectRoot, out);
+        TileAnimationsMetaDatabase tileAnimationsDb = loadRuntimeTileAnimations(runtimeRoot);
+        collectRuntimeAvailabilityTileAssetIds(cfg, out, tileAnimationsDb);
+        collectRuntimeSceneTileAssetIds(runtimeRoot, runtimeProjectRoot, out, tileAnimationsDb);
         return out;
     }
 
-    private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig cfg, Set<Integer> out) {
+    private static TileAnimationsMetaDatabase loadRuntimeTileAnimations(Path runtimeRoot) {
+        if (runtimeRoot == null) {
+            return TileAnimationsIO.createEmpty();
+        }
+        Path file = runtimeRoot.resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        if (!Files.isRegularFile(file)) {
+            return TileAnimationsIO.createEmpty();
+        }
+        return TileAnimationsIO.load(new FileHandle(file.toFile()));
+    }
+
+    private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig cfg,
+                                                               Set<Integer> out,
+                                                               TileAnimationsMetaDatabase tileAnimationsDb) {
         if (cfg == null || cfg.getScenesMap() == null) {
             return;
         }
 
         for (ObjectMap.Entry<String, SceneMeta> entry : cfg.getScenesMap()) {
             SceneMeta scene = entry != null ? entry.value : null;
-            if (scene == null || scene.runtimeAvailability == null
-                    || scene.runtimeAvailability.tiledTileAssetIds == null) {
+            if (scene == null || scene.runtimeAvailability == null) {
                 continue;
             }
-            for (Integer assetId : scene.runtimeAvailability.tiledTileAssetIds) {
-                if (assetId != null && assetId > 0) {
-                    out.add(assetId);
+            if (scene.runtimeAvailability.tiledTileAssetIds != null) {
+                for (Integer assetId : scene.runtimeAvailability.tiledTileAssetIds) {
+                    if (assetId != null && assetId > 0) {
+                        out.add(assetId);
+                    }
+                }
+            }
+            if (scene.runtimeAvailability.tiledAnimationIds != null) {
+                for (Integer tileAnimationId : scene.runtimeAvailability.tiledAnimationIds) {
+                    if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, tileAnimationId, out)
+                            && tileAnimationId != null && tileAnimationId > 0) {
+                        out.add(tileAnimationId);
+                    }
                 }
             }
         }
@@ -326,7 +350,8 @@ public final class SceneService {
 
     private static void collectRuntimeSceneTileAssetIds(Path runtimeRoot,
                                                        JsonValue runtimeProjectRoot,
-                                                       Set<Integer> out) throws IOException {
+                                                       Set<Integer> out,
+                                                       TileAnimationsMetaDatabase tileAnimationsDb) throws IOException {
         JsonValue scenes = runtimeProjectRoot != null ? runtimeProjectRoot.get("scenes") : null;
         if (runtimeRoot == null || scenes == null || !scenes.isObject()) {
             return;
@@ -347,11 +372,13 @@ public final class SceneService {
             if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
                 throw new IOException("Missing runtime scene file: " + sceneFile);
             }
-            collectTiledLayerTileAssetIds(new JsonReader().parse(Files.readString(sceneFile)), out);
+            collectTiledLayerTileAssetIds(new JsonReader().parse(Files.readString(sceneFile)), out, tileAnimationsDb);
         }
     }
 
-    private static void collectTiledLayerTileAssetIds(JsonValue root, Set<Integer> out) {
+    private static void collectTiledLayerTileAssetIds(JsonValue root,
+                                                     Set<Integer> out,
+                                                     TileAnimationsMetaDatabase tileAnimationsDb) {
         JsonValue entities = root != null ? root.get("entities") : null;
         if (entities == null || !entities.isObject()) {
             return;
@@ -368,15 +395,17 @@ public final class SceneService {
                 continue;
             }
 
-            collectIntBagValues(tiled.get("tileAssetIds"), out);
+            collectIntBagValues(tiled.get("tileAssetIds"), out, tileAnimationsDb);
             JsonValue data = tiled.get("data");
             if (data != null && data.isObject()) {
-                collectIntBagValues(data.get("tileAssetIds"), out);
+                collectIntBagValues(data.get("tileAssetIds"), out, tileAnimationsDb);
             }
         }
     }
 
-    private static void collectIntBagValues(JsonValue bag, Set<Integer> out) {
+    private static void collectIntBagValues(JsonValue bag,
+                                            Set<Integer> out,
+                                            TileAnimationsMetaDatabase tileAnimationsDb) {
         JsonValue items = bag != null ? bag.get("items") : null;
         if (items == null || !items.isArray()) {
             return;
@@ -387,9 +416,31 @@ public final class SceneService {
         for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
             int assetId = item.asInt();
             if (assetId > 0) {
-                out.add(assetId);
+                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, assetId, out)) {
+                    out.add(assetId);
+                }
             }
         }
+    }
+
+    private static boolean addTiledAnimationFrameAssetIds(TileAnimationsMetaDatabase db,
+                                                          Integer tileAnimationId,
+                                                          Set<Integer> out) {
+        if (db == null || db.animations == null || tileAnimationId == null || tileAnimationId <= 0 || out == null) {
+            return false;
+        }
+        for (TileAnimationProjectDefData def : db.animations) {
+            if (def == null || def.id != tileAnimationId) continue;
+            if (def.frameAssetIds != null) {
+                for (int frameAssetId : def.frameAssetIds) {
+                    if (frameAssetId > 0) {
+                        out.add(frameAssetId);
+                    }
+                }
+            }
+            return true;
+        }
+        return false;
     }
 
     private static boolean tilesetProfilesContainAllTileAssets(Path tilesetProfiles,
@@ -2829,8 +2880,35 @@ public final class SceneService {
     }
 
     private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file);
+        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
+                ? descriptor.name()
+                : baseName(item.file.name());
         TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
-                .importAtlas(tilesetAtlasImportRequestForTsxImport(item.file, ctx.tilesRoot));
+                .importAtlas(new TilesetAtlasImportRequest(
+                        descriptor.imageFile(),
+                        ctx.tilesRoot,
+                        descriptor.tileWidth(),
+                        descriptor.tileHeight(),
+                        descriptor.spacing(),
+                        descriptor.margin(),
+                        tilesetName
+                ));
+        if (result.importedCount() > 0 && descriptor.tileAnimations() != null && !descriptor.tileAnimations().isEmpty()) {
+            FileHandle tileAnimationsFile = ctx.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+            if (tileAnimationsMetaDatabase == null) {
+                tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
+            }
+            TiledAnimationImportSupport.importTileAnimations(
+                    assetMetaDatabase,
+                    tileAnimationsMetaDatabase,
+                    tilesetName,
+                    descriptor.tileAnimations(),
+                    result.localTileAssetIds()
+            );
+            TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
+            reloadTileAnimationRegistryFromProjectData();
+        }
         return result.importedCount();
     }
 

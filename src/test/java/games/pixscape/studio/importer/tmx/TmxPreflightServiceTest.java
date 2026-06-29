@@ -108,6 +108,58 @@ public class TmxPreflightServiceTest {
     }
 
     @Test
+    public void validTsxTileAnimationsAreSupportedByPreflight() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-tsx-animation");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        Path images = Files.createDirectories(dir.resolve("images"));
+        writeFile(images.resolve("terrain.png"), "fake image");
+        writeFile(tiles.resolve("terrain.tsx"), """
+                <tileset version="1.10" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                  <image source="../images/terrain.png" width="32" height="32"/>
+                  <tile id="0">
+                    <animation>
+                      <frame tileid="1" duration="100"/>
+                      <frame tileid="2" duration="150"/>
+                    </animation>
+                  </tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/terrain.tsx"/>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_TILE_ANIMATION_IGNORED"));
+        assertEquals(1, report.tilesets().get(0).tileAnimations().size());
+    }
+
+    @Test
+    public void invalidTsxTileAnimationsProduceSpecificDiagnostics() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-invalid-tsx-animation");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+                    <image source="terrain.png" width="32" height="16"/>
+                    <tile id="0"><animation><frame tileid="4" duration="0"/></animation></tile>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILE_ANIMATION_FRAME_TILE_ID_OUT_OF_RANGE"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILE_ANIMATION_FRAME_DURATION_INVALID"));
+    }
+
+    @Test
     public void base64ZlibLayerIsDecoded() throws Exception {
         Path dir = Files.createTempDirectory("tmx-preflight-zlib");
         writeFile(dir.resolve("terrain.png"), "fake image");
