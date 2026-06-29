@@ -22,6 +22,39 @@ public class StudioWorldConfigSpatialSystemTest {
     }
 
     @Test
+    public void studioViewportPassesTilesetProfilesToRuntimeTiledSync() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+
+        assertTrue(source.contains("studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);"));
+        assertTrue(source.contains("tileAnimationRegistry,\n                        studioTilesetProfiles,\n                        systemProfiler,"));
+        assertTrue(source.contains("public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase)"));
+    }
+
+    @Test
+    public void assetImportsRefreshStudioTilesetProfileRegistryFromLiveDatabase() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
+        String refreshAfterSave = "assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));\n"
+                + "        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);\n"
+                + "        refreshAssetsPanel();";
+
+        assertTrue(countOccurrences(source, refreshAfterSave) >= 2);
+    }
+
+    @Test
+    public void sceneReloadRefreshesStudioTilesetProfileRegistryBeforeAtlasRebind() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
+        String method = methodBody(source, "private void rebuildRenderRuntimeForScene(");
+
+        int refresh = method.indexOf("refreshStudioTilesetProfileRegistry(projectDir);");
+        int loadAtlas = method.indexOf("SceneAtlasLoaderService.loadSceneAtlas(");
+        int rebind = method.indexOf("rebindTiles();");
+
+        assertTrue(refresh >= 0);
+        assertTrue(refresh < loadAtlas);
+        assertTrue(loadAtlas < rebind);
+    }
+
+    @Test
     public void spatialBlockModeSuppressesTiledPreviewGhost() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
         int methodStart = source.indexOf("private void updateTiledPreview()");
@@ -46,5 +79,39 @@ public class StudioWorldConfigSpatialSystemTest {
 
     private static String read(String path) throws Exception {
         return Files.readString(Path.of(path), StandardCharsets.UTF_8).replace("\r\n", "\n");
+    }
+
+    private static int countOccurrences(String source, String needle) {
+        int count = 0;
+        int from = 0;
+        while (true) {
+            int index = source.indexOf(needle, from);
+            if (index < 0) {
+                return count;
+            }
+            count++;
+            from = index + needle.length();
+        }
+    }
+
+    private static String methodBody(String source, String signaturePrefix) {
+        int signatureIndex = source.indexOf(signaturePrefix);
+        if (signatureIndex < 0) throw new AssertionError("Method signature not found: " + signaturePrefix);
+
+        int bodyStart = source.indexOf('{', signatureIndex);
+        if (bodyStart < 0) throw new AssertionError("Method body start not found: " + signaturePrefix);
+
+        int depth = 0;
+        for (int i = bodyStart; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') depth++;
+            if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return source.substring(bodyStart + 1, i);
+                }
+            }
+        }
+        throw new AssertionError("Method body end not found: " + signaturePrefix);
     }
 }

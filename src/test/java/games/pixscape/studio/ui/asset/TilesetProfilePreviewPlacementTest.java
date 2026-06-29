@@ -59,7 +59,7 @@ public class TilesetProfilePreviewPlacementTest {
     }
 
     @Test
-    public void topCenterMatchesLegacyTopCenteredPlacement() {
+    public void topCenterMatchesDeterministicDefaultPlacement() {
         TilesetProfilePreviewPlacement.Placement placement = TilesetProfilePreviewPlacement.calculate(
                 16,
                 40,

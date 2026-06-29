@@ -8,6 +8,8 @@ import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
@@ -129,12 +131,28 @@ public class RuntimeExportAnimationsTest {
         scene.runtimeAvailability.animationAssetIds.add(11);
         scene.runtimeAvailability.particleEffectPaths.add("impact.p");
         scene.runtimeAvailability.prefabIds.add("enemy");
-        scene.runtimeAvailability.tiledTileAssetIds.add(12);
         scene.runtimeAvailability.tiledAnimationIds.add(13);
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
-        new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetMeta tileset = (TilesetAssetMeta) db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/terrain",
+                "orig/tiles/terrain.png",
+                AssetMeta.AssetScope.USER
+        );
+        tileset.tileWidth = 32;
+        tileset.tileHeight = 32;
+        TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/grass",
+                "orig/tiles/terrain.png",
+                AssetMeta.AssetScope.USER
+        );
+        tile.tilesetId = tileset.id;
+        db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+        scene.runtimeAvailability.tiledTileAssetIds.add(tile.id);
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
@@ -148,7 +166,7 @@ public class RuntimeExportAnimationsTest {
         assertEquals(11, availability.get("animations").get(0).asInt());
         assertEquals("impact.p", availability.get("particles").get(0).asString());
         assertEquals("enemy", availability.get("prefabs").get(0).asString());
-        assertEquals(12, availability.get("tiledTiles").get(0).asInt());
+        assertEquals(tile.id, availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
     }
 

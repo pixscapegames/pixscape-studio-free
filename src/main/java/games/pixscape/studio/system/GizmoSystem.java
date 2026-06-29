@@ -354,16 +354,6 @@ public final class GizmoSystem extends BaseSystem {
 
         boolean validSelection = spatialTileSelectionService.canCreateSpatialBlock(tiled.data);
         drawSpatialTileSelectionTint(tiled.data, spatialTileSelectionService.isDragging(), validSelection);
-        GizmoDrawHelper.drawSpatialTileSelection(
-                ctx,
-                tiled.data,
-                spatialTileSelectionService.getMinGx(),
-                spatialTileSelectionService.getMinGy(),
-                spatialTileSelectionService.getMaxGx(),
-                spatialTileSelectionService.getMaxGy(),
-                spatialTileSelectionService.isDragging(),
-                validSelection
-        );
     }
 
     private void drawSelectedSpatialBlockLinkedTiles() {
@@ -381,7 +371,6 @@ public final class GizmoSystem extends BaseSystem {
         if (block == null || !block.hasLinkedTileRefs()) return;
 
         drawSpatialBlockLinkedTileTint(tiled.data, block);
-        drawSpatialBlockLinkedTileOutlines(tiled.data, block);
     }
 
     private SpatialBlockData spatialBlockById(SpatialBlocksComponent component, int blockId) {
@@ -425,25 +414,6 @@ public final class GizmoSystem extends BaseSystem {
             if (ref == null || !map.isInside(ref.gx, ref.gy)) continue;
             if (map.getTile(ref.gx, ref.gy) <= 0) continue;
             drawSpatialTileTintCell(map, ref.gx, ref.gy, colorPacked);
-        }
-    }
-
-    private void drawSpatialBlockLinkedTileOutlines(TiledMapLayerData map, SpatialBlockData block) {
-        if (map == null || block == null || block.linkedTileRefs == null) return;
-
-        for (int i = 0, n = block.linkedTileRefs.size; i < n; i++) {
-            SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(i);
-            if (ref == null || !map.isInside(ref.gx, ref.gy)) continue;
-            GizmoDrawHelper.drawSpatialTileSelection(
-                    ctx,
-                    map,
-                    ref.gx,
-                    ref.gy,
-                    ref.gx,
-                    ref.gy,
-                    false,
-                    true
-            );
         }
     }
 

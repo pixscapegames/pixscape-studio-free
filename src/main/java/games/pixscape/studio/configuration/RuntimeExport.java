@@ -21,6 +21,8 @@ public final class RuntimeExport {
     public static final String RUNTIME_DIR_NAME = "pixscape-project";
     public static final String PROJECT_JSON = "project.json";
     private static final String ANIMATIONS_JSON = "animations.json";
+    private static final String TILESET_PROFILES_JSON = "tileset-profiles.json";
+    private static final String TILESET_PROFILES_FORMAT = "pixscape.tileset-profiles";
 
     // Components to exclude from the runtime (noms "courts" Artemis)
     private static final ObjectSet<String> RUNTIME_EXCLUDED_COMPONENTS = new ObjectSet<>();
@@ -192,6 +194,13 @@ public final class RuntimeExport {
                 studioProjectDir.child(StudioFs.FILE_ASSETS_JSON),
                 runtimeDir.child(ANIMATIONS_JSON)
         );
+        exportTilesetProfiles(
+                studioProjectDir.child(StudioFs.FILE_ASSETS_JSON),
+                runtimeDir.child(TILESET_PROFILES_JSON),
+                studioCfg,
+                runtimeScenesDir,
+                out
+        );
 
         // 7) Final project.json write
         saveProject(out, runtimeDir, studioCfg);
@@ -326,6 +335,227 @@ public final class RuntimeExport {
         runtimeFile.parent().mkdirs();
         String pretty = root.prettyPrint(JsonWriter.OutputType.json, 120);
         StudioIO.writeAtomic(runtimeFile, out -> out.write(pretty.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static void exportTilesetProfiles(FileHandle assetsFile,
+                                              FileHandle runtimeFile,
+                                              ProjectConfig studioCfg,
+                                              FileHandle runtimeScenesDir,
+                                              RuntimeConfig runtimeCfg) {
+        if (runtimeFile == null) {
+            return;
+        }
+
+        AssetMetaDatabase assetDb = AssetMetaDatabase.load(assetsFile);
+        IntSet runtimeTileAssetIds = collectRuntimeTileAssetIds(studioCfg, runtimeScenesDir, runtimeCfg);
+        IntMap<IntArray> tileIdsByTilesetId = collectRuntimeTileIdsByTileset(assetDb, runtimeTileAssetIds);
+
+        JsonValue root = new JsonValue(JsonValue.ValueType.object);
+        root.addChild("format", new JsonValue(TILESET_PROFILES_FORMAT));
+        root.addChild("version", new JsonValue(1));
+
+        JsonValue tilesets = new JsonValue(JsonValue.ValueType.array);
+        if (assetDb.assets != null && tileIdsByTilesetId.size > 0) {
+            Array<TilesetAssetMeta> exportableTilesets = new Array<>();
+            for (AssetMeta meta : assetDb.assets) {
+                if (meta instanceof TilesetAssetMeta tileset
+                        && tileset.id > 0
+                        && tileIdsByTilesetId.containsKey(tileset.id)) {
+                    exportableTilesets.add(tileset);
+                }
+            }
+            exportableTilesets.sort(RuntimeExport::compareTilesets);
+
+            for (TilesetAssetMeta tileset : exportableTilesets) {
+                IntArray tileIds = tileIdsByTilesetId.get(tileset.id);
+                if (tileIds == null || tileIds.size == 0) {
+                    continue;
+                }
+                tileIds.sort();
+                tilesets.addChild(tilesetProfileJson(tileset, tileIds));
+            }
+        }
+        root.addChild("tilesets", tilesets);
+
+        runtimeFile.parent().mkdirs();
+        String pretty = root.prettyPrint(JsonWriter.OutputType.json, 120);
+        StudioIO.writeAtomic(runtimeFile, out -> out.write(pretty.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static IntSet collectRuntimeTileAssetIds(ProjectConfig studioCfg,
+                                                     FileHandle runtimeScenesDir,
+                                                     RuntimeConfig runtimeCfg) {
+        IntSet out = new IntSet();
+        collectRuntimeAvailabilityTileAssetIds(studioCfg, out);
+        collectRuntimeSceneTileAssetIds(runtimeScenesDir, runtimeCfg, out);
+        return out;
+    }
+
+    private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig studioCfg, IntSet out) {
+        if (studioCfg == null) {
+            return;
+        }
+
+        ObjectMap<String, SceneMeta> scenes = studioCfg.getScenesMap();
+        if (scenes == null || scenes.size == 0) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMeta> entry : scenes) {
+            SceneMeta scene = entry != null ? entry.value : null;
+            SceneRuntimeAvailabilityData availability = scene != null ? scene.runtimeAvailability : null;
+            if (availability == null || availability.tiledTileAssetIds == null) {
+                continue;
+            }
+            for (Integer assetId : availability.tiledTileAssetIds) {
+                if (assetId != null && assetId > 0) {
+                    out.add(assetId);
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeSceneTileAssetIds(FileHandle runtimeScenesDir,
+                                                       RuntimeConfig runtimeCfg,
+                                                       IntSet out) {
+        if (runtimeScenesDir == null || runtimeCfg == null || runtimeCfg.scenes == null || runtimeCfg.scenes.size == 0) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMetaRuntime> entry : runtimeCfg.scenes) {
+            SceneMetaRuntime scene = entry != null ? entry.value : null;
+            String file = scene != null ? RuntimeFs.filenameOnly(scene.file) : null;
+            if (file == null || file.isBlank()) {
+                continue;
+            }
+
+            FileHandle sceneFile = runtimeScenesDir.child(file);
+            if (!sceneFile.exists()) {
+                throw new GdxRuntimeException("Runtime export missing exported scene file while collecting tiled profiles: "
+                        + sceneFile.path());
+            }
+
+            collectTiledLayerTileAssetIds(new JsonReader().parse(sceneFile), out);
+        }
+    }
+
+    private static void collectTiledLayerTileAssetIds(JsonValue root, IntSet out) {
+        JsonValue entities = root != null ? root.get("entities") : null;
+        if (entities == null || !entities.isObject()) {
+            return;
+        }
+
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            if (components == null || !components.isObject()) {
+                continue;
+            }
+
+            JsonValue tiled = components.get("TiledLayerComponent");
+            if (tiled == null || !tiled.isObject()) {
+                continue;
+            }
+
+            collectIntBagValues(tiled.get("tileAssetIds"), out);
+            JsonValue data = tiled.get("data");
+            if (data != null && data.isObject()) {
+                collectIntBagValues(data.get("tileAssetIds"), out);
+            }
+        }
+    }
+
+    private static void collectIntBagValues(JsonValue bag, IntSet out) {
+        JsonValue items = bag != null ? bag.get("items") : null;
+        if (items == null || !items.isArray()) {
+            return;
+        }
+
+        int size = bag.getInt("size", items.size);
+        int index = 0;
+        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
+            int assetId = item.asInt();
+            if (assetId > 0) {
+                out.add(assetId);
+            }
+        }
+    }
+
+    private static IntMap<IntArray> collectRuntimeTileIdsByTileset(AssetMetaDatabase assetDb,
+                                                                   IntSet runtimeTileAssetIds) {
+        IntMap<IntArray> out = new IntMap<>();
+        if (assetDb == null || assetDb.assets == null || runtimeTileAssetIds == null || runtimeTileAssetIds.size == 0) {
+            return out;
+        }
+
+        for (IntSet.IntSetIterator it = runtimeTileAssetIds.iterator(); it.hasNext; ) {
+            int tileAssetId = it.next();
+            AssetMeta tileMeta = assetDb.findById(tileAssetId);
+            if (!(tileMeta instanceof TileAssetMeta tile)) {
+                throw new GdxRuntimeException("Runtime export requires a tile asset profile, but asset "
+                        + tileAssetId + " is not a tile asset.");
+            }
+            if (tile.tilesetId <= 0) {
+                throw new GdxRuntimeException("Runtime export requires a tileset profile for tile asset "
+                        + tileAssetId + ", but the tile has no tileset id.");
+            }
+            AssetMeta tilesetMeta = assetDb.findById(tile.tilesetId);
+            if (!(tilesetMeta instanceof TilesetAssetMeta)) {
+                throw new GdxRuntimeException("Runtime export requires a tileset profile for tile asset "
+                        + tileAssetId + ", but tileset " + tile.tilesetId + " is missing.");
+            }
+
+            IntArray tileIds = out.get(tile.tilesetId);
+            if (tileIds == null) {
+                tileIds = new IntArray();
+                out.put(tile.tilesetId, tileIds);
+            }
+            if (!tileIds.contains(tile.id)) {
+                tileIds.add(tile.id);
+            }
+        }
+
+        return out;
+    }
+
+    private static JsonValue tilesetProfileJson(TilesetAssetMeta tileset, IntArray tileIds) {
+        tileset.normalizeProfileDefaults();
+
+        JsonValue node = new JsonValue(JsonValue.ValueType.object);
+        node.addChild("tilesetId", new JsonValue(tileset.id));
+        node.addChild("logicalPath", new JsonValue(tileset.logicalPath));
+        node.addChild("tileWidth", new JsonValue(tileset.tileWidth));
+        node.addChild("tileHeight", new JsonValue(tileset.tileHeight));
+        node.addChild("referenceCellWidth", new JsonValue(tileset.referenceCellWidth));
+        node.addChild("referenceCellHeight", new JsonValue(tileset.referenceCellHeight));
+        node.addChild("projection", new JsonValue(tiledProjectionWireName(tileset.projection)));
+        node.addChild("anchor", new JsonValue(tileset.anchor != null ? tileset.anchor.wireName() : null));
+        node.addChild("offsetX", new JsonValue(tileset.offsetX));
+        node.addChild("offsetY", new JsonValue(tileset.offsetY));
+        node.addChild("renderSize", new JsonValue(tileset.renderSize != null ? tileset.renderSize.wireName() : null));
+
+        JsonValue tileAssetIds = new JsonValue(JsonValue.ValueType.array);
+        for (int i = 0; i < tileIds.size; i++) {
+            tileAssetIds.addChild(new JsonValue(tileIds.get(i)));
+        }
+        node.addChild("tileAssetIds", tileAssetIds);
+        return node;
+    }
+
+    private static int compareTilesets(TilesetAssetMeta left, TilesetAssetMeta right) {
+        String leftPath = left != null && left.logicalPath != null ? left.logicalPath : "";
+        String rightPath = right != null && right.logicalPath != null ? right.logicalPath : "";
+        int byPath = leftPath.compareTo(rightPath);
+        if (byPath != 0) {
+            return byPath;
+        }
+        int leftId = left != null ? left.id : 0;
+        int rightId = right != null ? right.id : 0;
+        return Integer.compare(leftId, rightId);
+    }
+
+    private static String tiledProjectionWireName(SceneMetaRuntime.TiledProjection projection) {
+        if (projection == SceneMetaRuntime.TiledProjection.ISO) return "isometric";
+        return "orthogonal";
     }
 
     private static JsonValue animationJson(AnimationAssetMeta animation) {

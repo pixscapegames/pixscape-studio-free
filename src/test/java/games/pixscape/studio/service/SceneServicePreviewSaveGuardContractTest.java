@@ -47,6 +47,67 @@ public class SceneServicePreviewSaveGuardContractTest {
     }
 
     @Test
+    public void runtimeExportWithDifferentCurrentSceneRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-stale-current-scene");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot, "Other");
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void tiledRuntimeExportWithoutTilesetProfilesRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-missing-tileset-profiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(42);
+        writeUsableRuntimeExport(exportRoot);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void staleTilesetProfilesRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-stale-tileset-profiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(42);
+        writeUsableRuntimeExport(exportRoot);
+        writeTilesetProfiles(exportRoot, 7);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void currentTilesetProfilesDoesNotRequireSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-current-tileset-profiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(42);
+        writeUsableRuntimeExport(exportRoot);
+        writeTilesetProfiles(exportRoot, 42);
+
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void sceneUsedTilesWithEmptyTilesetProfilesRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-empty-tileset-profiles-scene-tiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot, "Main", tiledSceneJson(1451, 1486));
+        writeEmptyTilesetProfiles(exportRoot);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void sceneUsedTilesWithIncompleteTilesetProfilesRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-incomplete-tileset-profiles-scene-tiles");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot, "Main", tiledSceneJson(1451, 1486));
+        writeTilesetProfiles(exportRoot, 1451);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
     public void copiedStudioProjectWithMissingRuntimeExportRequiresSaveWithoutCrash() throws Exception {
         Path studioProjectDir = Files.createTempDirectory("preview-copied-studio-project");
         Path exportRoot = Files.createTempDirectory("preview-copied-export-root");
@@ -63,7 +124,7 @@ public class SceneServicePreviewSaveGuardContractTest {
         ProjectConfig cfg = projectConfig(exportRoot);
         Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
         Files.createDirectories(runtimeRoot);
-        Files.writeString(runtimeRoot.resolve(RuntimeExport.PROJECT_JSON), runtimeProjectJson("scene1.json"));
+        Files.writeString(runtimeRoot.resolve(RuntimeExport.PROJECT_JSON), runtimeProjectJson("Main"));
 
         assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
     }
@@ -108,13 +169,68 @@ public class SceneServicePreviewSaveGuardContractTest {
     }
 
     private static void writeUsableRuntimeExport(Path exportRoot) throws Exception {
-        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
-        Files.createDirectories(runtimeRoot.resolve("scenes"));
-        Files.writeString(runtimeRoot.resolve(RuntimeExport.PROJECT_JSON), runtimeProjectJson("scene1.json"));
-        Files.writeString(runtimeRoot.resolve("scenes").resolve("scene1.json"), "{\"entities\":{}}");
+        writeUsableRuntimeExport(exportRoot, "Main");
     }
 
-    private static String runtimeProjectJson(String sceneFile) {
+    private static void writeUsableRuntimeExport(Path exportRoot, String currentSceneName) throws Exception {
+        writeUsableRuntimeExport(exportRoot, currentSceneName, "{\"entities\":{}}");
+    }
+
+    private static void writeUsableRuntimeExport(Path exportRoot,
+                                                 String currentSceneName,
+                                                 String mainSceneJson) throws Exception {
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        Files.createDirectories(runtimeRoot.resolve("scenes"));
+        Files.writeString(runtimeRoot.resolve(RuntimeExport.PROJECT_JSON), runtimeProjectJson(currentSceneName));
+        Files.writeString(runtimeRoot.resolve("scenes").resolve("scene1.json"), mainSceneJson);
+        Files.writeString(runtimeRoot.resolve("scenes").resolve("scene2.json"), "{\"entities\":{}}");
+    }
+
+    private static void writeEmptyTilesetProfiles(Path exportRoot) throws Exception {
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        Files.createDirectories(runtimeRoot);
+        Files.writeString(
+                runtimeRoot.resolve("tileset-profiles.json"),
+                """
+                        {
+                          "format": "pixscape.tileset-profiles",
+                          "version": 1,
+                          "tilesets": []
+                        }
+                        """,
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private static void writeTilesetProfiles(Path exportRoot, int... tileAssetIds) throws Exception {
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        Files.createDirectories(runtimeRoot);
+
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; i < tileAssetIds.length; i++) {
+            if (i > 0) ids.append(", ");
+            ids.append(tileAssetIds[i]);
+        }
+
+        Files.writeString(
+                runtimeRoot.resolve("tileset-profiles.json"),
+                """
+                        {
+                          "format": "pixscape.tileset-profiles",
+                          "version": 1,
+                          "tilesets": [
+                            {
+                              "tilesetId": 1,
+                              "tileAssetIds": [%s]
+                            }
+                          ]
+                        }
+                        """.formatted(ids),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private static String runtimeProjectJson(String currentSceneName) {
         return """
                 {
                   "projectKind": "pixscape-runtime-project",
@@ -128,14 +244,42 @@ public class SceneServicePreviewSaveGuardContractTest {
                   "shadersDir": "shaders",
                   "audioDir": "audio",
                   "prefabsDir": "prefabs",
-                  "currentSceneName": "Main",
+                  "currentSceneName": "%s",
                   "scenes": {
                     "Main": {
                       "name": "Main",
-                      "file": "%s"
+                      "file": "scene1.json"
+                    },
+                    "Other": {
+                      "name": "Other",
+                      "file": "scene2.json"
                     }
                   }
                 }
-                """.formatted(sceneFile);
+                """.formatted(currentSceneName);
+    }
+
+    private static String tiledSceneJson(int... tileAssetIds) {
+        StringBuilder ids = new StringBuilder();
+        for (int i = 0; i < tileAssetIds.length; i++) {
+            if (i > 0) ids.append(", ");
+            ids.append(tileAssetIds[i]);
+        }
+        return """
+                {
+                  "entities": {
+                    "0": {
+                      "components": {
+                        "TiledLayerComponent": {
+                          "tileAssetIds": {
+                            "items": [ %s ],
+                            "size": %d
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                """.formatted(ids, tileAssetIds.length);
     }
 }

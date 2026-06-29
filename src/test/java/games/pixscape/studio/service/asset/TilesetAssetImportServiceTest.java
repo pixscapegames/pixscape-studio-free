@@ -148,6 +148,62 @@ public class TilesetAssetImportServiceTest {
     }
 
     @Test
+    public void importAtlasPersistsSelectedTilesetProfileMetadata() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-atlas-profile-persist");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("terrain.png");
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        writePng(source, 32, 32, 0.2f, 0.3f, 0.8f, 1f);
+
+        service.importAtlas(
+                new TilesetAtlasImportRequest(
+                        source,
+                        tilesRoot,
+                        16,
+                        16,
+                        0,
+                        0,
+                        null,
+                        new TilesetProfileImportSettings(
+                                64,
+                                32,
+                                SceneMetaRuntime.TiledProjection.ISO,
+                                TilesetAnchor.TOP_CENTER,
+                                -6,
+                                9,
+                                TilesetRenderSize.NATIVE
+                        )
+                )
+        );
+
+        db.save(assetsFile);
+
+        String assetsJson = assetsFile.readString(StandardCharsets.UTF_8.name());
+        assertTrue(assetsJson.contains("\"referenceCellWidth\": 64"));
+        assertTrue(assetsJson.contains("\"referenceCellHeight\": 32"));
+        assertTrue(assetsJson.contains("\"projection\": \"isometric\""));
+        assertTrue(assetsJson.contains("\"anchor\": \"top-center\""));
+        assertTrue(assetsJson.contains("\"offsetX\": -6"));
+        assertTrue(assetsJson.contains("\"offsetY\": 9"));
+        assertTrue(assetsJson.contains("\"renderSize\": \"native\""));
+
+        TilesetAssetMeta loaded = requireTileset(
+                AssetMetaDatabase.load(assetsFile).findByLogicalPath("tiles/terrain")
+        );
+        assertEquals(64, loaded.referenceCellWidth);
+        assertEquals(32, loaded.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ISO, loaded.projection);
+        assertEquals(TilesetAnchor.TOP_CENTER, loaded.anchor);
+        assertEquals(-6, loaded.offsetX);
+        assertEquals(9, loaded.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, loaded.renderSize);
+    }
+
+    @Test
     public void importAtlasRejectsInvalidTilesetProfileMetadata() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TilesetAssetImportService service = new TilesetAssetImportService(db);
@@ -291,6 +347,44 @@ public class TilesetAssetImportServiceTest {
     }
 
     @Test
+    public void importTsxTilesetPersistsProfileDefaults() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-tsx-profile-persist");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("gfx").child("terrain.png");
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        writePng(source, 16, 16, 0.2f, 0.3f, 0.8f, 1f);
+        FileHandle tsx = projectDir.child("tilesets").child("terrain.tsx");
+        writeString(tsx, """
+                <tileset name="Terrain TSX" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                  <image source="../gfx/terrain.png" width="16" height="16"/>
+                </tileset>
+                """);
+
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsx);
+        service.importAtlas(new TilesetAtlasImportRequest(
+                descriptor.imageFile(),
+                tilesRoot,
+                descriptor.tileWidth(),
+                descriptor.tileHeight(),
+                descriptor.spacing(),
+                descriptor.margin(),
+                descriptor.name()
+        ));
+        db.save(assetsFile);
+
+        String assetsJson = assetsFile.readString(StandardCharsets.UTF_8.name());
+        assertTrue(assetsJson.contains("\"referenceCellWidth\": 16"));
+        assertTrue(assetsJson.contains("\"referenceCellHeight\": 16"));
+        assertTrue(assetsJson.contains("\"projection\": \"orthogonal\""));
+        assertTrue(assetsJson.contains("\"anchor\": \"top-center\""));
+        assertTrue(assetsJson.contains("\"renderSize\": \"native\""));
+    }
+
+    @Test
     public void parseTsxMissingImageFailsWithClearMessage() throws Exception {
         Path temp = Files.createTempDirectory("tileset-tsx-missing-image");
         FileHandle tsx = new FileHandle(temp.resolve("terrain.tsx").toFile());
@@ -431,6 +525,47 @@ public class TilesetAssetImportServiceTest {
         assertEquals(12, tileset.offsetX);
         assertEquals(-8, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
+    }
+
+    @Test
+    public void importDirectoryPersistsExplicitProfileSettings() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-folder-profile-persist");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle sourceDir = projectDir.child("iso-terrain");
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        sourceDir.mkdirs();
+
+        writePng(sourceDir.child("tile0.png"), 256, 512, 0.9f, 0.1f, 0.1f, 1f);
+
+        service.importDirectory(
+                new TilesetDirectoryImportRequest(
+                        sourceDir,
+                        tilesRoot,
+                        new TilesetProfileImportSettings(
+                                256,
+                                128,
+                                SceneMetaRuntime.TiledProjection.ISO,
+                                TilesetAnchor.BOTTOM_CENTER,
+                                12,
+                                -8,
+                                TilesetRenderSize.NATIVE
+                        )
+                )
+        );
+        db.save(assetsFile);
+
+        String assetsJson = assetsFile.readString(StandardCharsets.UTF_8.name());
+        assertTrue(assetsJson.contains("\"referenceCellWidth\": 256"));
+        assertTrue(assetsJson.contains("\"referenceCellHeight\": 128"));
+        assertTrue(assetsJson.contains("\"projection\": \"isometric\""));
+        assertTrue(assetsJson.contains("\"anchor\": \"bottom-center\""));
+        assertTrue(assetsJson.contains("\"offsetX\": 12"));
+        assertTrue(assetsJson.contains("\"offsetY\": -8"));
+        assertTrue(assetsJson.contains("\"renderSize\": \"native\""));
     }
 
     private static TilesetAssetMeta requireTileset(AssetMeta meta) {

@@ -93,10 +93,10 @@ public final class TiledMapProperties extends VisTable {
         add(new VisLabel("Projection:")).left();
         add(tiledProjectionValue).left().growX().row();
 
-        add(new VisLabel("Tile Width:")).left();
+        add(new VisLabel("Cell Width:")).left();
         add(tiledTileWidthValue).left().row();
 
-        add(new VisLabel("Tile Height:")).left();
+        add(new VisLabel("Cell Height:")).left();
         add(tiledTileHeightValue).left().row();
 
         add(new VisLabel("Origin X:")).left();

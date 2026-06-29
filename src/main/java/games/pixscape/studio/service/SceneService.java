@@ -252,6 +252,11 @@ public final class SceneService {
                 return true;
             }
 
+            String exportedCurrentSceneName = root.getString("currentSceneName", null);
+            if (!currentSceneName.equals(exportedCurrentSceneName)) {
+                return true;
+            }
+
             JsonValue scenes = root.get("scenes");
             if (scenes == null || !scenes.isObject()) {
                 return true;
@@ -272,10 +277,144 @@ public final class SceneService {
             }
 
             Path sceneFile = runtimeRoot.resolve(scenesDir).resolve(sceneFileName);
-            return !Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile);
+            if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
+                return true;
+            }
+
+            Set<Integer> requiredTileAssetIds = runtimeTiledTileAssetIds(cfg, runtimeRoot, root);
+            if (!requiredTileAssetIds.isEmpty()) {
+                Path tilesetProfiles = runtimeRoot.resolve(RuntimeFs.FILE_TILESET_PROFILES_JSON);
+                if (!Files.isRegularFile(tilesetProfiles) || isEmptyFile(tilesetProfiles)) {
+                    return true;
+                }
+                return !tilesetProfilesContainAllTileAssets(tilesetProfiles, requiredTileAssetIds);
+            }
+
+            return false;
         } catch (RuntimeException | IOException ex) {
             return true;
         }
+    }
+
+    private static Set<Integer> runtimeTiledTileAssetIds(ProjectConfig cfg,
+                                                         Path runtimeRoot,
+                                                         JsonValue runtimeProjectRoot) throws IOException {
+        Set<Integer> out = new HashSet<>();
+        collectRuntimeAvailabilityTileAssetIds(cfg, out);
+        collectRuntimeSceneTileAssetIds(runtimeRoot, runtimeProjectRoot, out);
+        return out;
+    }
+
+    private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig cfg, Set<Integer> out) {
+        if (cfg == null || cfg.getScenesMap() == null) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMeta> entry : cfg.getScenesMap()) {
+            SceneMeta scene = entry != null ? entry.value : null;
+            if (scene == null || scene.runtimeAvailability == null
+                    || scene.runtimeAvailability.tiledTileAssetIds == null) {
+                continue;
+            }
+            for (Integer assetId : scene.runtimeAvailability.tiledTileAssetIds) {
+                if (assetId != null && assetId > 0) {
+                    out.add(assetId);
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeSceneTileAssetIds(Path runtimeRoot,
+                                                       JsonValue runtimeProjectRoot,
+                                                       Set<Integer> out) throws IOException {
+        JsonValue scenes = runtimeProjectRoot != null ? runtimeProjectRoot.get("scenes") : null;
+        if (runtimeRoot == null || scenes == null || !scenes.isObject()) {
+            return;
+        }
+
+        String scenesDir = runtimeProjectRoot.getString("scenesDir", RuntimeFs.DIR_SCENES);
+        if (scenesDir == null || scenesDir.isBlank()) {
+            scenesDir = RuntimeFs.DIR_SCENES;
+        }
+
+        for (JsonValue scene = scenes.child; scene != null; scene = scene.next) {
+            String sceneFileName = RuntimeFs.filenameOnly(scene.getString("file", null));
+            if (sceneFileName == null || sceneFileName.isBlank()) {
+                continue;
+            }
+
+            Path sceneFile = runtimeRoot.resolve(scenesDir).resolve(sceneFileName);
+            if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
+                throw new IOException("Missing runtime scene file: " + sceneFile);
+            }
+            collectTiledLayerTileAssetIds(new JsonReader().parse(Files.readString(sceneFile)), out);
+        }
+    }
+
+    private static void collectTiledLayerTileAssetIds(JsonValue root, Set<Integer> out) {
+        JsonValue entities = root != null ? root.get("entities") : null;
+        if (entities == null || !entities.isObject()) {
+            return;
+        }
+
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            if (components == null || !components.isObject()) {
+                continue;
+            }
+
+            JsonValue tiled = components.get("TiledLayerComponent");
+            if (tiled == null || !tiled.isObject()) {
+                continue;
+            }
+
+            collectIntBagValues(tiled.get("tileAssetIds"), out);
+            JsonValue data = tiled.get("data");
+            if (data != null && data.isObject()) {
+                collectIntBagValues(data.get("tileAssetIds"), out);
+            }
+        }
+    }
+
+    private static void collectIntBagValues(JsonValue bag, Set<Integer> out) {
+        JsonValue items = bag != null ? bag.get("items") : null;
+        if (items == null || !items.isArray()) {
+            return;
+        }
+
+        int size = bag.getInt("size", items.size);
+        int index = 0;
+        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
+            int assetId = item.asInt();
+            if (assetId > 0) {
+                out.add(assetId);
+            }
+        }
+    }
+
+    private static boolean tilesetProfilesContainAllTileAssets(Path tilesetProfiles,
+                                                               Set<Integer> requiredTileAssetIds) throws IOException {
+        if (requiredTileAssetIds == null || requiredTileAssetIds.isEmpty()) {
+            return true;
+        }
+
+        JsonValue root = new JsonReader().parse(Files.readString(tilesetProfiles));
+        JsonValue tilesets = root != null ? root.get("tilesets") : null;
+        if (tilesets == null || !tilesets.isArray()) {
+            return false;
+        }
+
+        Set<Integer> exportedTileAssetIds = new HashSet<>();
+        for (JsonValue tileset = tilesets.child; tileset != null; tileset = tileset.next) {
+            JsonValue tileAssetIds = tileset.get("tileAssetIds");
+            if (tileAssetIds == null || !tileAssetIds.isArray()) {
+                continue;
+            }
+            for (JsonValue tileAssetId = tileAssetIds.child; tileAssetId != null; tileAssetId = tileAssetId.next) {
+                exportedTileAssetIds.add(tileAssetId.asInt());
+            }
+        }
+        return exportedTileAssetIds.containsAll(requiredTileAssetIds);
     }
 
     private static boolean isEmptyFile(Path file) {
@@ -1644,11 +1783,23 @@ public final class SceneService {
                                               FileHandle projectDir) {
         if (canonicalTag == null || canonicalTag.isBlank()) return;
 
+        refreshStudioTilesetProfileRegistry(projectDir);
+
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
 
         rebindTiles();
 
         canvas.refreshProjectBoundServices();
+    }
+
+    private void refreshStudioTilesetProfileRegistry(FileHandle projectDir) {
+        if (assetMetaDatabase == null && projectDir != null) {
+            FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+            if (assetsFile.exists()) {
+                assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+            }
+        }
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
     }
 
     private void rebindTiles() {
@@ -2584,6 +2735,7 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
         refreshAssetsPanel();
         StudioLog.info("Assets imported: " + importedCount);
     }
@@ -2725,6 +2877,7 @@ public final class SceneService {
         int imported = importTilesetFolderAsset(ctx, directory, profileSettings);
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
         refreshAssetsPanel();
 
         if (imported > 0) {

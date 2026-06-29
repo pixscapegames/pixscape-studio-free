@@ -43,6 +43,7 @@ import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.TiledSoaAllocator;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.batch.BatchFactoryStudio;
@@ -137,6 +138,7 @@ public class WorldCanvas {
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
     private TiledBrushSession currentBrushSession;
     private TiledPreviewService tiledPreviewService;
+    private RuntimeTilesetProfiles studioTilesetProfiles;
     private final TileAnimationRegistry tileAnimationRegistry;
     // tiled rect
     private boolean rectActive = false;
@@ -285,6 +287,7 @@ public class WorldCanvas {
         FileHandle particleImagesRoot = resolveImagesRoot(cfg);
 
         final AssetMetaDatabase assetMetaDatabaseForFallback = loadAssetMetaDatabaseIfAvailable(cfg);
+        studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);
 
         WorldBootstrapResult bootstrap =
                 WorldConfigFactory.buildWorld(
@@ -308,6 +311,7 @@ public class WorldCanvas {
                         sceneMeta,
                         DEFAULT_TILED_BUDGET,
                         tileAnimationRegistry,
+                        studioTilesetProfiles,
                         systemProfiler,
 
                         // pre-render: systems that write into RenderStateSOA
@@ -476,6 +480,21 @@ public class WorldCanvas {
         if (tiledGhostPreviewSystem != null && assetMetaLookup != null) {
             tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);
         }
+        refreshTilesetProfileRegistry();
+    }
+
+    public void refreshTilesetProfileRegistry() {
+        refreshTilesetProfileRegistry(loadAssetMetaDatabaseIfAvailable(ProjectConfig.getInstance()));
+    }
+
+    public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase) {
+        if (studioTilesetProfiles == null) {
+            studioTilesetProfiles = RuntimeTilesetProfiles.empty();
+        }
+        StudioTilesetProfileResolver.reloadRuntimeProfiles(
+                studioTilesetProfiles,
+                assetMetaDatabase
+        );
     }
 
     private void bindParticleControlChanges() {

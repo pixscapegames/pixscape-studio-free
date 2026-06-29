@@ -1,9 +1,11 @@
 package games.pixscape.studio.system;
 
 import com.artemis.BaseSystem;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -13,10 +15,12 @@ import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.service.StandaloneTextureCache;
+import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 import games.pixscape.studio.service.tiled.TiledPreviewService;
 
 import java.util.Objects;
@@ -29,8 +33,10 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
     private final TiledPreviewService previewService;
 
     private IntFunction<AssetMeta> assetMetaLookup;
+    private StudioTilesetProfileResolver tilesetProfileResolver;
     private IntFunction<Texture> textureHandleLookup;
     private TileAnimationLookup tileAnimationLookup;
+    private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
 
     private final float[] tmpQuad = new float[8];
     private final float[] tmpVerts = new float[20];
@@ -49,12 +55,14 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         this.atlasRuntimeService = Objects.requireNonNull(atlasRuntimeService, "atlasRuntimeService");
         this.previewService = Objects.requireNonNull(previewService, "previewService");
         this.assetMetaLookup = assetMetaLookup != null ? assetMetaLookup : id -> null;
+        this.tilesetProfileResolver = new StudioTilesetProfileResolver(this.assetMetaLookup);
         this.textureHandleLookup = textureHandleLookup != null ? handle -> textureHandleLookup.apply(handle) : handle -> null;
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : id -> null;
     }
 
     public void setAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
         this.assetMetaLookup = Objects.requireNonNull(assetMetaLookup, "assetMetaLookup");
+        this.tilesetProfileResolver.setAssetMetaLookup(this.assetMetaLookup);
     }
 
     public void setTextureHandleLookup(IntFunction<Texture> textureHandleLookup) {
@@ -126,12 +134,19 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
             return;
         }
 
+        RuntimeTilesetProfile profile = resolveTilesetProfile(previewAssetId);
+        if (profile == null) {
+            reportMissingProfileOnce(previewAssetId, logicalAssetId, previewService.atlasTag());
+            return;
+        }
+
         TileQuadTransforms.buildSpriteQuad(
                 map,
                 gx,
                 gy,
                 drawData.spriteW,
                 drawData.spriteH,
+                profile,
                 flags,
                 tmpQuad
         );
@@ -226,6 +241,26 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         dd.vBR = 1f;
 
         return dd;
+    }
+
+    RuntimeTilesetProfile resolveTilesetProfile(int tileAssetId) {
+        return tilesetProfileResolver.resolve(tileAssetId);
+    }
+
+    private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {
+        if (visualAssetId <= 0 || reportedMissingProfileTileAssetIds.contains(visualAssetId)) {
+            return;
+        }
+        reportedMissingProfileTileAssetIds.add(visualAssetId);
+
+        String message = "Missing tileset profile for tile asset " + visualAssetId
+                + " (logical tile asset " + logicalAssetId
+                + ", atlasTag " + (atlasTag != null ? atlasTag : "<none>") + ")";
+        if (Gdx.app != null) {
+            Gdx.app.error("TiledGhostPreviewSystem", message);
+        } else {
+            System.err.println("[TiledGhostPreviewSystem] " + message);
+        }
     }
 
     private static void buildVertices(float[] out,

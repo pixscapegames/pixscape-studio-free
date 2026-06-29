@@ -4,7 +4,6 @@ import com.badlogic.gdx.graphics.Color;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
-import games.pixscape.studio.service.tiled.TiledVisualCoverage;
 import games.pixscape.studio.ui.config.CommonLayout;
 
 public final class GizmoDrawHelper {
@@ -105,73 +104,9 @@ public final class GizmoDrawHelper {
     public static void drawTiledOverlay(
             StudioDrawContext ctx,
             TiledMapLayerData map,
-            float mouseWorldX,
-            float mouseWorldY
-    ) {
-        if (map == null) return;
-        if (ctx.cam.zoom <= 0.000001f) return;
-
-        int gx = map.worldToTileX(mouseWorldX, mouseWorldY);
-        int gy = map.worldToTileY(mouseWorldX, mouseWorldY);
-
-        if (!map.isInside(gx, gy)) {
-            return;
-        }
-
-        if (map.projection == SceneMetaRuntime.TiledProjection.ORTHO) {
-            float x = map.tileToWorldX(gx, gy);
-            float y = map.tileToWorldY(gx, gy);
-
-            ctx.drawer.setColor(0.2f, 0.8f, 1f, 0.15f);
-            ctx.drawer.filledRectangle(x, y, map.tileWidth, map.tileHeight);
-            return;
-        }
-
-        map.tileToCellVertices(gx, gy, tmpCell);
-
-        ctx.drawer.setColor(0.2f, 0.8f, 1f, 0.75f);
-        drawPolygonOutline(ctx, tmpCell, ctx.pxToWorld(2f));
-    }
-
-    public static void drawTiledOverlay(
-            StudioDrawContext ctx,
-            TiledMapLayerData map,
-            TiledVisualCoverage.Coverage coverage
-    ) {
-        if (map == null || coverage == null) return;
-        if (ctx.cam.zoom <= 0.000001f) return;
-
-        float coverageLineW = ctx.pxToWorld(1f);
-        float anchorLineW = ctx.pxToWorld(2.25f);
-
-        for (int gy = coverage.minGY; gy < coverage.maxGYExclusive; gy++) {
-            for (int gx = coverage.minGX; gx < coverage.maxGXExclusive; gx++) {
-                if (!map.isInside(gx, gy)) continue;
-                if (gx == coverage.anchorGX && gy == coverage.anchorGY) continue;
-                drawOverlayCell(ctx, map, gx, gy, 0.2f, 0.8f, 1f, 0.28f, coverageLineW);
-            }
-        }
-
-        if (map.isInside(coverage.anchorGX, coverage.anchorGY)) {
-            drawOverlayCell(ctx, map, coverage.anchorGX, coverage.anchorGY, 0.2f, 0.8f, 1f, 0.85f, anchorLineW);
-        }
-    }
-
-    public static void drawTiledOverlay(
-            StudioDrawContext ctx,
-            TiledMapLayerData map,
             SpatialBlockPlacementTarget target
     ) {
         if (target == null || !target.valid()) return;
-        if (target.hasCoverage()) {
-            float lineW = ctx.pxToWorld(1.5f);
-            for (int gy = target.coverageMinGy(); gy <= target.coverageMaxGy(); gy++) {
-                for (int gx = target.coverageMinGx(); gx <= target.coverageMaxGx(); gx++) {
-                    if (!map.isInside(gx, gy)) continue;
-                    drawOverlayCell(ctx, map, gx, gy, 0.2f, 0.8f, 1f, 0.32f, lineW);
-                }
-            }
-        }
         drawOverlayCell(ctx, map, target.targetGx(), target.targetGy(), 1f, 1f, 1f, 0.95f, ctx.pxToWorld(2.5f));
     }
 
@@ -194,42 +129,23 @@ public final class GizmoDrawHelper {
             return;
         }
 
-        float lineW = ctx.pxToWorld(1.5f);
+        float offsetX = map.tileWidth * 0.5f;
+        float minX = minGX;
+        float minY = minGY;
+        float maxX = maxGX + 1f;
+        float maxY = maxGY + 1f;
+
+        tmpCell[0] = map.tileToWorldX(minX, minY) + offsetX;
+        tmpCell[1] = map.tileToWorldY(minX, minY);
+        tmpCell[2] = map.tileToWorldX(maxX, minY) + offsetX;
+        tmpCell[3] = map.tileToWorldY(maxX, minY);
+        tmpCell[4] = map.tileToWorldX(maxX, maxY) + offsetX;
+        tmpCell[5] = map.tileToWorldY(maxX, maxY);
+        tmpCell[6] = map.tileToWorldX(minX, maxY) + offsetX;
+        tmpCell[7] = map.tileToWorldY(minX, maxY);
+
         ctx.drawer.setColor(0.2f, 0.8f, 1f, 0.75f);
-
-        for (int gy = minGY; gy <= maxGY; gy++) {
-            for (int gx = minGX; gx <= maxGX; gx++) {
-                if (!map.isInside(gx, gy)) continue;
-                map.tileToCellVertices(gx, gy, tmpCell);
-                drawPolygonOutline(ctx, tmpCell, lineW);
-            }
-        }
-    }
-
-    public static void drawSpatialTileSelection(
-            StudioDrawContext ctx,
-            TiledMapLayerData map,
-            int minGX,
-            int minGY,
-            int maxGX,
-            int maxGY,
-            boolean dragging,
-            boolean valid
-    ) {
-        if (map == null) return;
-
-        float cellLineW = ctx.pxToWorld(dragging ? 1f : 0.75f);
-        float cellAlpha = dragging ? 0.32f : 0.22f;
-        float r = valid ? 1f : 1f;
-        float g = valid ? 0.68f : 0.12f;
-        float b = valid ? 0.05f : 0.08f;
-
-        for (int gy = minGY; gy <= maxGY; gy++) {
-            for (int gx = minGX; gx <= maxGX; gx++) {
-                if (!map.isInside(gx, gy)) continue;
-                drawSelectionCellOutline(ctx, map, gx, gy, r, g, b, cellAlpha, cellLineW);
-            }
-        }
+        drawPolygonOutline(ctx, tmpCell, ctx.pxToWorld(1.5f));
     }
 
     private static void drawPolygonOutline(StudioDrawContext ctx, float[] verts, float lineW) {
@@ -257,28 +173,6 @@ public final class GizmoDrawHelper {
             float y = map.tileToWorldY(gx, gy);
             ctx.drawer.setColor(r, g, b, Math.min(a, 0.2f));
             ctx.drawer.filledRectangle(x, y, map.tileWidth, map.tileHeight);
-            ctx.drawer.setColor(r, g, b, a);
-            ctx.drawer.rectangle(x, y, map.tileWidth, map.tileHeight, lineW);
-            return;
-        }
-
-        map.tileToCellVertices(gx, gy, tmpCell);
-        ctx.drawer.setColor(r, g, b, a);
-        drawPolygonOutline(ctx, tmpCell, lineW);
-    }
-
-    private static void drawSelectionCellOutline(StudioDrawContext ctx,
-                                                 TiledMapLayerData map,
-                                                 int gx,
-                                                 int gy,
-                                                 float r,
-                                                 float g,
-                                                 float b,
-                                                 float a,
-                                                 float lineW) {
-        if (map.projection == SceneMetaRuntime.TiledProjection.ORTHO) {
-            float x = map.tileToWorldX(gx, gy);
-            float y = map.tileToWorldY(gx, gy);
             ctx.drawer.setColor(r, g, b, a);
             ctx.drawer.rectangle(x, y, map.tileWidth, map.tileHeight, lineW);
             return;
