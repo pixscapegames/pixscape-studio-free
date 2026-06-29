@@ -1,6 +1,9 @@
 package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.studio.asset.TilesetAnchor;
+import games.pixscape.studio.asset.TilesetRenderSize;
 import org.junit.Test;
 
 import java.io.File;
@@ -35,6 +38,13 @@ public class ImportDialogValidationTest {
         assertEquals(32, item.tileHeight);
         assertEquals(0, item.tileMargin);
         assertEquals(0, item.tileSpacing);
+        assertEquals(32, item.referenceCellWidth);
+        assertEquals(32, item.referenceCellHeight);
+        assertSame(SceneMetaRuntime.TiledProjection.ORTHO, item.projection);
+        assertSame(TilesetAnchor.BOTTOM_CENTER, item.anchor);
+        assertEquals(0, item.offsetX);
+        assertEquals(0, item.offsetY);
+        assertSame(TilesetRenderSize.NATIVE, item.renderSize);
     }
 
     @Test
@@ -59,6 +69,85 @@ public class ImportDialogValidationTest {
         assertEquals(24, item.tileHeight);
         assertEquals(2, item.tileMargin);
         assertEquals(3, item.tileSpacing);
+        assertEquals(16, item.referenceCellWidth);
+        assertEquals(24, item.referenceCellHeight);
+    }
+
+    @Test
+    public void importItem_applySlicingSettingsPreservesManualReferenceCell() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.referenceCellWidth = 40;
+        item.referenceCellHeight = 44;
+
+        item.applySlicingSettings(16, 24, 2, 3);
+
+        assertEquals(40, item.referenceCellWidth);
+        assertEquals(44, item.referenceCellHeight);
+    }
+
+    @Test
+    public void importItem_profileSettingsReflectSelectedProfile() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+
+        item.applyTilesetProfileSettings(
+                16,
+                24,
+                2,
+                3,
+                64,
+                32,
+                SceneMetaRuntime.TiledProjection.ISO,
+                TilesetAnchor.TOP_LEFT,
+                -5,
+                7,
+                TilesetRenderSize.NATIVE
+        );
+
+        assertEquals(16, item.tileWidth);
+        assertEquals(24, item.tileHeight);
+        assertEquals(2, item.tileMargin);
+        assertEquals(3, item.tileSpacing);
+        assertEquals(64, item.tilesetProfileSettings().referenceCellWidth());
+        assertEquals(32, item.tilesetProfileSettings().referenceCellHeight());
+        assertSame(SceneMetaRuntime.TiledProjection.ISO, item.tilesetProfileSettings().projection());
+        assertSame(TilesetAnchor.TOP_LEFT, item.tilesetProfileSettings().anchor());
+        assertEquals(-5, item.tilesetProfileSettings().offsetX());
+        assertEquals(7, item.tilesetProfileSettings().offsetY());
+        assertSame(TilesetRenderSize.NATIVE, item.tilesetProfileSettings().renderSize());
+    }
+
+    @Test
+    public void importItem_tilesetCompactProfileSummaryOmitsInspectorDetails() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.tileWidth = 32;
+        item.tileHeight = 24;
+        item.tileMargin = 2;
+        item.tileSpacing = 3;
+        item.referenceCellWidth = 48;
+        item.referenceCellHeight = 32;
+        item.projection = SceneMetaRuntime.TiledProjection.ISO;
+        item.anchor = TilesetAnchor.TOP_LEFT;
+        item.offsetX = -5;
+        item.offsetY = 7;
+
+        String summary = ImportDialog.formatTilesetCompactProfileSummary(item);
+
+        assertEquals("Tile 32×24 · Ref 48×32", summary);
+        assertFalse(summary.contains("margin"));
+        assertFalse(summary.contains("spacing"));
+        assertFalse(summary.contains("Isometric"));
+        assertFalse(summary.contains("Top left"));
+        assertFalse(summary.contains("offset"));
+        assertFalse(summary.contains("native"));
+    }
+
+    @Test
+    public void importItem_tilesetCompactProfileSummaryShowsShortInvalidWarning() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.type = ImportDialog.ImportType.TILESET;
+        item.referenceCellWidth = 0;
+
+        assertEquals("Invalid profile", ImportDialog.formatTilesetCompactProfileSummary(item));
     }
 
     @Test
@@ -168,6 +257,47 @@ public class ImportDialogValidationTest {
         item.tileSpacing = 0;
         item.tileWidth = ImportDialogValidation.MAX_IMAGE_SIZE + 1;
         assertTrue(ImportDialogValidation.hasInvalidTilesetSlicingSettings(item));
+    }
+
+    @Test
+    public void importValidation_tilesetRejectsInvalidProfileSettings() {
+        ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));
+        item.type = ImportDialog.ImportType.TILESET;
+
+        assertFalse(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.referenceCellWidth = 0;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.referenceCellWidth = 16;
+        item.referenceCellHeight = ImportDialogValidation.MAX_IMAGE_SIZE + 1;
+        assertFalse(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.referenceCellHeight = 16;
+        item.offsetX = -ImportDialogValidation.MAX_TILESET_OFFSET;
+        item.offsetY = ImportDialogValidation.MAX_TILESET_OFFSET;
+        assertFalse(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.offsetX = -ImportDialogValidation.MAX_TILESET_OFFSET - 1;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.offsetX = 0;
+        item.projection = null;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+
+        item.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        item.anchor = null;
+        assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
+    }
+
+    @Test
+    public void spinnerValidation_offsetRangeAllowsNegativeValues() {
+        assertTrue(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("-4096"));
+        assertTrue(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("0"));
+        assertTrue(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("4096"));
+        assertFalse(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("-4097"));
+        assertFalse(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("4097"));
+        assertFalse(ImportDialogValidation.isIntegerWithinTilesetOffsetRange("abc"));
     }
 
     @Test

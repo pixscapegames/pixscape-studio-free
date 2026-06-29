@@ -1,6 +1,7 @@
 package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -170,11 +171,11 @@ public final class TmxImportPlanner {
         );
     }
 
-    private static TmxTiledProjectionPlan projectionFor(String orientation) {
+    private static SceneMetaRuntime.TiledProjection projectionFor(String orientation) {
         if ("isometric".equals(orientation)) {
-            return TmxTiledProjectionPlan.ISO;
+            return SceneMetaRuntime.TiledProjection.ISO;
         }
-        return TmxTiledProjectionPlan.ORTHO;
+        return SceneMetaRuntime.TiledProjection.ORTHO;
     }
 
     private static String proposedSceneName(FileHandle tmxFile) {

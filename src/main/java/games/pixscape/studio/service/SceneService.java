@@ -54,6 +54,7 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.service.atlas.*;
@@ -2689,7 +2690,9 @@ public final class SceneService {
                 item.tileWidth,
                 item.tileHeight,
                 item.tileSpacing,
-                item.tileMargin
+                item.tileMargin,
+                null,
+                item.tilesetProfileSettings()
         );
     }
 
@@ -2711,11 +2714,15 @@ public final class SceneService {
     }
 
     public int importTilesetDirectory(FileHandle directory) {
+        return importTilesetDirectory(directory, null);
+    }
+
+    public int importTilesetDirectory(FileHandle directory, TilesetProfileImportSettings profileSettings) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return 0;
 
         AssetImportContext ctx = prepareAssetImportContext(cfg);
-        int imported = importTilesetFolderAsset(ctx, directory);
+        int imported = importTilesetFolderAsset(ctx, directory, profileSettings);
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
         refreshAssetsPanel();
@@ -2793,9 +2800,11 @@ public final class SceneService {
         StudioLog.info("Tileset deleted: " + normalizedPath);
     }
 
-    private int importTilesetFolderAsset(AssetImportContext ctx, FileHandle directory) {
+    private int importTilesetFolderAsset(AssetImportContext ctx,
+                                         FileHandle directory,
+                                         TilesetProfileImportSettings profileSettings) {
         TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
-                .importDirectory(new TilesetDirectoryImportRequest(directory, ctx.tilesRoot));
+                .importDirectory(new TilesetDirectoryImportRequest(directory, ctx.tilesRoot, profileSettings));
         return result.importedCount();
     }
 

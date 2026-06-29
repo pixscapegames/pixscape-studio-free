@@ -1,6 +1,9 @@
 package games.pixscape.studio.service;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.asset.TilesetAnchor;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.studio.asset.TilesetRenderSize;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.ui.asset.ImportDialog;
 import org.junit.Test;
@@ -64,6 +67,13 @@ public class SceneServiceImportTypeResolutionTest {
         assertEquals(32, request.tileHeight());
         assertEquals(0, request.spacing());
         assertEquals(0, request.margin());
+        assertEquals(32, request.profileSettings().referenceCellWidth());
+        assertEquals(32, request.profileSettings().referenceCellHeight());
+        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, request.profileSettings().projection());
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, request.profileSettings().anchor());
+        assertEquals(0, request.profileSettings().offsetX());
+        assertEquals(0, request.profileSettings().offsetY());
+        assertEquals(TilesetRenderSize.NATIVE, request.profileSettings().renderSize());
     }
 
     @Test
@@ -74,6 +84,12 @@ public class SceneServiceImportTypeResolutionTest {
         item.tileHeight = 24;
         item.tileSpacing = 3;
         item.tileMargin = 2;
+        item.referenceCellWidth = 64;
+        item.referenceCellHeight = 48;
+        item.projection = SceneMetaRuntime.TiledProjection.ISO;
+        item.anchor = TilesetAnchor.BOTTOM_LEFT;
+        item.offsetX = -4;
+        item.offsetY = 9;
 
         TilesetAtlasImportRequest request = SceneService.tilesetAtlasImportRequestForManualImport(
                 item,
@@ -84,6 +100,13 @@ public class SceneServiceImportTypeResolutionTest {
         assertEquals(24, request.tileHeight());
         assertEquals(3, request.spacing());
         assertEquals(2, request.margin());
+        assertEquals(64, request.profileSettings().referenceCellWidth());
+        assertEquals(48, request.profileSettings().referenceCellHeight());
+        assertEquals(SceneMetaRuntime.TiledProjection.ISO, request.profileSettings().projection());
+        assertEquals(TilesetAnchor.BOTTOM_LEFT, request.profileSettings().anchor());
+        assertEquals(-4, request.profileSettings().offsetX());
+        assertEquals(9, request.profileSettings().offsetY());
+        assertEquals(TilesetRenderSize.NATIVE, request.profileSettings().renderSize());
     }
 
     @Test
@@ -110,6 +133,11 @@ public class SceneServiceImportTypeResolutionTest {
         assertEquals(3, request.spacing());
         assertEquals(2, request.margin());
         assertEquals("Terrain TSX", request.tilesetName());
+        assertEquals(16, request.profileSettings().referenceCellWidth());
+        assertEquals(24, request.profileSettings().referenceCellHeight());
+        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, request.profileSettings().projection());
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, request.profileSettings().anchor());
+        assertEquals(TilesetRenderSize.NATIVE, request.profileSettings().renderSize());
     }
 
     @Test

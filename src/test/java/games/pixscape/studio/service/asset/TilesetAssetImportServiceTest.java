@@ -7,14 +7,18 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.studio.asset.TilesetRenderSize;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -78,6 +82,13 @@ public class TilesetAssetImportServiceTest {
         assertEquals(2, tileset.rows);
         assertEquals(0, tileset.spacing);
         assertEquals(0, tileset.margin);
+        assertEquals(16, tileset.referenceCellWidth);
+        assertEquals(16, tileset.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(0, tileset.offsetX);
+        assertEquals(0, tileset.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
         assertEquals("orig/tiles/terrain/terrain__a" + tileset.id + ".png", tileset.sourceRelPath);
         assertTrue(projectDir.child(tileset.sourceRelPath).exists());
 
@@ -91,6 +102,86 @@ public class TilesetAssetImportServiceTest {
             assertEquals(Integer.valueOf(tile.id), result.localTileAssetIds().get(i));
             assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id + ".png", tile.sourceRelPath);
             assertTrue(projectDir.child(tile.sourceRelPath).exists());
+        }
+    }
+
+    @Test
+    public void importAtlasStoresSelectedTilesetProfileMetadata() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-atlas-profile-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("terrain.png");
+        writePng(source, 32, 32, 0.2f, 0.3f, 0.8f, 1f);
+
+        service.importAtlas(
+                new TilesetAtlasImportRequest(
+                        source,
+                        tilesRoot,
+                        16,
+                        16,
+                        0,
+                        0,
+                        null,
+                        new TilesetProfileImportSettings(
+                                64,
+                                32,
+                                SceneMetaRuntime.TiledProjection.ISO,
+                                TilesetAnchor.BOTTOM_LEFT,
+                                -6,
+                                9,
+                                TilesetRenderSize.NATIVE
+                        )
+                )
+        );
+
+        TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/terrain"));
+        assertEquals(64, tileset.referenceCellWidth);
+        assertEquals(32, tileset.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ISO, tileset.projection);
+        assertEquals(TilesetAnchor.BOTTOM_LEFT, tileset.anchor);
+        assertEquals(-6, tileset.offsetX);
+        assertEquals(9, tileset.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
+    }
+
+    @Test
+    public void importAtlasRejectsInvalidTilesetProfileMetadata() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-atlas-invalid-profile-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("terrain.png");
+        writePng(source, 32, 32, 0.2f, 0.3f, 0.8f, 1f);
+
+        try {
+            service.importAtlas(
+                    new TilesetAtlasImportRequest(
+                            source,
+                            tilesRoot,
+                            16,
+                            16,
+                            0,
+                            0,
+                            null,
+                            new TilesetProfileImportSettings(
+                                    0,
+                                    32,
+                                    SceneMetaRuntime.TiledProjection.ORTHO,
+                                    TilesetAnchor.BOTTOM_CENTER,
+                                    0,
+                                    0,
+                                    TilesetRenderSize.NATIVE
+                            )
+                    )
+            );
+            fail("Expected invalid profile failure");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Reference cell size must be > 0", ex.getMessage());
         }
     }
 
@@ -190,6 +281,13 @@ public class TilesetAssetImportServiceTest {
         assertEquals(2, tileset.rows);
         assertEquals(1, tileset.spacing);
         assertEquals(1, tileset.margin);
+        assertEquals(2, tileset.referenceCellWidth);
+        assertEquals(2, tileset.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(0, tileset.offsetX);
+        assertEquals(0, tileset.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
     }
 
     @Test
@@ -263,6 +361,13 @@ public class TilesetAssetImportServiceTest {
         assertEquals(1, tileset.rows);
         assertEquals(0, tileset.spacing);
         assertEquals(0, tileset.margin);
+        assertEquals(10, tileset.referenceCellWidth);
+        assertEquals(10, tileset.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(0, tileset.offsetX);
+        assertEquals(0, tileset.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
 
         assertEquals(3, result.localTileAssetIds().size());
         Map<Integer, Integer> expectedSizes = Map.of(
@@ -284,6 +389,48 @@ public class TilesetAssetImportServiceTest {
             assertTrue(generated.exists());
             assertPngSize(generated, expectedSizes.get(i), expectedSizes.get(i));
         }
+    }
+
+    @Test
+    public void importDirectoryStoresExplicitProfileSettings() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-folder-profile-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle sourceDir = projectDir.child("iso-terrain");
+        sourceDir.mkdirs();
+
+        writePng(sourceDir.child("tile0.png"), 256, 512, 0.9f, 0.1f, 0.1f, 1f);
+
+        TilesetImportResult result = service.importDirectory(
+                new TilesetDirectoryImportRequest(
+                        sourceDir,
+                        tilesRoot,
+                        new TilesetProfileImportSettings(
+                                256,
+                                128,
+                                SceneMetaRuntime.TiledProjection.ISO,
+                                TilesetAnchor.BOTTOM_LEFT,
+                                12,
+                                -8,
+                                TilesetRenderSize.NATIVE
+                        )
+                )
+        );
+
+        assertEquals(1, result.importedCount());
+        TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/iso-terrain"));
+        assertEquals(256, tileset.tileWidth);
+        assertEquals(512, tileset.tileHeight);
+        assertEquals(256, tileset.referenceCellWidth);
+        assertEquals(128, tileset.referenceCellHeight);
+        assertEquals(SceneMetaRuntime.TiledProjection.ISO, tileset.projection);
+        assertEquals(TilesetAnchor.BOTTOM_LEFT, tileset.anchor);
+        assertEquals(12, tileset.offsetX);
+        assertEquals(-8, tileset.offsetY);
+        assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
     }
 
     private static TilesetAssetMeta requireTileset(AssetMeta meta) {

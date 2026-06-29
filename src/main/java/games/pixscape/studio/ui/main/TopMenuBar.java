@@ -126,7 +126,7 @@ public class TopMenuBar extends MenuBar {
         onClick(importAssetsItem, () -> new ImportDialog(
                 app,
                 items -> sceneService.importAssets(items),
-                directory -> sceneService.importTilesetDirectory(directory)
+                (directory, profileSettings) -> sceneService.importTilesetDirectory(directory, profileSettings)
         ).show(app.getUiStage()));
         importMenu.addItem(importAssetsItem);
 

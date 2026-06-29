@@ -3,10 +3,13 @@ package games.pixscape.studio.ui.asset;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.kotcrab.vis.ui.widget.VisValidatableTextField;
+import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.service.asset.TilesetSliceLayout;
 
 final class ImportDialogValidation {
 
     static final int MAX_IMAGE_SIZE = 2048;
+    static final int MAX_TILESET_OFFSET = 4096;
 
     private ImportDialogValidation() {
     }
@@ -94,6 +97,19 @@ final class ImportDialogValidation {
         return Integer.parseInt(input.trim()) <= MAX_IMAGE_SIZE;
     }
 
+    static boolean isIntegerWithinTilesetOffsetRange(String input) {
+        if (input == null) return false;
+        String normalized = input.trim();
+        if (normalized.isEmpty()) return false;
+
+        try {
+            int value = Integer.parseInt(normalized);
+            return value >= -MAX_TILESET_OFFSET && value <= MAX_TILESET_OFFSET;
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
+    }
+
     static boolean isDivisibleForType(ImportDialog.ImportType type, int sheetDimension, String input) {
         if (type != ImportDialog.ImportType.SPRITESHEET) return true;
         if (sheetDimension <= 0) return true;
@@ -125,6 +141,19 @@ final class ImportDialogValidation {
                 || !isPositiveWithinMax(item.tileHeight)
                 || !isNonNegativeWithinMax(item.tileMargin)
                 || !isNonNegativeWithinMax(item.tileSpacing);
+    }
+
+    static boolean hasInvalidTilesetProfileSettings(ImportDialog.ImportItem item) {
+        if (item == null || item.type != ImportDialog.ImportType.TILESET) return false;
+        return item.referenceCellWidth <= 0
+                || item.referenceCellHeight <= 0
+                || item.projection == null
+                || item.anchor == null
+                || item.renderSize != TilesetRenderSize.NATIVE
+                || item.offsetX < -MAX_TILESET_OFFSET
+                || item.offsetX > MAX_TILESET_OFFSET
+                || item.offsetY < -MAX_TILESET_OFFSET
+                || item.offsetY > MAX_TILESET_OFFSET;
     }
 
     static boolean hasTilesetSlicingIssue(ImportDialog.ImportItem item) {
@@ -162,21 +191,25 @@ final class ImportDialogValidation {
         if (!isPositiveWithinMax(tileWidth) || !isPositiveWithinMax(tileHeight)) return TilesetSlicingPreview.invalid();
         if (!isNonNegativeWithinMax(margin) || !isNonNegativeWithinMax(spacing)) return TilesetSlicingPreview.invalid();
 
-        int columns = countTilesOnAxis(imageWidth, tileWidth, spacing, margin);
-        int rows = countTilesOnAxis(imageHeight, tileHeight, spacing, margin);
-        if (columns <= 0 || rows <= 0) {
+        TilesetSliceLayout.Layout layout = TilesetSliceLayout.calculate(
+                imageWidth,
+                imageHeight,
+                tileWidth,
+                tileHeight,
+                spacing,
+                margin
+        );
+        if (!layout.hasTiles()) {
             return new TilesetSlicingPreview(imageWidth, imageHeight, 0, 0, 0, 0, false);
         }
 
-        int lastTileRight = margin + ((columns - 1) * (tileWidth + spacing)) + tileWidth;
-        int lastTileBottom = margin + ((rows - 1) * (tileHeight + spacing)) + tileHeight;
         return new TilesetSlicingPreview(
                 imageWidth,
                 imageHeight,
-                columns,
-                rows,
-                Math.max(0, imageWidth - lastTileRight),
-                Math.max(0, imageHeight - lastTileBottom),
+                layout.columns(),
+                layout.rows(),
+                layout.unusedRightPixels(),
+                layout.unusedBottomPixels(),
                 true
         );
     }
@@ -209,14 +242,6 @@ final class ImportDialogValidation {
 
     private static boolean isNonNegativeWithinMax(int value) {
         return value >= 0 && value <= MAX_IMAGE_SIZE;
-    }
-
-    private static int countTilesOnAxis(int imageSize, int tileSize, int spacing, int margin) {
-        int count = 0;
-        for (int position = margin; position <= imageSize - tileSize; position += tileSize + spacing) {
-            count++;
-        }
-        return count;
     }
 
     private static int dimensionFromFieldOrValue(VisValidatableTextField field, int fallback) {

@@ -206,8 +206,8 @@ public final class TmxSceneImportService {
         meta.tileWidth = scene.tileWidth();
         meta.tileHeight = scene.tileHeight();
         meta.chunkSize = Math.max(1, meta.chunkSize);
-        meta.tiledProjection = scene.tiledProjection() == TmxTiledProjectionPlan.ISO
-                ? SceneMetaRuntime.TiledProjection.ISO
+        meta.tiledProjection = scene.tiledProjection() != null
+                ? scene.tiledProjection()
                 : SceneMetaRuntime.TiledProjection.ORTHO;
         runtimeAvailabilityService.data(meta);
     }
@@ -362,8 +362,8 @@ public final class TmxSceneImportService {
                 scene.tileWidth(),
                 scene.tileHeight(),
                 16,
-                scene.tiledProjection() == TmxTiledProjectionPlan.ISO
-                        ? SceneMetaRuntime.TiledProjection.ISO
+                scene.tiledProjection() != null
+                        ? scene.tiledProjection()
                         : SceneMetaRuntime.TiledProjection.ORTHO
         );
         tiled.data.originX = tiled.originX;
