@@ -155,7 +155,7 @@ final class TilesetTilePreviewActor extends Actor {
                     tileRegion.getRegionWidth(),
                     tileRegion.getRegionHeight(),
                     SceneMetaRuntime.TiledProjection.ORTHO,
-                    TilesetAnchor.BOTTOM_CENTER,
+                    TilesetAnchor.TOP_CENTER,
                     0,
                     0
             );

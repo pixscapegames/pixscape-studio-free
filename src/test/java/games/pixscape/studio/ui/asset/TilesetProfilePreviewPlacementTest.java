@@ -55,7 +55,24 @@ public class TilesetProfilePreviewPlacementTest {
         );
 
         assertBounds(bottomCenter.tileBounds(), -16f, 0f, 32f, 64f);
-        assertBounds(topLeft.tileBounds(), 0f, -64f, 32f, 64f);
+        assertBounds(topLeft.tileBounds(), -16f, -32f, 32f, 64f);
+    }
+
+    @Test
+    public void topCenterMatchesLegacyTopCenteredPlacement() {
+        TilesetProfilePreviewPlacement.Placement placement = TilesetProfilePreviewPlacement.calculate(
+                16,
+                40,
+                32,
+                32,
+                SceneMetaRuntime.TiledProjection.ORTHO,
+                TilesetAnchor.TOP_CENTER,
+                0,
+                0
+        );
+
+        assertBounds(placement.tileBounds(), -8f, -8f, 16f, 40f);
+        assertPoint(placement.anchorPoint(), 0f, 32f);
     }
 
     @Test

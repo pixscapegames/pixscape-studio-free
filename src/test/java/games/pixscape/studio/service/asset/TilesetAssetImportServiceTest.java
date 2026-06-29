@@ -85,7 +85,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(16, tileset.referenceCellWidth);
         assertEquals(16, tileset.referenceCellHeight);
         assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
-        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
@@ -284,7 +284,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(2, tileset.referenceCellWidth);
         assertEquals(2, tileset.referenceCellHeight);
         assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
-        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
@@ -364,7 +364,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(10, tileset.referenceCellWidth);
         assertEquals(10, tileset.referenceCellHeight);
         assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
-        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);

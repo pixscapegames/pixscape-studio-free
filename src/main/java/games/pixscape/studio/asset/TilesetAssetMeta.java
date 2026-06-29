@@ -15,7 +15,7 @@ public final class TilesetAssetMeta extends AssetMeta {
     public int referenceCellWidth;
     public int referenceCellHeight;
     public SceneMetaRuntime.TiledProjection projection = SceneMetaRuntime.TiledProjection.ORTHO;
-    public TilesetAnchor anchor = TilesetAnchor.BOTTOM_CENTER;
+    public TilesetAnchor anchor = TilesetAnchor.TOP_CENTER;
     public int offsetX;
     public int offsetY;
     public TilesetRenderSize renderSize = TilesetRenderSize.NATIVE;
@@ -42,7 +42,7 @@ public final class TilesetAssetMeta extends AssetMeta {
             projection = SceneMetaRuntime.TiledProjection.ORTHO;
         }
         if (anchor == null) {
-            anchor = TilesetAnchor.BOTTOM_CENTER;
+            anchor = TilesetAnchor.TOP_CENTER;
         }
         if (renderSize == null) {
             renderSize = TilesetRenderSize.NATIVE;

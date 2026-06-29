@@ -1,6 +1,7 @@
 package games.pixscape.studio.asset;
 
 public enum TilesetAnchor {
+    TOP_CENTER("top-center"),
     BOTTOM_CENTER("bottom-center"),
     BOTTOM_LEFT("bottom-left"),
     CENTER("center"),

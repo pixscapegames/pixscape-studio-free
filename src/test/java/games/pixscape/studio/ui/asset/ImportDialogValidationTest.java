@@ -41,7 +41,7 @@ public class ImportDialogValidationTest {
         assertEquals(32, item.referenceCellWidth);
         assertEquals(32, item.referenceCellHeight);
         assertSame(SceneMetaRuntime.TiledProjection.ORTHO, item.projection);
-        assertSame(TilesetAnchor.BOTTOM_CENTER, item.anchor);
+        assertSame(TilesetAnchor.TOP_CENTER, item.anchor);
         assertEquals(0, item.offsetX);
         assertEquals(0, item.offsetY);
         assertSame(TilesetRenderSize.NATIVE, item.renderSize);

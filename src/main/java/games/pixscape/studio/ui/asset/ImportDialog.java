@@ -77,7 +77,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
         public int referenceCellWidth = 32;
         public int referenceCellHeight = 32;
         public SceneMetaRuntime.TiledProjection projection = SceneMetaRuntime.TiledProjection.ORTHO;
-        public TilesetAnchor anchor = TilesetAnchor.BOTTOM_CENTER;
+        public TilesetAnchor anchor = TilesetAnchor.TOP_CENTER;
         public int offsetX = 0;
         public int offsetY = 0;
         public TilesetRenderSize renderSize = TilesetRenderSize.NATIVE;
@@ -709,8 +709,8 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
         projectionBox.setSelected("Orthogonal");
 
         SimpleSelectBox<String> anchorBox = new SimpleSelectBox<>();
-        anchorBox.setItems("Bottom center", "Bottom left", "Center", "Top left");
-        anchorBox.setSelected("Bottom center");
+        anchorBox.setItems("Top center", "Bottom center", "Bottom left", "Center", "Top left");
+        anchorBox.setSelected("Top center");
 
         referenceCellWidthSpinner.getTextField().setAlignment(Align.center);
         referenceCellHeightSpinner.getTextField().setAlignment(Align.center);
@@ -1016,7 +1016,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
         projectionBox.setSelected(displayName(item.projection));
 
         SimpleSelectBox<String> anchorBox = new SimpleSelectBox<>();
-        anchorBox.setItems("Bottom center", "Bottom left", "Center", "Top left");
+        anchorBox.setItems("Top center", "Bottom center", "Bottom left", "Center", "Top left");
         anchorBox.setSelected(displayName(item.anchor));
 
         tileWidthSpinner.getTextField().setAlignment(Align.center);
@@ -1831,10 +1831,12 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
     }
 
     private static String displayName(TilesetAnchor anchor) {
+        if (anchor == TilesetAnchor.TOP_CENTER) return "Top center";
         if (anchor == TilesetAnchor.BOTTOM_LEFT) return "Bottom left";
         if (anchor == TilesetAnchor.CENTER) return "Center";
         if (anchor == TilesetAnchor.TOP_LEFT) return "Top left";
-        return "Bottom center";
+        if (anchor == TilesetAnchor.BOTTOM_CENTER) return "Bottom center";
+        return "Top center";
     }
 
     private static SceneMetaRuntime.TiledProjection projectionFromDisplayName(String raw) {
@@ -1844,6 +1846,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
     }
 
     private static TilesetAnchor anchorFromDisplayName(String raw) {
+        if ("Top center".equals(raw)) return TilesetAnchor.TOP_CENTER;
         if ("Bottom center".equals(raw)) return TilesetAnchor.BOTTOM_CENTER;
         if ("Bottom left".equals(raw)) return TilesetAnchor.BOTTOM_LEFT;
         if ("Center".equals(raw)) return TilesetAnchor.CENTER;
@@ -2030,7 +2033,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
                     item.projection = SceneMetaRuntime.TiledProjection.ORTHO;
                 }
                 if (item.anchor == null) {
-                    item.anchor = TilesetAnchor.BOTTOM_CENTER;
+                    item.anchor = TilesetAnchor.TOP_CENTER;
                 }
                 item.offsetX = Math.max(
                         -ImportDialogValidation.MAX_TILESET_OFFSET,

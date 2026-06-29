@@ -23,7 +23,7 @@ final class TilesetProfilePreviewPlacement {
         SceneMetaRuntime.TiledProjection safeProjection = projection != null
                 ? projection
                 : SceneMetaRuntime.TiledProjection.ORTHO;
-        TilesetAnchor safeAnchor = anchor != null ? anchor : TilesetAnchor.BOTTOM_CENTER;
+        TilesetAnchor safeAnchor = anchor != null ? anchor : TilesetAnchor.TOP_CENTER;
 
         Bounds cellBounds = new Bounds(
                 -safeReferenceCellWidth * 0.5f,
@@ -32,18 +32,32 @@ final class TilesetProfilePreviewPlacement {
                 safeReferenceCellHeight
         );
 
-        float anchorX = switch (safeAnchor) {
+        float tileAnchorX = switch (safeAnchor) {
             case BOTTOM_LEFT, TOP_LEFT -> 0f;
-            case CENTER, BOTTOM_CENTER -> safeTileWidth * 0.5f;
+            case CENTER, TOP_CENTER, BOTTOM_CENTER -> safeTileWidth * 0.5f;
         };
-        float anchorY = switch (safeAnchor) {
-            case TOP_LEFT -> safeTileHeight;
+        float tileAnchorY = switch (safeAnchor) {
+            case TOP_LEFT, TOP_CENTER -> safeTileHeight;
             case CENTER -> safeTileHeight * 0.5f;
             case BOTTOM_CENTER, BOTTOM_LEFT -> 0f;
         };
+        float cellAnchorX = switch (safeAnchor) {
+            case BOTTOM_LEFT, TOP_LEFT -> cellBounds.left();
+            case CENTER, TOP_CENTER, BOTTOM_CENTER -> 0f;
+        };
+        float cellAnchorY = switch (safeAnchor) {
+            case TOP_LEFT, TOP_CENTER -> cellBounds.top();
+            case CENTER -> cellBounds.bottom() + cellBounds.height() * 0.5f;
+            case BOTTOM_CENTER, BOTTOM_LEFT -> cellBounds.bottom();
+        };
 
         // Preview offsets use y-up local coordinates: +X moves right, +Y moves the tile upward.
-        Bounds tileBounds = new Bounds(offsetX - anchorX, offsetY - anchorY, safeTileWidth, safeTileHeight);
+        Bounds tileBounds = new Bounds(
+                cellAnchorX + offsetX - tileAnchorX,
+                cellAnchorY + offsetY - tileAnchorY,
+                safeTileWidth,
+                safeTileHeight
+        );
         Bounds unionBounds = cellBounds.union(tileBounds);
 
         Point[] cellOutline = safeProjection == SceneMetaRuntime.TiledProjection.ISO
@@ -60,7 +74,7 @@ final class TilesetProfilePreviewPlacement {
                 new Point(cellBounds.left(), cellBounds.top())
         };
 
-        return new Placement(tileBounds, cellBounds, unionBounds, cellOutline, new Point(0f, 0f));
+        return new Placement(tileBounds, cellBounds, unionBounds, cellOutline, new Point(cellAnchorX, cellAnchorY));
     }
 
     record Placement(Bounds tileBounds,

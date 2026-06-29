@@ -15,6 +15,13 @@ import static org.junit.Assert.assertTrue;
 public class AssetMetaDatabaseTilesetTileMetadataTest {
 
     @Test
+    public void tilesetAnchorWireNamesIncludeTopCenter() {
+        assertEquals("top-center", TilesetAnchor.TOP_CENTER.wireName());
+        assertSame(TilesetAnchor.TOP_CENTER, TilesetAnchor.fromWireName("top-center"));
+        assertSame(TilesetAnchor.BOTTOM_CENTER, TilesetAnchor.fromWireName("bottom-center"));
+    }
+
+    @Test
     public void saveAndLoad_preservesTilesetAndTileDedicatedMetadata() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
 
@@ -177,7 +184,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertEquals(18, tileset.referenceCellWidth);
         assertEquals(24, tileset.referenceCellHeight);
         assertSame(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
-        assertSame(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertSame(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
         assertSame(TilesetRenderSize.NATIVE, tileset.renderSize);
@@ -217,10 +224,42 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertEquals(32, tileset.referenceCellWidth);
         assertEquals(32, tileset.referenceCellHeight);
         assertSame(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
-        assertSame(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+        assertSame(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(2, tileset.offsetX);
         assertEquals(-9, tileset.offsetY);
         assertSame(TilesetRenderSize.NATIVE, tileset.renderSize);
+    }
+
+    @Test
+    public void load_explicitBottomCenterAnchorIsPreserved() throws Exception {
+        Path tmp = Files.createTempFile("asset-meta-db-bottom-center-profile", ".json");
+        Files.writeString(tmp, """
+                {
+                  "version": 3,
+                  "nextId": 2,
+                  "assets": [
+                    {
+                      "id": 1,
+                      "type": "tileset",
+                      "logicalPath": "tiles/bottom-center",
+                      "sourceRelPath": "orig/tiles/bottom-center.png",
+                      "scope": "USER",
+                      "tileWidth": 32,
+                      "tileHeight": 32,
+                      "referenceCellWidth": 32,
+                      "referenceCellHeight": 32,
+                      "projection": "orthogonal",
+                      "anchor": "bottom-center",
+                      "renderSize": "native"
+                    }
+                  ]
+                }
+                """);
+
+        AssetMetaDatabase loaded = AssetMetaDatabase.load(new FileHandle(tmp.toFile()));
+        TilesetAssetMeta tileset = (TilesetAssetMeta) loaded.findByLogicalPath("tiles/bottom-center");
+
+        assertSame(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
     }
 
     @Test

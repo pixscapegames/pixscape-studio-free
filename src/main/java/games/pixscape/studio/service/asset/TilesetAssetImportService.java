@@ -157,7 +157,7 @@ public final class TilesetAssetImportService {
                     tileWidth > 0 ? tileWidth : 32,
                     tileHeight > 0 ? tileHeight : 32,
                     SceneMetaRuntime.TiledProjection.ORTHO,
-                    TilesetAnchor.BOTTOM_CENTER,
+                    TilesetAnchor.TOP_CENTER,
                     0,
                     0,
                     TilesetRenderSize.NATIVE

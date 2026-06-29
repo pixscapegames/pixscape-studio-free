@@ -70,7 +70,7 @@ public class SceneServiceImportTypeResolutionTest {
         assertEquals(32, request.profileSettings().referenceCellWidth());
         assertEquals(32, request.profileSettings().referenceCellHeight());
         assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, request.profileSettings().projection());
-        assertEquals(TilesetAnchor.BOTTOM_CENTER, request.profileSettings().anchor());
+        assertEquals(TilesetAnchor.TOP_CENTER, request.profileSettings().anchor());
         assertEquals(0, request.profileSettings().offsetX());
         assertEquals(0, request.profileSettings().offsetY());
         assertEquals(TilesetRenderSize.NATIVE, request.profileSettings().renderSize());
@@ -136,7 +136,7 @@ public class SceneServiceImportTypeResolutionTest {
         assertEquals(16, request.profileSettings().referenceCellWidth());
         assertEquals(24, request.profileSettings().referenceCellHeight());
         assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, request.profileSettings().projection());
-        assertEquals(TilesetAnchor.BOTTOM_CENTER, request.profileSettings().anchor());
+        assertEquals(TilesetAnchor.TOP_CENTER, request.profileSettings().anchor());
         assertEquals(TilesetRenderSize.NATIVE, request.profileSettings().renderSize());
     }
 
