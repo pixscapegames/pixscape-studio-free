@@ -22,6 +22,8 @@
 * Added profile-aware Studio tiled ghost and fallback rendering.
 * Added profile-aware Studio atlas rendering for tiled maps through the runtime tiled rendering path.
 * Added Preview save/export checks for missing, stale or incomplete tileset profile manifests.
+* Added TMX image layer repeat import for `repeatx` / `repeaty`, using Pixscape render-time repeated renderables. 
+* Added Studio canvas rendering for repeated renderables.
 * Added Apache-2.0 / LibreJS-compatible license notices to HTML player JavaScript.
 
 ### Changed
@@ -46,6 +48,8 @@
 * Fixed Studio atlas-backed tiled rendering losing profile metadata after tileset import, scene reload or atlas rebind.
 * Fixed profiled tiles disappearing in Preview when exported scenes referenced tile IDs missing from `tileset-profiles.json`.
 * Fixed the Studio “always on top / foreground” behavior.
+* Fixed TMX image layer placement and layer ordering to match Tiled.
+* Fixed repeated TMX image layers rendering correctly in preview but not in the Studio canvas.
 
 ### Tests
 
