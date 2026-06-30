@@ -36,7 +36,7 @@ public class TmxImportUiSupportTest {
     }
 
     @Test
-    public void formatDiagnostics_ordersBlockingBeforeWarningsAndTruncatesLongLists() {
+    public void formatDiagnostics_ordersBlockingBeforeWarningsAndShowsLongLists() {
         List<TmxDiagnostic> diagnostics = new ArrayList<>();
         diagnostics.add(new TmxDiagnostic(TmxDiagnosticSeverity.WARNING, "TMX_WARNING", "warning", "layer"));
         diagnostics.add(new TmxDiagnostic(TmxDiagnosticSeverity.INFO, "TMX_INFO", "info", "map"));
@@ -49,7 +49,8 @@ public class TmxImportUiSupportTest {
 
         assertTrue(formatted.indexOf("TMX_BLOCKING") < formatted.indexOf("TMX_WARNING"));
         assertTrue(formatted.contains("- BLOCKING TMX_BLOCKING: blocking (tileset)"));
-        assertTrue(formatted.contains("and 2 more..."));
+        assertTrue(formatted.contains("TMX_EXTRA_6"));
+        assertFalse(formatted.contains("and 2 more..."));
         assertEquals("No diagnostics.", TmxImportUiSupport.formatDiagnostics(List.of()));
     }
 

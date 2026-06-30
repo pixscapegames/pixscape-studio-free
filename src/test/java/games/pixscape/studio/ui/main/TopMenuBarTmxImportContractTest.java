@@ -37,6 +37,7 @@ public class TopMenuBarTmxImportContractTest {
         assertTrue(prepareBody.contains("TmxImportUiSupport.prepare(file)"));
         assertTrue(prepareBody.contains("!preparation.planResult().hasPlan() || preparation.hasBlockingDiagnostics()"));
         assertTrue(prepareBody.contains("TmxImportUiSupport.formatDiagnostics(preparation.diagnostics())"));
+        assertTrue(prepareBody.contains("TmxImportMessageDialog.show("));
         assertTrue(prepareBody.contains("new TmxImportDialog("));
         assertTrue(prepareBody.contains("sceneName -> importTmxAsNewScene(file, sceneName)"));
 
@@ -44,6 +45,7 @@ public class TopMenuBarTmxImportContractTest {
         assertTrue(importBody.contains("sceneService.importTmxAsNewScene(new TmxSceneImportRequest(file, sceneName))"));
         assertTrue(importBody.contains("TmxImportUiSupport.formatSuccessMessage(result)"));
         assertTrue(importBody.contains("TmxImportUiSupport.formatFailureMessage(result)"));
+        assertTrue(importBody.contains("TmxImportMessageDialog.show("));
         assertFalse(source.contains("new TmxSceneImportService("));
     }
 
@@ -63,6 +65,19 @@ public class TopMenuBarTmxImportContractTest {
         assertTrue(source.contains("sceneNameField.setText(preparation.proposedSceneName());"));
         assertTrue(source.contains("TmxImportUiSupport.resolveSceneName("));
         assertTrue(source.contains("onImport.accept(sceneName);"));
+    }
+
+    @Test
+    public void tmxImportFailureDialog_usesScrollableDiagnostics() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/importer/TmxImportMessageDialog.java"),
+                StandardCharsets.UTF_8
+        );
+
+        assertTrue(source.contains("new VisScrollPane(content)"));
+        assertTrue(source.contains("body.setWrap(true);"));
+        assertTrue(source.contains("stage.getHeight()"));
+        assertTrue(source.contains("dialog.button(\"OK\")"));
     }
 
     private static String topMenuBarSource() throws Exception {

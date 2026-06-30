@@ -52,10 +52,31 @@ public final class TsxTilesetImportParser {
             throw new IllegalArgumentException("TSX spacing and margin must be non-negative.");
         }
 
+        int tileCount = intAttribute(tileset, "tilecount", 0);
+        int columns = intAttribute(tileset, "columns", 0);
+        List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles =
+                parseImageCollectionTiles(tileset, tsxFile);
+        int effectiveTileCount = Math.max(tileCount, imageCollectionTileCount(imageCollectionTiles));
+
         XmlReader.Element image = tileset.getChildByName("image");
         if (image == null) {
-            if (hasPerTileImages(tileset)) {
-                throw new IllegalArgumentException("Image collection TSX tilesets are not supported yet.");
+            if (!imageCollectionTiles.isEmpty()) {
+                return new TsxTilesetDescriptor(
+                        tileset.getAttribute("name", null),
+                        tsxFile,
+                        null,
+                        null,
+                        0,
+                        0,
+                        tileWidth,
+                        tileHeight,
+                        spacing,
+                        margin,
+                        effectiveTileCount,
+                        columns,
+                        imageCollectionTiles,
+                        parseTileAnimationsForStandalone(tileset, effectiveTileCount)
+                );
             }
             throw new IllegalArgumentException("TSX tileset image is missing.");
         }
@@ -84,12 +105,10 @@ public final class TsxTilesetImportParser {
                 tileHeight,
                 spacing,
                 margin,
-                intAttribute(tileset, "tilecount", 0),
-                intAttribute(tileset, "columns", 0),
-                parseTileAnimationsForStandalone(
-                        tileset,
-                        intAttribute(tileset, "tilecount", 0)
-                )
+                effectiveTileCount,
+                columns,
+                imageCollectionTiles,
+                parseTileAnimationsForStandalone(tileset, effectiveTileCount)
         );
     }
 
@@ -197,14 +216,48 @@ public final class TsxTilesetImportParser {
         return animations;
     }
 
-    private boolean hasPerTileImages(XmlReader.Element tileset) {
+    private List<TsxTilesetDescriptor.ImageCollectionTile> parseImageCollectionTiles(XmlReader.Element tileset,
+                                                                                     FileHandle tsxFile) {
+        List<TsxTilesetDescriptor.ImageCollectionTile> tiles = new ArrayList<>();
         for (int i = 0; i < tileset.getChildCount(); i++) {
             XmlReader.Element child = tileset.getChild(i);
             if ("tile".equals(child.getName()) && child.getChildByName("image") != null) {
-                return true;
+                int localTileId = intAttribute(child, "id", -1);
+                XmlReader.Element image = child.getChildByName("image");
+                String imageSource = image.getAttribute("source", null);
+                if (localTileId < 0) {
+                    throw new IllegalArgumentException("TSX image collection tile id is invalid.");
+                }
+                if (imageSource == null || imageSource.isBlank()) {
+                    throw new IllegalArgumentException("TSX image collection tile image is missing.");
+                }
+                FileHandle imageFile = fileResolver.resolveRelative(tsxFile, imageSource);
+                if (imageFile == null || !imageFile.exists() || imageFile.isDirectory()) {
+                    throw new IllegalArgumentException("TSX image collection tile image is missing: " + imageSource);
+                }
+                if (!isPng(imageFile)) {
+                    throw new IllegalArgumentException("TSX image collection tile image format is not supported: " + imageSource);
+                }
+                tiles.add(new TsxTilesetDescriptor.ImageCollectionTile(
+                        localTileId,
+                        imageFile,
+                        imageSource,
+                        intAttribute(image, "width", 0),
+                        intAttribute(image, "height", 0)
+                ));
             }
         }
-        return false;
+        return tiles;
+    }
+
+    private static int imageCollectionTileCount(List<TsxTilesetDescriptor.ImageCollectionTile> tiles) {
+        int max = 0;
+        if (tiles == null) return max;
+        for (TsxTilesetDescriptor.ImageCollectionTile tile : tiles) {
+            if (tile == null) continue;
+            max = Math.max(max, tile.localTileId() + 1);
+        }
+        return max;
     }
 
     private static boolean isValidLocalTileId(int localTileId, int tileCount) {

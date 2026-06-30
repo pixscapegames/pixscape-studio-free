@@ -21,9 +21,15 @@ public record TmxTilesetPlan(int planIndex,
                              boolean external,
                              int localTileIdStart,
                              int localTileIdEndExclusive,
+                             List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles,
                              List<TsxTilesetDescriptor.TileAnimation> tileAnimations) {
 
     public TmxTilesetPlan {
+        imageCollectionTiles = imageCollectionTiles == null ? List.of() : List.copyOf(imageCollectionTiles);
         tileAnimations = tileAnimations == null ? List.of() : List.copyOf(tileAnimations);
+    }
+
+    public boolean imageCollection() {
+        return !imageCollectionTiles.isEmpty();
     }
 }

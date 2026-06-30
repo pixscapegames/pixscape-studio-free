@@ -17,12 +17,27 @@ public record TsxTilesetDescriptor(String name,
                                    int margin,
                                    int tileCount,
                                    int columns,
+                                   List<ImageCollectionTile> imageCollectionTiles,
                                    List<TileAnimation> tileAnimations) {
 
     public TsxTilesetDescriptor {
+        imageCollectionTiles = imageCollectionTiles == null
+                ? List.of()
+                : Collections.unmodifiableList(List.copyOf(imageCollectionTiles));
         tileAnimations = tileAnimations == null
                 ? List.of()
                 : Collections.unmodifiableList(List.copyOf(tileAnimations));
+    }
+
+    public boolean imageCollection() {
+        return !imageCollectionTiles.isEmpty();
+    }
+
+    public record ImageCollectionTile(int localTileId,
+                                      FileHandle imageFile,
+                                      String imageSource,
+                                      int imageWidth,
+                                      int imageHeight) {
     }
 
     public record TileAnimation(int baseLocalTileId, List<Frame> frames) {

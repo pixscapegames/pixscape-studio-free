@@ -137,7 +137,7 @@ public final class TmxPreflightService {
         if (tsxFile == null || !tsxFile.exists() || tsxFile.isDirectory()) {
             state.blocking("TMX_TSX_MISSING", "External TSX file is missing: " + source, source);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true, Collections.emptyList()));
+                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList()));
             return;
         }
 
@@ -147,7 +147,7 @@ public final class TmxPreflightService {
         } catch (RuntimeException ex) {
             state.blocking("TMX_TSX_INVALID_XML", "External TSX XML could not be parsed: " + ex.getMessage(), tsxPath);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true, Collections.emptyList()));
+                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList()));
             return;
         }
 
@@ -164,13 +164,18 @@ public final class TmxPreflightService {
         String name = tileset.getAttribute("name", null);
         int tileWidth = intAttribute(tileset, "tilewidth", 0);
         int tileHeight = intAttribute(tileset, "tileheight", 0);
-        int tileCount = intAttribute(tileset, "tilecount", 0);
+        int declaredTileCount = intAttribute(tileset, "tilecount", 0);
         int columns = intAttribute(tileset, "columns", 0);
         int spacing = intAttribute(tileset, "spacing", 0);
         int margin = intAttribute(tileset, "margin", 0);
+        boolean imageCollectionForm = hasPerTileImages(tileset);
+        List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles =
+                readImageCollectionTiles(tileset, declaringFile, declaredTileCount, state);
+        int tileCount = Math.max(declaredTileCount, imageCollectionTileCount(imageCollectionTiles));
 
-        if (tileWidth > 0 && mapInfo.tileWidth() > 0 && tileWidth != mapInfo.tileWidth()
-                || tileHeight > 0 && mapInfo.tileHeight() > 0 && tileHeight != mapInfo.tileHeight()) {
+        if (!imageCollectionForm
+                && (tileWidth > 0 && mapInfo.tileWidth() > 0 && tileWidth != mapInfo.tileWidth()
+                || tileHeight > 0 && mapInfo.tileHeight() > 0 && tileHeight != mapInfo.tileHeight())) {
             state.blocking(
                     "TMX_TILESET_TILE_SIZE_INCOMPATIBLE",
                     "Tileset tile size is incompatible with the map tile size for the first import scope.",
@@ -185,19 +190,6 @@ public final class TmxPreflightService {
             if (x != 0 || y != 0) {
                 state.blocking("TMX_TILEOFFSET_UNSUPPORTED", "Non-zero tileset tileoffset is not supported.", name);
             }
-        }
-
-        boolean hasPerTileImages = false;
-        for (int i = 0; i < tileset.getChildCount(); i++) {
-            XmlReader.Element child = tileset.getChild(i);
-            if (!"tile".equals(child.getName())) continue;
-            if (child.getChildByName("image") != null) {
-                hasPerTileImages = true;
-            }
-            warnIgnoredProperties(child, state, "tile");
-        }
-        if (hasPerTileImages) {
-            state.blocking("TMX_IMAGE_COLLECTION_TILESET", "Image collection tilesets are not supported.", name);
         }
 
         List<TsxTilesetDescriptor.TileAnimation> tileAnimations = TsxTilesetImportParser.parseTileAnimations(
@@ -215,7 +207,13 @@ public final class TmxPreflightService {
         FileHandle resolvedImage = imageSource != null ? fileResolver.resolveRelative(declaringFile, imageSource) : null;
         boolean imageExists = resolvedImage != null && resolvedImage.exists() && !resolvedImage.isDirectory();
 
-        if (imageSource == null || imageSource.isBlank()) {
+        if (imageCollectionForm) {
+            imageSource = null;
+            imageWidth = 0;
+            imageHeight = 0;
+            resolvedImage = null;
+            imageExists = false;
+        } else if (imageSource == null || imageSource.isBlank()) {
             state.blocking("TMX_TILESET_IMAGE_MISSING", "Tileset does not declare a single image source.", name);
         } else if (!imageExists) {
             state.blocking("TMX_TILESET_IMAGE_MISSING", "Tileset image is missing: " + imageSource, imageSource);
@@ -237,6 +235,7 @@ public final class TmxPreflightService {
                 pathOf(resolvedImage),
                 imageExists,
                 external,
+                imageCollectionTiles,
                 tileAnimations
         );
     }
@@ -531,6 +530,27 @@ public final class TmxPreflightService {
         return resolved;
     }
 
+    private static int imageCollectionTileCount(List<TsxTilesetDescriptor.ImageCollectionTile> tiles) {
+        int max = 0;
+        if (tiles == null) return max;
+        for (TsxTilesetDescriptor.ImageCollectionTile tile : tiles) {
+            if (tile == null) continue;
+            max = Math.max(max, tile.localTileId() + 1);
+        }
+        return max;
+    }
+
+    private static boolean hasPerTileImages(XmlReader.Element tileset) {
+        if (tileset == null) return false;
+        for (int i = 0; i < tileset.getChildCount(); i++) {
+            XmlReader.Element child = tileset.getChild(i);
+            if ("tile".equals(child.getName()) && child.getChildByName("image") != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void warnIgnoredLayerAttributes(XmlReader.Element layer,
                                             AnalysisState state,
                                             String location,
@@ -567,6 +587,77 @@ public final class TmxPreflightService {
         } catch (RuntimeException ex) {
             return defaultValue;
         }
+    }
+
+    private List<TsxTilesetDescriptor.ImageCollectionTile> readImageCollectionTiles(XmlReader.Element tileset,
+                                                                                    FileHandle declaringFile,
+                                                                                    int declaredTileCount,
+                                                                                    AnalysisState state) {
+        List<TsxTilesetDescriptor.ImageCollectionTile> tiles = new ArrayList<>();
+        if (tileset == null) {
+            return tiles;
+        }
+
+        for (int i = 0; i < tileset.getChildCount(); i++) {
+            XmlReader.Element tile = tileset.getChild(i);
+            if (!"tile".equals(tile.getName())) continue;
+
+            int localTileId = intAttribute(tile, "id", -1);
+            String location = localTileId >= 0 ? "tile " + localTileId : "tile";
+            warnIgnoredProperties(tile, state, location);
+
+            XmlReader.Element image = tile.getChildByName("image");
+            if (image == null) continue;
+
+            if (localTileId < 0 || (declaredTileCount > 0 && localTileId >= declaredTileCount)) {
+                state.blocking(
+                        "TMX_IMAGE_COLLECTION_TILE_ID_INVALID",
+                        "Image collection tile id is outside the tileset tile range: " + localTileId,
+                        location
+                );
+            }
+
+            String imageSource = image.getAttribute("source", null);
+            int imageWidth = intAttribute(image, "width", 0);
+            int imageHeight = intAttribute(image, "height", 0);
+            FileHandle resolvedImage = imageSource != null ? fileResolver.resolveRelative(declaringFile, imageSource) : null;
+            boolean imageExists = resolvedImage != null && resolvedImage.exists() && !resolvedImage.isDirectory();
+
+            if (imageSource == null || imageSource.isBlank()) {
+                state.blocking(
+                        "TMX_IMAGE_COLLECTION_TILE_IMAGE_MISSING",
+                        "missing image collection tile image: " + location,
+                        location
+                );
+                continue;
+            }
+            if (!imageExists) {
+                state.blocking(
+                        "TMX_IMAGE_COLLECTION_TILE_IMAGE_MISSING",
+                        "missing image collection tile image: " + imageSource,
+                        imageSource
+                );
+                continue;
+            }
+            if (!StudioFs.isImageFile(imageSource)) {
+                state.blocking(
+                        "TMX_IMAGE_COLLECTION_TILE_IMAGE_UNSUPPORTED",
+                        "Image collection tile image format is not supported: " + imageSource,
+                        imageSource
+                );
+                continue;
+            }
+
+            tiles.add(new TsxTilesetDescriptor.ImageCollectionTile(
+                    localTileId,
+                    resolvedImage,
+                    imageSource,
+                    imageWidth,
+                    imageHeight
+            ));
+        }
+
+        return tiles;
     }
 
     private static boolean booleanAttribute(XmlReader.Element element, String name, boolean defaultValue) {

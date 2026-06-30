@@ -24,6 +24,7 @@
 * Added Preview save/export checks for missing, stale or incomplete tileset profile manifests.
 * Added TMX image layer repeat import for `repeatx` / `repeaty`, using Pixscape render-time repeated renderables. 
 * Added Studio canvas rendering for repeated renderables.
+* Added support for Tiled image collection tilesets in TMX imports, including external TSX files, inline tilesets, per-tile image assets, GID mapping and missing-image diagnostics.
 * Added Apache-2.0 / LibreJS-compatible license notices to HTML player JavaScript.
 
 ### Changed
@@ -38,6 +39,9 @@
 * Runtime export now writes tileset profiles for tile assets used by exported scenes, without mutating Runtime Availability.
 * Runtime export now writes imported tiled animations to `tiled-animations.json` and includes their frame tile IDs in `tileset-profiles.json`.
 * Clarified the tiled-cell capacity exceeded dialog wording.
+* TMX tile layer import now resolves image collection GIDs through the existing tiled cell asset path while preserving Tiled transform flags and real image dimensions.
+* TMX import diagnostics are now displayed in a scrollable dialog so all reported issues can be reviewed.
+* TMX image collection tilesets now allow per-tile image dimensions that differ from the map tile size.
 
 ### Fixed
 
@@ -50,6 +54,7 @@
 * Fixed the Studio “always on top / foreground” behavior.
 * Fixed TMX image layer placement and layer ordering to match Tiled.
 * Fixed repeated TMX image layers rendering correctly in preview but not in the Studio canvas.
+* Fixed false tileset-size incompatibility errors when importing real-world Tiled maps using image collection tilesets.
 
 ### Tests
 

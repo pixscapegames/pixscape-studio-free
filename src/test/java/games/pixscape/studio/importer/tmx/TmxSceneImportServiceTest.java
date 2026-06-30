@@ -35,6 +35,7 @@ import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAnimationProjectDefData;
 import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -354,6 +355,60 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void importSceneImportsExternalTsxImageCollectionTilesets() throws Exception {
+        Harness h = harness("tmx-import-image-collection");
+        FileHandle graphics = h.projectDir.child("graphics");
+        FileHandle tilesets = h.projectDir.child("tilesets");
+        writePng(graphics.child("tree.png"), 16, 32);
+        writePng(graphics.child("rock.png"), 16, 16);
+        writeString(tilesets.child("props.tsx"), """
+                <tileset version="1.10" tiledversion="1.12.1" name="props" tilewidth="16" tileheight="16" tilecount="2" columns="0">
+                  <tile id="0">
+                    <image source="../graphics/tree.png" width="16" height="32"/>
+                  </tile>
+                  <tile id="1">
+                    <image source="../graphics/rock.png" width="16" height="16"/>
+                  </tile>
+                </tileset>
+                """);
+        long hFlipTree = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
+        FileHandle tmx = writeTmx(h.root.resolve("maps").resolve("props-map.tmx"), """
+                <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tilesets/props.tsx"/>
+                  <layer name="ground" width="2" height="1">
+                    <data encoding="csv">%d,2</data>
+                  </layer>
+                </map>
+                """.formatted(hFlipTree));
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Props"));
+
+        assertTrue(result.imported());
+        assertEquals(1, result.importedTilesetCount());
+        assertEquals(2, result.importedTileCount());
+
+        TilesetAssetMeta tileset = requireTileset(h.db.findByLogicalPath("tiles/props"));
+        assertEquals(16, tileset.tileWidth);
+        assertEquals(16, tileset.tileHeight);
+        assertEquals(16, tileset.referenceCellWidth);
+        assertEquals(16, tileset.referenceCellHeight);
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+
+        TileAssetMeta tree = requireTile(h.db.findByLogicalPath("tiles/props/0"));
+        TileAssetMeta rock = requireTile(h.db.findByLogicalPath("tiles/props/1"));
+        assertPngSize(h.projectDir.child(tree.sourceRelPath), 16, 32);
+        assertPngSize(h.projectDir.child(rock.sourceRelPath), 16, 16);
+
+        TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
+        assertTileAsset(tiled, 0, 0, tree.id);
+        assertTileAsset(tiled, 1, 0, rock.id);
+        assertEquals(TileTransformFlags.FLIP_H, tiled.tileTransformFlags.get(0));
+        assertEquals(TileTransformFlags.NONE, tiled.tileTransformFlags.get(1));
+        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(tree.id));
+        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(rock.id));
+    }
+
+    @Test
     public void importSceneCreatesTiledAnimationMetadataAndMapsAnimatedCells() throws Exception {
         Harness h = harness("tmx-import-tile-animation");
         FileHandle tmx = animatedTileTmx(h, "animated.tmx", "1,2,0,0");
@@ -602,6 +657,11 @@ public class TmxSceneImportServiceTest {
         return new FileHandle(path.toFile());
     }
 
+    private static void writeString(FileHandle file, String text) {
+        file.parent().mkdirs();
+        file.writeString(text, false, StandardCharsets.UTF_8.name());
+    }
+
     private static void writePng(FileHandle file, int width, int height) {
         file.parent().mkdirs();
         Pixmap pixmap = new Pixmap(width, height, Pixmap.Format.RGBA8888);
@@ -609,6 +669,16 @@ public class TmxSceneImportServiceTest {
             pixmap.setColor(0.2f, 0.6f, 0.3f, 1f);
             pixmap.fill();
             PixmapIO.writePNG(file, pixmap);
+        } finally {
+            pixmap.dispose();
+        }
+    }
+
+    private static void assertPngSize(FileHandle file, int width, int height) {
+        Pixmap pixmap = new Pixmap(file);
+        try {
+            assertEquals(width, pixmap.getWidth());
+            assertEquals(height, pixmap.getHeight());
         } finally {
             pixmap.dispose();
         }

@@ -15,8 +15,10 @@ import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.asset.TilesetRenderSize;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.ImageCollectionTileSource;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImageCollectionImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import org.junit.AfterClass;
@@ -26,6 +28,7 @@ import org.junit.Test;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -398,16 +401,23 @@ public class TilesetAssetImportServiceTest {
     }
 
     @Test
-    public void parseTsxImageCollectionFailsWithClearMessage() throws Exception {
+    public void parseTsxImageCollectionReadsPerTileImages() throws Exception {
         Path temp = Files.createTempDirectory("tileset-tsx-image-collection");
         FileHandle tsx = new FileHandle(temp.resolve("terrain.tsx").toFile());
+        writePng(new FileHandle(temp.resolve("tile0.png").toFile()), 16, 32, 0.9f, 0.1f, 0.1f, 1f);
         writeString(tsx, """
                 <tileset name="Terrain" tilewidth="16" tileheight="16">
                   <tile id="0"><image source="tile0.png" width="16" height="16"/></tile>
                 </tileset>
                 """);
 
-        assertTsxImportError(tsx, "Image collection TSX tilesets are not supported yet.");
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsx);
+
+        assertTrue(descriptor.imageCollection());
+        assertEquals(1, descriptor.tileCount());
+        assertEquals(1, descriptor.imageCollectionTiles().size());
+        assertEquals(0, descriptor.imageCollectionTiles().get(0).localTileId());
+        assertEquals("tile0.png", descriptor.imageCollectionTiles().get(0).imageSource());
     }
 
     @Test
@@ -525,6 +535,64 @@ public class TilesetAssetImportServiceTest {
         assertEquals(12, tileset.offsetX);
         assertEquals(-8, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
+    }
+
+    @Test
+    public void importImageCollectionRegistersLocalTileImageAssetsAndDeduplicatesSources() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-image-collection-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle tree = projectDir.child("tree.png");
+        FileHandle rock = projectDir.child("rock.png");
+        writePng(tree, 16, 32, 0.1f, 0.6f, 0.2f, 1f);
+        writePng(rock, 16, 16, 0.3f, 0.3f, 0.3f, 1f);
+
+        TilesetImportResult result = service.importImageCollection(new TilesetImageCollectionImportRequest(
+                "props",
+                tilesRoot,
+                16,
+                16,
+                3,
+                List.of(
+                        new ImageCollectionTileSource(0, tree, "tree.png", 16, 32),
+                        new ImageCollectionTileSource(1, rock, "rock.png", 16, 16),
+                        new ImageCollectionTileSource(2, tree, "tree.png", 16, 32)
+                ),
+                new TilesetProfileImportSettings(
+                        16,
+                        16,
+                        SceneMetaRuntime.TiledProjection.ORTHO,
+                        TilesetAnchor.BOTTOM_CENTER,
+                        0,
+                        0,
+                        TilesetRenderSize.NATIVE
+                )
+        ));
+
+        assertEquals(1, result.importedCount());
+        assertEquals(3, result.localTileAssetIds().size());
+        assertEquals(result.localTileAssetIds().get(0), result.localTileAssetIds().get(2));
+
+        TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/props"));
+        assertEquals(16, tileset.tileWidth);
+        assertEquals(16, tileset.tileHeight);
+        assertEquals(3, tileset.columns);
+        assertEquals(1, tileset.rows);
+        assertEquals(16, tileset.referenceCellWidth);
+        assertEquals(16, tileset.referenceCellHeight);
+        assertEquals(TilesetAnchor.BOTTOM_CENTER, tileset.anchor);
+
+        TileAssetMeta treeTile = requireTile(db.findByLogicalPath("tiles/props/0"));
+        TileAssetMeta rockTile = requireTile(db.findByLogicalPath("tiles/props/1"));
+        assertEquals(tileset.id, treeTile.tilesetId);
+        assertEquals(0, treeTile.sheetIndex);
+        assertEquals(tileset.id, rockTile.tilesetId);
+        assertEquals(1, rockTile.sheetIndex);
+        assertPngSize(projectDir.child(treeTile.sourceRelPath), 16, 32);
+        assertPngSize(projectDir.child(rockTile.sourceRelPath), 16, 16);
     }
 
     @Test

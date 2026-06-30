@@ -19,10 +19,16 @@ public record TmxTilesetInfo(int firstGid,
                              String resolvedImagePath,
                              boolean imageExists,
                              boolean external,
+                             List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles,
                              List<TsxTilesetDescriptor.TileAnimation> tileAnimations) {
 
     public TmxTilesetInfo {
+        imageCollectionTiles = imageCollectionTiles == null ? List.of() : List.copyOf(imageCollectionTiles);
         tileAnimations = tileAnimations == null ? List.of() : List.copyOf(tileAnimations);
+    }
+
+    public boolean imageCollection() {
+        return !imageCollectionTiles.isEmpty();
     }
 
     public int lastGidExclusive() {

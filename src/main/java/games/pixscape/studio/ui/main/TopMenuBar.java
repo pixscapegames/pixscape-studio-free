@@ -36,6 +36,7 @@ import games.pixscape.studio.ui.config.ProjectSettingsWindow;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.importer.TmxImportDialog;
+import games.pixscape.studio.ui.importer.TmxImportMessageDialog;
 import games.pixscape.studio.ui.importer.TmxImportUiSupport;
 import games.pixscape.studio.ui.log.LogWindow;
 import games.pixscape.studio.ui.shaders.ShaderManagerDialog;
@@ -692,7 +693,7 @@ public class TopMenuBar extends MenuBar {
         try {
             TmxImportUiSupport.TmxImportPreparation preparation = TmxImportUiSupport.prepare(file);
             if (!preparation.planResult().hasPlan() || preparation.hasBlockingDiagnostics()) {
-                Dialogs.showOKDialog(
+                TmxImportMessageDialog.show(
                         app.getUiStage(),
                         "Tiled map cannot be imported",
                         TmxImportUiSupport.formatDiagnostics(preparation.diagnostics())
@@ -724,7 +725,7 @@ public class TopMenuBar extends MenuBar {
                         TmxImportUiSupport.formatSuccessMessage(result)
                 );
             } else {
-                Dialogs.showOKDialog(
+                TmxImportMessageDialog.show(
                         app.getUiStage(),
                         "Tiled map import failed",
                         TmxImportUiSupport.formatFailureMessage(result)

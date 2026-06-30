@@ -19,6 +19,8 @@ import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
+import games.pixscape.studio.asset.TilesetAnchor;
+import games.pixscape.studio.asset.TilesetRenderSize;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -29,14 +31,19 @@ import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.ImageCollectionTileSource;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImageCollectionImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import games.pixscape.studio.service.atlas.SceneAtlasInputService;
 import games.pixscape.studio.service.atlas.SceneAtlasLoaderService;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -228,15 +235,28 @@ public final class TmxSceneImportService {
         TileAnimationsMetaDatabase tileAnimationsDb = TileAnimationsIO.load(tileAnimationsFile);
         FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
         for (TmxTilesetPlan tileset : plan.tilesets()) {
-            FileHandle image = new FileHandle(tileset.resolvedImagePath());
-            TilesetImportResult result = tilesetImportService.importAtlas(new TilesetAtlasImportRequest(
-                    image,
-                    tilesRoot,
-                    tileset.tileWidth(),
-                    tileset.tileHeight(),
-                    tileset.spacing(),
-                    tileset.margin()
-            ));
+            TilesetImportResult result;
+            if (tileset.imageCollection()) {
+                result = tilesetImportService.importImageCollection(new TilesetImageCollectionImportRequest(
+                        tileset.name(),
+                        tilesRoot,
+                        tileset.tileWidth(),
+                        tileset.tileHeight(),
+                        tileset.tileCount(),
+                        imageCollectionSources(tileset),
+                        collectionProfileSettings(plan.scene(), tileset)
+                ));
+            } else {
+                FileHandle image = new FileHandle(tileset.resolvedImagePath());
+                result = tilesetImportService.importAtlas(new TilesetAtlasImportRequest(
+                        image,
+                        tilesRoot,
+                        tileset.tileWidth(),
+                        tileset.tileHeight(),
+                        tileset.spacing(),
+                        tileset.margin()
+                ));
+            }
             if (result.importedCount() <= 0) {
                 throw new IllegalStateException("Tileset import failed: " + tileset.name());
             }
@@ -456,6 +476,41 @@ public final class TmxSceneImportService {
             repeat.repeatX = imageLayer.repeatX();
             repeat.repeatY = imageLayer.repeatY();
         }
+    }
+
+    private static List<ImageCollectionTileSource> imageCollectionSources(TmxTilesetPlan tileset) {
+        List<ImageCollectionTileSource> sources = new ArrayList<>();
+        if (tileset == null || tileset.imageCollectionTiles() == null) {
+            return sources;
+        }
+        for (var tile : tileset.imageCollectionTiles()) {
+            if (tile == null) continue;
+            sources.add(new ImageCollectionTileSource(
+                    tile.localTileId(),
+                    tile.imageFile(),
+                    tile.imageSource(),
+                    tile.imageWidth(),
+                    tile.imageHeight()
+            ));
+        }
+        return sources;
+    }
+
+    private static TilesetProfileImportSettings collectionProfileSettings(TmxScenePlan scene,
+                                                                          TmxTilesetPlan tileset) {
+        int tileWidth = tileset != null && tileset.tileWidth() > 0 ? tileset.tileWidth() : 32;
+        int tileHeight = tileset != null && tileset.tileHeight() > 0 ? tileset.tileHeight() : 32;
+        return new TilesetProfileImportSettings(
+                tileWidth,
+                tileHeight,
+                scene != null && scene.tiledProjection() != null
+                        ? scene.tiledProjection()
+                        : SceneMetaRuntime.TiledProjection.ORTHO,
+                TilesetAnchor.BOTTOM_CENTER,
+                0,
+                0,
+                TilesetRenderSize.NATIVE
+        );
     }
 
     private static float imageLayerSpriteY(TmxScenePlan scene,

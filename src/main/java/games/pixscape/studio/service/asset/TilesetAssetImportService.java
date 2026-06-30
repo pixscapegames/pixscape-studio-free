@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -111,6 +112,41 @@ public final class TilesetAssetImportService {
         return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
     }
 
+    public TilesetImportResult importImageCollection(TilesetImageCollectionImportRequest request) {
+        Objects.requireNonNull(request, "request");
+
+        List<ImageCollectionTileSource> sourceTiles = request.sourceTiles();
+        if (sourceTiles == null || sourceTiles.isEmpty()) {
+            StudioLog.warn("Image collection tileset import skipped: no tile images found.");
+            return TilesetImportResult.skipped();
+        }
+
+        String base = imageCollectionBaseName(request);
+        FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
+        int tileCount = Math.max(request.tileCount(), imageCollectionTileCount(sourceTiles));
+
+        TilesetAssetMeta tilesetMeta = createOrUpdateFolderTilesetMeta(
+                base,
+                tileCount,
+                request.tileWidth(),
+                request.tileHeight(),
+                request.profileSettings()
+        );
+
+        Map<Integer, Integer> tileAssetIds = registerImageCollectionTilesAsTileAssets(
+                base,
+                tilesetDir,
+                sourceTiles,
+                tilesetMeta
+        );
+        if (tileAssetIds.isEmpty()) {
+            StudioLog.warn("Image collection tileset import skipped: no supported tile images found.");
+            return TilesetImportResult.skipped();
+        }
+
+        return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
+    }
+
     public record TilesetAtlasImportRequest(FileHandle sourceFile,
                                             FileHandle tilesRoot,
                                             int tileWidth,
@@ -171,6 +207,28 @@ public final class TilesetAssetImportService {
         public TilesetDirectoryImportRequest(FileHandle directory, FileHandle tilesRoot) {
             this(directory, tilesRoot, null);
         }
+    }
+
+    public record TilesetImageCollectionImportRequest(String tilesetName,
+                                                      FileHandle tilesRoot,
+                                                      int tileWidth,
+                                                      int tileHeight,
+                                                      int tileCount,
+                                                      List<ImageCollectionTileSource> sourceTiles,
+                                                      TilesetProfileImportSettings profileSettings) {
+        public TilesetImageCollectionImportRequest {
+            sourceTiles = sourceTiles == null ? List.of() : List.copyOf(sourceTiles);
+            if (profileSettings == null) {
+                profileSettings = TilesetProfileImportSettings.defaults(tileWidth, tileHeight);
+            }
+        }
+    }
+
+    public record ImageCollectionTileSource(int localTileId,
+                                            FileHandle sourceFile,
+                                            String imageSource,
+                                            int imageWidth,
+                                            int imageHeight) {
     }
 
     public record DirectoryTilesetAnalysis(FileHandle[] sourceTiles,
@@ -273,6 +331,60 @@ public final class TilesetAssetImportService {
             tileMeta.cellX = sheetIndex;
             tileMeta.cellY = 0;
             tileAssetIds.put(sheetIndex, tileMeta.id);
+        }
+        return tileAssetIds;
+    }
+
+    private Map<Integer, Integer> registerImageCollectionTilesAsTileAssets(String base,
+                                                                           FileHandle tilesetDir,
+                                                                           List<ImageCollectionTileSource> sourceTiles,
+                                                                           TilesetAssetMeta tilesetMeta) {
+        Map<Integer, Integer> tileAssetIds = new LinkedHashMap<>();
+        Map<String, Integer> assetIdByCanonicalSource = new LinkedHashMap<>();
+        if (sourceTiles == null) return tileAssetIds;
+
+        for (ImageCollectionTileSource sourceTile : sourceTiles) {
+            if (sourceTile == null || sourceTile.localTileId() < 0) continue;
+
+            FileHandle src = sourceTile.sourceFile();
+            if (!isImage(src) || !src.exists() || src.isDirectory()) {
+                warnUnsupported(src);
+                continue;
+            }
+
+            String canonicalSource = pathOf(src);
+            Integer existingAssetId = assetIdByCanonicalSource.get(canonicalSource);
+            if (existingAssetId != null && existingAssetId > 0) {
+                tileAssetIds.put(sourceTile.localTileId(), existingAssetId);
+                continue;
+            }
+
+            int localTileId = sourceTile.localTileId();
+            String logical = StudioFs.PREFIX_TILES + base + "/" + localTileId;
+            TileAssetMeta tileMeta = requireTileMeta(
+                    assetMetaDatabase.registerIfAbsent(
+                            AssetType.TILE,
+                            logical,
+                            null,
+                            AssetMeta.AssetScope.USER
+                    )
+            );
+
+            String ext = src.extension();
+            String newFileName = localTileId + "__a" + tileMeta.id
+                    + (ext == null || ext.isBlank() ? "" : "." + ext);
+            FileHandle dst = tilesetDir.child(newFileName);
+            if (!dst.exists()) {
+                src.copyTo(dst);
+            }
+
+            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
+            tileMeta.tilesetId = tilesetMeta.id;
+            tileMeta.sheetIndex = localTileId;
+            tileMeta.cellX = localTileId;
+            tileMeta.cellY = 0;
+            tileAssetIds.put(localTileId, tileMeta.id);
+            assetIdByCanonicalSource.put(canonicalSource, tileMeta.id);
         }
         return tileAssetIds;
     }
@@ -749,6 +861,36 @@ public final class TilesetAssetImportService {
             }
         }
         return baseName(request.sourceFile().name());
+    }
+
+    private String imageCollectionBaseName(TilesetImageCollectionImportRequest request) {
+        String requestedName = request.tilesetName();
+        if (requestedName != null && !requestedName.isBlank()) {
+            String sanitized = sanitizeBaseName(requestedName);
+            if (!sanitized.isBlank()) {
+                return sanitized;
+            }
+        }
+        return "image-collection";
+    }
+
+    private static int imageCollectionTileCount(List<ImageCollectionTileSource> tiles) {
+        int max = 0;
+        if (tiles == null) return max;
+        for (ImageCollectionTileSource tile : tiles) {
+            if (tile == null) continue;
+            max = Math.max(max, tile.localTileId() + 1);
+        }
+        return max;
+    }
+
+    private static String pathOf(FileHandle file) {
+        if (file == null) return "";
+        try {
+            return file.file().toPath().toAbsolutePath().normalize().toString();
+        } catch (RuntimeException ex) {
+            return file.path();
+        }
     }
 
     private String sanitizeBaseName(String name) {

@@ -16,8 +16,6 @@ import java.util.Objects;
 
 public final class TmxImportUiSupport {
 
-    static final int MAX_DIAGNOSTICS_IN_DIALOG = 8;
-
     private TmxImportUiSupport() {
     }
 
@@ -53,8 +51,7 @@ public final class TmxImportUiSupport {
         }
 
         StringBuilder out = new StringBuilder();
-        int shown = Math.min(MAX_DIAGNOSTICS_IN_DIALOG, sorted.size());
-        for (int i = 0; i < shown; i++) {
+        for (int i = 0; i < sorted.size(); i++) {
             TmxDiagnostic d = sorted.get(i);
             if (i > 0) out.append('\n');
             out.append("- ")
@@ -66,11 +63,6 @@ public final class TmxImportUiSupport {
             if (d.location() != null && !d.location().isBlank()) {
                 out.append(" (").append(d.location()).append(")");
             }
-        }
-
-        int remaining = sorted.size() - shown;
-        if (remaining > 0) {
-            out.append('\n').append("and ").append(remaining).append(" more...");
         }
         return out.toString();
     }
