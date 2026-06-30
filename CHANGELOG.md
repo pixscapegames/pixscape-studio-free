@@ -2,6 +2,11 @@
 
 ## 0.2.1 - Tiled Map Import (.tmx, .tsx)
 
+### Breaking changes
+* Existing Pixscape scenes created with older tiled map data are no longer compatible.
+* Projects containing tiled maps should be re-imported or recreated with this version.
+* This breaking change is caused by the TMX/tiled map import pipeline changes required to support Tiled transform flags, image layers, tile animations, image collection tilesets and improved runtime mapping.
+
 ### Added
 
 * Added `File > Import > Tiled map (.tmx)...` for importing supported Tiled maps as new Pixscape scenes.
