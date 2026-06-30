@@ -7,6 +7,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
+import games.pixscape.runtime.component.RenderRepeatComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -339,7 +340,7 @@ public final class TmxSceneImportService {
                 }
                 int layerEntity = world.create();
                 createClassicLayerComponents(world, layerEntity, layerIndex, imageLayer);
-                createImageLayerSprite(world, layerIndex, imageLayer, imageAsset, sceneTag);
+                createImageLayerSprite(world, layerIndex, plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
             }
         }
@@ -425,12 +426,13 @@ public final class TmxSceneImportService {
 
     private void createImageLayerSprite(World world,
                                         int layerIndex,
+                                        TmxScenePlan scene,
                                         TmxImageLayerPlan imageLayer,
                                         ImportedImageAsset imageAsset,
                                         String sceneTag) {
         int spriteEntity = world.create();
         float spriteX = imageLayer.x() + imageLayer.offsetX();
-        float spriteY = imageLayer.y() + imageLayer.offsetY();
+        float spriteY = imageLayerSpriteY(scene, imageLayer, imageAsset);
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
                         imageAsset.assetId(),
@@ -449,6 +451,21 @@ public final class TmxSceneImportService {
                 )
                 .setTintRgba(tintForOpacity(imageLayer.opacity()));
         init.init(spriteEntity);
+        if (imageLayer.repeatX() || imageLayer.repeatY()) {
+            RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(spriteEntity);
+            repeat.repeatX = imageLayer.repeatX();
+            repeat.repeatY = imageLayer.repeatY();
+        }
+    }
+
+    private static float imageLayerSpriteY(TmxScenePlan scene,
+                                           TmxImageLayerPlan imageLayer,
+                                           ImportedImageAsset imageAsset) {
+        if (scene != null && "orthogonal".equals(scene.orientation())) {
+            float mapPixelHeight = scene.mapHeightCells() * (float) scene.tileHeight();
+            return mapPixelHeight - imageLayer.y() - imageLayer.offsetY() - imageAsset.height();
+        }
+        return imageLayer.y() + imageLayer.offsetY();
     }
 
     private void populateTiles(World world,

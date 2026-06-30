@@ -307,6 +307,8 @@ public final class TmxPreflightService {
         float parallaxY = context.parallaxY() * floatAttribute(layer, "parallaxy", 1f);
         float x = floatAttribute(layer, "x", 0f);
         float y = floatAttribute(layer, "y", 0f);
+        boolean repeatX = booleanAttribute(layer, "repeatx", false);
+        boolean repeatY = booleanAttribute(layer, "repeaty", false);
 
         XmlReader.Element image = layer.getChildByName("image");
         String imageSource = image != null ? image.getAttribute("source", null) : null;
@@ -336,6 +338,8 @@ public final class TmxPreflightService {
                 parallaxY,
                 x,
                 y,
+                repeatX,
+                repeatY,
                 imageSource,
                 imageWidth,
                 imageHeight,
@@ -343,9 +347,6 @@ public final class TmxPreflightService {
                 imageExists
         ));
 
-        if (layer.hasAttribute("repeatx") || layer.hasAttribute("repeaty")) {
-            state.warning("TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED", "Image layer repeatx/repeaty is detected but not supported yet.", name);
-        }
         if (layer.hasAttribute("tintcolor")) {
             state.warning("TMX_IMAGE_LAYER_TINT_IGNORED", "Image layer tint color is detected but ignored.", name);
         }
@@ -566,6 +567,21 @@ public final class TmxPreflightService {
         } catch (RuntimeException ex) {
             return defaultValue;
         }
+    }
+
+    private static boolean booleanAttribute(XmlReader.Element element, String name, boolean defaultValue) {
+        String value = element.getAttribute(name, null);
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if ("1".equals(normalized) || "true".equals(normalized)) {
+            return true;
+        }
+        if ("0".equals(normalized) || "false".equals(normalized)) {
+            return false;
+        }
+        return defaultValue;
     }
 
     private static String layerName(XmlReader.Element layer, LayerContext context) {

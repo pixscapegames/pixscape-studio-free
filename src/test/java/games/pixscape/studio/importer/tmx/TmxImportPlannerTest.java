@@ -234,7 +234,7 @@ public class TmxImportPlannerTest {
                     <image source="terrain.png" width="16" height="16"/>
                   </tileset>
                   <objectgroup name="Objects"/>
-                  <imagelayer name="Backdrop" offsetx="3" offsety="4" x="10" y="20" opacity="0.5" parallaxx="2" parallaxy="0.25">
+                  <imagelayer name="Backdrop" offsetx="3" offsety="4" x="10" y="20" opacity="0.5" parallaxx="2" parallaxy="0.25" repeatx="true">
                     <image source="background.png" width="64" height="32"/>
                   </imagelayer>
                   <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
@@ -257,6 +257,8 @@ public class TmxImportPlannerTest {
         assertEquals(0.5f, image.opacity(), 0.0001f);
         assertEquals(2f, image.parallaxX(), 0.0001f);
         assertEquals(0.25f, image.parallaxY(), 0.0001f);
+        assertTrue(image.repeatX());
+        assertFalse(image.repeatY());
         assertEquals("background.png", image.imageSource());
         assertEquals(64, image.imageWidth());
         assertEquals(32, image.imageHeight());

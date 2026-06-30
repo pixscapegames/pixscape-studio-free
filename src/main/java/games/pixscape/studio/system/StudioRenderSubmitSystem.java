@@ -27,6 +27,8 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 
 public final class StudioRenderSubmitSystem extends BaseSystem implements ProfiledSystem {
+    private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
+    private static final float AXIS_EPSILON = 0.0001f;
 
     private final RenderStateSOA state;
     private final LayerStateSOA layerState;
@@ -39,6 +41,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final RenderStatsSink statsSink;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
+    private final int[] repeatRange = new int[4];
 
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
@@ -203,18 +206,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     }
                 }
 
-                metricsBatch.draw(
-                        texHandle,
-                        state.x1[slot] + ox, state.y1[slot] + oy,
-                        state.x2[slot] + ox, state.y2[slot] + oy,
-                        state.x3[slot] + ox, state.y3[slot] + oy,
-                        state.x4[slot] + ox, state.y4[slot] + oy,
-                        state.u1[slot], state.v1[slot],
-                        state.u2[slot], state.v2[slot],
-                        stats
-                );
-
-                stats.drawnQuads++;
+                byte repeat = state.repeatFlags[slot];
+                if ((repeat & RenderRepeatFlags.ANY) == 0) {
+                    drawAtlasSlot(slot, texHandle, ox, oy);
+                } else {
+                    drawRepeatedAtlasSlot(slot, texHandle, ox, oy, repeat);
+                }
                 continue;
             }
 
@@ -256,18 +253,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
             standaloneBatch.setPackedColor(state.colorPacked[slot]);
 
-            standaloneBatch.drawTex(
-                    tex,
-                    state.x1[slot] + ox, state.y1[slot] + oy,
-                    state.x2[slot] + ox, state.y2[slot] + oy,
-                    state.x3[slot] + ox, state.y3[slot] + oy,
-                    state.x4[slot] + ox, state.y4[slot] + oy,
-                    state.u1[slot], state.v1[slot],
-                    state.u2[slot], state.v2[slot],
-                    stats
-            );
-
-            stats.drawnQuads++;
+            byte repeat = state.repeatFlags[slot];
+            if ((repeat & RenderRepeatFlags.ANY) == 0) {
+                drawStandaloneSlot(slot, tex, ox, oy);
+            } else {
+                drawRepeatedStandaloneSlot(slot, tex, ox, oy, repeat);
+            }
         }
 
         if (atlasOpen) {
@@ -277,6 +268,258 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         if (standaloneOpen) {
             standaloneBatch.end(stats);
         }
+    }
+
+    private void drawAtlasSlot(int slot, int texHandle, float ox, float oy) {
+        metricsBatch.draw(
+                texHandle,
+                state.x1[slot] + ox, state.y1[slot] + oy,
+                state.x2[slot] + ox, state.y2[slot] + oy,
+                state.x3[slot] + ox, state.y3[slot] + oy,
+                state.x4[slot] + ox, state.y4[slot] + oy,
+                state.u1[slot], state.v1[slot],
+                state.u2[slot], state.v2[slot],
+                stats
+        );
+
+        stats.drawnQuads++;
+    }
+
+    private void drawRepeatedAtlasSlot(int slot, int texHandle, float ox, float oy, byte repeat) {
+        if (!prepareRepeatRange(slot, ox, oy, repeat)) {
+            return;
+        }
+
+        float stepX = repeatedStepX(slot, ox);
+        float stepY = repeatedStepY(slot, oy);
+
+        for (int iy = repeatRange[2]; iy <= repeatRange[3]; iy++) {
+            float dy = iy * stepY;
+
+            for (int ix = repeatRange[0]; ix <= repeatRange[1]; ix++) {
+                float dx = ix * stepX;
+
+                metricsBatch.draw(
+                        texHandle,
+                        state.x1[slot] + ox + dx, state.y1[slot] + oy + dy,
+                        state.x2[slot] + ox + dx, state.y2[slot] + oy + dy,
+                        state.x3[slot] + ox + dx, state.y3[slot] + oy + dy,
+                        state.x4[slot] + ox + dx, state.y4[slot] + oy + dy,
+                        state.u1[slot], state.v1[slot],
+                        state.u2[slot], state.v2[slot],
+                        stats
+                );
+
+                stats.drawnQuads++;
+            }
+        }
+    }
+
+    private void drawStandaloneSlot(int slot, Texture tex, float ox, float oy) {
+        standaloneBatch.drawTex(
+                tex,
+                state.x1[slot] + ox, state.y1[slot] + oy,
+                state.x2[slot] + ox, state.y2[slot] + oy,
+                state.x3[slot] + ox, state.y3[slot] + oy,
+                state.x4[slot] + ox, state.y4[slot] + oy,
+                state.u1[slot], state.v1[slot],
+                state.u2[slot], state.v2[slot],
+                stats
+        );
+
+        stats.drawnQuads++;
+    }
+
+    private void drawRepeatedStandaloneSlot(int slot, Texture tex, float ox, float oy, byte repeat) {
+        if (!prepareRepeatRange(slot, ox, oy, repeat)) {
+            return;
+        }
+
+        float stepX = repeatedStepX(slot, ox);
+        float stepY = repeatedStepY(slot, oy);
+
+        for (int iy = repeatRange[2]; iy <= repeatRange[3]; iy++) {
+            float dy = iy * stepY;
+
+            for (int ix = repeatRange[0]; ix <= repeatRange[1]; ix++) {
+                float dx = ix * stepX;
+
+                standaloneBatch.drawTex(
+                        tex,
+                        state.x1[slot] + ox + dx, state.y1[slot] + oy + dy,
+                        state.x2[slot] + ox + dx, state.y2[slot] + oy + dy,
+                        state.x3[slot] + ox + dx, state.y3[slot] + oy + dy,
+                        state.x4[slot] + ox + dx, state.y4[slot] + oy + dy,
+                        state.u1[slot], state.v1[slot],
+                        state.u2[slot], state.v2[slot],
+                        stats
+                );
+
+                stats.drawnQuads++;
+            }
+        }
+    }
+
+    private boolean prepareRepeatRange(int slot, float ox, float oy, byte repeat) {
+        float x1 = state.x1[slot];
+        float y1 = state.y1[slot];
+        float x2 = state.x2[slot];
+        float y2 = state.y2[slot];
+        float x3 = state.x3[slot];
+        float y3 = state.y3[slot];
+        float x4 = state.x4[slot];
+        float y4 = state.y4[slot];
+
+        if (!isAxisAligned(x1, y1, x2, y2, x3, y3, x4, y4)) {
+            setBaseRepeatRange();
+            return true;
+        }
+
+        float baseMinX = min4(x1, x2, x3, x4) + ox;
+        float baseMaxX = max4(x1, x2, x3, x4) + ox;
+        float baseMinY = min4(y1, y2, y3, y4) + oy;
+        float baseMaxY = max4(y1, y2, y3, y4) + oy;
+
+        float stepX = baseMaxX - baseMinX;
+        float stepY = baseMaxY - baseMinY;
+
+        if (((repeat & RenderRepeatFlags.REPEAT_X) != 0 && stepX <= 0f)
+                || ((repeat & RenderRepeatFlags.REPEAT_Y) != 0 && stepY <= 0f)) {
+            setBaseRepeatRange();
+            return true;
+        }
+
+        float viewportW = cam.viewportWidth * cam.zoom;
+        float viewportH = cam.viewportHeight * cam.zoom;
+        float viewportMinX = cam.position.x - viewportW * 0.5f;
+        float viewportMaxX = cam.position.x + viewportW * 0.5f;
+        float viewportMinY = cam.position.y - viewportH * 0.5f;
+        float viewportMaxY = cam.position.y + viewportH * 0.5f;
+
+        return calculateVisibleRange(
+                viewportMinX,
+                viewportMaxX,
+                viewportMinY,
+                viewportMaxY,
+                baseMinX,
+                baseMaxX,
+                baseMinY,
+                baseMaxY,
+                repeat,
+                MAX_REPEAT_DRAWS_PER_SLOT,
+                repeatRange
+        );
+    }
+
+    private void setBaseRepeatRange() {
+        repeatRange[0] = 0;
+        repeatRange[1] = 0;
+        repeatRange[2] = 0;
+        repeatRange[3] = 0;
+    }
+
+    private float repeatedStepX(int slot, float ox) {
+        return max4(state.x1[slot], state.x2[slot], state.x3[slot], state.x4[slot]) + ox
+                - (min4(state.x1[slot], state.x2[slot], state.x3[slot], state.x4[slot]) + ox);
+    }
+
+    private float repeatedStepY(int slot, float oy) {
+        return max4(state.y1[slot], state.y2[slot], state.y3[slot], state.y4[slot]) + oy
+                - (min4(state.y1[slot], state.y2[slot], state.y3[slot], state.y4[slot]) + oy);
+    }
+
+    private static boolean calculateVisibleRange(float viewportMinX,
+                                                 float viewportMaxX,
+                                                 float viewportMinY,
+                                                 float viewportMaxY,
+                                                 float baseMinX,
+                                                 float baseMaxX,
+                                                 float baseMinY,
+                                                 float baseMaxY,
+                                                 byte repeatFlags,
+                                                 int maxDraws,
+                                                 int[] outRange) {
+        boolean repeatX = (repeatFlags & RenderRepeatFlags.REPEAT_X) != 0;
+        boolean repeatY = (repeatFlags & RenderRepeatFlags.REPEAT_Y) != 0;
+
+        if (!repeatX && !overlaps(baseMinX, baseMaxX, viewportMinX, viewportMaxX)) {
+            return false;
+        }
+        if (!repeatY && !overlaps(baseMinY, baseMaxY, viewportMinY, viewportMaxY)) {
+            return false;
+        }
+
+        float stepX = baseMaxX - baseMinX;
+        float stepY = baseMaxY - baseMinY;
+
+        if ((repeatX && stepX <= 0f) || (repeatY && stepY <= 0f)) {
+            return false;
+        }
+
+        int minIx = repeatX ? floorToInt((viewportMinX - baseMaxX) / stepX) : 0;
+        int maxIx = repeatX ? floorToInt((viewportMaxX - baseMinX) / stepX) : 0;
+        int minIy = repeatY ? floorToInt((viewportMinY - baseMaxY) / stepY) : 0;
+        int maxIy = repeatY ? floorToInt((viewportMaxY - baseMinY) / stepY) : 0;
+
+        if (maxIx < minIx || maxIy < minIy) {
+            return false;
+        }
+
+        long xCount = (long) maxIx - minIx + 1L;
+        long yCount = (long) maxIy - minIy + 1L;
+        long total = xCount * yCount;
+
+        if (maxDraws > 0 && total > maxDraws) {
+            if (repeatX && repeatY) {
+                if (xCount >= maxDraws) {
+                    maxIx = minIx + maxDraws - 1;
+                    maxIy = minIy;
+                } else {
+                    long cappedY = Math.max(1L, maxDraws / xCount);
+                    maxIy = minIy + (int) cappedY - 1;
+                }
+            } else if (repeatX) {
+                maxIx = minIx + maxDraws - 1;
+            } else if (repeatY) {
+                maxIy = minIy + maxDraws - 1;
+            }
+        }
+
+        outRange[0] = minIx;
+        outRange[1] = maxIx;
+        outRange[2] = minIy;
+        outRange[3] = maxIy;
+        return true;
+    }
+
+    private static boolean isAxisAligned(float x1, float y1,
+                                         float x2, float y2,
+                                         float x3, float y3,
+                                         float x4, float y4) {
+        return nearlyEqual(x1, x2)
+                && nearlyEqual(x3, x4)
+                && nearlyEqual(y1, y4)
+                && nearlyEqual(y2, y3);
+    }
+
+    private static boolean nearlyEqual(float a, float b) {
+        return Math.abs(a - b) <= AXIS_EPSILON;
+    }
+
+    private static float min4(float a, float b, float c, float d) {
+        return Math.min(Math.min(a, b), Math.min(c, d));
+    }
+
+    private static float max4(float a, float b, float c, float d) {
+        return Math.max(Math.max(a, b), Math.max(c, d));
+    }
+
+    private static int floorToInt(float value) {
+        return (int) Math.floor(value);
+    }
+
+    private static boolean overlaps(float minA, float maxA, float minB, float maxB) {
+        return !(maxA < minB || minA > maxB);
     }
 
     private void setUniformAmbientMul(ShaderProgram shader) {

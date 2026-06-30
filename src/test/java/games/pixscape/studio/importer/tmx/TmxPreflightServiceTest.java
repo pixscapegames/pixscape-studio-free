@@ -280,6 +280,8 @@ public class TmxPreflightServiceTest {
         assertEquals(0.25f, image.parallaxY(), 0.0001f);
         assertEquals(10f, image.x(), 0.0001f);
         assertEquals(20f, image.y(), 0.0001f);
+        assertFalse(image.repeatX());
+        assertFalse(image.repeatY());
         assertEquals("background.png", image.imageSource());
         assertEquals(64, image.imageWidth());
         assertEquals(32, image.imageHeight());
@@ -305,6 +307,36 @@ public class TmxPreflightServiceTest {
     }
 
     @Test
+    public void imageLayerRepeatAttributesAreParsed() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-repeat");
+        writeFile(dir.resolve("background.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <imagelayer name="RepeatX" repeatx="1"><image source="background.png"/></imagelayer>
+                  <imagelayer name="RepeatY" repeaty="true"><image source="background.png"/></imagelayer>
+                  <imagelayer name="Both" repeatx="true" repeaty="1"><image source="background.png"/></imagelayer>
+                  <imagelayer name="None" repeatx="0" repeaty="false"><image source="background.png"/></imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxImageLayerInfo repeatX = (TmxImageLayerInfo) report.layers().get(0);
+        TmxImageLayerInfo repeatY = (TmxImageLayerInfo) report.layers().get(1);
+        TmxImageLayerInfo both = (TmxImageLayerInfo) report.layers().get(2);
+        TmxImageLayerInfo none = (TmxImageLayerInfo) report.layers().get(3);
+        assertTrue(repeatX.repeatX());
+        assertFalse(repeatX.repeatY());
+        assertFalse(repeatY.repeatX());
+        assertTrue(repeatY.repeatY());
+        assertTrue(both.repeatX());
+        assertTrue(both.repeatY());
+        assertFalse(none.repeatX());
+        assertFalse(none.repeatY());
+    }
+
+    @Test
     public void imageLayerUnsupportedAttributesWarn() throws Exception {
         Path dir = Files.createTempDirectory("tmx-preflight-image-warnings");
         writeFile(dir.resolve("terrain.png"), "fake image");
@@ -325,7 +357,7 @@ public class TmxPreflightServiceTest {
 
         assertFalse(report.hasBlockingDiagnostics());
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_MAP_PARALLAX_ORIGIN_IGNORED"));
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TINT_IGNORED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TRANSPARENT_COLOR_IGNORED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));

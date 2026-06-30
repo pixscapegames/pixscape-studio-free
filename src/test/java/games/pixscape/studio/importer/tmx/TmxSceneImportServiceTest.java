@@ -20,6 +20,7 @@ import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
+import games.pixscape.runtime.component.RenderRepeatComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TintComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -195,7 +196,7 @@ public class TmxSceneImportServiceTest {
         TintComponent tint = world.getMapper(TintComponent.class).get(sprite);
 
         assertEquals(13f, transform.x, 0.0001f);
-        assertEquals(24f, transform.y, 0.0001f);
+        assertEquals(-40f, transform.y, 0.0001f);
         assertEquals(0f, transform.originX, 0.0001f);
         assertEquals(0f, transform.originY, 0.0001f);
         assertEquals(64f, dimensions.width, 0.0001f);
@@ -214,6 +215,106 @@ public class TmxSceneImportServiceTest {
                 .child(result.sceneTag())
                 .child(new FileHandle(imageMeta.sourceRelPath).name())
                 .exists());
+    }
+
+    @Test
+    public void importScenePlacesOrthogonalImageLayersUsingTiledTopLeftCoordinates() throws Exception {
+        Harness h = harness("tmx-import-image-layer-placement");
+        writePng(h.projectDir.child("graphics").child("sky.png"), 384, 240);
+        FileHandle tmx = writeTmx(h.root.resolve("maps").resolve("image-layer-placement.tmx"), """
+                <map orientation="orthogonal" width="75" height="20" tilewidth="16" tileheight="16">
+                  <imagelayer name="Sky">
+                    <image source="../graphics/sky.png" width="384" height="240"/>
+                  </imagelayer>
+                  <imagelayer name="SkyOffset" offsetx="10" offsety="5">
+                    <image source="../graphics/sky.png" width="384" height="240"/>
+                  </imagelayer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported Placement"));
+        World world = loadImportedWorld(h, result);
+
+        TransformComponent sky = world.getMapper(TransformComponent.class).get(drawableInLayer(world, 0));
+        TransformComponent skyOffset = world.getMapper(TransformComponent.class).get(drawableInLayer(world, 1));
+
+        assertEquals(0f, sky.x, 0.0001f);
+        assertEquals(80f, sky.y, 0.0001f);
+        assertEquals(10f, skyOffset.x, 0.0001f);
+        assertEquals(75f, skyOffset.y, 0.0001f);
+    }
+
+    @Test
+    public void importScenePreservesMixedImageAndTileLayerStackOrder() throws Exception {
+        Harness h = harness("tmx-import-mixed-layer-order");
+        writePng(h.projectDir.child("sky.png"), 384, 240);
+        writePng(h.projectDir.child("jungle.png"), 384, 240);
+        FileHandle tmx = writeTmx(h.root.resolve("mixed-layers.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <imagelayer id="1" name="sky">
+                    <image source="sky.png" width="384" height="240"/>
+                  </imagelayer>
+                  <imagelayer id="2" name="jungle">
+                    <image source="jungle.png" width="384" height="240"/>
+                  </imagelayer>
+                  <layer id="3" name="ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                  <layer id="4" name="props" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported Order"));
+        World world = loadImportedWorld(h, result);
+
+        assertEquals("sky", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, false)).name);
+        assertEquals("jungle", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 1, false)).name);
+        assertEquals("ground", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
+        assertEquals("props", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 3, true)).name);
+        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 0, false)).type);
+        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 1, false)).type);
+        assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
+        assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
+    }
+
+    @Test
+    public void importSceneAttachesImageLayerRepeatComponentWithoutDuplicatingSprites() throws Exception {
+        Harness h = harness("tmx-import-image-layer-repeat");
+        writePng(h.projectDir.child("sky.png"), 384, 240);
+        FileHandle tmx = writeTmx(h.root.resolve("image-layer-repeat.tmx"), """
+                <map orientation="orthogonal" width="75" height="20" tilewidth="16" tileheight="16">
+                  <imagelayer name="SkyX" parallaxx="1.3" repeatx="1">
+                    <image source="sky.png" width="384" height="240"/>
+                  </imagelayer>
+                  <imagelayer name="SkyY" repeaty="true">
+                    <image source="sky.png" width="384" height="240"/>
+                  </imagelayer>
+                  <imagelayer name="SkyBoth" repeatx="true" repeaty="1">
+                    <image source="sky.png" width="384" height="240"/>
+                  </imagelayer>
+                  <imagelayer name="SkyNone">
+                    <image source="sky.png" width="384" height="240"/>
+                  </imagelayer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Imported Repeat"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        assertEquals(4, result.importedLayerCount());
+        assertEquals(1, drawableCountInLayer(world, 0));
+        assertEquals(1, drawableCountInLayer(world, 1));
+        assertEquals(1, drawableCountInLayer(world, 2));
+        assertEquals(1, drawableCountInLayer(world, 3));
+
+        assertRepeat(world, drawableInLayer(world, 0), true, false);
+        assertEquals(1.3f, world.getMapper(LayerParallaxComponent.class).get(layerEntity(world, 0, false)).factorX, 0.0001f);
+        assertEquals(80f, world.getMapper(TransformComponent.class).get(drawableInLayer(world, 0)).y, 0.0001f);
+        assertRepeat(world, drawableInLayer(world, 1), false, true);
+        assertRepeat(world, drawableInLayer(world, 2), true, true);
+        assertFalse(world.getMapper(RenderRepeatComponent.class).has(drawableInLayer(world, 3)));
     }
 
     @Test
@@ -583,6 +684,28 @@ public class TmxSceneImportServiceTest {
             }
         }
         throw new AssertionError("Missing drawable in layer " + layerIndex);
+    }
+
+    private static int drawableCountInLayer(World world, int layerIndex) {
+        int count = 0;
+        ComponentMapper<EntityIndexComponent> indices = world.getMapper(EntityIndexComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, AssetRefComponent.class))
+                .getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (indices.get(entity).getLayerIndex() == layerIndex) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static void assertRepeat(World world, int entity, boolean repeatX, boolean repeatY) {
+        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).get(entity);
+        assertNotNull(repeat);
+        assertEquals(repeatX, repeat.repeatX);
+        assertEquals(repeatY, repeat.repeatY);
     }
 
     private static void assertCell(TiledLayerComponent tiled, int sparseIndex, int expectedX, int expectedY) {

@@ -165,6 +165,8 @@ public final class TmxImportPlanner {
                 layer.opacity(),
                 layer.x(),
                 layer.y(),
+                layer.repeatX(),
+                layer.repeatY(),
                 layer.imageSource(),
                 layer.imageWidth(),
                 layer.imageHeight(),
