@@ -391,8 +391,9 @@ public final class TmxPreflightService {
         if (gids != null) {
             for (int i = 0; i < gids.length; i++) {
                 int rawGid = gids[i];
-                int cleanGid = TmxGidSupport.cleanGid(rawGid);
-                if (cleanGid == 0) continue;
+                TmxGidSupport.DecodedGid decoded = TmxGidSupport.decode(rawGid);
+                int cleanGid = decoded.cleanGid;
+                if (decoded.isEmpty()) continue;
                 nonEmpty++;
                 hasTransformFlags |= TmxGidSupport.hasTransformFlags(rawGid);
                 TmxTilesetInfo tileset = resolveTileset(cleanGid, state.tilesets);
@@ -409,10 +410,10 @@ public final class TmxPreflightService {
                         tilesetFirstGid,
                         localTileId,
                         TmxGidSupport.hasTransformFlags(rawGid),
-                        TmxGidSupport.horizontalFlip(rawGid),
-                        TmxGidSupport.verticalFlip(rawGid),
-                        TmxGidSupport.diagonalFlip(rawGid),
-                        TmxGidSupport.hexagonal120Flag(rawGid)
+                        decoded.flipH,
+                        decoded.flipV,
+                        decoded.flipD,
+                        decoded.hex120
                 ));
             }
         }

@@ -2,36 +2,77 @@ package games.pixscape.studio.importer.tmx;
 
 public final class TmxGidSupport {
 
-    public static final int FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
-    public static final int FLIPPED_VERTICALLY_FLAG = 0x40000000;
-    public static final int FLIPPED_DIAGONALLY_FLAG = 0x20000000;
-    public static final int ROTATED_HEXAGONAL_120_FLAG = 0x10000000;
-    public static final int CLEAN_GID_MASK = 0x0FFFFFFF;
+    public static final long FLIPPED_HORIZONTALLY_FLAG = 0x80000000L;
+    public static final long FLIPPED_VERTICALLY_FLAG = 0x40000000L;
+    public static final long FLIPPED_DIAGONALLY_FLAG = 0x20000000L;
+    public static final long ROTATED_HEXAGONAL_120_FLAG = 0x10000000L;
+    public static final long GID_FLAGS_MASK =
+            FLIPPED_HORIZONTALLY_FLAG
+                    | FLIPPED_VERTICALLY_FLAG
+                    | FLIPPED_DIAGONALLY_FLAG
+                    | ROTATED_HEXAGONAL_120_FLAG;
 
     private TmxGidSupport() {
     }
 
     public static int cleanGid(int rawGid) {
-        return rawGid & CLEAN_GID_MASK;
+        return decode(rawGid).cleanGid;
     }
 
     public static boolean hasTransformFlags(int rawGid) {
-        return (rawGid & ~CLEAN_GID_MASK) != 0;
+        return (unsigned(rawGid) & GID_FLAGS_MASK) != 0;
     }
 
     public static boolean horizontalFlip(int rawGid) {
-        return (rawGid & FLIPPED_HORIZONTALLY_FLAG) != 0;
+        return decode(rawGid).flipH;
     }
 
     public static boolean verticalFlip(int rawGid) {
-        return (rawGid & FLIPPED_VERTICALLY_FLAG) != 0;
+        return decode(rawGid).flipV;
     }
 
     public static boolean diagonalFlip(int rawGid) {
-        return (rawGid & FLIPPED_DIAGONALLY_FLAG) != 0;
+        return decode(rawGid).flipD;
     }
 
     public static boolean hexagonal120Flag(int rawGid) {
-        return (rawGid & ROTATED_HEXAGONAL_120_FLAG) != 0;
+        return decode(rawGid).hex120;
+    }
+
+    public static DecodedGid decode(int rawGid) {
+        long raw = unsigned(rawGid);
+
+        boolean flipH = (raw & FLIPPED_HORIZONTALLY_FLAG) != 0;
+        boolean flipV = (raw & FLIPPED_VERTICALLY_FLAG) != 0;
+        boolean flipD = (raw & FLIPPED_DIAGONALLY_FLAG) != 0;
+        boolean hex120 = (raw & ROTATED_HEXAGONAL_120_FLAG) != 0;
+
+        int cleanGid = (int) (raw & ~GID_FLAGS_MASK);
+
+        return new DecodedGid(cleanGid, flipH, flipV, flipD, hex120);
+    }
+
+    private static long unsigned(int rawGid) {
+        return rawGid & 0xFFFFFFFFL;
+    }
+
+    public static final class DecodedGid {
+        public final int cleanGid;
+        public final boolean flipH;
+        public final boolean flipV;
+        public final boolean flipD;
+        public final boolean hex120;
+
+        private DecodedGid(int cleanGid, boolean flipH, boolean flipV, boolean flipD, boolean hex120) {
+            this.cleanGid = cleanGid;
+            this.flipH = flipH;
+            this.flipV = flipV;
+            this.flipD = flipD;
+            this.hex120 = hex120;
+        }
+
+        public boolean isEmpty() {
+            return cleanGid == 0;
+        }
     }
 }

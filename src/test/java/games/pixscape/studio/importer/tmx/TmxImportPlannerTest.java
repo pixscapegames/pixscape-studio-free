@@ -136,9 +136,9 @@ public class TmxImportPlannerTest {
     public void transformFlagsArePreservedInCellPlans() throws Exception {
         Path dir = Files.createTempDirectory("tmx-plan-flips");
         writeFile(dir.resolve("terrain.png"), "fake image");
-        long h = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1);
-        long v = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_VERTICALLY_FLAG | 1);
-        long d = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_DIAGONALLY_FLAG | 1);
+        long h = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
+        long v = TmxGidSupport.FLIPPED_VERTICALLY_FLAG | 1L;
+        long d = TmxGidSupport.FLIPPED_DIAGONALLY_FLAG | 1L;
         FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
                 <map orientation="orthogonal" width="3" height="1" tilewidth="16" tileheight="16">
                   <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
@@ -156,6 +156,43 @@ public class TmxImportPlannerTest {
         assertTrue(layer.cells().get(0).transform().horizontalFlip());
         assertTrue(layer.cells().get(1).transform().verticalFlip());
         assertTrue(layer.cells().get(2).transform().diagonalFlip());
+    }
+
+    @Test
+    public void flaggedGidsResolveTilesetsAfterClearingHighBits() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-plan-flagged-gid-resolution");
+        writeFile(dir.resolve("a.png"), "fake image");
+        writeFile(dir.resolve("b.png"), "fake image");
+        writeFile(dir.resolve("c.png"), "fake image");
+        long h72 = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 0x48L;
+        long all72 = TmxGidSupport.GID_FLAGS_MASK | 0x48L;
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="3" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="a" tilewidth="16" tileheight="16" tilecount="64" columns="8">
+                    <image source="a.png" width="128" height="128"/>
+                  </tileset>
+                  <tileset firstgid="65" name="b" tilewidth="16" tileheight="16" tilecount="50" columns="10">
+                    <image source="b.png" width="160" height="80"/>
+                  </tileset>
+                  <tileset firstgid="115" name="c" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="c.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="3" height="1"><data encoding="csv">72,%d,%d</data></layer>
+                </map>
+                """.formatted(h72, all72));
+
+        TmxTileLayerPlan layer = firstLayer(new TmxImportPlanner().plan(new TmxImportPlanRequest(tmx)));
+
+        assertEquals(3, layer.cells().size());
+        assertCell(layer.cells().get(0), 1, 72, 65, 7);
+        assertFalse(layer.cells().get(0).transform().hasTransformFlags());
+        assertCell(layer.cells().get(1), 1, 72, 65, 7);
+        assertTrue(layer.cells().get(1).transform().horizontalFlip());
+        assertCell(layer.cells().get(2), 1, 72, 65, 7);
+        assertTrue(layer.cells().get(2).transform().horizontalFlip());
+        assertTrue(layer.cells().get(2).transform().verticalFlip());
+        assertTrue(layer.cells().get(2).transform().diagonalFlip());
+        assertTrue(layer.cells().get(2).transform().hexagonal120Flag());
     }
 
     @Test

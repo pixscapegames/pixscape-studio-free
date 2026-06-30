@@ -13,7 +13,6 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -468,21 +467,10 @@ public final class TmxSceneImportService {
             }
             int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
             int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
-            byte flags = transformFlags(cell.transform());
+            byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
             tiled.data.setTile(gx, gy, logicalId, flags);
             TiledSparseStorageHelper.setTile(tiled, gx, gy, logicalId, flags);
         }
-    }
-
-    private byte transformFlags(TmxTransformPlan transform) {
-        if (transform == null || !transform.hasTransformFlags()) {
-            return TileTransformFlags.NONE;
-        }
-        byte flags = TileTransformFlags.NONE;
-        if (transform.horizontalFlip()) flags |= TileTransformFlags.FLIP_H;
-        if (transform.verticalFlip()) flags |= TileTransformFlags.FLIP_V;
-        if (transform.diagonalFlip()) flags |= TileTransformFlags.FLIP_D;
-        return TileTransformFlags.sanitize(flags);
     }
 
     private void syncAtlasInputs(String sceneTag, Set<Integer> importedAssetIds) {

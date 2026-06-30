@@ -232,9 +232,9 @@ public class TmxSceneImportServiceTest {
     @Test
     public void importScenePreservesTmxTransformFlags() throws Exception {
         Harness h = harness("tmx-import-transform-flags");
-        long hFlip = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1);
-        long vFlip = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_VERTICALLY_FLAG | 1);
-        long dFlip = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_DIAGONALLY_FLAG | 1);
+        long hFlip = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
+        long vFlip = TmxGidSupport.FLIPPED_VERTICALLY_FLAG | 1L;
+        long dFlip = TmxGidSupport.FLIPPED_DIAGONALLY_FLAG | 1L;
         FileHandle tmx = writeTmx(h.root.resolve("flags.tmx"), """
                 <map orientation="orthogonal" width="3" height="1" tilewidth="16" tileheight="16">
                   <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
@@ -280,7 +280,7 @@ public class TmxSceneImportServiceTest {
     @Test
     public void importScenePreservesTransformFlagsOnAnimatedCells() throws Exception {
         Harness h = harness("tmx-import-animated-transform-flags");
-        long hFlipAnimated = Integer.toUnsignedLong(TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1);
+        long hFlipAnimated = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
         FileHandle tmx = animatedTileTmx(h, "animated-flags.tmx", hFlipAnimated + ",0,0,0");
 
         TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated Flags"));
