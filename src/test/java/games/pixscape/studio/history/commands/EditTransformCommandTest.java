@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.component.RenderRepeatComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -133,6 +134,102 @@ public class EditTransformCommandTest {
         } finally {
             EventFlow.i().unsubscribe(EventFlow.EntityChanged.class, listener);
         }
+    }
+
+    @Test
+    public void rotatingRepeatableSpriteAwayFromZero_clearsRepeatAndUndoRestoresIt() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        int entityId = world.create();
+        history.historyIds().ensureForEntity(entityId);
+
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
+        transform.rotationRad = 0f;
+        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
+        repeat.repeatX = true;
+        repeat.repeatY = true;
+
+        history.execute(new EditTransformCommand(
+                world,
+                history.historyIds(),
+                entityId,
+                TransformOp.ROTATE,
+                EditTransformCommand.Snapshot.capture(transform),
+                EditTransformCommand.Snapshot.capture(transform).withRotationRad(0.25f)
+        ));
+
+        Assert.assertEquals(0.25f, transform.rotationRad, 0.0001f);
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entityId));
+
+        history.undo();
+        Assert.assertEquals(0f, transform.rotationRad, 0.0001f);
+        repeat = world.getMapper(RenderRepeatComponent.class).get(entityId);
+        Assert.assertTrue(repeat.repeatX);
+        Assert.assertTrue(repeat.repeatY);
+    }
+
+    @Test
+    public void rotatingBackToZero_doesNotAutomaticallyRestoreRepeat() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        int entityId = world.create();
+        history.historyIds().ensureForEntity(entityId);
+
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
+        transform.rotationRad = 0f;
+        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
+        repeat.repeatX = true;
+
+        history.execute(new EditTransformCommand(
+                world,
+                history.historyIds(),
+                entityId,
+                TransformOp.ROTATE,
+                EditTransformCommand.Snapshot.capture(transform),
+                EditTransformCommand.Snapshot.capture(transform).withRotationRad(0.5f)
+        ));
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entityId));
+
+        history.execute(new EditTransformCommand(
+                world,
+                history.historyIds(),
+                entityId,
+                TransformOp.ROTATE,
+                EditTransformCommand.Snapshot.capture(transform),
+                EditTransformCommand.Snapshot.capture(transform).withRotationRad(0f)
+        ));
+
+        Assert.assertEquals(0f, transform.rotationRad, 0.0001f);
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entityId));
+    }
+
+    @Test
+    public void gizmoRotatingRepeatableSprite_clearsRepeat() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        int entityId = world.create();
+        long historyId = history.historyIds().ensureForEntity(entityId);
+
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
+        RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(entityId);
+        repeat.repeatY = true;
+
+        GizmoTransformCommand command = new GizmoTransformCommand(world, history.historyIds(), TransformOp.ROTATE);
+        command.addEntry(
+                historyId,
+                GizmoTransformCommand.Snapshot.of(transform),
+                new GizmoTransformCommand.Snapshot(0f, 0f, 0.35f, 1f, 1f, 0f, 0f)
+        );
+
+        history.execute(command);
+        Assert.assertEquals(0.35f, transform.rotationRad, 0.0001f);
+        Assert.assertFalse(world.getMapper(RenderRepeatComponent.class).has(entityId));
+
+        history.undo();
+        Assert.assertEquals(0f, transform.rotationRad, 0.0001f);
+        repeat = world.getMapper(RenderRepeatComponent.class).get(entityId);
+        Assert.assertFalse(repeat.repeatX);
+        Assert.assertTrue(repeat.repeatY);
     }
 
     private static void executeIfMeaningful(HistoryManager history, Command command) {

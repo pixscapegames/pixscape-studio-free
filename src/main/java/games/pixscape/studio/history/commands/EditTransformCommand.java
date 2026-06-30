@@ -59,6 +59,10 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             return originY;
         }
 
+        public float rotationRad() {
+            return rotationRad;
+        }
+
         public Snapshot withX(float value) {
             return new Snapshot(value, y, rotationRad, scaleX, scaleY, originX, originY);
         }
@@ -115,6 +119,8 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
     private final TransformOp op;
     private final Snapshot before;
     private final Snapshot after;
+    private final EditRenderRepeatCommand.Snapshot beforeRepeat;
+    private final EditRenderRepeatCommand.Snapshot afterRepeat;
     private final boolean noop;
 
     public EditTransformCommand(World world,
@@ -129,13 +135,19 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.before = before;
         this.after = after;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
+        this.beforeRepeat = op == TransformOp.ROTATE
+                ? RepeatRotationConstraint.captureRepeat(world, entityId)
+                : null;
+        this.afterRepeat = op == TransformOp.ROTATE && after != null
+                ? RepeatRotationConstraint.repeatAfterRotation(beforeRepeat, after.rotationRad())
+                : beforeRepeat;
 
         this.noop = world == null
                 || historyIds == null
                 || entityHistoryId <= 0L
                 || before == null
                 || after == null
-                || before.sameAs(after);
+                || (before.sameAs(after) && repeatSnapshotsSame(beforeRepeat, afterRepeat));
     }
 
     @Override
@@ -155,15 +167,15 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
 
     @Override
     public void redo() {
-        apply(after);
+        apply(after, afterRepeat);
     }
 
     @Override
     public void undo() {
-        apply(before);
+        apply(before, beforeRepeat);
     }
 
-    private void apply(Snapshot snapshot) {
+    private void apply(Snapshot snapshot, EditRenderRepeatCommand.Snapshot repeatSnapshot) {
         if (noop || snapshot == null) return;
 
         int entityId = resolveEntityId();
@@ -180,6 +192,7 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             dirty.geometry(entityId, GeometryDirty.ALL);
         }
 
+        RepeatRotationConstraint.applyRepeat(world, entityId, repeatSnapshot, EventFlow.tag(this));
         EventFlow.i().publish(new EventFlow.EntityChanged(entityId, op, EventFlow.tag(this)));
     }
 
@@ -189,5 +202,11 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             return -1;
         }
         return entityId;
+    }
+
+    private static boolean repeatSnapshotsSame(EditRenderRepeatCommand.Snapshot a,
+                                               EditRenderRepeatCommand.Snapshot b) {
+        if (a == null) return b == null;
+        return a.sameAs(b);
     }
 }

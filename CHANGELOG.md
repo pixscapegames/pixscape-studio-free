@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.1 - Tiled Map Import (.tmx)
+## 0.2.1 - Tiled Map Import (.tmx, .tsx)
 
 ### Added
 
@@ -42,6 +42,9 @@
 * TMX tile layer import now resolves image collection GIDs through the existing tiled cell asset path while preserving Tiled transform flags and real image dimensions.
 * TMX import diagnostics are now displayed in a scrollable dialog so all reported issues can be reviewed.
 * TMX image collection tilesets now allow per-tile image dimensions that differ from the map tile size.
+* Repeatable sprites and rotation are now mutually exclusive in the editor.
+* Enabling Repeat X or Repeat Y resets sprite rotation to 0°.
+* Rotating a repeatable sprite now clears repeat flags so the properties panel always matches the rendered result.
 
 ### Fixed
 

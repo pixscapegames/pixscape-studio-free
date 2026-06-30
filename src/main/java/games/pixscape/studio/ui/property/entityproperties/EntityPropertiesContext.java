@@ -50,6 +50,7 @@ public final class EntityPropertiesContext {
     public final ComponentMapper<TransformComponent> mTransform;
     public final ComponentMapper<TextureRegionComponent> mTexRegion;
     public final ComponentMapper<AssetRefComponent> mSpriteSource;
+    public final ComponentMapper<RenderRepeatComponent> mRepeat;
     public final DirtyTrackerSystem dirtyTracker;
 
     public EntityPropertiesContext(World world,
@@ -92,6 +93,7 @@ public final class EntityPropertiesContext {
         this.mTransform = world.getMapper(TransformComponent.class);
         this.mTexRegion = world.getMapper(TextureRegionComponent.class);
         this.mSpriteSource = world.getMapper(AssetRefComponent.class);
+        this.mRepeat = world.getMapper(RenderRepeatComponent.class);
         this.dirtyTracker = world.getSystem(DirtyTrackerSystem.class);
     }
 }
