@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class StudioWorldConfigSpatialSystemTest {
@@ -15,17 +16,22 @@ public class StudioWorldConfigSpatialSystemTest {
     public void studioViewportUsesRuntimeWorldFactoryAndStudioSubmitSystem() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
         String submitSource = read("src/main/java/games/pixscape/studio/system/StudioRenderSubmitSystem.java");
+        String particleFallbackSource = read("src/main/java/games/pixscape/studio/system/StudioParticleFallbackSystem.java");
 
         assertTrue(source.contains("WorldConfigFactory.buildWorld("));
         assertTrue(source.contains("SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
         assertTrue(source.contains("FrameRenderQueue frameQueue = new FrameRenderQueue();"));
-        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);"));
-        assertTrue(source.contains("drawList,\n                        frameQueue,\n                        stats,"));
+        assertTrue(source.contains("VfxRenderState vfxState = new VfxRenderState();"));
+        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);"));
+        assertTrue(source.contains("drawList,\n                        frameQueue,\n                        vfxState,\n                        stats,"));
         assertTrue(source.contains("sceneMeta,"));
         assertTrue(source.contains("new StudioRenderSubmitSystem("));
         assertTrue(source.contains("layerState,\n                                frameQueue,\n                                camera,"));
         assertTrue(submitSource.contains("private final FrameRenderQueue frameQueue;"));
         assertTrue(submitSource.contains("int size = frameQueue.size;"));
+        assertTrue(particleFallbackSource.contains("private final VfxRenderState vfxState;"));
+        assertTrue(particleFallbackSource.contains("vfxState.addParticleQuad("));
+        assertFalse(particleFallbackSource.contains("private final RenderStateSOA state;"));
     }
 
     @Test

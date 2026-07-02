@@ -31,6 +31,7 @@ import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderContext;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -233,6 +234,7 @@ public class WorldCanvas {
         layerState = new LayerStateSOA();
         DrawList drawList = new DrawList();
         FrameRenderQueue frameQueue = new FrameRenderQueue();
+        VfxRenderState vfxState = new VfxRenderState();
 
         GLCaps caps = GLCaps.detect();
 
@@ -245,7 +247,7 @@ public class WorldCanvas {
         RenderStats stats = new RenderStats();
         RenderStatsSink statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
@@ -298,6 +300,7 @@ public class WorldCanvas {
                         layerState,
                         drawList,
                         frameQueue,
+                        vfxState,
                         stats,
                         defaultShaderIdx,
                         atlasStudioService,
@@ -328,7 +331,7 @@ public class WorldCanvas {
                                             tileAnimationRegistry
                                     )),
                                     profiled(studioParticleFallbackSystem = new StudioParticleFallbackSystem(
-                                            renderState,
+                                            vfxState,
                                             camera,
                                             atlasStudioService,
                                             effectsRoot,
@@ -356,13 +359,6 @@ public class WorldCanvas {
                 );
 
         world = bootstrap.getWorld();
-
-        if (studioParticleFallbackSystem != null && bootstrap != null) {
-            studioParticleFallbackSystem.setVfxRange(
-                    bootstrap.getVfxStart(),
-                    bootstrap.getVfxEnd()
-            );
-        }
 
         int tiledStart = bootstrap.getTiledStart();
         int tiledEnd = bootstrap.getTiledEnd();
