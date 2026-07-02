@@ -14,7 +14,12 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.Blend;
+import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
+import games.pixscape.runtime.render.RenderRepeatFlags;
+import games.pixscape.runtime.render.ShaderMode;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
@@ -30,11 +35,9 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
     private static final float AXIS_EPSILON = 0.0001f;
 
-    private final RenderStateSOA state;
     private final LayerStateSOA layerState;
-    private final DrawList drawList;
+    private final FrameRenderQueue frameQueue;
     private final OrthographicCamera cam;
-
     private final MetricsBatch metricsBatch;
     private final MeshBatchStudio standaloneBatch;
     private final RenderStats stats;
@@ -45,25 +48,19 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
     private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
-    public StudioRenderSubmitSystem(RenderStateSOA state,
-                                    LayerStateSOA layerState,
-                                    DrawList drawList,
+    public StudioRenderSubmitSystem(LayerStateSOA layerState,
+                                    FrameRenderQueue frameQueue,
                                     OrthographicCamera cam,
                                     MetricsBatch batch,
                                     RenderStats stats,
                                     RenderStatsSink statsSink) {
-        this.state = state;
         this.layerState = layerState;
-        this.drawList = drawList;
+        this.frameQueue = frameQueue;
         this.cam = cam;
         this.metricsBatch = batch;
         this.stats = stats;
         this.statsSink = statsSink;
         this.standaloneBatch = new MeshBatchStudio(2048);
-    }
-
-    public RenderStateSOA getState() {
-        return state;
     }
 
     @Override
@@ -102,8 +99,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             activeBundle = taBatch.getBundle();
         }
 
-        int[] slots = drawList.data();
-        int size = drawList.size;
+        int size = frameQueue.size;
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
 
         boolean atlasOpen = false;
@@ -117,22 +113,16 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         boolean hasLastParamsHash = false;
 
         for (int i = 0; i < size; i++) {
-            final int slot = slots[i];
-
-            int layerIdx = state.layerIndex[slot];
+            int layerIdx = frameQueue.layerIndex[i];
             if (hasLayerMeta) {
-                if (layerIdx < 0 || layerIdx >= 31) continue;
+                if (layerIdx < 0 || layerIdx >= layerState.enabled.length) continue;
                 if (layerIdx > layerState.maxLayerIndex() || !layerState.enabled[layerIdx]) continue;
             }
 
-            final int texHandle = state.textureHandle[slot];
+            final int texHandle = frameQueue.textureHandle[i];
             if (texHandle == 0) continue;
 
             boolean inAtlas = activeBundle != null && activeBundle.handle2layer.containsKey(texHandle);
-
-            // Studio canvas uses logical editing space; parallax is applied only in Preview/runtime.
-            float ox = 0f;
-            float oy = 0f;
 
             if (inAtlas) {
                 if (standaloneOpen) {
@@ -149,7 +139,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     hasLastParamsHash = false;
                 }
 
-                final int shaderIdx = state.shader[slot];
+                final int shaderIdx = frameQueue.shader[i];
                 if (shaderIdx != curShaderIdx) {
                     curShaderIdx = shaderIdx;
                     ShaderProgram sh = ShaderRegistry.getByIdx(shaderIdx);
@@ -170,7 +160,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     }
                 }
 
-                final int blendId = state.blend[slot];
+                final int blendId = frameQueue.blend[i];
                 if (blendId != curBlendId) {
                     metricsBatch.flush(stats);
                     BlendMode blendMode = BlendMode.fromId(blendId);
@@ -184,14 +174,14 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     curBlendId = blendId;
                 }
 
-                float packedColor = state.colorPacked[slot];
+                float packedColor = frameQueue.colorPacked[i];
                 if (packedColor != curPackedColor) {
                     metricsBatch.setPackedColor(packedColor);
                     curPackedColor = packedColor;
                 }
 
                 if (curShader != null && mShaderParams != null) {
-                    final int entityId = state.entityId[slot];
+                    final int entityId = frameQueue.sourceEntity[i];
                     if (entityId >= 0 && mShaderParams.has(entityId)) {
                         ShaderParamsComponent params = mShaderParams.get(entityId);
                         if (params != null && params.floats != null && params.floats.size > 0) {
@@ -206,11 +196,11 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     }
                 }
 
-                byte repeat = state.repeatFlags[slot];
+                byte repeat = frameQueue.repeatFlags[i];
                 if ((repeat & RenderRepeatFlags.ANY) == 0) {
-                    drawAtlasSlot(slot, texHandle, ox, oy);
+                    drawAtlasEntry(i, texHandle);
                 } else {
-                    drawRepeatedAtlasSlot(slot, texHandle, ox, oy, repeat);
+                    drawRepeatedAtlasEntry(i, texHandle, repeat);
                 }
                 continue;
             }
@@ -223,7 +213,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             Texture tex = TextureRegistry.getByHandle(texHandle);
             if (tex == null) continue;
 
-            final int blendId = state.blend[slot];
+            final int blendId = frameQueue.blend[i];
             if (!standaloneOpen) {
                 standaloneBatch.begin(cam.combined, stats);
                 curBlendId = Integer.MIN_VALUE;
@@ -251,13 +241,13 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                 curBlendId = blendId;
             }
 
-            standaloneBatch.setPackedColor(state.colorPacked[slot]);
+            standaloneBatch.setPackedColor(frameQueue.colorPacked[i]);
 
-            byte repeat = state.repeatFlags[slot];
+            byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {
-                drawStandaloneSlot(slot, tex, ox, oy);
+                drawStandaloneEntry(i, tex);
             } else {
-                drawRepeatedStandaloneSlot(slot, tex, ox, oy, repeat);
+                drawRepeatedStandaloneEntry(i, tex, repeat);
             }
         }
 
@@ -270,28 +260,28 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         }
     }
 
-    private void drawAtlasSlot(int slot, int texHandle, float ox, float oy) {
+    private void drawAtlasEntry(int index, int texHandle) {
         metricsBatch.draw(
                 texHandle,
-                state.x1[slot] + ox, state.y1[slot] + oy,
-                state.x2[slot] + ox, state.y2[slot] + oy,
-                state.x3[slot] + ox, state.y3[slot] + oy,
-                state.x4[slot] + ox, state.y4[slot] + oy,
-                state.u1[slot], state.v1[slot],
-                state.u2[slot], state.v2[slot],
+                frameQueue.x1[index], frameQueue.y1[index],
+                frameQueue.x2[index], frameQueue.y2[index],
+                frameQueue.x3[index], frameQueue.y3[index],
+                frameQueue.x4[index], frameQueue.y4[index],
+                frameQueue.u1[index], frameQueue.v1[index],
+                frameQueue.u2[index], frameQueue.v2[index],
                 stats
         );
 
         stats.drawnQuads++;
     }
 
-    private void drawRepeatedAtlasSlot(int slot, int texHandle, float ox, float oy, byte repeat) {
-        if (!prepareRepeatRange(slot, ox, oy, repeat)) {
+    private void drawRepeatedAtlasEntry(int index, int texHandle, byte repeat) {
+        if (!prepareRepeatRange(index, repeat)) {
             return;
         }
 
-        float stepX = repeatedStepX(slot, ox);
-        float stepY = repeatedStepY(slot, oy);
+        float stepX = repeatedStepX(index);
+        float stepY = repeatedStepY(index);
 
         for (int iy = repeatRange[2]; iy <= repeatRange[3]; iy++) {
             float dy = iy * stepY;
@@ -301,12 +291,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
                 metricsBatch.draw(
                         texHandle,
-                        state.x1[slot] + ox + dx, state.y1[slot] + oy + dy,
-                        state.x2[slot] + ox + dx, state.y2[slot] + oy + dy,
-                        state.x3[slot] + ox + dx, state.y3[slot] + oy + dy,
-                        state.x4[slot] + ox + dx, state.y4[slot] + oy + dy,
-                        state.u1[slot], state.v1[slot],
-                        state.u2[slot], state.v2[slot],
+                        frameQueue.x1[index] + dx, frameQueue.y1[index] + dy,
+                        frameQueue.x2[index] + dx, frameQueue.y2[index] + dy,
+                        frameQueue.x3[index] + dx, frameQueue.y3[index] + dy,
+                        frameQueue.x4[index] + dx, frameQueue.y4[index] + dy,
+                        frameQueue.u1[index], frameQueue.v1[index],
+                        frameQueue.u2[index], frameQueue.v2[index],
                         stats
                 );
 
@@ -315,28 +305,28 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         }
     }
 
-    private void drawStandaloneSlot(int slot, Texture tex, float ox, float oy) {
+    private void drawStandaloneEntry(int index, Texture tex) {
         standaloneBatch.drawTex(
                 tex,
-                state.x1[slot] + ox, state.y1[slot] + oy,
-                state.x2[slot] + ox, state.y2[slot] + oy,
-                state.x3[slot] + ox, state.y3[slot] + oy,
-                state.x4[slot] + ox, state.y4[slot] + oy,
-                state.u1[slot], state.v1[slot],
-                state.u2[slot], state.v2[slot],
+                frameQueue.x1[index], frameQueue.y1[index],
+                frameQueue.x2[index], frameQueue.y2[index],
+                frameQueue.x3[index], frameQueue.y3[index],
+                frameQueue.x4[index], frameQueue.y4[index],
+                frameQueue.u1[index], frameQueue.v1[index],
+                frameQueue.u2[index], frameQueue.v2[index],
                 stats
         );
 
         stats.drawnQuads++;
     }
 
-    private void drawRepeatedStandaloneSlot(int slot, Texture tex, float ox, float oy, byte repeat) {
-        if (!prepareRepeatRange(slot, ox, oy, repeat)) {
+    private void drawRepeatedStandaloneEntry(int index, Texture tex, byte repeat) {
+        if (!prepareRepeatRange(index, repeat)) {
             return;
         }
 
-        float stepX = repeatedStepX(slot, ox);
-        float stepY = repeatedStepY(slot, oy);
+        float stepX = repeatedStepX(index);
+        float stepY = repeatedStepY(index);
 
         for (int iy = repeatRange[2]; iy <= repeatRange[3]; iy++) {
             float dy = iy * stepY;
@@ -346,12 +336,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
                 standaloneBatch.drawTex(
                         tex,
-                        state.x1[slot] + ox + dx, state.y1[slot] + oy + dy,
-                        state.x2[slot] + ox + dx, state.y2[slot] + oy + dy,
-                        state.x3[slot] + ox + dx, state.y3[slot] + oy + dy,
-                        state.x4[slot] + ox + dx, state.y4[slot] + oy + dy,
-                        state.u1[slot], state.v1[slot],
-                        state.u2[slot], state.v2[slot],
+                        frameQueue.x1[index] + dx, frameQueue.y1[index] + dy,
+                        frameQueue.x2[index] + dx, frameQueue.y2[index] + dy,
+                        frameQueue.x3[index] + dx, frameQueue.y3[index] + dy,
+                        frameQueue.x4[index] + dx, frameQueue.y4[index] + dy,
+                        frameQueue.u1[index], frameQueue.v1[index],
+                        frameQueue.u2[index], frameQueue.v2[index],
                         stats
                 );
 
@@ -360,25 +350,25 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         }
     }
 
-    private boolean prepareRepeatRange(int slot, float ox, float oy, byte repeat) {
-        float x1 = state.x1[slot];
-        float y1 = state.y1[slot];
-        float x2 = state.x2[slot];
-        float y2 = state.y2[slot];
-        float x3 = state.x3[slot];
-        float y3 = state.y3[slot];
-        float x4 = state.x4[slot];
-        float y4 = state.y4[slot];
+    private boolean prepareRepeatRange(int index, byte repeat) {
+        float x1 = frameQueue.x1[index];
+        float y1 = frameQueue.y1[index];
+        float x2 = frameQueue.x2[index];
+        float y2 = frameQueue.y2[index];
+        float x3 = frameQueue.x3[index];
+        float y3 = frameQueue.y3[index];
+        float x4 = frameQueue.x4[index];
+        float y4 = frameQueue.y4[index];
 
         if (!isAxisAligned(x1, y1, x2, y2, x3, y3, x4, y4)) {
             setBaseRepeatRange();
             return true;
         }
 
-        float baseMinX = min4(x1, x2, x3, x4) + ox;
-        float baseMaxX = max4(x1, x2, x3, x4) + ox;
-        float baseMinY = min4(y1, y2, y3, y4) + oy;
-        float baseMaxY = max4(y1, y2, y3, y4) + oy;
+        float baseMinX = min4(x1, x2, x3, x4);
+        float baseMaxX = max4(x1, x2, x3, x4);
+        float baseMinY = min4(y1, y2, y3, y4);
+        float baseMaxY = max4(y1, y2, y3, y4);
 
         float stepX = baseMaxX - baseMinX;
         float stepY = baseMaxY - baseMinY;
@@ -418,14 +408,14 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         repeatRange[3] = 0;
     }
 
-    private float repeatedStepX(int slot, float ox) {
-        return max4(state.x1[slot], state.x2[slot], state.x3[slot], state.x4[slot]) + ox
-                - (min4(state.x1[slot], state.x2[slot], state.x3[slot], state.x4[slot]) + ox);
+    private float repeatedStepX(int index) {
+        return max4(frameQueue.x1[index], frameQueue.x2[index], frameQueue.x3[index], frameQueue.x4[index])
+                - min4(frameQueue.x1[index], frameQueue.x2[index], frameQueue.x3[index], frameQueue.x4[index]);
     }
 
-    private float repeatedStepY(int slot, float oy) {
-        return max4(state.y1[slot], state.y2[slot], state.y3[slot], state.y4[slot]) + oy
-                - (min4(state.y1[slot], state.y2[slot], state.y3[slot], state.y4[slot]) + oy);
+    private float repeatedStepY(int index) {
+        return max4(frameQueue.y1[index], frameQueue.y2[index], frameQueue.y3[index], frameQueue.y4[index])
+                - min4(frameQueue.y1[index], frameQueue.y2[index], frameQueue.y3[index], frameQueue.y4[index]);
     }
 
     private static boolean calculateVisibleRange(float viewportMinX,

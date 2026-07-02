@@ -27,6 +27,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderContext;
 import games.pixscape.runtime.render.RenderStateSOA;
@@ -231,6 +232,7 @@ public class WorldCanvas {
         renderState = new RenderStateSOA();
         layerState = new LayerStateSOA();
         DrawList drawList = new DrawList();
+        FrameRenderQueue frameQueue = new FrameRenderQueue();
 
         GLCaps caps = GLCaps.detect();
 
@@ -243,7 +245,7 @@ public class WorldCanvas {
         RenderStats stats = new RenderStats();
         RenderStatsSink statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
@@ -295,14 +297,14 @@ public class WorldCanvas {
                         renderState,
                         layerState,
                         drawList,
+                        frameQueue,
                         stats,
                         defaultShaderIdx,
                         atlasStudioService,
                         effectsRoot,
                         () -> new StudioRenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 camera,
                                 metricsBatch,
                                 stats,

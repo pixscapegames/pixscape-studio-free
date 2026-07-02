@@ -92,13 +92,14 @@ public class StudioRenderSubmitRepeatTest {
         ).replace("\r\n", "\n");
 
         assertTrue(source.contains("private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;"));
-        assertTrue(source.contains("byte repeat = state.repeatFlags[slot];"));
-        assertTrue(source.contains("drawRepeatedAtlasSlot(slot, texHandle, ox, oy, repeat);"));
-        assertTrue(source.contains("drawRepeatedStandaloneSlot(slot, tex, ox, oy, repeat);"));
+        assertTrue(source.contains("byte repeat = frameQueue.repeatFlags[i];"));
+        assertTrue(source.contains("drawRepeatedAtlasEntry(i, texHandle, repeat);"));
+        assertTrue(source.contains("drawRepeatedStandaloneEntry(i, tex, repeat);"));
         assertTrue(source.contains("metricsBatch.draw(\n                        texHandle,"));
         assertTrue(source.contains("standaloneBatch.drawTex(\n                        tex,"));
-        assertFalse(source.contains("state.offsetX[slot]"));
-        assertFalse(source.contains("state.offsetY[slot]"));
+        assertFalse(source.contains("RenderStateSOA"));
+        assertFalse(source.contains("DrawList"));
+        assertFalse(source.contains("state."));
     }
 
     private static boolean calculateVisibleRange(float viewportMinX,

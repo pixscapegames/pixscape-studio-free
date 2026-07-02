@@ -46,6 +46,12 @@ final class RenderStatsTextFormatter {
         out.append("%)");
     }
 
+    static void appendFrameQueueLine(StringBuilder out, RenderStats stats) {
+        out.append("Frame queue: ").append(stats.frameQueueQuads)
+                .append(" quads / peak ").append(stats.frameQueuePeakCapacity)
+                .append(" / growths ").append(stats.frameQueueGrowthCount);
+    }
+
     static void appendBuildLine(StringBuilder out, RenderStats stats) {
         out.append("Build: opaque=").append(stats.batchesOpaque)
                 .append(" alpha=").append(stats.batchesAlpha)

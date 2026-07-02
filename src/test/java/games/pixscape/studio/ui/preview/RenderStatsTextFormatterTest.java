@@ -13,6 +13,7 @@ public class RenderStatsTextFormatterTest {
         RenderStatsTextFormatter.appendRegionCacheHitRatio(out, 0L, 0L);
 
         Assert.assertEquals("0.0", out.toString());
+        Assert.assertFalse(out.toString().contains("NaN"));
     }
 
     @Test
@@ -44,5 +45,18 @@ public class RenderStatsTextFormatterTest {
         Assert.assertTrue(line.contains("shaderBinds=3"));
         Assert.assertTrue(line.contains("projUploads=4"));
         Assert.assertTrue(line.contains("fbSwitches=5"));
+    }
+
+    @Test
+    public void frameQueueLineShowsPhaseTwoCounters() {
+        RenderStats stats = new RenderStats();
+        stats.frameQueueQuads = 214;
+        stats.frameQueuePeakCapacity = 512;
+        stats.frameQueueGrowthCount = 0;
+
+        StringBuilder out = new StringBuilder();
+        RenderStatsTextFormatter.appendFrameQueueLine(out, stats);
+
+        Assert.assertEquals("Frame queue: 214 quads / peak 512 / growths 0", out.toString());
     }
 }

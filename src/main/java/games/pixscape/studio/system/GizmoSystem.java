@@ -1692,10 +1692,9 @@ public final class GizmoSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
         // Studio tools operate in logical world space. Runtime render offsets may already
-        // be present in RenderStateSOA because Studio reuses runtime systems, but
-        // StudioRenderSubmitSystem ignores those offsets when drawing the editor canvas.
-        // Applying RenderSpaceMapper offsets here would make gizmos and physics handles
-        // drift away from what the user sees. Parallax remains preview/runtime-only.
+        // be present in RenderStateSOA because Studio reuses runtime systems.
+        // Applying RenderSpaceMapper offsets here would double-apply display offsets to
+        // gizmos and physics handles.
     }
 
     private boolean isEntityVisibleForGizmo(int e) {

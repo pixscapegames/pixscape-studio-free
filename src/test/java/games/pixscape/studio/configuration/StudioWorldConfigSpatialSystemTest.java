@@ -14,11 +14,18 @@ public class StudioWorldConfigSpatialSystemTest {
     @Test
     public void studioViewportUsesRuntimeWorldFactoryAndStudioSubmitSystem() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        String submitSource = read("src/main/java/games/pixscape/studio/system/StudioRenderSubmitSystem.java");
 
         assertTrue(source.contains("WorldConfigFactory.buildWorld("));
         assertTrue(source.contains("SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
+        assertTrue(source.contains("FrameRenderQueue frameQueue = new FrameRenderQueue();"));
+        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, metricsBatch, caps);"));
+        assertTrue(source.contains("drawList,\n                        frameQueue,\n                        stats,"));
         assertTrue(source.contains("sceneMeta,"));
         assertTrue(source.contains("new StudioRenderSubmitSystem("));
+        assertTrue(source.contains("layerState,\n                                frameQueue,\n                                camera,"));
+        assertTrue(submitSource.contains("private final FrameRenderQueue frameQueue;"));
+        assertTrue(submitSource.contains("int size = frameQueue.size;"));
     }
 
     @Test
