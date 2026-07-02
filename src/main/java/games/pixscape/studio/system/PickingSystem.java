@@ -25,6 +25,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -60,6 +61,7 @@ public final class PickingSystem extends BaseSystem {
     private final HistoryIdRegistry historyIds;
     private final Stage uiStage;
     private final RenderStateSOA renderState;
+    private final TiledMapRenderState tiledState;
 
     private SelectionService selectionService;
     private LayerService layerService;
@@ -216,6 +218,7 @@ public final class PickingSystem extends BaseSystem {
                          HistoryIdRegistry historyIds,
                          Stage uiStage,
                          RenderStateSOA renderState,
+                         TiledMapRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
                          SpatialBlockSelectionService spatialBlockSelectionService,
                          SpatialTileSelectionService spatialTileSelectionService,
@@ -228,6 +231,7 @@ public final class PickingSystem extends BaseSystem {
         this.historyIds = historyIds;
         this.uiStage = uiStage;
         this.renderState = renderState;
+        this.tiledState = tiledState;
         this.physicsSelectionService = physicsSelectionService;
         this.spatialBlockSelectionService = spatialBlockSelectionService;
         this.spatialTileSelectionService = spatialTileSelectionService;
@@ -564,16 +568,31 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private SpatialTileAnchor findTopmostRenderedTileAnchor(TiledMapLayerData map, float worldX, float worldY) {
-        if (map == null || renderState == null) return null;
+        if (map == null || (renderState == null && tiledState == null)) return null;
 
         SpatialTileAnchor best = null;
         int bestSlot = -1;
+        int bestRef = -1;
+        long bestSortKey = Long.MIN_VALUE;
         float[] verts = tmpFixtureBoxWorldCorners;
         for (int gy = 0; gy < map.mapHeight; gy++) {
             for (int gx = 0; gx < map.mapWidth; gx++) {
                 if (map.getTile(gx, gy) <= 0) continue;
+                int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);
+                if (isRenderableTileRef(tiledRenderRef)) {
+                    long sortKey = tiledState.sortKey[tiledRenderRef];
+                    if (bestRef >= 0 && sortKeyLessOrEqual(sortKey, bestSortKey)) continue;
+                    copyTiledStateQuad(tiledRenderRef, verts);
+                    if (pointInConvexQuad(worldX, worldY, verts)) {
+                        bestRef = tiledRenderRef;
+                        bestSortKey = sortKey;
+                        best = new SpatialTileAnchor(gx, gy);
+                    }
+                    continue;
+                }
+
                 int slot = map.slotForTile(gx, gy);
-                if (!isRenderableTileSlot(slot) || slot <= bestSlot) continue;
+                if (!isRenderableTileSlot(slot) || bestRef >= 0 || slot <= bestSlot) continue;
                 copyRenderStateQuad(slot, verts);
                 if (pointInConvexQuad(worldX, worldY, verts)) {
                     bestSlot = slot;
@@ -584,6 +603,10 @@ public final class PickingSystem extends BaseSystem {
         return best;
     }
 
+    private static boolean sortKeyLessOrEqual(long left, long right) {
+        return (left ^ Long.MIN_VALUE) <= (right ^ Long.MIN_VALUE);
+    }
+
     private boolean isRenderableTileSlot(int slot) {
         return renderState != null
                 && slot >= 0
@@ -592,6 +615,22 @@ public final class PickingSystem extends BaseSystem {
                 && renderState.visible[slot]
                 && renderState.kind[slot] == RenderStateSOA.KIND_SPRITE
                 && renderState.textureHandle[slot] != 0;
+    }
+
+    private boolean isRenderableTileRef(int tiledRenderRef) {
+        return tiledState != null
+                && tiledState.isRenderableRef(tiledRenderRef);
+    }
+
+    private void copyTiledStateQuad(int tiledRenderRef, float[] out) {
+        out[0] = tiledState.x1[tiledRenderRef];
+        out[1] = tiledState.y1[tiledRenderRef];
+        out[2] = tiledState.x2[tiledRenderRef];
+        out[3] = tiledState.y2[tiledRenderRef];
+        out[4] = tiledState.x3[tiledRenderRef];
+        out[5] = tiledState.y3[tiledRenderRef];
+        out[6] = tiledState.x4[tiledRenderRef];
+        out[7] = tiledState.y4[tiledRenderRef];
     }
 
     private void copyRenderStateQuad(int slot, float[] out) {

@@ -268,6 +268,7 @@ public class WorldCanvas {
                 inputState,
                 coordSpaces,
                 renderState,
+                tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
@@ -283,6 +284,7 @@ public class WorldCanvas {
                 historyManager.historyIds(),
                 app.getUiStage(),
                 renderState,
+                tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
@@ -329,6 +331,7 @@ public class WorldCanvas {
                                     profiled(new AnimationFallbackSystem(renderState, atlasStudioService)),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
                                             renderState,
+                                            tiledState,
                                             atlasStudioService,
                                             assetMetaDatabaseForFallback::findById,
                                             tileAnimationRegistry

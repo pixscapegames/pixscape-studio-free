@@ -16,8 +16,10 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -41,6 +43,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private final RenderStateSOA state;
+    private final TiledMapRenderState tiledState;
     private final AtlasRuntimeService atlasRuntimeService;
     private final float[] tmpQuad = new float[8];
     private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
@@ -56,8 +59,17 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                                AtlasRuntimeService atlasRuntimeService,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
+        this(state, null, atlasRuntimeService, assetMetaLookup, tileAnimationLookup);
+    }
+
+    public TiledFallbackSystem(RenderStateSOA state,
+                               TiledMapRenderState tiledState,
+                               AtlasRuntimeService atlasRuntimeService,
+                               IntFunction<AssetMeta> assetMetaLookup,
+                               TileAnimationLookup tileAnimationLookup) {
 
         this.state = state;
+        this.tiledState = tiledState;
         this.atlasRuntimeService = atlasRuntimeService;
         this.assetMetaLookup = (assetMetaLookup != null) ? assetMetaLookup : id -> null;
         this.tilesetProfileResolver = new StudioTilesetProfileResolver(this.assetMetaLookup);
@@ -113,6 +125,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
                     int localIndex = ly * chunk.chunkWidth + lx;
                     int slot = chunk.soaStartIndex + localIndex;
+                    int tiledRenderRef = chunk.renderRefFor(lx, ly);
 
                     if (slot < layerStart || slot >= layerEnd) continue;
 
@@ -161,6 +174,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                             layer,
                             map,
                             slot,
+                            tiledRenderRef,
                             gx,
                             gy,
                             tex.getWidth(),
@@ -178,20 +192,21 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         }
     }
 
-    private void writeTileSlot(LayerComponent layer,
-                               TiledMapLayerData map,
-                               int slot,
-                               int gx,
-                               int gy,
-                               int spriteW,
-                               int spriteH,
-                               RuntimeTilesetProfile profile,
-                               byte transformFlags,
-                               int textureHandle,
-                               float u1,
-                               float v1,
-                               float u2,
-                               float v2) {
+    void writeTileSlot(LayerComponent layer,
+                       TiledMapLayerData map,
+                       int slot,
+                       int tiledRenderRef,
+                       int gx,
+                       int gy,
+                       int spriteW,
+                       int spriteH,
+                       RuntimeTilesetProfile profile,
+                       byte transformFlags,
+                       int textureHandle,
+                       float u1,
+                       float v1,
+                       float u2,
+                       float v2) {
         TileQuadTransforms.buildSpriteQuad(
                 map,
                 gx,
@@ -202,6 +217,58 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                 transformFlags,
                 tmpQuad
         );
+
+        int z = 0;
+        int tie = 0;
+
+        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+            z = clampSortZ(-(gx + gy));
+            tie = clampSortTie(gx);
+        }
+
+        int shader = 0;
+        int blend = BlendMode.ALPHA.id;
+        long sortKey = SortKey64.packForBlend(
+                shader,
+                blend,
+                textureHandle,
+                layer.layerIndex,
+                z,
+                tie
+        );
+
+        if (tiledState != null && tiledRenderRef >= 0) {
+            tiledState.setLegacySlotForRef(tiledRenderRef, slot);
+            tiledState.setRenderDataForRef(
+                    tiledRenderRef,
+                    textureHandle,
+                    shader,
+                    blend,
+                    layer.layerIndex,
+                    0,
+                    0,
+                    sortKey,
+                    tmpQuad[0],
+                    tmpQuad[1],
+                    tmpQuad[2],
+                    tmpQuad[3],
+                    tmpQuad[4],
+                    tmpQuad[5],
+                    tmpQuad[6],
+                    tmpQuad[7],
+                    u1,
+                    v1,
+                    u2,
+                    v2,
+                    Color.WHITE.toFloatBits(),
+                    1f,
+                    RenderRepeatFlags.NONE
+            );
+        }
+
+        if (state == null || slot < 0 || slot >= state.getCapacity()) {
+            return;
+        }
 
         state.kind[slot] = RenderStateSOA.KIND_SPRITE;
         state.enabled[slot] = true;
@@ -220,37 +287,16 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         state.v1[slot] = v1;
         state.u2[slot] = u2;
         state.v2[slot] = v2;
-
         state.textureHandle[slot] = textureHandle;
-        state.shader[slot] = 0;
-        state.blend[slot] = BlendMode.ALPHA.id;
+        state.shader[slot] = shader;
+        state.blend[slot] = blend;
         state.layerIndex[slot] = layer.layerIndex;
-
-        int z = 0;
-        int tie = 0;
-
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
-            z = clampSortZ(-(gx + gy));
-            tie = clampSortTie(gx);
-        }
-
         state.z[slot] = z;
         state.runtimeOrder[slot] = tie;
-
         state.colorPacked[slot] = Color.WHITE.toFloatBits();
         state.a[slot] = 1f;
-
         state.touch(slot);
-
-        state.sortKey[slot] = SortKey64.packForBlend(
-                state.shader[slot],
-                state.blend[slot],
-                state.textureHandle[slot],
-                state.layerIndex[slot],
-                z,
-                tie
-        );
-
+        state.sortKey[slot] = sortKey;
         state.entityId[slot] = -1;
     }
 

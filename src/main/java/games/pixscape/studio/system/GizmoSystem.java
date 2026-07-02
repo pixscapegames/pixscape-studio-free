@@ -17,6 +17,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -48,6 +49,7 @@ public final class GizmoSystem extends BaseSystem {
     private final InputState inputState;
     private final CoordSpaces coordSpaces;
     private final RenderStateSOA renderState;
+    private final TiledMapRenderState tiledState;
 
     private LayerService layerService;
     private SelectionService selectionService;
@@ -115,6 +117,7 @@ public final class GizmoSystem extends BaseSystem {
                        InputState inputState,
                        CoordSpaces coordSpaces,
                        RenderStateSOA renderState,
+                       TiledMapRenderState tiledState,
                        PhysicsSelectionService physicsSelectionService,
                        SpatialBlockSelectionService spatialBlockSelectionService,
                        SpatialTileSelectionService spatialTileSelectionService,
@@ -122,6 +125,7 @@ public final class GizmoSystem extends BaseSystem {
                        PolygonDrawSession polygonDrawSession) {
         this.ctx = worldCtx;
         this.renderState = renderState;
+        this.tiledState = tiledState;
         this.inputState = inputState;
         this.coordSpaces = coordSpaces;
         this.physicsSelectionService = physicsSelectionService;
@@ -418,7 +422,21 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawSpatialTileTintCell(TiledMapLayerData map, int gx, int gy, float colorPacked) {
+        if (drawSpatialTileTintRef(map.tiledRenderRefForTile(gx, gy), colorPacked)) {
+            return;
+        }
         drawSpatialTileTintSlot(map.slotForTile(gx, gy), colorPacked);
+    }
+
+    private boolean drawSpatialTileTintRef(int tiledRenderRef, float colorPacked) {
+        if (!isRenderableSpatialTileRef(tiledRenderRef)) return false;
+
+        Texture texture = TextureRegistry.getByHandle(tiledState.textureHandle[tiledRenderRef]);
+        if (texture == null) return false;
+
+        buildTintVerticesFromTiledRef(tiledRenderRef, colorPacked, tmpSpatialTileTintVerts);
+        ctx.batch.draw(texture, tmpSpatialTileTintVerts, 0, 20);
+        return true;
     }
 
     private void drawSpatialTileTintSlot(int slot, float colorPacked) {
@@ -439,6 +457,37 @@ public final class GizmoSystem extends BaseSystem {
                 && renderState.visible[slot]
                 && renderState.kind[slot] == RenderStateSOA.KIND_SPRITE
                 && renderState.textureHandle[slot] != 0;
+    }
+
+    private boolean isRenderableSpatialTileRef(int tiledRenderRef) {
+        return tiledState != null
+                && tiledState.isRenderableRef(tiledRenderRef);
+    }
+
+    private void buildTintVerticesFromTiledRef(int tiledRenderRef, float colorPacked, float[] out) {
+        out[0] = tiledState.x1[tiledRenderRef];
+        out[1] = tiledState.y1[tiledRenderRef];
+        out[2] = colorPacked;
+        out[3] = tiledState.u1[tiledRenderRef];
+        out[4] = tiledState.v2[tiledRenderRef];
+
+        out[5] = tiledState.x2[tiledRenderRef];
+        out[6] = tiledState.y2[tiledRenderRef];
+        out[7] = colorPacked;
+        out[8] = tiledState.u1[tiledRenderRef];
+        out[9] = tiledState.v1[tiledRenderRef];
+
+        out[10] = tiledState.x3[tiledRenderRef];
+        out[11] = tiledState.y3[tiledRenderRef];
+        out[12] = colorPacked;
+        out[13] = tiledState.u2[tiledRenderRef];
+        out[14] = tiledState.v1[tiledRenderRef];
+
+        out[15] = tiledState.x4[tiledRenderRef];
+        out[16] = tiledState.y4[tiledRenderRef];
+        out[17] = colorPacked;
+        out[18] = tiledState.u2[tiledRenderRef];
+        out[19] = tiledState.v2[tiledRenderRef];
     }
 
     private void buildTintVertices(int slot, float colorPacked, float[] out) {
