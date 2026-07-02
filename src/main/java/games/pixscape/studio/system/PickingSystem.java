@@ -24,7 +24,6 @@ import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -60,7 +59,6 @@ public final class PickingSystem extends BaseSystem {
     private final HistoryManager historyManager;
     private final HistoryIdRegistry historyIds;
     private final Stage uiStage;
-    private final RenderStateSOA renderState;
     private final TiledMapRenderState tiledState;
 
     private SelectionService selectionService;
@@ -217,7 +215,6 @@ public final class PickingSystem extends BaseSystem {
                          HistoryManager historyManager,
                          HistoryIdRegistry historyIds,
                          Stage uiStage,
-                         RenderStateSOA renderState,
                          TiledMapRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
                          SpatialBlockSelectionService spatialBlockSelectionService,
@@ -230,7 +227,6 @@ public final class PickingSystem extends BaseSystem {
         this.historyManager = historyManager;
         this.historyIds = historyIds;
         this.uiStage = uiStage;
-        this.renderState = renderState;
         this.tiledState = tiledState;
         this.physicsSelectionService = physicsSelectionService;
         this.spatialBlockSelectionService = spatialBlockSelectionService;
@@ -1787,10 +1783,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, float[] verts, int vertexCount) {
-        // Studio tools operate in logical world space. Runtime render offsets may already
-        // be present in RenderStateSOA because Studio reuses runtime systems.
-        // Applying RenderSpaceMapper offsets here would double-apply display offsets to
-        // picking, gizmos, and physics handles.
+        // Studio tools operate in logical world space; preview/runtime display offsets
+        // are intentionally not applied to picking, gizmos, and physics handles.
     }
 
     private void onPolygonVertexDragging(float mx, float my) {
@@ -3292,7 +3286,7 @@ public final class PickingSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
         // See applyDisplayOffset(int, float[], int): Studio picking stays in logical
-        // world space even if runtime display offsets exist in RenderStateSOA.
+        // world space even if preview/runtime display offsets exist.
     }
 
     private void removeDisplayOffset(int entityId, Vector2 p) {

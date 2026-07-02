@@ -20,10 +20,12 @@ public class StudioWorldConfigSpatialSystemTest {
 
         assertTrue(source.contains("WorldConfigFactory.buildWorld("));
         assertTrue(source.contains("SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
-        assertTrue(source.contains("FrameRenderQueue frameQueue = new FrameRenderQueue();"));
-        assertTrue(source.contains("VfxRenderState vfxState = new VfxRenderState();"));
-        assertTrue(source.contains("TiledMapRenderState tiledState = new TiledMapRenderState();"));
-        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);"));
+        assertTrue(source.contains("dynamicEntityState = new DynamicEntityRenderState();"));
+        assertTrue(source.contains("frameQueue = new FrameRenderQueue();"));
+        assertTrue(source.contains("vfxState = new VfxRenderState();"));
+        assertTrue(source.contains("tiledState = new TiledMapRenderState();"));
+        assertTrue(source.contains("new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);"));
+        assertTrue(source.contains("camera,\n                        dynamicEntityState,\n                        layerState,"));
         assertTrue(source.contains("drawList,\n                        frameQueue,\n                        vfxState,\n                        tiledState,\n                        stats,"));
         assertTrue(source.contains("sceneMeta,"));
         assertTrue(source.contains("new StudioRenderSubmitSystem("));
@@ -32,7 +34,7 @@ public class StudioWorldConfigSpatialSystemTest {
         assertTrue(submitSource.contains("int size = frameQueue.size;"));
         assertTrue(particleFallbackSource.contains("private final VfxRenderState vfxState;"));
         assertTrue(particleFallbackSource.contains("vfxState.addParticleQuad("));
-        assertFalse(particleFallbackSource.contains("private final RenderStateSOA state;"));
+        assertFalse(particleFallbackSource.contains("private final " + legacyRenderStateName() + " state;"));
     }
 
     @Test
@@ -93,6 +95,10 @@ public class StudioWorldConfigSpatialSystemTest {
 
     private static String read(String path) throws Exception {
         return Files.readString(Path.of(path), StandardCharsets.UTF_8).replace("\r\n", "\n");
+    }
+
+    private static String legacyRenderStateName() {
+        return "RenderState" + "SOA";
     }
 
     private static int countOccurrences(String source, String needle) {

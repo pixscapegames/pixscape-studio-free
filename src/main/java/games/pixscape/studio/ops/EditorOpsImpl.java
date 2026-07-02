@@ -1034,7 +1034,7 @@ public class EditorOpsImpl implements EditorOps {
             if (AnimationFallbackSystem.bindFirstFrameFallback(
                     world,
                     entityId,
-                    canvas.getRenderState(),
+                    canvas.getDynamicEntityState(),
                     before.effectiveAtlasTag(sceneTag))) {
                 ensureHandleBoundToTextureArray();
             } else if (before.isRenderable()) {

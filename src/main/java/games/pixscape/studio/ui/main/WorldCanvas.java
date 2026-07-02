@@ -26,11 +26,11 @@ import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.DrawList;
 import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderContext;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.GLCaps;
@@ -96,9 +96,12 @@ public class WorldCanvas {
     private final Stage gridStage;
     private final OrthographicCamera camera;
     private final OrthographicCamera box2dCamera;
-    // SOA
-    private RenderStateSOA renderState;
+    // Render state
+    private DynamicEntityRenderState dynamicEntityState;
     private LayerStateSOA layerState;
+    private FrameRenderQueue frameQueue;
+    private VfxRenderState vfxState;
+    private TiledMapRenderState tiledState;
 
     // Drawer
     private final ShapeDrawer drawer;
@@ -227,12 +230,12 @@ public class WorldCanvas {
     private void createWorld() {
         ProjectConfig cfg = ProjectConfig.getInstance();
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         DrawList drawList = new DrawList();
-        FrameRenderQueue frameQueue = new FrameRenderQueue();
-        VfxRenderState vfxState = new VfxRenderState();
-        TiledMapRenderState tiledState = new TiledMapRenderState();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
 
@@ -245,7 +248,7 @@ public class WorldCanvas {
         RenderStats stats = new RenderStats();
         RenderStatsSink statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
@@ -254,7 +257,7 @@ public class WorldCanvas {
 
 
         LightIconOverlaySystem lightIconOverlaySystem =
-                new LightIconOverlaySystem(worldDrawCtx, camera, renderState);
+                new LightIconOverlaySystem(worldDrawCtx, camera);
 
         tiledPreviewService = new TiledPreviewService();
 
@@ -263,7 +266,6 @@ public class WorldCanvas {
                 worldDrawCtx,
                 inputState,
                 coordSpaces,
-                renderState,
                 tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
@@ -279,7 +281,6 @@ public class WorldCanvas {
                 historyManager,
                 historyManager.historyIds(),
                 app.getUiStage(),
-                renderState,
                 tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
@@ -296,7 +297,7 @@ public class WorldCanvas {
         WorldBootstrapResult bootstrap =
                 WorldConfigFactory.buildWorld(
                         camera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
                         frameQueue,
@@ -324,7 +325,7 @@ public class WorldCanvas {
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
-                                    profiled(new AnimationFallbackSystem(renderState, atlasStudioService)),
+                                    profiled(new AnimationFallbackSystem(dynamicEntityState, atlasStudioService)),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
                                             tiledState,
                                             atlasStudioService,
@@ -2203,8 +2204,23 @@ public class WorldCanvas {
         return metricsBatch;
     }
 
-    public RenderStateSOA getRenderState() {
-        return renderState;
+    public DynamicEntityRenderState getDynamicEntityState() {
+        return dynamicEntityState;
+    }
+
+    public void clearRenderMemory() {
+        if (dynamicEntityState != null) {
+            dynamicEntityState.clear();
+        }
+        if (frameQueue != null) {
+            frameQueue.reset();
+        }
+        if (vfxState != null) {
+            vfxState.reset();
+        }
+        if (tiledState != null) {
+            tiledState.clearVisibleRefs();
+        }
     }
 
     public CoordSpaces getCoordSpaces() {
@@ -2264,7 +2280,7 @@ public class WorldCanvas {
 
     private boolean isPreviewRuntimeReady() {
         return world != null
-                && renderState != null
+                && dynamicEntityState != null
                 && layerState != null
                 && isPreviewSceneReady();
     }

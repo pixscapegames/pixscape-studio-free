@@ -16,7 +16,6 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
@@ -48,7 +47,6 @@ public final class GizmoSystem extends BaseSystem {
     private final StudioDrawContext ctx;
     private final InputState inputState;
     private final CoordSpaces coordSpaces;
-    private final RenderStateSOA renderState;
     private final TiledMapRenderState tiledState;
 
     private LayerService layerService;
@@ -116,7 +114,6 @@ public final class GizmoSystem extends BaseSystem {
     public GizmoSystem(StudioDrawContext worldCtx,
                        InputState inputState,
                        CoordSpaces coordSpaces,
-                       RenderStateSOA renderState,
                        TiledMapRenderState tiledState,
                        PhysicsSelectionService physicsSelectionService,
                        SpatialBlockSelectionService spatialBlockSelectionService,
@@ -124,7 +121,6 @@ public final class GizmoSystem extends BaseSystem {
                        TiledPreviewService tiledPreviewService,
                        PolygonDrawSession polygonDrawSession) {
         this.ctx = worldCtx;
-        this.renderState = renderState;
         this.tiledState = tiledState;
         this.inputState = inputState;
         this.coordSpaces = coordSpaces;
@@ -387,7 +383,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawSpatialTileSelectionTint(TiledMapLayerData map, boolean dragging, boolean validSelection) {
-        if (map == null || renderState == null) return;
+        if (map == null || tiledState == null) return;
 
         float colorPacked = Color.toFloatBits(
                 validSelection ? 0.05f : 1f,
@@ -410,7 +406,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawSpatialBlockLinkedTileTint(TiledMapLayerData map, SpatialBlockData block) {
-        if (map == null || block == null || block.linkedTileRefs == null || renderState == null) return;
+        if (map == null || block == null || block.linkedTileRefs == null || tiledState == null) return;
 
         float colorPacked = Color.toFloatBits(0.05f, 0.92f, 1f, 0.5f);
         for (int i = 0, n = block.linkedTileRefs.size; i < n; i++) {
@@ -465,32 +461,6 @@ public final class GizmoSystem extends BaseSystem {
         out[17] = colorPacked;
         out[18] = tiledState.u2[tiledRenderRef];
         out[19] = tiledState.v2[tiledRenderRef];
-    }
-
-    private void buildTintVertices(int slot, float colorPacked, float[] out) {
-        out[0] = renderState.x1[slot];
-        out[1] = renderState.y1[slot];
-        out[2] = colorPacked;
-        out[3] = renderState.u1[slot];
-        out[4] = renderState.v2[slot];
-
-        out[5] = renderState.x2[slot];
-        out[6] = renderState.y2[slot];
-        out[7] = colorPacked;
-        out[8] = renderState.u1[slot];
-        out[9] = renderState.v1[slot];
-
-        out[10] = renderState.x3[slot];
-        out[11] = renderState.y3[slot];
-        out[12] = colorPacked;
-        out[13] = renderState.u2[slot];
-        out[14] = renderState.v1[slot];
-
-        out[15] = renderState.x4[slot];
-        out[16] = renderState.y4[slot];
-        out[17] = colorPacked;
-        out[18] = renderState.u2[slot];
-        out[19] = renderState.v2[slot];
     }
 
     private void drawBlockHeightHandle(float[] topVerts) {
@@ -1717,10 +1687,8 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
-        // Studio tools operate in logical world space. Runtime render offsets may already
-        // be present in RenderStateSOA because Studio reuses runtime systems.
-        // Applying RenderSpaceMapper offsets here would double-apply display offsets to
-        // gizmos and physics handles.
+        // Studio tools operate in logical world space; preview/runtime display offsets
+        // are intentionally not applied to gizmos and physics handles.
     }
 
     private boolean isEntityVisibleForGizmo(int e) {
@@ -1760,7 +1728,7 @@ public final class GizmoSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, float[] corners, int vertexCount) {
         // See applyDisplayOffset(int, Vector2): Studio gizmos are authored and drawn in
-        // logical world space, regardless of runtime RenderStateSOA display offsets.
+        // logical world space.
     }
 
     private boolean isLightEntity(int e) {

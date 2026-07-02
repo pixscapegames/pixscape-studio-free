@@ -1761,7 +1761,7 @@ public final class SceneService {
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 
-            // Allocate SOA
+            // Initialize tiled chunk metadata for runtime sync.
             canvas.getTiledAllocatorService().allocateLayer(tiled);
 
             // Reinject sparse
@@ -3365,7 +3365,7 @@ public final class SceneService {
         world.process();
 
         // Reset render memory
-        canvas.getRenderState().clearAll();
+        canvas.clearRenderMemory();
         canvas.getTiledAllocatorService().reset();
 
         // Reset services studio

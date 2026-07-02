@@ -14,7 +14,6 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
@@ -31,7 +30,6 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private final StudioDrawContext ctx;
     private final OrthographicCamera worldCam;
     private final Drawable lightIcon;
-    private final RenderStateSOA renderState;
 
     private LayerService layerService;
     private SelectionService selectionService;
@@ -46,13 +44,11 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private final Vector3 tmpMouse3 = new Vector3();
 
     public LightIconOverlaySystem(StudioDrawContext ctx,
-                                  OrthographicCamera worldCam,
-                                  RenderStateSOA renderState) {
+                                  OrthographicCamera worldCam) {
         super(Aspect.all(TransformComponent.class)
                 .one(PointLightComponent.class, ConeLightComponent.class));
         this.ctx = ctx;
         this.worldCam = worldCam;
-        this.renderState = renderState;
         this.lightIcon = IconResolver.iconForEntity(EntityKind.POINT_LIGHT);
     }
 

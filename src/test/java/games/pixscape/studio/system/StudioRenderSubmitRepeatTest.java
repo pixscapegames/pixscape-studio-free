@@ -97,9 +97,13 @@ public class StudioRenderSubmitRepeatTest {
         assertTrue(source.contains("drawRepeatedStandaloneEntry(i, tex, repeat);"));
         assertTrue(source.contains("metricsBatch.draw(\n                        texHandle,"));
         assertTrue(source.contains("standaloneBatch.drawTex(\n                        tex,"));
-        assertFalse(source.contains("RenderStateSOA"));
+        assertFalse(source.contains(legacyRenderStateName()));
         assertFalse(source.contains("DrawList"));
         assertFalse(source.contains("state."));
+    }
+
+    private static String legacyRenderStateName() {
+        return "RenderState" + "SOA";
     }
 
     private static boolean calculateVisibleRange(float viewportMinX,

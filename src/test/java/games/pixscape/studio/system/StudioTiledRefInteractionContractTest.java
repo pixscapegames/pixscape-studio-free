@@ -20,7 +20,7 @@ public class StudioTiledRefInteractionContractTest {
 
         assertTrue(source.contains("map.tiledRenderRefForTile(gx, gy)"));
         assertTrue(source.contains("tiledState.isRenderableRef(tiledRenderRef)"));
-        assertFalse(source.contains("slotForTile("));
+        assertFalse(source.contains(legacySlotLookupName()));
         assertFalse(source.contains("drawSpatialTileTintSlot"));
     }
 
@@ -33,7 +33,7 @@ public class StudioTiledRefInteractionContractTest {
 
         assertTrue(source.contains("int tiledRenderRef = map.tiledRenderRefForTile(gx, gy);"));
         assertTrue(source.contains("tiledState.isRenderableRef(tiledRenderRef)"));
-        assertFalse(source.contains("slotForTile("));
+        assertFalse(source.contains(legacySlotLookupName()));
         assertFalse(source.contains("isRenderableTileSlot"));
     }
 
@@ -47,7 +47,12 @@ public class StudioTiledRefInteractionContractTest {
         assertTrue(source.contains("new GizmoSystem("));
         assertTrue(source.contains("new PickingSystem("));
         assertTrue(source.contains("new TiledFallbackSystem("));
-        assertTrue(source.contains("renderState,\n                tiledState,"));
+        assertTrue(source.contains("dynamicEntityState = new DynamicEntityRenderState();"));
+        assertTrue(source.contains("tiledState = new TiledMapRenderState();"));
         assertTrue(source.contains("tiledFallbackSystem = new TiledFallbackSystem(\n                                            tiledState,"));
+    }
+
+    private static String legacySlotLookupName() {
+        return "slotFor" + "Tile(";
     }
 }
