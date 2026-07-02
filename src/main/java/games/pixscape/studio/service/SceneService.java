@@ -1041,22 +1041,13 @@ public final class SceneService {
     }
 
     private static SceneVolatileStateSnapshot clearVolatileSceneStateForSave(World world, IntBag entitiesToSave) {
-        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
 
-        Array<TiledRangeSnapshot> tiledRanges = new Array<>();
         Array<VisibilityRuntimeSnapshot> visibilityStates = new Array<>();
 
         int[] data = entitiesToSave.getData();
         for (int i = 0, n = entitiesToSave.size(); i < n; i++) {
             int entityId = data[i];
-
-            TiledLayerComponent tiled = mTiled.getSafe(entityId, null);
-            if (tiled != null && (tiled.tiledStart != 0 || tiled.tiledEnd != 0)) {
-                tiledRanges.add(new TiledRangeSnapshot(entityId, tiled.tiledStart, tiled.tiledEnd));
-                tiled.tiledStart = 0;
-                tiled.tiledEnd = 0;
-            }
 
             VisibilityComponent visibility = mVisibility.getSafe(entityId, null);
             if (visibility != null && (!visibility.culledByFrustum || visibility.inView)) {
@@ -1070,21 +1061,12 @@ public final class SceneService {
             }
         }
 
-        return new SceneVolatileStateSnapshot(tiledRanges, visibilityStates);
+        return new SceneVolatileStateSnapshot(visibilityStates);
     }
 
-    private record SceneVolatileStateSnapshot(Array<TiledRangeSnapshot> tiledRanges,
-                                              Array<VisibilityRuntimeSnapshot> visibilityStates) {
+    private record SceneVolatileStateSnapshot(Array<VisibilityRuntimeSnapshot> visibilityStates) {
         void restore(World world) {
-            ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
             ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
-
-            for (TiledRangeSnapshot snapshot : tiledRanges) {
-                TiledLayerComponent tiled = mTiled.getSafe(snapshot.entityId(), null);
-                if (tiled == null) continue;
-                tiled.tiledStart = snapshot.tiledStart();
-                tiled.tiledEnd = snapshot.tiledEnd();
-            }
 
             for (VisibilityRuntimeSnapshot snapshot : visibilityStates) {
                 VisibilityComponent visibility = mVisibility.getSafe(snapshot.entityId(), null);
@@ -1093,9 +1075,6 @@ public final class SceneService {
                 visibility.inView = snapshot.inView();
             }
         }
-    }
-
-    private record TiledRangeSnapshot(int entityId, int tiledStart, int tiledEnd) {
     }
 
     private record VisibilityRuntimeSnapshot(int entityId, boolean culledByFrustum, boolean inView) {

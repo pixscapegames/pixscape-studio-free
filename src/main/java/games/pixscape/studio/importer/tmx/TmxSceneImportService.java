@@ -174,22 +174,6 @@ public final class TmxSceneImportService {
     }
 
     private TmxSceneImportResult validateBeforeMutation(TmxImportPlanResult planResult) {
-        TmxImportPlan plan = planResult.plan();
-        if (plan.scene().requiredTiledCells() > WorldConfigFactory.DEFAULT_TILED_BUDGET) {
-            return TmxSceneImportResult.rejected(
-                    TmxSceneImportStatus.TILED_BUDGET_EXCEEDED,
-                    planResult,
-                    new TmxDiagnostic(
-                            TmxDiagnosticSeverity.BLOCKING,
-                            "TMX_TILED_BUDGET_EXCEEDED",
-                            "TMX map requires " + plan.scene().requiredTiledCells()
-                                    + " tiled cells; Studio supports "
-                                    + WorldConfigFactory.DEFAULT_TILED_BUDGET + ".",
-                            plan.scene().sourceTmxPath()
-                    )
-            );
-        }
-
         return null;
     }
 

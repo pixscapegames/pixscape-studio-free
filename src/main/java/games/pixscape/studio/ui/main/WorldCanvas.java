@@ -45,7 +45,6 @@ import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.TiledSoaAllocator;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -87,8 +86,6 @@ import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
-
-import static games.pixscape.runtime.loading.WorldConfigFactory.DEFAULT_TILED_BUDGET;
 
 public class WorldCanvas {
 
@@ -135,7 +132,6 @@ public class WorldCanvas {
     private TiledPaintService tiledPaintService;
     private TiledToolService tiledToolService;
     private TiledAllocatorService tiledAllocatorService;
-    private TiledSoaAllocator tiledAllocator;
     private TiledFallbackSystem tiledFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
@@ -319,18 +315,17 @@ public class WorldCanvas {
                                 statsSink
                         ),
                         sceneMeta,
-                        DEFAULT_TILED_BUDGET,
+                        0,
                         tileAnimationRegistry,
                         studioTilesetProfiles,
                         systemProfiler,
 
-                        // pre-render: systems that write into RenderStateSOA
+                        // pre-render: Studio fallback systems before draw-list build
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
                                     profiled(new AnimationFallbackSystem(renderState, atlasStudioService)),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
-                                            renderState,
                                             tiledState,
                                             atlasStudioService,
                                             assetMetaDatabaseForFallback::findById,
@@ -366,11 +361,7 @@ public class WorldCanvas {
 
         world = bootstrap.getWorld();
 
-        int tiledStart = bootstrap.getTiledStart();
-        int tiledEnd = bootstrap.getTiledEnd();
-
-        tiledAllocator = new TiledSoaAllocator(tiledStart, tiledEnd);
-        tiledAllocatorService = new TiledAllocatorService(tiledAllocator, renderState);
+        tiledAllocatorService = new TiledAllocatorService();
 
         tiledPaintService = new TiledPaintService();
         tiledToolService = new TiledToolService();

@@ -204,9 +204,6 @@ public class LayerSpatialDepthCommandsTest {
     public void saveScene_omitsRuntimeOnlyTiledAndVisibilityState() throws Exception {
         World world = serializableWorld();
         int layerId = createTiledLayer(world, 0);
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
-        tiled.tiledStart = 150000;
-        tiled.tiledEnd = 152500;
 
         VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerId);
         visibility.visible = true;
@@ -220,13 +217,9 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         String saved = Files.readString(scenePath);
-        Assert.assertFalse(saved.contains("\"tiledStart\""));
-        Assert.assertFalse(saved.contains("\"tiledEnd\""));
         Assert.assertFalse(saved.contains("\"culledByFrustum\""));
         Assert.assertFalse(saved.contains("\"inView\""));
 
-        Assert.assertEquals(150000, tiled.tiledStart);
-        Assert.assertEquals(152500, tiled.tiledEnd);
         Assert.assertFalse(visibility.culledByFrustum);
         Assert.assertTrue(visibility.inView);
     }

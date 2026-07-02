@@ -328,15 +328,11 @@ public class SpatialTileSelectionServiceTest {
     }
 
     private static TiledMapLayerData map(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
-        map.initSlotRange(20, 20 + width * height);
-        return map;
+        return new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
     }
 
     private static TiledMapLayerData isoMap(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
-        map.initSlotRange(20, 20 + width * height);
-        return map;
+        return new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
     }
 
     private static void fillHorizontal(TiledMapLayerData map, int minGx, int gy, int maxGx, int firstTileId) {

@@ -482,33 +482,6 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
-    public void importSceneRejectsPlansAboveFixedTiledBudgetBeforeMutation() throws Exception {
-        Harness h = harness("tmx-import-budget");
-        writePng(h.projectDir.child("wide.png"), 16, 16);
-        int width = WorldConfigFactory.DEFAULT_TILED_BUDGET + 1;
-        StringBuilder zeros = new StringBuilder(width * 2);
-        for (int i = 0; i < width; i++) {
-            if (i > 0) zeros.append(',');
-            zeros.append('0');
-        }
-        FileHandle tmx = writeTmx(h.root.resolve("wide.tmx"), """
-                <map orientation="orthogonal" width="%d" height="1" tilewidth="16" tileheight="16">
-                  <tileset firstgid="1" name="wide" tilewidth="16" tileheight="16" tilecount="1" columns="1">
-                    <image source="wide.png" width="16" height="16"/>
-                  </tileset>
-                  <layer name="Ground" width="%d" height="1"><data encoding="csv">%s</data></layer>
-                </map>
-                """.formatted(width, width, zeros));
-
-        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Too Wide"));
-
-        assertEquals(TmxSceneImportStatus.TILED_BUDGET_EXCEEDED, result.status());
-        assertEquals("Main", h.cfg.getCurrentSceneName());
-        assertFalse(h.cfg.getScenesMap().containsKey("Too Wide"));
-        assertFalse(h.projectDir.child(StudioFs.DIR_SCENES).child("scene2.json").exists());
-    }
-
-    @Test
     public void importSceneImportsTilesetsWithSpacingAndMargin() throws Exception {
         Harness h = harness("tmx-import-spacing-margin");
         int[] tileColors = {

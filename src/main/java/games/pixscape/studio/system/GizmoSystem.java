@@ -422,10 +422,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawSpatialTileTintCell(TiledMapLayerData map, int gx, int gy, float colorPacked) {
-        if (drawSpatialTileTintRef(map.tiledRenderRefForTile(gx, gy), colorPacked)) {
-            return;
-        }
-        drawSpatialTileTintSlot(map.slotForTile(gx, gy), colorPacked);
+        drawSpatialTileTintRef(map.tiledRenderRefForTile(gx, gy), colorPacked);
     }
 
     private boolean drawSpatialTileTintRef(int tiledRenderRef, float colorPacked) {
@@ -437,26 +434,6 @@ public final class GizmoSystem extends BaseSystem {
         buildTintVerticesFromTiledRef(tiledRenderRef, colorPacked, tmpSpatialTileTintVerts);
         ctx.batch.draw(texture, tmpSpatialTileTintVerts, 0, 20);
         return true;
-    }
-
-    private void drawSpatialTileTintSlot(int slot, float colorPacked) {
-        if (!isRenderableSpatialTileSlot(slot)) return;
-
-        Texture texture = TextureRegistry.getByHandle(renderState.textureHandle[slot]);
-        if (texture == null) return;
-
-        buildTintVertices(slot, colorPacked, tmpSpatialTileTintVerts);
-        ctx.batch.draw(texture, tmpSpatialTileTintVerts, 0, 20);
-    }
-
-    private boolean isRenderableSpatialTileSlot(int slot) {
-        return renderState != null
-                && slot >= 0
-                && slot < renderState.textureHandle.length
-                && renderState.enabled[slot]
-                && renderState.visible[slot]
-                && renderState.kind[slot] == RenderStateSOA.KIND_SPRITE
-                && renderState.textureHandle[slot] != 0;
     }
 
     private boolean isRenderableSpatialTileRef(int tiledRenderRef) {

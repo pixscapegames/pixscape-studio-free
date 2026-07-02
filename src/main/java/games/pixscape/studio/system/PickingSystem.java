@@ -568,10 +568,9 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private SpatialTileAnchor findTopmostRenderedTileAnchor(TiledMapLayerData map, float worldX, float worldY) {
-        if (map == null || (renderState == null && tiledState == null)) return null;
+        if (map == null || tiledState == null) return null;
 
         SpatialTileAnchor best = null;
-        int bestSlot = -1;
         int bestRef = -1;
         long bestSortKey = Long.MIN_VALUE;
         float[] verts = tmpFixtureBoxWorldCorners;
@@ -590,14 +589,6 @@ public final class PickingSystem extends BaseSystem {
                     }
                     continue;
                 }
-
-                int slot = map.slotForTile(gx, gy);
-                if (!isRenderableTileSlot(slot) || bestRef >= 0 || slot <= bestSlot) continue;
-                copyRenderStateQuad(slot, verts);
-                if (pointInConvexQuad(worldX, worldY, verts)) {
-                    bestSlot = slot;
-                    best = new SpatialTileAnchor(gx, gy);
-                }
             }
         }
         return best;
@@ -605,16 +596,6 @@ public final class PickingSystem extends BaseSystem {
 
     private static boolean sortKeyLessOrEqual(long left, long right) {
         return (left ^ Long.MIN_VALUE) <= (right ^ Long.MIN_VALUE);
-    }
-
-    private boolean isRenderableTileSlot(int slot) {
-        return renderState != null
-                && slot >= 0
-                && slot < renderState.textureHandle.length
-                && renderState.enabled[slot]
-                && renderState.visible[slot]
-                && renderState.kind[slot] == RenderStateSOA.KIND_SPRITE
-                && renderState.textureHandle[slot] != 0;
     }
 
     private boolean isRenderableTileRef(int tiledRenderRef) {
@@ -631,17 +612,6 @@ public final class PickingSystem extends BaseSystem {
         out[5] = tiledState.y3[tiledRenderRef];
         out[6] = tiledState.x4[tiledRenderRef];
         out[7] = tiledState.y4[tiledRenderRef];
-    }
-
-    private void copyRenderStateQuad(int slot, float[] out) {
-        out[0] = renderState.x1[slot];
-        out[1] = renderState.y1[slot];
-        out[2] = renderState.x2[slot];
-        out[3] = renderState.y2[slot];
-        out[4] = renderState.x3[slot];
-        out[5] = renderState.y3[slot];
-        out[6] = renderState.x4[slot];
-        out[7] = renderState.y4[slot];
     }
 
     private record SpatialTileAnchor(int gx, int gy) {

@@ -17,7 +17,6 @@ import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
@@ -42,7 +41,6 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private ComponentMapper<LayerComponent> mLayer;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
-    private final RenderStateSOA state;
     private final TiledMapRenderState tiledState;
     private final AtlasRuntimeService atlasRuntimeService;
     private final float[] tmpQuad = new float[8];
@@ -55,20 +53,17 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private boolean profiling;
     private long profileStartNs;
 
-    public TiledFallbackSystem(RenderStateSOA state,
-                               AtlasRuntimeService atlasRuntimeService,
+    public TiledFallbackSystem(AtlasRuntimeService atlasRuntimeService,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
-        this(state, null, atlasRuntimeService, assetMetaLookup, tileAnimationLookup);
+        this(null, atlasRuntimeService, assetMetaLookup, tileAnimationLookup);
     }
 
-    public TiledFallbackSystem(RenderStateSOA state,
-                               TiledMapRenderState tiledState,
+    public TiledFallbackSystem(TiledMapRenderState tiledState,
                                AtlasRuntimeService atlasRuntimeService,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
 
-        this.state = state;
         this.tiledState = tiledState;
         this.atlasRuntimeService = atlasRuntimeService;
         this.assetMetaLookup = (assetMetaLookup != null) ? assetMetaLookup : id -> null;
@@ -112,22 +107,20 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         if (tiled == null || tiled.data == null) return;
 
         TiledMapLayerData map = tiled.data;
-
-        int layerStart = tiled.tiledStart;
-        int layerEnd = tiled.tiledEnd;
+        if (tiledState == null) return;
 
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
             TileChunk chunk = values.next();
+            ensureChunkRenderRefs(chunk);
 
             for (int ly = 0; ly < chunk.chunkHeight; ly++) {
                 for (int lx = 0; lx < chunk.chunkWidth; lx++) {
 
                     int localIndex = ly * chunk.chunkWidth + lx;
-                    int slot = chunk.soaStartIndex + localIndex;
                     int tiledRenderRef = chunk.renderRefFor(lx, ly);
 
-                    if (slot < layerStart || slot >= layerEnd) continue;
+                    if (tiledRenderRef < 0) continue;
 
                     int logicalAssetId = chunk.assetIds[localIndex];
                     if (logicalAssetId <= 0) continue;
@@ -173,7 +166,6 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     writeTileSlot(
                             layer,
                             map,
-                            slot,
                             tiledRenderRef,
                             gx,
                             gy,
@@ -194,7 +186,6 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
     void writeTileSlot(LayerComponent layer,
                        TiledMapLayerData map,
-                       int slot,
                        int tiledRenderRef,
                        int gx,
                        int gy,
@@ -237,67 +228,54 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                 tie
         );
 
-        if (tiledState != null && tiledRenderRef >= 0) {
-            tiledState.setLegacySlotForRef(tiledRenderRef, slot);
-            tiledState.setRenderDataForRef(
-                    tiledRenderRef,
-                    textureHandle,
-                    shader,
-                    blend,
-                    layer.layerIndex,
-                    0,
-                    0,
-                    sortKey,
-                    tmpQuad[0],
-                    tmpQuad[1],
-                    tmpQuad[2],
-                    tmpQuad[3],
-                    tmpQuad[4],
-                    tmpQuad[5],
-                    tmpQuad[6],
-                    tmpQuad[7],
-                    u1,
-                    v1,
-                    u2,
-                    v2,
-                    Color.WHITE.toFloatBits(),
-                    1f,
-                    RenderRepeatFlags.NONE
-            );
-        }
-
-        if (state == null || slot < 0 || slot >= state.getCapacity()) {
+        if (tiledState == null || tiledRenderRef < 0) {
             return;
         }
 
-        state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-        state.enabled[slot] = true;
-        state.visible[slot] = true;
+        tiledState.setRenderDataForRef(
+                tiledRenderRef,
+                textureHandle,
+                shader,
+                blend,
+                layer.layerIndex,
+                0,
+                0,
+                sortKey,
+                tmpQuad[0],
+                tmpQuad[1],
+                tmpQuad[2],
+                tmpQuad[3],
+                tmpQuad[4],
+                tmpQuad[5],
+                tmpQuad[6],
+                tmpQuad[7],
+                u1,
+                v1,
+                u2,
+                v2,
+                Color.WHITE.toFloatBits(),
+                1f,
+                RenderRepeatFlags.NONE
+        );
+        addVisibleRefIfAbsent(tiledRenderRef);
+    }
 
-        state.x1[slot] = tmpQuad[0];
-        state.y1[slot] = tmpQuad[1];
-        state.x2[slot] = tmpQuad[2];
-        state.y2[slot] = tmpQuad[3];
-        state.x3[slot] = tmpQuad[4];
-        state.y3[slot] = tmpQuad[5];
-        state.x4[slot] = tmpQuad[6];
-        state.y4[slot] = tmpQuad[7];
+    private void ensureChunkRenderRefs(TileChunk chunk) {
+        if (chunk == null) return;
+        int cellCount = chunk.cellCount();
+        if (chunk.renderRefStartIndex < 0 || chunk.renderRefCount != cellCount) {
+            chunk.renderRefStartIndex = tiledState.registerRefs(cellCount);
+            chunk.renderRefCount = cellCount;
+        }
+    }
 
-        state.u1[slot] = u1;
-        state.v1[slot] = v1;
-        state.u2[slot] = u2;
-        state.v2[slot] = v2;
-        state.textureHandle[slot] = textureHandle;
-        state.shader[slot] = shader;
-        state.blend[slot] = blend;
-        state.layerIndex[slot] = layer.layerIndex;
-        state.z[slot] = z;
-        state.runtimeOrder[slot] = tie;
-        state.colorPacked[slot] = Color.WHITE.toFloatBits();
-        state.a[slot] = 1f;
-        state.touch(slot);
-        state.sortKey[slot] = sortKey;
-        state.entityId[slot] = -1;
+    private void addVisibleRefIfAbsent(int tiledRenderRef) {
+        int[] visibleRefs = tiledState.getVisibleRefs();
+        int count = tiledState.getVisibleRefCount();
+        for (int i = 0; i < count; i++) {
+            if (visibleRefs[i] == tiledRenderRef) return;
+        }
+        tiledState.addVisibleRef(tiledRenderRef);
     }
 
     private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {
