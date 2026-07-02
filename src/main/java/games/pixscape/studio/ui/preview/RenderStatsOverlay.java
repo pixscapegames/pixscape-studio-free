@@ -25,12 +25,20 @@ public final class RenderStatsOverlay {
     private int boxBodies, boxContacts, boxJoints;
 
     // Text cache (avoids per-frame allocations)
-    private final StringBuilder sb1 = new StringBuilder(192);
-    private final StringBuilder sb2 = new StringBuilder(192);
-    private final StringBuilder sb3 = new StringBuilder(192);
+    private final StringBuilder sb1 = new StringBuilder(256);
+    private final StringBuilder sb2 = new StringBuilder(256);
+    private final StringBuilder sb3 = new StringBuilder(256);
+    private final StringBuilder sb4 = new StringBuilder(192);
+    private final StringBuilder sb5 = new StringBuilder(192);
+    private final StringBuilder sb6 = new StringBuilder(192);
+    private final StringBuilder sb7 = new StringBuilder(192);
     private String line1 = "";
     private String line2 = "";
     private String line3 = "";
+    private String line4 = "";
+    private String line5 = "";
+    private String line6 = "";
+    private String line7 = "";
 
     private long lastUiRefreshNs = 0L;
 
@@ -89,49 +97,56 @@ public final class RenderStatsOverlay {
             font.draw(uiStage.getBatch(), line1, x, y);
             font.draw(uiStage.getBatch(), line2, x, y - 18f);
             font.draw(uiStage.getBatch(), line3, x, y - 36f);
+            font.draw(uiStage.getBatch(), line4, x, y - 54f);
+            font.draw(uiStage.getBatch(), line5, x, y - 72f);
+            font.draw(uiStage.getBatch(), line6, x, y - 90f);
+            font.draw(uiStage.getBatch(), line7, x, y - 108f);
         }
 
         uiStage.getBatch().end();
     }
 
     private void rebuildLines() {
-        // Ligne 1: rendu
         sb1.setLength(0);
-        sb1.append("fps:").append(Gdx.graphics.getFramesPerSecond())
-                .append(" | quads:").append(stats.drawnQuads)
-                .append(" | draws:").append(stats.drawCalls)
-                .append(" | flush:").append(stats.flushes)
-                .append(" (cap:").append(stats.flushCapacity)
-                .append(", state:").append(stats.flushStateChanges)
-                .append(")")
-                .append(" | texBinds:").append(stats.textureBinds)
-                .append(" | shaderSw:").append(stats.shaderSwitches)
-                .append(" | blendSw:").append(stats.blendSwitches);
-
+        sb1.append("fps:").append(Gdx.graphics.getFramesPerSecond()).append(" | ");
+        RenderStatsTextFormatter.appendGeometryLine(sb1, stats);
         line1 = sb1.toString();
 
-        // Ligne 2: frame times
         sb2.setLength(0);
-        sb2.append("ms avg:");
-        append2(sb2, avgMs);
-        sb2.append("  p95:");
-        append2(sb2, p95Ms);
-        sb2.append("  p99:");
-        append2(sb2, p99Ms);
-        sb2.append("  max:");
-        append2(sb2, maxMs);
-
+        RenderStatsTextFormatter.appendGpuDrawLine(sb2, stats);
         line2 = sb2.toString();
 
         sb3.setLength(0);
-        sb3.append("box2d step:");
-        append2(sb3, boxStepMs);
-        sb3.append("ms  sub:").append(boxSubsteps)
+        RenderStatsTextFormatter.appendGpuStateLine(sb3, stats);
+        line3 = sb3.toString();
+
+        sb4.setLength(0);
+        RenderStatsTextFormatter.appendRegionCacheLine(sb4, stats);
+        line4 = sb4.toString();
+
+        sb5.setLength(0);
+        RenderStatsTextFormatter.appendBuildLine(sb5, stats);
+        line5 = sb5.toString();
+
+        sb6.setLength(0);
+        sb6.append("Frame ms: avg=");
+        append2(sb6, avgMs);
+        sb6.append(" p95=");
+        append2(sb6, p95Ms);
+        sb6.append(" p99=");
+        append2(sb6, p99Ms);
+        sb6.append(" max=");
+        append2(sb6, maxMs);
+        line6 = sb6.toString();
+
+        sb7.setLength(0);
+        sb7.append("Box2D: step=");
+        append2(sb7, boxStepMs);
+        sb7.append("ms sub=").append(boxSubsteps)
                 .append("  bodies:").append(boxBodies)
                 .append("  contacts:").append(boxContacts)
                 .append("  joints:").append(boxJoints);
-
-        line3 = sb3.toString();
+        line7 = sb7.toString();
     }
 
     /**

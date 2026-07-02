@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
 import games.pixscape.studio.io.StudioFs;
 
@@ -86,9 +87,9 @@ public final class HtmlPreviewLauncher {
             throw new IllegalStateException("HTML preview failed: export root is not configured.");
         }
 
-        Path exportRoot = Path.of(exportRootPath);
+        Path exportRoot = RuntimeExportPaths.userRootPath(Path.of(exportRootPath));
         if (!Files.isDirectory(exportRoot)) {
-            throw new IllegalStateException("HTML preview failed: export root directory does not exist: " + exportRootPath);
+            throw new IllegalStateException("HTML preview failed: export root directory does not exist: " + exportRoot);
         }
 
         return exportRoot;

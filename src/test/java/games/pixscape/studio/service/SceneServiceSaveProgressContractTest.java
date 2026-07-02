@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SceneServiceSaveProgressContractTest {
@@ -33,6 +34,18 @@ public class SceneServiceSaveProgressContractTest {
         assertTrue(methodBody.contains("SaveProgressRunner runner = new SaveProgressRunner(uiStage);"));
         assertTrue(methodBody.contains("if (!plan.hasSceneToSave())"));
         assertTrue(methodBody.contains("runner.run(steps, onSuccess, onError);"));
+    }
+
+    @Test
+    public void saveProjectAndCurrentSceneWithProgress_requiresRuntimeExportSuccess() throws Exception {
+        String source = readSceneServiceSource();
+        String methodBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
+        String fallbackBody = methodBody(source, "private void executePreparedSavePlan(SaveExecutionPlan plan)");
+
+        assertTrue(methodBody.contains("exportRuntime(plan.cfg(), plan.studioDir())"));
+        assertFalse(methodBody.contains("exportRuntimeBestEffort(plan.cfg(), plan.studioDir())"));
+        assertTrue(fallbackBody.contains("exportRuntime(plan.cfg(), plan.studioDir())"));
+        assertFalse(fallbackBody.contains("exportRuntimeBestEffort(plan.cfg(), plan.studioDir())"));
     }
 
     private static String readSceneServiceSource() throws Exception {

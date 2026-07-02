@@ -47,6 +47,28 @@ public class SceneServicePreviewSaveGuardContractTest {
     }
 
     @Test
+    public void configuredRuntimeProjectDirUsesParentExportRootForPreviewValidation() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-configured-runtime-root");
+        writeUsableRuntimeExport(exportRoot);
+
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.exportRootPathDir = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).toString();
+
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void configuredRuntimeProjectDirWithMissingProjectRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-configured-runtime-root-missing-project");
+        Files.createDirectories(exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME));
+
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.exportRootPathDir = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).toString();
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
     public void runtimeExportWithDifferentCurrentSceneRequiresSaveBeforePreview() throws Exception {
         Path exportRoot = Files.createTempDirectory("preview-stale-current-scene");
         ProjectConfig cfg = projectConfig(exportRoot);

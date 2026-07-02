@@ -39,6 +39,7 @@ import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.ProjectRenameService;
 import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -216,15 +217,17 @@ public final class SceneService {
             return false;
         }
 
-        String exportRootPath = cfg.exportRootPathDir;
-        if (exportRootPath == null || exportRootPath.isBlank()) {
+        if (cfg.exportRootPathDir == null || cfg.exportRootPathDir.isBlank()) {
             return false;
         }
 
         final Path exportRoot;
         try {
-            exportRoot = Path.of(exportRootPath);
+            exportRoot = RuntimeExportPaths.userRootPath(cfg);
         } catch (InvalidPathException ex) {
+            return false;
+        }
+        if (exportRoot == null) {
             return false;
         }
 
@@ -823,7 +826,7 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
             steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
             steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
-            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntimeBestEffort(plan.cfg(), plan.studioDir())));
+            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
         }
 
@@ -915,7 +918,7 @@ public final class SceneService {
         rebuildSparseFromDense();
         saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
         saveTileAnimations(plan);
-        exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
+        exportRuntime(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
     }
 
@@ -934,14 +937,20 @@ public final class SceneService {
 
     private void exportRuntimeBestEffort(ProjectConfig cfg, FileHandle studioDir) {
         try {
-            final String exportRoot = cfg.exportRootPathDir;
-            FileHandle userRootDir = Gdx.files.absolute(exportRoot);
-            userRootDir.mkdirs();
-            RuntimeExport.exportRuntime(cfg, studioDir, userRootDir);
+            exportRuntime(cfg, studioDir);
         } catch (Exception ex) {
             Gdx.app.error("SceneManager", "Runtime export failed", ex);
             StudioLog.warn("Runtime export failed");
         }
+    }
+
+    private void exportRuntime(ProjectConfig cfg, FileHandle studioDir) {
+        FileHandle userRootDir = RuntimeExportPaths.userRootFileHandle(cfg);
+        if (userRootDir == null) {
+            throw new IllegalStateException("Runtime export root is not configured.");
+        }
+        userRootDir.mkdirs();
+        RuntimeExport.exportRuntime(cfg, studioDir, userRootDir);
     }
 
     private void finishSaveWithoutScene() {
@@ -3541,6 +3550,12 @@ public final class SceneService {
         if (exportRoot == null || exportRoot.isBlank()) {
             String op = (operation == null || operation.isBlank()) ? "operation" : operation;
             throw new IllegalStateException(op + ": exportRootPathDir is required and cannot be blank.");
+        }
+        try {
+            RuntimeExportPaths.userRootPath(Path.of(exportRoot));
+        } catch (InvalidPathException ex) {
+            String op = (operation == null || operation.isBlank()) ? "operation" : operation;
+            throw new IllegalStateException(op + ": exportRootPathDir is invalid: " + exportRoot, ex);
         }
     }
 
