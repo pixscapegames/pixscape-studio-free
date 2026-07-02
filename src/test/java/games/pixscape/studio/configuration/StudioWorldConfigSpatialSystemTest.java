@@ -22,8 +22,9 @@ public class StudioWorldConfigSpatialSystemTest {
         assertTrue(source.contains("SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
         assertTrue(source.contains("FrameRenderQueue frameQueue = new FrameRenderQueue();"));
         assertTrue(source.contains("VfxRenderState vfxState = new VfxRenderState();"));
-        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, metricsBatch, caps);"));
-        assertTrue(source.contains("drawList,\n                        frameQueue,\n                        vfxState,\n                        stats,"));
+        assertTrue(source.contains("TiledMapRenderState tiledState = new TiledMapRenderState();"));
+        assertTrue(source.contains("new RenderContext(renderState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);"));
+        assertTrue(source.contains("drawList,\n                        frameQueue,\n                        vfxState,\n                        tiledState,\n                        stats,"));
         assertTrue(source.contains("sceneMeta,"));
         assertTrue(source.contains("new StudioRenderSubmitSystem("));
         assertTrue(source.contains("layerState,\n                                frameQueue,\n                                camera,"));
