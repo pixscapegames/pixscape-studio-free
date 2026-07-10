@@ -26,10 +26,12 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         this.selection = selection;
         this.layerHistoryId = historyIds != null ? historyIds.ensureForEntity(layerEntityId) : -1L;
         this.block = block != null ? block.copy() : null;
-        this.physicsBefore = this.block != null && this.block.physicsCollision
+        boolean invalidAuthoring = this.block != null
+                && !SpatialBlockCommandSupport.validAuthoredActorOccluder(world, layerEntityId, this.block);
+        this.physicsBefore = this.block != null && !invalidAuthoring && this.block.physicsCollision
                 ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId)
                 : null;
-        this.noop = world == null || historyIds == null || layerHistoryId <= 0L || this.block == null;
+        this.noop = world == null || historyIds == null || layerHistoryId <= 0L || this.block == null || invalidAuthoring;
     }
 
     @Override
@@ -47,6 +49,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (noop) return;
         int layerEntityId = resolveLayer();
         if (layerEntityId < 0) return;
+        if (!SpatialBlockCommandSupport.validAuthoredActorOccluder(world, layerEntityId, block)) return;
 
         SpatialBlocksComponent component = SpatialBlockCommandSupport.getOrCreate(world, layerEntityId);
         if (block.id <= 0) {

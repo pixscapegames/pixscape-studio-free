@@ -68,6 +68,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         if (noop || snapshot == null) return;
         int layerEntityId = resolveLayer();
         if (layerEntityId < 0) return;
+        if (!SpatialBlockCommandSupport.validAuthoredActorOccluder(world, layerEntityId, snapshot)) return;
         SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layerEntityId);
         SpatialBlockData target = SpatialBlockCommandSupport.find(component, blockId);
         if (target == null) return;

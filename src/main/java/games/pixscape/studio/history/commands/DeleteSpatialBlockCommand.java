@@ -73,6 +73,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         if (noop) return;
         int layerEntityId = resolveLayer();
         if (layerEntityId < 0) return;
+        if (!SpatialBlockCommandSupport.validAuthoredActorOccluder(world, layerEntityId, before)) return;
         SpatialBlocksComponent component = SpatialBlockCommandSupport.getOrCreate(world, layerEntityId);
         if (SpatialBlockCommandSupport.indexOf(component, blockId) < 0) {
             int insertIndex = Math.max(0, Math.min(originalIndex, component.blocks.size));

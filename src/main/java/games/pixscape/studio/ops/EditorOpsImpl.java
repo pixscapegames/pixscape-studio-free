@@ -42,6 +42,7 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.spatial.SpatialBlockAuthoringValidator;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.system.AnimationFallbackSystem;
 import games.pixscape.studio.ui.main.WorldCanvas;
@@ -871,9 +872,16 @@ public class EditorOpsImpl implements EditorOps {
 
         if (target == null || !target.valid() || target.tiledLayerEntity() != layerEntityId) return;
 
+        int targetGx = target.targetGx();
+        int targetGy = target.targetGy();
+        if (!tiled.data.isInside(targetGx, targetGy)) return;
+
+        int tileAssetId = tiled.data.getTile(targetGx, targetGy);
+        if (tileAssetId <= 0) return;
+
         SpatialBlockData block = new SpatialBlockData();
-        block.x = target.targetGx();
-        block.y = target.targetGy();
+        block.x = targetGx;
+        block.y = targetGy;
         block.width = 1f;
         block.depth = 1f;
         block.altitude = tiled.defaultTileAltitude;
@@ -884,6 +892,12 @@ public class EditorOpsImpl implements EditorOps {
         block.lightOccluder = false;
         block.shadowCaster = false;
         block.particleOccluder = false;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(targetGx, targetGy, tileAssetId);
+
+        SpatialBlockAuthoringValidator.Result validation =
+                SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, tiled.data);
+        if (!validation.isValid()) return;
 
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 world,
@@ -934,6 +948,9 @@ public class EditorOpsImpl implements EditorOps {
                 tiled.defaultTileHeight
         );
         if (block == null) return;
+        SpatialBlockAuthoringValidator.Result validation =
+                SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, tiled.data);
+        if (!validation.isValid()) return;
 
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 world,

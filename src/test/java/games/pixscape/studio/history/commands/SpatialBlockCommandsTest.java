@@ -22,10 +22,11 @@ public class SpatialBlockCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
-        int layerId = world.create();
+        int layerId = tiledLayer(world);
         history.historyIds().ensureForEntity(layerId);
 
         SpatialBlockData block = block(0, "Wall", 2f, 3f);
+        occupyLinkedTiles(world, layerId, block);
 
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 world,
@@ -41,6 +42,11 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(1, component.blocks.first().id);
         Assert.assertEquals(2f, component.blocks.first().x, 0.0001f);
         Assert.assertEquals(3f, component.blocks.first().y, 0.0001f);
+        Assert.assertTrue(component.blocks.first().linkedTileRefsAuthored);
+        Assert.assertEquals(1, component.blocks.first().linkedTileRefs.size);
+        Assert.assertEquals(2, component.blocks.first().linkedTileRefs.get(0).gx);
+        Assert.assertEquals(3, component.blocks.first().linkedTileRefs.get(0).gy);
+        Assert.assertEquals(1001, component.blocks.first().linkedTileRefs.get(0).tileAssetId);
         Assert.assertEquals(1, command.getBlockId());
         Assert.assertEquals(layerId, selection.getEditingLayerEntityId());
         Assert.assertEquals(1, selection.getSelectedBlockId());
@@ -53,7 +59,80 @@ public class SpatialBlockCommandsTest {
         history.redo();
         Assert.assertEquals(1, component.blocks.size);
         Assert.assertEquals(1, component.blocks.first().id);
+        Assert.assertEquals(1, component.blocks.first().linkedTileRefs.size);
+        Assert.assertEquals(1001, component.blocks.first().linkedTileRefs.get(0).tileAssetId);
         Assert.assertEquals(1, selection.getSelectedBlockId());
+    }
+
+    @Test
+    public void addSpatialBlock_redoDoesNotDuplicateLinkedRefs() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+
+        SpatialBlockData block = block(0, "Wall", 2f, 3f);
+        occupyLinkedTiles(world, layerId, block);
+
+        history.execute(new AddSpatialBlockCommand(
+                world,
+                history.historyIds(),
+                selection,
+                layerId,
+                block
+        ));
+
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).get(layerId);
+        history.undo();
+        history.redo();
+        history.undo();
+        history.redo();
+
+        Assert.assertEquals(1, component.blocks.size);
+        Assert.assertEquals(1, component.blocks.first().linkedTileRefs.size);
+        Assert.assertEquals(2, component.blocks.first().linkedTileRefs.first().gx);
+        Assert.assertEquals(3, component.blocks.first().linkedTileRefs.first().gy);
+    }
+
+    @Test
+    public void addSpatialBlock_refusesInvalidEnabledActorOccluder() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+
+        SpatialBlockData block = block(0, "Invalid", 2f, 3f);
+        block.clearLinkedTileRefs();
+
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                world,
+                history.historyIds(),
+                selection,
+                layerId,
+                block
+        );
+
+        Assert.assertTrue(command.isNoop());
+        command.redo();
+        Assert.assertFalse(world.getMapper(SpatialBlocksComponent.class).has(layerId));
+        Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, selection.getSelectedBlockId());
+    }
+
+    @Test
+    public void spatialBlockCopyPreservesLinkedRefsDeeplyEnoughForHistory() {
+        SpatialBlockData original = block(3, "Original", 4f, 5f);
+
+        SpatialBlockData copy = original.copy();
+        original.linkedTileRefs.first().tileAssetId = 999;
+        original.addLinkedTileRef(6, 7, 777);
+
+        Assert.assertTrue(copy.linkedTileRefsAuthored);
+        Assert.assertEquals(1, copy.linkedTileRefs.size);
+        Assert.assertEquals(4, copy.linkedTileRefs.first().gx);
+        Assert.assertEquals(5, copy.linkedTileRefs.first().gy);
+        Assert.assertEquals(1003, copy.linkedTileRefs.first().tileAssetId);
     }
 
     @Test
@@ -61,11 +140,12 @@ public class SpatialBlockCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
-        int layerId = world.create();
+        int layerId = tiledLayer(world);
         history.historyIds().ensureForEntity(layerId);
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData original = block(7, "Before", 1f, 1f);
+        occupyLinkedTiles(world, layerId, original);
         component.blocks.add(original);
 
         SpatialBlockData before = original.copy();
@@ -114,11 +194,12 @@ public class SpatialBlockCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
-        int layerId = world.create();
+        int layerId = tiledLayer(world);
         history.historyIds().ensureForEntity(layerId);
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData block = block(3, "Mover", 2f, 4f);
+        occupyLinkedTiles(world, layerId, block);
         block.width = 2f;
         block.height = 12f;
         component.blocks.add(block);
@@ -158,13 +239,19 @@ public class SpatialBlockCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
-        int layerId = world.create();
+        int layerId = tiledLayer(world);
         history.historyIds().ensureForEntity(layerId);
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
-        component.blocks.add(block(1, "A", 0f, 0f));
-        component.blocks.add(block(2, "B", 1f, 0f));
-        component.blocks.add(block(3, "C", 2f, 0f));
+        SpatialBlockData a = block(1, "A", 0f, 0f);
+        SpatialBlockData b = block(2, "B", 1f, 0f);
+        SpatialBlockData c = block(3, "C", 2f, 0f);
+        occupyLinkedTiles(world, layerId, a);
+        occupyLinkedTiles(world, layerId, b);
+        occupyLinkedTiles(world, layerId, c);
+        component.blocks.add(a);
+        component.blocks.add(b);
+        component.blocks.add(c);
         selection.selectBlock(layerId, 2);
 
         history.execute(new DeleteSpatialBlockCommand(
@@ -202,6 +289,7 @@ public class SpatialBlockCommandsTest {
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData original = block(4, "Collider", 2f, 3f);
+        occupyLinkedTiles(world, layerId, original);
         original.width = 2f;
         original.depth = 1f;
         component.blocks.add(original);
@@ -252,6 +340,7 @@ public class SpatialBlockCommandsTest {
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData original = block(5, "Collider", 1f, 1f);
+        occupyLinkedTiles(world, layerId, original);
         original.physicsCollision = true;
         component.blocks.add(original);
 
@@ -295,6 +384,7 @@ public class SpatialBlockCommandsTest {
 
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData block = block(6, "Collider", 1f, 1f);
+        occupyLinkedTiles(world, layerId, block);
         block.physicsCollision = true;
         component.blocks.add(block);
         SpatialBlockPhysicsSync.sync(world, layerId, block, this);
@@ -326,7 +416,17 @@ public class SpatialBlockCommandsTest {
         block.height = 8f;
         block.orientation = SpatialBlockOrientation.TILE_CELL;
         block.actorOccluder = true;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(Math.round(x), Math.round(y), 1000 + Math.max(1, id));
         return block;
+    }
+
+    private static void occupyLinkedTiles(World world, int layerId, SpatialBlockData block) {
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
+        for (int i = 0; i < block.linkedTileRefs.size; i++) {
+            SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(i);
+            tiled.data.setTile(ref.gx, ref.gy, ref.tileAssetId);
+        }
     }
 
     private static int tiledLayer(World world) {

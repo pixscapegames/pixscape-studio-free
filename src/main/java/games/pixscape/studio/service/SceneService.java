@@ -60,6 +60,7 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProf
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.service.atlas.*;
+import games.pixscape.studio.service.spatial.SpatialBlockAuthoringValidator;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.asset.ImportDialog;
@@ -737,6 +738,7 @@ public final class SceneService {
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
         SceneLoader.loadScene(canvas.getEcsWorld(), sceneFile, false);
+        quarantineInvalidSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
 
 
         normalizeSceneAtlasTags(canonicalTag);
@@ -747,6 +749,7 @@ public final class SceneService {
 
         rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);
         rebuildTiledLayersStudio();
+        quarantineInvalidSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
         resyncSpatialBlocksInheritedLayerAltitude(canvas.getEcsWorld());
         canvas.getEcsWorld().process();
         // UI
@@ -1815,6 +1818,57 @@ public final class SceneService {
                 changed++;
             }
         }
+    }
+
+    static int quarantineInvalidSpatialBlocksForActivation(World world, String sceneName) {
+        if (world == null) return 0;
+
+        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
+        ComponentMapper<SpatialBlocksComponent> mBlocks = world.getMapper(SpatialBlocksComponent.class);
+        ComponentMapper<LayerMetaComponent> mMeta = world.getMapper(LayerMetaComponent.class);
+        IntBag layers = world.getAspectSubscriptionManager()
+                .get(Aspect.all(SpatialBlocksComponent.class))
+                .getEntities();
+
+        int quarantinedLayers = 0;
+        int[] data = layers.getData();
+        for (int i = 0, n = layers.size(); i < n; i++) {
+            int entity = data[i];
+            SpatialBlocksComponent blocks = mBlocks.getSafe(entity, null);
+            if (blocks == null || blocks.blocks == null) continue;
+
+            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
+            String layerName = null;
+            LayerMetaComponent meta = mMeta.getSafe(entity, null);
+            if (meta != null) {
+                layerName = meta.name;
+            }
+
+            SpatialBlockAuthoringValidator.Result failure = null;
+            for (int b = 0, bn = blocks.blocks.size; b < bn; b++) {
+                SpatialBlockData block = blocks.blocks.get(b);
+                SpatialBlockAuthoringValidator.Result result =
+                        SpatialBlockAuthoringValidator.validateEnabledActorOccluder(
+                                block,
+                                tiled != null ? tiled.data : null
+                        );
+                if (!result.isValid()) {
+                    failure = result;
+                    break;
+                }
+            }
+
+            if (failure == null) continue;
+
+            String prefix = sceneName != null && !sceneName.isBlank()
+                    ? "Scene '" + sceneName + "' contains "
+                    : "Scene contains ";
+            StudioLog.error(prefix + failure.message(layerName, entity)
+                    + ". Spatial data for this layer was disabled for the current session.");
+            mBlocks.remove(entity);
+            quarantinedLayers++;
+        }
+        return quarantinedLayers;
     }
 
     private void rebuildRenderRuntimeForScene(ProjectConfig cfg,

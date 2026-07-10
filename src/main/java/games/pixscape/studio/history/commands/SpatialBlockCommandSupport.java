@@ -4,8 +4,10 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.spatial.SpatialBlockAuthoringValidator;
 
 final class SpatialBlockCommandSupport {
     private SpatialBlockCommandSupport() {
@@ -32,6 +34,15 @@ final class SpatialBlockCommandSupport {
     static SpatialBlockData find(SpatialBlocksComponent component, int blockId) {
         int index = indexOf(component, blockId);
         return index >= 0 ? component.blocks.get(index) : null;
+    }
+
+    static boolean validAuthoredActorOccluder(World world, int layerEntityId, SpatialBlockData block) {
+        if (world == null || block == null) return false;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        return SpatialBlockAuthoringValidator.validateEnabledActorOccluder(
+                block,
+                tiled != null ? tiled.data : null
+        ).isValid();
     }
 
     static int allocateId(SpatialBlocksComponent component) {
