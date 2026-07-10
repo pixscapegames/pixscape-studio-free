@@ -64,6 +64,7 @@
 * Fixed TMX image layer placement and layer ordering to match Tiled.
 * Fixed repeated TMX image layers rendering correctly in preview but not in the Studio canvas.
 * Fixed false tileset-size incompatibility errors when importing real-world Tiled maps using image collection tilesets.
+* Fixed undocked panels turning black after closing the Debug Console.
 
 ### Tests
 

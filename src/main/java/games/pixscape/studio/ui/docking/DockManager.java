@@ -143,10 +143,16 @@ public final class DockManager {
     public void hide(DockablePanel panel) {
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
-            Lwjgl3Window w = panelToWindow.remove(panel);
+            Lwjgl3Window w = panelToWindow.get(panel);
             if (w != null) {
-                w.closeWindow();
+                GenericWindow genericWindow = genericWindow(w);
+                if (genericWindow != null) {
+                    genericWindow.detachPanel();
+                }
+                w.setVisible(false);
             }
+            panel.remove();
+            panel.setFillParent(false);
             panel.setVisible(false);
             notifyVisibilityChanged(panel, false);
             return;

@@ -42,9 +42,7 @@ public class GenericWindowListener implements Lwjgl3WindowListener {
         }
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
-            // simple close
-            panel.getDockManager().onFloatingWindowClosed(window);
-            window.closeWindow();
+            panel.getDockManager().hide(panel);
             return;
         }
 
@@ -74,8 +72,8 @@ public class GenericWindowListener implements Lwjgl3WindowListener {
         }
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
-            panel.getDockManager().onFloatingWindowClosed(window);
-            return true;
+            panel.getDockManager().hide(panel);
+            return false;
         }
 
         panel.setHeaderVisible(true);
