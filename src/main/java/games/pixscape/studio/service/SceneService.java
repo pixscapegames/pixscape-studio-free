@@ -738,7 +738,7 @@ public final class SceneService {
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
         SceneLoader.loadScene(canvas.getEcsWorld(), sceneFile, false);
-        quarantineInvalidSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
+        validateLoadedSpatialBlocksOrReset(sceneName);
 
 
         normalizeSceneAtlasTags(canonicalTag);
@@ -749,7 +749,7 @@ public final class SceneService {
 
         rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);
         rebuildTiledLayersStudio();
-        quarantineInvalidSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
+        validateLoadedSpatialBlocksOrReset(sceneName);
         resyncSpatialBlocksInheritedLayerAltitude(canvas.getEcsWorld());
         canvas.getEcsWorld().process();
         // UI
@@ -1820,8 +1820,30 @@ public final class SceneService {
         }
     }
 
-    static int quarantineInvalidSpatialBlocksForActivation(World world, String sceneName) {
-        if (world == null) return 0;
+    private void validateLoadedSpatialBlocksOrReset(String sceneName) {
+        try {
+            validateSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
+        } catch (SpatialSceneActivationException ex) {
+            clearWorldAndRenderState();
+            throw ex;
+        }
+    }
+
+    static void validateSpatialBlocksForActivation(World world, String sceneName) {
+        SpatialActivationFailure failure = firstInvalidSpatialBlock(world);
+        if (failure == null) return;
+
+        String prefix = sceneName != null && !sceneName.isBlank()
+                ? "Scene '" + sceneName + "' contains "
+                : "Scene contains ";
+        String message = prefix + failure.result().message(failure.layerName(), failure.layerEntityId())
+                + ". Scene activation was rejected; the authored scene file was left unchanged.";
+        StudioLog.error(message);
+        throw new SpatialSceneActivationException(message);
+    }
+
+    static SpatialActivationFailure firstInvalidSpatialBlock(World world) {
+        if (world == null) return null;
 
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<SpatialBlocksComponent> mBlocks = world.getMapper(SpatialBlocksComponent.class);
@@ -1830,7 +1852,6 @@ public final class SceneService {
                 .get(Aspect.all(SpatialBlocksComponent.class))
                 .getEntities();
 
-        int quarantinedLayers = 0;
         int[] data = layers.getData();
         for (int i = 0, n = layers.size(); i < n; i++) {
             int entity = data[i];
@@ -1859,16 +1880,20 @@ public final class SceneService {
             }
 
             if (failure == null) continue;
-
-            String prefix = sceneName != null && !sceneName.isBlank()
-                    ? "Scene '" + sceneName + "' contains "
-                    : "Scene contains ";
-            StudioLog.error(prefix + failure.message(layerName, entity)
-                    + ". Spatial data for this layer was disabled for the current session.");
-            mBlocks.remove(entity);
-            quarantinedLayers++;
+            return new SpatialActivationFailure(failure, layerName, entity);
         }
-        return quarantinedLayers;
+        return null;
+    }
+
+    record SpatialActivationFailure(SpatialBlockAuthoringValidator.Result result,
+                                    String layerName,
+                                    int layerEntityId) {
+    }
+
+    static final class SpatialSceneActivationException extends IllegalStateException {
+        SpatialSceneActivationException(String message) {
+            super(message);
+        }
     }
 
     private void rebuildRenderRuntimeForScene(ProjectConfig cfg,

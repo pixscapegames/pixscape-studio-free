@@ -58,16 +58,21 @@ public class SceneServiceStateTransitionTest {
     }
 
     @Test
-    public void activationValidationQuarantinesMissingRefSpatialV2Block() {
+    public void activationValidationRejectsMissingRefSpatialV2BlockWithoutMutatingWorld() {
         World world = new World(new WorldConfiguration());
         int layerId = tiledLayer(world);
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         blocks.blocks.add(actorBlockWithoutRefs());
 
-        int quarantined = SceneService.quarantineInvalidSpatialBlocksForActivation(world, "Invalid");
+        RuntimeException ex = assertThrows(
+                RuntimeException.class,
+                () -> SceneService.validateSpatialBlocksForActivation(world, "Invalid")
+        );
 
-        assertEquals(1, quarantined);
-        assertFalse(world.getMapper(SpatialBlocksComponent.class).has(layerId));
+        assertTrue(ex.getMessage().contains("Scene activation was rejected"));
+        assertTrue(ex.getMessage().contains("authored linkedTileRefs are missing"));
+        assertTrue(world.getMapper(SpatialBlocksComponent.class).has(layerId));
+        assertEquals(1, world.getMapper(SpatialBlocksComponent.class).get(layerId).blocks.size);
     }
 
     @Test
@@ -83,9 +88,7 @@ public class SceneServiceStateTransitionTest {
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         blocks.blocks.add(block);
 
-        int quarantined = SceneService.quarantineInvalidSpatialBlocksForActivation(world, "Valid");
-
-        assertEquals(0, quarantined);
+        SceneService.validateSpatialBlocksForActivation(world, "Valid");
         assertTrue(world.getMapper(SpatialBlocksComponent.class).has(layerId));
         assertEquals(1, world.getMapper(SpatialBlocksComponent.class).get(layerId).blocks.size);
     }

@@ -2,8 +2,10 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlockOrientation;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.service.tiled.TiledBrushSession;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -94,7 +96,7 @@ public class SpatialBlockAuthoringValidatorTest {
     }
 
     @Test
-    public void linkedAssetMismatchFailsClearly() {
+    public void linkedAssetMismatchIsDiagnosticOnly() {
         TiledMapLayerData map = map();
         map.setTile(2, 3, 202);
         SpatialBlockData block = block();
@@ -102,8 +104,35 @@ public class SpatialBlockAuthoringValidatorTest {
         block.addLinkedTileRef(2, 3, 101);
 
         Assert.assertEquals(
-                SpatialBlockAuthoringValidator.Status.LINKED_ASSET_ID_MISMATCH,
+                SpatialBlockAuthoringValidator.Status.VALID,
                 SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, map).status
+        );
+        Assert.assertEquals(
+                SpatialBlockAuthoringValidator.Status.LINKED_ASSET_ID_MISMATCH,
+                SpatialBlockAuthoringValidator.diagnoseAssetIdMismatch(block, map).status
+        );
+    }
+
+    @Test
+    public void replacingTileAssetInLinkedOccupiedCellDoesNotInvalidateBlock() {
+        TiledLayerComponent tiled = new TiledLayerComponent();
+        tiled.data = map();
+        tiled.data.setTile(2, 3, 101);
+        SpatialBlockData block = block();
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(2, 3, 101);
+
+        new TiledBrushSession(7).apply(tiled, 2, 3, 202);
+
+        Assert.assertEquals(202, tiled.data.getTile(2, 3));
+        Assert.assertEquals(101, block.linkedTileRefs.first().tileAssetId);
+        Assert.assertEquals(
+                SpatialBlockAuthoringValidator.Status.VALID,
+                SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, tiled.data).status
+        );
+        Assert.assertEquals(
+                SpatialBlockAuthoringValidator.Status.LINKED_ASSET_ID_MISMATCH,
+                SpatialBlockAuthoringValidator.diagnoseAssetIdMismatch(block, tiled.data).status
         );
     }
 

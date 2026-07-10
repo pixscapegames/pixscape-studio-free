@@ -55,11 +55,28 @@ public final class SpatialBlockAuthoringValidator {
             if (currentTileAssetId <= 0) {
                 return new Result(Status.LINKED_CELL_EMPTY, block.id, ref.gx, ref.gy, ref.tileAssetId);
             }
-            if (currentTileAssetId != ref.tileAssetId) {
+        }
+
+        return Result.valid();
+    }
+
+    public static Result diagnoseAssetIdMismatch(SpatialBlockData block, TiledMapLayerData map) {
+        Result blocking = validateEnabledActorOccluder(block, map);
+        if (!blocking.isValid()) {
+            return Result.valid();
+        }
+        if (block == null || !block.enabled || !block.actorOccluder || map == null || block.linkedTileRefs == null) {
+            return Result.valid();
+        }
+
+        for (int i = 0, n = block.linkedTileRefs.size; i < n; i++) {
+            SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(i);
+            if (ref == null) continue;
+            int currentTileAssetId = map.getTile(ref.gx, ref.gy);
+            if (currentTileAssetId > 0 && currentTileAssetId != ref.tileAssetId) {
                 return new Result(Status.LINKED_ASSET_ID_MISMATCH, block.id, ref.gx, ref.gy, ref.tileAssetId);
             }
         }
-
         return Result.valid();
     }
 
