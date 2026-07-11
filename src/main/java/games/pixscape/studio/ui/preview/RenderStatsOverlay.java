@@ -33,6 +33,8 @@ public final class RenderStatsOverlay {
     private final StringBuilder sb6 = new StringBuilder(192);
     private final StringBuilder sb7 = new StringBuilder(192);
     private final StringBuilder sb8 = new StringBuilder(192);
+    private final StringBuilder sb9 = new StringBuilder(192);
+    private final StringBuilder sb10 = new StringBuilder(192);
     private String line1 = "";
     private String line2 = "";
     private String line3 = "";
@@ -41,6 +43,8 @@ public final class RenderStatsOverlay {
     private String line6 = "";
     private String line7 = "";
     private String line8 = "";
+    private String line9 = "";
+    private String line10 = "";
 
     private long lastUiRefreshNs = 0L;
 
@@ -104,6 +108,8 @@ public final class RenderStatsOverlay {
             font.draw(uiStage.getBatch(), line6, x, y - 90f);
             font.draw(uiStage.getBatch(), line7, x, y - 108f);
             font.draw(uiStage.getBatch(), line8, x, y - 126f);
+            font.draw(uiStage.getBatch(), line9, x, y - 144f);
+            font.draw(uiStage.getBatch(), line10, x, y - 162f);
         }
 
         uiStage.getBatch().end();
@@ -132,28 +138,36 @@ public final class RenderStatsOverlay {
         line5 = sb5.toString();
 
         sb6.setLength(0);
-        RenderStatsTextFormatter.appendBuildLine(sb6, stats);
+        RenderStatsTextFormatter.appendTiledChunksLine(sb6, stats);
         line6 = sb6.toString();
 
         sb7.setLength(0);
-        sb7.append("Frame ms: avg=");
-        append2(sb7, avgMs);
-        sb7.append(" p95=");
-        append2(sb7, p95Ms);
-        sb7.append(" p99=");
-        append2(sb7, p99Ms);
-        sb7.append(" max=");
-        append2(sb7, maxMs);
+        RenderStatsTextFormatter.appendTiledRefsLine(sb7, stats);
         line7 = sb7.toString();
 
         sb8.setLength(0);
-        sb8.append("Box2D: step=");
-        append2(sb8, boxStepMs);
-        sb8.append("ms sub=").append(boxSubsteps)
+        RenderStatsTextFormatter.appendBuildLine(sb8, stats);
+        line8 = sb8.toString();
+
+        sb9.setLength(0);
+        sb9.append("Frame ms: avg=");
+        append2(sb9, avgMs);
+        sb9.append(" p95=");
+        append2(sb9, p95Ms);
+        sb9.append(" p99=");
+        append2(sb9, p99Ms);
+        sb9.append(" max=");
+        append2(sb9, maxMs);
+        line9 = sb9.toString();
+
+        sb10.setLength(0);
+        sb10.append("Box2D: step=");
+        append2(sb10, boxStepMs);
+        sb10.append("ms sub=").append(boxSubsteps)
                 .append("  bodies:").append(boxBodies)
                 .append("  contacts:").append(boxContacts)
                 .append("  joints:").append(boxJoints);
-        line8 = sb8.toString();
+        line10 = sb10.toString();
     }
 
     /**

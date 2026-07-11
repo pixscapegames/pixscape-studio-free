@@ -8,8 +8,6 @@ final class RenderStatsTextFormatter {
 
     static void appendGeometryLine(StringBuilder out, RenderStats stats) {
         out.append("Geometry: extracted=").append(stats.extractedQuads)
-                .append(" culled=").append(stats.culledQuads)
-                .append(" occluded=").append(stats.occludedQuads)
                 .append(" drawn=").append(stats.drawnQuads)
                 .append(" submitted=").append(stats.submittedQuads)
                 .append(" flushed=").append(stats.flushedQuads)
@@ -18,10 +16,7 @@ final class RenderStatsTextFormatter {
 
     static void appendGpuDrawLine(StringBuilder out, RenderStats stats) {
         out.append("GPU/draw: draws=").append(stats.drawCalls)
-                .append(" flushes=").append(stats.flushes)
-                .append(" capacity=").append(stats.flushCapacity)
-                .append(" end=").append(stats.flushEnd)
-                .append(" stateChanges=").append(stats.flushStateChanges);
+                .append(" flushes=").append(stats.flushes);
     }
 
     static void appendGpuStateLine(StringBuilder out, RenderStats stats) {
@@ -30,10 +25,20 @@ final class RenderStatsTextFormatter {
                 .append(" shaderSw=").append(stats.shaderSwitches)
                 .append(" shaderBinds=").append(stats.shaderBinds)
                 .append(" projUploads=").append(stats.projectionUploads)
-                .append(" fbBinds=").append(stats.framebufferBinds)
-                .append(" fbSwitches=").append(stats.framebufferSwitches)
-                .append(" blendModeSw=").append(stats.blendModeSwitches)
                 .append(" blendSw=").append(stats.blendSwitches);
+    }
+
+    static void appendTiledChunksLine(StringBuilder out, RenderStats stats) {
+        out.append("Tiled chunks: tested=").append(stats.tiledChunksTested)
+                .append(" out=").append(stats.tiledChunksOutside)
+                .append(" full=").append(stats.tiledChunksFullyInside)
+                .append(" partial=").append(stats.tiledChunksPartial);
+    }
+
+    static void appendTiledRefsLine(StringBuilder out, RenderStats stats) {
+        out.append("Tiled refs: visible=").append(stats.tiledRenderableRefsVisible)
+                .append(" considered=").append(stats.tiledRenderableRefsConsidered)
+                .append(" narrowCulled=").append(stats.tiledRenderableRefsCulled);
     }
 
     static void appendRegionCacheLine(StringBuilder out, RenderStats stats) {
@@ -56,7 +61,7 @@ final class RenderStatsTextFormatter {
         out.append("Build: opaque=").append(stats.batchesOpaque)
                 .append(" alpha=").append(stats.batchesAlpha)
                 .append(" ecsSlots=").append(stats.buildDrawListScannedEcsSlots)
-                .append(" tiledSlots=").append(stats.buildDrawListScannedTiledSlots);
+                .append(" tiledVisibleRefs=").append(stats.buildDrawListScannedTiledSlots);
     }
 
     static void appendRegionCacheHitRatio(StringBuilder out, long hits, long misses) {
