@@ -71,6 +71,18 @@ public final class SpatialBlockProjection {
         out[offset + 1] = origin.y + gx * axisX.y + gy * axisY.y + yOffset;
     }
 
+    public static void projectStructurePoint(TiledMapLayerData map,
+                                             float gx,
+                                             float gy,
+                                             float elevation,
+                                             float[] out,
+                                             int offset) {
+        if (map == null || out == null || offset < 0 || offset + 1 >= out.length) return;
+        Vector2 cellOriginOffset = tmpCellOriginOffset();
+        cellOriginOffset(map, cellOriginOffset);
+        projectTileLocal(map, gx, gy, elevationToWorldYOffset(elevation), cellOriginOffset, out, offset);
+    }
+
     public static void footprintWorldToTileLocal(TiledMapLayerData map,
                                                  float worldX,
                                                  float worldY,

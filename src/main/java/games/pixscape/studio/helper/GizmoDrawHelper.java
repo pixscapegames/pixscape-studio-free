@@ -5,6 +5,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
 public final class GizmoDrawHelper {
 
@@ -79,7 +80,7 @@ public final class GizmoDrawHelper {
         float borderWorld = ctx.wpp();
         float half = (HANDLE_SIZE_PX * 0.5f) * borderWorld;
 
-        ctx.drawer.setColor(0.8f, 0.8f, 0.8f, 1f);
+        ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
         ctx.drawer.filledRectangle(cx - half, cy - half, half * 2f, half * 2f);
 
         ctx.drawer.setColor(0f, 0f, 0f, 1f);
@@ -92,7 +93,7 @@ public final class GizmoDrawHelper {
 
         HandleLayout.rotateHandle(obb, offsetWorld, tmp2);
 
-        ctx.drawer.setColor(0.8f, 0.8f, 0.8f, 1f);
+        ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
         ctx.drawer.filledCircle(tmp2[0], tmp2[1], ROTATE_RADIUS_PX * wpp);
     }
 
@@ -228,10 +229,17 @@ public final class GizmoDrawHelper {
     }
 
     public static void drawShapeVertexHandle(StudioDrawContext ctx, float cx, float cy) {
+        drawShapeVertexHandle(ctx, cx, cy, EditorOverlayPalette.HANDLE_COLOR);
+    }
+
+    public static void drawShapeVertexHandle(StudioDrawContext ctx,
+                                             float cx,
+                                             float cy,
+                                             Color fillColor) {
         float borderWorld = ctx.wpp();
         float half = (SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f) * borderWorld;
 
-        ctx.drawer.setColor(1f, 1f, 1f, 1f);
+        ctx.drawer.setColor(fillColor != null ? fillColor : EditorOverlayPalette.HANDLE_COLOR);
         ctx.drawer.filledRectangle(cx - half, cy - half, half * 2f, half * 2f);
 
         ctx.drawer.setColor(0f, 0f, 0f, 1f);
@@ -249,11 +257,11 @@ public final class GizmoDrawHelper {
                                           boolean selected,
                                           boolean sensor) {
         if (selected) {
-            ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
         } else if (hovered) {
-            ctx.drawer.setColor(Color.WHITE);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
         } else if (focusedBody) {
-            ctx.drawer.setColor(CommonLayout.PHYSICS_FOCUSED_BODY_COLOR);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_FOCUSED_BODY_COLOR);
         } else if (sensor) {
             ctx.drawer.setColor(CommonLayout.PHYSICS_SENSOR_COLOR);
         } else {

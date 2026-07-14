@@ -19,6 +19,7 @@ import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.ConvexPolygonPartData;
@@ -37,12 +38,20 @@ import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
+import games.pixscape.studio.service.spatial.SpatialCellPicker;
+import games.pixscape.studio.service.spatial.SpatialStructureGeometryCache;
+import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
+import games.pixscape.studio.service.spatial.SpatialWallEditSession;
+import games.pixscape.studio.service.spatial.SpatialWallThicknessInheritance;
+import games.pixscape.studio.service.spatial.SpatialWallWireframe;
 import games.pixscape.studio.service.tiled.TiledPreviewService;
 import games.pixscape.studio.service.tiled.TiledVisualCoverage;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
 @All({TransformComponent.class, DimensionsComponent.class})
 public final class GizmoSystem extends BaseSystem {
+    private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
 
     private final StudioDrawContext ctx;
     private final InputState inputState;
@@ -56,6 +65,11 @@ public final class GizmoSystem extends BaseSystem {
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
+    private final SpatialStructureGeometryCache spatialStructureGeometryCache = new SpatialStructureGeometryCache();
+    private final SpatialWallEditSession spatialHandleSession = new SpatialWallEditSession();
+    private int spatialHandleLayer = -1;
+    private int spatialHandleBlock = -1;
+    private int spatialHandleRevision = -1;
     private final TiledPreviewService tiledPreviewService;
     private final FixtureDefData tmpAuthoringFixture = new FixtureDefData();
 
@@ -109,6 +123,8 @@ public final class GizmoSystem extends BaseSystem {
     private float[] tmpFixtureVerts = new float[32];
     private final float[] tmpSpatialBlockBaseVerts = new float[8];
     private final float[] tmpSpatialBlockTopVerts = new float[8];
+    private final float[] tmpSpatialWallWireframe = new float[SpatialWallWireframe.REQUIRED_OUTPUT_FLOATS];
+    private final float[] tmpSpatialStructureSegment = new float[8];
     private final float[] tmpSpatialTileTintVerts = new float[20];
 
     public GizmoSystem(StudioDrawContext worldCtx,
@@ -214,10 +230,9 @@ public final class GizmoSystem extends BaseSystem {
                 if (tiled != null && tiled.data != null) {
                     TiledMapLayerData map = tiled.data;
 
-                    int gx = map.worldToTileX(tmpMouseWorld.x, tmpMouseWorld.y);
-                    int gy = map.worldToTileY(tmpMouseWorld.x, tmpMouseWorld.y);
-
-                    if (map.isInside(gx, gy)) {
+                    if (SpatialCellPicker.pick(map, tmpMouseWorld.x, tmpMouseWorld.y, spatialCell)) {
+                        int gx = spatialCell.gx;
+                        int gy = spatialCell.gy;
                         TiledVisualCoverage.Coverage coverage = activePreviewCoverage(map, gx, gy);
                         SpatialBlockPlacementTarget target = SpatialBlockPlacementTarget.fromWorld(
                                 map,
@@ -296,7 +311,8 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private boolean hasSpatialTileSelectionWork() {
-        return spatialTileSelectionService != null && spatialTileSelectionService.hasSelection();
+        return spatialTileSelectionService != null
+                && (spatialTileSelectionService.hasSelection() || spatialTileSelectionService.hasHover());
     }
 
     private void drawSpatialBlockOverlays() {
@@ -310,39 +326,178 @@ public final class GizmoSystem extends BaseSystem {
         int selectedBlockId = spatialBlockSelectionService.getSelectedBlockId();
         int hoveredBlockId = spatialBlockSelectionService.getHoveredBlockId();
 
-        for (int i = 0, n = component.blocks.size; i < n; i++) {
-            SpatialBlockData block = component.blocks.get(i);
-            if (block == null) continue;
-
-            SpatialBlockProjection.projectBaseFootprint(tiled.data, block, tmpSpatialBlockBaseVerts);
-            SpatialBlockProjection.projectTopFootprint(tiled.data, block, tmpSpatialBlockTopVerts);
-            boolean selected = block.id == selectedBlockId;
-            boolean hovered = block.id == hoveredBlockId;
-
-            if (selected) {
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
-            } else if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
-            } else if (block.enabled) {
-                ctx.drawer.setColor(0.25f, 1f, 0.65f, 0.85f);
-            } else {
-                ctx.drawer.setColor(0.55f, 0.55f, 0.55f, 0.65f);
-            }
-
-            float lineW = ctx.pxToWorld(selected ? 2.5f : hovered ? 2f : 1.25f);
-            drawBlockVolume(tmpSpatialBlockBaseVerts, tmpSpatialBlockTopVerts, lineW);
-            if (selected) {
-                GizmoDrawHelper.drawShapeVertices(ctx, tmpSpatialBlockBaseVerts, 4);
-                drawBlockHeightHandle(tmpSpatialBlockTopVerts);
-            }
+        SpatialBlockData selectedBlock = spatialBlockById(component, selectedBlockId);
+        SpatialBlockData hoveredBlock = spatialBlockById(component, hoveredBlockId);
+        spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
+        for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
+            CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
+            ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
+            drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
         }
+
+        if (hoveredBlock != null && hoveredBlock.id != selectedBlockId
+                && !spatialBlockSelectionService.isEditPreviewActive()) {
+            SpatialBlockProjection.projectBaseFootprint(tiled.data, hoveredBlock, tmpSpatialBlockBaseVerts);
+            SpatialBlockProjection.projectTopFootprint(tiled.data, hoveredBlock, tmpSpatialBlockTopVerts);
+            ctx.drawer.setColor(EditorOverlayPalette.WALL_HOVER_COLOR);
+            drawSpatialWallVolume(ctx.pxToWorld(2f));
+        }
+
+        if (selectedBlock != null) {
+            SpatialWallEditSession activeSession = spatialBlockSelectionService.wallEditSession();
+            SpatialBlockData displayedBlock = activeSession.isActive()
+                    && activeSession.layerEntityId() == layerEntityId
+                    && activeSession.wallId() == selectedBlock.id
+                    && activeSession.candidate() != null
+                    ? activeSession.candidate() : selectedBlock;
+            SpatialWallEditSession handles = activeSession.isActive()
+                    ? activeSession : handleSession(layerEntityId, component, tiled.data, selectedBlock.id);
+            SpatialBlockProjection.projectBaseFootprint(tiled.data, displayedBlock, tmpSpatialBlockBaseVerts);
+            SpatialBlockProjection.projectTopFootprint(tiled.data, displayedBlock, tmpSpatialBlockTopVerts);
+            boolean previewActive = activeSession.isActive()
+                    && spatialBlockSelectionService.isEditPreviewActive();
+            ctx.drawer.setColor(EditorOverlayPalette.spatialWallColor(
+                    true, selectedBlock.id == hoveredBlockId, previewActive,
+                    spatialBlockSelectionService.isEditPreviewValid()));
+            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+            for (int corner = 0; corner < 4; corner++) {
+                SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialCornerHandle(corner);
+                if (handles != null && handles.isHandleEnabled(handle)) {
+                    GizmoDrawHelper.drawShapeVertexHandle(ctx,
+                            tmpSpatialBlockBaseVerts[corner * 2], tmpSpatialBlockBaseVerts[corner * 2 + 1],
+                            EditorOverlayPalette.HANDLE_COLOR);
+                }
+            }
+            for (int edge = 0; edge < 4; edge++) {
+                int next = (edge + 1) & 3;
+                SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialEdgeHandle(edge);
+                if (handles != null && handles.isHandleEnabled(handle)) {
+                    GizmoDrawHelper.drawShapeVertexHandle(
+                            ctx,
+                            (tmpSpatialBlockBaseVerts[edge * 2] + tmpSpatialBlockBaseVerts[next * 2]) * 0.5f,
+                            (tmpSpatialBlockBaseVerts[edge * 2 + 1] + tmpSpatialBlockBaseVerts[next * 2 + 1]) * 0.5f,
+                            EditorOverlayPalette.HANDLE_COLOR);
+                }
+            }
+            drawBlockHeightHandle(tmpSpatialBlockTopVerts, EditorOverlayPalette.HANDLE_COLOR);
+        }
+    }
+
+    private void drawSpatialWallVolume(float lineWidth) {
+        int count = SpatialWallWireframe.write(
+                tmpSpatialBlockBaseVerts, tmpSpatialBlockTopVerts, tmpSpatialWallWireframe);
+        for (int segment = 0; segment < count; segment++) {
+            int offset = segment * SpatialWallWireframe.FLOATS_PER_SEGMENT;
+            ctx.drawer.line(tmpSpatialWallWireframe[offset], tmpSpatialWallWireframe[offset + 1],
+                    tmpSpatialWallWireframe[offset + 2], tmpSpatialWallWireframe[offset + 3], lineWidth);
+        }
+    }
+
+    private SpatialWallEditSession handleSession(int layerEntityId,
+                                                 SpatialBlocksComponent component,
+                                                 TiledMapLayerData map,
+                                                 int blockId) {
+        if (spatialHandleLayer != layerEntityId || spatialHandleBlock != blockId
+                || spatialHandleRevision != component.revision || !spatialHandleSession.isActive()) {
+            spatialHandleSession.begin(layerEntityId, blockId, component, map);
+            spatialHandleLayer = layerEntityId;
+            spatialHandleBlock = blockId;
+            spatialHandleRevision = component.revision;
+        }
+        return spatialHandleSession.isActive() ? spatialHandleSession : null;
+    }
+
+    private static SpatialBlockInteractiveEditSupport.ResizeHandle spatialEdgeHandle(int edge) {
+        return switch (edge) {
+            case 0 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_Y;
+            case 1 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X;
+            case 2 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_Y;
+            default -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X;
+        };
+    }
+
+    private static SpatialBlockInteractiveEditSupport.ResizeHandle spatialCornerHandle(int corner) {
+        return switch (corner) {
+            case 0 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X_MIN_Y;
+            case 1 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X_MIN_Y;
+            case 2 -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X_MAX_Y;
+            default -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X_MAX_Y;
+        };
+    }
+
+    private void drawCompiledStructure(TiledMapLayerData map,
+                                       CompiledSpatialStructure structure,
+                                       float lineW) {
+        for (int segment = 0; segment < structure.segmentCount(); segment++) {
+            SpatialBlockProjection.projectStructurePoint(map,
+                    structure.startX(segment), structure.startY(segment), structure.lowerZ(),
+                    tmpSpatialStructureSegment, 0);
+            SpatialBlockProjection.projectStructurePoint(map,
+                    structure.endX(segment), structure.endY(segment), structure.lowerZ(),
+                    tmpSpatialStructureSegment, 2);
+            SpatialBlockProjection.projectStructurePoint(map,
+                    structure.startX(segment), structure.startY(segment), structure.upperZ(),
+                    tmpSpatialStructureSegment, 4);
+            SpatialBlockProjection.projectStructurePoint(map,
+                    structure.endX(segment), structure.endY(segment), structure.upperZ(),
+                    tmpSpatialStructureSegment, 6);
+            ctx.drawer.line(tmpSpatialStructureSegment[0], tmpSpatialStructureSegment[1],
+                    tmpSpatialStructureSegment[2], tmpSpatialStructureSegment[3], lineW);
+            ctx.drawer.line(tmpSpatialStructureSegment[4], tmpSpatialStructureSegment[5],
+                    tmpSpatialStructureSegment[6], tmpSpatialStructureSegment[7], lineW);
+            drawCompiledVerticalIfFirst(structure, segment, true, lineW);
+            drawCompiledVerticalIfFirst(structure, segment, false, lineW);
+        }
+    }
+
+    private void drawCompiledVerticalIfFirst(CompiledSpatialStructure structure,
+                                             int segment,
+                                             boolean start,
+                                             float lineW) {
+        float gx = start ? structure.startX(segment) : structure.endX(segment);
+        float gy = start ? structure.startY(segment) : structure.endY(segment);
+        if (hasCollinearContinuation(structure, segment, gx, gy)) return;
+        for (int previous = 0; previous < segment; previous++) {
+            if (samePoint(gx, gy, structure.startX(previous), structure.startY(previous))
+                    || samePoint(gx, gy, structure.endX(previous), structure.endY(previous))) return;
+        }
+        if (!start && samePoint(gx, gy, structure.startX(segment), structure.startY(segment))) return;
+        ctx.drawer.line(
+                start ? tmpSpatialStructureSegment[0] : tmpSpatialStructureSegment[2],
+                start ? tmpSpatialStructureSegment[1] : tmpSpatialStructureSegment[3],
+                start ? tmpSpatialStructureSegment[4] : tmpSpatialStructureSegment[6],
+                start ? tmpSpatialStructureSegment[5] : tmpSpatialStructureSegment[7],
+                lineW);
+    }
+
+    private static boolean hasCollinearContinuation(CompiledSpatialStructure structure,
+                                                    int segment,
+                                                    float gx,
+                                                    float gy) {
+        boolean horizontal = Float.compare(structure.startY(segment), structure.endY(segment)) == 0;
+        for (int other = 0; other < structure.segmentCount(); other++) {
+            if (other == segment) continue;
+            boolean otherHorizontal = Float.compare(structure.startY(other), structure.endY(other)) == 0;
+            if (horizontal != otherHorizontal) continue;
+            if (horizontal && Float.compare(structure.startY(segment), structure.startY(other)) != 0) continue;
+            if (!horizontal && Float.compare(structure.startX(segment), structure.startX(other)) != 0) continue;
+            if (samePoint(gx, gy, structure.startX(other), structure.startY(other))
+                    || samePoint(gx, gy, structure.endX(other), structure.endY(other))) return true;
+        }
+        return false;
+    }
+
+    private static boolean samePoint(float ax, float ay, float bx, float by) {
+        return Float.compare(ax, bx) == 0 && Float.compare(ay, by) == 0;
     }
 
     private void drawSpatialTileSelection() {
         if (!hasSpatialTileSelectionWork()) return;
         if (spatialBlockSelectionService == null || !spatialBlockSelectionService.isEditingActive()) return;
 
-        int layerEntityId = spatialTileSelectionService.getLayerEntityId();
+        int layerEntityId = spatialTileSelectionService.hasSelection()
+                ? spatialTileSelectionService.getLayerEntityId()
+                : spatialTileSelectionService.getHoverLayerEntityId();
         if (layerEntityId != spatialBlockSelectionService.getEditingLayerEntityId()) return;
         if (!isLayerEntityVisible(layerEntityId)) return;
 
@@ -352,13 +507,49 @@ public final class GizmoSystem extends BaseSystem {
             return;
         }
 
-        boolean validSelection = spatialTileSelectionService.canCreateSpatialBlock(tiled.data);
-        drawSpatialTileSelectionTint(tiled.data, spatialTileSelectionService.isDragging(), validSelection);
+        if (!spatialTileSelectionService.hasSelection()) {
+            drawSpatialTileTintCell(tiled.data, spatialTileSelectionService.getHoverGx(),
+                    spatialTileSelectionService.getHoverGy(),
+                    EditorOverlayPalette.spatialTileHighlightPacked());
+            return;
+        }
+
+        SpatialBlocksComponent walls = mSpatialBlocks.getSafe(layerEntityId, null);
+        boolean validSelection = spatialTileSelectionService.canCreateSpatialBlock(
+                tiled.data, walls, tiled.defaultTileAltitude, tiled.defaultTileHeight);
+        SpatialTileSelectionService.NormalizedSelection normalized =
+                spatialTileSelectionService.normalize(tiled.data);
+        drawSpatialTileSelectionTint(tiled.data, normalized, validSelection);
+        drawSpatialWallRangeCandidate(tiled.data, walls, tiled.defaultTileAltitude,
+                tiled.defaultTileHeight, validSelection);
+    }
+
+    private void drawSpatialWallRangeCandidate(TiledMapLayerData map,
+                                               SpatialBlocksComponent walls,
+                                               float defaultAltitude,
+                                               float defaultHeight,
+                                               boolean validSelection) {
+        if (!spatialTileSelectionService.isDragging()) return;
+        try {
+            SpatialBlockData raw = spatialTileSelectionService.toSpatialBlockData(
+                    map, defaultAltitude, defaultHeight);
+            if (raw == null) return;
+            SpatialWallThicknessInheritance.Result inherited = SpatialWallThicknessInheritance.apply(
+                    raw, walls, spatialTileSelectionService.gestureAxis());
+            SpatialBlockData displayed = inherited.valid ? inherited.wall : raw;
+            SpatialBlockProjection.projectBaseFootprint(map, displayed, tmpSpatialBlockBaseVerts);
+            SpatialBlockProjection.projectTopFootprint(map, displayed, tmpSpatialBlockTopVerts);
+            if (validSelection && inherited.valid) ctx.drawer.setColor(EditorOverlayPalette.VALID_PREVIEW_COLOR);
+            else ctx.drawer.setColor(EditorOverlayPalette.INVALID_PREVIEW_COLOR);
+            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+        } catch (RuntimeException ignored) {
+            // Transient authoring candidates must never escape through the render loop.
+        }
     }
 
     private void drawSelectedSpatialBlockLinkedTiles() {
         if (spatialBlockSelectionService == null || !spatialBlockSelectionService.hasSelectedBlock()) return;
-        if (hasSpatialTileSelectionWork()) return;
+        if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) return;
 
         int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
         if (!isLayerEntityVisible(layerEntityId)) return;
@@ -382,22 +573,27 @@ public final class GizmoSystem extends BaseSystem {
         return null;
     }
 
-    private void drawSpatialTileSelectionTint(TiledMapLayerData map, boolean dragging, boolean validSelection) {
+    private void drawSpatialTileSelectionTint(TiledMapLayerData map,
+                                              SpatialTileSelectionService.NormalizedSelection normalized,
+                                              boolean validSelection) {
         if (map == null || tiledState == null) return;
 
-        float colorPacked = Color.toFloatBits(
-                validSelection ? 0.05f : 1f,
-                validSelection ? 0.92f : 0.12f,
-                validSelection ? 1f : 0.08f,
-                dragging ? 0.42f : 0.5f
-        );
+        float colorPacked = validSelection
+                ? EditorOverlayPalette.spatialTileHighlightPacked()
+                : Color.toFloatBits(EditorOverlayPalette.INVALID_PREVIEW_COLOR.r,
+                EditorOverlayPalette.INVALID_PREVIEW_COLOR.g,
+                EditorOverlayPalette.INVALID_PREVIEW_COLOR.b,
+                EditorOverlayPalette.SPATIAL_TILE_HIGHLIGHT_COLOR.a);
 
-        drawSpatialTileSelectionTintRange(map, colorPacked);
+        drawSpatialTileSelectionTintRange(map, normalized, colorPacked);
     }
 
-    private void drawSpatialTileSelectionTintRange(TiledMapLayerData map, float colorPacked) {
-        for (int gy = spatialTileSelectionService.getMinGy(); gy <= spatialTileSelectionService.getMaxGy(); gy++) {
-            for (int gx = spatialTileSelectionService.getMinGx(); gx <= spatialTileSelectionService.getMaxGx(); gx++) {
+    private void drawSpatialTileSelectionTintRange(TiledMapLayerData map,
+                                                   SpatialTileSelectionService.NormalizedSelection normalized,
+                                                   float colorPacked) {
+        if (normalized == null || normalized.occupiedCellCount <= 0) return;
+        for (int gy = normalized.minGy; gy < normalized.maxGyExclusive; gy++) {
+            for (int gx = normalized.minGx; gx < normalized.maxGxExclusive; gx++) {
                 if (!map.isInside(gx, gy)) continue;
                 if (map.getTile(gx, gy) <= 0) continue;
                 drawSpatialTileTintCell(map, gx, gy, colorPacked);
@@ -408,7 +604,7 @@ public final class GizmoSystem extends BaseSystem {
     private void drawSpatialBlockLinkedTileTint(TiledMapLayerData map, SpatialBlockData block) {
         if (map == null || block == null || block.linkedTileRefs == null || tiledState == null) return;
 
-        float colorPacked = Color.toFloatBits(0.05f, 0.92f, 1f, 0.5f);
+        float colorPacked = EditorOverlayPalette.spatialTileHighlightPacked();
         for (int i = 0, n = block.linkedTileRefs.size; i < n; i++) {
             SpatialBlockData.LinkedTileRef ref = block.linkedTileRefs.get(i);
             if (ref == null || !map.isInside(ref.gx, ref.gy)) continue;
@@ -463,11 +659,11 @@ public final class GizmoSystem extends BaseSystem {
         out[19] = tiledState.v2[tiledRenderRef];
     }
 
-    private void drawBlockHeightHandle(float[] topVerts) {
+    private void drawBlockHeightHandle(float[] topVerts, Color color) {
         if (topVerts == null || topVerts.length < 8) return;
         float cx = (topVerts[0] + topVerts[2] + topVerts[4] + topVerts[6]) * 0.25f;
         float cy = (topVerts[1] + topVerts[3] + topVerts[5] + topVerts[7]) * 0.25f;
-        GizmoDrawHelper.drawShapeVertexHandle(ctx, cx, cy);
+        GizmoDrawHelper.drawShapeVertexHandle(ctx, cx, cy, color);
     }
 
     private TiledVisualCoverage.Coverage activePreviewCoverage(TiledMapLayerData map, int fallbackGX, int fallbackGY) {
@@ -486,33 +682,6 @@ public final class GizmoSystem extends BaseSystem {
         }
 
         return TiledVisualCoverage.compute(map, fallbackGX, fallbackGY, map.tileWidth, map.tileHeight, (byte) 0);
-    }
-
-    private void drawBlockVolume(float[] base, float[] top, float lineW) {
-        drawBlockOutline(base, lineW);
-        drawBlockOutline(top, lineW);
-        for (int i = 0; i < 4; i++) {
-            ctx.drawer.line(
-                    base[i * 2],
-                    base[i * 2 + 1],
-                    top[i * 2],
-                    top[i * 2 + 1],
-                    lineW
-            );
-        }
-    }
-
-    private void drawBlockOutline(float[] verts, float lineW) {
-        for (int i = 0; i < 4; i++) {
-            int next = (i + 1) & 3;
-            ctx.drawer.line(
-                    verts[i * 2],
-                    verts[i * 2 + 1],
-                    verts[next * 2],
-                    verts[next * 2 + 1],
-                    lineW
-            );
-        }
     }
 
     private void drawFixtureOverlays() {
@@ -740,9 +909,9 @@ public final class GizmoSystem extends BaseSystem {
         if (verts == null || vertexCount < 2) return;
 
         if (selected) {
-            ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
         } else if (focusedBody) {
-            ctx.drawer.setColor(CommonLayout.PHYSICS_FOCUSED_BODY_COLOR);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_FOCUSED_BODY_COLOR);
         } else {
             ctx.drawer.setColor(CommonLayout.PHYSICS_BASE_COLOR);
         }
@@ -924,7 +1093,7 @@ public final class GizmoSystem extends BaseSystem {
         if (pts == null || count == 0) return;
 
         // validated segments
-        ctx.drawer.setColor(Color.WHITE);
+        ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
         for (int i = 0; i < count - 1; i++) {
             Vector2 a = pts.get(i);
             Vector2 b = pts.get(i + 1);
@@ -971,12 +1140,12 @@ public final class GizmoSystem extends BaseSystem {
                 boolean nearClose = dx * dx + dy * dy <= closeRadiusWorld * closeRadiusWorld;
 
                 if (nearClose) {
-                    ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                    ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 } else {
-                    ctx.drawer.setColor(Color.WHITE);
+                    ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 }
             } else {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
             }
 
             GizmoDrawHelper.drawShapeVertexHandle(ctx, p.x, p.y);
@@ -1135,7 +1304,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!ok) return;
 
             if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.0f);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpB.x, tmpB.y);
@@ -1161,7 +1330,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!ok) return;
 
             if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, groundA.x, groundA.y, anchorA.x, anchorA.y, 2.0f);
                 GizmoDrawHelper.drawSolidLine(ctx, groundB.x, groundB.y, anchorB.x, anchorB.y, 2.0f);
                 GizmoDrawHelper.drawSolidLine(ctx, groundA.x, groundA.y, groundB.x, groundB.y, 1.5f);
@@ -1192,7 +1361,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!ok) return;
 
             if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
             } else if (focusedBody) {
                 ctx.drawer.setColor(CommonLayout.PHYSICS_JOINT_COLOR);
@@ -1209,7 +1378,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!ok) return;
 
             if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
             } else if (focusedBody) {
                 ctx.drawer.setColor(CommonLayout.PHYSICS_JOINT_COLOR);
@@ -1228,7 +1397,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!ok) return;
 
             if (hovered) {
-                ctx.drawer.setColor(Color.WHITE);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.0f);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpB.x, tmpB.y);
             } else if (focusedBody) {
@@ -1255,7 +1424,7 @@ public final class GizmoSystem extends BaseSystem {
         if (!ok) return;
 
         if (hovered) {
-            ctx.drawer.setColor(Color.WHITE);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
             GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.0f);
             GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
             GizmoDrawHelper.drawHandleSquare(ctx, tmpB.x, tmpB.y);
@@ -1283,7 +1452,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computeGearJointGizmoWU(e, joint, tmpA, tmpB);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.5f);
                 continue;
             }
@@ -1297,7 +1466,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computePulleyJointGizmoWU(e, joint, groundA, anchorA, groundB, anchorB);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, groundA.x, groundA.y, anchorA.x, anchorA.y, 2.5f);
                 GizmoDrawHelper.drawSolidLine(ctx, groundB.x, groundB.y, anchorB.x, anchorB.y, 2.5f);
                 GizmoDrawHelper.drawSolidLine(ctx, groundA.x, groundA.y, groundB.x, groundB.y, 2.0f);
@@ -1308,7 +1477,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computeJointPivotForGizmo(joint, tmpA);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
                 continue;
             }
@@ -1316,7 +1485,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computeJointPivotForGizmo(joint, tmpA);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
                 continue;
             }
@@ -1324,7 +1493,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computeJointPivotForGizmo(joint, tmpA);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
                 continue;
             }
@@ -1333,7 +1502,7 @@ public final class GizmoSystem extends BaseSystem {
                 boolean ok = computeMotorJointGizmoWU(e, joint, tmpA, tmpB);
                 if (!ok) continue;
 
-                ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
                 GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.5f);
                 continue;
             }
@@ -1350,7 +1519,7 @@ public final class GizmoSystem extends BaseSystem {
             }
             if (!ok) continue;
 
-            ctx.drawer.setColor(CommonLayout.SELECTION_HIGHLIGHT_COLOR);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
             GizmoDrawHelper.drawSolidLine(ctx, tmpA.x, tmpA.y, tmpB.x, tmpB.y, 2.5f);
             if (joint.type == PhysicsJointComponent.TYPE_DISTANCE) {
                 GizmoDrawHelper.drawHandleSquare(ctx, tmpA.x, tmpA.y);
@@ -1455,7 +1624,7 @@ public final class GizmoSystem extends BaseSystem {
         float y1 = anchorA.y + dy * half;
 
         if (hovered) {
-            ctx.drawer.setColor(Color.WHITE);
+            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
             GizmoDrawHelper.drawSolidLine(ctx, x0, y0, x1, y1, 2.0f);
         } else if (focusedBody) {
             ctx.drawer.setColor(CommonLayout.PHYSICS_JOINT_COLOR);
@@ -1575,7 +1744,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void drawHoveredObb(float[] obb) {
-        ctx.drawer.setColor(Color.WHITE);
+        ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
         float x0 = obb[0], y0 = obb[1], x1 = obb[2], y1 = obb[3],
                 x2 = obb[4], y2 = obb[5], x3 = obb[6], y3 = obb[7];
         drawHoveredLine(x0, y0, x1, y1);

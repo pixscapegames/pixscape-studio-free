@@ -35,7 +35,7 @@ final class SpatialBlockPhysicsSync {
             return;
         }
 
-        if (!block.enabled || !block.physicsCollision) {
+        if (!block.physicsCollision) {
             removeGeneratedFixture(world, layerEntityId, block.id, source);
             return;
         }

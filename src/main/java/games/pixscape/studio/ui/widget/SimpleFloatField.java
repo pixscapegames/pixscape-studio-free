@@ -25,6 +25,7 @@ public final class SimpleFloatField extends VisTextField {
     private boolean internalUpdate = false;
 
     private Float lastValidValue;
+    private boolean exactText;
 
     public SimpleFloatField() {
         super("");
@@ -57,6 +58,12 @@ public final class SimpleFloatField extends VisTextField {
     public SimpleFloatField bind(Supplier<Float> reader, Consumer<Float> applier) {
         this.reader = reader;
         this.applier = applier;
+        refresh();
+        return this;
+    }
+
+    public SimpleFloatField useExactText() {
+        exactText = true;
         refresh();
         return this;
     }
@@ -178,7 +185,7 @@ public final class SimpleFloatField extends VisTextField {
         }
     }
 
-    private static String floatToText(float v) {
-        return String.format(Locale.ROOT, "%.2f", v);
+    private String floatToText(float v) {
+        return exactText ? Float.toString(v) : String.format(Locale.ROOT, "%.2f", v);
     }
 }

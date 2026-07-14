@@ -32,6 +32,7 @@
 * Added support for Tiled image collection tilesets in TMX imports, including external TSX files, inline tilesets, per-tile image assets, GID mapping and missing-image diagnostics.
 * Added Apache-2.0 / LibreJS-compatible license notices to HTML player JavaScript.
 * Added preview: new instrumentation around binds, flushes, and cache resolutions.
+* Added Spatial V3 wall authoring with automatic structure merging and precise footprint editing.
 
 ### Changed
 
@@ -51,6 +52,7 @@
 * Repeatable sprites and rotation are now mutually exclusive in the editor.
 * Enabling Repeat X or Repeat Y resets sprite rotation to 0°.
 * Rotating a repeatable sprite now clears repeat flags so the properties panel always matches the rendered result.
+* Improved spatial wall selection, resizing, hover feedback, and connected-wall editing.
 
 ### Fixed
 

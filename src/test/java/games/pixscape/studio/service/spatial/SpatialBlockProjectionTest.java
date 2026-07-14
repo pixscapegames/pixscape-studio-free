@@ -2,7 +2,6 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -114,14 +113,12 @@ public class SpatialBlockProjectionTest {
     private static SpatialBlockData block(float x, float y, float width, float depth, float altitude, float height) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
-        block.enabled = true;
         block.x = x;
         block.y = y;
         block.width = width;
         block.depth = depth;
         block.altitude = altitude;
         block.height = height;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
         return block;
     }
 

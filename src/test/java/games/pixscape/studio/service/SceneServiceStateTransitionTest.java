@@ -4,7 +4,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -58,7 +57,7 @@ public class SceneServiceStateTransitionTest {
     }
 
     @Test
-    public void activationValidationRejectsMissingRefSpatialV2BlockWithoutMutatingWorld() {
+    public void activationValidationRejectsInvalidSpatialV3WallWithoutMutatingWorld() {
         World world = new World(new WorldConfiguration());
         int layerId = tiledLayer(world);
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
@@ -70,18 +69,19 @@ public class SceneServiceStateTransitionTest {
         );
 
         assertTrue(ex.getMessage().contains("Scene activation was rejected"));
-        assertTrue(ex.getMessage().contains("authored linkedTileRefs are missing"));
+        assertTrue(ex.getMessage().contains("INVALID_STRUCTURE_ID"));
         assertTrue(world.getMapper(SpatialBlocksComponent.class).has(layerId));
         assertEquals(1, world.getMapper(SpatialBlocksComponent.class).get(layerId).blocks.size);
     }
 
     @Test
-    public void activationValidationKeepsValidSpatialV2Block() {
+    public void activationValidationKeepsValidSpatialV3Wall() {
         World world = new World(new WorldConfiguration());
         int layerId = tiledLayer(world);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
         tiled.data.setTile(2, 3, 101);
         SpatialBlockData block = actorBlockWithoutRefs();
+        block.structureId = 4;
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(2, 3, 101);
 
@@ -115,13 +115,11 @@ public class SceneServiceStateTransitionTest {
     private static SpatialBlockData actorBlockWithoutRefs() {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 9;
-        block.enabled = true;
         block.x = 2f;
         block.y = 3f;
         block.width = 1f;
         block.depth = 1f;
         block.height = 8f;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
         block.actorOccluder = true;
         return block;
     }

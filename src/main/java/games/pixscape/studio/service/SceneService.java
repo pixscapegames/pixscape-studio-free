@@ -3,6 +3,7 @@ package games.pixscape.studio.service;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
@@ -60,7 +61,9 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProf
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.service.atlas.*;
-import games.pixscape.studio.service.spatial.SpatialBlockAuthoringValidator;
+import games.pixscape.studio.service.spatial.SpatialWallAuthoringValidator;
+import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
+import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.asset.ImportDialog;
@@ -644,6 +647,8 @@ public final class SceneService {
         FileHandle projectDir = context.projectDir();
         String sceneName = context.sceneName();
 
+        PreparedSceneActivation prepared = prepareSceneActivation(cfg, sceneName, projectDir);
+
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
 
@@ -657,7 +662,7 @@ public final class SceneService {
         clipboardService.clear();
 
         try {
-            loadScene(cfg, sceneName, projectDir);
+            activatePreparedScene(cfg, prepared, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot load current scene '" + sceneName + "'.", ex);
@@ -719,10 +724,13 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     void loadScene(ProjectConfig cfg, String sceneName, FileHandle projectDir) {
+        PreparedSceneActivation prepared = prepareSceneActivation(cfg, sceneName, projectDir);
+        activatePreparedScene(cfg, prepared, projectDir);
+    }
 
-        clearWorldAndRenderState();
-
-
+    static PreparedSceneActivation prepareSceneActivation(ProjectConfig cfg,
+                                                           String sceneName,
+                                                           FileHandle projectDir) {
         SceneMeta meta = cfg.getSceneMeta(sceneName);
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
@@ -737,21 +745,47 @@ public final class SceneService {
 
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
-        SceneLoader.loadScene(canvas.getEcsWorld(), sceneFile, false);
-        validateLoadedSpatialBlocksOrReset(sceneName);
+        World stagingWorld = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            SceneLoader.loadScene(stagingWorld, sceneFile, false);
+            stagingWorld.process();
+            resolveTiledLayersForActivation(stagingWorld, meta, null, null,
+                    cfg.projectTitle, sceneName);
+            validateAndCompileSpatialBlocksForActivation(
+                    stagingWorld, cfg.projectTitle, sceneName);
+        } finally {
+            stagingWorld.dispose();
+        }
+        return new PreparedSceneActivation(sceneName, meta, canonicalTag, sceneFile);
+    }
 
+    private void activatePreparedScene(ProjectConfig cfg,
+                                       PreparedSceneActivation prepared,
+                                       FileHandle projectDir) {
+        clearWorldAndRenderState();
 
-        normalizeSceneAtlasTags(canonicalTag);
+        World world = canvas.getEcsWorld();
+        SceneLoader.loadScene(world, prepared.sceneFile(), false);
+        resolveTiledLayersForActivation(
+                world,
+                prepared.meta(),
+                canvas.getTileAnimationRegistry(),
+                canvas.getTiledAllocatorService(),
+                cfg.projectTitle,
+                prepared.sceneName()
+        );
+        validateAndCompileSpatialBlocksForActivation(
+                world, cfg.projectTitle, prepared.sceneName());
 
-        canvas.getEcsWorld().process();
-        rebuildHistoryIdsFromWorld(canvas.getEcsWorld());
-        assertDrawablesHaveEntityIndex("loadScene(" + sceneName + ")");
+        normalizeSceneAtlasTags(prepared.canonicalTag());
 
-        rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);
-        rebuildTiledLayersStudio();
-        validateLoadedSpatialBlocksOrReset(sceneName);
-        resyncSpatialBlocksInheritedLayerAltitude(canvas.getEcsWorld());
-        canvas.getEcsWorld().process();
+        world.process();
+        rebuildHistoryIdsFromWorld(world);
+        assertDrawablesHaveEntityIndex("loadScene(" + prepared.sceneName() + ")");
+
+        rebuildRenderRuntimeForScene(cfg, prepared.canonicalTag(), projectDir);
+        world.process();
         // UI
 
         int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
@@ -1721,10 +1755,12 @@ public final class SceneService {
         }
     }
 
-    private void rebuildTiledLayersStudio() {
-
-        World world = canvas.getEcsWorld();
-
+    static void resolveTiledLayersForActivation(World world,
+                                                SceneMeta meta,
+                                                TileAnimationLookup lookup,
+                                                TiledAllocatorService allocator,
+                                                String projectTitle,
+                                                String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
         ComponentMapper<LayerComponent> mLayer =
@@ -1735,16 +1771,22 @@ public final class SceneService {
 
         int[] dataArr = bag.getData();
 
-        SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        if (meta == null) return;
-
-        TileAnimationLookup lookup = canvas.getTileAnimationRegistry();
+        if (meta == null) {
+            throw new TiledMapResolutionException("Cannot resolve tiled maps: scene metadata is missing.");
+        }
 
         for (int i = 0; i < bag.size(); i++) {
 
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+
+            if (tiled.mapWidthCells <= 0 || tiled.mapHeightCells <= 0
+                    || meta.tileWidth <= 0 || meta.tileHeight <= 0 || meta.chunkSize <= 0
+                    || meta.tiledProjection == null) {
+                throw unresolvedTiledMap(projectTitle, sceneName, e,
+                        "the serialized tiled layer or scene map metadata is incomplete");
+            }
 
             // Recreate dense map
             tiled.data = new TiledMapLayerData(
@@ -1765,7 +1807,9 @@ public final class SceneService {
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;
 
             // Initialize tiled chunk metadata for runtime sync.
-            canvas.getTiledAllocatorService().allocateLayer(tiled);
+            if (allocator != null) {
+                allocator.allocateLayer(tiled);
+            }
 
             // Reinject sparse
             tiled.ensureSparseTileStorageConsistency();
@@ -1791,55 +1835,99 @@ public final class SceneService {
 
             tiled.data.markAllChunksContentDirty();
         }
-    }
 
-    private static void resyncSpatialBlocksInheritedLayerAltitude(World world) {
-        if (world == null) return;
-        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<SpatialBlocksComponent> mBlocks = world.getMapper(SpatialBlocksComponent.class);
-        ComponentMapper<LayerMetaComponent> mMeta = world.getMapper(LayerMetaComponent.class);
-        IntBag layers = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class, SpatialBlocksComponent.class))
+        IntBag spatialLayers = world.getAspectSubscriptionManager()
+                .get(Aspect.all(SpatialBlocksComponent.class))
                 .getEntities();
-        int[] data = layers.getData();
-        for (int i = 0, n = layers.size(); i < n; i++) {
-            int entity = data[i];
-            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
+        int[] spatialData = spatialLayers.getData();
+        for (int i = 0, n = spatialLayers.size(); i < n; i++) {
+            int entity = spatialData[i];
             SpatialBlocksComponent blocks = mBlocks.getSafe(entity, null);
-            if (tiled == null || blocks == null || blocks.blocks == null) continue;
-            if (Math.abs(tiled.defaultTileAltitude) <= 0.0001f) continue;
-
-            int changed = 0;
-            for (int b = 0, bn = blocks.blocks.size; b < bn; b++) {
-                SpatialBlockData block = blocks.blocks.get(b);
-                if (block == null) continue;
-                if (Math.abs(block.altitude) > 0.0001f) continue;
-                block.altitude = tiled.defaultTileAltitude;
-                changed++;
+            if (blocks == null || blocks.blocks == null || blocks.blocks.size == 0) continue;
+            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
+            if (tiled == null || tiled.data == null) {
+                throw unresolvedTiledMap(projectTitle, sceneName, entity,
+                        "the Spatial V3 layer has no owning TiledLayerComponent map data");
             }
         }
     }
 
-    private void validateLoadedSpatialBlocksOrReset(String sceneName) {
-        try {
-            validateSpatialBlocksForActivation(canvas.getEcsWorld(), sceneName);
-        } catch (SpatialSceneActivationException ex) {
-            clearWorldAndRenderState();
-            throw ex;
-        }
+    private static TiledMapResolutionException unresolvedTiledMap(String projectTitle,
+                                                                 String sceneName,
+                                                                 int layerEntityId,
+                                                                 String detail) {
+        return new TiledMapResolutionException("Project '" + safeContext(projectTitle)
+                + "', scene '" + safeContext(sceneName) + "', layer entity " + layerEntityId
+                + " could not resolve its owning tiled map: " + detail + ".");
     }
 
     static void validateSpatialBlocksForActivation(World world, String sceneName) {
+        validateSpatialBlocksForActivation(world, null, sceneName);
+    }
+
+    private static void validateSpatialBlocksForActivation(World world,
+                                                           String projectTitle,
+                                                           String sceneName) {
         SpatialActivationFailure failure = firstInvalidSpatialBlock(world);
         if (failure == null) return;
 
-        String prefix = sceneName != null && !sceneName.isBlank()
-                ? "Scene '" + sceneName + "' contains "
-                : "Scene contains ";
-        String message = prefix + failure.result().message(failure.layerName(), failure.layerEntityId())
+        String prefix = projectTitle != null && !projectTitle.isBlank()
+                ? "Project '" + projectTitle + "', scene '" + safeContext(sceneName) + "' contains "
+                : sceneName != null && !sceneName.isBlank()
+                ? "Scene '" + sceneName + "' contains " : "Scene contains ";
+        String message = prefix + stripTrailingPunctuation(
+                failure.result().message(failure.layerName(), failure.layerEntityId()))
                 + ". Scene activation was rejected; the authored scene file was left unchanged.";
         StudioLog.error(message);
         throw new SpatialSceneActivationException(message);
+    }
+
+    static void validateAndCompileSpatialBlocksForActivation(World world,
+                                                             String projectTitle,
+                                                             String sceneName) {
+        validateSpatialBlocksForActivation(world, projectTitle, sceneName);
+
+        ComponentMapper<SpatialBlocksComponent> mBlocks = world.getMapper(SpatialBlocksComponent.class);
+        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
+        ComponentMapper<LayerMetaComponent> mMeta = world.getMapper(LayerMetaComponent.class);
+        IntBag layers = world.getAspectSubscriptionManager()
+                .get(Aspect.all(SpatialBlocksComponent.class, TiledLayerComponent.class))
+                .getEntities();
+        int[] data = layers.getData();
+        for (int i = 0, n = layers.size(); i < n; i++) {
+            int entity = data[i];
+            SpatialBlocksComponent blocks = mBlocks.getSafe(entity, null);
+            if (blocks == null || blocks.blocks == null || blocks.blocks.size == 0) continue;
+            TiledLayerComponent tiled = mTiled.get(entity);
+            SpatialStructureCompilation.Result compilation =
+                    SpatialStructureCompilation.tryCompile(blocks, tiled.data);
+            if (compilation.success()) continue;
+
+            LayerMetaComponent layerMeta = mMeta.getSafe(entity, null);
+            String layer = layerMeta != null && layerMeta.name != null && !layerMeta.name.isBlank()
+                    ? "layer '" + layerMeta.name + "'" : "layer entity " + entity;
+            String message = "Project '" + safeContext(projectTitle) + "', scene '"
+                    + safeContext(sceneName) + "', " + layer + " failed Spatial V3 staging compilation: "
+                    + stripTrailingPunctuation(compilation.diagnostic()) + ".";
+            StudioLog.error(message);
+            throw new SpatialSceneActivationException(message);
+        }
+    }
+
+    private static String stripTrailingPunctuation(String message) {
+        if (message == null || message.isBlank()) return "invalid Spatial V3 authored data";
+        int end = message.length();
+        while (end > 0) {
+            char c = message.charAt(end - 1);
+            if (c != '.' && c != '!' && c != '?') break;
+            end--;
+        }
+        return message.substring(0, end);
+    }
+
+    private static String safeContext(String value) {
+        return value != null && !value.isBlank() ? value : "unknown";
     }
 
     static SpatialActivationFailure firstInvalidSpatialBlock(World world) {
@@ -1865,19 +1953,9 @@ public final class SceneService {
                 layerName = meta.name;
             }
 
-            SpatialBlockAuthoringValidator.Result failure = null;
-            for (int b = 0, bn = blocks.blocks.size; b < bn; b++) {
-                SpatialBlockData block = blocks.blocks.get(b);
-                SpatialBlockAuthoringValidator.Result result =
-                        SpatialBlockAuthoringValidator.validateEnabledActorOccluder(
-                                block,
-                                tiled != null ? tiled.data : null
-                        );
-                if (!result.isValid()) {
-                    failure = result;
-                    break;
-                }
-            }
+            SpatialWallAuthoringValidator.Result failure =
+                    SpatialWallAuthoringValidator.validateLayer(blocks, tiled != null ? tiled.data : null);
+            if (failure.isValid()) failure = null;
 
             if (failure == null) continue;
             return new SpatialActivationFailure(failure, layerName, entity);
@@ -1885,13 +1963,19 @@ public final class SceneService {
         return null;
     }
 
-    record SpatialActivationFailure(SpatialBlockAuthoringValidator.Result result,
+    record SpatialActivationFailure(SpatialWallAuthoringValidator.Result result,
                                     String layerName,
                                     int layerEntityId) {
     }
 
     static final class SpatialSceneActivationException extends IllegalStateException {
         SpatialSceneActivationException(String message) {
+            super(message);
+        }
+    }
+
+    static final class TiledMapResolutionException extends IllegalStateException {
+        TiledMapResolutionException(String message) {
             super(message);
         }
     }
@@ -3658,6 +3742,12 @@ public final class SceneService {
 
     record OpenProjectContext(ProjectConfig config, FileHandle projectDir, String sceneName,
                               FileHandle assetsMetaFile) {
+    }
+
+    record PreparedSceneActivation(String sceneName,
+                                   SceneMeta meta,
+                                   String canonicalTag,
+                                   FileHandle sceneFile) {
     }
 
     private record SaveExecutionPlan(ProjectConfig cfg,

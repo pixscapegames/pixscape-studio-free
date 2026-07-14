@@ -42,8 +42,9 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
-import games.pixscape.studio.service.spatial.SpatialBlockAuthoringValidator;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
+import games.pixscape.studio.service.spatial.SpatialWallCreationService;
+import games.pixscape.studio.service.spatial.SpatialWallThicknessInheritance;
 import games.pixscape.studio.system.AnimationFallbackSystem;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -879,25 +880,16 @@ public class EditorOpsImpl implements EditorOps {
         int tileAssetId = tiled.data.getTile(targetGx, targetGy);
         if (tileAssetId <= 0) return;
 
-        SpatialBlockData block = new SpatialBlockData();
-        block.x = targetGx;
-        block.y = targetGy;
-        block.width = 1f;
-        block.depth = 1f;
-        block.altitude = tiled.defaultTileAltitude;
-        block.height = tiled.defaultTileHeight > 0f ? tiled.defaultTileHeight : SpatialBlockData.DEFAULT_HEIGHT;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
-        block.actorOccluder = true;
-        block.physicsCollision = false;
-        block.lightOccluder = false;
-        block.shadowCaster = false;
-        block.particleOccluder = false;
-        block.beginAuthoredLinkedTileRefs();
-        block.addLinkedTileRef(targetGx, targetGy, tileAssetId);
-
-        SpatialBlockAuthoringValidator.Result validation =
-                SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, tiled.data);
-        if (!validation.isValid()) return;
+        SpatialBlockData block = SpatialTileSelectionService.fromOccupiedRect(
+                tiled.data, targetGx, targetGy, targetGx, targetGy,
+                tiled.defaultTileAltitude, tiled.defaultTileHeight);
+        if (block == null) return;
+        SpatialBlocksComponent existing = world.getMapper(SpatialBlocksComponent.class)
+                .getSafe(layerEntityId, null);
+        SpatialWallThicknessInheritance.Result inherited =
+                SpatialWallThicknessInheritance.apply(block, existing);
+        if (!inherited.valid) return;
+        block = inherited.wall;
 
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 world,
@@ -930,39 +922,8 @@ public class EditorOpsImpl implements EditorOps {
 
     @Override
     public void createSpatialBlockFromSelectedTiles() {
-        if (spatialTileSelectionService == null || !spatialTileSelectionService.hasSelection()) return;
-
-        int layerEntityId = spatialTileSelectionService.getLayerEntityId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        if (tiled == null || tiled.data == null) {
-            spatialTileSelectionService.clear();
-            return;
-        }
-        if (!spatialTileSelectionService.canCreateSpatialBlock(tiled.data)) {
-            return;
-        }
-
-        SpatialBlockData block = spatialTileSelectionService.toSpatialBlockData(
-                tiled.data,
-                tiled.defaultTileAltitude,
-                tiled.defaultTileHeight
-        );
-        if (block == null) return;
-        SpatialBlockAuthoringValidator.Result validation =
-                SpatialBlockAuthoringValidator.validateEnabledActorOccluder(block, tiled.data);
-        if (!validation.isValid()) return;
-
-        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
-                world,
-                historyManager.historyIds(),
-                spatialBlockSelectionService,
-                layerEntityId,
-                block
-        );
-        if (!command.isNoop()) {
-            historyManager.execute(command);
-            spatialTileSelectionService.clear();
-        }
+        SpatialWallCreationService.executeSelectedRectangle(
+                world, historyManager, spatialBlockSelectionService, spatialTileSelectionService);
     }
 
     @Override

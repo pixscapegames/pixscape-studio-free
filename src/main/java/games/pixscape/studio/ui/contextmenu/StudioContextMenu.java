@@ -16,6 +16,7 @@ import com.kotcrab.vis.ui.util.dialog.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
@@ -209,7 +210,11 @@ public final class StudioContextMenu extends InputListener {
     private String spatialTileSelectionValidationMessage(int layerEntityId) {
         if (world == null || spatialTileSelectionService == null) return null;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        return spatialTileSelectionService.validationMessage(tiled != null ? tiled.data : null);
+        SpatialBlocksComponent walls = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        return tiled != null
+                ? spatialTileSelectionService.validationMessage(
+                        tiled.data, walls, tiled.defaultTileAltitude, tiled.defaultTileHeight)
+                : spatialTileSelectionService.validationMessage(null);
     }
 
     private void showShapeMenu() {

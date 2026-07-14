@@ -7,10 +7,14 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.CompiledSpatialStructure;
+import games.pixscape.runtime.spatial.SpatialStructureCompiler;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -25,14 +29,12 @@ public class SpatialBlockScenePersistenceTest {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
         block.name = "Tall wall";
-        block.enabled = true;
         block.x = 2f;
         block.y = 3f;
         block.width = 2f;
         block.depth = 2f;
         block.altitude = 155f;
         block.height = 16f;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
         block.actorOccluder = true;
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(2, 3, 101);
@@ -48,6 +50,8 @@ public class SpatialBlockScenePersistenceTest {
         String json = file.readString("UTF-8");
         Assert.assertFalse(json.contains("\"" + legacyAnchorField("Gx") + "\""));
         Assert.assertFalse(json.contains("\"" + legacyAnchorField("Gy") + "\""));
+        Assert.assertFalse(json.contains("\"enabled\""));
+        Assert.assertFalse(json.contains("\"orientation\""));
 
         World loaded = worldWithSerialization();
         SceneLoader.loadScene(loaded, file, false);
@@ -68,6 +72,73 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertEquals(3, restored.linkedTileRefs.get(3).gx);
         Assert.assertEquals(4, restored.linkedTileRefs.get(3).gy);
         Assert.assertEquals(104, restored.linkedTileRefs.get(3).tileAssetId);
+    }
+
+    @Test
+    public void normalizedSelectionRoundtripNeverRestoresRawEmptyBorders() {
+        TiledMapLayerData map = new TiledMapLayerData(
+                8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+        map.setTile(2, 3, 201);
+        map.setTile(3, 3, 202);
+        map.setTile(4, 3, 203);
+        SpatialTileSelectionService selection = new SpatialTileSelectionService();
+        selection.beginDrag(7, 0, 1);
+        selection.updateDrag(7, 5);
+        selection.finishDrag();
+        SpatialBlockData normalized = selection.toSpatialBlockData(map, 0f, 10f);
+        Assert.assertNotNull(normalized);
+        normalized.id = 1;
+        normalized.structureId = 1;
+        com.badlogic.gdx.utils.Array<SpatialBlockData> authored = new com.badlogic.gdx.utils.Array<>(SpatialBlockData[]::new);
+        authored.add(normalized);
+        String compiledBefore = compiledSignature(SpatialStructureCompiler.compile(authored, 1));
+
+        World world = worldWithSerialization();
+        int layerId = world.create();
+        SpatialBlocksComponent authoredComponent = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        authoredComponent.blocks.add(normalized);
+        authoredComponent.revision = 7;
+        world.process();
+        FileHandle file = tempSceneFile("normalized-spatial-selection-roundtrip");
+        SceneService.saveScene(world, file, false);
+        String json = file.readString("UTF-8");
+        Assert.assertFalse(json.contains("CompiledSpatialStructure"));
+        Assert.assertFalse(json.contains("segmentCount"));
+        Assert.assertFalse(json.contains("revision"));
+
+        World loaded = worldWithSerialization();
+        SceneLoader.loadScene(loaded, file, false);
+        loaded.process();
+        SpatialBlockData restored = restoredBlock(loaded);
+        Assert.assertEquals(0, loaded.getMapper(SpatialBlocksComponent.class)
+                .get(loaded.getAspectSubscriptionManager().get(Aspect.all(SpatialBlocksComponent.class))
+                        .getEntities().get(0)).revision);
+
+        Assert.assertEquals(2f, restored.x, 0f);
+        Assert.assertEquals(3f, restored.y, 0f);
+        Assert.assertEquals(3f, restored.width, 0f);
+        Assert.assertEquals(1f, restored.depth, 0f);
+        Assert.assertEquals(3, restored.linkedTileRefs.size);
+        for (int i = 0; i < 3; i++) {
+            Assert.assertEquals(2 + i, restored.linkedTileRefs.get(i).gx);
+            Assert.assertEquals(3, restored.linkedTileRefs.get(i).gy);
+            Assert.assertEquals(201 + i, restored.linkedTileRefs.get(i).tileAssetId);
+        }
+        com.badlogic.gdx.utils.Array<SpatialBlockData> restoredWalls =
+                new com.badlogic.gdx.utils.Array<>(SpatialBlockData[]::new);
+        restoredWalls.add(restored);
+        Assert.assertEquals(compiledBefore,
+                compiledSignature(SpatialStructureCompiler.compile(restoredWalls, restored.structureId)));
+    }
+
+    private static String compiledSignature(CompiledSpatialStructure structure) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < structure.segmentCount(); i++) {
+            out.append(structure.startX(i)).append(',').append(structure.startY(i)).append('-')
+                    .append(structure.endX(i)).append(',').append(structure.endY(i)).append('/')
+                    .append(structure.normalX(i)).append(',').append(structure.normalY(i)).append(';');
+        }
+        return out.toString();
     }
 
     private static SpatialBlockData restoredBlock(World world) {
