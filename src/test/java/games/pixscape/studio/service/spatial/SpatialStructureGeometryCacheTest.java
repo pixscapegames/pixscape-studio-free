@@ -22,6 +22,7 @@ public class SpatialStructureGeometryCacheTest {
         Assert.assertEquals(2, cache.compilationCount());
 
         walls.blocks.get(0).x = 0.25f;
+        walls.revision++;
         cache.synchronize(7, walls, map);
 
         Assert.assertEquals(3, cache.compilationCount());
@@ -38,6 +39,7 @@ public class SpatialStructureGeometryCacheTest {
         cache.synchronize(7, walls, map);
 
         second.structureId = 2;
+        walls.revision++;
         cache.synchronize(7, walls, map);
         CompiledSpatialStructure merged = cache.structure(0);
 
@@ -47,6 +49,7 @@ public class SpatialStructureGeometryCacheTest {
 
         second.structureId = 6;
         second.x = 4f;
+        walls.revision++;
         cache.synchronize(7, walls, map);
 
         Assert.assertEquals(2, cache.structureCount());
@@ -65,6 +68,7 @@ public class SpatialStructureGeometryCacheTest {
         int beforeDelete = cache.compilationCount();
 
         walls.blocks.removeIndex(1);
+        walls.revision++;
         cache.synchronize(9, walls, map);
 
         Assert.assertEquals(beforeDelete + 1, cache.compilationCount());
@@ -83,9 +87,11 @@ public class SpatialStructureGeometryCacheTest {
 
         second.x = 2f;
         second.structureId = 5;
+        walls.revision++;
         cache.synchronize(11, walls, map);
         second.x = 0f;
         second.structureId = 4;
+        walls.revision++;
         cache.synchronize(11, walls, map);
 
         Assert.assertEquals(before, signature(cache.structure(0)));
@@ -104,6 +110,7 @@ public class SpatialStructureGeometryCacheTest {
         int compilations = cache.compilationCount();
 
         walls.blocks.get(1).height = 9f;
+        walls.revision++;
         SpatialStructureGeometryCache.SynchronizeResult failed = cache.synchronize(13, walls, map);
 
         Assert.assertFalse(failed.success());
@@ -113,6 +120,48 @@ public class SpatialStructureGeometryCacheTest {
         Assert.assertEquals(compilations, cache.compilationCount());
         Assert.assertEquals(published, signature(cache.structure(0)));
         Assert.assertEquals(1, cache.failureCount());
+        Assert.assertFalse(cache.synchronize(13, walls, map).success());
+        Assert.assertEquals(1, cache.failureCount());
+    }
+
+    @Test
+    public void previewCameraAndViewportReadsDoNotScanOrCompileWithoutCommittedRevision() {
+        SpatialBlocksComponent walls = component(
+                wall(1, 4, 0f, 0f, 4f, 1f),
+                wall(2, 4, 3f, 0f, 1f, 4f));
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        Assert.assertTrue(cache.synchronize(13, walls, map()).published());
+        int compilations = cache.compilationCount();
+        int revision = cache.publishedRevision();
+
+        for (int frame = 0; frame < 20; frame++) {
+            Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+        }
+
+        Assert.assertEquals(compilations, cache.compilationCount());
+        Assert.assertEquals(revision, cache.publishedRevision());
+    }
+
+    @Test
+    public void onlyCompilerRelevantFeatureChangesRecompileGeometry() {
+        SpatialBlockData first = wall(1, 4, 0f, 0f, 4f, 1f);
+        SpatialBlockData second = wall(2, 4, 3f, 0f, 1f, 4f);
+        SpatialBlocksComponent walls = component(first, second);
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        cache.synchronize(13, walls, map());
+        int initial = cache.compilationCount();
+
+        first.physicsCollision = !first.physicsCollision;
+        walls.revision++;
+        Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+        Assert.assertEquals(initial, cache.compilationCount());
+        Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+        Assert.assertEquals(initial, cache.compilationCount());
+
+        first.actorOccluder = !first.actorOccluder;
+        walls.revision++;
+        Assert.assertTrue(cache.synchronize(13, walls, map()).published());
+        Assert.assertEquals(initial + 1, cache.compilationCount());
     }
 
     private static SpatialBlocksComponent component(SpatialBlockData... walls) {

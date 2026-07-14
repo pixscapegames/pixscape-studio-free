@@ -10,6 +10,8 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 /** Studio-owned transactional cache for compiled Spatial V3 structure envelopes. */
 public final class SpatialStructureGeometryCache {
+    private static final SynchronizeResult UNCHANGED = new SynchronizeResult(true, false, null);
+
     public static final class SynchronizeResult {
         private final boolean success;
         private final boolean published;
@@ -32,18 +34,26 @@ public final class SpatialStructureGeometryCache {
     private int structureIdCount;
     private int compilationCount;
     private int publishedRevision;
+    private int publishedSourceRevision = -1;
     private int failureCount;
     private String lastDiagnostic;
+    private int failedLayerEntityId = -1;
+    private int failedSourceRevision = -1;
+    private SynchronizeResult lastFailureResult;
 
     public SynchronizeResult synchronize(int requestedLayerEntityId,
                                          SpatialBlocksComponent component,
                                          TiledMapLayerData map) {
-        collectStructureIds(component);
         if (isPublishedSnapshotCurrent(requestedLayerEntityId, component)) {
-            return new SynchronizeResult(true, false, null);
+            return UNCHANGED;
         }
+        int sourceRevision = component != null ? component.revision : 0;
+        if (requestedLayerEntityId == failedLayerEntityId && sourceRevision == failedSourceRevision) {
+            return lastFailureResult;
+        }
+        collectStructureIds(component);
         SpatialStructureTopology.Plan validation = SpatialStructureTopology.validate(component, map);
-        if (!validation.valid) return failure(requestedLayerEntityId, validation.error);
+        if (!validation.valid) return failure(requestedLayerEntityId, sourceRevision, validation.error);
 
         Array<Entry> staging = new Array<>(Entry[]::new);
         int stagedCompilations = 0;
@@ -64,22 +74,37 @@ public final class SpatialStructureGeometryCache {
                 changed = true;
             }
         } catch (RuntimeException compileFailure) {
-            return failure(requestedLayerEntityId,
+            return failure(requestedLayerEntityId, sourceRevision,
                     "Spatial structure compilation failed: " + safeMessage(compileFailure));
         }
 
-        if (!changed) return new SynchronizeResult(true, false, null);
+        if (!changed) {
+            publishedSourceRevision = sourceRevision;
+            failedLayerEntityId = -1;
+            failedSourceRevision = -1;
+            lastFailureResult = null;
+            lastDiagnostic = null;
+            return UNCHANGED;
+        }
         entries = staging;
         layerEntityId = requestedLayerEntityId;
+        publishedSourceRevision = component != null ? component.revision : 0;
         compilationCount += stagedCompilations;
         publishedRevision++;
         lastDiagnostic = null;
+        failedLayerEntityId = -1;
+        failedSourceRevision = -1;
+        lastFailureResult = null;
         return new SynchronizeResult(true, true, null);
     }
 
     public void clear() {
         entries = new Array<>(Entry[]::new);
         layerEntityId = -1;
+        publishedSourceRevision = -1;
+        failedLayerEntityId = -1;
+        failedSourceRevision = -1;
+        lastFailureResult = null;
         publishedRevision++;
         lastDiagnostic = null;
     }
@@ -93,17 +118,18 @@ public final class SpatialStructureGeometryCache {
 
     private boolean isPublishedSnapshotCurrent(int requestedLayerEntityId,
                                                SpatialBlocksComponent component) {
-        if (requestedLayerEntityId != layerEntityId || entries.size != structureIdCount) return false;
-        for (int i = 0; i < entries.size; i++) {
-            if (!entries.get(i).matches(component)) return false;
-        }
-        return true;
+        return requestedLayerEntityId == layerEntityId
+                && publishedSourceRevision == (component != null ? component.revision : 0);
     }
 
-    private SynchronizeResult failure(int requestedLayerEntityId, String diagnostic) {
+    private SynchronizeResult failure(int requestedLayerEntityId,
+                                      int requestedSourceRevision,
+                                      String diagnostic) {
         String message = diagnostic != null && !diagnostic.isEmpty()
                 ? diagnostic : "Invalid committed Spatial V3 authored snapshot.";
         failureCount++;
+        failedLayerEntityId = requestedLayerEntityId;
+        failedSourceRevision = requestedSourceRevision;
         if (!message.equals(lastDiagnostic)) {
             lastDiagnostic = message;
             if (Gdx.app != null) {
@@ -111,7 +137,8 @@ public final class SpatialStructureGeometryCache {
                         "Layer " + requestedLayerEntityId + " retained its last valid compiled cache: " + message);
             }
         }
-        return new SynchronizeResult(false, false, message);
+        lastFailureResult = new SynchronizeResult(false, false, message);
+        return lastFailureResult;
     }
 
     private static Entry find(Array<Entry> source, int structureId) {
@@ -217,21 +244,7 @@ public final class SpatialStructureGeometryCache {
                     || Float.compare(first.width, second.width) != 0 || Float.compare(first.depth, second.depth) != 0
                     || Float.compare(first.altitude, second.altitude) != 0
                     || Float.compare(first.height, second.height) != 0
-                    || first.actorOccluder != second.actorOccluder
-                    || first.physicsCollision != second.physicsCollision
-                    || first.lightOccluder != second.lightOccluder
-                    || first.shadowCaster != second.shadowCaster
-                    || first.particleOccluder != second.particleOccluder
-                    || first.linkedTileRefsAuthored != second.linkedTileRefsAuthored) return false;
-            int firstRefs = first.linkedTileRefs != null ? first.linkedTileRefs.size : 0;
-            int secondRefs = second.linkedTileRefs != null ? second.linkedTileRefs.size : 0;
-            if (firstRefs != secondRefs) return false;
-            for (int i = 0; i < firstRefs; i++) {
-                SpatialBlockData.LinkedTileRef a = first.linkedTileRefs.get(i);
-                SpatialBlockData.LinkedTileRef b = second.linkedTileRefs.get(i);
-                if (a == b) continue;
-                if (a == null || b == null || a.gx != b.gx || a.gy != b.gy || a.tileAssetId != b.tileAssetId) return false;
-            }
+                    || first.actorOccluder != second.actorOccluder) return false;
             return true;
         }
     }

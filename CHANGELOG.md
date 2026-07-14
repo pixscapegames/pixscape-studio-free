@@ -53,6 +53,7 @@
 * Enabling Repeat X or Repeat Y resets sprite rotation to 0°.
 * Rotating a repeatable sprite now clears repeat flags so the properties panel always matches the rendered result.
 * Improved spatial wall selection, resizing, hover feedback, and connected-wall editing.
+* Improved Spatial V3 structure visualization.
 
 ### Fixed
 
