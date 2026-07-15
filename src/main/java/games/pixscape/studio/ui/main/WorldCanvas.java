@@ -20,6 +20,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisTextField;
+import com.kotcrab.vis.ui.widget.VisDialog;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
@@ -40,6 +41,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.PackedTileValue;
@@ -87,7 +89,8 @@ import space.earlygrey.shapedrawer.ShapeDrawer;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
-public class WorldCanvas {
+public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcessor,
+        SpatialPreviewInvariantBoundary.FailureListener {
 
     private final StudioApplicationAdapter app;
     private MetricsBatch metricsBatch;
@@ -111,6 +114,7 @@ public class WorldCanvas {
     private final StudioFrameProfiler frameProfiler;
     private final FrameSystemProfiler systemProfiler;
     private final PreviewRuntimeProfiler previewRuntimeProfiler;
+    private final SpatialPreviewInvariantBoundary spatialInvariantBoundary = new SpatialPreviewInvariantBoundary();
     private SelectionService selectionService;
     private ZOrderRuntimeService zOrderRuntimeService;
     private LayerService layerService;
@@ -1043,6 +1047,7 @@ public class WorldCanvas {
                 }
 
                 if (currentBrushSession != null) {
+                    currentBrushSession.commit();
                     if (!currentBrushSession.isEmpty()) {
                         long historyId =
                                 historyManager.historyIds().ensureForEntity(
@@ -1287,6 +1292,7 @@ public class WorldCanvas {
                 session.apply(tiled, gx, gy, assetId, flags);
             }
         }
+        session.commit();
 
         if (!session.isEmpty()) {
             long historyId =
@@ -1446,6 +1452,7 @@ public class WorldCanvas {
                 new TiledBrushSession(layerEntityId);
 
         floodFill(tiled, startGX, startGY, targetPacked, replacementId, replacementFlags, session);
+        session.commit();
 
         if (!session.isEmpty()) {
 
@@ -1962,6 +1969,8 @@ public class WorldCanvas {
     }
 
     public void draw() {
+        spatialInvariantBoundary.prepare(currentSceneTag());
+        if (spatialInvariantBoundary.isBlocked()) return;
         if (frameProfiler.isEnabled()) {
             drawProfiled();
             return;
@@ -1975,13 +1984,15 @@ public class WorldCanvas {
             }
         }
         EventFlow.i().flush();
-        world.process();
+        if (!spatialInvariantBoundary.process(currentSceneTag(), this, this)) return;
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.flushDeferredDisposals();
         }
     }
 
     private void drawProfiled() {
+        spatialInvariantBoundary.prepare(currentSceneTag());
+        if (spatialInvariantBoundary.isBlocked()) return;
         long totalStart = frameProfiler.begin(StudioFrameProfiler.DRAW_TOTAL);
         try {
             gridStage.draw();
@@ -2002,8 +2013,9 @@ public class WorldCanvas {
             if (systemProfiler != null && systemProfiler.enabled()) {
                 systemProfiler.beginFrame();
             }
-            world.process();
+            boolean spatialFrameValid = spatialInvariantBoundary.process(currentSceneTag(), this, this);
             frameProfiler.end(StudioFrameProfiler.WORLD_PROCESS, phaseStart);
+            if (!spatialFrameValid) return;
 
             if (gpuSnapshotManager != null) {
                 phaseStart = frameProfiler.begin(StudioFrameProfiler.GPU_SNAPSHOT_FLUSH_DEFERRED_DISPOSALS);
@@ -2206,6 +2218,21 @@ public class WorldCanvas {
 
     public DynamicEntityRenderState getDynamicEntityState() {
         return dynamicEntityState;
+    }
+
+    @Override
+    public void processFrame() {
+        world.process();
+    }
+
+    @Override
+    public void onSpatialInvariantFailure(RuntimeException failure) {
+        VisDialog dialog = new VisDialog("Spatial V3 invariant failure");
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.text(failure.getMessage() + "\n\nThe scene preview has stopped. Reload or correct the scene before continuing.");
+        dialog.button("OK");
+        dialog.show(app.getUiStage());
     }
 
     public void clearRenderMemory() {

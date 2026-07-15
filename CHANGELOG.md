@@ -3,9 +3,10 @@
 ## 0.2.1 - Tiled Map Import (.tmx, .tsx)
 
 ### Breaking changes
-* Existing Pixscape scenes created with older tiled map data are no longer compatible.
-* Projects containing tiled maps should be re-imported or recreated with this version.
-* This breaking change is caused by the TMX/tiled map import pipeline changes required to support Tiled transform flags, image layers, tile animations, image collection tilesets and improved runtime mapping.
+- Existing Pixscape scenes created with older tiled map or spatial tiled data are no longer compatible.
+- Projects containing tiled maps should be re-imported or recreated with this version.
+- This breaking change is caused by the TMX/tiled map import pipeline changes required to support Tiled transform flags, tile animations, image collection tilesets, repeatable sprites, and improved runtime mapping.
+- Spatial tiled data was also updated to support canonical ranks, deterministic tile ordering, and junction rules for complex 2.5D structures.
 
 ### Added
 
@@ -68,6 +69,11 @@
 * Fixed repeated TMX image layers rendering correctly in preview but not in the Studio canvas.
 * Fixed false tileset-size incompatibility errors when importing real-world Tiled maps using image collection tilesets.
 * Fixed undocked panels turning black after closing the Debug Console.
+* Fixed preview rendering for complex spatial tiled scenes with corners, wall junctions, and enclosed structures.
+* Fixed preview rendering of sprites after physics body changes through the updated runtime.
+
+### Improved
+* Improved preview reliability for 2.5D tiled spatial scenes.
 
 ### Tests
 

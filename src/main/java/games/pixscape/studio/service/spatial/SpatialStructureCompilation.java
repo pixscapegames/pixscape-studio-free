@@ -5,6 +5,8 @@ import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
+import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
+import games.pixscape.runtime.spatial.SpatialTileOrderCache;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 /** Studio-safe validation and staging boundary around the strict Runtime compiler. */
@@ -53,8 +55,14 @@ public final class SpatialStructureCompilation {
             for (int i = 0; i < structureIds.length; i++) {
                 staged[i] = SpatialStructureCompiler.compile(detached.blocks, structureIds[i]);
             }
+            if (map != null) {
+                detached.revision = 1;
+                SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
+                compiled.ensure(detached);
+                new SpatialTileOrderCache().ensure(-1, map, detached, compiled);
+            }
         } catch (RuntimeException failure) {
-            return failure("Spatial structure compilation failed: " + safeMessage(failure));
+            return failure("Spatial static compilation failed: " + safeMessage(failure));
         }
         return new Result(true, null, staged);
     }

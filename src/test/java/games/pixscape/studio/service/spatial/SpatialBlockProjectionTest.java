@@ -99,8 +99,9 @@ public class SpatialBlockProjectionTest {
         Assert.assertFalse(source.contains("2:1"));
         Assert.assertFalse(source.contains("tileWidth * 0.5"));
         Assert.assertFalse(source.contains("tileHeight * 0.5"));
-        Assert.assertTrue(source.contains("tileToWorldX(1, 0)"));
-        Assert.assertTrue(source.contains("tileToWorldX(0, 1)"));
+        Assert.assertTrue(source.contains("map.projectSpatialPoint"));
+        Assert.assertFalse(source.contains("tileToWorldX(1, 0)"));
+        Assert.assertFalse(source.contains("tileToWorldX(0, 1)"));
     }
 
     private static TiledMapLayerData isoMap() {

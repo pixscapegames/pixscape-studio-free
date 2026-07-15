@@ -1813,6 +1813,8 @@ public final class SceneService {
 
             // Reinject sparse
             tiled.ensureSparseTileStorageConsistency();
+            tiled.data.beginContentMutation();
+            try {
             for (int t = 0; t < tiled.tileXs.size; t++) {
                 int gx = tiled.tileXs.get(t);
                 int gy = tiled.tileYs.get(t);
@@ -1831,6 +1833,9 @@ public final class SceneService {
                         TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, lookup);
                     }
                 }
+            }
+            } finally {
+                tiled.data.endContentMutation();
             }
 
             tiled.data.markAllChunksContentDirty();

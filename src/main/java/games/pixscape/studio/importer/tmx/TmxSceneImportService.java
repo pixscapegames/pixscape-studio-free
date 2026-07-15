@@ -512,6 +512,8 @@ public final class TmxSceneImportService {
                                TmxTileLayerPlan tileLayer,
                                Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerEntity);
+        tiled.data.beginContentMutation();
+        try {
         for (TmxTileCellPlan cell : tileLayer.cells()) {
             Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
             if (logicalIds == null) {
@@ -526,6 +528,9 @@ public final class TmxSceneImportService {
             byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
             tiled.data.setTile(gx, gy, logicalId, flags);
             TiledSparseStorageHelper.setTile(tiled, gx, gy, logicalId, flags);
+        }
+        } finally {
+            tiled.data.endContentMutation();
         }
     }
 

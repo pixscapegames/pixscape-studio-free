@@ -4,6 +4,7 @@ import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
 
 public final class TiledBrushSession {
@@ -12,6 +13,7 @@ public final class TiledBrushSession {
     private final IntIntMap newValues = new IntIntMap();
 
     private final int layerEntityId;
+    private TiledMapLayerData mutationMap;
 
     public TiledBrushSession(int layerEntityId) {
         this.layerEntityId = layerEntityId;
@@ -22,6 +24,13 @@ public final class TiledBrushSession {
     }
 
     public void apply(TiledLayerComponent comp, int gx, int gy, int newAssetId, byte newFlags) {
+
+        if (mutationMap == null) {
+            mutationMap = comp.data;
+            mutationMap.beginContentMutation();
+        } else if (mutationMap != comp.data) {
+            throw new IllegalStateException("A tiled brush session cannot span multiple maps.");
+        }
 
         int key = pack(gx, gy);
 
@@ -40,6 +49,12 @@ public final class TiledBrushSession {
 
         comp.data.setTile(gx, gy, newAssetId, newFlags);
         TiledSparseStorageHelper.setTile(comp, gx, gy, newAssetId, newFlags);
+    }
+
+    public void commit() {
+        if (mutationMap == null) return;
+        mutationMap.endContentMutation();
+        mutationMap = null;
     }
 
     public boolean isEmpty() {

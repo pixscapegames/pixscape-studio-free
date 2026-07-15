@@ -70,6 +70,8 @@ public final class TiledBrushCommand implements Command {
         IntSet uniqueAssetIds = sceneTag != null ? new IntSet() : null;
         TileAnimationLookup lookup = sceneService.getTileAnimationRegistry();
 
+        comp.data.beginContentMutation();
+        try {
         IntIntMap.Entries entries = map.entries();
         while (entries.hasNext) {
             IntIntMap.Entry e = entries.next();
@@ -99,6 +101,9 @@ public final class TiledBrushCommand implements Command {
             if (uniqueAssetIds != null && assetId > 0) {
                 uniqueAssetIds.add(assetId);
             }
+        }
+        } finally {
+            comp.data.endContentMutation();
         }
 
         if (sceneTag != null) {
