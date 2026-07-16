@@ -19,6 +19,7 @@ public final class TiledPreviewService {
     private float tintA;
     private int visualPixW;
     private int visualPixH;
+    private TiledBrushSession brushSession;
 
     public void clear() {
         coverageVisible = false;
@@ -31,7 +32,17 @@ public final class TiledPreviewService {
         flags = 0;
         tintR = tintG = tintB = tintA = 0f;
         visualPixW = visualPixH = 0;
+        brushSession = null;
     }
+
+    public void showBrushSession(TiledMapLayerData map, String atlasTag, TiledBrushSession session) {
+        clear();
+        this.map = map;
+        this.atlasTag = atlasTag;
+        this.brushSession = session;
+    }
+
+    public TiledBrushSession brushSession() { return brushSession; }
 
     public void show(TiledMapLayerData map,
                      String atlasTag,
@@ -164,5 +175,6 @@ public final class TiledPreviewService {
         this.tintA = tintA;
         this.visualPixW = 0;
         this.visualPixH = 0;
+        this.brushSession = null;
     }
 }

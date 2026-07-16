@@ -1,10 +1,9 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntSet;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -12,122 +11,75 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.tiled.TiledMutationPlan;
+import games.pixscape.studio.service.tiled.TiledMutationRejectedException;
+import games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner;
 
+/** One complete canonical tiled gesture; neither redo nor undo assumes prior map mutation. */
 public final class TiledBrushCommand implements Command {
-
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final SceneService sceneService;
     private final long layerHistoryId;
+    private final TiledMutationPlan plan;
+    private final TiledSpatialMutationPlanner planner;
 
-    private final IntIntMap previous;
-    private final IntIntMap next;
-
-    public TiledBrushCommand(World world,
-                             SceneService sceneService,
-                             HistoryIdRegistry historyIds,
-                             long layerHistoryId,
-                             IntIntMap previous,
-                             IntIntMap next) {
-
+    public TiledBrushCommand(World world, SceneService sceneService, HistoryIdRegistry historyIds,
+                             long layerHistoryId, TiledMutationPlan plan,
+                             TiledSpatialMutationPlanner planner) {
         this.world = world;
         this.sceneService = sceneService;
         this.historyIds = historyIds;
         this.layerHistoryId = layerHistoryId;
-
-        this.previous = new IntIntMap(previous);
-        this.next = new IntIntMap(next);
+        this.plan = plan;
+        this.planner = planner;
     }
 
-    @Override
-    public String label() {
-        return "Brush Tiles";
-    }
+    @Override public String label() { return "Brush Tiles"; }
+    @Override public void redo() { apply(true); }
+    @Override public void undo() { apply(false); }
 
-    @Override
-    public void redo() {
-        apply(next);
-    }
-
-    @Override
-    public void undo() {
-        apply(previous);
-    }
-
-    private void apply(IntIntMap map) {
+    private void apply(boolean after) {
         int entityId = historyIds.entityOfHistoryId(layerHistoryId);
-        if (entityId == -1) return;
-
-        TiledLayerComponent comp =
-                world.getMapper(TiledLayerComponent.class)
-                        .getSafe(entityId, null);
-
-        if (comp == null || comp.data == null) return;
+        if (entityId == -1) throw new IllegalStateException("Tiled brush layer no longer exists.");
+        TiledLayerComponent comp = world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
+        if (comp == null || comp.data == null) {
+            throw new IllegalStateException("Tiled brush layer has no map data.");
+        }
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
+        TiledSpatialMutationPlanner.Result result =
+                planner.validateAndCommit(entityId, comp.data, blocks, plan, after);
+        if (!result.accepted()) throw new TiledMutationRejectedException(result.rejection());
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         String sceneTag = cfg != null ? cfg.canonicalSceneTagCurrent() : null;
-
         IntSet uniqueAssetIds = sceneTag != null ? new IntSet() : null;
-        TileAnimationLookup lookup = sceneService.getTileAnimationRegistry();
-
-        comp.data.beginContentMutation();
-        try {
-        IntIntMap.Entries entries = map.entries();
-        while (entries.hasNext) {
-            IntIntMap.Entry e = entries.next();
-
-            int gx = unpackX(e.key);
-            int gy = unpackY(e.key);
-
-            int packed = e.value;
-            int assetId = PackedTileValue.assetId(packed);
-            byte flags = PackedTileValue.flags(packed);
-
-            comp.data.setTile(gx, gy, assetId, flags);
+        TileAnimationLookup lookup = sceneService != null ? sceneService.getTileAnimationRegistry() : null;
+        for (int i = 0; i < plan.size(); i++) {
+            int gx = plan.gx(i);
+            int gy = plan.gy(i);
+            int assetId = plan.assetId(i, after);
+            byte flags = plan.flags(i, after);
             TiledSparseStorageHelper.setTile(comp, gx, gy, assetId, flags);
-
             if (lookup != null) {
                 int cx = gx / comp.data.chunkSize;
                 int cy = gy / comp.data.chunkSize;
-
                 TileChunk chunk = comp.data.getChunk(cx, cy);
                 if (chunk != null) {
-                    int lx = gx - (cx * comp.data.chunkSize);
-                    int ly = gy - (cy * comp.data.chunkSize);
+                    int lx = gx - cx * comp.data.chunkSize;
+                    int ly = gy - cy * comp.data.chunkSize;
                     TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, lookup);
                 }
             }
-
-            if (uniqueAssetIds != null && assetId > 0) {
-                uniqueAssetIds.add(assetId);
-            }
+            if (uniqueAssetIds != null && assetId > 0) uniqueAssetIds.add(assetId);
         }
-        } finally {
-            comp.data.endContentMutation();
-        }
-
-        if (sceneTag != null) {
+        if (sceneTag != null && sceneService != null) {
             boolean atlasInputChanged = false;
-
             IntSet.IntSetIterator it = uniqueAssetIds.iterator();
             while (it.hasNext) {
-                int assetId = it.next();
-                if (sceneService.ensureSceneAtlasInputHasAsset(sceneTag, assetId)) {
-                    atlasInputChanged = true;
-                }
+                if (sceneService.ensureSceneAtlasInputHasAsset(sceneTag, it.next())) atlasInputChanged = true;
             }
-
-            if (atlasInputChanged) {
-                sceneService.requestAsyncPack(sceneTag);
-            }
+            if (atlasInputChanged) sceneService.requestAsyncPack(sceneTag);
         }
-    }
-
-    private static int unpackX(int key) {
-        return key >> 16;
-    }
-
-    private static int unpackY(int key) {
-        return key & 0xFFFF;
     }
 }

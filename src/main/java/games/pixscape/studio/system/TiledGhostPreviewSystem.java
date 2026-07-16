@@ -22,6 +22,7 @@ import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 import games.pixscape.studio.service.tiled.TiledPreviewService;
+import games.pixscape.studio.service.tiled.TiledBrushSession;
 
 import java.util.Objects;
 import java.util.function.IntFunction;
@@ -93,11 +94,17 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
     }
 
     private void processSystemInternal() {
-        if (!previewService.isCoverageVisible()) return;
+        TiledBrushSession session = previewService.brushSession();
+        if (session == null && !previewService.isCoverageVisible()) return;
         if (ctx.cam.zoom <= 0.000001f) return;
 
         TiledMapLayerData map = previewService.map();
         if (map == null) return;
+
+        if (session != null) {
+            drawBrushSession(map, session, previewService.atlasTag());
+            return;
+        }
 
         int gx = previewService.gx();
         int gy = previewService.gy();
@@ -173,6 +180,40 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         batch.begin();
         try {
             batch.draw(drawData.texture, tmpVerts, 0, 20);
+        } finally {
+            batch.end();
+        }
+    }
+
+    private void drawBrushSession(TiledMapLayerData map, TiledBrushSession session, String atlasTag) {
+        SpriteBatch batch = ctx.batch;
+        batch.setProjectionMatrix(ctx.cam.combined);
+        batch.begin();
+        try {
+            for (int i = 0; i < session.mutationCount(); i++) {
+                int gx = session.gx(i);
+                int gy = session.gy(i);
+                int logicalAssetId = session.afterAssetId(i);
+                boolean erase = logicalAssetId <= 0;
+                byte flags = session.afterTransformFlags(i);
+                if (erase) {
+                    logicalAssetId = map.getTile(gx, gy);
+                    flags = map.getTileTransformFlags(gx, gy);
+                }
+                if (logicalAssetId <= 0) continue;
+                int visualAssetId = TileAnimationResolver.resolveVisualAssetId(logicalAssetId, 0, tileAnimationLookup);
+                DrawData drawData = resolveDrawData(visualAssetId, atlasTag);
+                RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);
+                if (drawData == null || drawData.texture == null || profile == null) continue;
+                TileQuadTransforms.buildSpriteQuad(map, gx, gy, drawData.spriteW, drawData.spriteH,
+                        profile, flags, tmpQuad);
+                buildVertices(tmpVerts, tmpQuad,
+                        drawData.uBL, drawData.vBL, drawData.uTL, drawData.vTL,
+                        drawData.uTR, drawData.vTR, drawData.uBR, drawData.vBR,
+                        erase ? Color.toFloatBits(0.05f, 0.92f, 1f, 0.5f)
+                                : Color.toFloatBits(1f, 1f, 1f, alpha));
+                batch.draw(drawData.texture, tmpVerts, 0, 20);
+            }
         } finally {
             batch.end();
         }
