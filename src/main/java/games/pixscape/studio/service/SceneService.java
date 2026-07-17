@@ -3,7 +3,6 @@ package games.pixscape.studio.service;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.artemis.WorldConfiguration;
 import com.artemis.io.JsonArtemisSerializer;
 import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
@@ -647,8 +646,6 @@ public final class SceneService {
         FileHandle projectDir = context.projectDir();
         String sceneName = context.sceneName();
 
-        PreparedSceneActivation prepared = prepareSceneActivation(cfg, sceneName, projectDir);
-
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
 
@@ -662,7 +659,7 @@ public final class SceneService {
         clipboardService.clear();
 
         try {
-            activatePreparedScene(cfg, prepared, projectDir);
+            loadScene(cfg, sceneName, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
         } catch (Exception ex) {
             throw new IllegalStateException("Cannot load current scene '" + sceneName + "'.", ex);
@@ -724,13 +721,8 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     void loadScene(ProjectConfig cfg, String sceneName, FileHandle projectDir) {
-        PreparedSceneActivation prepared = prepareSceneActivation(cfg, sceneName, projectDir);
-        activatePreparedScene(cfg, prepared, projectDir);
-    }
+        clearWorldAndRenderState();
 
-    static PreparedSceneActivation prepareSceneActivation(ProjectConfig cfg,
-                                                           String sceneName,
-                                                           FileHandle projectDir) {
         SceneMeta meta = cfg.getSceneMeta(sceneName);
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
@@ -745,46 +737,23 @@ public final class SceneService {
 
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
-        World stagingWorld = new World(new WorldConfiguration()
-                .setSystem(new WorldSerializationManager()));
-        try {
-            SceneLoader.loadScene(stagingWorld, sceneFile, false);
-            stagingWorld.process();
-            resolveTiledLayersForActivation(stagingWorld, meta, null, null,
-                    cfg.projectTitle, sceneName);
-            validateAndCompileSpatialBlocksForActivation(
-                    stagingWorld, cfg.projectTitle, sceneName);
-        } finally {
-            stagingWorld.dispose();
-        }
-        return new PreparedSceneActivation(sceneName, meta, canonicalTag, sceneFile);
-    }
-
-    private void activatePreparedScene(ProjectConfig cfg,
-                                       PreparedSceneActivation prepared,
-                                       FileHandle projectDir) {
-        clearWorldAndRenderState();
-
         World world = canvas.getEcsWorld();
-        SceneLoader.loadScene(world, prepared.sceneFile(), false);
-        resolveTiledLayersForActivation(
+        loadSceneForActivation(
                 world,
-                prepared.meta(),
+                sceneFile,
+                meta,
                 canvas.getTileAnimationRegistry(),
                 canvas.getTiledAllocatorService(),
                 cfg.projectTitle,
-                prepared.sceneName()
+                sceneName,
+                () -> normalizeSceneAtlasTags(canonicalTag),
+                SceneLoader::loadScene
         );
-        validateAndCompileSpatialBlocksForActivation(
-                world, cfg.projectTitle, prepared.sceneName());
 
-        normalizeSceneAtlasTags(prepared.canonicalTag());
-
-        world.process();
         rebuildHistoryIdsFromWorld(world);
-        assertDrawablesHaveEntityIndex("loadScene(" + prepared.sceneName() + ")");
+        assertDrawablesHaveEntityIndex("loadScene(" + sceneName + ")");
 
-        rebuildRenderRuntimeForScene(cfg, prepared.canonicalTag(), projectDir);
+        rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);
         world.process();
         // UI
 
@@ -798,6 +767,23 @@ public final class SceneService {
         refreshAssetsPanel();
         app.getBottomBar().refreshSelectBox();
 
+    }
+
+    static void loadSceneForActivation(World world,
+                                       FileHandle sceneFile,
+                                       SceneMeta meta,
+                                       TileAnimationLookup lookup,
+                                       TiledAllocatorService allocator,
+                                       String projectTitle,
+                                       String sceneName,
+                                       Runnable normalizeAtlasTags,
+                                       SceneLoadOperation sceneLoader) {
+        sceneLoader.load(world, sceneFile, false);
+        normalizeAtlasTags.run();
+        world.process();
+        resolveTiledLayersForActivation(
+                world, meta, lookup, allocator, projectTitle, sceneName);
+        validateAndCompileSpatialBlocksForActivation(world, projectTitle, sceneName);
     }
 
     // ---------------------------------------------------------------------
@@ -1913,7 +1899,7 @@ public final class SceneService {
             String layer = layerMeta != null && layerMeta.name != null && !layerMeta.name.isBlank()
                     ? "layer '" + layerMeta.name + "'" : "layer entity " + entity;
             String message = "Project '" + safeContext(projectTitle) + "', scene '"
-                    + safeContext(sceneName) + "', " + layer + " failed Spatial V3 staging compilation: "
+                    + safeContext(sceneName) + "', " + layer + " failed Spatial V3 activation compilation: "
                     + stripTrailingPunctuation(compilation.diagnostic()) + ".";
             StudioLog.error(message);
             throw new SpatialSceneActivationException(message);
@@ -3749,10 +3735,9 @@ public final class SceneService {
                               FileHandle assetsMetaFile) {
     }
 
-    record PreparedSceneActivation(String sceneName,
-                                   SceneMeta meta,
-                                   String canonicalTag,
-                                   FileHandle sceneFile) {
+    @FunctionalInterface
+    interface SceneLoadOperation {
+        void load(World world, FileHandle sceneFile, boolean editMode);
     }
 
     private record SaveExecutionPlan(ProjectConfig cfg,
