@@ -98,14 +98,28 @@ public class SpatialStructureGeometryCacheTest {
     }
 
     @Test
-    public void failedStagingCompilationKeepsPublishedCacheUntouched() {
+    public void distinctValidSourceWithReusedEntityIdAndRevisionReplacesGeometry() {
+        SpatialBlocksComponent first = component(wall(1, 4, 0f, 0f, 4f, 1f));
+        SpatialBlocksComponent second = component(wall(1, 4, 6f, 0f, 2f, 1f));
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        TiledMapLayerData map = map();
+
+        Assert.assertTrue(cache.synchronize(13, first, map).published());
+        String firstGeometry = signature(cache.structure(0));
+        Assert.assertTrue(cache.synchronize(13, second, map).published());
+
+        Assert.assertEquals(1, cache.structureCount());
+        Assert.assertNotEquals(firstGeometry, signature(cache.structure(0)));
+    }
+
+    @Test
+    public void invalidCurrentSourceClearsPreviouslyPublishedGeometryUntilCorrected() {
         SpatialBlocksComponent walls = component(
                 wall(1, 4, 0f, 0f, 4f, 1f),
                 wall(2, 4, 3f, 0f, 1f, 4f));
         TiledMapLayerData map = map();
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
         Assert.assertTrue(cache.synchronize(13, walls, map).success());
-        String published = signature(cache.structure(0));
         int revision = cache.publishedRevision();
         int compilations = cache.compilationCount();
 
@@ -116,12 +130,81 @@ public class SpatialStructureGeometryCacheTest {
         Assert.assertFalse(failed.success());
         Assert.assertFalse(failed.published());
         Assert.assertNotNull(failed.diagnostic());
-        Assert.assertEquals(revision, cache.publishedRevision());
+        Assert.assertEquals(revision + 1, cache.publishedRevision());
         Assert.assertEquals(compilations, cache.compilationCount());
-        Assert.assertEquals(published, signature(cache.structure(0)));
+        Assert.assertEquals(0, cache.structureCount());
         Assert.assertEquals(1, cache.failureCount());
         Assert.assertFalse(cache.synchronize(13, walls, map).success());
+        Assert.assertEquals(0, cache.structureCount());
         Assert.assertEquals(1, cache.failureCount());
+
+        walls.blocks.get(1).height = 6f;
+        walls.revision++;
+        Assert.assertTrue(cache.synchronize(13, walls, map).success());
+        Assert.assertEquals(1, cache.structureCount());
+    }
+
+    @Test
+    public void failedReplacementWithReusedEntityIdCannotExposePreviousSource() {
+        SpatialBlocksComponent valid = component(wall(1, 4, 0f, 0f, 4f, 1f));
+        SpatialBlocksComponent invalid = component(wall(2, 5, 6f, 0f, 2f, 1f));
+        invalid.blocks.get(0).height = 0f;
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        TiledMapLayerData map = map();
+        Assert.assertTrue(cache.synchronize(13, valid, map).published());
+
+        SpatialStructureGeometryCache.SynchronizeResult failure = cache.synchronize(13, invalid, map);
+
+        Assert.assertFalse(failure.success());
+        Assert.assertEquals(0, cache.structureCount());
+        Assert.assertSame(failure, cache.synchronize(13, invalid, map));
+        Assert.assertEquals(1, cache.failureCount());
+    }
+
+    @Test
+    public void sceneSwitchAndReturnNeverReuseAnotherScenesGeometry() {
+        SpatialBlocksComponent sceneA = component(wall(1, 4, 0f, 0f, 4f, 1f));
+        SpatialBlocksComponent sceneB = component(wall(2, 8, 7f, 0f, 2f, 1f));
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        TiledMapLayerData mapA = map();
+        TiledMapLayerData mapB = map();
+        cache.synchronize(3, sceneA, mapA);
+        String geometryA = signature(cache.structure(0));
+
+        cache.synchronize(3, sceneB, mapB);
+        String geometryB = signature(cache.structure(0));
+        cache.synchronize(3, sceneA, mapA);
+
+        Assert.assertNotEquals(geometryA, geometryB);
+        Assert.assertEquals(geometryA, signature(cache.structure(0)));
+    }
+
+    @Test
+    public void mapContentFailureInvalidatesPublishedGeometryAndRetriesAfterCorrection() {
+        SpatialBlocksComponent walls = component(wall(1, 4, 0f, 0f, 2f, 1f));
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+        TiledMapLayerData map = map();
+        Assert.assertTrue(cache.synchronize(13, walls, map).published());
+        map.setTile(0, 0, 0);
+
+        Assert.assertFalse(cache.synchronize(13, walls, map).success());
+        Assert.assertEquals(0, cache.structureCount());
+
+        map.setTile(0, 0, 1);
+        Assert.assertTrue(cache.synchronize(13, walls, map).published());
+        Assert.assertEquals(1, cache.structureCount());
+    }
+
+    @Test
+    public void emptyValidSourcePublishesAnIntentionallyEmptySnapshot() {
+        SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
+
+        SpatialStructureGeometryCache.SynchronizeResult result = cache.synchronize(13, component(), map());
+
+        Assert.assertTrue(result.success());
+        Assert.assertTrue(result.published());
+        Assert.assertEquals(0, cache.structureCount());
+        Assert.assertNull(cache.lastDiagnostic());
     }
 
     @Test
@@ -130,12 +213,13 @@ public class SpatialStructureGeometryCacheTest {
                 wall(1, 4, 0f, 0f, 4f, 1f),
                 wall(2, 4, 3f, 0f, 1f, 4f));
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        Assert.assertTrue(cache.synchronize(13, walls, map()).published());
+        TiledMapLayerData map = map();
+        Assert.assertTrue(cache.synchronize(13, walls, map).published());
         int compilations = cache.compilationCount();
         int revision = cache.publishedRevision();
 
         for (int frame = 0; frame < 20; frame++) {
-            Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+            Assert.assertFalse(cache.synchronize(13, walls, map).published());
         }
 
         Assert.assertEquals(compilations, cache.compilationCount());
@@ -148,19 +232,20 @@ public class SpatialStructureGeometryCacheTest {
         SpatialBlockData second = wall(2, 4, 3f, 0f, 1f, 4f);
         SpatialBlocksComponent walls = component(first, second);
         SpatialStructureGeometryCache cache = new SpatialStructureGeometryCache();
-        cache.synchronize(13, walls, map());
+        TiledMapLayerData map = map();
+        cache.synchronize(13, walls, map);
         int initial = cache.compilationCount();
 
         first.physicsCollision = !first.physicsCollision;
         walls.revision++;
-        Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+        Assert.assertFalse(cache.synchronize(13, walls, map).published());
         Assert.assertEquals(initial, cache.compilationCount());
-        Assert.assertFalse(cache.synchronize(13, walls, map()).published());
+        Assert.assertFalse(cache.synchronize(13, walls, map).published());
         Assert.assertEquals(initial, cache.compilationCount());
 
         first.actorOccluder = !first.actorOccluder;
         walls.revision++;
-        Assert.assertTrue(cache.synchronize(13, walls, map()).published());
+        Assert.assertTrue(cache.synchronize(13, walls, map).published());
         Assert.assertEquals(initial + 1, cache.compilationCount());
     }
 

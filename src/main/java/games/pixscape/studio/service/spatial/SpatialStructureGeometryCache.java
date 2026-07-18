@@ -28,40 +28,43 @@ public final class SpatialStructureGeometryCache {
         public String diagnostic() { return diagnostic; }
     }
 
-    private int layerEntityId = -1;
     private Array<Entry> entries = new Array<>(Entry[]::new);
     private int[] structureIds = new int[0];
     private int structureIdCount;
     private int compilationCount;
     private int publishedRevision;
-    private int publishedSourceRevision = -1;
+    private final SourceMarker publishedSource = new SourceMarker();
     private int failureCount;
     private String lastDiagnostic;
-    private int failedLayerEntityId = -1;
-    private int failedSourceRevision = -1;
+    private final SourceMarker failedSource = new SourceMarker();
     private SynchronizeResult lastFailureResult;
 
     public SynchronizeResult synchronize(int requestedLayerEntityId,
                                          SpatialBlocksComponent component,
                                          TiledMapLayerData map) {
-        if (isPublishedSnapshotCurrent(requestedLayerEntityId, component)) {
+        if (isPublishedSnapshotCurrent(requestedLayerEntityId, component, map)) {
             return UNCHANGED;
         }
         int sourceRevision = component != null ? component.revision : 0;
-        if (requestedLayerEntityId == failedLayerEntityId && sourceRevision == failedSourceRevision) {
+        if (isFailedSourceCurrent(requestedLayerEntityId, component, map, sourceRevision)) {
             return lastFailureResult;
         }
         collectStructureIds(component);
         SpatialStructureTopology.Plan validation = SpatialStructureTopology.validate(component, map);
-        if (!validation.valid) return failure(requestedLayerEntityId, sourceRevision, validation.error);
+        if (!validation.valid) return failure(requestedLayerEntityId, component, map,
+                sourceRevision, validation.error);
 
         Array<Entry> staging = new Array<>(Entry[]::new);
         int stagedCompilations = 0;
-        boolean changed = requestedLayerEntityId != layerEntityId || entries.size != structureIdCount;
+        boolean changed = requestedLayerEntityId != publishedSource.layerEntityId
+                || component != publishedSource.component
+                || map != publishedSource.map
+                || entries.size != structureIdCount;
         try {
             for (int i = 0; i < structureIdCount; i++) {
                 int structureId = structureIds[i];
-                Entry published = requestedLayerEntityId == layerEntityId ? find(entries, structureId) : null;
+                Entry published = requestedLayerEntityId == publishedSource.layerEntityId
+                        ? find(entries, structureId) : null;
                 if (published != null && published.matches(component)) {
                     staging.add(published);
                     continue;
@@ -74,37 +77,29 @@ public final class SpatialStructureGeometryCache {
                 changed = true;
             }
         } catch (RuntimeException compileFailure) {
-            return failure(requestedLayerEntityId, sourceRevision,
+            return failure(requestedLayerEntityId, component, map, sourceRevision,
                     "Spatial structure compilation failed: " + safeMessage(compileFailure));
         }
 
         if (!changed) {
-            publishedSourceRevision = sourceRevision;
-            failedLayerEntityId = -1;
-            failedSourceRevision = -1;
-            lastFailureResult = null;
+            capturePublishedSource(requestedLayerEntityId, component, map, sourceRevision);
+            clearFailedSource();
             lastDiagnostic = null;
             return UNCHANGED;
         }
         entries = staging;
-        layerEntityId = requestedLayerEntityId;
-        publishedSourceRevision = component != null ? component.revision : 0;
+        capturePublishedSource(requestedLayerEntityId, component, map, sourceRevision);
         compilationCount += stagedCompilations;
         publishedRevision++;
         lastDiagnostic = null;
-        failedLayerEntityId = -1;
-        failedSourceRevision = -1;
-        lastFailureResult = null;
+        clearFailedSource();
         return new SynchronizeResult(true, true, null);
     }
 
     public void clear() {
-        entries = new Array<>(Entry[]::new);
-        layerEntityId = -1;
-        publishedSourceRevision = -1;
-        failedLayerEntityId = -1;
-        failedSourceRevision = -1;
-        lastFailureResult = null;
+        entries.clear();
+        clearPublishedSource();
+        clearFailedSource();
         publishedRevision++;
         lastDiagnostic = null;
     }
@@ -117,28 +112,75 @@ public final class SpatialStructureGeometryCache {
     public String lastDiagnostic() { return lastDiagnostic; }
 
     private boolean isPublishedSnapshotCurrent(int requestedLayerEntityId,
-                                               SpatialBlocksComponent component) {
-        return requestedLayerEntityId == layerEntityId
-                && publishedSourceRevision == (component != null ? component.revision : 0);
+                                               SpatialBlocksComponent component,
+                                               TiledMapLayerData map) {
+        return isPublishedSourceCurrent(requestedLayerEntityId, component, map,
+                component != null ? component.revision : 0);
     }
 
     private SynchronizeResult failure(int requestedLayerEntityId,
+                                      SpatialBlocksComponent component,
+                                      TiledMapLayerData map,
                                       int requestedSourceRevision,
                                       String diagnostic) {
         String message = diagnostic != null && !diagnostic.isEmpty()
                 ? diagnostic : "Invalid committed Spatial V3 authored snapshot.";
+        invalidatePublishedGeometry();
         failureCount++;
-        failedLayerEntityId = requestedLayerEntityId;
-        failedSourceRevision = requestedSourceRevision;
+        captureFailedSource(requestedLayerEntityId, component, map, requestedSourceRevision);
         if (!message.equals(lastDiagnostic)) {
             lastDiagnostic = message;
             if (Gdx.app != null) {
                 Gdx.app.error("SpatialStructureGeometryCache",
-                        "Layer " + requestedLayerEntityId + " retained its last valid compiled cache: " + message);
+                        "Layer " + requestedLayerEntityId + " has no compiled overlay geometry: " + message);
             }
         }
         lastFailureResult = new SynchronizeResult(false, false, message);
         return lastFailureResult;
+    }
+
+    private boolean isPublishedSourceCurrent(int requestedLayerEntityId,
+                                             SpatialBlocksComponent component,
+                                             TiledMapLayerData map,
+                                             int sourceRevision) {
+        return publishedSource.matches(requestedLayerEntityId, component, map, sourceRevision);
+    }
+
+    private boolean isFailedSourceCurrent(int requestedLayerEntityId,
+                                          SpatialBlocksComponent component,
+                                          TiledMapLayerData map,
+                                          int sourceRevision) {
+        return lastFailureResult != null
+                && failedSource.matches(requestedLayerEntityId, component, map, sourceRevision);
+    }
+
+    private void capturePublishedSource(int requestedLayerEntityId,
+                                        SpatialBlocksComponent component,
+                                        TiledMapLayerData map,
+                                        int sourceRevision) {
+        publishedSource.capture(requestedLayerEntityId, component, map, sourceRevision);
+    }
+
+    private void captureFailedSource(int requestedLayerEntityId,
+                                     SpatialBlocksComponent component,
+                                     TiledMapLayerData map,
+                                     int sourceRevision) {
+        failedSource.capture(requestedLayerEntityId, component, map, sourceRevision);
+    }
+
+    private void invalidatePublishedGeometry() {
+        entries.clear();
+        clearPublishedSource();
+        publishedRevision++;
+    }
+
+    private void clearPublishedSource() {
+        publishedSource.clear();
+    }
+
+    private void clearFailedSource() {
+        failedSource.clear();
+        lastFailureResult = null;
     }
 
     private static Entry find(Array<Entry> source, int structureId) {
@@ -180,6 +222,44 @@ public final class SpatialStructureGeometryCache {
     private static String safeMessage(RuntimeException failure) {
         String message = failure.getMessage();
         return message != null && !message.isEmpty() ? message : failure.getClass().getSimpleName();
+    }
+
+    private static final class SourceMarker {
+        int layerEntityId = -1;
+        int sourceRevision = -1;
+        SpatialBlocksComponent component;
+        TiledMapLayerData map;
+        int mapContentRevision = -1;
+
+        boolean matches(int requestedLayerEntityId,
+                        SpatialBlocksComponent requestedComponent,
+                        TiledMapLayerData requestedMap,
+                        int requestedSourceRevision) {
+            if (requestedLayerEntityId != layerEntityId
+                    || requestedComponent != component
+                    || requestedSourceRevision != sourceRevision
+                    || requestedMap != map) return false;
+            return requestedMap == null || requestedMap.contentRevision() == mapContentRevision;
+        }
+
+        void capture(int requestedLayerEntityId,
+                     SpatialBlocksComponent requestedComponent,
+                     TiledMapLayerData requestedMap,
+                     int requestedSourceRevision) {
+            layerEntityId = requestedLayerEntityId;
+            component = requestedComponent;
+            sourceRevision = requestedSourceRevision;
+            map = requestedMap;
+            mapContentRevision = requestedMap != null ? requestedMap.contentRevision() : -1;
+        }
+
+        void clear() {
+            layerEntityId = -1;
+            sourceRevision = -1;
+            component = null;
+            map = null;
+            mapContentRevision = -1;
+        }
     }
 
     private static final class Entry {
