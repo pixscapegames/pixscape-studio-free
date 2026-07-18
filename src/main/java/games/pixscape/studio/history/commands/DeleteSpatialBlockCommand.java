@@ -11,7 +11,7 @@ import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
 /** Atomic full-layer authored-wall snapshot command for deletion and structure splits. */
-public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop {
+public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final SpatialBlockSelectionService selection;
@@ -20,7 +20,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
-    private final boolean noop;
+    private final CommandOutcome initialOutcome;
 
     public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                      SpatialBlockSelectionService selection,
@@ -40,34 +40,59 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.delete(
                 component, blockId, tiled != null ? tiled.data : null);
         this.after = plan.walls;
-        this.noop = world == null || historyIds == null || layerHistoryId <= 0L || !plan.valid;
+        this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
+                : world == null || historyIds == null || layerHistoryId <= 0L
+                ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
     }
 
     @Override public String label() { return "Delete Spatial Wall"; }
-    @Override public boolean isNoop() { return noop; }
+    @Override public boolean isNoop() { return initialOutcome != CommandOutcome.APPLIED; }
 
     @Override
     public void redo() {
-        if (noop) return;
+        redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return applyAfter();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return applyAfter();
+    }
+
+    private CommandOutcome applyAfter() {
+        if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
-        if (layer < 0) return;
-        if (!SpatialBlockCommandSupport.replaceAllValidated(
-                world, layer, SpatialBlockCommandSupport.getOrCreate(world, layer), after)) return;
+        if (layer < 0) return CommandOutcome.NO_CHANGE;
+        CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
+                world, layer, after);
+        if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
         SpatialBlockPhysicsSync.removeBlockFixture(world, layer, blockId, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
+        return CommandOutcome.APPLIED;
     }
 
     @Override
     public void undo() {
-        if (noop) return;
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
-        if (layer < 0) return;
-        if (!SpatialBlockCommandSupport.replaceAllValidated(
-                world, layer, SpatialBlockCommandSupport.getOrCreate(world, layer), before)) return;
+        if (layer < 0) return CommandOutcome.NO_CHANGE;
+        CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
+                world, layer, before);
+        if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.selectBlock(layer, blockId);
         if (physicsBefore != null) physicsBefore.restore(world, layer, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
+        return CommandOutcome.APPLIED;
     }
 
     private int resolveLayer() {

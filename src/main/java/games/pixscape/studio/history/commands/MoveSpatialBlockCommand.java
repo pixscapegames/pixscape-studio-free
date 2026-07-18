@@ -7,7 +7,7 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 
-public final class MoveSpatialBlockCommand implements Command, HistoryManager.SupportsNoop {
+public final class MoveSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final EditSpatialBlockCommand delegate;
 
     public MoveSpatialBlockCommand(World world,
@@ -60,5 +60,20 @@ public final class MoveSpatialBlockCommand implements Command, HistoryManager.Su
     @Override
     public void undo() {
         delegate.undo();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return delegate.executeOutcome();
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        return delegate.undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return delegate.redoOutcome();
     }
 }

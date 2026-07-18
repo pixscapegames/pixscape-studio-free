@@ -118,10 +118,9 @@ final class SpatialBlockCommandSupport {
         return SpatialStructureTopology.copyWalls(component);
     }
 
-    static boolean replaceAllValidated(World world,
-                                       int layerEntityId,
-                                       SpatialBlocksComponent component,
-                                       Array<SpatialBlockData> snapshot) {
+    static CommandOutcome replaceAllValidated(World world,
+                                              int layerEntityId,
+                                              Array<SpatialBlockData> snapshot) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
                 snapshot, tiled != null ? tiled.data : null);
@@ -131,14 +130,15 @@ final class SpatialBlockCommandSupport {
                         "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
                                 + compilation.diagnostic());
             }
-            return false;
+            return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
         if (snapshot != null) {
             for (int i = 0; i < snapshot.size; i++) replacement.add(snapshot.get(i).copy());
         }
+        SpatialBlocksComponent component = getOrCreate(world, layerEntityId);
         component.blocks = replacement;
         component.revision++;
-        return true;
+        return CommandOutcome.APPLIED;
     }
 }

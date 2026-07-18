@@ -2,6 +2,7 @@ package games.pixscape.studio.history;
 
 import com.badlogic.gdx.Gdx;
 import games.pixscape.studio.history.commands.Command;
+import games.pixscape.studio.history.commands.CommandOutcomeExecution;
 import games.pixscape.studio.history.commands.CompositeCommand;
 
 import java.util.ArrayDeque;
@@ -130,8 +131,13 @@ public final class HistoryManager {
         if (c == null) return;
         debug("execute(" + safeLabel(c) + ") before undo=" + undo.size() + " redo=" + redo.size() + " cursor=" + cursor);
         enterOp("execute");
+        boolean fire = false;
         try {
-            c.redo();
+            if (!CommandOutcomeExecution.executeApplied(c)) {
+                debug("execute not applied label=" + safeLabel(c));
+                return;
+            }
+            fire = true;
             debug("redo executed label=" + safeLabel(c));
             if (!redo.isEmpty()) {
                 debug("redo.clear reason=execute label=" + safeLabel(c) + " redoBefore=" + redo.size());
@@ -145,12 +151,15 @@ public final class HistoryManager {
                 groupStack.peek().commands.add(c);
             }
         } catch (Throwable t) {
+            fire = true;
             logError("History.execute failed on: " + safeLabel(c), t);
             throw t;
         } finally {
             exitOp();
             debug("execute(" + safeLabel(c) + ") after undo=" + undo.size() + " redo=" + redo.size() + " cursor=" + cursor);
-            fireChanged();
+            if (fire) {
+                fireChanged();
+            }
         }
     }
 
@@ -212,13 +221,17 @@ public final class HistoryManager {
                 return;
             }
             c = undo.peek(); // do not pop immediately
+            if (!CommandOutcomeExecution.undoApplied(c)) {
+                debug("undo not applied label=" + safeLabel(c));
+                return;
+            }
             fire = true;
-            c.undo();
             debug("undo executed label=" + safeLabel(c));
             undo.pop();
             redo.push(c);
             cursor--;
         } catch (Throwable t) {
+            fire = c != null;
             logError("History.undo failed on: " + safeLabel(c), t);
             throw t;
         } finally {
@@ -243,13 +256,17 @@ public final class HistoryManager {
                 return;
             }
             c = redo.peek(); // do not pop immediately
+            if (!CommandOutcomeExecution.redoApplied(c)) {
+                debug("redo not applied label=" + safeLabel(c));
+                return;
+            }
             fire = true;
-            c.redo();
             debug("redo executed label=" + safeLabel(c));
             redo.pop();
             undo.push(c);
             cursor++;
         } catch (Throwable t) {
+            fire = c != null;
             logError("History.redo failed on: " + safeLabel(c), t);
             throw t;
         } finally {

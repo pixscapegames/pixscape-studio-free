@@ -2,6 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -14,6 +16,8 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import org.junit.Assert;
 import org.junit.Test;
+
+import java.lang.reflect.Proxy;
 
 public class SpatialBlockCommandsTest {
     @Test
@@ -441,6 +445,126 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(3, edited.linkedTileRefs.first().gy);
     }
 
+    @Test
+    public void rejectedExecuteLeavesModelRevisionAndHistoryUnchanged() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData candidate = block(0, "Candidate", 2f, 3f);
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, candidate);
+        world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 0);
+
+        Application previousApplication = Gdx.app;
+        int[] rejectionFeedback = {0};
+        Gdx.app = countingApplication(rejectionFeedback);
+        try {
+            history.execute(command);
+        } finally {
+            Gdx.app = previousApplication;
+        }
+
+        Assert.assertFalse(world.getMapper(SpatialBlocksComponent.class).has(layerId));
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+        Assert.assertFalse(history.isDirty());
+        Assert.assertEquals(1, rejectionFeedback[0]);
+    }
+
+    @Test
+    public void topologyRejectedExecuteDoesNotEnterHistory() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData existing = block(1, "Existing", 2f, 3f);
+        component.blocks.add(existing);
+        SpatialBlockData duplicate = block(0, "Duplicate", 2f, 3f);
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, duplicate);
+
+        history.execute(command);
+
+        Assert.assertEquals(1, component.blocks.size);
+        Assert.assertEquals("Existing", component.blocks.first().name);
+        Assert.assertEquals(0, component.revision);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+    }
+
+    @Test
+    public void rejectedUndoStaysInUndoUntilAuthoredMapIsValidAgain() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData original = block(7, "Before", 2f, 3f);
+        component.blocks.add(original);
+        SpatialBlockData edited = original.copy();
+        edited.name = "After";
+        history.execute(new EditSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, 7, original.copy(), edited));
+        int revisionAfterExecute = component.revision;
+        world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 0);
+
+        history.undo();
+
+        Assert.assertEquals("After", component.blocks.first().name);
+        Assert.assertEquals(revisionAfterExecute, component.revision);
+        Assert.assertEquals(1, history.getCursor());
+        Assert.assertTrue(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+        Assert.assertEquals("Edit Spatial Wall", history.peekUndoLabel());
+
+        world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 1);
+        history.undo();
+        Assert.assertEquals("Before", component.blocks.first().name);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertTrue(history.canRedo());
+    }
+
+    @Test
+    public void rejectedRedoStaysRetryableWithoutRevisionOrModelChange() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData candidate = block(0, "Candidate", 2f, 3f);
+        occupyLinkedTiles(world, layerId, candidate);
+        history.execute(new AddSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, candidate));
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).get(layerId);
+        history.undo();
+        int revisionAfterUndo = component.revision;
+        world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 0);
+
+        history.redo();
+
+        Assert.assertEquals(0, component.blocks.size);
+        Assert.assertEquals(revisionAfterUndo, component.revision);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.canUndo());
+        Assert.assertTrue(history.canRedo());
+        Assert.assertEquals("Add Spatial Wall", history.peekRedoLabel());
+
+        world.getMapper(TiledLayerComponent.class).get(layerId).data.setTile(2, 3, 1);
+        history.redo();
+        Assert.assertEquals(1, component.blocks.size);
+        Assert.assertEquals(revisionAfterUndo + 1, component.revision);
+        Assert.assertEquals(1, history.getCursor());
+        Assert.assertTrue(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+    }
+
     private static SpatialBlockData block(int id, String name, float x, float y) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = id;
@@ -456,6 +580,21 @@ public class SpatialBlockCommandsTest {
         block.beginAuthoredLinkedTileRefs();
         block.addLinkedTileRef(Math.round(x), Math.round(y), 1000 + Math.max(1, id));
         return block;
+    }
+
+    private static Application countingApplication(int[] errorCount) {
+        return (Application) Proxy.newProxyInstance(
+                Application.class.getClassLoader(),
+                new Class<?>[]{Application.class},
+                (proxy, method, args) -> {
+                    if ("error".equals(method.getName())) errorCount[0]++;
+                    Class<?> type = method.getReturnType();
+                    if (type == boolean.class) return false;
+                    if (type == int.class) return 0;
+                    if (type == long.class) return 0L;
+                    if (type == float.class) return 0f;
+                    return null;
+                });
     }
 
     private static void occupyLinkedTiles(World world, int layerId, SpatialBlockData block) {

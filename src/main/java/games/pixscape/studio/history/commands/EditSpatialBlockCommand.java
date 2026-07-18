@@ -11,7 +11,7 @@ import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
 /** Atomic full-layer authored-wall snapshot command for edits, merges, splits, and shared properties. */
-public final class EditSpatialBlockCommand implements Command, HistoryManager.SupportsNoop {
+public final class EditSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final SpatialBlockSelectionService selection;
@@ -20,7 +20,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
-    private final boolean noop;
+    private final CommandOutcome initialOutcome;
 
     public EditSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                    SpatialBlockSelectionService selection, int layerEntityId,
@@ -40,21 +40,27 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         this.after = plan.walls;
         this.physicsBefore = hasPhysics(before) || hasPhysics(after)
                 ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
-        this.noop = world == null || historyIds == null || layerHistoryId <= 0L
-                || !plan.valid || sameArrays(before, after);
+        this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
+                : world == null || historyIds == null || layerHistoryId <= 0L || sameArrays(before, after)
+                ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
     }
 
     @Override public String label() { return "Edit Spatial Wall"; }
-    @Override public boolean isNoop() { return noop; }
-    @Override public void redo() { apply(after, false); }
-    @Override public void undo() { apply(before, true); }
+    @Override public boolean isNoop() { return initialOutcome != CommandOutcome.APPLIED; }
+    @Override public void redo() { redoOutcome(); }
+    @Override public void undo() { undoOutcome(); }
 
-    private void apply(Array<SpatialBlockData> snapshot, boolean restorePhysics) {
-        if (noop) return;
+    @Override public CommandOutcome executeOutcome() { return apply(after, false); }
+    @Override public CommandOutcome redoOutcome() { return apply(after, false); }
+    @Override public CommandOutcome undoOutcome() { return apply(before, true); }
+
+    private CommandOutcome apply(Array<SpatialBlockData> snapshot, boolean restorePhysics) {
+        if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
-        if (layer < 0) return;
-        SpatialBlocksComponent component = SpatialBlockCommandSupport.getOrCreate(world, layer);
-        if (!SpatialBlockCommandSupport.replaceAllValidated(world, layer, component, snapshot)) return;
+        if (layer < 0) return CommandOutcome.NO_CHANGE;
+        CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, snapshot);
+        if (outcome != CommandOutcome.APPLIED) return outcome;
+        SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
         if (selection != null) selection.selectBlock(layer, blockId);
         if (restorePhysics && physicsBefore != null) {
             physicsBefore.restore(world, layer, this);
@@ -65,6 +71,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
             }
         }
         SpatialBlockCommandSupport.markChanged(world, layer, this);
+        return CommandOutcome.APPLIED;
     }
 
     private int resolveLayer() {
