@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ResolvedSceneActivationPipelineIntegrationContractTest {
@@ -44,17 +46,17 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
     }
 
     @Test
-    public void tmxActivationPreservesOuterClearBeforeNormalLoadSceneClear() throws Exception {
+    public void tmxActivationUsesOnlyTheNormalLoadSceneClear() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
                 StandardCharsets.UTF_8
         );
-        String body = methodBody(source, "private void activateImportedTmxScene(");
+        String activationBody = methodBody(source, "private void activateImportedTmxScene(");
+        String loadBody = methodBody(source, "void loadScene(");
 
-        assertOrdered(body,
-                "clearWorldAndRenderState();",
-                "loadScene(cfg, result.sceneName(), projectDir);"
-        );
+        assertTrue(activationBody.contains("loadScene(cfg, result.sceneName(), projectDir);"));
+        assertFalse(activationBody.contains("clearWorldAndRenderState();"));
+        assertEquals(1, countOccurrences(loadBody, "clearWorldAndRenderState();"));
     }
 
     private static void assertOrdered(String source, String... fragments) {
@@ -65,6 +67,16 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
             assertTrue("Out-of-order fragment: " + fragment, current > previous);
             previous = current;
         }
+    }
+
+    private static int countOccurrences(String source, String fragment) {
+        int count = 0;
+        int from = 0;
+        while ((from = source.indexOf(fragment, from)) >= 0) {
+            count++;
+            from += fragment.length();
+        }
+        return count;
     }
 
     private static String methodBody(String source, String signaturePrefix) {

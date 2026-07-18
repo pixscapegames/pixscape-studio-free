@@ -1935,7 +1935,6 @@ public final class SceneService {
     private void activateImportedTmxScene(ProjectConfig cfg,
                                           FileHandle projectDir,
                                           TmxSceneImportResult result) {
-        clearWorldAndRenderState();
         loadScene(cfg, result.sceneName(), projectDir);
         assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
         sceneMetaBridge.pushCurrentSceneMetaToUI();
