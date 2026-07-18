@@ -85,10 +85,14 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         if (tiled == null) return;
 
         float previousDefaultAltitude = tiled.defaultTileAltitude;
+        float previousDefaultHeight = tiled.defaultTileHeight;
         tiled.defaultTileAltitude = snapshot.defaultAltitude;
         tiled.defaultTileHeight = Math.max(0f, snapshot.defaultHeight);
+        boolean defaultsChanged = Float.compare(previousDefaultAltitude, tiled.defaultTileAltitude) != 0
+                || Float.compare(previousDefaultHeight, tiled.defaultTileHeight) != 0;
         syncRuntimeDefaults(tiled);
         syncInheritedSpatialBlocks(entityId, previousDefaultAltitude, tiled.defaultTileAltitude);
+        if (defaultsChanged) advanceSpatialRevision(entityId);
         markDirty(entityId);
     }
 
@@ -120,6 +124,11 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
                 SpatialBlockPhysicsSync.sync(world, layerEntityId, block, this);
             }
         }
+    }
+
+    private void advanceSpatialRevision(int layerEntityId) {
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        if (blocks != null) blocks.revision++;
     }
 
     private void markDirty(int entityId) {
