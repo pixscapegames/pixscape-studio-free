@@ -65,7 +65,7 @@ public class SceneServiceStateTransitionTest {
 
         RuntimeException ex = assertThrows(
                 RuntimeException.class,
-                () -> SceneService.validateSpatialBlocksForActivation(world, "Invalid")
+                () -> ResolvedSceneActivationPipeline.validateSpatialBlocksForActivation(world, "Invalid")
         );
 
         assertTrue(ex.getMessage().contains("Scene activation was rejected"));
@@ -88,7 +88,7 @@ public class SceneServiceStateTransitionTest {
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         blocks.blocks.add(block);
 
-        SceneService.validateSpatialBlocksForActivation(world, "Valid");
+        ResolvedSceneActivationPipeline.validateSpatialBlocksForActivation(world, "Valid");
         assertTrue(world.getMapper(SpatialBlocksComponent.class).has(layerId));
         assertEquals(1, world.getMapper(SpatialBlocksComponent.class).get(layerId).blocks.size);
     }
