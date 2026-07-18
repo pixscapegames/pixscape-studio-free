@@ -24,7 +24,6 @@ import com.kotcrab.vis.ui.widget.VisDialog;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
@@ -45,7 +44,6 @@ import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -60,7 +58,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.TiledBrushCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.input.InputState;
@@ -143,18 +140,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private TiledFallbackSystem tiledFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
-    private TiledBrushSession currentBrushSession;
     private TiledPreviewService tiledPreviewService;
-    private final TiledSpatialMutationPlanner tiledSpatialMutationPlanner = new TiledSpatialMutationPlanner();
+    private TiledMutationController tiledMutationController;
     private RuntimeTilesetProfiles studioTilesetProfiles;
     private final TileAnimationRegistry tileAnimationRegistry;
     // tiled rect
     private boolean rectActive = false;
     private int rectStartGX;
     private int rectStartGY;
-    private boolean brushHasLastCell = false;
-    private int brushLastGX;
-    private int brushLastGY;
 
     // Undo redo
     private final HistoryManager historyManager;
@@ -228,6 +221,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         handleShortcuts();
         bindPhysicsDebugEvents();
         bindEditorModeChanged();
+        bindTiledMutationContextChanges();
 
         createWorld();
         centerCamera();
@@ -367,6 +361,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        tiledMutationController = new TiledMutationController(
+                world, historyManager, () -> app != null ? app.getSceneService() : null);
 
         tiledAllocatorService = new TiledAllocatorService();
 
@@ -556,6 +552,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
             gizmoSystem.setEntityGizmoEnabled(!tile);
             if (!tile) {
+                cancelTiledGesture();
                 spatialTileSelectionService.clear();
             }
 
@@ -571,6 +568,20 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 configureEntityMode();
             }
         });
+    }
+
+    private void bindTiledMutationContextChanges() {
+        EventFlow.i().subscribe(EventFlow.TiledToolChanged.class, ev -> cancelTiledGesture());
+        EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, ev -> cancelTiledGesture());
+    }
+
+    private void cancelTiledGesture() {
+        if (tiledMutationController != null) tiledMutationController.reset();
+        if (rectActive) {
+            rectActive = false;
+            if (gizmoSystem != null) gizmoSystem.hideRectPreview();
+        }
+        if (tiledPreviewService != null) tiledPreviewService.clear();
     }
 
     private void configureTileMode(SceneMeta meta) {
@@ -843,10 +854,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
                 boolean ctrl = inputState.isCtrl();
 
-                if (!typing && keycode == Input.Keys.ESCAPE && currentBrushSession != null) {
-                    currentBrushSession.cancel();
-                    currentBrushSession = null;
-                    brushHasLastCell = false;
+                if (!typing && keycode == Input.Keys.ESCAPE && tiledMutationController.isActive()) {
+                    tiledMutationController.cancel();
                     tiledPreviewService.clear();
                     gizmoSystem.refreshOverlayMouse();
                     return true;
@@ -1057,10 +1066,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     panning = false;
                 }
 
-                if (currentBrushSession != null) {
-                    commitTiledBrushSession(currentBrushSession);
-                    currentBrushSession = null;
-                    brushHasLastCell = false;
+                if (tiledMutationController.isActive()) {
+                    consumeTiledMutationResult(tiledMutationController.commitStroke());
                 }
                 if (isTiledToolInputEnabled() && tiledToolService.is(TiledToolService.Mode.ERASE)) {
                     gizmoSystem.refreshOverlayMouse();
@@ -1132,8 +1139,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        currentBrushSession = new TiledBrushSession(layerEntityId);
-        brushHasLastCell = false;
+        tiledMutationController.beginStroke(layerEntityId);
 
         applyBrushAtMouse(layerEntityId);
 
@@ -1145,7 +1151,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void handleBrushDrag() {
-        if (currentBrushSession == null) {
+        if (!tiledMutationController.isActive()) {
             return;
         }
         if (!isTiledToolInputEnabled()) {
@@ -1258,8 +1264,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int minY = Math.min(rectStartGY, endGY);
         int maxY = Math.max(rectStartGY, endGY);
 
-        TiledBrushSession session = new TiledBrushSession(layerEntityId);
-
         int assetId;
         byte flags;
 
@@ -1278,22 +1282,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             flags = tiledToolService.getActiveTransformFlags();
         }
 
-        for (int gx = minX; gx <= maxX; gx++) {
-            for (int gy = minY; gy <= maxY; gy++) {
-                if (!tiled.data.isInside(gx, gy)) {
-                    continue;
-                }
-
-                session.apply(tiled, gx, gy, assetId, flags);
-            }
-        }
-        commitTiledBrushSession(session);
+        consumeTiledMutationResult(tiledMutationController.commitRectangle(
+                layerEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
     }
 
     private void applyBrushAtMouse(int layerEntityId) {
 
         if (layerEntityId == -1)
             return;
+        if (tiledMutationController.activeLayerEntityId() != layerEntityId) {
+            tiledMutationController.cancel();
+            return;
+        }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
@@ -1329,62 +1329,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             flags = tiledToolService.getActiveTransformFlags();
         }
 
-        if (!brushHasLastCell) {
-            currentBrushSession.apply(tiled, gx, gy, assetId, flags);
-            brushLastGX = gx;
-            brushLastGY = gy;
-            brushHasLastCell = true;
-            return;
-        }
-
-        applyBrushLine(tiled, brushLastGX, brushLastGY, gx, gy, assetId, flags, currentBrushSession);
-
-        brushLastGX = gx;
-        brushLastGY = gy;
-        brushHasLastCell = true;
-    }
-
-    private void applyBrushLine(TiledLayerComponent tiled,
-                                int x0,
-                                int y0,
-                                int x1,
-                                int y1,
-                                int assetId,
-                                byte flags,
-                                TiledBrushSession session) {
-
-        int dx = Math.abs(x1 - x0);
-        int dy = Math.abs(y1 - y0);
-
-        int sx = x0 < x1 ? 1 : -1;
-        int sy = y0 < y1 ? 1 : -1;
-
-        int err = dx - dy;
-
-        int x = x0;
-        int y = y0;
-
-        while (true) {
-            if (tiled.data.isInside(x, y)) {
-                session.apply(tiled, x, y, assetId, flags);
-            }
-
-            if (x == x1 && y == y1) {
-                break;
-            }
-
-            int e2 = err << 1;
-
-            if (e2 > -dy) {
-                err -= dy;
-                x += sx;
-            }
-
-            if (e2 < dx) {
-                err += dx;
-                y += sy;
-            }
-        }
+        tiledMutationController.updateStroke(tiled, gx, gy, assetId, flags);
     }
 
     private void performFill(int layerEntityId) {
@@ -1404,13 +1349,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (!tiled.data.isInside(startGX, startGY))
             return;
 
-        int targetId = tiled.data.getTile(startGX, startGY);
-
-        int targetPacked = PackedTileValue.pack(
-                tiled.data.getTile(startGX, startGY),
-                tiled.data.getTileTransformFlags(startGX, startGY)
-        );
-
         int replacementId;
         byte replacementFlags;
 
@@ -1423,40 +1361,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             replacementFlags = tiledToolService.getActiveTransformFlags();
         }
 
-        int replacementPacked = PackedTileValue.pack(replacementId, replacementFlags);
-
-        if (targetPacked == replacementPacked) return;
-
-        TiledBrushSession session =
-                new TiledBrushSession(layerEntityId);
-
-        floodFill(tiled, startGX, startGY, targetPacked, replacementId, replacementFlags, session);
-        commitTiledBrushSession(session);
+        consumeTiledMutationResult(tiledMutationController.commitFill(
+                layerEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
     }
 
-    boolean commitTiledBrushSession(TiledBrushSession session) {
-        if (session == null) return true;
-        TiledMutationPlan plan = session.toPlan();
-        if (plan.isEmpty()) return true;
-        int layerEntityId = plan.layerEntityId();
-        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class)
-                .getSafe(layerEntityId, null);
-        TiledSpatialMutationPlanner.Result preflight =
-                tiledSpatialMutationPlanner.preflight(plan, blocks, true);
-        if (!preflight.accepted()) {
-            showTiledSpatialRejection(layerEntityId, preflight.rejection());
-            return false;
-        }
-        long historyId = historyManager.historyIds().ensureForEntity(layerEntityId);
-        try {
-            historyManager.execute(new TiledBrushCommand(
-                    world, app != null ? app.getSceneService() : null,
-                    historyManager.historyIds(), historyId,
-                    plan, tiledSpatialMutationPlanner));
-            return true;
-        } catch (TiledMutationRejectedException rejected) {
-            showTiledSpatialRejection(layerEntityId, rejected.rejection());
-            return false;
+    private void consumeTiledMutationResult(TiledMutationController.Result result) {
+        if (result.status() == TiledMutationController.Status.REJECTED) {
+            showTiledSpatialRejection(result.layerEntityId(), result.rejection());
         }
     }
 
@@ -1476,81 +1387,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (rejection.firstBlockId() > 0) dialog.button("Select affected wall", true);
         dialog.button("Cancel", false);
         dialog.show(app.getUiStage());
-    }
-
-    private void floodFill(TiledLayerComponent tiled,
-                           int startGX,
-                           int startGY,
-                           int targetPacked,
-                           int replacementId,
-                           byte replacementFlags,
-                           TiledBrushSession session) {
-
-        int mapWidth = tiled.data.mapWidth;
-        int mapHeight = tiled.data.mapHeight;
-
-        boolean[] visited = new boolean[mapWidth * mapHeight];
-        IntArray stack = new IntArray(false, Math.min(mapWidth * mapHeight, 4096));
-
-        int startIndex = startGY * mapWidth + startGX;
-        visited[startIndex] = true;
-        stack.add(pack(startGX, startGY));
-
-        while (stack.size > 0) {
-            int key = stack.pop();
-            int gx = unpackX(key);
-            int gy = unpackY(key);
-
-            session.apply(tiled, gx, gy, replacementId, replacementFlags);
-
-            pushIfValid(gx + 1, gy, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx - 1, gy, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx, gy + 1, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx, gy - 1, tiled, targetPacked, mapWidth, visited, stack);
-        }
-    }
-
-    private void pushIfValid(int gx,
-                             int gy,
-                             TiledLayerComponent tiled,
-                             int targetPacked,
-                             int mapWidth,
-                             boolean[] visited,
-                             IntArray stack) {
-
-        if (!tiled.data.isInside(gx, gy)) {
-            return;
-        }
-
-        int index = gy * mapWidth + gx;
-
-        if (visited[index]) {
-            return;
-        }
-
-        int currentPacked = PackedTileValue.pack(
-                tiled.data.getTile(gx, gy),
-                tiled.data.getTileTransformFlags(gx, gy)
-        );
-
-        if (currentPacked != targetPacked) {
-            return;
-        }
-
-        visited[index] = true;
-        stack.add(pack(gx, gy));
-    }
-
-    private static int pack(int x, int y) {
-        return (x << 16) ^ (y & 0xFFFF);
-    }
-
-    private static int unpackX(int key) {
-        return key >> 16;
-    }
-
-    private static int unpackY(int key) {
-        return key & 0xFFFF;
     }
 
     private void computeTileUnderMouse(TiledLayerComponent tiled, Vector2 out) {
@@ -2063,12 +1899,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        if (currentBrushSession != null) {
+        TiledBrushSession activeStroke = tiledMutationController.activePreviewSession();
+        if (activeStroke != null) {
             TiledLayerComponent pendingLayer = world.getMapper(TiledLayerComponent.class)
-                    .getSafe(currentBrushSession.getLayerEntityId(), null);
+                    .getSafe(activeStroke.getLayerEntityId(), null);
             if (pendingLayer == null || pendingLayer.data == null) tiledPreviewService.clear();
             else tiledPreviewService.showBrushSession(
-                    pendingLayer.data, pendingLayer.atlasTag, currentBrushSession);
+                    pendingLayer.data, pendingLayer.atlasTag, activeStroke);
             return;
         }
 
@@ -2251,6 +2088,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void clearRenderMemory() {
+        cancelTiledGesture();
         if (dynamicEntityState != null) {
             dynamicEntityState.clear();
         }
@@ -2290,6 +2128,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void dispose() {
+        cancelTiledGesture();
         gridStage.dispose();
 
         atlasStudioService.disposeAsyncPack();
