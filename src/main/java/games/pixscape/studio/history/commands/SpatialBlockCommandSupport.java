@@ -2,10 +2,15 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.spatial.SpatialStructureTopology;
+import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
 
 final class SpatialBlockCommandSupport {
     private SpatialBlockCommandSupport() {
@@ -48,15 +53,14 @@ final class SpatialBlockCommandSupport {
     static void apply(SpatialBlockData target, SpatialBlockData source) {
         if (target == null || source == null) return;
         target.id = source.id;
+        target.structureId = source.structureId;
         target.name = source.name;
-        target.enabled = source.enabled;
         target.x = source.x;
         target.y = source.y;
         target.width = source.width;
         target.depth = source.depth;
         target.altitude = source.altitude;
         target.height = source.height;
-        target.orientation = source.orientation;
         target.actorOccluder = source.actorOccluder;
         target.physicsCollision = source.physicsCollision;
         target.lightOccluder = source.lightOccluder;
@@ -70,15 +74,14 @@ final class SpatialBlockCommandSupport {
         if (a == b) return true;
         if (a == null || b == null) return false;
         return a.id == b.id
+                && a.structureId == b.structureId
                 && java.util.Objects.equals(a.name, b.name)
-                && a.enabled == b.enabled
                 && Float.compare(a.x, b.x) == 0
                 && Float.compare(a.y, b.y) == 0
                 && Float.compare(a.width, b.width) == 0
                 && Float.compare(a.depth, b.depth) == 0
                 && Float.compare(a.altitude, b.altitude) == 0
                 && Float.compare(a.height, b.height) == 0
-                && a.orientation == b.orientation
                 && a.actorOccluder == b.actorOccluder
                 && a.physicsCollision == b.physicsCollision
                 && a.lightOccluder == b.lightOccluder
@@ -109,5 +112,33 @@ final class SpatialBlockCommandSupport {
             dirty.order(layerEntityId);
         }
         EventFlow.i().publish(new EventFlow.SpatialBlocksChanged(layerEntityId, EventFlow.tag(source)));
+    }
+
+    static com.badlogic.gdx.utils.Array<SpatialBlockData> snapshot(SpatialBlocksComponent component) {
+        return SpatialStructureTopology.copyWalls(component);
+    }
+
+    static CommandOutcome replaceAllValidated(World world,
+                                              int layerEntityId,
+                                              Array<SpatialBlockData> snapshot) {
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
+                snapshot, tiled != null ? tiled.data : null);
+        if (!compilation.success()) {
+            if (Gdx.app != null) {
+                Gdx.app.error("SpatialBlockCommand",
+                        "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
+                                + compilation.diagnostic());
+            }
+            return CommandOutcome.REJECTED;
+        }
+        Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
+        if (snapshot != null) {
+            for (int i = 0; i < snapshot.size; i++) replacement.add(snapshot.get(i).copy());
+        }
+        SpatialBlocksComponent component = getOrCreate(world, layerEntityId);
+        component.blocks = replacement;
+        component.revision++;
+        return CommandOutcome.APPLIED;
     }
 }

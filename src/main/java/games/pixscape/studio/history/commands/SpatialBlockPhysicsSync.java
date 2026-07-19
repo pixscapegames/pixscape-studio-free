@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -16,11 +17,10 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
 
 final class SpatialBlockPhysicsSync {
-    private static final int SPATIAL_BLOCK_FIXTURE_ID_BASE = 1_000_000;
-
     private SpatialBlockPhysicsSync() {
     }
 
@@ -34,7 +34,7 @@ final class SpatialBlockPhysicsSync {
             return;
         }
 
-        if (!block.enabled || !block.physicsCollision) {
+        if (!block.physicsCollision) {
             removeGeneratedFixture(world, layerEntityId, block.id, source);
             return;
         }
@@ -59,7 +59,7 @@ final class SpatialBlockPhysicsSync {
     }
 
     static int fixtureIdForBlock(int blockId) {
-        return SPATIAL_BLOCK_FIXTURE_ID_BASE + Math.max(1, blockId);
+        return SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId);
     }
 
     static void removeBlockFixture(World world, int layerEntityId, int blockId, Object source) {
@@ -124,8 +124,8 @@ final class SpatialBlockPhysicsSync {
         TransformComponent transform =
                 world.getMapper(TransformComponent.class).getSafe(layerEntityId, null);
         float ppm = pixelsPerMeter();
-        float cos = transform != null ? (float) Math.cos(transform.rotationRad) : 1f;
-        float sin = transform != null ? (float) Math.sin(transform.rotationRad) : 0f;
+        float cos = transform != null ? MathUtils.cos(transform.rotationRad) : 1f;
+        float sin = transform != null ? MathUtils.sin(transform.rotationRad) : 0f;
         float tx = transform != null ? transform.x : 0f;
         float ty = transform != null ? transform.y : 0f;
 
@@ -347,8 +347,8 @@ final class SpatialBlockPhysicsSync {
             transform.rotationRad = rotationRad;
             transform.scaleX = scaleX;
             transform.scaleY = scaleY;
-            transform.cos = (float) Math.cos(rotationRad);
-            transform.sin = (float) Math.sin(rotationRad);
+            transform.cos = MathUtils.cos(rotationRad);
+            transform.sin = MathUtils.sin(rotationRad);
             transform.absCos = Math.abs(transform.cos);
             transform.absSin = Math.abs(transform.sin);
             transform.invScaleX = scaleX != 0f ? 1f / scaleX : 1f;

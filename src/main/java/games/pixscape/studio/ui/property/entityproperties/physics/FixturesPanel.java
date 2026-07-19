@@ -1,7 +1,10 @@
 package games.pixscape.studio.ui.property.entityproperties.physics;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
+import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.util.InputValidator;
 import com.kotcrab.vis.ui.widget.*;
@@ -19,6 +22,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -31,6 +35,7 @@ import java.util.function.Consumer;
 public final class FixturesPanel extends CollapsibleWidget {
 
     private static final float MIN_SHAPE_HALF_M = 0.001f;
+    private static final int PROPERTY_COLUMN_COUNT = 3;
     private static final Array<String> SHAPES = Array.with("Box", "Circle", "Polygon");
 
     private final EntityPropertiesContext ctx;
@@ -41,6 +46,12 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private final VisSelectBox<String> shapeBox = new VisSelectBox<>();
     private final VisCheckBox sensorBox = new VisCheckBox("Sensor");
+    private final VisLabel spatialManagedLabel = new VisLabel(
+            "This collision shape is managed by a Spatial block. "
+                    + "Disable \"Use for physics collision\" to create and edit a custom shape."
+    );
+    private final Container<VisLabel> spatialManagedNotice = new Container<>();
+    private final Cell<Container<VisLabel>> spatialManagedNoticeCell;
 
     private final FloatField densityField;
     private final FloatField frictionField;
@@ -72,6 +83,7 @@ public final class FixturesPanel extends CollapsibleWidget {
     private boolean internalRefresh = false;
     private long lastSelectedFixtureId = PhysicsSelectionService.NO_FIXTURE;
     private int lastFixtureCount = -1;
+    private int lastFixtureStateHash = 0;
 
     private final int MY_TAG = EventFlow.tag(this);
 
@@ -85,7 +97,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         widthWUField = new FloatField(ctx.world, this::readWidthWU, this::hasActiveFixture).setDisplayDecimals(2);
         widthWUField.setApplier((eid, v) -> {
-            applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+            applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 if (!isBoxShape(snapshot.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float wM = wuToM(Math.abs(v), ppm);
@@ -96,7 +108,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         heightWUField = new FloatField(ctx.world, this::readHeightWU, this::hasActiveFixture).setDisplayDecimals(2);
         heightWUField.setApplier((eid, v) -> {
-            applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+            applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 if (!isBoxShape(snapshot.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float hM = wuToM(Math.abs(v), ppm);
@@ -107,7 +119,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         diameterWUField = new FloatField(ctx.world, this::readDiameterWU, this::hasActiveFixture).setDisplayDecimals(2);
         diameterWUField.setApplier((eid, v) -> {
-            applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+            applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 if (!isCircleShape(snapshot.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float dM = wuToM(Math.abs(v), ppm);
@@ -118,7 +130,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         offsetXWUField = new FloatField(ctx.world, this::readOffsetXWU, this::hasActiveFixture).setDisplayDecimals(2);
         offsetXWUField.setApplier((eid, v) -> {
-            applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+            applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
                 snapshot.offsetX = wuToM(v, ppm);
             });
@@ -126,7 +138,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         offsetYWUField = new FloatField(ctx.world, this::readOffsetYWU, this::hasActiveFixture).setDisplayDecimals(2);
         offsetYWUField.setApplier((eid, v) -> {
-            applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+            applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
                 snapshot.offsetY = wuToM(v, ppm);
             });
@@ -202,6 +214,17 @@ public final class FixturesPanel extends CollapsibleWidget {
         shape.add(autoSizeBtn).left();
         d.add(shape).colspan(2).left().row();
 
+        spatialManagedLabel.setWrap(true);
+        spatialManagedLabel.setAlignment(Align.left);
+        spatialManagedNotice.fillX().left();
+        spatialManagedNoticeCell = d.add(spatialManagedNotice)
+                .colspan(PROPERTY_COLUMN_COUNT)
+                .growX()
+                .fillX()
+                .left();
+        d.row();
+        updateOwnershipNotice(false);
+
         d.add(sensorBox).left().colspan(2).row();
 
         VisTable boxTable = boxSizeBlock.content();
@@ -267,7 +290,7 @@ public final class FixturesPanel extends CollapsibleWidget {
                     int idx = SHAPES.indexOf(after, false);
                     if (idx < 0) idx = FixtureDefData.SHAPE_BOX;
                     final int targetShape = idx;
-                    applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, true, snapshot -> {
+                    applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, true, snapshot -> {
                         int prevType = snapshot.shapeType;
                         snapshot.shapeType = targetShape;
                         if (targetShape == FixtureDefData.SHAPE_POLYGON) {
@@ -377,7 +400,10 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         long fixtureId = resolveSelectedFixtureIdForPanel(entityId);
         int fixtureCount = countFixtures(entityId);
-        if (fixtureId != lastSelectedFixtureId || fixtureCount != lastFixtureCount) {
+        int fixtureStateHash = fixtureStateHash(entityId);
+        if (fixtureId != lastSelectedFixtureId
+                || fixtureCount != lastFixtureCount
+                || fixtureStateHash != lastFixtureStateHash) {
             refreshFromModel(entityId);
         }
     }
@@ -400,9 +426,12 @@ public final class FixturesPanel extends CollapsibleWidget {
 
             lastSelectedFixtureId = resolveSelectedFixtureIdForPanel(eid);
             lastFixtureCount = countFixtures(eid);
+            lastFixtureStateHash = fixtureStateHash(eid);
             updateActionButtons(hasActive);
 
             if (!hasActive) {
+                updateOwnershipNotice(false);
+                shapeBox.setDisabled(true);
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
                 offsetsBlock.show(false);
@@ -439,6 +468,8 @@ public final class FixturesPanel extends CollapsibleWidget {
         try {
             FixtureDefData f = activeFixture(eid);
             if (f == null) {
+                updateOwnershipNotice(false);
+                shapeBox.setDisabled(true);
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
                 offsetsBlock.show(false);
@@ -447,20 +478,24 @@ public final class FixturesPanel extends CollapsibleWidget {
                 return;
             }
 
+            boolean spatialOwned = isActiveSpatialOwnedFixture(eid);
+            updateOwnershipNotice(spatialOwned);
+            shapeBox.setDisabled(spatialOwned);
+
             if (isBox(f)) {
                 boxSizeBlock.show(true);
                 circleSizeBlock.show(false);
                 offsetsBlock.show(true);
 
                 autoSizeBtn.setVisible(true);
-                autoSizeBtn.setDisabled(false);
+                autoSizeBtn.setDisabled(spatialOwned);
             } else if (isCircle(f)) {
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(true);
                 offsetsBlock.show(true);
 
                 autoSizeBtn.setVisible(true);
-                autoSizeBtn.setDisabled(false);
+                autoSizeBtn.setDisabled(spatialOwned);
             } else {
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
@@ -476,9 +511,30 @@ public final class FixturesPanel extends CollapsibleWidget {
             diameterWUField.refreshFromModel();
             offsetXWUField.refreshFromModel();
             offsetYWUField.refreshFromModel();
+
+            widthWUField.setDisabled(spatialOwned);
+            heightWUField.setDisabled(spatialOwned);
+            diameterWUField.setDisabled(spatialOwned);
+            offsetXWUField.setDisabled(spatialOwned);
+            offsetYWUField.setDisabled(spatialOwned);
         } finally {
             internalRefresh = false;
         }
+        invalidateHierarchy();
+    }
+
+    private void updateOwnershipNotice(boolean spatialOwned) {
+        if (spatialOwned) {
+            if (spatialManagedNotice.getActor() != spatialManagedLabel) {
+                spatialManagedNotice.setActor(spatialManagedLabel);
+            }
+            spatialManagedNoticeCell.padTop(2f).padBottom(2f).padLeft(0f).padRight(0f);
+        } else {
+            spatialManagedNotice.setActor(null);
+            spatialManagedNoticeCell.padTop(0f).padBottom(0f).padLeft(0f).padRight(0f);
+        }
+        spatialManagedNotice.invalidateHierarchy();
+        detailsBlock.invalidateHierarchy();
         invalidateHierarchy();
     }
 
@@ -490,7 +546,9 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     private boolean canDuplicateActiveFixture(int eid) {
-        return hasActiveFixture(eid) && !isActiveGeneratedFixture(eid);
+        return hasActiveFixture(eid)
+                && !isActiveGeneratedFixture(eid)
+                && !isActiveSpatialOwnedFixture(eid);
     }
 
     private boolean canDeleteActiveFixture(int eid) {
@@ -500,6 +558,29 @@ public final class FixturesPanel extends CollapsibleWidget {
     private int countFixtures(int eid) {
         PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
         return (fixtures != null) ? fixtures.fixtures.size : 0;
+    }
+
+    private int fixtureStateHash(int eid) {
+        FixtureDefData fixture = activeFixture(eid);
+        if (fixture == null) return 0;
+
+        int result = Long.hashCode(fixture.fixtureId);
+        result = 31 * result + fixture.shapeType;
+        result = 31 * result + Float.floatToIntBits(fixture.offsetX);
+        result = 31 * result + Float.floatToIntBits(fixture.offsetY);
+        result = 31 * result + Float.floatToIntBits(fixture.halfW);
+        result = 31 * result + Float.floatToIntBits(fixture.halfH);
+        result = 31 * result + Float.floatToIntBits(fixture.radius);
+        result = 31 * result + Float.floatToIntBits(fixture.density);
+        result = 31 * result + Float.floatToIntBits(fixture.friction);
+        result = 31 * result + Float.floatToIntBits(fixture.restitution);
+        result = 31 * result + (fixture.isSensor ? 1 : 0);
+        result = 31 * result + fixture.categoryBits;
+        result = 31 * result + fixture.maskBits;
+        result = 31 * result + fixture.groupIndex;
+        result = 31 * result + (SpatialOwnedFixtureSupport.isOwned(
+                ctx.world, eid, fixture.fixtureId) ? 1 : 0);
+        return result;
     }
 
     private boolean hasValidPolygon(FixtureDefData f) {
@@ -538,6 +619,12 @@ public final class FixturesPanel extends CollapsibleWidget {
         return fixtureId > 0L && polygonAuthoringService.isGeneratedFixture(eid, fixtureId);
     }
 
+    private boolean isActiveSpatialOwnedFixture(int eid) {
+        FixtureDefData fixture = activeFixture(eid);
+        return fixture != null
+                && SpatialOwnedFixtureSupport.isOwned(ctx.world, eid, fixture.fixtureId);
+    }
+
     private void executeCommand(Command command) {
         if (command instanceof HistoryManager.SupportsNoop supportsNoop && supportsNoop.isNoop()) {
             return;
@@ -568,6 +655,19 @@ public final class FixturesPanel extends CollapsibleWidget {
                 publishStructureChanged
         );
         executeCommand(command);
+    }
+
+    private void applyGeometryEdit(int eid,
+                                   int dirtyMask,
+                                   boolean publishStructureChanged,
+                                   Consumer<FixtureDefData> edit) {
+        FixtureDefData current = activeFixture(eid);
+        if (current == null) return;
+        if (SpatialOwnedFixtureSupport.isOwned(ctx.world, eid, current.fixtureId)) {
+            refreshShapeUi(eid);
+            return;
+        }
+        applyFixtureEdit(eid, dirtyMask, publishStructureChanged, edit);
     }
 
     private void markPhysicsDirty(int eid, int mask) {
@@ -673,7 +773,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         float wM = clampMin(wuToM(worldWwu, ppm), 2f * MIN_SHAPE_HALF_M);
         float hM = clampMin(wuToM(worldHwu, ppm), 2f * MIN_SHAPE_HALF_M);
 
-        applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
+        applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
             if (isBoxShape(snapshot.shapeType)) {
                 snapshot.halfW = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
                 snapshot.halfH = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);

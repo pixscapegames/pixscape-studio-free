@@ -33,10 +33,11 @@ public class RecentProjectsServiceTest {
     @Test
     public void addRecentProject_addsProjectToEmptyList() {
         RecentProjectsService service = new RecentProjectsService();
+        String project = projectPath("one");
 
-        service.addRecentProject("C:/projects/one/project.json");
+        service.addRecentProject(project);
 
-        assertEquals(List.of("C:/projects/one/project.json"), service.getRecentProjects());
+        assertEquals(List.of(normalizedProjectPath("one")), service.getRecentProjects());
     }
 
     @Test
@@ -44,46 +45,49 @@ public class RecentProjectsServiceTest {
         RecentProjectsService service = new RecentProjectsService();
 
         for (int i = 1; i <= 6; i++) {
-            service.addRecentProject("C:/projects/project" + i + "/project.json");
+            service.addRecentProject(projectPath("project" + i));
         }
 
         assertEquals(List.of(
-                "C:/projects/project6/project.json",
-                "C:/projects/project5/project.json",
-                "C:/projects/project4/project.json",
-                "C:/projects/project3/project.json",
-                "C:/projects/project2/project.json"
+                normalizedProjectPath("project6"),
+                normalizedProjectPath("project5"),
+                normalizedProjectPath("project4"),
+                normalizedProjectPath("project3"),
+                normalizedProjectPath("project2")
         ), service.getRecentProjects());
     }
 
     @Test
     public void addRecentProject_movesExistingProjectToFrontWithoutDuplicate() {
         RecentProjectsService service = new RecentProjectsService();
+        String projectOne = projectPath("one");
+        String projectTwo = projectPath("two");
 
-        service.addRecentProject("C:/projects/one/project.json");
-        service.addRecentProject("C:/projects/two/project.json");
-        service.addRecentProject("C:/projects/one/project.json");
+        service.addRecentProject(projectOne);
+        service.addRecentProject(projectTwo);
+        service.addRecentProject(projectOne);
 
         assertEquals(List.of(
-                "C:/projects/one/project.json",
-                "C:/projects/two/project.json"
+                normalizedProjectPath("one"),
+                normalizedProjectPath("two")
         ), service.getRecentProjects());
     }
 
     @Test
     public void recentProjects_persistAfterReloadingSettings() {
         RecentProjectsService service = new RecentProjectsService();
+        String project = projectPath("persisted");
 
-        service.addRecentProject("C:/projects/persisted/project.json");
+        service.addRecentProject(project);
         EditorSettings.load();
 
-        assertEquals(List.of("C:/projects/persisted/project.json"), new RecentProjectsService().getRecentProjects());
+        assertEquals(List.of(normalizedProjectPath("persisted")), new RecentProjectsService().getRecentProjects());
     }
 
     @Test
     public void clearRecentProjects_emptiesList() {
         RecentProjectsService service = new RecentProjectsService();
-        service.addRecentProject("C:/projects/one/project.json");
+        service.addRecentProject(projectPath("one"));
 
         service.clearRecentProjects();
 
@@ -93,10 +97,19 @@ public class RecentProjectsServiceTest {
     @Test
     public void removeRecentProject_removesMissingProjectPath() {
         RecentProjectsService service = new RecentProjectsService();
-        service.addRecentProject("C:/projects/missing/project.json");
+        String project = projectPath("missing");
 
-        service.removeRecentProject("C:/projects/missing/project.json");
+        service.addRecentProject(project);
+        service.removeRecentProject(project);
 
         assertTrue(service.getRecentProjects().isEmpty());
+    }
+
+    private String projectPath(String name) {
+        return tempHome.resolve("projects").resolve(name).resolve("project.json").toString();
+    }
+
+    private String normalizedProjectPath(String name) {
+        return RecentProjectsService.normalize(projectPath(name));
     }
 }

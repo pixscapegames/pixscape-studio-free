@@ -1,11 +1,14 @@
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.security.MessageDigest
 
 plugins {
   id 'application'
   id 'org.beryx.runtime' version "${beryxRuntimePluginVersion}"
   id 'org.graalvm.buildtools.native' version "${graalNativePluginVersion}" apply false
 }
+
+apply from: file('gradle/htmlPlayerLibreJs.gradle')
 
 group = 'games.pixscape'
 version = appVersion
@@ -29,6 +32,23 @@ allprojects {
 
 application {
   mainClass = 'games.pixscape.studio.PixscapeStudioApplication'
+}
+
+def releaseDocumentationFiles = files([
+        'LICENSE',
+        'NOTICE',
+        'THIRD_PARTY_NOTICES.txt',
+        'README.md',
+        'CHANGELOG.md',
+        'TRADEMARK.md'
+].findAll { file(it).exists() })
+
+distributions {
+  main {
+    contents {
+      from(releaseDocumentationFiles)
+    }
+  }
 }
 
 dependencies {
@@ -210,6 +230,210 @@ tasks.register('packageMacDmg') {
   onlyIf { isMac }
 }
 
+def releaseDisplayName = 'Pixscape Studio Free'
+def releaseArchiveName = 'Pixscape-Studio-Free'
+def linuxDistributionRootName = "${releaseArchiveName}-${project.version}"
+def linuxTarGzFileName = "${releaseArchiveName}-${project.version}-linux-x64.tar.gz"
+def appImageFileName = "${releaseArchiveName}-${project.version}-x86_64.AppImage"
+def appDirDesktopId = 'pixscape-studio-free'
+def appDirInstallPath = 'usr/lib/pixscape-studio-free'
+def installedStartScriptName = project.name
+def installedDistributionDir = layout.buildDirectory.dir("install/${project.name}")
+def appDir = layout.buildDirectory.dir("appimage/${releaseArchiveName}.AppDir")
+def linuxTarGzFile = layout.buildDirectory.file("distributions/${linuxTarGzFileName}")
+def linuxTarGzSha256File = layout.buildDirectory.file("distributions/${linuxTarGzFileName}.sha256")
+def appImageFile = layout.buildDirectory.file("distributions/${appImageFileName}")
+def appImageSha256File = layout.buildDirectory.file("distributions/${appImageFileName}.sha256")
+def appIconFile = file('icons/pixscape_icon.png')
+
+tasks.register('linuxTarGz', Tar) {
+  group = 'distribution'
+  description = 'Build reproducible Linux x64 tar.gz distribution'
+  dependsOn 'installDist'
+
+  compression = Compression.GZIP
+  archiveFileName = linuxTarGzFileName
+  destinationDirectory = layout.buildDirectory.dir('distributions')
+  preserveFileTimestamps = false
+  reproducibleFileOrder = true
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+  from(installedDistributionDir) {
+    into linuxDistributionRootName
+    exclude 'bin/*.bat'
+  }
+}
+
+tasks.register('linuxTarGzSha256') {
+  group = 'distribution'
+  description = 'Generate SHA256 checksum for linuxTarGz'
+  dependsOn 'linuxTarGz'
+
+  inputs.file(linuxTarGzFile)
+  outputs.file(linuxTarGzSha256File)
+
+  doLast {
+    writeSha256File(linuxTarGzFile.get().asFile, linuxTarGzSha256File.get().asFile)
+  }
+}
+
+tasks.named('linuxTarGz') {
+  finalizedBy 'linuxTarGzSha256'
+}
+
+tasks.register('createAppDir', Sync) {
+  group = 'distribution'
+  description = 'Create AppImage AppDir for Pixscape Studio Free'
+  dependsOn 'installDist'
+
+  into appDir
+
+  from(installedDistributionDir) {
+    into appDirInstallPath
+    exclude 'bin/*.bat'
+  }
+
+  if (appIconFile.exists()) {
+    from(appIconFile) {
+      into '.'
+      rename { "${appDirDesktopId}.png" }
+    }
+    from(appIconFile) {
+      into 'usr/share/icons/hicolor/256x256/apps'
+      rename { "${appDirDesktopId}.png" }
+    }
+  }
+
+  doLast {
+    def appDirRoot = appDir.get().asFile
+    def appRun = new File(appDirRoot, 'AppRun')
+    def usrBin = new File(appDirRoot, 'usr/bin')
+    def usrBinLauncher = new File(usrBin, appDirDesktopId)
+    def desktopFile = new File(appDirRoot, "${appDirDesktopId}.desktop")
+    def applicationsDir = new File(appDirRoot, 'usr/share/applications')
+    def sharedDesktopFile = new File(applicationsDir, "${appDirDesktopId}.desktop")
+    def distributionLauncher = new File(appDirRoot, "${appDirInstallPath}/bin/${installedStartScriptName}")
+
+    usrBin.mkdirs()
+    applicationsDir.mkdirs()
+
+    appRun.setText("""\
+#!/usr/bin/env sh
+set -eu
+APPDIR="\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)"
+exec "\$APPDIR/${appDirInstallPath}/bin/${installedStartScriptName}" "\$@"
+""".stripIndent(), 'UTF-8')
+
+    usrBinLauncher.setText("""\
+#!/usr/bin/env sh
+set -eu
+APPDIR="\${APPDIR:-\$(CDPATH= cd -- "\$(dirname -- "\$0")/../.." && pwd)}"
+exec "\$APPDIR/${appDirInstallPath}/bin/${installedStartScriptName}" "\$@"
+""".stripIndent(), 'UTF-8')
+
+    def desktopText = """\
+[Desktop Entry]
+Type=Application
+Name=${releaseDisplayName}
+Comment=Open-source 2D game studio for LibGDX and Pixscape Runtime
+Exec=AppRun %F
+Icon=${appDirDesktopId}
+Terminal=false
+Categories=Development;IDE;Graphics;Game;
+""".stripIndent()
+    desktopFile.setText(desktopText, 'UTF-8')
+    sharedDesktopFile.setText(desktopText, 'UTF-8')
+
+    [appRun, usrBinLauncher, distributionLauncher].findAll { it.exists() }.each {
+      it.setExecutable(true, false)
+    }
+  }
+}
+
+tasks.register('appImage', Exec) {
+  group = 'distribution'
+  description = 'Build x86_64 AppImage using appimagetool'
+  dependsOn 'createAppDir'
+
+  inputs.dir(appDir)
+  outputs.file(appImageFile)
+  environment 'ARCH', 'x86_64'
+
+  doFirst {
+    def tool = resolveAppImageTool()
+    def output = appImageFile.get().asFile
+    output.parentFile.mkdirs()
+    if (output.exists() && !output.delete()) {
+      throw new GradleException("Could not replace existing AppImage: ${output}")
+    }
+    commandLine tool, appDir.get().asFile.absolutePath, output.absolutePath
+  }
+}
+
+tasks.register('appImageSha256') {
+  group = 'distribution'
+  description = 'Generate SHA256 checksum for appImage'
+  dependsOn 'appImage'
+
+  inputs.file(appImageFile)
+  outputs.file(appImageSha256File)
+
+  doLast {
+    writeSha256File(appImageFile.get().asFile, appImageSha256File.get().asFile)
+  }
+}
+
+tasks.named('appImage') {
+  finalizedBy 'appImageSha256'
+}
+
+String resolveAppImageTool() {
+  def configured = findProperty('appimagetool')?.toString()?.trim()
+  if (configured) {
+    return requireAppImageToolPath(configured, 'Gradle property appimagetool')
+  }
+
+  def environmentPath = System.getenv('APPIMAGETOOL')?.trim()
+  if (environmentPath) {
+    return requireAppImageToolPath(environmentPath, 'APPIMAGETOOL')
+  }
+
+  def path = System.getenv('PATH') ?: ''
+  def names = isWindowsPathLookup() ? ['appimagetool.exe', 'appimagetool'] : ['appimagetool']
+  for (def directory : path.split(java.io.File.pathSeparator).findAll { it }) {
+    for (def name : names) {
+      def candidate = new File(directory, name)
+      if (candidate.isFile() && candidate.canExecute()) {
+        return candidate.absolutePath
+      }
+    }
+  }
+
+  throw new GradleException("""\
+appimagetool was not found.
+
+Install appimagetool from https://github.com/AppImage/AppImageKit/releases, make it executable, then rerun:
+  ./gradlew appImage -Pappimagetool=/path/to/appimagetool
+
+You can also set APPIMAGETOOL=/path/to/appimagetool or put an executable named appimagetool on PATH.
+""".stripIndent())
+}
+
+String requireAppImageToolPath(String path, String source) {
+  def tool = file(path)
+  if (!tool.isFile()) {
+    throw new GradleException("${source} points to '${path}', but that file does not exist.")
+  }
+  if (!tool.canExecute()) {
+    throw new GradleException("${source} points to '${path}', but it is not executable. Run chmod +x on appimagetool and try again.")
+  }
+  return tool.absolutePath
+}
+
+static boolean isWindowsPathLookup() {
+  return System.getProperty('os.name').toLowerCase(java.util.Locale.ROOT).contains('win')
+}
+
 // Helps if debugging on Linux with an Nvidia GPU.
 // This means StartupHelper won't try to restart the JVM, which can prevent debugging.
 // This only applies to Gradle tasks, not main methods debugged when launching a main() method directly.
@@ -334,8 +558,99 @@ static String escapeJava(String s) {
           .replace("\n", "\\n")
 }
 
+static void writeSha256File(File input, File output) {
+  def digest = MessageDigest.getInstance('SHA-256')
+  input.withInputStream { stream ->
+    byte[] buffer = new byte[8192]
+    int read
+    while ((read = stream.read(buffer)) != -1) {
+      digest.update(buffer, 0, read)
+    }
+  }
+
+  output.parentFile.mkdirs()
+  output.setText("${digest.digest().encodeHex()}  ${input.name}\n", 'UTF-8')
+}
+
 tasks.register('buildHtmlPreviewTemplate') {
   group = 'build'
   description = 'Build html-player and copy output into html-preview-template.'
   dependsOn ':html-player:copyGwtDistToTemplate'
+}
+
+def htmlPreviewTemplateDir = file('src/main/resources/html-preview-template')
+def htmlPreviewWebappDir = file('html-player/src/main/webapp')
+
+tasks.register('ensureHtmlPlayerLibreJsLicenses') {
+  group = 'build'
+  description = 'Add Apache-2.0 SPDX and LibreJS markers to HTML player JavaScript.'
+
+  inputs.dir(htmlPreviewTemplateDir)
+  inputs.dir(htmlPreviewWebappDir)
+
+  doLast {
+    htmlPlayerLibreJs.wrapJavaScriptFiles(fileTree(htmlPreviewTemplateDir) { include '**/*.js' })
+    htmlPlayerLibreJs.wrapJavaScriptFiles(fileTree(htmlPreviewWebappDir) { include '**/*.js' })
+  }
+}
+
+tasks.register('checkHtmlPlayerLibreJsLicenses') {
+  group = 'verification'
+  description = 'Verify HTML player JavaScript has Apache-2.0 SPDX and LibreJS markers.'
+
+  inputs.dir(htmlPreviewTemplateDir)
+  inputs.dir(htmlPreviewWebappDir)
+
+  doLast {
+    def problems = []
+    problems += htmlPlayerLibreJs.licenseProblemsInDirectory(htmlPreviewTemplateDir)
+    problems += htmlPlayerLibreJs.licenseProblemsInDirectory(htmlPreviewWebappDir)
+
+    if (!problems.isEmpty()) {
+      throw new GradleException("HTML player LibreJS license check failed:\n" + problems.join('\n'))
+    }
+  }
+}
+
+tasks.register('testHtmlPlayerLibreJsLicenseWrapping') {
+  group = 'verification'
+  description = 'Exercise the HTML player LibreJS JavaScript wrapping helper.'
+
+  doLast {
+    def wrapped = htmlPlayerLibreJs.ensureJavaScriptText("console.log('x');\n")
+    assert wrapped.contains('SPDX-License-Identifier: Apache-2.0')
+    assert wrapped.contains('@license')
+    assert wrapped.contains('Apache-2.0')
+    assert wrapped.endsWith('/* @license-end */')
+
+    assert htmlPlayerLibreJs.ensureJavaScriptText(wrapped) == wrapped
+
+    def withoutFooter = wrapped.replace('/* @license-end */', '').replaceFirst(/[ \t\r\n\f]+$/, '')
+    def footerRestored = htmlPlayerLibreJs.ensureJavaScriptText(withoutFooter)
+    assert footerRestored == wrapped
+
+    def source = "console.log('has footer');\n\n/* @license-end */"
+    def headerRestored = htmlPlayerLibreJs.ensureJavaScriptText(source)
+    assert headerRestored.contains('SPDX-License-Identifier: Apache-2.0')
+    assert headerRestored.contains('@license')
+    assert headerRestored.endsWith('/* @license-end */')
+    assert headerRestored.count('/* @license-end */') == 1
+
+    def spdxWithoutLicenseMarker = "/* SPDX-License-Identifier: Apache-2.0 */\nconsole.log('partial');\n\n/* @license-end */"
+    def licenseMarkerRestored = htmlPlayerLibreJs.ensureJavaScriptText(spdxWithoutLicenseMarker)
+    assert licenseMarkerRestored.contains(htmlPlayerLibreJs.apacheLicenseMarker)
+
+    def tempDir = new File(buildDir, 'tmp/html-player-librejs-test')
+    delete tempDir
+    tempDir.mkdirs()
+    def badFile = new File(tempDir, 'bad.js')
+    badFile.text = "console.log('missing');"
+    def problems = htmlPlayerLibreJs.licenseProblemsInDirectory(tempDir)
+    assert problems.any { it.contains('bad.js') && it.contains('SPDX-License-Identifier: Apache-2.0') }
+  }
+}
+
+tasks.named('check') {
+  dependsOn 'checkHtmlPlayerLibreJsLicenses'
+  dependsOn 'testHtmlPlayerLibreJsLicenseWrapping'
 }

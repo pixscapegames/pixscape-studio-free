@@ -4,6 +4,9 @@ import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
@@ -34,6 +37,7 @@ public final class TogglePhysicsBodyCommand implements Command {
     private final PhysicsBodyState bodySnapshot;
     private final PhysicsFixturesState fixturesSnapshot;
     private final List<DeleteJointCommand> dependentJointCommands;
+    private final IntArray spatialPhysicsBlockIds = new IntArray();
 
     public TogglePhysicsBodyCommand(World world,
                                     HistoryIdRegistry historyIds,
@@ -58,6 +62,16 @@ public final class TogglePhysicsBodyCommand implements Command {
         this.dependentJointCommands = new ArrayList<>();
         if (!enable) {
             this.dependentJointCommands.addAll(captureDependentJointDeletes());
+            SpatialBlocksComponent blocks =
+                    world.getMapper(SpatialBlocksComponent.class).getSafe(bodyEntityId, null);
+            if (blocks != null && blocks.blocks != null) {
+                for (int i = 0; i < blocks.blocks.size; i++) {
+                    SpatialBlockData block = blocks.blocks.get(i);
+                    if (block != null && block.physicsCollision) {
+                        spatialPhysicsBlockIds.add(block.id);
+                    }
+                }
+            }
         }
     }
 
@@ -74,9 +88,11 @@ public final class TogglePhysicsBodyCommand implements Command {
             for (DeleteJointCommand deleteJoint : dependentJointCommands) {
                 deleteJoint.redo();
             }
+            setSpatialCollisionFlags(false);
             disablePhysics();
         }
         markDirty();
+        markSpatialChanged();
     }
 
     @Override
@@ -85,11 +101,13 @@ public final class TogglePhysicsBodyCommand implements Command {
             disablePhysics();
         } else {
             enablePhysics();
+            setSpatialCollisionFlags(true);
             for (int i = dependentJointCommands.size() - 1; i >= 0; i--) {
                 dependentJointCommands.get(i).undo();
             }
         }
         markDirty();
+        markSpatialChanged();
     }
 
     private List<DeleteJointCommand> captureDependentJointDeletes() {
@@ -164,7 +182,6 @@ public final class TogglePhysicsBodyCommand implements Command {
         var mBody = world.getMapper(PhysicsBodyComponent.class);
         var mFixtures = world.getMapper(PhysicsFixturesComponent.class);
         var mRuntimeBody = world.getMapper(PhysicsRuntimeBodyComponent.class);
-
         if (mFixtures.has(entityId)) mFixtures.remove(entityId);
         if (mBody.has(entityId)) mBody.remove(entityId);
         if (mRuntimeBody.has(entityId)) mRuntimeBody.remove(entityId);
@@ -178,6 +195,31 @@ public final class TogglePhysicsBodyCommand implements Command {
         if (dirty != null) {
             dirty.physics(entityId, PhysicsDirtyBits.ALL);
         }
+    }
+
+    private void setSpatialCollisionFlags(boolean enabled) {
+        if (spatialPhysicsBlockIds.size == 0) return;
+        int entityId = resolveBodyEntityId();
+        if (entityId < 0) return;
+        SpatialBlocksComponent blocks =
+                world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
+        if (blocks == null || blocks.blocks == null) return;
+        boolean changed = false;
+        for (int i = 0; i < blocks.blocks.size; i++) {
+            SpatialBlockData block = blocks.blocks.get(i);
+            if (block == null || !spatialPhysicsBlockIds.contains(block.id)) continue;
+            if (block.physicsCollision != enabled) {
+                block.physicsCollision = enabled;
+                changed = true;
+            }
+        }
+        if (changed) blocks.revision++;
+    }
+
+    private void markSpatialChanged() {
+        if (spatialPhysicsBlockIds.size == 0) return;
+        int entityId = resolveBodyEntityId();
+        if (entityId >= 0) SpatialBlockCommandSupport.markChanged(world, entityId, this);
     }
 
     private int resolveBodyEntityId() {

@@ -62,13 +62,19 @@ public final class SpatialBlockProjection {
                                         int offset) {
         if (map == null || out == null || offset < 0 || offset + 1 >= out.length) return;
 
-        Vector2 origin = tmpOrigin();
-        Vector2 axisX = tmpAxisX();
-        Vector2 axisY = tmpAxisY();
-        tileOriginAndAxes(map, origin, axisX, axisY);
+        map.projectSpatialPoint(gx, gy, yOffset, out, offset);
+    }
 
-        out[offset] = origin.x + gx * axisX.x + gy * axisY.x;
-        out[offset + 1] = origin.y + gx * axisX.y + gy * axisY.y + yOffset;
+    public static void projectStructurePoint(TiledMapLayerData map,
+                                             float gx,
+                                             float gy,
+                                             float elevation,
+                                             float[] out,
+                                             int offset) {
+        if (map == null || out == null || offset < 0 || offset + 1 >= out.length) return;
+        Vector2 cellOriginOffset = tmpCellOriginOffset();
+        cellOriginOffset(map, cellOriginOffset);
+        projectTileLocal(map, gx, gy, elevationToWorldYOffset(elevation), cellOriginOffset, out, offset);
     }
 
     public static void footprintWorldToTileLocal(TiledMapLayerData map,
@@ -96,9 +102,6 @@ public final class SpatialBlockProjection {
                                          float[] out,
                                          int offset) {
         projectTileLocal(map, gx, gy, yOffset, out, offset);
-        if (cellOriginOffset == null || out == null || offset < 0 || offset + 1 >= out.length) return;
-        out[offset] += cellOriginOffset.x;
-        out[offset + 1] += cellOriginOffset.y;
     }
 
     private static void cellOriginOffset(TiledMapLayerData map, Vector2 out) {
@@ -109,31 +112,8 @@ public final class SpatialBlockProjection {
         out.set(cell[0] - map.tileToWorldX(0, 0), cell[1] - map.tileToWorldY(0, 0));
     }
 
-    private static void tileOriginAndAxes(TiledMapLayerData map, Vector2 origin, Vector2 axisX, Vector2 axisY) {
-        float ox = map.tileToWorldX(0, 0);
-        float oy = map.tileToWorldY(0, 0);
-        origin.set(ox, oy);
-        axisX.set(map.tileToWorldX(1, 0) - ox, map.tileToWorldY(1, 0) - oy);
-        axisY.set(map.tileToWorldX(0, 1) - ox, map.tileToWorldY(0, 1) - oy);
-    }
-
-    private static final ThreadLocal<Vector2> TMP_ORIGIN = ThreadLocal.withInitial(Vector2::new);
-    private static final ThreadLocal<Vector2> TMP_AXIS_X = ThreadLocal.withInitial(Vector2::new);
-    private static final ThreadLocal<Vector2> TMP_AXIS_Y = ThreadLocal.withInitial(Vector2::new);
     private static final ThreadLocal<Vector2> TMP_CELL_ORIGIN_OFFSET = ThreadLocal.withInitial(Vector2::new);
     private static final ThreadLocal<float[]> TMP_CELL_VERTS = ThreadLocal.withInitial(() -> new float[8]);
-
-    private static Vector2 tmpOrigin() {
-        return TMP_ORIGIN.get();
-    }
-
-    private static Vector2 tmpAxisX() {
-        return TMP_AXIS_X.get();
-    }
-
-    private static Vector2 tmpAxisY() {
-        return TMP_AXIS_Y.get();
-    }
 
     private static Vector2 tmpCellOriginOffset() {
         return TMP_CELL_ORIGIN_OFFSET.get();

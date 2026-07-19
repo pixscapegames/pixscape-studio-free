@@ -327,59 +327,7 @@ public class LayersPanel extends DockablePanel {
     }
 
     private boolean tiledMemoryOK(int width, int height) {
-        int used = 0;
-
-        ComponentMapper<TiledLayerComponent> mTiled =
-                world.getMapper(TiledLayerComponent.class);
-
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        int n = bag.size();
-
-        for (int i = 0; i < n; i++) {
-            TiledLayerComponent t = mTiled.get(data[i]);
-            used += t.mapWidthCells * t.mapHeightCells;
-        }
-
-        int required = width * height;
-        int totalAfter = used + required;
-
-        int budget = WorldConfigFactory.DEFAULT_TILED_BUDGET;
-
-        if (totalAfter > budget) {
-            showTiledOverflowDialog(required, used, budget);
-            return false;
-        }
         return true;
-    }
-
-    private void showTiledOverflowDialog(int requested,
-                                         int currentlyUsed,
-                                         int budget) {
-
-        int available = budget - currentlyUsed;
-
-        String message =
-                "Tiled capacity exceeded.\n\n" +
-                        "Current usage : " + currentlyUsed + " cells\n" +
-                        "Requested     : " + requested + " cells\n" +
-                        "Available     : " + Math.max(available, 0) + " cells\n" +
-                        "Maximum       : " + budget + " cells\n\n" +
-                        "Reduce the layer size or remove existing tiled layers.";
-
-        VisDialog dialog = new VisDialog("Tiled Capacity Exceeded");
-        dialog.text(message);
-        dialog.button("OK");
-        dialog.setModal(true);
-        dialog.setResizable(false);
-        dialog.pack();
-
-        if (getStage() != null) {
-            dialog.show(getStage());
-        }
     }
 
     private void markDirty() {

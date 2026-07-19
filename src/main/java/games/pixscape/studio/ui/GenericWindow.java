@@ -29,6 +29,12 @@ public class GenericWindow implements ApplicationListener {
         stage.addActor(panel);
     }
 
+    public void detachPanel() {
+        if (panel.getStage() != stage) return;
+        panel.remove();
+        panel.setFillParent(false);
+    }
+
     public boolean containsPanel() {
         return panel.getStage() == stage;
     }
@@ -59,9 +65,7 @@ public class GenericWindow implements ApplicationListener {
 
     @Override
     public void dispose() {
-        if (panel.getStage() == stage) {
-            panel.remove();
-        }
+        detachPanel();
         stage.dispose();
     }
 }

@@ -52,6 +52,32 @@ public class EditorOpsImplIntegrationContractTest {
         assertTrue(addCircle.contains("historyManager.execute(new AddFixtureCommand("));
     }
 
+    @Test
+    public void directSpatialWallCreationUsesTheStrictRectanglePipeline() throws Exception {
+        String source = readEditorOpsImpl();
+        String body = methodBody(source, "public void addSpatialBlock(int layerEntityId, SpatialBlockPlacementTarget target)");
+
+        assertTrue(body.contains("if (!tiled.data.isInside(targetGx, targetGy)) return;"));
+        assertTrue(body.contains("int tileAssetId = tiled.data.getTile(targetGx, targetGy);"));
+        assertTrue(body.contains("if (tileAssetId <= 0) return;"));
+        assertTrue(body.contains("SpatialTileSelectionService.fromOccupiedRect("));
+        assertTrue(body.contains("historyManager.execute(command);"));
+    }
+
+    @Test
+    public void tileSelectionSpatialWallUsesTheSameCommandPlanner() throws Exception {
+        String source = readEditorOpsImpl();
+        String body = methodBody(source, "public void createSpatialBlockFromSelectedTiles()");
+
+        assertTrue(body.contains("SpatialWallCreationService.executeSelectedRectangle("));
+        String service = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/spatial/SpatialWallCreationService.java"),
+                StandardCharsets.UTF_8
+        );
+        assertTrue(service.contains("new AddSpatialBlockCommand("));
+        assertTrue(service.contains("tileSelection.clear();"));
+    }
+
     private static String readEditorOpsImpl() throws Exception {
         return Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/ops/EditorOpsImpl.java"),

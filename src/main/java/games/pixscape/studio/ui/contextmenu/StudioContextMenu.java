@@ -16,6 +16,7 @@ import com.kotcrab.vis.ui.util.dialog.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
@@ -33,6 +34,7 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.prefab.PrefabAssetService;
 import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
@@ -209,7 +211,11 @@ public final class StudioContextMenu extends InputListener {
     private String spatialTileSelectionValidationMessage(int layerEntityId) {
         if (world == null || spatialTileSelectionService == null) return null;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        return spatialTileSelectionService.validationMessage(tiled != null ? tiled.data : null);
+        SpatialBlocksComponent walls = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        return tiled != null
+                ? spatialTileSelectionService.validationMessage(
+                        tiled.data, walls, tiled.defaultTileAltitude, tiled.defaultTileHeight)
+                : spatialTileSelectionService.validationMessage(null);
     }
 
     private void showShapeMenu() {
@@ -284,7 +290,9 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(addPolygonShape);
 
-        if (selectedFixture != null && selectedFixture.shapeType == FixtureDefData.SHAPE_POLYGON) {
+        if (selectedFixture != null
+                && selectedFixture.shapeType == FixtureDefData.SHAPE_POLYGON
+                && !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) {
             menu.addSeparator();
 
             MenuItem editPolygon = new MenuItem("Edit polygon");

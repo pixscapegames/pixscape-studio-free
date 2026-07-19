@@ -1,97 +1,102 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
-public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop {
+/** Atomic full-layer authored-wall snapshot command for deletion and structure splits. */
+public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final SpatialBlockSelectionService selection;
     private final long layerHistoryId;
     private final int blockId;
-    private final int originalIndex;
-    private final SpatialBlockData before;
+    private final Array<SpatialBlockData> before;
+    private final Array<SpatialBlockData> after;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
-    private final boolean noop;
+    private final CommandOutcome initialOutcome;
 
-    public DeleteSpatialBlockCommand(World world,
-                                     HistoryIdRegistry historyIds,
+    public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                      SpatialBlockSelectionService selection,
-                                     int layerEntityId,
-                                     int blockId) {
+                                     int layerEntityId, int blockId) {
         this.world = world;
         this.historyIds = historyIds;
         this.selection = selection;
         this.layerHistoryId = historyIds != null ? historyIds.ensureForEntity(layerEntityId) : -1L;
         this.blockId = blockId;
-
         SpatialBlocksComponent component = world != null ? SpatialBlockCommandSupport.get(world, layerEntityId) : null;
-        this.originalIndex = SpatialBlockCommandSupport.indexOf(component, blockId);
-        SpatialBlockData current = originalIndex >= 0 ? component.blocks.get(originalIndex) : null;
-        this.before = current != null ? current.copy() : null;
-        this.physicsBefore = this.before != null && this.before.physicsCollision
-                ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId)
-                : null;
-        this.noop = world == null || historyIds == null || layerHistoryId <= 0L || blockId <= 0 || before == null;
+        this.before = SpatialBlockCommandSupport.snapshot(component);
+        SpatialBlockData removed = SpatialBlockCommandSupport.find(component, blockId);
+        this.physicsBefore = removed != null && removed.physicsCollision
+                ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
+        TiledLayerComponent tiled = world != null
+                ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
+        SpatialStructureTopology.Plan plan = SpatialStructureTopology.delete(
+                component, blockId, tiled != null ? tiled.data : null);
+        this.after = plan.walls;
+        this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
+                : world == null || historyIds == null || layerHistoryId <= 0L
+                ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
     }
 
-    @Override
-    public String label() {
-        return "Delete Spatial Block";
-    }
-
-    @Override
-    public boolean isNoop() {
-        return noop;
-    }
+    @Override public String label() { return "Delete Spatial Wall"; }
+    @Override public boolean isNoop() { return initialOutcome != CommandOutcome.APPLIED; }
 
     @Override
     public void redo() {
-        if (noop) return;
-        int layerEntityId = resolveLayer();
-        if (layerEntityId < 0) return;
-        SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layerEntityId);
-        int index = SpatialBlockCommandSupport.indexOf(component, blockId);
-        if (index >= 0) {
-            component.blocks.removeIndex(index);
-        }
-        if (selection != null && selection.getSelectedBlockId() == blockId) {
-            selection.enterLayer(layerEntityId);
-        }
-        if (before.physicsCollision) {
-            SpatialBlockPhysicsSync.removeBlockFixture(world, layerEntityId, blockId, this);
-        }
-        SpatialBlockCommandSupport.markChanged(world, layerEntityId, this);
+        redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return applyAfter();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        return applyAfter();
+    }
+
+    private CommandOutcome applyAfter() {
+        if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
+        int layer = resolveLayer();
+        if (layer < 0) return CommandOutcome.NO_CHANGE;
+        CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
+                world, layer, after);
+        if (outcome != CommandOutcome.APPLIED) return outcome;
+        if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
+        SpatialBlockPhysicsSync.removeBlockFixture(world, layer, blockId, this);
+        SpatialBlockCommandSupport.markChanged(world, layer, this);
+        return CommandOutcome.APPLIED;
     }
 
     @Override
     public void undo() {
-        if (noop) return;
-        int layerEntityId = resolveLayer();
-        if (layerEntityId < 0) return;
-        SpatialBlocksComponent component = SpatialBlockCommandSupport.getOrCreate(world, layerEntityId);
-        if (SpatialBlockCommandSupport.indexOf(component, blockId) < 0) {
-            int insertIndex = Math.max(0, Math.min(originalIndex, component.blocks.size));
-            component.blocks.insert(insertIndex, before.copy());
-        }
-        if (selection != null) {
-            selection.selectBlock(layerEntityId, blockId);
-        }
-        if (physicsBefore != null) {
-            physicsBefore.restore(world, layerEntityId, this);
-        } else if (before.physicsCollision) {
-            SpatialBlockData restored = SpatialBlockCommandSupport.find(component, blockId);
-            SpatialBlockPhysicsSync.sync(world, layerEntityId, restored, this);
-        }
-        SpatialBlockCommandSupport.markChanged(world, layerEntityId, this);
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
+        int layer = resolveLayer();
+        if (layer < 0) return CommandOutcome.NO_CHANGE;
+        CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
+                world, layer, before);
+        if (outcome != CommandOutcome.APPLIED) return outcome;
+        if (selection != null) selection.selectBlock(layer, blockId);
+        if (physicsBefore != null) physicsBefore.restore(world, layer, this);
+        SpatialBlockCommandSupport.markChanged(world, layer, this);
+        return CommandOutcome.APPLIED;
     }
 
     private int resolveLayer() {
-        int entityId = historyIds.entityOfHistoryId(layerHistoryId);
-        return entityId >= 0 && world.getEntityManager().isActive(entityId) ? entityId : -1;
+        int entity = historyIds.entityOfHistoryId(layerHistoryId);
+        return entity >= 0 && world.getEntityManager().isActive(entity) ? entity : -1;
     }
 }

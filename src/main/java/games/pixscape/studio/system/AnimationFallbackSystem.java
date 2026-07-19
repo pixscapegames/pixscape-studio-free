@@ -13,8 +13,8 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.render.RenderStateSOA;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -25,7 +25,7 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 
 public final class AnimationFallbackSystem extends IteratingSystem implements ProfiledSystem {
 
-    private final RenderStateSOA state;
+    private final DynamicEntityRenderState state;
     private final AtlasStudioService atlasStudioService;
 
     private ComponentMapper<AnimationComponent> mAnim;
@@ -41,7 +41,7 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
     private boolean profiling;
     private long profileStartNs;
 
-    public AnimationFallbackSystem(RenderStateSOA state, AtlasStudioService atlasStudioService) {
+    public AnimationFallbackSystem(DynamicEntityRenderState state, AtlasStudioService atlasStudioService) {
         super(Aspect.all(
                 AnimationComponent.class,
                 TextureRegionComponent.class,
@@ -104,7 +104,7 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         applyFrame(world, e, clip, tex, state, src.atlasTag);
     }
 
-    public static boolean bindFirstFrameFallback(World world, int e, RenderStateSOA state, String atlasTag) {
+    public static boolean bindFirstFrameFallback(World world, int e, DynamicEntityRenderState state, String atlasTag) {
         if (world == null || e < 0 || !world.getEntityManager().isActive(e)) return false;
 
         ComponentMapper<AnimationComponent> mAnim = world.getMapper(AnimationComponent.class);
@@ -172,7 +172,7 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
                                       int e,
                                       AnimationComponent.Clip clip,
                                       Texture tex,
-                                      RenderStateSOA state,
+                                      DynamicEntityRenderState state,
                                       String atlasTag) {
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
@@ -203,7 +203,7 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         mat.textureHandle = textureHandle;
         mat.debugAtlasTag = atlasTag;
 
-        applyFrameToRenderState(world, state, e, mat, textureHandle, u1, v1, u2, v2);
+        applyFrameToDynamicState(world, state, e, mat, textureHandle, u1, v1, u2, v2);
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {
@@ -212,32 +212,34 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         return true;
     }
 
-    private static void applyFrameToRenderState(World world,
-                                                RenderStateSOA state,
-                                                int e,
-                                                RenderMaterialComponent mat,
-                                                int textureHandle,
-                                                float u1,
-                                                float v1,
-                                                float u2,
-                                                float v2) {
-        if (state == null || e < 0 || e >= state.textureHandle.length) return;
+    private static void applyFrameToDynamicState(World world,
+                                                 DynamicEntityRenderState state,
+                                                 int e,
+                                                 RenderMaterialComponent mat,
+                                                 int textureHandle,
+                                                 float u1,
+                                                 float v1,
+                                                 float u2,
+                                                 float v2) {
+        if (state == null || e < 0) return;
 
-        state.touch(e);
-        state.textureHandle[e] = textureHandle;
-        state.u1[e] = u1;
-        state.v1[e] = v1;
-        state.u2[e] = u2;
-        state.v2[e] = v2;
+        int renderSlot = state.renderSlotForEntity(e);
+        if (renderSlot == DynamicEntityRenderState.NO_SLOT) return;
+
+        state.textureHandle[renderSlot] = textureHandle;
+        state.u1[renderSlot] = u1;
+        state.v1[renderSlot] = v1;
+        state.u2[renderSlot] = u2;
+        state.v2[renderSlot] = v2;
 
         ComponentMapper<EntityIndexComponent> mEntityIndex = world.getMapper(EntityIndexComponent.class);
         EntityIndexComponent index = mEntityIndex != null ? mEntityIndex.getSafe(e, null) : null;
 
-        int layerIndex = index != null ? index.getLayerIndex() : state.layerIndex[e];
-        int z = index != null ? index.getZIndex() : state.z[e];
-        int runtimeOrder = state.runtimeOrder[e];
+        int layerIndex = index != null ? index.getLayerIndex() : state.layerIndex[renderSlot];
+        int z = index != null ? index.getZIndex() : state.z[renderSlot];
+        int runtimeOrder = state.runtimeOrder[renderSlot];
 
-        state.sortKey[e] = SortKey64.packForBlend(
+        state.sortKey[renderSlot] = SortKey64.packForBlend(
                 mat.getShaderIdx(),
                 mat.getBlendModeId(),
                 textureHandle,

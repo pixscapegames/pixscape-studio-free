@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 Laurent Robbens
+ * SPDX-License-Identifier: Apache-2.0
+ * @license magnet:?xt=urn:btih:8e4f440f4c65981c5bf93c76d35135ba5064d8b7&dn=apache-2.0.txt Apache-2.0
+ */
+
 var $wnd = $wnd || window.parent;
 var __gwtModuleFunction = $wnd.htmlplayer;
 var $sendStats = __gwtModuleFunction.__sendStats;
@@ -425,3 +431,4 @@ $sendStats('moduleStartup', 'end');
 $gwt && $gwt.permProps && __gwtModuleFunction.__moduleStartupDone($gwt.permProps);
 //# sourceURL=htmlplayer-0.js
 
+/* @license-end */

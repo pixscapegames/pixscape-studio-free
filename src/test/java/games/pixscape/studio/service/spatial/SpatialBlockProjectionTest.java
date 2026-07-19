@@ -2,7 +2,6 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -100,8 +99,9 @@ public class SpatialBlockProjectionTest {
         Assert.assertFalse(source.contains("2:1"));
         Assert.assertFalse(source.contains("tileWidth * 0.5"));
         Assert.assertFalse(source.contains("tileHeight * 0.5"));
-        Assert.assertTrue(source.contains("tileToWorldX(1, 0)"));
-        Assert.assertTrue(source.contains("tileToWorldX(0, 1)"));
+        Assert.assertTrue(source.contains("map.projectSpatialPoint"));
+        Assert.assertFalse(source.contains("tileToWorldX(1, 0)"));
+        Assert.assertFalse(source.contains("tileToWorldX(0, 1)"));
     }
 
     private static TiledMapLayerData isoMap() {
@@ -114,14 +114,12 @@ public class SpatialBlockProjectionTest {
     private static SpatialBlockData block(float x, float y, float width, float depth, float altitude, float height) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
-        block.enabled = true;
         block.x = x;
         block.y = y;
         block.width = width;
         block.depth = depth;
         block.altitude = altitude;
         block.height = height;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
         return block;
     }
 

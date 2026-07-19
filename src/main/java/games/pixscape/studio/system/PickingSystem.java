@@ -4,11 +4,13 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -23,7 +25,7 @@ import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -43,9 +45,15 @@ import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.*;
 import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
+import games.pixscape.studio.service.spatial.SpatialBlockPicking;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.spatial.SpatialCellPicker;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
+import games.pixscape.studio.service.spatial.SpatialWallCreationService;
+import games.pixscape.studio.service.spatial.SpatialStructureTopology;
+import games.pixscape.studio.service.spatial.SpatialWallEditSession;
+import games.pixscape.studio.service.spatial.SpatialPointerInteraction;
 
 import java.util.Objects;
 
@@ -58,7 +66,7 @@ public final class PickingSystem extends BaseSystem {
     private final HistoryManager historyManager;
     private final HistoryIdRegistry historyIds;
     private final Stage uiStage;
-    private final RenderStateSOA renderState;
+    private final TiledMapRenderState tiledState;
 
     private SelectionService selectionService;
     private LayerService layerService;
@@ -72,6 +80,7 @@ public final class PickingSystem extends BaseSystem {
 
     private ComponentMapper<OrientedBoundsComponent> mOBB;
     private ComponentMapper<VisibilityComponent> mVis;
+    private ComponentMapper<PhysicsBodyComponent> mPhysBody;
     private ComponentMapper<PhysicsFixturesComponent> mFixDefs;
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<DimensionsComponent> mDim;
@@ -148,6 +157,7 @@ public final class PickingSystem extends BaseSystem {
     private int resizingBoxFixtureId = PhysicsSelectionService.NO_FIXTURE;
     private InputManipulationContext.Handle resizingBoxHandle = InputManipulationContext.Handle.NONE;
     private final float[] tmpFixtureBoxWorldCorners = new float[8];
+    private final float[] tmpSpatialBlockTopCorners = new float[8];
     private float resizeBoxBeforeOffsetX = 0f;
     private float resizeBoxBeforeOffsetY = 0f;
     private float resizeBoxBeforeHalfW = 0f;
@@ -183,14 +193,22 @@ public final class PickingSystem extends BaseSystem {
     private boolean movingSpatialBlockActive = false;
     private int movingSpatialBlockLayerEid = -1;
     private int movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
-    private float movingSpatialBlockBeforeX = 0f;
-    private float movingSpatialBlockBeforeY = 0f;
+    private float movingSpatialBlockStartTileX;
+    private float movingSpatialBlockStartTileY;
     private boolean resizingSpatialBlockActive = false;
     private int resizingSpatialBlockLayerEid = -1;
     private int resizingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
     private int resizingSpatialBlockHandle = SpatialBlockHandle.NONE;
-    private SpatialBlockData resizingSpatialBlockBefore = null;
     private boolean spatialTileSelectionActive = false;
+    private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
+    private final SpatialWallEditSession spatialHandleProbe = new SpatialWallEditSession();
+    private final SpatialPointerInteraction spatialPointer = new SpatialPointerInteraction();
+    private int pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
+    private int pressedSpatialHandle = SpatialBlockHandle.NONE;
+    private int pressedSpatialGx;
+    private int pressedSpatialGy;
+    private float spatialCreationStartTileX;
+    private float spatialCreationStartTileY;
 
     private static final class SpatialBlockHandle {
         static final int NONE = -1;
@@ -198,10 +216,14 @@ public final class PickingSystem extends BaseSystem {
         static final int RIGHT = 1;
         static final int BOTTOM = 2;
         static final int LEFT = 3;
-        static final int HEIGHT = 4;
+        static final int TOP_CORNER = 4;
+        static final int RIGHT_CORNER = 5;
+        static final int BOTTOM_CORNER = 6;
+        static final int LEFT_CORNER = 7;
+        static final int HEIGHT = 8;
     }
 
-    public static float SNAP_STEP_RAD = (float) Math.toRadians(1.0);
+    public static float SNAP_STEP_RAD =  MathUtils.degreesToRadians;
     private final int MY_TAG = EventFlow.tag(this);
 
     private final Vector2 tmpA = new Vector2();
@@ -214,7 +236,7 @@ public final class PickingSystem extends BaseSystem {
                          HistoryManager historyManager,
                          HistoryIdRegistry historyIds,
                          Stage uiStage,
-                         RenderStateSOA renderState,
+                         TiledMapRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
                          SpatialBlockSelectionService spatialBlockSelectionService,
                          SpatialTileSelectionService spatialTileSelectionService,
@@ -226,11 +248,24 @@ public final class PickingSystem extends BaseSystem {
         this.historyManager = historyManager;
         this.historyIds = historyIds;
         this.uiStage = uiStage;
-        this.renderState = renderState;
+        this.tiledState = tiledState;
         this.physicsSelectionService = physicsSelectionService;
         this.spatialBlockSelectionService = spatialBlockSelectionService;
         this.spatialTileSelectionService = spatialTileSelectionService;
         this.polygonDrawSession = polygonDrawSession;
+        EventFlow.i().subscribe(EventFlow.FixtureSelectionCleared.class,
+                event -> clearFixtureEditingState());
+    }
+
+    private void clearFixtureEditingState() {
+        clearFixtureMoveState();
+        clearBoxResizeState();
+        clearCircleResizeState();
+        clearPolygonVertexMoveState();
+        clearHoveredPolygonVertex();
+        if (polygonDrawSession != null && polygonDrawSession.isActive()) {
+            polygonDrawSession.cancel();
+        }
     }
 
     public void setSelectionService(SelectionService selectionService) {
@@ -265,6 +300,8 @@ public final class PickingSystem extends BaseSystem {
         if (isPointerOverUI()) {
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
+            if (spatialBlockSelectionService != null) spatialBlockSelectionService.clearHover();
+            if (spatialTileSelectionService != null) spatialTileSelectionService.clearHover();
             return;
         }
 
@@ -275,6 +312,15 @@ public final class PickingSystem extends BaseSystem {
         if (isSpatialBlockModeActive()) {
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
+            if (processSpatialEscape()) {
+                updateCursorForHover(
+                        InputManipulationContext.Handle.NONE,
+                        false,
+                        InputManipulationContext.Mode.IDLE,
+                        InputManipulationContext.Handle.NONE
+                );
+                return;
+            }
             int spatialHandle = processSpatialBlockMode(mx, my, leftPressed, leftDown, leftReleased);
             InputManipulationContext.Handle cursorHandle = spatialBlockCursorHandle(
                     resizingSpatialBlockActive ? resizingSpatialBlockHandle : spatialHandle
@@ -446,11 +492,6 @@ public final class PickingSystem extends BaseSystem {
                                         boolean leftDown,
                                         boolean leftReleased) {
         int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
-        int hoveredHandle = detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
-        SpatialBlockHit hover = hoveredHandle == SpatialBlockHandle.NONE
-                ? findTopmostSpatialBlockHit(layerEntityId, mx, my)
-                : new SpatialBlockHit(spatialBlockSelectionService.getSelectedBlockId());
-        spatialBlockSelectionService.setHoveredBlock(hover != null ? hover.blockId : SpatialBlockSelectionService.NO_BLOCK);
 
         if (resizingSpatialBlockActive) {
             if (leftDown) {
@@ -458,6 +499,7 @@ public final class PickingSystem extends BaseSystem {
             }
             if (leftReleased || !leftDown) {
                 onSpatialBlockResizeReleased();
+                spatialPointer.release();
             }
             return resizingSpatialBlockHandle;
         }
@@ -468,6 +510,7 @@ public final class PickingSystem extends BaseSystem {
             }
             if (leftReleased || !leftDown) {
                 onSpatialBlockMoveReleased();
+                spatialPointer.release();
             }
             return SpatialBlockHandle.NONE;
         }
@@ -478,48 +521,149 @@ public final class PickingSystem extends BaseSystem {
             }
             if (leftReleased || !leftDown) {
                 finishSpatialTileSelection();
+                spatialPointer.release();
             }
             return SpatialBlockHandle.NONE;
         }
 
-        if (hoveredHandle != SpatialBlockHandle.NONE && (leftPressed || leftDown)) {
-            selectionService.clearSelection();
-            physicsSelectionService.clear();
-            beginSpatialBlockResize(layerEntityId, spatialBlockSelectionService.getSelectedBlockId(), hoveredHandle, mx, my);
-            return hoveredHandle;
+        SpatialPointerTarget target = resolveSpatialPointerTarget(layerEntityId, mx, my);
+        int hoveredHandle = target.handle;
+        spatialPointer.hover(target.type);
+        spatialBlockSelectionService.setHoveredBlock(target.blockId);
+        if (target.type == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
+            spatialBlockSelectionService.setHoveredHandle(
+                    spatialBlockResizeHandle(target.handle),
+                    target.handle == SpatialBlockHandle.HEIGHT);
+        } else {
+            spatialBlockSelectionService.clearHoveredHandle();
         }
-
-        if (!leftPressed) return hoveredHandle;
-
-        if (hover != null) {
-            selectionService.clearSelection();
-            physicsSelectionService.clear();
-            if (spatialTileSelectionService != null) {
-                spatialTileSelectionService.clear();
+        if (spatialTileSelectionService != null) {
+            if (target.type == SpatialPointerInteraction.Target.OCCUPIED_TILE && !leftDown) {
+                spatialTileSelectionService.setHover(layerEntityId, target.gx, target.gy);
+            } else {
+                spatialTileSelectionService.clearHover();
             }
-            spatialBlockSelectionService.selectBlock(layerEntityId, hover.blockId);
-            beginSpatialBlockMove(layerEntityId, hover.blockId, mx, my);
-            return SpatialBlockHandle.NONE;
         }
 
-        spatialBlockSelectionService.enterLayer(layerEntityId);
-        beginSpatialTileSelection(layerEntityId, mx, my);
-        return SpatialBlockHandle.NONE;
+        if (leftPressed) {
+            if (SpatialPointerInteraction.clearsWallSelection(target.type)) {
+                spatialBlockSelectionService.clearSelectionOnly();
+            }
+            spatialPointer.press(target.type, Gdx.input.getX(), Gdx.input.getY());
+            pressedSpatialBlockId = target.blockId;
+            pressedSpatialHandle = target.handle;
+            pressedSpatialGx = target.gx;
+            pressedSpatialGy = target.gy;
+            if (target.blockId > 0) {
+                selectionService.clearSelection();
+                physicsSelectionService.clear();
+                if (spatialTileSelectionService != null) spatialTileSelectionService.clear();
+                spatialBlockSelectionService.selectBlock(layerEntityId, target.blockId);
+            }
+        }
+
+        if (leftDown && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
+            if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
+                selectionService.clearSelection();
+                physicsSelectionService.clear();
+                beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, mx, my);
+                if (resizingSpatialBlockActive) spatialPointer.beginResize();
+            } else if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
+                beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, mx, my);
+                if (movingSpatialBlockActive) {
+                    spatialPointer.beginMove(spatialBlockSelectionService.wallEditSession().isSlidingAttachedWall());
+                }
+            } else if (spatialPointer.target() == SpatialPointerInteraction.Target.OCCUPIED_TILE) {
+                beginSpatialTileSelection(layerEntityId, pressedSpatialGx, pressedSpatialGy, mx, my);
+                if (spatialTileSelectionActive) spatialPointer.beginCreation();
+            }
+        }
+
+        if (leftReleased) {
+            spatialPointer.release();
+            pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
+            pressedSpatialHandle = SpatialBlockHandle.NONE;
+        }
+        return hoveredHandle;
     }
 
-    private void beginSpatialTileSelection(int layerEntityId, float mx, float my) {
+    private boolean processSpatialEscape() {
+        if (!Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) return false;
+        if (uiStage != null && uiStage.getKeyboardFocus() != null) return false;
+        if (resizingSpatialBlockActive) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            clearSpatialBlockResizeState();
+        } else if (movingSpatialBlockActive) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            clearSpatialBlockMoveState();
+        } else if (spatialTileSelectionActive) {
+            spatialTileSelectionActive = false;
+            if (spatialTileSelectionService != null) spatialTileSelectionService.clear();
+        } else {
+            spatialBlockSelectionService.clearSelectionOnly();
+        }
+        spatialPointer.release();
+        pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
+        pressedSpatialHandle = SpatialBlockHandle.NONE;
+        return true;
+    }
+
+    private SpatialPointerTarget resolveSpatialPointerTarget(int layerEntityId, float mx, float my) {
+        int handle = detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
+        if (handle != SpatialBlockHandle.NONE) {
+            return SpatialPointerTarget.handle(spatialBlockSelectionService.getSelectedBlockId(), handle);
+        }
+        SpatialBlockData selected = findSpatialBlock(layerEntityId, spatialBlockSelectionService.getSelectedBlockId());
+        TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
+        if (selected != null && tiled != null && tiled.data != null
+                && SpatialBlockPicking.containsBase(tiled.data, selected, mx, my, tmpFixtureBoxWorldCorners)) {
+            return SpatialPointerTarget.wall(SpatialPointerInteraction.Target.SELECTED_FOOTPRINT, selected.id);
+        }
+        SpatialBlockHit wall = findTopmostSpatialBlockHit(layerEntityId, mx, my);
+        if (wall != null) {
+            return SpatialPointerTarget.wall(wall.blockId == spatialBlockSelectionService.getSelectedBlockId()
+                    ? SpatialPointerInteraction.Target.SELECTED_WALL
+                    : SpatialPointerInteraction.Target.OTHER_WALL, wall.blockId);
+        }
+        if (tiled != null && tiled.data != null
+                && SpatialCellPicker.pickForSpatialSelection(tiled.data, tiledState, mx, my, spatialCell)
+                && tiled.data.getTile(spatialCell.gx, spatialCell.gy) > 0) {
+            return SpatialPointerTarget.tile(spatialCell.gx, spatialCell.gy);
+        }
+        return SpatialPointerTarget.none();
+    }
+
+    private void beginSpatialTileSelection(int layerEntityId, int gx, int gy, float mx, float my) {
         if (spatialTileSelectionService == null) return;
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
-        if (tiled == null || tiled.data == null) return;
-
-        SpatialTileAnchor anchor = resolveSpatialTileAnchor(tiled.data, mx, my, true);
-        if (anchor == null) return;
+        if (tiled == null || tiled.data == null || tiled.data.getTile(gx, gy) <= 0) return;
 
         selectionService.clearSelection();
         physicsSelectionService.clear();
-        spatialBlockSelectionService.clearSelectionOnly();
-        spatialTileSelectionService.beginDrag(layerEntityId, anchor.gx, anchor.gy);
+        spatialTileSelectionService.beginDrag(layerEntityId, gx, gy);
+        spatialCreationStartTileX = tiled.data.projectWorldToTileX(mx, my);
+        spatialCreationStartTileY = tiled.data.projectWorldToTileY(mx, my);
         spatialTileSelectionActive = true;
+    }
+
+    private static final class SpatialPointerTarget {
+        final SpatialPointerInteraction.Target type;
+        final int blockId;
+        final int handle;
+        final int gx;
+        final int gy;
+
+        private SpatialPointerTarget(SpatialPointerInteraction.Target type, int blockId, int handle, int gx, int gy) {
+            this.type = type;
+            this.blockId = blockId;
+            this.handle = handle;
+            this.gx = gx;
+            this.gy = gy;
+        }
+        static SpatialPointerTarget none() { return new SpatialPointerTarget(SpatialPointerInteraction.Target.NONE, -1, -1, 0, 0); }
+        static SpatialPointerTarget handle(int blockId, int handle) { return new SpatialPointerTarget(SpatialPointerInteraction.Target.SELECTED_HANDLE, blockId, handle, 0, 0); }
+        static SpatialPointerTarget wall(SpatialPointerInteraction.Target type, int blockId) { return new SpatialPointerTarget(type, blockId, -1, 0, 0); }
+        static SpatialPointerTarget tile(int gx, int gy) { return new SpatialPointerTarget(SpatialPointerInteraction.Target.OCCUPIED_TILE, -1, -1, gx, gy); }
     }
 
     private void updateSpatialTileSelection(int layerEntityId, float mx, float my) {
@@ -527,88 +671,23 @@ public final class PickingSystem extends BaseSystem {
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (tiled == null || tiled.data == null) return;
 
-        SpatialTileAnchor anchor = resolveSpatialTileAnchor(tiled.data, mx, my, false);
-        int gx;
-        int gy;
-        if (anchor != null) {
-            gx = anchor.gx;
-            gy = anchor.gy;
+        if (SpatialCellPicker.pickForSpatialSelection(tiled.data, tiledState, mx, my, spatialCell)) {
+            spatialTileSelectionService.updateDrag(spatialCell.gx, spatialCell.gy);
+            spatialTileSelectionService.updateGesture(
+                    tiled.data.projectWorldToTileX(mx, my) - spatialCreationStartTileX,
+                    tiled.data.projectWorldToTileY(mx, my) - spatialCreationStartTileY);
         } else {
-            gx = clamp(tiled.data.worldToTileX(mx, my), 0, Math.max(0, tiled.data.mapWidth - 1));
-            gy = clamp(tiled.data.worldToTileY(mx, my), 0, Math.max(0, tiled.data.mapHeight - 1));
+            spatialTileSelectionService.updateDragOutsideMap();
         }
-        spatialTileSelectionService.updateDrag(gx, gy);
     }
 
     private void finishSpatialTileSelection() {
         spatialTileSelectionActive = false;
         if (spatialTileSelectionService != null) {
             spatialTileSelectionService.finishDrag();
+            SpatialWallCreationService.executeSelectedRectangle(
+                    world, historyManager, spatialBlockSelectionService, spatialTileSelectionService);
         }
-    }
-
-    private SpatialTileAnchor resolveSpatialTileAnchor(TiledMapLayerData map,
-                                                       float worldX,
-                                                       float worldY,
-                                                       boolean allowGridFallback) {
-        if (map == null) return null;
-
-        SpatialTileAnchor visualAnchor = findTopmostRenderedTileAnchor(map, worldX, worldY);
-        if (visualAnchor != null) return visualAnchor;
-        if (!allowGridFallback) return null;
-
-        int gx = map.worldToTileX(worldX, worldY);
-        int gy = map.worldToTileY(worldX, worldY);
-        return map.isInside(gx, gy) ? new SpatialTileAnchor(gx, gy) : null;
-    }
-
-    private SpatialTileAnchor findTopmostRenderedTileAnchor(TiledMapLayerData map, float worldX, float worldY) {
-        if (map == null || renderState == null) return null;
-
-        SpatialTileAnchor best = null;
-        int bestSlot = -1;
-        float[] verts = tmpFixtureBoxWorldCorners;
-        for (int gy = 0; gy < map.mapHeight; gy++) {
-            for (int gx = 0; gx < map.mapWidth; gx++) {
-                if (map.getTile(gx, gy) <= 0) continue;
-                int slot = map.slotForTile(gx, gy);
-                if (!isRenderableTileSlot(slot) || slot <= bestSlot) continue;
-                copyRenderStateQuad(slot, verts);
-                if (pointInConvexQuad(worldX, worldY, verts)) {
-                    bestSlot = slot;
-                    best = new SpatialTileAnchor(gx, gy);
-                }
-            }
-        }
-        return best;
-    }
-
-    private boolean isRenderableTileSlot(int slot) {
-        return renderState != null
-                && slot >= 0
-                && slot < renderState.textureHandle.length
-                && renderState.enabled[slot]
-                && renderState.visible[slot]
-                && renderState.kind[slot] == RenderStateSOA.KIND_SPRITE
-                && renderState.textureHandle[slot] != 0;
-    }
-
-    private void copyRenderStateQuad(int slot, float[] out) {
-        out[0] = renderState.x1[slot];
-        out[1] = renderState.y1[slot];
-        out[2] = renderState.x2[slot];
-        out[3] = renderState.y2[slot];
-        out[4] = renderState.x3[slot];
-        out[5] = renderState.y3[slot];
-        out[6] = renderState.x4[slot];
-        out[7] = renderState.y4[slot];
-    }
-
-    private record SpatialTileAnchor(int gx, int gy) {
-    }
-
-    private static int clamp(int value, int min, int max) {
-        return Math.max(min, Math.min(max, value));
     }
 
     private static InputManipulationContext.Handle spatialBlockCursorHandle(int handle) {
@@ -617,6 +696,10 @@ public final class PickingSystem extends BaseSystem {
             case SpatialBlockHandle.RIGHT -> InputManipulationContext.Handle.E;
             case SpatialBlockHandle.BOTTOM -> InputManipulationContext.Handle.S;
             case SpatialBlockHandle.LEFT -> InputManipulationContext.Handle.W;
+            case SpatialBlockHandle.TOP_CORNER -> InputManipulationContext.Handle.NW;
+            case SpatialBlockHandle.RIGHT_CORNER -> InputManipulationContext.Handle.NE;
+            case SpatialBlockHandle.BOTTOM_CORNER -> InputManipulationContext.Handle.SE;
+            case SpatialBlockHandle.LEFT_CORNER -> InputManipulationContext.Handle.SW;
             case SpatialBlockHandle.HEIGHT -> InputManipulationContext.Handle.N;
             default -> InputManipulationContext.Handle.NONE;
         };
@@ -625,88 +708,80 @@ public final class PickingSystem extends BaseSystem {
     private void beginSpatialBlockMove(int layerEntityId, int blockId, float mx, float my) {
         SpatialBlockData block = findSpatialBlock(layerEntityId, blockId);
         if (block == null) return;
+        TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
+        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null
+                || !spatialBlockSelectionService.wallEditSession().begin(
+                layerEntityId, blockId, blocks, tiled.data)) return;
+        if (!spatialBlockSelectionService.wallEditSession().canMove()) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            return;
+        }
         movingSpatialBlockActive = true;
         movingSpatialBlockLayerEid = layerEntityId;
         movingSpatialBlockId = blockId;
-        movingSpatialBlockBeforeX = block.x;
-        movingSpatialBlockBeforeY = block.y;
+        movingSpatialBlockStartTileX = tiled.data.projectWorldToTileX(mx, my);
+        movingSpatialBlockStartTileY = tiled.data.projectWorldToTileY(mx, my);
+        spatialBlockSelectionService.setEditPreview(true);
         oldDrag.set(mx, my);
     }
 
     private void beginSpatialBlockResize(int layerEntityId, int blockId, int handle, float mx, float my) {
         SpatialBlockData block = findSpatialBlock(layerEntityId, blockId);
         if (block == null || handle == SpatialBlockHandle.NONE) return;
+        TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
+        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null
+                || !spatialBlockSelectionService.wallEditSession().begin(
+                layerEntityId, blockId, blocks, tiled.data)) return;
+        SpatialBlockInteractiveEditSupport.ResizeHandle resizeHandle = spatialBlockResizeHandle(handle);
+        if (handle != SpatialBlockHandle.HEIGHT
+                && !spatialBlockSelectionService.wallEditSession().isHandleEnabled(resizeHandle)) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            return;
+        }
         resizingSpatialBlockActive = true;
         resizingSpatialBlockLayerEid = layerEntityId;
         resizingSpatialBlockId = blockId;
         resizingSpatialBlockHandle = handle;
-        resizingSpatialBlockBefore = block.copy();
+        spatialBlockSelectionService.setEditPreview(true);
         ctx.beginResize(spatialBlockCursorHandle(handle), mx, my, block.width, block.depth);
         oldDrag.set(mx, my);
     }
 
     private void onSpatialBlockMoveDragging(float mx, float my) {
-        SpatialBlockData block = findSpatialBlock(movingSpatialBlockLayerEid, movingSpatialBlockId);
         TiledLayerComponent tiled = mTiledLayer.getSafe(movingSpatialBlockLayerEid, null);
-        if (block == null || tiled == null || tiled.data == null) return;
+        if (tiled == null || tiled.data == null) return;
 
-        float beforeTileX = tiled.data.projectWorldToTileX(oldDrag.x, oldDrag.y);
-        float beforeTileY = tiled.data.projectWorldToTileY(oldDrag.x, oldDrag.y);
         float afterTileX = tiled.data.projectWorldToTileX(mx, my);
         float afterTileY = tiled.data.projectWorldToTileY(mx, my);
 
-        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(movingSpatialBlockLayerEid, null);
-        boolean valid = SpatialBlockInteractiveEditSupport.moveByIfValid(
-                block,
-                blocks,
-                movingSpatialBlockId,
-                afterTileX - beforeTileX,
-                afterTileY - beforeTileY
-        );
-        if (!valid) {
-            return;
-        }
+        spatialBlockSelectionService.wallEditSession().updateMove(
+                afterTileX - movingSpatialBlockStartTileX,
+                afterTileY - movingSpatialBlockStartTileY);
+        spatialBlockSelectionService.setEditPreview(
+                spatialBlockSelectionService.wallEditSession().isCandidateValid());
         oldDrag.set(mx, my);
     }
 
     private void onSpatialBlockMoveReleased() {
-        SpatialBlockData block = findSpatialBlock(movingSpatialBlockLayerEid, movingSpatialBlockId);
-        if (block != null) {
-            float afterX = block.x;
-            float afterY = block.y;
-            block.x = movingSpatialBlockBeforeX;
-            block.y = movingSpatialBlockBeforeY;
-
-            MoveSpatialBlockCommand command = new MoveSpatialBlockCommand(
-                    world,
-                    historyIds,
-                    spatialBlockSelectionService,
-                    movingSpatialBlockLayerEid,
-                    movingSpatialBlockId,
-                    movingSpatialBlockBeforeX,
-                    movingSpatialBlockBeforeY,
-                    afterX,
-                    afterY
-            );
-            if (!command.isNoop()) {
-                historyManager.execute(command);
-            } else {
-                block.x = afterX;
-                block.y = afterY;
-            }
-        }
+        spatialBlockSelectionService.wallEditSession().commit(
+                world, historyManager, spatialBlockSelectionService);
         clearSpatialBlockMoveState();
     }
 
     private void onSpatialBlockResizeDragging(float mx, float my) {
-        SpatialBlockData block = findSpatialBlock(resizingSpatialBlockLayerEid, resizingSpatialBlockId);
         TiledLayerComponent tiled = mTiledLayer.getSafe(resizingSpatialBlockLayerEid, null);
-        if (block == null || tiled == null || tiled.data == null) return;
+        SpatialBlockData preview = spatialBlockSelectionService.wallEditSession().candidate();
+        if (preview == null || tiled == null || tiled.data == null) return;
 
         float heightDelta = my - oldDrag.y;
 
         if (resizingSpatialBlockHandle == SpatialBlockHandle.HEIGHT) {
-            block.height = Math.max(0f, block.height + heightDelta);
+            spatialBlockSelectionService.wallEditSession().updateHeight(
+                    Math.max(0f, preview.height + heightDelta));
+            spatialBlockSelectionService.setEditPreview(
+                    spatialBlockSelectionService.wallEditSession().isCandidateValid());
             oldDrag.set(mx, my);
             return;
         }
@@ -715,57 +790,34 @@ public final class PickingSystem extends BaseSystem {
                 tiled.data,
                 mx,
                 my,
-                block.altitude,
+                preview.altitude,
                 tmpA
         );
-        SpatialBlockInteractiveEditSupport.CornerHandle handle = spatialBlockCornerHandle(resizingSpatialBlockHandle);
-        SpatialBlocksComponent blocks = mSpatialBlocks.getSafe(resizingSpatialBlockLayerEid, null);
-        boolean valid = SpatialBlockInteractiveEditSupport.resizeCornerIfValid(
-                block,
-                blocks,
-                resizingSpatialBlockId,
-                handle,
-                tmpA.x,
-                tmpA.y
-        );
-        if (!valid) {
-            return;
-        }
+        SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialBlockResizeHandle(resizingSpatialBlockHandle);
+        spatialBlockSelectionService.wallEditSession().updateResize(handle, tmpA.x, tmpA.y);
+        spatialBlockSelectionService.setEditPreview(
+                spatialBlockSelectionService.wallEditSession().isCandidateValid());
 
         oldDrag.set(mx, my);
     }
 
-    private static SpatialBlockInteractiveEditSupport.CornerHandle spatialBlockCornerHandle(int handle) {
+    private static SpatialBlockInteractiveEditSupport.ResizeHandle spatialBlockResizeHandle(int handle) {
         return switch (handle) {
-            case SpatialBlockHandle.TOP -> SpatialBlockInteractiveEditSupport.CornerHandle.TOP;
-            case SpatialBlockHandle.RIGHT -> SpatialBlockInteractiveEditSupport.CornerHandle.RIGHT;
-            case SpatialBlockHandle.BOTTOM -> SpatialBlockInteractiveEditSupport.CornerHandle.BOTTOM;
-            case SpatialBlockHandle.LEFT -> SpatialBlockInteractiveEditSupport.CornerHandle.LEFT;
+            case SpatialBlockHandle.TOP -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_Y;
+            case SpatialBlockHandle.RIGHT -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X;
+            case SpatialBlockHandle.BOTTOM -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_Y;
+            case SpatialBlockHandle.LEFT -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X;
+            case SpatialBlockHandle.TOP_CORNER -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X_MIN_Y;
+            case SpatialBlockHandle.RIGHT_CORNER -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X_MIN_Y;
+            case SpatialBlockHandle.BOTTOM_CORNER -> SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X_MAX_Y;
+            case SpatialBlockHandle.LEFT_CORNER -> SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X_MAX_Y;
             default -> null;
         };
     }
 
     private void onSpatialBlockResizeReleased() {
-        SpatialBlockData block = findSpatialBlock(resizingSpatialBlockLayerEid, resizingSpatialBlockId);
-        if (block != null && resizingSpatialBlockBefore != null) {
-            SpatialBlockData after = block.copy();
-            applySpatialBlockSnapshot(block, resizingSpatialBlockBefore);
-
-            EditSpatialBlockCommand command = new EditSpatialBlockCommand(
-                    world,
-                    historyIds,
-                    spatialBlockSelectionService,
-                    resizingSpatialBlockLayerEid,
-                    resizingSpatialBlockId,
-                    resizingSpatialBlockBefore,
-                    after
-            );
-            if (!command.isNoop()) {
-                historyManager.execute(command);
-            } else {
-                applySpatialBlockSnapshot(block, after);
-            }
-        }
+        spatialBlockSelectionService.wallEditSession().commit(
+                world, historyManager, spatialBlockSelectionService);
         clearSpatialBlockResizeState();
     }
 
@@ -774,37 +826,17 @@ public final class PickingSystem extends BaseSystem {
         resizingSpatialBlockLayerEid = -1;
         resizingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
         resizingSpatialBlockHandle = SpatialBlockHandle.NONE;
-        resizingSpatialBlockBefore = null;
+        spatialBlockSelectionService.clearEditPreview();
         ctx.end();
-    }
-
-    private static void applySpatialBlockSnapshot(SpatialBlockData target, SpatialBlockData source) {
-        if (target == null || source == null) return;
-        target.id = source.id;
-        target.name = source.name;
-        target.enabled = source.enabled;
-        target.x = source.x;
-        target.y = source.y;
-        target.width = source.width;
-        target.depth = source.depth;
-        target.altitude = source.altitude;
-        target.height = source.height;
-        target.orientation = source.orientation;
-        target.actorOccluder = source.actorOccluder;
-        target.physicsCollision = source.physicsCollision;
-        target.lightOccluder = source.lightOccluder;
-        target.shadowCaster = source.shadowCaster;
-        target.particleOccluder = source.particleOccluder;
-        target.linkedTileRefsAuthored = source.linkedTileRefsAuthored;
-        target.copyLinkedTileRefsFrom(source);
     }
 
     private void clearSpatialBlockMoveState() {
         movingSpatialBlockActive = false;
         movingSpatialBlockLayerEid = -1;
         movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
-        movingSpatialBlockBeforeX = 0f;
-        movingSpatialBlockBeforeY = 0f;
+        movingSpatialBlockStartTileX = 0f;
+        movingSpatialBlockStartTileY = 0f;
+        spatialBlockSelectionService.clearEditPreview();
     }
 
     private SpatialBlockData findSpatialBlock(int layerEntityId, int blockId) {
@@ -822,16 +854,10 @@ public final class PickingSystem extends BaseSystem {
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (component == null || component.blocks == null || tiled == null || tiled.data == null) return null;
 
-        float[] verts = tmpFixtureBoxWorldCorners;
-        for (int i = component.blocks.size - 1; i >= 0; i--) {
-            SpatialBlockData block = component.blocks.get(i);
-            if (block == null) continue;
-            SpatialBlockProjection.projectBaseFootprint(tiled.data, block, verts);
-            if (pointInConvexQuad(mouseX, mouseY, verts)) {
-                return new SpatialBlockHit(block.id);
-            }
-        }
-        return null;
+        int blockId = SpatialBlockPicking.find(
+                component, tiled.data, spatialBlockSelectionService.getSelectedBlockId(),
+                mouseX, mouseY, tmpFixtureBoxWorldCorners, tmpSpatialBlockTopCorners);
+        return blockId > 0 ? new SpatialBlockHit(blockId) : null;
     }
 
     private int detectSelectedSpatialBlockTopHandle(int layerEntityId, float mouseX, float mouseY) {
@@ -847,7 +873,7 @@ public final class PickingSystem extends BaseSystem {
 
         float halfWorld = HandleHelper.pxToWorld(
                 worldCam,
-                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX + HOVER_TOLER_PX
+                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
         );
 
         float topCx = (verts[0] + verts[2] + verts[4] + verts[6]) * 0.25f;
@@ -864,6 +890,22 @@ public final class PickingSystem extends BaseSystem {
             float vx = verts[i * 2];
             float vy = verts[i * 2 + 1];
             if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWorld)) continue;
+            float d2 = dst2(mouseX, mouseY, vx, vy);
+            if (d2 < bestDist2) {
+                bestDist2 = d2;
+                bestHandle = SpatialBlockHandle.TOP_CORNER + i;
+            }
+        }
+        if (bestHandle != SpatialBlockHandle.NONE) {
+            return isSpatialBlockHandleAvailable(layerEntityId, block, tiled.data, bestHandle)
+                    ? bestHandle : SpatialBlockHandle.NONE;
+        }
+
+        for (int i = 0; i < 4; i++) {
+            int next = (i + 1) & 3;
+            float vx = (verts[i * 2] + verts[next * 2]) * 0.5f;
+            float vy = (verts[i * 2 + 1] + verts[next * 2 + 1]) * 0.5f;
+            if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWorld)) continue;
 
             float d2 = dst2(mouseX, mouseY, vx, vy);
             if (d2 < bestDist2) {
@@ -872,24 +914,22 @@ public final class PickingSystem extends BaseSystem {
             }
         }
 
-        return bestHandle;
+        return bestHandle == SpatialBlockHandle.NONE
+                || isSpatialBlockHandleAvailable(layerEntityId, block, tiled.data, bestHandle)
+                ? bestHandle : SpatialBlockHandle.NONE;
     }
 
-    private static boolean pointInConvexQuad(float px, float py, float[] verts) {
-        boolean hasPositive = false;
-        boolean hasNegative = false;
-        for (int i = 0; i < 4; i++) {
-            int next = (i + 1) & 3;
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[next * 2];
-            float by = verts[next * 2 + 1];
-            float cross = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
-            hasPositive |= cross > 0f;
-            hasNegative |= cross < 0f;
-            if (hasPositive && hasNegative) return false;
-        }
-        return true;
+    private boolean isSpatialBlockHandleAvailable(int layerEntityId,
+                                                  SpatialBlockData block,
+                                                  TiledMapLayerData map,
+                                                  int handle) {
+        if (handle == SpatialBlockHandle.HEIGHT) return true;
+        SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);
+        SpatialBlockInteractiveEditSupport.ResizeHandle resizeHandle = spatialBlockResizeHandle(handle);
+        boolean available = spatialHandleProbe.begin(layerEntityId, block.id, component, map)
+                && spatialHandleProbe.isHandleEnabled(resizeHandle);
+        spatialHandleProbe.cancel();
+        return available;
     }
 
     private record SpatialBlockHit(int blockId) {
@@ -1040,16 +1080,21 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (!world.getEntityManager().isActive(focusedBodyEid)
-                || !isSelectableInViewport(focusedBodyEid)) {
+                || !isSelectableInViewport(focusedBodyEid)
+                || !mPhysBody.has(focusedBodyEid)) {
+            boolean hadSelectedFixture = physicsSelectionService.hasSelectedFixture();
             physicsSelectionService.clear();
+            if (hadSelectedFixture) {
+                EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
+            }
             return;
         }
 
         int selectedFixtureId = physicsSelectionService.getSelectedFixtureId();
         if (selectedFixtureId > 0
                 && physicsService.getFixtureById(focusedBodyEid, selectedFixtureId) == null) {
-            physicsSelectionService.clearSelectionOnly();
-            EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
+            physicsSelectionService.clearSelectedFixtureIfMatches(
+                    focusedBodyEid, selectedFixtureId);
         }
     }
 
@@ -1311,8 +1356,8 @@ public final class PickingSystem extends BaseSystem {
                                               Vector2 out) {
         float dx = mouseWorldX - bodyX;
         float dy = mouseWorldY - bodyY;
-        float cos = (float) Math.cos(bodyRotationRad);
-        float sin = (float) Math.sin(bodyRotationRad);
+        float cos = MathUtils.cos(bodyRotationRad);
+        float sin = MathUtils.sin(bodyRotationRad);
         float localXWorld = dx * cos + dy * sin;
         float localYWorld = -dx * sin + dy * cos;
         out.set(localXWorld / ppm, localYWorld / ppm);
@@ -1346,6 +1391,9 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
 
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) {
@@ -1389,6 +1437,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) return false;
@@ -1411,6 +1460,9 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE)
             return InputManipulationContext.Handle.NONE;
@@ -1427,6 +1479,8 @@ public final class PickingSystem extends BaseSystem {
         if (ctx.hoveredHandle() != InputManipulationContext.Handle.E) return false;
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
+        if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) return false;
         resizingCircleActive = true;
@@ -1448,8 +1502,8 @@ public final class PickingSystem extends BaseSystem {
         float dx = wx - t.x;
         float dy = wy - t.y;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float localX = dx * cos + dy * sin;
         float localY = -dx * sin + dy * cos;
@@ -1610,6 +1664,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return -1;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return -1;
 
         AuthoredPolygonData authored =
                 polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
@@ -1679,6 +1734,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         AuthoredPolygonData authored =
                 polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
@@ -1750,13 +1806,13 @@ public final class PickingSystem extends BaseSystem {
 
         float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
         float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (float) Math.toRadians(polygon != null ? polygon.angleDeg : 0f);
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
 
-        float fixtureCos = (float) Math.cos(fixtureAngleRad);
-        float fixtureSin = (float) Math.sin(fixtureAngleRad);
+        float fixtureCos = MathUtils.cos(fixtureAngleRad);
+        float fixtureSin = MathUtils.sin(fixtureAngleRad);
 
-        float bodyCos = (float) Math.cos(t.rotationRad);
-        float bodySin = (float) Math.sin(t.rotationRad);
+        float bodyCos = MathUtils.cos(t.rotationRad);
+        float bodySin = MathUtils.sin(t.rotationRad);
 
         for (int i = 0; i < count; i++) {
             float lx = localVertsMeters[i * 2];
@@ -1777,11 +1833,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, float[] verts, int vertexCount) {
-        // Studio tools operate in logical world space. Runtime render offsets may already
-        // be present in RenderStateSOA because Studio reuses runtime systems, but
-        // StudioRenderSubmitSystem ignores those offsets when drawing the editor canvas.
-        // Applying RenderSpaceMapper offsets here would make picking, gizmos, and physics
-        // handles drift away from what the user sees. Parallax remains preview/runtime-only.
+        // Studio tools operate in logical world space; preview/runtime display offsets
+        // are intentionally not applied to picking, gizmos, and physics handles.
     }
 
     private void onPolygonVertexDragging(float mx, float my) {
@@ -1888,13 +1941,13 @@ public final class PickingSystem extends BaseSystem {
 
         float offsetX = polygon != null ? polygon.offsetX : 0f;
         float offsetY = polygon != null ? polygon.offsetY : 0f;
-        float angleRad = (float) Math.toRadians(polygon != null ? polygon.angleDeg : 0f);
+        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
 
         float dx = bodyLocalX - offsetX;
         float dy = bodyLocalY - offsetY;
 
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
 
         float lx = dx * cos + dy * sin;
         float ly = -dx * sin + dy * cos;
@@ -2326,8 +2379,8 @@ public final class PickingSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float cos = (float) Math.cos(ta.rotationRad);
-        float sin = (float) Math.sin(ta.rotationRad);
+        float cos = MathUtils.cos(ta.rotationRad);
+        float sin = MathUtils.sin(ta.rotationRad);
 
         float dxWu = motor.linearOffsetX * ppm;
         float dyWu = motor.linearOffsetY * ppm;
@@ -2414,14 +2467,14 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private static float rotateX(float x, float y, float angleRad) {
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
         return x * cos - y * sin;
     }
 
     private static float rotateY(float x, float y, float angleRad) {
-        float cos = (float) Math.cos(angleRad);
-        float sin = (float) Math.sin(angleRad);
+        float cos = MathUtils.cos(angleRad);
+        float sin = MathUtils.sin(angleRad);
         return x * sin + y * cos;
     }
 
@@ -2690,6 +2743,8 @@ public final class PickingSystem extends BaseSystem {
 
         float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
         long pickedFixtureId = pickFixtureOnBody(bodyEid, mx, my, tolWorld);
+        if (pickedFixtureId == fixtureId
+                && !isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         AuthoredPolygonData authored = findAuthoredPolygonByGeneratedFixture(bodyEid, fixtureId);
 
@@ -2741,8 +2796,8 @@ public final class PickingSystem extends BaseSystem {
         float dyWorld = my - oldDrag.y;
         if (dxWorld == 0f && dyWorld == 0f) return true;
 
-        float cos = (float) Math.cos(bodyT.rotationRad);
-        float sin = (float) Math.sin(bodyT.rotationRad);
+        float cos = MathUtils.cos(bodyT.rotationRad);
+        float sin = MathUtils.sin(bodyT.rotationRad);
 
         // monde -> local body
         float dxLocalPx = dxWorld * cos + dyWorld * sin;
@@ -2770,8 +2825,8 @@ public final class PickingSystem extends BaseSystem {
 
         if (dxWorld == 0f && dyWorld == 0f) return true;
 
-        float cos = (float) Math.cos(bodyT.rotationRad);
-        float sin = (float) Math.sin(bodyT.rotationRad);
+        float cos = MathUtils.cos(bodyT.rotationRad);
+        float sin = MathUtils.sin(bodyT.rotationRad);
 
         float dxLocalPx = dxWorld * cos + dyWorld * sin;
         float dyLocalPx = -dxWorld * sin + dyWorld * cos;
@@ -2880,6 +2935,10 @@ public final class PickingSystem extends BaseSystem {
         return physicsSelectionService.getFocusedBodyEid() >= 0;
     }
 
+    static boolean isFixtureGeometryEditable(World world, int bodyEid, long fixtureId) {
+        return !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId);
+    }
+
     private boolean isInSelection(IntArray sel, int e) {
         for (int i = 0, n = sel.size; i < n; i++) {
             if (sel.get(i) == e) return true;
@@ -2925,8 +2984,8 @@ public final class PickingSystem extends BaseSystem {
         float cx = t.x + t.originX;
         float cy = t.y + t.originY;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float dx = mx - cx;
         float dy = my - cy;
@@ -3283,7 +3342,7 @@ public final class PickingSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
         // See applyDisplayOffset(int, float[], int): Studio picking stays in logical
-        // world space even if runtime display offsets exist in RenderStateSOA.
+        // world space even if preview/runtime display offsets exist.
     }
 
     private void removeDisplayOffset(int entityId, Vector2 p) {
@@ -3434,7 +3493,7 @@ public final class PickingSystem extends BaseSystem {
         float radius = readLightRadius(entityId);
         if (mConeLight != null && mConeLight.has(entityId)) {
             float angle = t.rotationRad;
-            out.set(t.x + (float) Math.cos(angle) * radius, t.y + (float) Math.sin(angle) * radius);
+            out.set(t.x + MathUtils.cos(angle) * radius, t.y + MathUtils.sin(angle) * radius);
         } else {
             out.set(t.x + radius, t.y);
         }

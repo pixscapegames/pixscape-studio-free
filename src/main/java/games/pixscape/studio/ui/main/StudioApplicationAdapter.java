@@ -38,7 +38,6 @@ import games.pixscape.studio.ui.layer.LayersPanel;
 import games.pixscape.studio.ui.preview.HtmlPreviewLauncher;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 import games.pixscape.studio.ui.tree.ItemTreePanel;
-import org.lwjgl.glfw.GLFW;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.Optional;
@@ -167,10 +166,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         multiplexer.addProcessor(canvas.getInputState());
         Gdx.input.setInputProcessor(multiplexer);
 
-        GLFW.glfwSetWindowAttrib(((Lwjgl3Graphics) Gdx.graphics).getWindow().getWindowHandle(), GLFW.GLFW_FLOATING, GLFW.GLFW_TRUE);
-
         Lwjgl3Graphics g = (Lwjgl3Graphics) Gdx.graphics;
         Lwjgl3Window window = g.getWindow();
+        // Keep the Studio as a normal desktop window. OS-level floating/always-on-top
+        // breaks Alt+Tab by forcing Pixscape above other applications.
         window.setWindowListener(new Lwjgl3WindowAdapter() {
             @Override
             public void filesDropped(String[] files) {

@@ -139,9 +139,9 @@ public class StudioFrameProfilerTest {
         profiler.beginFrame();
         long worldStart = profiler.begin(StudioFrameProfiler.WORLD_PROCESS);
         systemProfiler.beginFrame();
-        long tiledStart = systemProfiler.begin(SystemProfilePhases.RENDER_TILED_SYNC);
+        long renderTiledSyncStart = systemProfiler.begin(SystemProfilePhases.RENDER_TILED_SYNC);
         clock.advanceMs(8);
-        systemProfiler.end(SystemProfilePhases.RENDER_TILED_SYNC, tiledStart);
+        systemProfiler.end(SystemProfilePhases.RENDER_TILED_SYNC, renderTiledSyncStart);
         clock.advanceMs(17);
         profiler.end(StudioFrameProfiler.WORLD_PROCESS, worldStart);
         profiler.endFrame();

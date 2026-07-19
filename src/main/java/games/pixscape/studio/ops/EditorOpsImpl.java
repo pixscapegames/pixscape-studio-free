@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
@@ -39,9 +40,12 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
+import games.pixscape.studio.service.spatial.SpatialWallCreationService;
+import games.pixscape.studio.service.spatial.SpatialWallThicknessInheritance;
 import games.pixscape.studio.system.AnimationFallbackSystem;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -803,8 +807,8 @@ public class EditorOpsImpl implements EditorOps {
         float dx = worldX - t.x;
         float dy = worldY - t.y;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float localX = dx * cos + dy * sin;
         float localY = -dx * sin + dy * cos;
@@ -821,6 +825,7 @@ public class EditorOpsImpl implements EditorOps {
     @Override
     public void beginEditPolygonFixture(int bodyEid, long fixtureId) {
         if (bodyEid < 0 || fixtureId <= 0L) return;
+        if (SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) return;
 
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
@@ -870,19 +875,23 @@ public class EditorOpsImpl implements EditorOps {
 
         if (target == null || !target.valid() || target.tiledLayerEntity() != layerEntityId) return;
 
-        SpatialBlockData block = new SpatialBlockData();
-        block.x = target.targetGx();
-        block.y = target.targetGy();
-        block.width = 1f;
-        block.depth = 1f;
-        block.altitude = tiled.defaultTileAltitude;
-        block.height = tiled.defaultTileHeight > 0f ? tiled.defaultTileHeight : SpatialBlockData.DEFAULT_HEIGHT;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
-        block.actorOccluder = true;
-        block.physicsCollision = false;
-        block.lightOccluder = false;
-        block.shadowCaster = false;
-        block.particleOccluder = false;
+        int targetGx = target.targetGx();
+        int targetGy = target.targetGy();
+        if (!tiled.data.isInside(targetGx, targetGy)) return;
+
+        int tileAssetId = tiled.data.getTile(targetGx, targetGy);
+        if (tileAssetId <= 0) return;
+
+        SpatialBlockData block = SpatialTileSelectionService.fromOccupiedRect(
+                tiled.data, targetGx, targetGy, targetGx, targetGy,
+                tiled.defaultTileAltitude, tiled.defaultTileHeight);
+        if (block == null) return;
+        SpatialBlocksComponent existing = world.getMapper(SpatialBlocksComponent.class)
+                .getSafe(layerEntityId, null);
+        SpatialWallThicknessInheritance.Result inherited =
+                SpatialWallThicknessInheritance.apply(block, existing);
+        if (!inherited.valid) return;
+        block = inherited.wall;
 
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 world,
@@ -915,36 +924,8 @@ public class EditorOpsImpl implements EditorOps {
 
     @Override
     public void createSpatialBlockFromSelectedTiles() {
-        if (spatialTileSelectionService == null || !spatialTileSelectionService.hasSelection()) return;
-
-        int layerEntityId = spatialTileSelectionService.getLayerEntityId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        if (tiled == null || tiled.data == null) {
-            spatialTileSelectionService.clear();
-            return;
-        }
-        if (!spatialTileSelectionService.canCreateSpatialBlock(tiled.data)) {
-            return;
-        }
-
-        SpatialBlockData block = spatialTileSelectionService.toSpatialBlockData(
-                tiled.data,
-                tiled.defaultTileAltitude,
-                tiled.defaultTileHeight
-        );
-        if (block == null) return;
-
-        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
-                world,
-                historyManager.historyIds(),
-                spatialBlockSelectionService,
-                layerEntityId,
-                block
-        );
-        if (!command.isNoop()) {
-            historyManager.execute(command);
-            spatialTileSelectionService.clear();
-        }
+        SpatialWallCreationService.executeSelectedRectangle(
+                world, historyManager, spatialBlockSelectionService, spatialTileSelectionService);
     }
 
     @Override
@@ -1033,7 +1014,7 @@ public class EditorOpsImpl implements EditorOps {
             if (AnimationFallbackSystem.bindFirstFrameFallback(
                     world,
                     entityId,
-                    canvas.getRenderState(),
+                    canvas.getDynamicEntityState(),
                     before.effectiveAtlasTag(sceneTag))) {
                 ensureHandleBoundToTextureArray();
             } else if (before.isRenderable()) {

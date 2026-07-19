@@ -4,11 +4,12 @@ import com.artemis.World;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
-public final class ApplyAuthoredPolygonCommand implements Command, HistoryManager.SupportsNoop {
+public final class ApplyAuthoredPolygonCommand
+        implements Command, PreExecutionNoopCommand {
 
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -54,6 +55,7 @@ public final class ApplyAuthoredPolygonCommand implements Command, HistoryManage
                 || physicsSelectionService == null
                 || bodyHistoryId <= 0L
                 || this.sourceCount < 3
+                || SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureToReplaceId)
                 || this.sourceVerts.length < this.sourceCount * 2;
     }
 

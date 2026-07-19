@@ -32,10 +32,8 @@ public final class CrashDialog {
 
             JDialog dialog = optionPane.createDialog(null, title);
             dialog.setModal(true);
-
-            if (dialog.isAlwaysOnTopSupported()) {
-                dialog.setAlwaysOnTop(true);
-            }
+            // Keep crash reporting visible when opened, but never force OS-level
+            // always-on-top; users must be able to switch to other applications.
 
             dialog.toFront();
             dialog.requestFocus();

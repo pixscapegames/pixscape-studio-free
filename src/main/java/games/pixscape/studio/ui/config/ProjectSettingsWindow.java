@@ -13,6 +13,7 @@ import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.ProjectRenameService;
+import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.service.RecentProjectsService;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.io.StudioFs;
@@ -216,7 +217,7 @@ public final class ProjectSettingsWindow extends VisWindow {
         boolean locationChanged = false;
         try {
             FileHandle targetProjectDir = Gdx.files.absolute(projectDirectory);
-            cfg.exportRootPathDir = exportRoot;
+            cfg.exportRootPathDir = RuntimeExportPaths.normalizeExportRootPath(exportRoot);
             SceneService.requireValidExportRootOrThrow(cfg, "projectSettings");
 
             if (!targetProjectDir.path().equals(originalStudioDir.path())) {

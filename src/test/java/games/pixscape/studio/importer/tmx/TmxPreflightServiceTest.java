@@ -1,0 +1,565 @@
+package games.pixscape.studio.importer.tmx;
+
+import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.io.StudioFs;
+import org.junit.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
+import java.util.List;
+import java.util.zip.DeflaterOutputStream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+public class TmxPreflightServiceTest {
+
+    @Test
+    public void minimalOrthogonalCsvMapIsImportableCandidate() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-csv");
+        FileHandle image = writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map version="1.10" tiledversion="1.10" orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                  </tileset>
+                  <layer name="Ground" width="2" height="2" visible="1" opacity="1" offsetx="3" offsety="4" parallaxx="1.5" parallaxy="0.5">
+                    <data encoding="csv">1,0,2,4</data>
+                  </layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertTrue(report.isImportableCandidate());
+        assertEquals(tmx.file().toPath().toAbsolutePath().normalize().toString(), report.sourcePath());
+        assertEquals("orthogonal", report.mapInfo().orientation());
+        assertEquals(2, report.mapInfo().width());
+        assertEquals(2, report.mapInfo().height());
+        assertEquals(16, report.mapInfo().tileWidth());
+        assertEquals(16, report.mapInfo().tileHeight());
+        assertFalse(report.mapInfo().infinite());
+        assertEquals(1, report.tileLayerCount());
+        assertEquals(4, report.requiredTiledCells());
+        assertEquals(3, report.nonEmptyTileCount());
+        assertFalse(new FileHandle(dir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()).exists());
+
+        TmxTilesetInfo tileset = report.tilesets().get(0);
+        assertEquals(1, tileset.firstGid());
+        assertEquals("terrain", tileset.name());
+        assertEquals(16, tileset.tileWidth());
+        assertEquals(16, tileset.tileHeight());
+        assertEquals(4, tileset.tileCount());
+        assertEquals(2, tileset.columns());
+        assertEquals("terrain.png", tileset.imageSource());
+        assertEquals(32, tileset.imageWidth());
+        assertEquals(32, tileset.imageHeight());
+        assertEquals(image.file().toPath().toAbsolutePath().normalize().toString(), tileset.resolvedImagePath());
+        assertTrue(tileset.imageExists());
+
+        TmxTileLayerInfo layer = (TmxTileLayerInfo) report.layers().get(0);
+        assertEquals("Ground", layer.name());
+        assertTrue(layer.visible());
+        assertEquals(1f, layer.opacity(), 0.0001f);
+        assertEquals(3f, layer.offsetX(), 0.0001f);
+        assertEquals(4f, layer.offsetY(), 0.0001f);
+        assertEquals(1.5f, layer.parallaxX(), 0.0001f);
+        assertEquals(0.5f, layer.parallaxY(), 0.0001f);
+        assertEquals(2, layer.width());
+        assertEquals(2, layer.height());
+        assertEquals("csv", layer.encoding());
+        assertEquals(3, layer.nonEmptyTileCount());
+    }
+
+    @Test
+    public void externalTsxAndImageResolveRelativeToDeclaringFiles() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-tsx");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        Path images = Files.createDirectories(dir.resolve("images"));
+        FileHandle image = writeFile(images.resolve("terrain.png"), "fake image");
+        FileHandle tsx = writeFile(tiles.resolve("terrain.tsx"), """
+                <tileset version="1.10" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                  <image source="../images/terrain.png" width="16" height="16"/>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="isometric" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/terrain.tsx"/>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxTilesetInfo tileset = report.tilesets().get(0);
+        assertTrue(tileset.external());
+        assertEquals(tsx.file().toPath().toAbsolutePath().normalize().toString(), tileset.sourcePath());
+        assertEquals(image.file().toPath().toAbsolutePath().normalize().toString(), tileset.resolvedImagePath());
+    }
+
+    @Test
+    public void externalTsxImageCollectionResolvesTileImagesRelativeToTsx() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-tsx-image-collection");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        Path images = Files.createDirectories(dir.resolve("images"));
+        FileHandle tree = writeFile(images.resolve("tree.png"), "fake image");
+        FileHandle rock = writeFile(images.resolve("rock.png"), "fake image");
+        FileHandle tsx = writeFile(tiles.resolve("props.tsx"), """
+                <tileset version="1.10" name="props" tilewidth="16" tileheight="16" tilecount="2" columns="0">
+                  <tile id="0"><image source="../images/tree.png" width="16" height="32"/></tile>
+                  <tile id="1"><image source="../images/rock.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/props.tsx"/>
+                  <layer name="Ground" width="2" height="1"><data encoding="csv">1,2</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxTilesetInfo tilesetInfo = report.tilesets().get(0);
+        assertTrue(tilesetInfo.imageCollection());
+        assertTrue(tilesetInfo.external());
+        assertEquals(tsx.file().toPath().toAbsolutePath().normalize().toString(), tilesetInfo.sourcePath());
+        assertEquals(2, tilesetInfo.imageCollectionTiles().size());
+        assertEquals(0, tilesetInfo.imageCollectionTiles().get(0).localTileId());
+        assertEquals(tree.file().toPath().toAbsolutePath().normalize().toString(),
+                tilesetInfo.imageCollectionTiles().get(0).imageFile().file().toPath().toAbsolutePath().normalize().toString());
+        assertEquals(1, tilesetInfo.imageCollectionTiles().get(1).localTileId());
+        assertEquals(rock.file().toPath().toAbsolutePath().normalize().toString(),
+                tilesetInfo.imageCollectionTiles().get(1).imageFile().file().toPath().toAbsolutePath().normalize().toString());
+
+        TmxTileLayerInfo layer = (TmxTileLayerInfo) report.layers().get(0);
+        assertEquals(2, layer.cells().size());
+        assertEquals(0, layer.cells().get(0).localTileId());
+        assertEquals(1, layer.cells().get(1).localTileId());
+    }
+
+    @Test
+    public void imageCollectionTilesetTopLevelTileSizeMayDifferFromMapTileSize() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-collection-tile-size");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        Path images = Files.createDirectories(dir.resolve("images"));
+        writeFile(images.resolve("tree.png"), "fake image");
+        writeFile(images.resolve("rock.png"), "fake image");
+        writeFile(tiles.resolve("props.tsx"), """
+                <tileset version="1.10" name="props" tilewidth="16" tileheight="32" tilecount="2" columns="0">
+                  <tile id="0"><image source="../images/tree.png" width="16" height="32"/></tile>
+                  <tile id="1"><image source="../images/rock.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/props.tsx"/>
+                  <layer name="Ground" width="2" height="1"><data encoding="csv">1,2</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILESET_TILE_SIZE_INCOMPATIBLE"));
+        assertTrue(report.tilesets().get(0).imageCollection());
+    }
+
+    @Test
+    public void normalGridTilesetTileSizeDifferentFromMapTileSizeStillBlocksImport() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-grid-tile-size-mismatch");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="32" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="32"/>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILESET_TILE_SIZE_INCOMPATIBLE"));
+    }
+
+    @Test
+    public void imageCollectionMissingTileImageReturnsClearDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-collection-missing");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        writeFile(tiles.resolve("props.tsx"), """
+                <tileset version="1.10" name="props" tilewidth="16" tileheight="16" tilecount="1" columns="0">
+                  <tile id="0"><image source="../graphics/missing.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/props.tsx"/>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_IMAGE_COLLECTION_TILE_IMAGE_MISSING"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILESET_TILE_SIZE_INCOMPATIBLE"));
+        assertTrue(report.diagnostics().stream().anyMatch(d -> d.message().contains("missing image collection tile image")));
+    }
+
+    @Test
+    public void validTsxTileAnimationsAreSupportedByPreflight() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-tsx-animation");
+        Path maps = Files.createDirectories(dir.resolve("maps"));
+        Path tiles = Files.createDirectories(dir.resolve("tiles"));
+        Path images = Files.createDirectories(dir.resolve("images"));
+        writeFile(images.resolve("terrain.png"), "fake image");
+        writeFile(tiles.resolve("terrain.tsx"), """
+                <tileset version="1.10" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                  <image source="../images/terrain.png" width="32" height="32"/>
+                  <tile id="0">
+                    <animation>
+                      <frame tileid="1" duration="100"/>
+                      <frame tileid="2" duration="150"/>
+                    </animation>
+                  </tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(maps.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="../tiles/terrain.tsx"/>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_TILE_ANIMATION_IGNORED"));
+        assertEquals(1, report.tilesets().get(0).tileAnimations().size());
+    }
+
+    @Test
+    public void invalidTsxTileAnimationsProduceSpecificDiagnostics() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-invalid-tsx-animation");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+                    <image source="terrain.png" width="32" height="16"/>
+                    <tile id="0"><animation><frame tileid="4" duration="0"/></animation></tile>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILE_ANIMATION_FRAME_TILE_ID_OUT_OF_RANGE"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILE_ANIMATION_FRAME_DURATION_INVALID"));
+    }
+
+    @Test
+    public void base64ZlibLayerIsDecoded() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-zlib");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        String data = base64Zlib(1, 0, 1, 0);
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="2" height="2"><data encoding="base64" compression="zlib">%s</data></layer>
+                </map>
+                """.formatted(data));
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertEquals(2, report.nonEmptyTileCount());
+        TmxTileLayerInfo layer = (TmxTileLayerInfo) report.layers().get(0);
+        assertEquals("base64", layer.encoding());
+        assertEquals("zlib", layer.compression());
+        assertEquals(2, layer.nonEmptyTileCount());
+    }
+
+    @Test
+    public void unsupportedOrientationReturnsBlockingDiagnostic() throws Exception {
+        FileHandle tmx = validMap(Files.createTempDirectory("tmx-preflight-hex"), "hexagonal", "1", "1");
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_UNSUPPORTED_ORIENTATION"));
+    }
+
+    @Test
+    public void infiniteMapReturnsBlockingDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-infinite");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" infinite="1" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_INFINITE_MAP"));
+        assertEquals(0, report.tileLayerCount());
+    }
+
+    @Test
+    public void missingTilesetImageReturnsBlockingDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-missing-image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="missing.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_TILESET_IMAGE_MISSING"));
+    }
+
+    @Test
+    public void invalidGidReturnsBlockingDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-invalid-gid");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">2</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_GID_UNRESOLVED"));
+    }
+
+    @Test
+    public void objectLayersWarnAndImageLayersAnalyze() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-other-layers");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        writeFile(dir.resolve("background.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <objectgroup name="Objects"/>
+                  <imagelayer name="Backdrop" visible="0" opacity="0.5" offsetx="3" offsety="4" parallaxx="2" parallaxy="0.25" x="10" y="20">
+                    <image source="background.png" width="64" height="32"/>
+                  </imagelayer>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
+        assertEquals(1, report.tileLayerCount());
+        assertEquals(3, report.layers().size());
+        TmxImageLayerInfo image = (TmxImageLayerInfo) report.layers().get(1);
+        assertEquals("Backdrop", image.name());
+        assertFalse(image.visible());
+        assertEquals(0.5f, image.opacity(), 0.0001f);
+        assertEquals(3f, image.offsetX(), 0.0001f);
+        assertEquals(4f, image.offsetY(), 0.0001f);
+        assertEquals(2f, image.parallaxX(), 0.0001f);
+        assertEquals(0.25f, image.parallaxY(), 0.0001f);
+        assertEquals(10f, image.x(), 0.0001f);
+        assertEquals(20f, image.y(), 0.0001f);
+        assertFalse(image.repeatX());
+        assertFalse(image.repeatY());
+        assertEquals("background.png", image.imageSource());
+        assertEquals(64, image.imageWidth());
+        assertEquals(32, image.imageHeight());
+        assertTrue(image.imageExists());
+    }
+
+    @Test
+    public void imageLayerMissingImageSourceReturnsBlockingDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-missing-source");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <imagelayer name="Backdrop"><image/></imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_IMAGE_LAYER_SOURCE_MISSING"));
+    }
+
+    @Test
+    public void imageLayerRepeatAttributesAreParsed() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-repeat");
+        writeFile(dir.resolve("background.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <imagelayer name="RepeatX" repeatx="1"><image source="background.png"/></imagelayer>
+                  <imagelayer name="RepeatY" repeaty="true"><image source="background.png"/></imagelayer>
+                  <imagelayer name="Both" repeatx="true" repeaty="1"><image source="background.png"/></imagelayer>
+                  <imagelayer name="None" repeatx="0" repeaty="false"><image source="background.png"/></imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxImageLayerInfo repeatX = (TmxImageLayerInfo) report.layers().get(0);
+        TmxImageLayerInfo repeatY = (TmxImageLayerInfo) report.layers().get(1);
+        TmxImageLayerInfo both = (TmxImageLayerInfo) report.layers().get(2);
+        TmxImageLayerInfo none = (TmxImageLayerInfo) report.layers().get(3);
+        assertTrue(repeatX.repeatX());
+        assertFalse(repeatX.repeatY());
+        assertFalse(repeatY.repeatX());
+        assertTrue(repeatY.repeatY());
+        assertTrue(both.repeatX());
+        assertTrue(both.repeatY());
+        assertFalse(none.repeatX());
+        assertFalse(none.repeatY());
+    }
+
+    @Test
+    public void imageLayerUnsupportedAttributesWarn() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-image-warnings");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        writeFile(dir.resolve("background.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16" parallaxoriginx="8">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <imagelayer name="Backdrop" repeatx="1" tintcolor="#ff00ff">
+                    <properties><property name="ignored" value="1"/></properties>
+                    <image source="background.png" trans="ff00ff"/>
+                  </imagelayer>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_MAP_PARALLAX_ORIGIN_IGNORED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_REPEAT_UNSUPPORTED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TINT_IGNORED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_TRANSPARENT_COLOR_IGNORED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));
+    }
+
+    @Test
+    public void nestedGroupsAreFlattenedWithCumulativeVisibilityAndParallax() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-preflight-groups");
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <group name="World" visible="0" parallaxx="2">
+                    <group name="Sub" parallaxy="0.5">
+                      <layer name="Ground" width="1" height="1" parallaxx="3"><data encoding="csv">1</data></layer>
+                    </group>
+                    <layer name="Above" width="1" height="1"><data encoding="csv">0</data></layer>
+                  </group>
+                </map>
+                """);
+
+        TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertEquals(List.of("World/Sub/Ground", "World/Above"), report.layers().stream().map(TmxLayerInfo::name).toList());
+
+        TmxTileLayerInfo ground = (TmxTileLayerInfo) report.layers().get(0);
+        assertFalse(ground.visible());
+        assertEquals(6f, ground.parallaxX(), 0.0001f);
+        assertEquals(0.5f, ground.parallaxY(), 0.0001f);
+
+        TmxTileLayerInfo above = (TmxTileLayerInfo) report.layers().get(1);
+        assertFalse(above.visible());
+        assertEquals(2f, above.parallaxX(), 0.0001f);
+        assertEquals(1f, above.parallaxY(), 0.0001f);
+    }
+
+    private static FileHandle validMap(Path dir, String orientation, String width, String height) throws Exception {
+        writeFile(dir.resolve("terrain.png"), "fake image");
+        return writeFile(dir.resolve("map.tmx"), """
+                <map orientation="%s" width="%s" height="%s" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Ground" width="1" height="1"><data encoding="csv">1</data></layer>
+                </map>
+                """.formatted(orientation, width, height));
+    }
+
+    private static boolean hasDiagnostic(TmxPreflightReport report,
+                                         TmxDiagnosticSeverity severity,
+                                         String code) {
+        return report.diagnostics().stream()
+                .anyMatch(d -> d.severity() == severity && d.code().equals(code));
+    }
+
+    private static FileHandle writeFile(Path path, String content) throws Exception {
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, content, StandardCharsets.UTF_8);
+        return new FileHandle(path.toFile());
+    }
+
+    private static String base64Zlib(int... gids) throws Exception {
+        ByteBuffer buffer = ByteBuffer.allocate(gids.length * 4).order(ByteOrder.LITTLE_ENDIAN);
+        for (int gid : gids) {
+            buffer.putInt(gid);
+        }
+        ByteArrayOutputStream compressed = new ByteArrayOutputStream();
+        try (DeflaterOutputStream deflater = new DeflaterOutputStream(compressed)) {
+            deflater.write(buffer.array());
+        }
+        return Base64.getEncoder().encodeToString(compressed.toByteArray());
+    }
+
+//    @Test
+//    public void manualPreflight_realTmx() {
+//        FileHandle tmx = new FileHandle("C:\\Users\\lauro\\Desktop\\test.tmx");
+//
+//        TmxPreflightService service = new TmxPreflightService();
+//        TmxPreflightReport report = service.analyze(new TmxPreflightRequest(tmx));
+//
+//        System.out.println("Source: " + report.sourcePath());
+//        System.out.println("Importable: " + report.isImportableCandidate());
+//        System.out.println("Required cells: " + report.requiredTiledCells());
+//        System.out.println("Non-empty tiles: " + report.nonEmptyTileCount());
+//
+//        for (TmxDiagnostic diagnostic : report.diagnostics()) {
+//            System.out.println(diagnostic.severity() + " - " + diagnostic.message());
+//        }
+//    }
+}

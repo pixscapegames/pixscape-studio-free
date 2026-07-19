@@ -1,7 +1,6 @@
 package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -175,8 +174,7 @@ public class SpatialBlockPlacementTargetTest {
         Assert.assertFalse(source.contains("2:1"));
         Assert.assertFalse(source.contains("tileWidth * 0.5"));
         Assert.assertFalse(source.contains("tileHeight * 0.5"));
-        Assert.assertTrue(source.contains("worldToTileX"));
-        Assert.assertTrue(source.contains("worldToTileY"));
+        Assert.assertTrue(source.contains("SpatialCellPicker.pick"));
     }
 
     private static TiledMapLayerData isoMap() {
@@ -198,14 +196,12 @@ public class SpatialBlockPlacementTargetTest {
     private static SpatialBlockData blockFromTarget(SpatialBlockPlacementTarget target) {
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
-        block.enabled = true;
         block.x = target.targetGx();
         block.y = target.targetGy();
         block.width = 1f;
         block.depth = 1f;
         block.altitude = 0f;
         block.height = SpatialBlockData.DEFAULT_HEIGHT;
-        block.orientation = SpatialBlockOrientation.TILE_CELL;
         return block;
     }
 

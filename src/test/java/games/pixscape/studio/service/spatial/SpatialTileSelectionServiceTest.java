@@ -1,7 +1,6 @@
 package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlockOrientation;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
@@ -12,6 +11,19 @@ import org.junit.Test;
 import java.lang.reflect.Field;
 
 public class SpatialTileSelectionServiceTest {
+    @Test
+    public void predictiveHoverIsSeparateFromAuthoredRangeSelection() {
+        SpatialTileSelectionService selection = new SpatialTileSelectionService();
+        selection.setHover(7, 3, 4);
+
+        Assert.assertTrue(selection.hasHover());
+        Assert.assertFalse(selection.hasSelection());
+        Assert.assertFalse(selection.isDragging());
+        Assert.assertEquals(3, selection.getHoverGx());
+        Assert.assertEquals(4, selection.getHoverGy());
+        selection.clearHover();
+        Assert.assertFalse(selection.hasHover());
+    }
     @Test
     public void dragHorizontalCreatesOneCellTallRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
@@ -85,7 +97,6 @@ public class SpatialTileSelectionServiceTest {
         Assert.assertEquals(1f, block.depth, 0.0001f);
         Assert.assertEquals(155f, block.altitude, 0.0001f);
         Assert.assertEquals(18f, block.height, 0.0001f);
-        Assert.assertEquals(SpatialBlockOrientation.TILE_CELL, block.orientation);
         Assert.assertTrue(block.actorOccluder);
         Assert.assertFalse(block.physicsCollision);
         Assert.assertTrue(block.linkedTileRefsAuthored);
@@ -120,7 +131,7 @@ public class SpatialTileSelectionServiceTest {
     }
 
     @Test
-    public void emptyCellsInsideSelectionAreIgnoredWhenCreatingRefs() {
+    public void oneEmptyCellRejectsTheWholeSelectedRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
         TiledMapLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
@@ -130,20 +141,12 @@ public class SpatialTileSelectionServiceTest {
         selection.updateDrag(3, 2);
         selection.finishDrag();
 
-        Assert.assertNull(selection.validationMessage(map));
-        SpatialBlockData block = selection.toSpatialBlockData(map, 0f, 10f);
-        Assert.assertNotNull(block);
-        Assert.assertEquals(2, block.linkedTileRefs.size);
-        Assert.assertEquals(1, block.linkedTileRefs.get(0).gx);
-        Assert.assertEquals(2, block.linkedTileRefs.get(0).gy);
-        Assert.assertEquals(101, block.linkedTileRefs.get(0).tileAssetId);
-        Assert.assertEquals(3, block.linkedTileRefs.get(1).gx);
-        Assert.assertEquals(2, block.linkedTileRefs.get(1).gy);
-        Assert.assertEquals(103, block.linkedTileRefs.get(1).tileAssetId);
+        Assert.assertEquals(SpatialTileSelectionService.INVALID_NON_RECTANGULAR, selection.validationMessage(map));
+        Assert.assertNull(selection.toSpatialBlockData(map, 0f, 10f));
     }
 
     @Test
-    public void createdBlockDefaultsToLowestOccupiedLinkedTileRow() {
+    public void sparseSelectionIsNotShrunkToOccupiedRows() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
         TiledMapLayerData map = map(8, 8);
         map.setTile(1, 2, 101);
@@ -157,16 +160,11 @@ public class SpatialTileSelectionServiceTest {
 
         SpatialBlockData block = selection.toSpatialBlockData(map, 0f, 10f);
 
-        Assert.assertNotNull(block);
-        Assert.assertEquals(2f, block.x, 0.0001f);
-        Assert.assertEquals(4f, block.y, 0.0001f);
-        Assert.assertEquals(2f, block.width, 0.0001f);
-        Assert.assertEquals(1f, block.depth, 0.0001f);
-        Assert.assertEquals(4, block.linkedTileRefs.size);
+        Assert.assertNull(block);
     }
 
     @Test
-    public void isoCreatedBlockDefaultsToLowestScreenTileRefs() {
+    public void isoSelectionKeepsExactAuthoredRectangle() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
         TiledMapLayerData map = isoMap(8, 8);
         map.setTile(1, 2, 101);
@@ -180,9 +178,9 @@ public class SpatialTileSelectionServiceTest {
         SpatialBlockData block = selection.toSpatialBlockData(map, 0f, 10f);
 
         Assert.assertNotNull(block);
-        Assert.assertEquals(3f, block.x, 0.0001f);
+        Assert.assertEquals(1f, block.x, 0.0001f);
         Assert.assertEquals(2f, block.y, 0.0001f);
-        Assert.assertEquals(1f, block.width, 0.0001f);
+        Assert.assertEquals(3f, block.width, 0.0001f);
         Assert.assertEquals(1f, block.depth, 0.0001f);
         Assert.assertEquals(3, block.linkedTileRefs.size);
     }
@@ -328,15 +326,11 @@ public class SpatialTileSelectionServiceTest {
     }
 
     private static TiledMapLayerData map(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
-        map.initSlotRange(20, 20 + width * height);
-        return map;
+        return new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
     }
 
     private static TiledMapLayerData isoMap(int width, int height) {
-        TiledMapLayerData map = new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
-        map.initSlotRange(20, 20 + width * height);
-        return map;
+        return new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
     }
 
     private static void fillHorizontal(TiledMapLayerData map, int minGx, int gy, int maxGx, int firstTileId) {

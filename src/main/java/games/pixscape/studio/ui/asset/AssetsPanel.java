@@ -204,7 +204,7 @@ public final class AssetsPanel extends DockablePanel {
                 new ImportDialog(
                         app,
                         items -> app.getSceneService().importAssets(items),
-                        directory -> app.getSceneService().importTilesetDirectory(directory)
+                        (directory, profileSettings) -> app.getSceneService().importTilesetDirectory(directory, profileSettings)
                 ).show(getStage());
             }
         });

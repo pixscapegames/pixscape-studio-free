@@ -168,6 +168,12 @@ public final class EventFlow {
     ) {
     }
 
+    public record RenderRepeatChanged(
+            int entityId,
+            int sourceTag
+    ) {
+    }
+
     public record LayerSpatialDepthChanged(
             int layerEntityId,
             int sourceTag

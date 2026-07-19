@@ -27,8 +27,9 @@ import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.BlendMode;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 
@@ -36,17 +37,13 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
 
     private static final String TAG = "StudioParticleFallbackSystem";
 
-    private final RenderStateSOA state;
+    private final VfxRenderState vfxState;
     private final OrthographicCamera camera;
     private final AtlasStudioService atlasStudioService;
     private final int defaultShaderIdx;
-    private int frameFallbackCursor;
 
     private FileHandle effectsRoot;
     private FileHandle imagesRoot;
-
-    private int vfxStartIndex = -1;
-    private int vfxEndIndex = -1;
 
     private ComponentMapper<ParticleEmitterComponent> mEmitter;
     private ComponentMapper<TransformComponent> mTransform;
@@ -60,30 +57,24 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     private final ObjectMap<String, ParticleEffectPool> pools = new ObjectMap<>();
     private final IntMap<String> entityPoolKeys = new IntMap<>();
 
-    private final IntArray fallbackSlots = new IntArray();
     private final IntSet loggedFailures = new IntSet();
 
     private Texture lastTex;
     private int lastTexHandle;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
-    public StudioParticleFallbackSystem(RenderStateSOA state,
+    public StudioParticleFallbackSystem(VfxRenderState vfxState,
                                         OrthographicCamera camera,
                                         AtlasStudioService atlasStudioService,
                                         FileHandle effectsRoot,
                                         FileHandle imagesRoot,
                                         int defaultShaderIdx) {
-        this.state = state;
+        this.vfxState = vfxState;
         this.camera = camera;
         this.atlasStudioService = atlasStudioService;
         this.effectsRoot = effectsRoot;
         this.imagesRoot = imagesRoot;
         this.defaultShaderIdx = defaultShaderIdx;
-    }
-
-    public void setVfxRange(int vfxStartIndex, int vfxEndIndex) {
-        this.vfxStartIndex = vfxStartIndex;
-        this.vfxEndIndex = vfxEndIndex;
     }
 
     public void setEffectsRoot(FileHandle effectsRoot) {
@@ -106,8 +97,6 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         pools.clear();
         entityPoolKeys.clear();
         loggedFailures.clear();
-
-        clearFallbackSlots();
 
         lastTex = null;
         lastTexHandle = 0;
@@ -150,10 +139,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     }
 
     private void processSystemInternal() {
-        clearFallbackSlots();
-        frameFallbackCursor = vfxStartIndex;
-
-        if (vfxStartIndex < 0 || vfxEndIndex <= vfxStartIndex) return;
+        if (vfxState == null) return;
         if (effectsRoot == null || imagesRoot == null) return;
         if (!effectsRoot.exists() || !imagesRoot.exists()) return;
 
@@ -314,37 +300,16 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 ParticleEmitter.Particle p = particles[pi];
                 if (p == null) continue;
 
-                int slot = nextFreeVfxSlot();
-                if (slot < 0) return;
-
-                pushParticle(p, slot, blendId, layerIndex, zIndex, ov);
+                pushParticle(p, blendId, layerIndex, zIndex, ov);
             }
         }
-    }
-
-    private int nextFreeVfxSlot() {
-        for (int i = vfxStartIndex; i < vfxEndIndex; i++) {
-            if (!state.enabled[i]) {
-                fallbackSlots.add(i);
-                return i;
-            }
-        }
-        return -1;
     }
 
     private void pushParticle(Sprite sprite,
-                              int slot,
                               int blendId,
                               int layerIndex,
                               int zIndex,
                               ParticleOverridesComponent ov) {
-        state.touch(slot);
-
-        state.kind[slot] = RenderStateSOA.KIND_SPRITE;
-        state.enabled[slot] = true;
-        state.visible[slot] = true;
-        state.entityId[slot] = -1;
-
         float[] v = sprite.getVertices();
 
         float x1 = v[Batch.X1], y1 = v[Batch.Y1], u1 = v[Batch.U1], vv1 = v[Batch.V1];
@@ -360,29 +325,20 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
             float cx = (x1 + x2 + x3 + x4) * 0.25f;
             float cy = (y1 + y2 + y3 + y4) * 0.25f;
 
-            state.x1[slot] = cx + (x1 - cx) * sizeMul;
-            state.y1[slot] = cy + (y1 - cy) * sizeMul;
-            state.x2[slot] = cx + (x2 - cx) * sizeMul;
-            state.y2[slot] = cy + (y2 - cy) * sizeMul;
-            state.x3[slot] = cx + (x3 - cx) * sizeMul;
-            state.y3[slot] = cy + (y3 - cy) * sizeMul;
-            state.x4[slot] = cx + (x4 - cx) * sizeMul;
-            state.y4[slot] = cy + (y4 - cy) * sizeMul;
-        } else {
-            state.x1[slot] = x1;
-            state.y1[slot] = y1;
-            state.x2[slot] = x2;
-            state.y2[slot] = y2;
-            state.x3[slot] = x3;
-            state.y3[slot] = y3;
-            state.x4[slot] = x4;
-            state.y4[slot] = y4;
+            x1 = cx + (x1 - cx) * sizeMul;
+            y1 = cy + (y1 - cy) * sizeMul;
+            x2 = cx + (x2 - cx) * sizeMul;
+            y2 = cy + (y2 - cy) * sizeMul;
+            x3 = cx + (x3 - cx) * sizeMul;
+            y3 = cy + (y3 - cy) * sizeMul;
+            x4 = cx + (x4 - cx) * sizeMul;
+            y4 = cy + (y4 - cy) * sizeMul;
         }
 
-        state.u1[slot] = Math.min(Math.min(u1, u2), Math.min(u3, u4));
-        state.u2[slot] = Math.max(Math.max(u1, u2), Math.max(u3, u4));
-        state.v1[slot] = Math.min(Math.min(vv1, vv2), Math.min(vv3, vv4));
-        state.v2[slot] = Math.max(Math.max(vv1, vv2), Math.max(vv3, vv4));
+        float uMin = Math.min(Math.min(u1, u2), Math.min(u3, u4));
+        float uMax = Math.max(Math.max(u1, u2), Math.max(u3, u4));
+        float vMin = Math.min(Math.min(vv1, vv2), Math.min(vv3, vv4));
+        float vMax = Math.max(Math.max(vv1, vv2), Math.max(vv3, vv4));
 
         Color col = sprite.getColor();
         float r = col.r;
@@ -404,8 +360,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         b = clamp01(b);
         a = clamp01(a);
 
-        state.colorPacked[slot] = Color.toFloatBits(r, g, b, a);
-        state.a[slot] = a;
+        float colorPacked = Color.toFloatBits(r, g, b, a);
 
         Texture tex = sprite.getTexture();
         int texHandle;
@@ -418,24 +373,41 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
             lastTexHandle = texHandle;
         }
 
-        state.textureHandle[slot] = texHandle;
-        state.shader[slot] = defaultShaderIdx;
-        state.blend[slot] = blendId;
-        state.layerIndex[slot] = layerIndex;
-        state.z[slot] = zIndex;
+        int tie = vfxState.activeCount & SortKey64.MAX_TIE;
 
-        int tie = (slot - vfxStartIndex) & SortKey64.MAX_TIE;
-        state.runtimeOrder[slot] = tie;
-        state.paramsId[slot] = 0;
-        state.customParamsId[slot] = 0;
-
-        state.sortKey[slot] = SortKey64.packForBlend(
-                state.shader[slot],
-                state.blend[slot],
+        long sortKey = SortKey64.packForBlend(
+                defaultShaderIdx,
+                blendId,
                 texHandle,
                 layerIndex,
                 zIndex,
                 tie
+        );
+
+        vfxState.addParticleQuad(
+                texHandle,
+                defaultShaderIdx,
+                blendId,
+                layerIndex,
+                zIndex,
+                0,
+                0,
+                sortKey,
+                x1,
+                y1,
+                x2,
+                y2,
+                x3,
+                y3,
+                x4,
+                y4,
+                uMin,
+                vMin,
+                uMax,
+                vMax,
+                colorPacked,
+                RenderRepeatFlags.NONE,
+                -1
         );
     }
 
@@ -455,13 +427,6 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 && box.min.x <= maxX
                 && box.max.y >= minY
                 && box.min.y <= maxY;
-    }
-
-    private void clearFallbackSlots() {
-        for (int i = 0; i < fallbackSlots.size; i++) {
-            state.disable(fallbackSlots.get(i));
-        }
-        fallbackSlots.clear();
     }
 
     private void removeEffect(int entityId) {

@@ -2,6 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -532,8 +533,8 @@ public final class AlignService {
         float sx1 = localX1 * t.scaleX;
         float sy1 = localY1 * t.scaleY;
 
-        float cos = (float) Math.cos(t.rotationRad);
-        float sin = (float) Math.sin(t.rotationRad);
+        float cos = MathUtils.cos(t.rotationRad);
+        float sin = MathUtils.sin(t.rotationRad);
 
         float x1 = t.x + sx0 * cos - sy0 * sin;
         float y1 = t.y + sx0 * sin + sy0 * cos;

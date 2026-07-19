@@ -5,6 +5,7 @@ import com.badlogic.gdx.backends.lwjgl3.*;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.PixscapeStudioApplication;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.ui.main.Resolution;
 
 import java.io.IOException;
@@ -55,7 +56,11 @@ public final class PreviewLauncher {
         landscape = land;
 
         Lwjgl3Application app = (Lwjgl3Application) Gdx.app;
-        PreviewWindow game = new PreviewWindow(new FileHandle(cfg.exportRootPathDir));
+        FileHandle userRootDir = RuntimeExportPaths.userRootFileHandle(cfg);
+        if (userRootDir == null) {
+            throw new IllegalStateException("Desktop preview failed: export root is not configured.");
+        }
+        PreviewWindow game = new PreviewWindow(userRootDir);
 
         previewWindow = app.newWindow(game, getDefaultConfiguration(cfg));
 

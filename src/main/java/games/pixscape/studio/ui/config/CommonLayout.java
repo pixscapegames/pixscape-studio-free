@@ -14,10 +14,6 @@ public final class CommonLayout {
     public static final Color PHYSICS_JOINT_COLOR = new Color(0.55f, 0.85f, 1f, 1f);
     public static final Color PHYSICS_SENSOR_COLOR = new Color(0.95f, 0.45f, 0.95f, 0.95f);
     public static final Color PHYSICS_JOINT_OVERLAY_COLOR = new Color(0.55f, 0.85f, 1f, 0.90f);
-    public static final Color PHYSICS_FOCUSED_BODY_COLOR = new Color(0.95f, 0.30f, 0.30f, 1f);
-    public static final Color SELECTION_HIGHLIGHT_COLOR = new Color(0.9f, 0.9f, 0.2f, 1f);
-
-
     private CommonLayout() {
     }
 }

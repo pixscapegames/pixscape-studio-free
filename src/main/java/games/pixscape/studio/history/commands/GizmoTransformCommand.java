@@ -69,7 +69,11 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
     /**
      * 1 entry = 1 entity (historyId) + before / after snapshots.
      */
-    private record Entry(long historyId, Snapshot before, Snapshot after) {
+    private record Entry(long historyId,
+                         Snapshot before,
+                         Snapshot after,
+                         EditRenderRepeatCommand.Snapshot beforeRepeat,
+                         EditRenderRepeatCommand.Snapshot afterRepeat) {
     }
 
     private final World world;
@@ -132,7 +136,15 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
 
         if (same) return;
 
-        entries.add(new Entry(historyId, before, after));
+        int entityId = historyIds.entityOfHistoryId(historyId);
+        EditRenderRepeatCommand.Snapshot beforeRepeat = op == TransformOp.ROTATE
+                ? RepeatRotationConstraint.captureRepeat(world, entityId)
+                : null;
+        EditRenderRepeatCommand.Snapshot afterRepeat = op == TransformOp.ROTATE
+                ? RepeatRotationConstraint.repeatAfterRotation(beforeRepeat, after.rotRad)
+                : beforeRepeat;
+
+        entries.add(new Entry(historyId, before, after, beforeRepeat, afterRepeat));
     }
 
     @Override
@@ -173,6 +185,12 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
                 debug("MOVE after historyId=" + e.historyId + " x=" + t.x + " y=" + t.y);
             }
             if (dirtyTracker != null) dirtyTracker.geometry(entityId, GeometryDirty.ALL);
+            RepeatRotationConstraint.applyRepeat(
+                    world,
+                    entityId,
+                    toBefore ? e.beforeRepeat : e.afterRepeat,
+                    sourceTag
+            );
             EventFlow.i().publish(new EventFlow.EntityChanged(entityId, op, sourceTag));
         }
     }

@@ -5,7 +5,6 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowListener;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
-import org.lwjgl.glfw.GLFW;
 
 public class GenericWindowListener implements Lwjgl3WindowListener {
     private final DockablePanel panel;
@@ -21,7 +20,8 @@ public class GenericWindowListener implements Lwjgl3WindowListener {
     @Override
     public void created(Lwjgl3Window window) {
         this.window = window;
-        GLFW.glfwSetWindowAttrib(window.getWindowHandle(), GLFW.GLFW_FLOATING, GLFW.GLFW_TRUE);
+        // Undocked panels are separate windows, but they must not be OS-level
+        // floating/always-on-top windows or they will interfere with Alt+Tab.
     }
 
     @Override
@@ -42,9 +42,7 @@ public class GenericWindowListener implements Lwjgl3WindowListener {
         }
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
-            // simple close
-            panel.getDockManager().onFloatingWindowClosed(window);
-            window.closeWindow();
+            panel.getDockManager().hide(panel);
             return;
         }
 
@@ -74,8 +72,8 @@ public class GenericWindowListener implements Lwjgl3WindowListener {
         }
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
-            panel.getDockManager().onFloatingWindowClosed(window);
-            return true;
+            panel.getDockManager().hide(panel);
+            return false;
         }
 
         panel.setHeaderVisible(true);

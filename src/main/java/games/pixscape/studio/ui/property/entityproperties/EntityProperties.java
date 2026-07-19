@@ -46,6 +46,7 @@ public class EntityProperties extends VisTable {
     private final MaterialPanel materialPanel;
     private final AnimationPanel animationPanel;
     private final ParticleFxPanel particleFxPanel;
+    private final RepeatablePanel repeatablePanel;
     private final SpatialPhysicsPanel spatialPanel;
     private final BodyPanel bodyPanel;
 
@@ -53,6 +54,7 @@ public class EntityProperties extends VisTable {
     private final ToggleSection materialSection;
     private final ToggleSection animationSection;
     private final ToggleSection particleSection;
+    private final ToggleSection repeatableSection;
     private final ToggleSection spatialSection;
     private final ToggleSection physicsSection;
 
@@ -93,6 +95,7 @@ public class EntityProperties extends VisTable {
         materialPanel = new MaterialPanel(ctx);
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
+        repeatablePanel = new RepeatablePanel(ctx);
         spatialPanel = new SpatialPhysicsPanel(ctx);
         bodyPanel = new BodyPanel(ctx, true);
 
@@ -109,6 +112,7 @@ public class EntityProperties extends VisTable {
         materialSection = new ToggleSection("Material", materialPanel);
         animationSection = new ToggleSection("Animation", animationPanel);
         particleSection = new ToggleSection("Particle FX", particleFxPanel);
+        repeatableSection = new ToggleSection("Repeatable", repeatablePanel);
         spatialSection = new ToggleSection("Spatial", spatialPanel);
         physicsSection = new ToggleSection("Physics", bodyPanel);
 
@@ -119,6 +123,7 @@ public class EntityProperties extends VisTable {
         add(materialSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
         add(particleSection).growX().left().pad(0).row();
+        add(repeatableSection).growX().left().pad(0).row();
         add(spatialSection).growX().left().pad(0).row();
         add(physicsSection).growX().left().pad(0).row();
 
@@ -144,6 +149,10 @@ public class EntityProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             spatialPanel.setEntityId(currentEntityId);
             updateSectionsVisibility();
+        });
+        EventFlow.i().subscribe(EventFlow.RenderRepeatChanged.class, evt -> {
+            if (evt.entityId() != currentEntityId) return;
+            repeatablePanel.refresh();
         });
 
         materialPanel.refreshShaderList();
@@ -222,6 +231,7 @@ public class EntityProperties extends VisTable {
         materialPanel.setEntityId(entityId);
         animationPanel.setEntityId(entityId);
         particleFxPanel.setEntityId(entityId);
+        repeatablePanel.setEntityId(entityId);
         spatialPanel.setEntityId(entityId);
         bodyPanel.setEntityId(entityId);
 
@@ -243,6 +253,7 @@ public class EntityProperties extends VisTable {
         materialSection.setApplicable(!isParticle);
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
+        repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
 
         boolean physicsApplicable = isPhysicsApplicable();
         spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));

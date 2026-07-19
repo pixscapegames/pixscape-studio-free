@@ -20,16 +20,20 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisTextField;
+import com.kotcrab.vis.ui.widget.VisDialog;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.FrameRenderQueue;
 import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.RenderContext;
-import games.pixscape.runtime.render.RenderStateSOA;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
@@ -37,12 +41,12 @@ import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
-import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.tiled.TiledSoaAllocator;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.batch.BatchFactoryStudio;
@@ -54,7 +58,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.TiledBrushCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.input.InputState;
@@ -84,9 +87,8 @@ import space.earlygrey.shapedrawer.ShapeDrawer;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
-import static games.pixscape.runtime.loading.WorldConfigFactory.DEFAULT_TILED_BUDGET;
-
-public class WorldCanvas {
+public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcessor,
+        SpatialPreviewInvariantBoundary.FailureListener {
 
     private final StudioApplicationAdapter app;
     private MetricsBatch metricsBatch;
@@ -95,9 +97,12 @@ public class WorldCanvas {
     private final Stage gridStage;
     private final OrthographicCamera camera;
     private final OrthographicCamera box2dCamera;
-    // SOA
-    private RenderStateSOA renderState;
+    // Render state
+    private DynamicEntityRenderState dynamicEntityState;
     private LayerStateSOA layerState;
+    private FrameRenderQueue frameQueue;
+    private VfxRenderState vfxState;
+    private TiledMapRenderState tiledState;
 
     // Drawer
     private final ShapeDrawer drawer;
@@ -107,6 +112,7 @@ public class WorldCanvas {
     private final StudioFrameProfiler frameProfiler;
     private final FrameSystemProfiler systemProfiler;
     private final PreviewRuntimeProfiler previewRuntimeProfiler;
+    private final SpatialPreviewInvariantBoundary spatialInvariantBoundary = new SpatialPreviewInvariantBoundary();
     private SelectionService selectionService;
     private ZOrderRuntimeService zOrderRuntimeService;
     private LayerService layerService;
@@ -131,20 +137,17 @@ public class WorldCanvas {
     private TiledPaintService tiledPaintService;
     private TiledToolService tiledToolService;
     private TiledAllocatorService tiledAllocatorService;
-    private TiledSoaAllocator tiledAllocator;
     private TiledFallbackSystem tiledFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
-    private TiledBrushSession currentBrushSession;
     private TiledPreviewService tiledPreviewService;
+    private TiledMutationController tiledMutationController;
+    private RuntimeTilesetProfiles studioTilesetProfiles;
     private final TileAnimationRegistry tileAnimationRegistry;
     // tiled rect
     private boolean rectActive = false;
     private int rectStartGX;
     private int rectStartGY;
-    private boolean brushHasLastCell = false;
-    private int brushLastGX;
-    private int brushLastGY;
 
     // Undo redo
     private final HistoryManager historyManager;
@@ -218,6 +221,7 @@ public class WorldCanvas {
         handleShortcuts();
         bindPhysicsDebugEvents();
         bindEditorModeChanged();
+        bindTiledMutationContextChanges();
 
         createWorld();
         centerCamera();
@@ -226,9 +230,12 @@ public class WorldCanvas {
     private void createWorld() {
         ProjectConfig cfg = ProjectConfig.getInstance();
 
-        renderState = new RenderStateSOA();
+        dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         DrawList drawList = new DrawList();
+        frameQueue = new FrameRenderQueue();
+        vfxState = new VfxRenderState();
+        tiledState = new TiledMapRenderState();
 
         GLCaps caps = GLCaps.detect();
 
@@ -241,7 +248,7 @@ public class WorldCanvas {
         RenderStats stats = new RenderStats();
         RenderStatsSink statsSink = new RenderStatsSink(0.5f);
 
-        new RenderContext(renderState, layerState, drawList, metricsBatch, caps);
+        new RenderContext(dynamicEntityState, layerState, drawList, frameQueue, vfxState, tiledState, metricsBatch, caps);
 
         layerState.setCapacity(32);
         SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
@@ -250,7 +257,7 @@ public class WorldCanvas {
 
 
         LightIconOverlaySystem lightIconOverlaySystem =
-                new LightIconOverlaySystem(worldDrawCtx, camera, renderState);
+                new LightIconOverlaySystem(worldDrawCtx, camera);
 
         tiledPreviewService = new TiledPreviewService();
 
@@ -259,7 +266,7 @@ public class WorldCanvas {
                 worldDrawCtx,
                 inputState,
                 coordSpaces,
-                renderState,
+                tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
@@ -274,7 +281,7 @@ public class WorldCanvas {
                 historyManager,
                 historyManager.historyIds(),
                 app.getUiStage(),
-                renderState,
+                tiledState,
                 physicsSelectionService,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
@@ -285,44 +292,48 @@ public class WorldCanvas {
         FileHandle particleImagesRoot = resolveImagesRoot(cfg);
 
         final AssetMetaDatabase assetMetaDatabaseForFallback = loadAssetMetaDatabaseIfAvailable(cfg);
+        studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);
 
         WorldBootstrapResult bootstrap =
                 WorldConfigFactory.buildWorld(
                         camera,
-                        renderState,
+                        dynamicEntityState,
                         layerState,
                         drawList,
+                        frameQueue,
+                        vfxState,
+                        tiledState,
                         stats,
                         defaultShaderIdx,
                         atlasStudioService,
                         effectsRoot,
                         () -> new StudioRenderSubmitSystem(
-                                renderState,
                                 layerState,
-                                drawList,
+                                frameQueue,
                                 camera,
                                 metricsBatch,
                                 stats,
                                 statsSink
                         ),
                         sceneMeta,
-                        DEFAULT_TILED_BUDGET,
+                        0,
                         tileAnimationRegistry,
+                        studioTilesetProfiles,
                         systemProfiler,
 
-                        // pre-render: systems that write into RenderStateSOA
+                        // pre-render: Studio fallback systems before draw-list build
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
-                                    profiled(new AnimationFallbackSystem(renderState, atlasStudioService)),
+                                    profiled(new AnimationFallbackSystem(dynamicEntityState, atlasStudioService)),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
-                                            renderState,
+                                            tiledState,
                                             atlasStudioService,
                                             assetMetaDatabaseForFallback::findById,
                                             tileAnimationRegistry
                                     )),
                                     profiled(studioParticleFallbackSystem = new StudioParticleFallbackSystem(
-                                            renderState,
+                                            vfxState,
                                             camera,
                                             atlasStudioService,
                                             effectsRoot,
@@ -350,19 +361,10 @@ public class WorldCanvas {
                 );
 
         world = bootstrap.getWorld();
+        tiledMutationController = new TiledMutationController(
+                world, historyManager, () -> app != null ? app.getSceneService() : null);
 
-        if (studioParticleFallbackSystem != null && bootstrap != null) {
-            studioParticleFallbackSystem.setVfxRange(
-                    bootstrap.getVfxStart(),
-                    bootstrap.getVfxEnd()
-            );
-        }
-
-        int tiledStart = bootstrap.getTiledStart();
-        int tiledEnd = bootstrap.getTiledEnd();
-
-        tiledAllocator = new TiledSoaAllocator(tiledStart, tiledEnd);
-        tiledAllocatorService = new TiledAllocatorService(tiledAllocator, renderState);
+        tiledAllocatorService = new TiledAllocatorService();
 
         tiledPaintService = new TiledPaintService();
         tiledToolService = new TiledToolService();
@@ -476,6 +478,21 @@ public class WorldCanvas {
         if (tiledGhostPreviewSystem != null && assetMetaLookup != null) {
             tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);
         }
+        refreshTilesetProfileRegistry();
+    }
+
+    public void refreshTilesetProfileRegistry() {
+        refreshTilesetProfileRegistry(loadAssetMetaDatabaseIfAvailable(ProjectConfig.getInstance()));
+    }
+
+    public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase) {
+        if (studioTilesetProfiles == null) {
+            studioTilesetProfiles = RuntimeTilesetProfiles.empty();
+        }
+        StudioTilesetProfileResolver.reloadRuntimeProfiles(
+                studioTilesetProfiles,
+                assetMetaDatabase
+        );
     }
 
     private void bindParticleControlChanges() {
@@ -535,6 +552,7 @@ public class WorldCanvas {
 
             gizmoSystem.setEntityGizmoEnabled(!tile);
             if (!tile) {
+                cancelTiledGesture();
                 spatialTileSelectionService.clear();
             }
 
@@ -550,6 +568,20 @@ public class WorldCanvas {
                 configureEntityMode();
             }
         });
+    }
+
+    private void bindTiledMutationContextChanges() {
+        EventFlow.i().subscribe(EventFlow.TiledToolChanged.class, ev -> cancelTiledGesture());
+        EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, ev -> cancelTiledGesture());
+    }
+
+    private void cancelTiledGesture() {
+        if (tiledMutationController != null) tiledMutationController.reset();
+        if (rectActive) {
+            rectActive = false;
+            if (gizmoSystem != null) gizmoSystem.hideRectPreview();
+        }
+        if (tiledPreviewService != null) tiledPreviewService.clear();
     }
 
     private void configureTileMode(SceneMeta meta) {
@@ -822,6 +854,13 @@ public class WorldCanvas {
 
                 boolean ctrl = inputState.isCtrl();
 
+                if (!typing && keycode == Input.Keys.ESCAPE && tiledMutationController.isActive()) {
+                    tiledMutationController.cancel();
+                    tiledPreviewService.clear();
+                    gizmoSystem.refreshOverlayMouse();
+                    return true;
+                }
+
                 // --- Undo / Redo : ALWAYS active, even while typing ---
                 if (ctrl) {
                     if ((keycode == Input.Keys.Z) || keycode == Input.Keys.W) {
@@ -1027,25 +1066,8 @@ public class WorldCanvas {
                     panning = false;
                 }
 
-                if (currentBrushSession != null) {
-                    if (!currentBrushSession.isEmpty()) {
-                        long historyId =
-                                historyManager.historyIds().ensureForEntity(
-                                        currentBrushSession.getLayerEntityId()
-                                );
-                        historyManager.execute(
-                                new TiledBrushCommand(
-                                        world,
-                                        app.getSceneService(),
-                                        historyManager.historyIds(),
-                                        historyId,
-                                        currentBrushSession.getPreviousValues(),
-                                        currentBrushSession.getNewValues()
-                                )
-                        );
-                    }
-                    currentBrushSession = null;
-                    brushHasLastCell = false;
+                if (tiledMutationController.isActive()) {
+                    consumeTiledMutationResult(tiledMutationController.commitStroke());
                 }
                 if (isTiledToolInputEnabled() && tiledToolService.is(TiledToolService.Mode.ERASE)) {
                     gizmoSystem.refreshOverlayMouse();
@@ -1117,8 +1139,7 @@ public class WorldCanvas {
             return false;
         }
 
-        currentBrushSession = new TiledBrushSession(layerEntityId);
-        brushHasLastCell = false;
+        tiledMutationController.beginStroke(layerEntityId);
 
         applyBrushAtMouse(layerEntityId);
 
@@ -1130,7 +1151,7 @@ public class WorldCanvas {
     }
 
     private void handleBrushDrag() {
-        if (currentBrushSession == null) {
+        if (!tiledMutationController.isActive()) {
             return;
         }
         if (!isTiledToolInputEnabled()) {
@@ -1243,8 +1264,6 @@ public class WorldCanvas {
         int minY = Math.min(rectStartGY, endGY);
         int maxY = Math.max(rectStartGY, endGY);
 
-        TiledBrushSession session = new TiledBrushSession(layerEntityId);
-
         int assetId;
         byte flags;
 
@@ -1263,37 +1282,18 @@ public class WorldCanvas {
             flags = tiledToolService.getActiveTransformFlags();
         }
 
-        for (int gx = minX; gx <= maxX; gx++) {
-            for (int gy = minY; gy <= maxY; gy++) {
-                if (!tiled.data.isInside(gx, gy)) {
-                    continue;
-                }
-
-                session.apply(tiled, gx, gy, assetId, flags);
-            }
-        }
-
-        if (!session.isEmpty()) {
-            long historyId =
-                    historyManager.historyIds().ensureForEntity(layerEntityId);
-
-            historyManager.execute(
-                    new TiledBrushCommand(
-                            world,
-                            app.getSceneService(),
-                            historyManager.historyIds(),
-                            historyId,
-                            session.getPreviousValues(),
-                            session.getNewValues()
-                    )
-            );
-        }
+        consumeTiledMutationResult(tiledMutationController.commitRectangle(
+                layerEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
     }
 
     private void applyBrushAtMouse(int layerEntityId) {
 
         if (layerEntityId == -1)
             return;
+        if (tiledMutationController.activeLayerEntityId() != layerEntityId) {
+            tiledMutationController.cancel();
+            return;
+        }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
@@ -1329,62 +1329,7 @@ public class WorldCanvas {
             flags = tiledToolService.getActiveTransformFlags();
         }
 
-        if (!brushHasLastCell) {
-            currentBrushSession.apply(tiled, gx, gy, assetId, flags);
-            brushLastGX = gx;
-            brushLastGY = gy;
-            brushHasLastCell = true;
-            return;
-        }
-
-        applyBrushLine(tiled, brushLastGX, brushLastGY, gx, gy, assetId, flags, currentBrushSession);
-
-        brushLastGX = gx;
-        brushLastGY = gy;
-        brushHasLastCell = true;
-    }
-
-    private void applyBrushLine(TiledLayerComponent tiled,
-                                int x0,
-                                int y0,
-                                int x1,
-                                int y1,
-                                int assetId,
-                                byte flags,
-                                TiledBrushSession session) {
-
-        int dx = Math.abs(x1 - x0);
-        int dy = Math.abs(y1 - y0);
-
-        int sx = x0 < x1 ? 1 : -1;
-        int sy = y0 < y1 ? 1 : -1;
-
-        int err = dx - dy;
-
-        int x = x0;
-        int y = y0;
-
-        while (true) {
-            if (tiled.data.isInside(x, y)) {
-                session.apply(tiled, x, y, assetId, flags);
-            }
-
-            if (x == x1 && y == y1) {
-                break;
-            }
-
-            int e2 = err << 1;
-
-            if (e2 > -dy) {
-                err -= dy;
-                x += sx;
-            }
-
-            if (e2 < dx) {
-                err += dx;
-                y += sy;
-            }
-        }
+        tiledMutationController.updateStroke(tiled, gx, gy, assetId, flags);
     }
 
     private void performFill(int layerEntityId) {
@@ -1404,13 +1349,6 @@ public class WorldCanvas {
         if (!tiled.data.isInside(startGX, startGY))
             return;
 
-        int targetId = tiled.data.getTile(startGX, startGY);
-
-        int targetPacked = PackedTileValue.pack(
-                tiled.data.getTile(startGX, startGY),
-                tiled.data.getTileTransformFlags(startGX, startGY)
-        );
-
         int replacementId;
         byte replacementFlags;
 
@@ -1423,106 +1361,32 @@ public class WorldCanvas {
             replacementFlags = tiledToolService.getActiveTransformFlags();
         }
 
-        int replacementPacked = PackedTileValue.pack(replacementId, replacementFlags);
+        consumeTiledMutationResult(tiledMutationController.commitFill(
+                layerEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
+    }
 
-        if (targetPacked == replacementPacked) return;
-
-        TiledBrushSession session =
-                new TiledBrushSession(layerEntityId);
-
-        floodFill(tiled, startGX, startGY, targetPacked, replacementId, replacementFlags, session);
-
-        if (!session.isEmpty()) {
-
-            long historyId =
-                    historyManager.historyIds().ensureForEntity(layerEntityId);
-
-            historyManager.execute(
-                    new TiledBrushCommand(
-                            world,
-                            app.getSceneService(),
-                            historyManager.historyIds(),
-                            historyId,
-                            session.getPreviousValues(),
-                            session.getNewValues()
-                    )
-            );
+    private void consumeTiledMutationResult(TiledMutationController.Result result) {
+        if (result.status() == TiledMutationController.Status.REJECTED) {
+            showTiledSpatialRejection(result.layerEntityId(), result.rejection());
         }
     }
 
-    private void floodFill(TiledLayerComponent tiled,
-                           int startGX,
-                           int startGY,
-                           int targetPacked,
-                           int replacementId,
-                           byte replacementFlags,
-                           TiledBrushSession session) {
-
-        int mapWidth = tiled.data.mapWidth;
-        int mapHeight = tiled.data.mapHeight;
-
-        boolean[] visited = new boolean[mapWidth * mapHeight];
-        IntArray stack = new IntArray(false, Math.min(mapWidth * mapHeight, 4096));
-
-        int startIndex = startGY * mapWidth + startGX;
-        visited[startIndex] = true;
-        stack.add(pack(startGX, startGY));
-
-        while (stack.size > 0) {
-            int key = stack.pop();
-            int gx = unpackX(key);
-            int gy = unpackY(key);
-
-            session.apply(tiled, gx, gy, replacementId, replacementFlags);
-
-            pushIfValid(gx + 1, gy, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx - 1, gy, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx, gy + 1, tiled, targetPacked, mapWidth, visited, stack);
-            pushIfValid(gx, gy - 1, tiled, targetPacked, mapWidth, visited, stack);
-        }
-    }
-
-    private void pushIfValid(int gx,
-                             int gy,
-                             TiledLayerComponent tiled,
-                             int targetPacked,
-                             int mapWidth,
-                             boolean[] visited,
-                             IntArray stack) {
-
-        if (!tiled.data.isInside(gx, gy)) {
-            return;
-        }
-
-        int index = gy * mapWidth + gx;
-
-        if (visited[index]) {
-            return;
-        }
-
-        int currentPacked = PackedTileValue.pack(
-                tiled.data.getTile(gx, gy),
-                tiled.data.getTileTransformFlags(gx, gy)
-        );
-
-        if (currentPacked != targetPacked) {
-            return;
-        }
-
-        visited[index] = true;
-        stack.add(pack(gx, gy));
-    }
-
-    private static int pack(int x, int y) {
-        return (x << 16) ^ (y & 0xFFFF);
-    }
-
-    private static int unpackX(int key) {
-        return key >> 16;
-    }
-
-    private static int unpackY(int key) {
-        return key & 0xFFFF;
+    void showTiledSpatialRejection(int layerEntityId, TiledSpatialMutationRejection rejection) {
+        if (rejection == null) return;
+        VisDialog dialog = new VisDialog("Spatial authoring conflict") {
+            @Override
+            protected void result(Object object) {
+                if (Boolean.TRUE.equals(object) && rejection.firstBlockId() > 0) {
+                    spatialBlockSelectionService.selectBlock(layerEntityId, rejection.firstBlockId());
+                }
+            }
+        };
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.text(rejection.userMessage());
+        if (rejection.firstBlockId() > 0) dialog.button("Select affected wall", true);
+        dialog.button("Cancel", false);
+        dialog.show(app.getUiStage());
     }
 
     private void computeTileUnderMouse(TiledLayerComponent tiled, Vector2 out) {
@@ -1947,6 +1811,8 @@ public class WorldCanvas {
     }
 
     public void draw() {
+        spatialInvariantBoundary.prepare(currentSceneTag());
+        if (spatialInvariantBoundary.isBlocked()) return;
         if (frameProfiler.isEnabled()) {
             drawProfiled();
             return;
@@ -1960,13 +1826,15 @@ public class WorldCanvas {
             }
         }
         EventFlow.i().flush();
-        world.process();
+        if (!spatialInvariantBoundary.process(currentSceneTag(), this, this)) return;
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.flushDeferredDisposals();
         }
     }
 
     private void drawProfiled() {
+        spatialInvariantBoundary.prepare(currentSceneTag());
+        if (spatialInvariantBoundary.isBlocked()) return;
         long totalStart = frameProfiler.begin(StudioFrameProfiler.DRAW_TOTAL);
         try {
             gridStage.draw();
@@ -1987,8 +1855,9 @@ public class WorldCanvas {
             if (systemProfiler != null && systemProfiler.enabled()) {
                 systemProfiler.beginFrame();
             }
-            world.process();
+            boolean spatialFrameValid = spatialInvariantBoundary.process(currentSceneTag(), this, this);
             frameProfiler.end(StudioFrameProfiler.WORLD_PROCESS, phaseStart);
+            if (!spatialFrameValid) return;
 
             if (gpuSnapshotManager != null) {
                 phaseStart = frameProfiler.begin(StudioFrameProfiler.GPU_SNAPSHOT_FLUSH_DEFERRED_DISPOSALS);
@@ -2025,8 +1894,18 @@ public class WorldCanvas {
             return;
         }
 
-        if (rectActive || currentBrushSession != null) {
+        if (rectActive) {
             tiledPreviewService.clear();
+            return;
+        }
+
+        TiledBrushSession activeStroke = tiledMutationController.activePreviewSession();
+        if (activeStroke != null) {
+            TiledLayerComponent pendingLayer = world.getMapper(TiledLayerComponent.class)
+                    .getSafe(activeStroke.getLayerEntityId(), null);
+            if (pendingLayer == null || pendingLayer.data == null) tiledPreviewService.clear();
+            else tiledPreviewService.showBrushSession(
+                    pendingLayer.data, pendingLayer.atlasTag, activeStroke);
             return;
         }
 
@@ -2189,8 +2068,39 @@ public class WorldCanvas {
         return metricsBatch;
     }
 
-    public RenderStateSOA getRenderState() {
-        return renderState;
+    public DynamicEntityRenderState getDynamicEntityState() {
+        return dynamicEntityState;
+    }
+
+    @Override
+    public void processFrame() {
+        world.process();
+    }
+
+    @Override
+    public void onSpatialInvariantFailure(RuntimeException failure) {
+        VisDialog dialog = new VisDialog("Spatial V3 invariant failure");
+        dialog.setModal(true);
+        dialog.setMovable(false);
+        dialog.text(failure.getMessage() + "\n\nThe scene preview has stopped. Reload or correct the scene before continuing.");
+        dialog.button("OK");
+        dialog.show(app.getUiStage());
+    }
+
+    public void clearRenderMemory() {
+        cancelTiledGesture();
+        if (dynamicEntityState != null) {
+            dynamicEntityState.clear();
+        }
+        if (frameQueue != null) {
+            frameQueue.reset();
+        }
+        if (vfxState != null) {
+            vfxState.reset();
+        }
+        if (tiledState != null) {
+            tiledState.clearVisibleRefs();
+        }
     }
 
     public CoordSpaces getCoordSpaces() {
@@ -2218,6 +2128,7 @@ public class WorldCanvas {
     }
 
     public void dispose() {
+        cancelTiledGesture();
         gridStage.dispose();
 
         atlasStudioService.disposeAsyncPack();
@@ -2250,7 +2161,7 @@ public class WorldCanvas {
 
     private boolean isPreviewRuntimeReady() {
         return world != null
-                && renderState != null
+                && dynamicEntityState != null
                 && layerState != null
                 && isPreviewSceneReady();
     }

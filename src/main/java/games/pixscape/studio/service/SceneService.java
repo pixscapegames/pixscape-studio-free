@@ -13,13 +13,13 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Timer;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
@@ -33,21 +33,31 @@ import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.studio.asset.*;
-import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.ProjectRenameService;
 import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.helper.AssetHelper;
-import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
+import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
+import games.pixscape.studio.importer.tmx.TmxSceneImportService;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
+import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
+import games.pixscape.studio.service.asset.TilesetAssetImportService;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
+import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
+import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.service.atlas.*;
+import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.asset.ImportDialog;
@@ -57,6 +67,10 @@ import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.*;
 
 import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;
@@ -72,6 +86,7 @@ public final class SceneService {
     private final RuntimeAvailabilityService runtimeAvailabilityService;
     private final ProjectConfigSceneMetaBridge sceneMetaBridge;
     private final RecentProjectsService recentProjectsService;
+    private final ResolvedSceneActivationPipeline sceneActivationPipeline;
     private AssetMetaDatabase assetMetaDatabase;
     private TileAnimationsMetaDatabase tileAnimationsMetaDatabase;
     private boolean previewSaveRequired = false;
@@ -98,6 +113,13 @@ public final class SceneService {
         this.sceneMetaBridge = new ProjectConfigSceneMetaBridge();
         this.clipboardService = canvas.getClipboardService();
         this.recentProjectsService = new RecentProjectsService();
+        this.sceneActivationPipeline = new ResolvedSceneActivationPipeline(
+                canvas.getEcsWorld(),
+                canvas.getTileAnimationRegistry(),
+                canvas.getTiledAllocatorService(),
+                historyManager,
+                this::rebuildRenderRuntimeForScene
+        );
 
         registerEditorOpsCallbacks();
     }
@@ -191,7 +213,276 @@ public final class SceneService {
     }
 
     public boolean requiresSaveBeforePreview() {
-        return historyManager.isDirty() || previewSaveRequired;
+        return historyManager.isDirty()
+                || previewSaveRequired
+                || isRuntimeExportMissingOrUnusableForPreview(ProjectConfig.getInstance());
+    }
+
+    static boolean isRuntimeExportMissingOrUnusableForPreview(ProjectConfig cfg) {
+        if (cfg == null) {
+            return false;
+        }
+
+        if (cfg.exportRootPathDir == null || cfg.exportRootPathDir.isBlank()) {
+            return false;
+        }
+
+        final Path exportRoot;
+        try {
+            exportRoot = RuntimeExportPaths.userRootPath(cfg);
+        } catch (InvalidPathException ex) {
+            return false;
+        }
+        if (exportRoot == null) {
+            return false;
+        }
+
+        Path runtimeRoot = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        if (!Files.isDirectory(runtimeRoot)) {
+            return true;
+        }
+
+        Path projectFile = runtimeRoot.resolve(RuntimeExport.PROJECT_JSON);
+        if (!Files.isRegularFile(projectFile) || isEmptyFile(projectFile)) {
+            return true;
+        }
+
+        String currentSceneName = cfg.getCurrentSceneName();
+        if (currentSceneName == null || currentSceneName.isBlank()) {
+            return false;
+        }
+
+        try {
+            JsonValue root = new JsonReader().parse(Files.readString(projectFile));
+            if (root == null || !root.isObject()) {
+                return true;
+            }
+            String kind = root.getString("projectKind", null);
+            if (!RuntimeExport.RUNTIME_PROJECT_KIND.equals(kind)) {
+                return true;
+            }
+
+            String exportedCurrentSceneName = root.getString("currentSceneName", null);
+            if (!currentSceneName.equals(exportedCurrentSceneName)) {
+                return true;
+            }
+
+            JsonValue scenes = root.get("scenes");
+            if (scenes == null || !scenes.isObject()) {
+                return true;
+            }
+            JsonValue scene = scenes.get(currentSceneName);
+            if (scene == null || !scene.isObject()) {
+                return true;
+            }
+
+            String sceneFileName = RuntimeFs.filenameOnly(scene.getString("file", null));
+            if (sceneFileName == null || sceneFileName.isBlank()) {
+                return true;
+            }
+
+            String scenesDir = root.getString("scenesDir", RuntimeFs.DIR_SCENES);
+            if (scenesDir == null || scenesDir.isBlank()) {
+                scenesDir = RuntimeFs.DIR_SCENES;
+            }
+
+            Path sceneFile = runtimeRoot.resolve(scenesDir).resolve(sceneFileName);
+            if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
+                return true;
+            }
+
+            Set<Integer> requiredTileAssetIds = runtimeTiledTileAssetIds(cfg, runtimeRoot, root);
+            if (!requiredTileAssetIds.isEmpty()) {
+                Path tilesetProfiles = runtimeRoot.resolve(RuntimeFs.FILE_TILESET_PROFILES_JSON);
+                if (!Files.isRegularFile(tilesetProfiles) || isEmptyFile(tilesetProfiles)) {
+                    return true;
+                }
+                return !tilesetProfilesContainAllTileAssets(tilesetProfiles, requiredTileAssetIds);
+            }
+
+            return false;
+        } catch (RuntimeException | IOException ex) {
+            return true;
+        }
+    }
+
+    private static Set<Integer> runtimeTiledTileAssetIds(ProjectConfig cfg,
+                                                         Path runtimeRoot,
+                                                         JsonValue runtimeProjectRoot) throws IOException {
+        Set<Integer> out = new HashSet<>();
+        TileAnimationsMetaDatabase tileAnimationsDb = loadRuntimeTileAnimations(runtimeRoot);
+        collectRuntimeAvailabilityTileAssetIds(cfg, out, tileAnimationsDb);
+        collectRuntimeSceneTileAssetIds(runtimeRoot, runtimeProjectRoot, out, tileAnimationsDb);
+        return out;
+    }
+
+    private static TileAnimationsMetaDatabase loadRuntimeTileAnimations(Path runtimeRoot) {
+        if (runtimeRoot == null) {
+            return TileAnimationsIO.createEmpty();
+        }
+        Path file = runtimeRoot.resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        if (!Files.isRegularFile(file)) {
+            return TileAnimationsIO.createEmpty();
+        }
+        return TileAnimationsIO.load(new FileHandle(file.toFile()));
+    }
+
+    private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig cfg,
+                                                               Set<Integer> out,
+                                                               TileAnimationsMetaDatabase tileAnimationsDb) {
+        if (cfg == null || cfg.getScenesMap() == null) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMeta> entry : cfg.getScenesMap()) {
+            SceneMeta scene = entry != null ? entry.value : null;
+            if (scene == null || scene.runtimeAvailability == null) {
+                continue;
+            }
+            if (scene.runtimeAvailability.tiledTileAssetIds != null) {
+                for (Integer assetId : scene.runtimeAvailability.tiledTileAssetIds) {
+                    if (assetId != null && assetId > 0) {
+                        out.add(assetId);
+                    }
+                }
+            }
+            if (scene.runtimeAvailability.tiledAnimationIds != null) {
+                for (Integer tileAnimationId : scene.runtimeAvailability.tiledAnimationIds) {
+                    if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, tileAnimationId, out)
+                            && tileAnimationId != null && tileAnimationId > 0) {
+                        out.add(tileAnimationId);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeSceneTileAssetIds(Path runtimeRoot,
+                                                       JsonValue runtimeProjectRoot,
+                                                       Set<Integer> out,
+                                                       TileAnimationsMetaDatabase tileAnimationsDb) throws IOException {
+        JsonValue scenes = runtimeProjectRoot != null ? runtimeProjectRoot.get("scenes") : null;
+        if (runtimeRoot == null || scenes == null || !scenes.isObject()) {
+            return;
+        }
+
+        String scenesDir = runtimeProjectRoot.getString("scenesDir", RuntimeFs.DIR_SCENES);
+        if (scenesDir == null || scenesDir.isBlank()) {
+            scenesDir = RuntimeFs.DIR_SCENES;
+        }
+
+        for (JsonValue scene = scenes.child; scene != null; scene = scene.next) {
+            String sceneFileName = RuntimeFs.filenameOnly(scene.getString("file", null));
+            if (sceneFileName == null || sceneFileName.isBlank()) {
+                continue;
+            }
+
+            Path sceneFile = runtimeRoot.resolve(scenesDir).resolve(sceneFileName);
+            if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
+                throw new IOException("Missing runtime scene file: " + sceneFile);
+            }
+            collectTiledLayerTileAssetIds(new JsonReader().parse(Files.readString(sceneFile)), out, tileAnimationsDb);
+        }
+    }
+
+    private static void collectTiledLayerTileAssetIds(JsonValue root,
+                                                     Set<Integer> out,
+                                                     TileAnimationsMetaDatabase tileAnimationsDb) {
+        JsonValue entities = root != null ? root.get("entities") : null;
+        if (entities == null || !entities.isObject()) {
+            return;
+        }
+
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            if (components == null || !components.isObject()) {
+                continue;
+            }
+
+            JsonValue tiled = components.get("TiledLayerComponent");
+            if (tiled == null || !tiled.isObject()) {
+                continue;
+            }
+
+            collectIntBagValues(tiled.get("tileAssetIds"), out, tileAnimationsDb);
+            JsonValue data = tiled.get("data");
+            if (data != null && data.isObject()) {
+                collectIntBagValues(data.get("tileAssetIds"), out, tileAnimationsDb);
+            }
+        }
+    }
+
+    private static void collectIntBagValues(JsonValue bag,
+                                            Set<Integer> out,
+                                            TileAnimationsMetaDatabase tileAnimationsDb) {
+        JsonValue items = bag != null ? bag.get("items") : null;
+        if (items == null || !items.isArray()) {
+            return;
+        }
+
+        int size = bag.getInt("size", items.size);
+        int index = 0;
+        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
+            int assetId = item.asInt();
+            if (assetId > 0) {
+                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, assetId, out)) {
+                    out.add(assetId);
+                }
+            }
+        }
+    }
+
+    private static boolean addTiledAnimationFrameAssetIds(TileAnimationsMetaDatabase db,
+                                                          Integer tileAnimationId,
+                                                          Set<Integer> out) {
+        if (db == null || db.animations == null || tileAnimationId == null || tileAnimationId <= 0 || out == null) {
+            return false;
+        }
+        for (TileAnimationProjectDefData def : db.animations) {
+            if (def == null || def.id != tileAnimationId) continue;
+            if (def.frameAssetIds != null) {
+                for (int frameAssetId : def.frameAssetIds) {
+                    if (frameAssetId > 0) {
+                        out.add(frameAssetId);
+                    }
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean tilesetProfilesContainAllTileAssets(Path tilesetProfiles,
+                                                               Set<Integer> requiredTileAssetIds) throws IOException {
+        if (requiredTileAssetIds == null || requiredTileAssetIds.isEmpty()) {
+            return true;
+        }
+
+        JsonValue root = new JsonReader().parse(Files.readString(tilesetProfiles));
+        JsonValue tilesets = root != null ? root.get("tilesets") : null;
+        if (tilesets == null || !tilesets.isArray()) {
+            return false;
+        }
+
+        Set<Integer> exportedTileAssetIds = new HashSet<>();
+        for (JsonValue tileset = tilesets.child; tileset != null; tileset = tileset.next) {
+            JsonValue tileAssetIds = tileset.get("tileAssetIds");
+            if (tileAssetIds == null || !tileAssetIds.isArray()) {
+                continue;
+            }
+            for (JsonValue tileAssetId = tileAssetIds.child; tileAssetId != null; tileAssetId = tileAssetId.next) {
+                exportedTileAssetIds.add(tileAssetId.asInt());
+            }
+        }
+        return exportedTileAssetIds.containsAll(requiredTileAssetIds);
+    }
+
+    private static boolean isEmptyFile(Path file) {
+        try {
+            return Files.size(file) <= 0L;
+        } catch (IOException ex) {
+            return true;
+        }
     }
 
     private void clearPreviewSaveRequired() {
@@ -433,9 +724,7 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     void loadScene(ProjectConfig cfg, String sceneName, FileHandle projectDir) {
-
         clearWorldAndRenderState();
-
 
         SceneMeta meta = cfg.getSceneMeta(sceneName);
         if (meta == null) {
@@ -451,19 +740,15 @@ public final class SceneService {
 
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
-        SceneLoader.loadScene(canvas.getEcsWorld(), sceneFile, false);
-
-
-        normalizeSceneAtlasTags(canonicalTag);
-
-        canvas.getEcsWorld().process();
-        rebuildHistoryIdsFromWorld(canvas.getEcsWorld());
-        assertDrawablesHaveEntityIndex("loadScene(" + sceneName + ")");
-
-        rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);
-        rebuildTiledLayersStudio();
-        resyncSpatialBlocksInheritedLayerAltitude(canvas.getEcsWorld());
-        canvas.getEcsWorld().process();
+        sceneActivationPipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+                cfg,
+                meta,
+                sceneFile,
+                projectDir,
+                cfg.projectTitle,
+                sceneName,
+                canonicalTag
+        ));
         // UI
 
         int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
@@ -541,7 +826,7 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
             steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
             steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
-            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntimeBestEffort(plan.cfg(), plan.studioDir())));
+            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
         }
 
@@ -633,7 +918,7 @@ public final class SceneService {
         rebuildSparseFromDense();
         saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
         saveTileAnimations(plan);
-        exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
+        exportRuntime(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
     }
 
@@ -652,14 +937,20 @@ public final class SceneService {
 
     private void exportRuntimeBestEffort(ProjectConfig cfg, FileHandle studioDir) {
         try {
-            final String exportRoot = cfg.exportRootPathDir;
-            FileHandle userRootDir = Gdx.files.absolute(exportRoot);
-            userRootDir.mkdirs();
-            RuntimeExport.exportRuntime(cfg, studioDir, userRootDir);
+            exportRuntime(cfg, studioDir);
         } catch (Exception ex) {
             Gdx.app.error("SceneManager", "Runtime export failed", ex);
             StudioLog.warn("Runtime export failed");
         }
+    }
+
+    private void exportRuntime(ProjectConfig cfg, FileHandle studioDir) {
+        FileHandle userRootDir = RuntimeExportPaths.userRootFileHandle(cfg);
+        if (userRootDir == null) {
+            throw new IllegalStateException("Runtime export root is not configured.");
+        }
+        userRootDir.mkdirs();
+        RuntimeExport.exportRuntime(cfg, studioDir, userRootDir);
     }
 
     private void finishSaveWithoutScene() {
@@ -750,22 +1041,13 @@ public final class SceneService {
     }
 
     private static SceneVolatileStateSnapshot clearVolatileSceneStateForSave(World world, IntBag entitiesToSave) {
-        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
 
-        Array<TiledRangeSnapshot> tiledRanges = new Array<>();
         Array<VisibilityRuntimeSnapshot> visibilityStates = new Array<>();
 
         int[] data = entitiesToSave.getData();
         for (int i = 0, n = entitiesToSave.size(); i < n; i++) {
             int entityId = data[i];
-
-            TiledLayerComponent tiled = mTiled.getSafe(entityId, null);
-            if (tiled != null && (tiled.tiledStart != 0 || tiled.tiledEnd != 0)) {
-                tiledRanges.add(new TiledRangeSnapshot(entityId, tiled.tiledStart, tiled.tiledEnd));
-                tiled.tiledStart = 0;
-                tiled.tiledEnd = 0;
-            }
 
             VisibilityComponent visibility = mVisibility.getSafe(entityId, null);
             if (visibility != null && (!visibility.culledByFrustum || visibility.inView)) {
@@ -779,21 +1061,12 @@ public final class SceneService {
             }
         }
 
-        return new SceneVolatileStateSnapshot(tiledRanges, visibilityStates);
+        return new SceneVolatileStateSnapshot(visibilityStates);
     }
 
-    private record SceneVolatileStateSnapshot(Array<TiledRangeSnapshot> tiledRanges,
-                                              Array<VisibilityRuntimeSnapshot> visibilityStates) {
+    private record SceneVolatileStateSnapshot(Array<VisibilityRuntimeSnapshot> visibilityStates) {
         void restore(World world) {
-            ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
             ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
-
-            for (TiledRangeSnapshot snapshot : tiledRanges) {
-                TiledLayerComponent tiled = mTiled.getSafe(snapshot.entityId(), null);
-                if (tiled == null) continue;
-                tiled.tiledStart = snapshot.tiledStart();
-                tiled.tiledEnd = snapshot.tiledEnd();
-            }
 
             for (VisibilityRuntimeSnapshot snapshot : visibilityStates) {
                 VisibilityComponent visibility = mVisibility.getSafe(snapshot.entityId(), null);
@@ -802,9 +1075,6 @@ public final class SceneService {
                 visibility.inView = snapshot.inView();
             }
         }
-    }
-
-    private record TiledRangeSnapshot(int entityId, int tiledStart, int tiledEnd) {
     }
 
     private record VisibilityRuntimeSnapshot(int entityId, boolean culledByFrustum, boolean inView) {
@@ -1448,115 +1718,28 @@ public final class SceneService {
         }
     }
 
-    private void rebuildTiledLayersStudio() {
-
-        World world = canvas.getEcsWorld();
-
-        ComponentMapper<TiledLayerComponent> mTiled =
-                world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer =
-                world.getMapper(LayerComponent.class);
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class))
-                .getEntities();
-
-        int[] dataArr = bag.getData();
-
-        SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        if (meta == null) return;
-
-        TileAnimationLookup lookup = canvas.getTileAnimationRegistry();
-
-        for (int i = 0; i < bag.size(); i++) {
-
-            int e = dataArr[i];
-            TiledLayerComponent tiled = mTiled.get(e);
-            if (tiled == null) continue;
-
-            // Recreate dense map
-            tiled.data = new TiledMapLayerData(
-                    tiled.mapWidthCells,
-                    tiled.mapHeightCells,
-                    (int) meta.tileWidth,
-                    (int) meta.tileHeight,
-                    meta.chunkSize,
-                    meta.tiledProjection
-            );
-
-            tiled.data.originX = tiled.originX;
-            tiled.data.originY = tiled.originY;
-            LayerComponent layer = mLayer.getSafe(e, null);
-            tiled.spatialEnabled = (layer != null && layer.spatialEnabled) || tiled.spatialEnabled;
-            tiled.data.spatialEnabled = tiled.spatialEnabled;
-            tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
-            tiled.data.defaultTileHeight = tiled.defaultTileHeight;
-
-            // Allocate SOA
-            canvas.getTiledAllocatorService().allocateLayer(tiled);
-
-            // Reinject sparse
-            tiled.ensureSparseTileStorageConsistency();
-            for (int t = 0; t < tiled.tileXs.size; t++) {
-                int gx = tiled.tileXs.get(t);
-                int gy = tiled.tileYs.get(t);
-                int assetId = tiled.tileAssetIds.get(t);
-                byte flags = tiled.tileTransformFlags.get(t);
-                tiled.data.setTile(gx, gy, assetId, flags);
-
-                if (lookup != null) {
-                    int cx = gx / tiled.data.chunkSize;
-                    int cy = gy / tiled.data.chunkSize;
-
-                    TileChunk chunk = tiled.data.getChunk(cx, cy);
-                    if (chunk != null) {
-                        int lx = gx - (cx * tiled.data.chunkSize);
-                        int ly = gy - (cy * tiled.data.chunkSize);
-                        TileAnimationStateSupport.syncWorldCell(chunk, lx, ly, lookup);
-                    }
-                }
-            }
-
-            tiled.data.markAllChunksContentDirty();
-        }
-    }
-
-    private static void resyncSpatialBlocksInheritedLayerAltitude(World world) {
-        if (world == null) return;
-        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<SpatialBlocksComponent> mBlocks = world.getMapper(SpatialBlocksComponent.class);
-        ComponentMapper<LayerMetaComponent> mMeta = world.getMapper(LayerMetaComponent.class);
-        IntBag layers = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class, SpatialBlocksComponent.class))
-                .getEntities();
-        int[] data = layers.getData();
-        for (int i = 0, n = layers.size(); i < n; i++) {
-            int entity = data[i];
-            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
-            SpatialBlocksComponent blocks = mBlocks.getSafe(entity, null);
-            if (tiled == null || blocks == null || blocks.blocks == null) continue;
-            if (Math.abs(tiled.defaultTileAltitude) <= 0.0001f) continue;
-
-            int changed = 0;
-            for (int b = 0, bn = blocks.blocks.size; b < bn; b++) {
-                SpatialBlockData block = blocks.blocks.get(b);
-                if (block == null) continue;
-                if (Math.abs(block.altitude) > 0.0001f) continue;
-                block.altitude = tiled.defaultTileAltitude;
-                changed++;
-            }
-        }
-    }
-
     private void rebuildRenderRuntimeForScene(ProjectConfig cfg,
                                               String canonicalTag,
                                               FileHandle projectDir) {
         if (canonicalTag == null || canonicalTag.isBlank()) return;
+
+        refreshStudioTilesetProfileRegistry(projectDir);
 
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
 
         rebindTiles();
 
         canvas.refreshProjectBoundServices();
+    }
+
+    private void refreshStudioTilesetProfileRegistry(FileHandle projectDir) {
+        if (assetMetaDatabase == null && projectDir != null) {
+            FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+            if (assetsFile.exists()) {
+                assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+            }
+        }
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
     }
 
     private void rebindTiles() {
@@ -1716,6 +1899,111 @@ public final class SceneService {
                     )
             );
         }
+    }
+
+    public TmxSceneImportResult importTmxAsNewScene(TmxSceneImportRequest request) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) {
+            throw new IllegalStateException("No project is loaded.");
+        }
+        String previousSceneName = cfg.getCurrentSceneName();
+        if (cfg.getCurrentSceneName() != null) {
+            saveCurrentSceneOnly(cfg);
+        }
+
+        ensureAssetMetaDatabaseLoaded();
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        TmxSceneImportService importService = new TmxSceneImportService(cfg, projectDir, assetMetaDatabase);
+        TmxSceneImportResult result = importService.importScene(request);
+
+        if (result.imported()) {
+            try {
+                activateImportedTmxScene(cfg, projectDir, result);
+            } catch (RuntimeException activationFailure) {
+                throw recoverTmxImportActivationFailure(
+                        result,
+                        previousSceneName,
+                        activationFailure,
+                        () -> restorePreviousSceneAfterTmxActivationFailure(cfg, previousSceneName, projectDir)
+                );
+            }
+        }
+
+        return result;
+    }
+
+    private void activateImportedTmxScene(ProjectConfig cfg,
+                                          FileHandle projectDir,
+                                          TmxSceneImportResult result) {
+        loadScene(cfg, result.sceneName(), projectDir);
+        assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        app.getBottomBar().refreshSelectBox();
+        refreshAssetsPanel();
+        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + " - " + result.sceneName() + ")");
+        StudioLog.info("TMX scene imported: " + result.sceneName());
+    }
+
+    private void restorePreviousSceneAfterTmxActivationFailure(ProjectConfig cfg,
+                                                              String previousSceneName,
+                                                              FileHandle projectDir) {
+        if (cfg == null || !hasSceneName(previousSceneName) || cfg.getSceneMeta(previousSceneName) == null) {
+            unloadProjectToEmptyEditor();
+            return;
+        }
+
+        cfg.setCurrentSceneByName(previousSceneName);
+        loadScene(cfg, previousSceneName, projectDir);
+        assertCurrentSceneMetadataIntegrity(cfg, previousSceneName, "importTmxAsNewScene.restorePrevious");
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        app.getBottomBar().refreshSelectBox();
+        refreshAssetsPanel();
+    }
+
+    static IllegalStateException recoverTmxImportActivationFailure(TmxSceneImportResult result,
+                                                                   String previousSceneName,
+                                                                   RuntimeException activationFailure,
+                                                                   Runnable previousSceneRestorer) {
+        RuntimeException failure = activationFailure != null
+                ? activationFailure
+                : new IllegalStateException("TMX import activation failed.");
+
+        boolean rollbackSucceeded = false;
+        boolean rollbackAvailable = result != null && result.rollback() != null;
+        if (rollbackAvailable) {
+            try {
+                result.rollback().rollback();
+                rollbackSucceeded = true;
+            } catch (RuntimeException rollbackFailure) {
+                failure = attachRollbackFailure(failure, rollbackFailure);
+            }
+        }
+
+        boolean previousRestoreAttempted = hasSceneName(previousSceneName) && previousSceneRestorer != null;
+        boolean previousRestoreSucceeded = false;
+        if (previousRestoreAttempted) {
+            try {
+                previousSceneRestorer.run();
+                previousRestoreSucceeded = true;
+            } catch (RuntimeException restoreFailure) {
+                failure = attachRollbackFailure(failure, restoreFailure);
+            }
+        }
+
+        String message;
+        if (rollbackSucceeded && previousRestoreSucceeded) {
+            message = "TMX scene import activation failed; imported scene was rolled back and previous scene was restored.";
+        } else if (rollbackSucceeded) {
+            message = "TMX scene import activation failed; imported scene was rolled back.";
+        } else if (!rollbackAvailable && previousRestoreSucceeded) {
+            message = "TMX scene import activation failed; no import rollback transaction was available, but previous scene was restored.";
+        } else if (!rollbackAvailable) {
+            message = "TMX scene import activation failed and no import rollback transaction was available.";
+        } else {
+            message = "TMX scene import activation failed and rollback did not complete.";
+        }
+
+        return new IllegalStateException(message, failure);
     }
 
     public void deleteScene(String sceneName) {
@@ -2386,6 +2674,7 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
         refreshAssetsPanel();
         StudioLog.info("Assets imported: " + importedCount);
     }
@@ -2427,6 +2716,7 @@ public final class SceneService {
         return switch (type) {
             case IMAGE -> importImageAsset(ctx, item);
             case TILESET -> importTilesetAtlasAsset(ctx, item);
+            case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
         };
@@ -2472,50 +2762,88 @@ public final class SceneService {
     }
 
     private int importTilesetAtlasAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
-        if (!isImage(item.file)) {
-            warnUnsupported(item.file);
-            return 0;
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importAtlas(tilesetAtlasImportRequestForManualImport(item, ctx.tilesRoot));
+        return result.importedCount();
+    }
+
+    private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file);
+        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
+                ? descriptor.name()
+                : baseName(item.file.name());
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importAtlas(new TilesetAtlasImportRequest(
+                        descriptor.imageFile(),
+                        ctx.tilesRoot,
+                        descriptor.tileWidth(),
+                        descriptor.tileHeight(),
+                        descriptor.spacing(),
+                        descriptor.margin(),
+                        tilesetName
+                ));
+        if (result.importedCount() > 0 && descriptor.tileAnimations() != null && !descriptor.tileAnimations().isEmpty()) {
+            FileHandle tileAnimationsFile = ctx.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+            if (tileAnimationsMetaDatabase == null) {
+                tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
+            }
+            TiledAnimationImportSupport.importTileAnimations(
+                    assetMetaDatabase,
+                    tileAnimationsMetaDatabase,
+                    tilesetName,
+                    descriptor.tileAnimations(),
+                    result.localTileAssetIds()
+            );
+            TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
+            reloadTileAnimationRegistryFromProjectData();
         }
+        return result.importedCount();
+    }
 
-        String base = baseName(item.file.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(ctx.tilesRoot, base);
-
-        int tileW = Math.max(1, item.tileWidth);
-        int tileH = Math.max(1, item.tileHeight);
-
-        ImageSize size = readImageSize(item.file);
-        int imageW = size.width;
-        int imageH = size.height;
-
-        int columns = Math.max(1, imageW / tileW);
-        int rows = Math.max(1, imageH / tileH);
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateTilesetMeta(
-                base,
-                item,
-                imageW,
-                imageH,
-                tileW,
-                tileH,
-                columns,
-                rows
+    static TilesetAtlasImportRequest tilesetAtlasImportRequestForManualImport(ImportDialog.ImportItem item,
+                                                                              FileHandle tilesRoot) {
+        return new TilesetAtlasImportRequest(
+                item.file,
+                tilesRoot,
+                item.tileWidth,
+                item.tileHeight,
+                item.tileSpacing,
+                item.tileMargin,
+                null,
+                item.tilesetProfileSettings()
         );
+    }
 
-        splitTilesetSource(item.file, tilesetDir, tileW, tileH);
-        registerSplitTilesAsTileAssets(base, tilesetDir, columns, tilesetMeta);
-        copyTilesetSourceFile(base, item, tilesetDir, tilesetMeta);
-
-        return 1;
+    static TilesetAtlasImportRequest tilesetAtlasImportRequestForTsxImport(FileHandle tsxFile,
+                                                                            FileHandle tilesRoot) {
+        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsxFile);
+        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
+                ? descriptor.name()
+                : baseName(tsxFile.name());
+        return new TilesetAtlasImportRequest(
+                descriptor.imageFile(),
+                tilesRoot,
+                descriptor.tileWidth(),
+                descriptor.tileHeight(),
+                descriptor.spacing(),
+                descriptor.margin(),
+                tilesetName
+        );
     }
 
     public int importTilesetDirectory(FileHandle directory) {
+        return importTilesetDirectory(directory, null);
+    }
+
+    public int importTilesetDirectory(FileHandle directory, TilesetProfileImportSettings profileSettings) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return 0;
 
         AssetImportContext ctx = prepareAssetImportContext(cfg);
-        int imported = importTilesetFolderAsset(ctx, directory);
+        int imported = importTilesetFolderAsset(ctx, directory, profileSettings);
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
         refreshAssetsPanel();
 
         if (imported > 0) {
@@ -2591,38 +2919,12 @@ public final class SceneService {
         StudioLog.info("Tileset deleted: " + normalizedPath);
     }
 
-    private int importTilesetFolderAsset(AssetImportContext ctx, FileHandle directory) {
-        if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            StudioLog.warn("Tileset directory import failed: invalid directory.");
-            return 0;
-        }
-
-        String base = baseName(directory.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(ctx.tilesRoot, base);
-
-        FileHandle[] sourceTiles = listTilesetFolderImages(directory);
-        if (sourceTiles == null || sourceTiles.length == 0) {
-            StudioLog.warn("Tileset directory import skipped: no PNG files found in " + directory.name());
-            return 0;
-        }
-
-        FolderTilesetInfo info = analyzeFolderTileset(sourceTiles);
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateFolderTilesetMeta(
-                base,
-                sourceTiles.length,
-                info.referenceTileWidth,
-                info.referenceTileHeight
-        );
-
-        registerFolderTilesAsTileAssets(
-                base,
-                tilesetDir,
-                sourceTiles,
-                tilesetMeta
-        );
-
-        return 1;
+    private int importTilesetFolderAsset(AssetImportContext ctx,
+                                         FileHandle directory,
+                                         TilesetProfileImportSettings profileSettings) {
+        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
+                .importDirectory(new TilesetDirectoryImportRequest(directory, ctx.tilesRoot, profileSettings));
+        return result.importedCount();
     }
 
     private int importSpritesheetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
@@ -2816,334 +3118,6 @@ public final class SceneService {
         return sb.toString();
     }
 
-    private FileHandle[] listTilesetFolderImages(FileHandle directory) {
-        if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            return new FileHandle[0];
-        }
-
-        FileHandle[] files = directory.list((dir, name) ->
-                name != null && name.toLowerCase(Locale.ROOT).endsWith(StudioFs.EXT_PNG)
-        );
-
-        if (files == null) {
-            return new FileHandle[0];
-        }
-
-        Arrays.sort(files, (a, b) -> compareNaturally(a.name(), b.name()));
-        return files;
-    }
-
-    private FolderTilesetInfo analyzeFolderTileset(FileHandle[] sourceTiles) {
-        if (sourceTiles == null || sourceTiles.length == 0) {
-            return new FolderTilesetInfo(0, 0, true);
-        }
-
-        int minWidth = Integer.MAX_VALUE;
-        int minHeight = Integer.MAX_VALUE;
-        boolean uniform = true;
-
-        ImageSize first = readImageSize(sourceTiles[0]);
-        int firstWidth = first.width;
-        int firstHeight = first.height;
-
-        for (FileHandle tile : sourceTiles) {
-            if (tile == null || !tile.exists() || tile.isDirectory()) continue;
-
-            ImageSize size = readImageSize(tile);
-
-            minWidth = Math.min(minWidth, size.width);
-            minHeight = Math.min(minHeight, size.height);
-
-            if (size.width != firstWidth || size.height != firstHeight) {
-                uniform = false;
-            }
-        }
-
-        if (!uniform) {
-            StudioLog.warn(
-                    "Tileset directory contains mixed PNG sizes. " +
-                            "Using smallest size as logical tile reference: " +
-                            minWidth + "x" + minHeight
-            );
-        }
-
-        return new FolderTilesetInfo(minWidth, minHeight, uniform);
-    }
-
-    private TilesetAssetMeta createOrUpdateFolderTilesetMeta(String base,
-                                                             int tileCount,
-                                                             int referenceTileWidth,
-                                                             int referenceTileHeight) {
-        String tilesetLogical = StudioFs.PREFIX_TILES + base;
-
-        TilesetAssetMeta tilesetMeta = requireTilesetMeta(
-                assetMetaDatabase.registerIfAbsent(
-                        AssetType.TILESET,
-                        tilesetLogical,
-                        null,
-                        AssetMeta.AssetScope.USER
-                )
-        );
-
-        tilesetMeta.imageWidth = 0;
-        tilesetMeta.imageHeight = 0;
-        tilesetMeta.sourceRelPath = null;
-        tilesetMeta.tileWidth = referenceTileWidth;
-        tilesetMeta.tileHeight = referenceTileHeight;
-        tilesetMeta.columns = Math.max(1, tileCount);
-        tilesetMeta.rows = 1;
-        tilesetMeta.spacing = 0;
-        tilesetMeta.margin = 0;
-
-        return tilesetMeta;
-    }
-
-    private void registerFolderTilesAsTileAssets(String base,
-                                                 FileHandle tilesetDir,
-                                                 FileHandle[] sourceTiles,
-                                                 TilesetAssetMeta tilesetMeta) {
-        if (sourceTiles == null) return;
-
-        for (int sheetIndex = 0; sheetIndex < sourceTiles.length; sheetIndex++) {
-            FileHandle src = sourceTiles[sheetIndex];
-            if (src == null || !src.exists() || src.isDirectory()) continue;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String ext = src.extension();
-            String newFileName = sheetIndex + "__a" + tileMeta.id + "." + ext;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                src.copyTo(dst);
-            }
-
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = sheetIndex;
-            tileMeta.cellY = 0;
-        }
-    }
-
-    private int compareNaturally(String a, String b) {
-        if (a == null && b == null) return 0;
-        if (a == null) return -1;
-        if (b == null) return 1;
-
-        int ia = 0;
-        int ib = 0;
-        int na = a.length();
-        int nb = b.length();
-
-        while (ia < na && ib < nb) {
-            char ca = a.charAt(ia);
-            char cb = b.charAt(ib);
-
-            if (Character.isDigit(ca) && Character.isDigit(cb)) {
-                int sa = ia;
-                int sb = ib;
-
-                while (ia < na && Character.isDigit(a.charAt(ia))) ia++;
-                while (ib < nb && Character.isDigit(b.charAt(ib))) ib++;
-
-                String pa = a.substring(sa, ia);
-                String pb = b.substring(sb, ib);
-
-                int cmp = compareNumericStrings(pa, pb);
-                if (cmp != 0) return cmp;
-                continue;
-            }
-
-            int cmp = Character.compare(
-                    Character.toLowerCase(ca),
-                    Character.toLowerCase(cb)
-            );
-            if (cmp != 0) return cmp;
-
-            ia++;
-            ib++;
-        }
-
-        return Integer.compare(na, nb);
-    }
-
-    private int compareNumericStrings(String a, String b) {
-        int ia = 0;
-        int ib = 0;
-
-        while (ia < a.length() && a.charAt(ia) == '0') ia++;
-        while (ib < b.length() && b.charAt(ib) == '0') ib++;
-
-        int la = a.length() - ia;
-        int lb = b.length() - ib;
-
-        if (la != lb) {
-            return Integer.compare(la, lb);
-        }
-
-        for (int i = 0; i < la; i++) {
-            char ca = a.charAt(ia + i);
-            char cb = b.charAt(ib + i);
-            if (ca != cb) {
-                return Character.compare(ca, cb);
-            }
-        }
-
-        return Integer.compare(a.length(), b.length());
-    }
-
-    private FileHandle prepareTilesetDirectory(FileHandle tilesRoot, String base) {
-        FileHandle tilesetDir = tilesRoot.child(base);
-        tilesetDir.mkdirs();
-        return tilesetDir;
-    }
-
-    private TilesetAssetMeta createOrUpdateTilesetMeta(String base,
-                                                       ImportDialog.ImportItem item,
-                                                       int imageWidth,
-                                                       int imageHeight,
-                                                       int tileWidth,
-                                                       int tileHeight,
-                                                       int columns,
-                                                       int rows) {
-        String tilesetLogical = StudioFs.PREFIX_TILES + base;
-
-        TilesetAssetMeta tilesetMeta = requireTilesetMeta(
-                assetMetaDatabase.registerIfAbsent(
-                        AssetType.TILESET,
-                        tilesetLogical,
-                        null,
-                        AssetMeta.AssetScope.USER
-                )
-        );
-
-        tilesetMeta.imageWidth = imageWidth;
-        tilesetMeta.imageHeight = imageHeight;
-        tilesetMeta.tileWidth = tileWidth;
-        tilesetMeta.tileHeight = tileHeight;
-        tilesetMeta.columns = columns;
-        tilesetMeta.rows = rows;
-        tilesetMeta.spacing = 0;
-        tilesetMeta.margin = 0;
-
-        return tilesetMeta;
-    }
-
-    private void splitTilesetSource(FileHandle sourceFile,
-                                    FileHandle tilesetDir,
-                                    int tileWidth,
-                                    int tileHeight) {
-        splitGridImage(
-                sourceFile,
-                tilesetDir,
-                tileWidth,
-                tileHeight,
-                null
-        );
-    }
-
-    private void registerSplitTilesAsTileAssets(String base,
-                                                FileHandle tilesetDir,
-                                                int columns,
-                                                TilesetAssetMeta tilesetMeta) {
-        FileHandle[] files = tilesetDir.list((dir, name) ->
-                name.endsWith(StudioFs.EXT_PNG) && isNumericBaseName(name));
-
-        sortByNumericBaseName(files);
-
-        if (files == null) {
-            return;
-        }
-
-        for (FileHandle f : files) {
-            int sheetIndex = Integer.parseInt(AssetHelper.removeExtension(f.name()));
-            int cellX = sheetIndex % columns;
-            int cellY = sheetIndex / columns;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String newFileName = sheetIndex + "__a" + tileMeta.id + StudioFs.EXT_PNG;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                f.moveTo(dst);
-            }
-
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = cellX;
-            tileMeta.cellY = cellY;
-        }
-    }
-
-    private void copyTilesetSourceFile(String base,
-                                       ImportDialog.ImportItem item,
-                                       FileHandle tilesetDir,
-                                       TilesetAssetMeta tilesetMeta) {
-        String sheetFileName = base + "__a" + tilesetMeta.id + "." + item.file.extension();
-        FileHandle sheetDst = tilesetDir.child(sheetFileName);
-
-        if (!sheetDst.exists()) {
-            item.file.copyTo(sheetDst);
-        }
-
-        tilesetMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + sheetFileName;
-    }
-
-    private TilesetAssetMeta requireTilesetMeta(AssetMeta meta) {
-        if (meta instanceof TilesetAssetMeta tilesetMeta) {
-            return tilesetMeta;
-        }
-        throw new IllegalStateException("Expected TilesetAssetMeta but got: " + meta);
-    }
-
-    private TileAssetMeta requireTileMeta(AssetMeta meta) {
-        if (meta instanceof TileAssetMeta tileMeta) {
-            return tileMeta;
-        }
-        throw new IllegalStateException("Expected TileAssetMeta but got: " + meta);
-    }
-
-    private boolean isNumericBaseName(String fileName) {
-        String base = AssetHelper.removeExtension(fileName);
-        if (base == null || base.isBlank()) return false;
-
-        for (int i = 0; i < base.length(); i++) {
-            if (!Character.isDigit(base.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void sortByNumericBaseName(FileHandle[] files) {
-        if (files == null) return;
-
-        Arrays.sort(files, Comparator.comparingInt(
-                f -> Integer.parseInt(AssetHelper.removeExtension(f.name()))
-        ));
-    }
-
     private ImageSize readImageSize(FileHandle file) {
         Pixmap pixmap = new Pixmap(file);
         try {
@@ -3242,9 +3216,16 @@ public final class SceneService {
         return f != null && StudioFs.isParticleFile(f.name());
     }
 
+    private static boolean isTsx(FileHandle f) {
+        return f != null && "tsx".equalsIgnoreCase(f.extension());
+    }
+
     private static ImportDialog.ImportType resolveAuto(FileHandle f) {
         if (f != null && StudioFs.isParticleFile(f.name())) {
             return ImportDialog.ImportType.PARTICLE_EFFECT;
+        }
+        if (isTsx(f)) {
+            return ImportDialog.ImportType.TILESET_TSX;
         }
         if (isImage(f)) {
             return ImportDialog.ImportType.IMAGE;
@@ -3284,7 +3265,7 @@ public final class SceneService {
         world.process();
 
         // Reset render memory
-        canvas.getRenderState().clearAll();
+        canvas.clearRenderMemory();
         canvas.getTiledAllocatorService().reset();
 
         // Reset services studio
@@ -3304,30 +3285,6 @@ public final class SceneService {
     private void flushWorldForSerialization() {
         if (canvas == null) return;
         canvas.getEcsWorld().process();
-    }
-
-    private void rebuildHistoryIdsFromWorld(World world) {
-        if (historyManager == null || world == null) return;
-
-        HistoryIdRegistry historyIds = historyManager.historyIds();
-        historyIds.clear();
-
-        var em = world.getEntityManager();
-        ensureHistoryIds(world, historyIds, em, Aspect.all(LayerComponent.class, LayerMetaComponent.class));
-        ensureHistoryIds(world, historyIds, em, Aspect.all(EntityIndexComponent.class));
-    }
-
-    private static void ensureHistoryIds(World world,
-                                         HistoryIdRegistry historyIds,
-                                         com.artemis.EntityManager em,
-                                         Aspect.Builder aspectBuilder) {
-        IntBag bag = world.getAspectSubscriptionManager().get(aspectBuilder).getEntities();
-        int[] data = bag.getData();
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int e = data[i];
-            if (!em.isActive(e)) continue;
-            historyIds.ensureForEntity(e);
-        }
     }
 
     // ---------------------------------------------------------------------
@@ -3379,65 +3336,6 @@ public final class SceneService {
         }
     }
 
-    private void assertDrawablesHaveEntityIndex(String context) {
-        World world = canvas.getEcsWorld();
-        ComponentMapper<EntityIndexComponent> mIndex = world.getMapper(EntityIndexComponent.class);
-        ComponentMapper<PixscapeIdentityComponent> mIdentity = world.getMapper(PixscapeIdentityComponent.class);
-        ComponentMapper<ParticleEmitterComponent> mEmitter = world.getMapper(ParticleEmitterComponent.class);
-
-        IntBag drawables = world.getAspectSubscriptionManager()
-                .get(Aspect.one(AssetRefComponent.class, ParticleEmitterComponent.class))
-                .getEntities();
-
-        int[] data = drawables.getData();
-        for (int i = 0; i < drawables.size(); i++) {
-            int entityId = data[i];
-            if (mIndex.has(entityId)) continue;
-
-            String metaName = null;
-            PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
-            if (identity != null) metaName = identity.name;
-
-            String effectPath = null;
-            ParticleEmitterComponent emitter = mEmitter.getSafe(entityId, null);
-            if (emitter != null) effectPath = emitter.effectPath;
-
-            throw new IllegalStateException(
-                    "Drawable entity missing EntityIndexComponent (" + context + "): id=" + entityId
-                            + ", name=" + metaName
-                            + ", effect=" + effectPath
-            );
-        }
-    }
-
-    private void normalizeSceneAtlasTags(String canonicalTag) {
-        if (canonicalTag == null || canonicalTag.isBlank()) return;
-
-        World world = canvas.getEcsWorld();
-        ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
-
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(AssetRefComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        boolean changed = false;
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int e = data[i];
-            AssetRefComponent src = mSrc.get(e);
-            if (src.assetId < 0) continue;
-            if (src.atlasTag == null || src.atlasTag.isEmpty()) continue;
-            if (canonicalTag.equals(src.atlasTag)) continue;
-
-            src.atlasTag = canonicalTag;
-            changed = true;
-        }
-
-        if (changed) {
-            Gdx.app.log("SceneManager", "normalizeSceneAtlasTags: remapped scene atlas tags to " + canonicalTag);
-        }
-    }
-
     // ---------------------------------------------------------------------
     // PROJECT VALIDATION HELPERS
     // ---------------------------------------------------------------------
@@ -3448,6 +3346,12 @@ public final class SceneService {
         if (exportRoot == null || exportRoot.isBlank()) {
             String op = (operation == null || operation.isBlank()) ? "operation" : operation;
             throw new IllegalStateException(op + ": exportRootPathDir is required and cannot be blank.");
+        }
+        try {
+            RuntimeExportPaths.userRootPath(Path.of(exportRoot));
+        } catch (InvalidPathException ex) {
+            String op = (operation == null || operation.isBlank()) ? "operation" : operation;
+            throw new IllegalStateException(op + ": exportRootPathDir is invalid: " + exportRoot, ex);
         }
     }
 
@@ -3494,6 +3398,18 @@ public final class SceneService {
                               FileHandle assetsMetaFile) {
     }
 
+    static final class SpatialSceneActivationException extends IllegalStateException {
+        SpatialSceneActivationException(String message) {
+            super(message);
+        }
+    }
+
+    static final class TiledMapResolutionException extends IllegalStateException {
+        TiledMapResolutionException(String message) {
+            super(message);
+        }
+    }
+
     private record SaveExecutionPlan(ProjectConfig cfg,
                                      FileHandle studioDir,
                                      String sceneName,
@@ -3510,8 +3426,6 @@ public final class SceneService {
     private record ImageSize(int width, int height) {
     }
 
-    private record FolderTilesetInfo(int referenceTileWidth, int referenceTileHeight, boolean uniform) {
-    }
 }
 
 

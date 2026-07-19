@@ -45,4 +45,47 @@ public class SpatialBlockSelectionServiceTest {
         Assert.assertEquals(SpatialBlockSelectionService.NO_LAYER, selection.getEditingLayerEntityId());
         Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, selection.getSelectedBlockId());
     }
+
+    @Test
+    public void hoveredHandleStateIsExplicitAndClearsWithHover() {
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        selection.selectBlock(10, 4);
+        selection.setHoveredHandle(SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X, false);
+
+        Assert.assertEquals(SpatialBlockInteractiveEditSupport.ResizeHandle.MIN_X,
+                selection.getHoveredResizeHandle());
+        Assert.assertFalse(selection.isHoveredHeightHandle());
+
+        selection.clearHover();
+        Assert.assertNull(selection.getHoveredResizeHandle());
+        Assert.assertFalse(selection.isHoveredHeightHandle());
+    }
+
+    @Test
+    public void authoritativeClearPublishesNoWallStateAndRepeatedClearIsIdempotent() {
+        EventFlow.i().flush();
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        selection.selectBlock(10, 4);
+        EventFlow.i().flush();
+        int[] notifications = {0};
+        int[] layer = {-2};
+        int[] block = {-2};
+        EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, event -> {
+            notifications[0]++;
+            layer[0] = event.layerEntityId();
+            block[0] = event.blockId();
+        });
+
+        selection.clearSelectionOnly();
+        EventFlow.i().flush();
+
+        Assert.assertEquals(1, notifications[0]);
+        Assert.assertEquals(10, layer[0]);
+        Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, block[0]);
+        Assert.assertFalse(selection.hasSelectedBlock());
+
+        selection.clearSelectionOnly();
+        EventFlow.i().flush();
+        Assert.assertEquals(1, notifications[0]);
+    }
 }

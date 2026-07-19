@@ -3,6 +3,7 @@ package games.pixscape.studio.asset;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.io.StudioIO;
 
 import java.nio.charset.StandardCharsets;
@@ -10,7 +11,7 @@ import java.util.Objects;
 
 public final class AssetMetaDatabase {
 
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
 
     public int version = CURRENT_VERSION;
     public int nextId = 1;
@@ -173,6 +174,39 @@ public final class AssetMetaDatabase {
         json.setOutputType(JsonWriter.OutputType.json);
         json.setIgnoreUnknownFields(true);
         json.setSerializer(AssetMeta.class, new AssetMetaJsonSerializer());
+        json.setSerializer(SceneMetaRuntime.TiledProjection.class, new Json.Serializer<SceneMetaRuntime.TiledProjection>() {
+            @Override
+            public void write(Json json, SceneMetaRuntime.TiledProjection object, Class knownType) {
+                json.writeValue(tiledProjectionWireName(object));
+            }
+
+            @Override
+            public SceneMetaRuntime.TiledProjection read(Json json, JsonValue jsonData, Class type) {
+                return tiledProjectionFromWireName(jsonData != null ? jsonData.asString() : null);
+            }
+        });
+        json.setSerializer(TilesetAnchor.class, new Json.Serializer<TilesetAnchor>() {
+            @Override
+            public void write(Json json, TilesetAnchor object, Class knownType) {
+                json.writeValue(object != null ? object.wireName() : null);
+            }
+
+            @Override
+            public TilesetAnchor read(Json json, JsonValue jsonData, Class type) {
+                return TilesetAnchor.fromWireName(jsonData != null ? jsonData.asString() : null);
+            }
+        });
+        json.setSerializer(TilesetRenderSize.class, new Json.Serializer<TilesetRenderSize>() {
+            @Override
+            public void write(Json json, TilesetRenderSize object, Class knownType) {
+                json.writeValue(object != null ? object.wireName() : null);
+            }
+
+            @Override
+            public TilesetRenderSize read(Json json, JsonValue jsonData, Class type) {
+                return TilesetRenderSize.fromWireName(jsonData != null ? jsonData.asString() : null);
+            }
+        });
         return json;
     }
 
@@ -194,6 +228,7 @@ public final class AssetMetaDatabase {
         if (file == null) throw new IllegalArgumentException("file is null");
 
         version = CURRENT_VERSION;
+        normalizeAssetDefaults();
 
         String text = JSON.prettyPrint(this);
         byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
@@ -209,6 +244,26 @@ public final class AssetMetaDatabase {
         }
 
         int maxId = 0;
+        normalizeAssetDefaults();
+        for (AssetMeta asset : assets) {
+            if (asset != null && asset.id > maxId) {
+                maxId = asset.id;
+            }
+        }
+
+        if (nextId <= maxId) {
+            nextId = maxId + 1;
+        }
+        if (nextId < 1) {
+            nextId = 1;
+        }
+    }
+
+    private void normalizeAssetDefaults() {
+        if (assets == null) {
+            assets = new Array<>();
+        }
+
         for (AssetMeta asset : assets) {
             if (asset == null) continue;
 
@@ -220,17 +275,27 @@ public final class AssetMetaDatabase {
                 animation.clips = new ObjectMap<>();
             }
 
-            if (asset.id > maxId) {
-                maxId = asset.id;
+            if (asset instanceof TilesetAssetMeta tileset) {
+                tileset.normalizeProfileDefaults();
             }
         }
+    }
 
-        if (nextId <= maxId) {
-            nextId = maxId + 1;
+    private static String tiledProjectionWireName(SceneMetaRuntime.TiledProjection projection) {
+        if (projection == SceneMetaRuntime.TiledProjection.ISO) return "isometric";
+        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) return "orthogonal";
+        return null;
+    }
+
+    private static SceneMetaRuntime.TiledProjection tiledProjectionFromWireName(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        if ("isometric".equalsIgnoreCase(raw) || "ISO".equalsIgnoreCase(raw)) {
+            return SceneMetaRuntime.TiledProjection.ISO;
         }
-        if (nextId < 1) {
-            nextId = 1;
+        if ("orthogonal".equalsIgnoreCase(raw) || "ORTHO".equalsIgnoreCase(raw)) {
+            return SceneMetaRuntime.TiledProjection.ORTHO;
         }
+        return null;
     }
 
     // ----------------------------------------------------
@@ -255,6 +320,7 @@ public final class AssetMetaDatabase {
                 json.writeValue("currentClip", animation.currentClip);
                 writeAnimationClips(json, animation.clips);
             } else if (object instanceof TilesetAssetMeta tileset) {
+                tileset.normalizeProfileDefaults();
                 json.writeValue("imageWidth", tileset.imageWidth);
                 json.writeValue("imageHeight", tileset.imageHeight);
                 json.writeValue("tileWidth", tileset.tileWidth);
@@ -263,6 +329,18 @@ public final class AssetMetaDatabase {
                 json.writeValue("rows", tileset.rows);
                 json.writeValue("spacing", tileset.spacing);
                 json.writeValue("margin", tileset.margin);
+                json.writeValue("referenceCellWidth", tileset.referenceCellWidth);
+                json.writeValue("referenceCellHeight", tileset.referenceCellHeight);
+                json.writeValue("projection", tiledProjectionWireName(tileset.projection));
+                json.writeValue("anchor", tileset.anchor != null ? tileset.anchor.wireName() : null);
+                json.writeValue("offsetX", tileset.offsetX);
+                json.writeValue("offsetY", tileset.offsetY);
+                json.writeValue("renderSize", tileset.renderSize != null ? tileset.renderSize.wireName() : null);
+            } else if (object instanceof TileAssetMeta tile) {
+                json.writeValue("tilesetId", tile.tilesetId);
+                json.writeValue("sheetIndex", tile.sheetIndex);
+                json.writeValue("cellX", tile.cellX);
+                json.writeValue("cellY", tile.cellY);
             }
 
             json.writeObjectEnd();
@@ -293,6 +371,19 @@ public final class AssetMetaDatabase {
                 tileset.rows = jsonData.getInt("rows", 0);
                 tileset.spacing = jsonData.getInt("spacing", 0);
                 tileset.margin = jsonData.getInt("margin", 0);
+                tileset.referenceCellWidth = jsonData.getInt("referenceCellWidth", 0);
+                tileset.referenceCellHeight = jsonData.getInt("referenceCellHeight", 0);
+                tileset.projection = tiledProjectionFromWireName(jsonData.getString("projection", null));
+                tileset.anchor = TilesetAnchor.fromWireName(jsonData.getString("anchor", null));
+                tileset.offsetX = jsonData.getInt("offsetX", 0);
+                tileset.offsetY = jsonData.getInt("offsetY", 0);
+                tileset.renderSize = TilesetRenderSize.fromWireName(jsonData.getString("renderSize", null));
+                tileset.normalizeProfileDefaults();
+            } else if (meta instanceof TileAssetMeta tile) {
+                tile.tilesetId = jsonData.getInt("tilesetId", -1);
+                tile.sheetIndex = jsonData.getInt("sheetIndex", -1);
+                tile.cellX = jsonData.getInt("cellX", -1);
+                tile.cellY = jsonData.getInt("cellY", -1);
             }
 
             return meta;

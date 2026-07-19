@@ -112,10 +112,6 @@ public final class BodyPanel extends CollapsibleWidget {
                 boolean enableBody = addPhysicsBox.isChecked();
                 boolean hadPhysicsBeforeToggle = hasPhysics(entityId);
 
-                if (!enableBody && ctx.physicsSelectionService.isFocusedBody(entityId)) {
-                    ctx.physicsSelectionService.clear();
-                }
-
                 executeBodyToggle(enableBody, hadPhysicsBeforeToggle);
                 refreshFromModel(entityId);
 

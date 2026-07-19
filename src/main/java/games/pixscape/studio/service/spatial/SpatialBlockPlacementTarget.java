@@ -16,6 +16,9 @@ public record SpatialBlockPlacementTarget(
         float worldY,
         boolean fallback
 ) {
+    private static final ThreadLocal<SpatialCellPicker.Result> PICK_RESULT =
+            ThreadLocal.withInitial(SpatialCellPicker.Result::new);
+
     public static SpatialBlockPlacementTarget invalid() {
         return new SpatialBlockPlacementTarget(false, -1, -1, -1, -1, -1, -1, -1, 0f, 0f, true);
     }
@@ -30,11 +33,12 @@ public record SpatialBlockPlacementTarget(
             return invalid();
         }
 
-        int targetGx = map.worldToTileX(worldX, worldY);
-        int targetGy = map.worldToTileY(worldX, worldY);
-        if (!map.isInside(targetGx, targetGy)) {
+        SpatialCellPicker.Result picked = PICK_RESULT.get();
+        if (!SpatialCellPicker.pick(map, worldX, worldY, picked)) {
             return invalid();
         }
+        int targetGx = picked.gx;
+        int targetGy = picked.gy;
 
         int minGx = targetGx;
         int maxGx = targetGx;
