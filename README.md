@@ -3,7 +3,7 @@
 <h1>Pixscape Studio Free</h1>
 
 [![Changelog](https://img.shields.io/badge/changelog-0.2.1-orange.svg)](CHANGELOG.md)
-[![Runtime](https://img.shields.io/badge/runtime-0.1.7-purple.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)<br>
+[![Runtime](https://img.shields.io/badge/runtime-0.1.8-purple.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)<br>
 [![Platforms](https://img.shields.io/badge/exports-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)
 [![Java](https://img.shields.io/badge/studio-Java%2021-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -12,9 +12,9 @@
 
 Build fast. Stay free. Keep full control.
 
-🌐 **Website:** https://pixscape.games/
-📘 **Documentation:** https://pixscape.games/docs
-⚙️ **Runtime:** https://github.com/pixscapegames/pixscape-runtime
+🌐 **Website:** https://pixscape.games/  
+📘 **Documentation:** https://pixscape.games/docs  
+⚙️ **Runtime:** https://github.com/pixscapegames/pixscape-runtime  
 📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
 
 <p align="center">
@@ -25,7 +25,7 @@ Build fast. Stay free. Keep full control.
 
 Pixscape Studio Free is the open-source visual editor for **Pixscape Runtime**, built for developers who want the speed of a game editor without giving up code-level control.
 
-It is designed for **LibGDX** projects and focuses on lightweight 2D production workflows: scenes, sprites, tiled maps, isometric maps, animations, particles, shaders, lights, physics, prefabs, runtime export, and 2.5D spatial ordering.
+It is designed for **LibGDX** projects and focuses on lightweight 2D production workflows: scenes, sprites, tiled and isometric maps, animations, particles, shaders, lights, physics, prefabs, runtime export, and deterministic 2.5D spatial ordering.
 
 Pixscape Studio Free is released under the **Apache License 2.0**.
 
@@ -48,7 +48,10 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * **Scene-based 2D workflow**
 * **Sprite and animation editing**
 * **Orthographic and isometric tiled maps**
-* **2.5D spatial ordering**
+* **TMX and TSX import workflows**
+* **Single-image and image collection tilesets**
+* **Tileset profiles for native-size and isometric tiles**
+* **Spatial V3 deterministic 2.5D wall and actor ordering**
 * **Prefab authoring and drag-and-drop placement**
 * **Box2D physics integration**
 * **Shader and light workflows**
@@ -66,7 +69,7 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Drag-and-drop placement
 * Multi-layer editing
 * Context menus and property panels
-* Canvas pan/zoom workflow
+* Canvas pan and zoom workflow
 * Selection, lasso, gizmo and resize tools
 * Debug console
 
@@ -77,17 +80,34 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Animation clips
 * Asset-level animation definitions
 * Runtime animation export
+* Repeatable sprites
 * 2.5D spatial properties for sprites and animations
 
 ### Tiled Maps
 
-* Orthographic tiled maps
-* Isometric tiled maps
-* Tiled animations
-* Tile flip/rotation flags compatible with TMX-style workflows
+* Orthographic and isometric tiled maps
+* TMX map import with external TSX files and inline tilesets
+* Standalone TSX import for supported single-image tilesets
+* Single-image and image collection tilesets
+* Tiled image layers imported as editable Pixscape Classic layers
+* Tiled tile-animation import and editing
+* Tileset profiles for logical cell size, native render size, projection, anchors and offsets
+* Margin and spacing support for atlas tilesets
+* Tile flip and diagonal transform flags compatible with Tiled
+* Repeatable image layers and sprites
 * Authored collision polygons
-* Spatial blocks for 2.5D ordering
+* Spatial V3 wall authoring with connected structures and junction handling
 * Layer-based rendering and depth control
+
+### Spatial V3
+
+* Deterministic actor, wall and tiled-structure ordering
+* Automatic wall structure merging and splitting
+* Precise wall footprint editing
+* Corner and junction handling for complex 2.5D structures
+* Altitude-aware walls and tiled layers
+* Physics-footprint-aware actor ordering
+* Optional Spatial-generated collision fixtures for authored walls
 
 ### Physics
 
@@ -95,17 +115,23 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Fixtures and authored shapes
 * Physics editing mode
 * Runtime physics export
-* Physics-aware spatial footprint support
+* Physics-aware actor footprints for Spatial ordering
+* Optional automatically managed wall collision fixtures
+* Custom collision-shape authoring for advanced layouts and passages
 
 ### Rendering
 
 * Pixscape Runtime export
 * Sprite and tiled rendering
+* Profile-aware tile placement
+* Native-size tile rendering with anchors and offsets
+* Repeatable renderables
 * Shader support
 * Light support
 * Particle support
 * Atlas workflows
 * Runtime asset availability
+* Preview instrumentation for texture binds, batch flushes and region-cache resolution
 
 ### Prefabs
 
@@ -124,7 +150,7 @@ Pixscape Runtime is a separate open-source runtime built on **LibGDX** and **Art
 Current runtime dependency:
 
 ```gradle
-games.pixscape:pixscape-runtime:0.1.7
+games.pixscape:pixscape-runtime:0.1.8
 ```
 
 Pixscape Runtime is published on Maven Central:
@@ -162,6 +188,18 @@ On Unix-like systems:
 
 ```sh
 ./gradlew --console=plain compileJava test :html-player:compileJava
+```
+
+To perform a complete GWT compilation of the HTML preview player:
+
+```powershell
+.\gradlew.bat :html-player:compileGwt
+```
+
+On Unix-like systems:
+
+```sh
+./gradlew :html-player:compileGwt
 ```
 
 Generated outputs such as `.gradle/`, `build/`, `html-player/build/`, and `html-player/war/` are local build artifacts and should not be committed.
