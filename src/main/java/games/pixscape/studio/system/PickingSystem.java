@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -79,6 +80,7 @@ public final class PickingSystem extends BaseSystem {
 
     private ComponentMapper<OrientedBoundsComponent> mOBB;
     private ComponentMapper<VisibilityComponent> mVis;
+    private ComponentMapper<PhysicsBodyComponent> mPhysBody;
     private ComponentMapper<PhysicsFixturesComponent> mFixDefs;
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<DimensionsComponent> mDim;
@@ -251,6 +253,19 @@ public final class PickingSystem extends BaseSystem {
         this.spatialBlockSelectionService = spatialBlockSelectionService;
         this.spatialTileSelectionService = spatialTileSelectionService;
         this.polygonDrawSession = polygonDrawSession;
+        EventFlow.i().subscribe(EventFlow.FixtureSelectionCleared.class,
+                event -> clearFixtureEditingState());
+    }
+
+    private void clearFixtureEditingState() {
+        clearFixtureMoveState();
+        clearBoxResizeState();
+        clearCircleResizeState();
+        clearPolygonVertexMoveState();
+        clearHoveredPolygonVertex();
+        if (polygonDrawSession != null && polygonDrawSession.isActive()) {
+            polygonDrawSession.cancel();
+        }
     }
 
     public void setSelectionService(SelectionService selectionService) {
@@ -1065,16 +1080,21 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (!world.getEntityManager().isActive(focusedBodyEid)
-                || !isSelectableInViewport(focusedBodyEid)) {
+                || !isSelectableInViewport(focusedBodyEid)
+                || !mPhysBody.has(focusedBodyEid)) {
+            boolean hadSelectedFixture = physicsSelectionService.hasSelectedFixture();
             physicsSelectionService.clear();
+            if (hadSelectedFixture) {
+                EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
+            }
             return;
         }
 
         int selectedFixtureId = physicsSelectionService.getSelectedFixtureId();
         if (selectedFixtureId > 0
                 && physicsService.getFixtureById(focusedBodyEid, selectedFixtureId) == null) {
-            physicsSelectionService.clearSelectionOnly();
-            EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
+            physicsSelectionService.clearSelectedFixtureIfMatches(
+                    focusedBodyEid, selectedFixtureId);
         }
     }
 
@@ -1371,6 +1391,9 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
 
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) {
@@ -1414,6 +1437,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) return false;
@@ -1436,6 +1460,9 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE)
             return InputManipulationContext.Handle.NONE;
@@ -1452,6 +1479,8 @@ public final class PickingSystem extends BaseSystem {
         if (ctx.hoveredHandle() != InputManipulationContext.Handle.E) return false;
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
+        if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
         FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
         if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) return false;
         resizingCircleActive = true;
@@ -1635,6 +1664,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         long fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return -1;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return -1;
 
         AuthoredPolygonData authored =
                 polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
@@ -1704,6 +1734,7 @@ public final class PickingSystem extends BaseSystem {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
         int fixtureId = physicsSelectionService.getSelectedFixtureId();
         if (bodyEid < 0 || fixtureId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         AuthoredPolygonData authored =
                 polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
@@ -2712,6 +2743,8 @@ public final class PickingSystem extends BaseSystem {
 
         float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
         long pickedFixtureId = pickFixtureOnBody(bodyEid, mx, my, tolWorld);
+        if (pickedFixtureId == fixtureId
+                && !isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
 
         AuthoredPolygonData authored = findAuthoredPolygonByGeneratedFixture(bodyEid, fixtureId);
 
@@ -2900,6 +2933,10 @@ public final class PickingSystem extends BaseSystem {
 
     private boolean isExplicitPhysicsEditMode() {
         return physicsSelectionService.getFocusedBodyEid() >= 0;
+    }
+
+    static boolean isFixtureGeometryEditable(World world, int bodyEid, long fixtureId) {
+        return !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId);
     }
 
     private boolean isInSelection(IntArray sel, int e) {

@@ -5,10 +5,11 @@ import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
-public final class ResizeBoxFixtureCommand implements Command, HistoryManager.SupportsNoop {
+public final class ResizeBoxFixtureCommand
+        implements Command, PreExecutionNoopCommand {
 
     private static final float EPS = 1e-6f;
 
@@ -88,6 +89,7 @@ public final class ResizeBoxFixtureCommand implements Command, HistoryManager.Su
                 || physicsSelectionService == null
                 || bodyHistoryId <= 0L
                 || fixtureId <= 0L
+                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
                 || unchanged);
     }
 

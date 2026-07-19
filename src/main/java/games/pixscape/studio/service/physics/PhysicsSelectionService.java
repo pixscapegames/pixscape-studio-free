@@ -1,5 +1,7 @@
 package games.pixscape.studio.service.physics;
 
+import games.pixscape.studio.event.EventFlow;
+
 /**
  * Shared editor state for physics selection / sub-selection.
  * <p>
@@ -131,6 +133,15 @@ public final class PhysicsSelectionService {
         clearHover();
         selectedFixtureId = NO_FIXTURE;
         selectedJointEid = NO_JOINT;
+    }
+
+    public boolean clearSelectedFixtureIfMatches(int bodyEntityId, long fixtureId) {
+        if (!isFocusedBody(bodyEntityId) || selectedFixtureId != fixtureId) {
+            return false;
+        }
+        clearSelectionOnly();
+        EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(EventFlow.tag(this)));
+        return true;
     }
 
     public void clear() {

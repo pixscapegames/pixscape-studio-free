@@ -8,6 +8,7 @@ import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.event.EventFlow;
@@ -68,6 +69,7 @@ public class PropertiesPanel extends DockablePanel {
     private final SelectionService selectionService;
     private final PhysicsSelectionService physicsSelectionService;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
     private final ComponentMapper<PhysicsFixturesComponent> mPhysFixtures;
     private final ComponentMapper<PointLightComponent> mPointLight;
     private final ComponentMapper<ConeLightComponent> mConeLight;
@@ -100,6 +102,7 @@ public class PropertiesPanel extends DockablePanel {
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
+        this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         this.mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
         this.mPointLight = world.getMapper(PointLightComponent.class);
         this.mConeLight = world.getMapper(ConeLightComponent.class);
@@ -132,7 +135,8 @@ public class PropertiesPanel extends DockablePanel {
 
         Runnable markPreviewSaveRequired = app.getSceneService()::markPreviewSaveRequired;
         layerProperties = new LayerProperties(world, canvas.getHistoryManager(), markPreviewSaveRequired);
-        sceneProperties = new SceneProperties(world, canvas.getHistoryManager(), selectionService, layerService, markPreviewSaveRequired);
+        sceneProperties = new SceneProperties(
+                world, canvas.getHistoryManager(), selectionService, layerService, markPreviewSaveRequired);
         tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
 
         contentHolder = new VisTable(true);
@@ -403,9 +407,9 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private boolean isValidBodyContext(int bodyEntityId) {
-        if (bodyEntityId < 0 || !world.getEntityManager().isActive(bodyEntityId)) return false;
-        PhysicsFixturesComponent fixtures = mPhysFixtures.getSafe(bodyEntityId, null);
-        return fixtures != null && fixtures.fixtures != null && fixtures.fixtures.size > 0;
+        return bodyEntityId >= 0
+                && world.getEntityManager().isActive(bodyEntityId)
+                && mPhysBody.has(bodyEntityId);
     }
 
     private boolean hasValidPhysicsContext() {
@@ -468,7 +472,8 @@ public class PropertiesPanel extends DockablePanel {
     public void onFixtureSelectionChanged(int bodyEntityId, long fixtureId) {
         if (fixtureId > PhysicsSelectionService.NO_FIXTURE
                 && bodyEntityId >= 0
-                && world.getEntityManager().isActive(bodyEntityId)) {
+                && world.getEntityManager().isActive(bodyEntityId)
+                && fixtureExists(bodyEntityId, fixtureId)) {
             if (bodyEntityId != boundFixtureBody || fixtureId != boundFixtureId) {
                 showFixtureProperties(bodyEntityId, fixtureId);
             } else {
@@ -478,6 +483,16 @@ public class PropertiesPanel extends DockablePanel {
             return;
         }
         restoreAfterFixtureDeselection();
+    }
+
+    private boolean fixtureExists(int bodyEntityId, long fixtureId) {
+        PhysicsFixturesComponent fixtures = mPhysFixtures.getSafe(bodyEntityId, null);
+        if (fixtures == null || fixtures.fixtures == null) return false;
+        for (int i = 0; i < fixtures.fixtures.size; i++) {
+            var fixture = fixtures.fixtures.get(i);
+            if (fixture != null && fixture.fixtureId == fixtureId) return true;
+        }
+        return false;
     }
 
     public void onSpatialBlockSelectionChanged(int layerEntityId, int blockId) {

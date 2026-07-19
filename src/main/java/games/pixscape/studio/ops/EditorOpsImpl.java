@@ -40,6 +40,7 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
@@ -824,6 +825,7 @@ public class EditorOpsImpl implements EditorOps {
     @Override
     public void beginEditPolygonFixture(int bodyEid, long fixtureId) {
         if (bodyEid < 0 || fixtureId <= 0L) return;
+        if (SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) return;
 
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);

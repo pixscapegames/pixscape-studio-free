@@ -17,11 +17,10 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
 
 final class SpatialBlockPhysicsSync {
-    private static final int SPATIAL_BLOCK_FIXTURE_ID_BASE = 1_000_000;
-
     private SpatialBlockPhysicsSync() {
     }
 
@@ -60,7 +59,7 @@ final class SpatialBlockPhysicsSync {
     }
 
     static int fixtureIdForBlock(int blockId) {
-        return SPATIAL_BLOCK_FIXTURE_ID_BASE + Math.max(1, blockId);
+        return SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId);
     }
 
     static void removeBlockFixture(World world, int layerEntityId, int blockId, Object source) {

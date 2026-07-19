@@ -9,6 +9,10 @@ public final class CommandOutcomeExecution {
         if (command instanceof OutcomeAwareCommand outcomeAware) {
             return outcomeAware.executeOutcome() == CommandOutcome.APPLIED;
         }
+        if (command instanceof PreExecutionNoopCommand noopCommand
+                && noopCommand.isNoop()) {
+            return false;
+        }
         command.redo();
         return true;
     }
@@ -42,4 +46,7 @@ interface OutcomeAwareCommand {
     CommandOutcome undoOutcome();
 
     CommandOutcome redoOutcome();
+}
+
+interface PreExecutionNoopCommand extends games.pixscape.studio.history.HistoryManager.SupportsNoop {
 }

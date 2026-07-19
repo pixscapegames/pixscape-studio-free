@@ -13,7 +13,13 @@ import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -412,6 +418,323 @@ public class SpatialBlockCommandsTest {
     }
 
     @Test
+    public void toggleOffRemovesOnlyOwnedFixtureAndUndoRestoresExactSnapshot() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(16);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData block = block(12, "Collider", 2f, 3f);
+        block.physicsCollision = true;
+        blocks.blocks.add(block);
+        SpatialBlockPhysicsSync.sync(world, layerId, block, this);
+        FixtureDefData owned = spatialFixture(world, layerId, block.id);
+        owned.density = 3.25f;
+        owned.friction = 0.73f;
+        owned.isSensor = true;
+        float[] exactVerts = owned.polyVerts.clone();
+        FixtureDefData custom = FixtureCommandSupport.createDefaultFixture();
+        int customId = custom.fixtureId;
+        world.getMapper(PhysicsFixturesComponent.class).get(layerId).fixtures.add(custom);
+        EventFlow.i().flush();
+
+        SpatialBlockData disabled = block.copy();
+        disabled.physicsCollision = false;
+        history.execute(new EditSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, block.id, block.copy(), disabled));
+
+        Assert.assertFalse(blocks.blocks.first().physicsCollision);
+        Assert.assertNull(spatialFixture(world, layerId, block.id));
+        Assert.assertNotNull(fixture(world, layerId, customId));
+        Assert.assertEquals(1, history.getCursor());
+
+        for (int i = 0; i < 3; i++) {
+            history.undo();
+            FixtureDefData restored = spatialFixture(world, layerId, block.id);
+            Assert.assertTrue(blocks.blocks.first().physicsCollision);
+            Assert.assertNotNull(restored);
+            Assert.assertArrayEquals(exactVerts, restored.polyVerts, 0f);
+            Assert.assertEquals(3.25f, restored.density, 0f);
+            Assert.assertEquals(0.73f, restored.friction, 0f);
+            Assert.assertTrue(restored.isSensor);
+            Assert.assertNotNull(fixture(world, layerId, customId));
+            history.redo();
+            Assert.assertFalse(blocks.blocks.first().physicsCollision);
+            Assert.assertNull(spatialFixture(world, layerId, block.id));
+            Assert.assertNotNull(fixture(world, layerId, customId));
+        }
+    }
+
+    @Test
+    public void deletingOwnedFixtureUsesSameAtomicToggleTransition() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
+        SelectionService selection = selectionService(world, history);
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData block = block(13, "Collider", 2f, 3f);
+        block.physicsCollision = true;
+        blocks.blocks.add(block);
+        SpatialBlockPhysicsSync.sync(world, layerId, block, this);
+        FixtureDefData owned = spatialFixture(world, layerId, block.id);
+        owned.restitution = 0.42f;
+        physicsSelection.setSelectedFixture(layerId, owned.fixtureId);
+        selection.selectOnly(layerId);
+        EventFlow.i().flush();
+        int[] coherentPublications = {0};
+        int[] selectionClearedPublications = {0};
+        EventFlow.Listener<EventFlow.PhysicsBodyStructureChanged> listener = event -> {
+            if (event.entityId() != layerId) return;
+            coherentPublications[0]++;
+            boolean enabled = blocks.blocks.first().physicsCollision;
+            Assert.assertFalse(enabled && spatialFixture(world, layerId, block.id) == null);
+        };
+        EventFlow.Listener<EventFlow.FixtureSelectionCleared> selectionListener = event ->
+                selectionClearedPublications[0]++;
+        EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, listener);
+        EventFlow.i().subscribe(EventFlow.FixtureSelectionCleared.class, selectionListener);
+
+        try {
+            history.execute(new DeleteFixtureCommand(
+                    world, history.historyIds(), physicsSelection,
+                    layerId, owned.fixtureId));
+            EventFlow.i().flush();
+
+            Assert.assertFalse(blocks.blocks.first().physicsCollision);
+            Assert.assertNull(spatialFixture(world, layerId, block.id));
+            Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
+                    physicsSelection.getSelectedFixtureId());
+            Assert.assertTrue(physicsSelection.isFocusedBody(layerId));
+            Assert.assertFalse(physicsSelection.hasHoveredFixture());
+            Assert.assertEquals(1, selection.getSelectionSnapshot().size);
+            Assert.assertEquals(1, selectionClearedPublications[0]);
+            Assert.assertEquals(1, history.getCursor());
+
+            history.undo();
+            EventFlow.i().flush();
+            Assert.assertTrue(blocks.blocks.first().physicsCollision);
+            Assert.assertEquals(owned.fixtureId, spatialFixture(world, layerId, block.id).fixtureId);
+            Assert.assertEquals(0.42f, spatialFixture(world, layerId, block.id).restitution, 0f);
+            Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
+                    physicsSelection.getSelectedFixtureId());
+            Assert.assertTrue(physicsSelection.isFocusedBody(layerId));
+            Assert.assertEquals(1, selectionClearedPublications[0]);
+
+            physicsSelection.setSelectedFixture(layerId, owned.fixtureId);
+            selection.selectOnly(layerId);
+
+            history.redo();
+            EventFlow.i().flush();
+            Assert.assertFalse(blocks.blocks.first().physicsCollision);
+            Assert.assertNull(spatialFixture(world, layerId, block.id));
+            Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
+                    physicsSelection.getSelectedFixtureId());
+            Assert.assertTrue(physicsSelection.isFocusedBody(layerId));
+            Assert.assertEquals(1, selection.getSelectionSnapshot().size);
+            Assert.assertEquals(2, selectionClearedPublications[0]);
+            Assert.assertEquals(3, coherentPublications[0]);
+        } finally {
+            EventFlow.i().unsubscribe(EventFlow.PhysicsBodyStructureChanged.class, listener);
+            EventFlow.i().unsubscribe(EventFlow.FixtureSelectionCleared.class, selectionListener);
+        }
+    }
+
+    @Test
+    public void deletingCustomFixtureDoesNotChangeSpatialFlag() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
+        SelectionService selection = selectionService(world, history);
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData block = block(17, "Collider", 2f, 3f);
+        block.physicsCollision = true;
+        blocks.blocks.add(block);
+        SpatialBlockPhysicsSync.sync(world, layerId, block, this);
+        FixtureDefData custom = FixtureCommandSupport.createDefaultFixture();
+        world.getMapper(PhysicsFixturesComponent.class).get(layerId).fixtures.add(custom);
+        physicsSelection.setSelectedFixture(layerId, custom.fixtureId);
+        selection.selectOnly(layerId);
+
+        history.execute(new DeleteFixtureCommand(
+                world, history.historyIds(), physicsSelection,
+                layerId, custom.fixtureId));
+
+        Assert.assertTrue(blocks.blocks.first().physicsCollision);
+        Assert.assertNotNull(spatialFixture(world, layerId, block.id));
+        Assert.assertNull(fixture(world, layerId, custom.fixtureId));
+        Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
+                physicsSelection.getSelectedFixtureId());
+        Assert.assertTrue(physicsSelection.isFocusedBody(layerId));
+        Assert.assertEquals(1, selection.getSelectionSnapshot().size);
+        history.undo();
+        Assert.assertTrue(blocks.blocks.first().physicsCollision);
+        Assert.assertNotNull(fixture(world, layerId, custom.fixtureId));
+        Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
+                physicsSelection.getSelectedFixtureId());
+    }
+
+    @Test
+    public void deletingUnselectedFixturePreservesUnrelatedSelection() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
+        SelectionService selection = selectionService(world, history);
+        int bodyId = tiledLayer(world);
+        history.historyIds().ensureForEntity(bodyId);
+        world.getMapper(PhysicsBodyComponent.class).create(bodyId);
+        PhysicsFixturesComponent fixtures =
+                world.getMapper(PhysicsFixturesComponent.class).create(bodyId);
+        FixtureDefData selected = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData deleted = FixtureCommandSupport.createDefaultFixture();
+        fixtures.fixtures.add(selected);
+        fixtures.fixtures.add(deleted);
+        physicsSelection.setSelectedFixture(bodyId, selected.fixtureId);
+        selection.selectOnly(bodyId);
+
+        history.execute(new DeleteFixtureCommand(
+                world, history.historyIds(), physicsSelection,
+                bodyId, deleted.fixtureId));
+
+        Assert.assertEquals(selected.fixtureId, physicsSelection.getSelectedFixtureId());
+        Assert.assertTrue(physicsSelection.isFocusedBody(bodyId));
+        Assert.assertEquals(1, selection.getSelectionSnapshot().size);
+        Assert.assertNull(fixture(world, bodyId, deleted.fixtureId));
+    }
+
+    @Test
+    public void rejectedFixtureDeletionPreservesSelectionAndHistory() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
+        SelectionService selection = selectionService(world, history);
+        int bodyId = tiledLayer(world);
+        history.historyIds().ensureForEntity(bodyId);
+        world.getMapper(PhysicsBodyComponent.class).create(bodyId);
+        PhysicsFixturesComponent fixtures =
+                world.getMapper(PhysicsFixturesComponent.class).create(bodyId);
+        FixtureDefData target = FixtureCommandSupport.createDefaultFixture();
+        fixtures.fixtures.add(target);
+        physicsSelection.setSelectedFixture(bodyId, target.fixtureId);
+        selection.selectOnly(bodyId);
+        DeleteFixtureCommand command = new DeleteFixtureCommand(
+                world, history.historyIds(), physicsSelection,
+                bodyId, target.fixtureId);
+        fixtures.fixtures.clear();
+
+        history.execute(command);
+
+        Assert.assertEquals(target.fixtureId, physicsSelection.getSelectedFixtureId());
+        Assert.assertTrue(physicsSelection.isFocusedBody(bodyId));
+        Assert.assertEquals(1, selection.getSelectionSnapshot().size);
+        Assert.assertEquals(0, history.getCursor());
+    }
+
+    @Test
+    public void ownedFixtureSilentlyRejectsGeometryButAllowsMaterial() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData block = block(14, "Collider", 2f, 3f);
+        block.physicsCollision = true;
+        blocks.blocks.add(block);
+        SpatialBlockPhysicsSync.sync(world, layerId, block, this);
+        FixtureDefData owned = spatialFixture(world, layerId, block.id);
+        physicsSelection.setSelectedFixture(layerId, owned.fixtureId);
+        Assert.assertTrue(SpatialOwnedFixtureSupport.isOwned(world, layerId, owned.fixtureId));
+        EditFixtureCommand.Snapshot before = EditFixtureCommand.Snapshot.capture(owned);
+        FixtureDefData moved = owned.copy();
+        moved.offsetX += 1f;
+        EditFixtureCommand geometry = new EditFixtureCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                before, EditFixtureCommand.Snapshot.capture(moved), 0, true);
+        Assert.assertTrue(geometry.isNoop());
+        int revisionBefore = blocks.revision;
+        history.execute(geometry);
+        Assert.assertEquals(0f, owned.offsetX, 0f);
+        Assert.assertEquals(revisionBefore, blocks.revision);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.isDirty());
+        MoveFixtureCommand move = new MoveFixtureCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                owned.offsetX, owned.offsetY, owned.offsetX + 1f, owned.offsetY);
+        Assert.assertTrue(move.isNoop());
+        history.execute(move);
+        ResizeBoxFixtureCommand resize = new ResizeBoxFixtureCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                owned.offsetX, owned.offsetY, owned.halfW, owned.halfH,
+                owned.offsetX, owned.offsetY, owned.halfW + 1f, owned.halfH);
+        Assert.assertTrue(resize.isNoop());
+        history.execute(resize);
+        MovePolygonVertexCommand moveVertex = new MovePolygonVertexCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                0, owned.polyVerts[0], owned.polyVerts[1],
+                owned.polyVerts[0] + 1f, owned.polyVerts[1]);
+        Assert.assertTrue(moveVertex.isNoop());
+        history.execute(moveVertex);
+        float[] replacementVerts = owned.polyVerts.clone();
+        replacementVerts[0] += 1f;
+        ReplacePolygonVerticesCommand replaceVertices = new ReplacePolygonVerticesCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                owned.polyVerts, owned.polyCount, replacementVerts, owned.polyCount);
+        Assert.assertTrue(replaceVertices.isNoop());
+        history.execute(replaceVertices);
+        ApplyAuthoredPolygonCommand applyPolygon = new ApplyAuthoredPolygonCommand(
+                world, history.historyIds(), physicsSelection, layerId, 1L,
+                replacementVerts, owned.polyCount, owned, owned.fixtureId);
+        Assert.assertTrue(applyPolygon.isNoop());
+        history.execute(applyPolygon);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.isDirty());
+
+        FixtureDefData material = owned.copy();
+        material.density = 9f;
+        history.execute(new EditFixtureCommand(
+                world, history.historyIds(), physicsSelection, layerId, owned.fixtureId,
+                before, EditFixtureCommand.Snapshot.capture(material), 0, false));
+        Assert.assertEquals(9f, spatialFixture(world, layerId, block.id).density, 0f);
+        Assert.assertEquals(1, history.getCursor());
+    }
+
+    @Test
+    public void removingPhysicsComponentDisablesAllSpatialFlagsAndUndoRestoresThem() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        SpatialBlockData a = block(15, "A", 2f, 3f);
+        SpatialBlockData b = block(16, "B", 4f, 3f);
+        a.physicsCollision = true;
+        b.physicsCollision = true;
+        blocks.blocks.add(a);
+        blocks.blocks.add(b);
+        SpatialBlockPhysicsSync.sync(world, layerId, a, this);
+        SpatialBlockPhysicsSync.sync(world, layerId, b, this);
+
+        history.execute(new TogglePhysicsBodyCommand(
+                world, history.historyIds(), layerId, false, PhysicsBodyComponent.STATIC, false));
+
+        Assert.assertFalse(blocks.blocks.get(0).physicsCollision);
+        Assert.assertFalse(blocks.blocks.get(1).physicsCollision);
+        Assert.assertFalse(world.getMapper(PhysicsFixturesComponent.class).has(layerId));
+        Assert.assertEquals(1, history.getCursor());
+
+        history.undo();
+        Assert.assertTrue(blocks.blocks.get(0).physicsCollision);
+        Assert.assertTrue(blocks.blocks.get(1).physicsCollision);
+        Assert.assertNotNull(spatialFixture(world, layerId, a.id));
+        Assert.assertNotNull(spatialFixture(world, layerId, b.id));
+    }
+
+    @Test
     public void fractionalFootprintUndoRedoHasNoDriftAndKeepsRefs() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
@@ -641,5 +964,23 @@ public class SpatialBlockCommandsTest {
             }
         }
         return null;
+    }
+
+    private static FixtureDefData fixture(World world, int layerId, int fixtureId) {
+        PhysicsFixturesComponent fixtures =
+                world.getMapper(PhysicsFixturesComponent.class).getSafe(layerId, null);
+        if (fixtures == null) return null;
+        for (FixtureDefData fixture : fixtures.fixtures) {
+            if (fixture != null && fixture.fixtureId == fixtureId) return fixture;
+        }
+        return null;
+    }
+
+    private static SelectionService selectionService(World world, HistoryManager history) {
+        LayerService layers = new LayerService(
+                world,
+                new TiledAllocatorService(),
+                history.historyIds());
+        return new SelectionService(world, layers);
     }
 }

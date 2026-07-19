@@ -67,7 +67,10 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         } else {
             for (int i = 0; i < component.blocks.size; i++) {
                 SpatialBlockData wall = component.blocks.get(i);
-                if (wall.physicsCollision) SpatialBlockPhysicsSync.sync(world, layer, wall, this);
+                SpatialBlockData previous = find(before, wall.id);
+                if (requiresPhysicsSync(previous, wall)) {
+                    SpatialBlockPhysicsSync.sync(world, layer, wall, this);
+                }
             }
         }
         SpatialBlockCommandSupport.markChanged(world, layer, this);
@@ -82,6 +85,25 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private static boolean hasPhysics(Array<SpatialBlockData> walls) {
         for (int i = 0; i < walls.size; i++) if (walls.get(i).physicsCollision) return true;
         return false;
+    }
+
+    private static SpatialBlockData find(Array<SpatialBlockData> walls, int blockId) {
+        for (int i = 0; i < walls.size; i++) {
+            SpatialBlockData wall = walls.get(i);
+            if (wall != null && wall.id == blockId) return wall;
+        }
+        return null;
+    }
+
+    private static boolean requiresPhysicsSync(SpatialBlockData before, SpatialBlockData after) {
+        if (after == null) return false;
+        if (before == null) return after.physicsCollision;
+        if (before.physicsCollision != after.physicsCollision) return true;
+        if (!after.physicsCollision) return false;
+        return Float.compare(before.x, after.x) != 0
+                || Float.compare(before.y, after.y) != 0
+                || Float.compare(before.width, after.width) != 0
+                || Float.compare(before.depth, after.depth) != 0;
     }
 
     private static boolean sameArrays(Array<SpatialBlockData> a, Array<SpatialBlockData> b) {

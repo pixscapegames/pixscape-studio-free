@@ -1215,6 +1215,7 @@ public final class GizmoSystem extends BaseSystem {
         }
 
         if (selectedFixture == null) return;
+        if (!PickingSystem.isFixtureGeometryEditable(world, bodyEid, selectedFixtureId)) return;
 
         AuthoredPolygonData authored = findAuthoredPolygonByGeneratedFixture(bodyEid, selectedFixtureId);
         if (authored != null) {

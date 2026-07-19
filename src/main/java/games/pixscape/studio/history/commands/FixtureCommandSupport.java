@@ -127,15 +127,6 @@ public final class FixtureCommandSupport {
         }
     }
 
-    static int pickSelectionAfterDelete(PhysicsFixturesComponent fixtures, int preferredIndex) {
-        if (fixtures == null || fixtures.fixtures.size == 0) return PhysicsSelectionService.NO_FIXTURE;
-        int index = Math.max(0, Math.min(preferredIndex, fixtures.fixtures.size - 1));
-        FixtureDefData fixture = fixtures.fixtures.get(index);
-        if (fixture == null) return PhysicsSelectionService.NO_FIXTURE;
-        FixtureIdSequence.i().ensure(fixture);
-        return fixture.fixtureId;
-    }
-
     public static void markDirty(World world, int entityId) {
         if (world == null || entityId < 0) return;
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);

@@ -7,10 +7,11 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
-public final class EditFixtureCommand implements Command, HistoryManager.SupportsNoop {
+public final class EditFixtureCommand
+        implements Command, PreExecutionNoopCommand {
 
     public static final class Snapshot {
         private final FixtureDefData data;
@@ -47,6 +48,19 @@ public final class EditFixtureCommand implements Command, HistoryManager.Support
                     && data.categoryBits == other.data.categoryBits
                     && data.maskBits == other.data.maskBits
                     && data.groupIndex == other.data.groupIndex;
+        }
+
+        public boolean sameGeometryAs(Snapshot other) {
+            if (other == null || data == null || other.data == null) return false;
+            return data.shapeType == other.data.shapeType
+                    && data.polyCount == other.data.polyCount
+                    && samePoly(data.polyVerts, other.data.polyVerts, data.polyCount)
+                    && Float.compare(data.halfW, other.data.halfW) == 0
+                    && Float.compare(data.halfH, other.data.halfH) == 0
+                    && Float.compare(data.angleDeg, other.data.angleDeg) == 0
+                    && Float.compare(data.radius, other.data.radius) == 0
+                    && Float.compare(data.offsetX, other.data.offsetX) == 0
+                    && Float.compare(data.offsetY, other.data.offsetY) == 0;
         }
 
         private static boolean samePoly(float[] a, float[] b, int count) {
@@ -110,6 +124,8 @@ public final class EditFixtureCommand implements Command, HistoryManager.Support
                 || fixtureId <= 0L
                 || before == null
                 || after == null
+                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
+                    && !before.sameGeometryAs(after)
                 || before.sameAs(after);
     }
 

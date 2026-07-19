@@ -102,6 +102,73 @@ public class HistoryManagerOutcomeTest {
         Assert.assertFalse(history.canRedo());
     }
 
+    @Test
+    public void outcomeAwareCommandTakesPrecedenceOverPreExecutionNoopMarker() {
+        HistoryManager history = new HistoryManager(8);
+        MarkedOutcomeCommand command = new MarkedOutcomeCommand();
+
+        history.execute(command);
+
+        Assert.assertEquals(1, command.executeCount);
+        Assert.assertEquals(0, command.noopCheckCount);
+        Assert.assertEquals(0, command.redoCount);
+        Assert.assertEquals(1, history.getCursor());
+        Assert.assertTrue(history.canUndo());
+    }
+
+    @Test
+    public void markedNoopSkipsRedoHistoryPublicationDirtyAndRevision() {
+        HistoryManager history = new HistoryManager(8);
+        history.execute(new TestCommand("Redo seed"));
+        history.undo();
+        int[] publications = {0};
+        int[] revision = {7};
+        history.setListener((undoSize, redoSize, undoLabel, redoLabel, dirty) -> publications[0]++);
+        MarkedCommand command = new MarkedCommand("No change", true, revision);
+
+        history.execute(command);
+
+        Assert.assertEquals(0, command.redoCount);
+        Assert.assertEquals(7, revision[0]);
+        Assert.assertEquals(0, publications[0]);
+        assertRedoOnly(history, "Redo seed");
+    }
+
+    @Test
+    public void markedNonNoopExecutesNormally() {
+        HistoryManager history = new HistoryManager(8);
+        int[] revision = {3};
+        MarkedCommand command = new MarkedCommand("Applied", false, revision);
+
+        history.execute(command);
+
+        Assert.assertEquals(1, command.redoCount);
+        Assert.assertEquals(4, revision[0]);
+        Assert.assertEquals(1, history.getCursor());
+        Assert.assertTrue(history.canUndo());
+        Assert.assertTrue(history.isDirty());
+    }
+
+    @Test
+    public void unmarkedSupportsNoopCommandRetainsLegacyDirectExecution() {
+        HistoryManager history = new HistoryManager(8);
+        LegacyNoopCommand command = new LegacyNoopCommand();
+
+        history.execute(command);
+
+        Assert.assertEquals(1, command.redoCount);
+        Assert.assertEquals(1, history.getCursor());
+        Assert.assertTrue(history.canUndo());
+    }
+
+    @Test
+    public void gizmoTransformCommandRemainsOutsidePreExecutionMarker() {
+        Assert.assertTrue(HistoryManager.SupportsNoop.class.isAssignableFrom(
+                GizmoTransformCommand.class));
+        Assert.assertFalse(PreExecutionNoopCommand.class.isAssignableFrom(
+                GizmoTransformCommand.class));
+    }
+
     private static void assertRedoOnly(HistoryManager history, String label) {
         Assert.assertEquals(0, history.getCursor());
         Assert.assertFalse(history.canUndo());
@@ -142,6 +209,51 @@ public class HistoryManagerOutcomeTest {
         }
         @Override public CommandOutcome undoOutcome() { return undoOutcome; }
         @Override public CommandOutcome redoOutcome() { return redoOutcome; }
+    }
+
+    private static final class MarkedOutcomeCommand
+            implements Command, OutcomeAwareCommand, PreExecutionNoopCommand {
+        private int executeCount;
+        private int noopCheckCount;
+        private int redoCount;
+
+        @Override public String label() { return "Marked outcome"; }
+        @Override public boolean isNoop() { noopCheckCount++; return true; }
+        @Override public void redo() { redoCount++; }
+        @Override public void undo() { }
+        @Override public CommandOutcome executeOutcome() {
+            executeCount++;
+            return CommandOutcome.APPLIED;
+        }
+        @Override public CommandOutcome undoOutcome() { return CommandOutcome.APPLIED; }
+        @Override public CommandOutcome redoOutcome() { return CommandOutcome.APPLIED; }
+    }
+
+    private static final class MarkedCommand implements Command, PreExecutionNoopCommand {
+        private final String label;
+        private final boolean noop;
+        private final int[] revision;
+        private int redoCount;
+
+        private MarkedCommand(String label, boolean noop, int[] revision) {
+            this.label = label;
+            this.noop = noop;
+            this.revision = revision;
+        }
+
+        @Override public String label() { return label; }
+        @Override public boolean isNoop() { return noop; }
+        @Override public void redo() { redoCount++; revision[0]++; }
+        @Override public void undo() { revision[0]--; }
+    }
+
+    private static final class LegacyNoopCommand implements Command, HistoryManager.SupportsNoop {
+        private int redoCount;
+
+        @Override public String label() { return "Legacy no-op"; }
+        @Override public boolean isNoop() { return true; }
+        @Override public void redo() { redoCount++; }
+        @Override public void undo() { }
     }
 
     private static final class TestCommand implements Command {

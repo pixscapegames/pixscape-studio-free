@@ -34,6 +34,7 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.prefab.PrefabAssetService;
 import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
@@ -289,7 +290,9 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(addPolygonShape);
 
-        if (selectedFixture != null && selectedFixture.shapeType == FixtureDefData.SHAPE_POLYGON) {
+        if (selectedFixture != null
+                && selectedFixture.shapeType == FixtureDefData.SHAPE_POLYGON
+                && !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) {
             menu.addSeparator();
 
             MenuItem editPolygon = new MenuItem("Edit polygon");

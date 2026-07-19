@@ -539,14 +539,14 @@ public class LayerProperties extends VisTable {
     }
 
     private void removePhysicsFromTiledLayer(int layerEntityId) {
-        new TogglePhysicsBodyCommand(
+        history.execute(new TogglePhysicsBodyCommand(
                 world,
                 history.historyIds(),
                 layerEntityId,
                 false,
                 PhysicsBodyComponent.STATIC,
                 false
-        ).redo();
+        ));
 
         EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(layerEntityId, MY_TAG));
         flagPreviewSaveRequired();
