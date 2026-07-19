@@ -3,7 +3,8 @@
 <h1>Pixscape Studio Free</h1>
 
 [![Changelog](https://img.shields.io/badge/changelog-0.2.1-orange.svg)](CHANGELOG.md)
-[![Runtime](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime?label=runtime&color=purple)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)[![Platforms](https://img.shields.io/badge/exports-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)
+[![Runtime](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg?label=runtime&color=purple)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)<br>
+[![Platforms](https://img.shields.io/badge/exports-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)
 [![Java](https://img.shields.io/badge/studio-Java%2021-blue.svg)](#)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
