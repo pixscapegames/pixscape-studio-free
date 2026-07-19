@@ -1,12 +1,13 @@
 # Changelog
 
-## 0.2.1 - Tiled Map Import (.tmx, .tsx)
+## 0.2.1 - TMX Import and Spatial V3
 
 ### Breaking changes
-- Existing Pixscape scenes created with older tiled map or spatial tiled data are no longer compatible.
-- Projects containing tiled maps should be re-imported or recreated with this version.
-- This breaking change is caused by the TMX/tiled map import pipeline changes required to support Tiled transform flags, tile animations, image collection tilesets, repeatable sprites, and improved runtime mapping.
-- Spatial tiled data was also updated to support canonical ranks, deterministic tile ordering, and junction rules for complex 2.5D structures.
+
+* Existing scenes containing legacy tiled map or Spatial tiled data are no longer compatible.
+* Affected tiled and Spatial scenes should be re-imported or recreated with this version.
+* This breaking change is caused by the TMX and tiled-map pipeline changes required to support Tiled transform flags, tile animations, image collection tilesets, repeatable sprites, tileset profiles and improved runtime mapping.
+* Spatial tiled data was also redesigned for Spatial V3, including canonical tile ranks, deterministic ordering, connected wall structures and junction rules.
 
 ### Added
 
@@ -55,6 +56,9 @@
 * Rotating a repeatable sprite now clears repeat flags so the properties panel always matches the rendered result.
 * Improved spatial wall selection, resizing, hover feedback, and connected-wall editing.
 * Improved Spatial V3 structure visualization.
+* Spatial-generated collision fixtures are now managed automatically while `Use for physics collision` is enabled.
+* Spatial-generated fixture geometry is read-only: type and offsets are locked and geometry handles are hidden, while sensor, material and filter properties remain editable.
+* Deleting a Spatial-generated collision fixture now disables `Use for physics collision` atomically; undo and redo restore the exact fixture and authored state.
 
 ### Fixed
 
@@ -71,6 +75,16 @@
 * Fixed undocked panels turning black after closing the Debug Console.
 * Fixed preview rendering for complex spatial tiled scenes with corners, wall junctions, and enclosed structures.
 * Fixed preview rendering of sprites after physics body changes through the updated runtime.
+* Fixed Spatial ordering becoming inactive after switching scenes and returning to a previously loaded Spatial scene.
+* Fixed tiled and Spatial scene activation so each scene is deserialized once before tiled reconstruction and Spatial validation.
+* Fixed Spatial layer default changes leaving compiled structures, projected faces, canonical tile ordering or Studio overlays stale.
+* Fixed rejected Spatial wall operations incorrectly advancing undo/redo history.
+* Fixed failed Spatial geometry compilation leaving geometry from the previous valid source visible in the Studio overlay.
+* Fixed tiled edits that would invalidate linked Spatial anchors being applied before validation.
+* Fixed Spatial-generated collision fixtures becoming detached editable fixtures when `Use for physics collision` was disabled.
+* Fixed deletion of a selected physics fixture leaving stale fixture properties visible; the owning body now remains active in the Properties panel.
+* Fixed recursive fixture-edit rejection dialogs causing a `StackOverflowError` when an owned fixture offset field lost focus.
+* Fixed redundant World and editor-state clearing when activating a newly imported TMX scene.
 
 ### Improved
 * Improved preview reliability for 2.5D tiled spatial scenes.
@@ -92,6 +106,7 @@
 * Added coverage for tileset profile validation, slicing layout, reference-cell defaults and preview placement helpers.
 * Added coverage for runtime tileset profile export, Preview manifest validation and Runtime Availability separation.
 * Added coverage for profile-aware Studio tiled placement and profile resolver behavior.
+* Added regression coverage for Spatial canonical ranks, scene switching, cache invalidation, rejected command history, overlay failure handling and Spatial-owned collision fixtures.
 
 ### Notes
 
