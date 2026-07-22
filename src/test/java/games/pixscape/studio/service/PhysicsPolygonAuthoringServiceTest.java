@@ -3,7 +3,6 @@ package games.pixscape.studio.service;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
@@ -15,9 +14,9 @@ public class PhysicsPolygonAuthoringServiceTest {
 
     @Test
     public void applyAuthoredPolygonReplacingFixtureCreatesAuthoringAndGeneratedFixtures() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int bodyEid = world.create();
-        FixtureDefData sourceFixture = newFixture(FixtureDefData.SHAPE_BOX);
+        FixtureDefData sourceFixture = newFixture(world, FixtureDefData.SHAPE_BOX);
         PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(bodyEid);
         fixtures.fixtures.add(sourceFixture);
 
@@ -73,11 +72,11 @@ public class PhysicsPolygonAuthoringServiceTest {
 
     @Test
     public void reapplyAndRemoveAuthoredPolygonReplacesGeneratedFixtureSet() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int bodyEid = world.create();
         PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(bodyEid);
 
-        FixtureDefData material = newFixture(FixtureDefData.SHAPE_POLYGON);
+        FixtureDefData material = newFixture(world, FixtureDefData.SHAPE_POLYGON);
         PhysicsPolygonAuthoringService service = new PhysicsPolygonAuthoringService(world);
 
         AuthoredPolygonData first = service.applyAuthoredPolygonReplacingFixture(
@@ -119,6 +118,19 @@ public class PhysicsPolygonAuthoringServiceTest {
             Assert.assertNotNull(fixtureById(fixtures, newId));
         }
 
+        int[] secondIds = second.generatedFixtureIds.clone();
+        AuthoredPolygonData unchanged = service.applyAuthoredPolygonReplacingFixture(
+                bodyEid,
+                200L,
+                new float[] {
+                        0f, 0f, 3f, 0f, 3f, 1f, 1.5f, 0.4f, 3f, 3f, 0f, 3f
+                },
+                6,
+                material,
+                -1L
+        );
+        Assert.assertArrayEquals(secondIds, unchanged.generatedFixtureIds);
+
         Assert.assertTrue(service.removeAuthoredPolygon(bodyEid, 200L));
         Assert.assertFalse(service.hasAuthoring(bodyEid));
         for (int removedId : second.generatedFixtureIds) {
@@ -126,9 +138,15 @@ public class PhysicsPolygonAuthoringServiceTest {
         }
 
         Assert.assertEquals(0, fixtures.fixtures.size);
+
+        AuthoredPolygonData later = service.applyAuthoredPolygon(
+                bodyEid, 201L, new float[]{0f, 0f, 1f, 0f, 0f, 1f}, 3);
+        for (int removedId : secondIds) {
+            Assert.assertNotEquals(removedId, later.generatedFixtureIds[0]);
+        }
     }
 
-    private static FixtureDefData newFixture(int shapeType) {
+    private static FixtureDefData newFixture(World world, int shapeType) {
         FixtureDefData fixture = new FixtureDefData();
         fixture.shapeType = shapeType;
         fixture.density = 3f;
@@ -137,7 +155,7 @@ public class PhysicsPolygonAuthoringServiceTest {
         fixture.offsetX = 0.6f;
         fixture.offsetY = -0.4f;
         fixture.angleDeg = 12f;
-        FixtureIdSequence.i().ensure(fixture);
+        fixture.fixtureId = games.pixscape.studio.FixtureIdentityTestSupport.allocate(world);
         return fixture;
     }
 

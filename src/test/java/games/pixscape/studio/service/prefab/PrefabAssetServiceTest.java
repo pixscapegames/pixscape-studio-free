@@ -25,7 +25,7 @@ import java.io.File;
 public class PrefabAssetServiceTest {
     @Test
     public void saveLoad_emptyOrSimpleGraph() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int entity = body(world);
         TransformComponent t = world.getMapper(TransformComponent.class).get(entity);
         t.x = 11f;
@@ -78,7 +78,7 @@ public class PrefabAssetServiceTest {
 
     @Test
     public void saveLoad_visibleSpritePrefabRestoresVisualComponents() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int entity = sprite(world);
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entity));
 
@@ -127,7 +127,7 @@ public class PrefabAssetServiceTest {
 
     @Test
     public void saveLoad_remapsBodyJointReferencesAfterInstantiate() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int a = body(world);
         int b = body(world);
         int j = distanceJoint(world, a, b);
@@ -168,7 +168,7 @@ public class PrefabAssetServiceTest {
 
     @Test
     public void saveLoad_remapsWheelJointReferencesAfterInstantiate() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int a = body(world);
         int b = body(world);
         int j = wheelJoint(world, a, b);
@@ -221,7 +221,7 @@ public class PrefabAssetServiceTest {
 
     @Test
     public void saveLoad_remapsGearJointReferencesAfterInstantiate() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int a = body(world);
         int b = body(world);
         int c = body(world);
@@ -265,17 +265,23 @@ public class PrefabAssetServiceTest {
 
     @Test
     public void saveLoad_preservesPhysicsAuthoringPolygons() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int e = body(world);
 
         PhysicsAuthoringComponent authoring = world.getMapper(PhysicsAuthoringComponent.class).create(e);
+        PhysicsFixturesComponent bodyFixtures = world.getMapper(PhysicsFixturesComponent.class).get(e);
+        int firstGeneratedFixtureId = bodyFixtures.fixtures.first().fixtureId;
+        FixtureDefData secondGeneratedFixture =
+                games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
+        bodyFixtures.fixtures.add(secondGeneratedFixture);
         AuthoredPolygonData polygon = new AuthoredPolygonData();
         polygon.authoringId = 77L;
         polygon.sourceCount = 5;
         polygon.sourceVerts = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
         polygon.decompositionAlgorithmVersion = 2;
         polygon.sourceHash = 12345L;
-        polygon.generatedFixtureIds = new int[]{11, 12};
+        polygon.generatedFixtureIds = new int[]{
+                firstGeneratedFixtureId, secondGeneratedFixture.fixtureId};
         ConvexPolygonPartData partA = new ConvexPolygonPartData();
         partA.count = 3;
         partA.verts = new float[]{0f, 0f, 2f, 0f, 1f, 1f};
@@ -318,7 +324,7 @@ public class PrefabAssetServiceTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void invalidPrefabTypeThrows() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         FileHandle file = tmpFile("bad-type.pixprefab");
         file.writeString(
                 "{\"type\":\"wrong\",\"version\":1,\"entities\":[]}",
@@ -331,7 +337,7 @@ public class PrefabAssetServiceTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void unsupportedVersionThrows() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         FileHandle file = tmpFile("bad-version.pixprefab");
         file.writeString(
                 "{\"type\":\"pixscape-prefab\",\"version\":2,\"entities\":[]}",
@@ -374,7 +380,7 @@ public class PrefabAssetServiceTest {
         w.getMapper(PhysicsBodyComponent.class).create(e);
 
         PhysicsFixturesComponent f = w.getMapper(PhysicsFixturesComponent.class).create(e);
-        FixtureDefData d = new FixtureDefData();
+        FixtureDefData d = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(w);
         d.shapeType = FixtureDefData.SHAPE_BOX;
         f.fixtures.add(d);
 

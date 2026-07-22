@@ -20,6 +20,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
     private final Array<SpatialBlockData> after;
     private final int blockId;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
+    private SpatialBlockPhysicsSync.LayerPhysicsState physicsAfter;
     private final CommandOutcome initialOutcome;
 
     public AddSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
@@ -37,6 +38,8 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
                 component, block, tiled != null ? tiled.data : null);
         this.after = plan.walls;
         this.blockId = addedBlockId(before, after);
+        SpatialBlockData plannedAddition = find(after, blockId);
+        if (plannedAddition != null) plannedAddition.fixtureId = 0;
         this.physicsBefore = block != null && block.physicsCollision
                 ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
@@ -71,7 +74,14 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
         SpatialBlockData added = SpatialBlockCommandSupport.find(component, blockId);
         if (selection != null) selection.selectBlock(layer, blockId);
-        if (added != null && added.physicsCollision) SpatialBlockPhysicsSync.sync(world, layer, added, this);
+        if (physicsAfter != null) {
+            physicsAfter.restore(world, layer, this);
+        } else if (added != null && added.physicsCollision) {
+            SpatialBlockPhysicsSync.sync(world, layer, added, this);
+            SpatialBlockData planned = find(after, blockId);
+            if (planned != null) planned.fixtureId = added.fixtureId;
+            physicsAfter = SpatialBlockPhysicsSync.captureLayerPhysics(world, layer);
+        }
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }
@@ -110,5 +120,13 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
             if (!found) return id;
         }
         return -1;
+    }
+
+    private static SpatialBlockData find(Array<SpatialBlockData> walls, int blockId) {
+        for (int i = 0; i < walls.size; i++) {
+            SpatialBlockData wall = walls.get(i);
+            if (wall != null && wall.id == blockId) return wall;
+        }
+        return null;
     }
 }

@@ -11,7 +11,6 @@ import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
@@ -703,7 +702,6 @@ public final class FixturesPanel extends CollapsibleWidget {
         for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
             FixtureDefData f = fixtures.fixtures.get(i);
             if (f == null) continue;
-            FixtureIdSequence.i().ensure(f);
             if (f.fixtureId == fixtureId) return f;
         }
         return null;

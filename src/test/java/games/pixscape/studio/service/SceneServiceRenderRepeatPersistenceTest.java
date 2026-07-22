@@ -39,7 +39,7 @@ public class SceneServiceRenderRepeatPersistenceTest {
         Assert.assertTrue(json.contains("repeatX"));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, sceneFile, false);
         loaded.process();
 
         IntBag repeated = loaded.getAspectSubscriptionManager()
@@ -83,7 +83,7 @@ public class SceneServiceRenderRepeatPersistenceTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, sceneFile, false);
         loaded.process();
 
         IntBag repeated = loaded.getAspectSubscriptionManager()
@@ -100,6 +100,7 @@ public class SceneServiceRenderRepeatPersistenceTest {
     }
 
     private static World worldWithSerialization() {
-        return new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+        return new World(games.pixscape.studio.FixtureIdentityTestSupport.configuration()
+                .setSystem(new WorldSerializationManager()));
     }
 }

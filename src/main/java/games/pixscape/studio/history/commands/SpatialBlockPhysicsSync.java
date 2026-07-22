@@ -17,7 +17,6 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockProjection;
 
 final class SpatialBlockPhysicsSync {
@@ -26,16 +25,26 @@ final class SpatialBlockPhysicsSync {
 
     static void sync(World world, int layerEntityId, SpatialBlockData block, Object source) {
         if (world == null || layerEntityId < 0 || block == null || block.id <= 0) return;
+        if (block.fixtureId < 0) {
+            throw new IllegalStateException("Spatial block " + block.id
+                    + " has invalid fixtureId=" + block.fixtureId);
+        }
 
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         TiledLayerComponent tiled = mTiled.getSafe(layerEntityId, null);
         if (tiled == null || tiled.data == null) {
-            removeGeneratedFixture(world, layerEntityId, block.id, source);
+            if (block.physicsCollision) {
+                throw new IllegalStateException("Cannot create collision fixture for spatial block "
+                        + block.id + ": tiled layer data is missing for entity=" + layerEntityId);
+            }
+            removeGeneratedFixture(world, layerEntityId, block.fixtureId, source);
+            block.fixtureId = 0;
             return;
         }
 
         if (!block.physicsCollision) {
-            removeGeneratedFixture(world, layerEntityId, block.id, source);
+            removeGeneratedFixture(world, layerEntityId, block.fixtureId, source);
+            block.fixtureId = 0;
             return;
         }
 
@@ -46,24 +55,26 @@ final class SpatialBlockPhysicsSync {
                 world.getMapper(PhysicsFixturesComponent.class).getSafe(layerEntityId, null);
         if (fixtures == null) return;
 
-        int fixtureId = fixtureIdForBlock(block.id);
-        FixtureDefData fixture = findFixture(fixtures, fixtureId);
-        if (fixture == null) {
-            fixture = FixtureCommandSupport.createDefaultFixture();
-            fixture.fixtureId = fixtureId;
+        FixtureDefData fixture;
+        if (block.fixtureId == 0) {
+            fixture = FixtureCommandSupport.createDefaultFixture(world);
+            block.fixtureId = fixture.fixtureId;
             fixtures.fixtures.add(fixture);
+        } else {
+            fixture = findFixture(fixtures, block.fixtureId);
+            if (fixture == null) {
+                throw new IllegalStateException("Spatial block " + block.id
+                        + " references missing fixtureId=" + block.fixtureId
+                        + " on layer entity=" + layerEntityId);
+            }
         }
 
         applyFootprintPolygon(world, layerEntityId, tiled.data, block, fixture);
         markPhysicsChanged(world, layerEntityId, source);
     }
 
-    static int fixtureIdForBlock(int blockId) {
-        return SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId);
-    }
-
-    static void removeBlockFixture(World world, int layerEntityId, int blockId, Object source) {
-        removeGeneratedFixture(world, layerEntityId, blockId, source);
+    static void removeBlockFixture(World world, int layerEntityId, int fixtureId, Object source) {
+        removeGeneratedFixture(world, layerEntityId, fixtureId, source);
     }
 
     static LayerPhysicsState captureLayerPhysics(World world, int layerEntityId) {
@@ -101,12 +112,12 @@ final class SpatialBlockPhysicsSync {
         }
     }
 
-    private static void removeGeneratedFixture(World world, int layerEntityId, int blockId, Object source) {
+    private static void removeGeneratedFixture(World world, int layerEntityId, int fixtureId, Object source) {
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).getSafe(layerEntityId, null);
         if (fixtures == null || fixtures.fixtures == null) return;
 
-        int index = indexOfFixture(fixtures, fixtureIdForBlock(blockId));
+        int index = indexOfFixture(fixtures, fixtureId);
         if (index < 0) return;
 
         fixtures.fixtures.removeIndex(index);

@@ -26,6 +26,7 @@ import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -56,6 +57,7 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImpo
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
+import games.pixscape.studio.service.physics.StudioFixtureIdentityValidator;
 import games.pixscape.studio.service.atlas.*;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
@@ -1019,6 +1021,20 @@ public final class SceneService {
     public static void saveScene(World world, FileHandle outFile, boolean contentOnly) {
         if (world == null) throw new IllegalArgumentException("world is null");
         if (outFile == null) throw new IllegalArgumentException("outFile is null");
+
+        FixtureIdAllocatorSystem fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);
+        if (fixtureIds == null) {
+            IntBag identityEntities = world.getAspectSubscriptionManager().get(Aspect.one(
+                    games.pixscape.runtime.component.physics.PhysicsFixturesComponent.class,
+                    games.pixscape.studio.component.physics.PhysicsAuthoringComponent.class))
+                    .getEntities();
+            if (identityEntities.size() > 0) {
+                throw new IllegalStateException(
+                        "FixtureIdAllocatorSystem is required to save a scene containing fixture identities");
+            }
+        } else {
+            StudioFixtureIdentityValidator.validate(world, fixtureIds.sceneMeta(), outFile.path());
+        }
 
         WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
         if (!(wsm.getSerializer() instanceof JsonArtemisSerializer)) {

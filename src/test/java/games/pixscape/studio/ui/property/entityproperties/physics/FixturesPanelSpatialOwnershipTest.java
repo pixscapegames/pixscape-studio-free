@@ -215,10 +215,7 @@ public class FixturesPanelSpatialOwnershipTest {
                 world.getMapper(PhysicsFixturesComponent.class).create(bodyEntityId);
 
         int blockId = 7;
-        FixtureDefData fixture = fixture(
-                SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId),
-                FixtureDefData.SHAPE_BOX
-        );
+        FixtureDefData fixture = fixture(42, FixtureDefData.SHAPE_BOX);
         fixture.offsetX = 0.25f;
         fixture.offsetY = -0.5f;
         fixture.friction = 0.2f;
@@ -228,6 +225,7 @@ public class FixturesPanelSpatialOwnershipTest {
             SpatialBlocksComponent blocks =
                     world.getMapper(SpatialBlocksComponent.class).create(bodyEntityId);
             SpatialBlockData block = new SpatialBlockData();
+            block.fixtureId = fixture.fixtureId;
             block.id = blockId;
             block.physicsCollision = true;
             blocks.blocks.add(block);

@@ -307,7 +307,7 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = serializableWorld();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, sceneFile, false);
 
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class))
@@ -427,6 +427,7 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     private static World serializableWorld() {
-        return new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+        return new World(games.pixscape.studio.FixtureIdentityTestSupport.configuration()
+                .setSystem(new WorldSerializationManager()));
     }
 }

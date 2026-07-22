@@ -27,8 +27,60 @@ import java.lang.reflect.Proxy;
 
 public class SpatialBlockCommandsTest {
     @Test
+    public void authoredPolygonAndSpatialBlockShareOneAllocatorWithoutLegacyCollision() {
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
+        int authoredBody = world.create();
+        games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService polygons =
+                new games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService(world);
+        games.pixscape.studio.component.physics.AuthoredPolygonData authored =
+                polygons.applyAuthoredPolygon(authoredBody, 1L,
+                        new float[]{0f, 0f, 1f, 0f, 0f, 1f}, 3);
+
+        HistoryManager history = new HistoryManager(16);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData wall = block(5, "Legacy collision candidate", 2f, 3f);
+        wall.physicsCollision = true;
+        AddSpatialBlockCommand add = new AddSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, wall);
+        history.execute(add);
+
+        SpatialBlockData created = SpatialBlockCommandSupport.find(
+                SpatialBlockCommandSupport.get(world, layerId), add.getBlockId());
+        Assert.assertNotNull(created);
+        Assert.assertEquals(1, authored.generatedFixtureIds[0]);
+        Assert.assertEquals(2, created.fixtureId);
+        Assert.assertNotEquals(authored.generatedFixtureIds[0], created.fixtureId);
+        Assert.assertNotNull(spatialFixture(world, layerId, created.id));
+
+        SpatialBlockData moved = created.copy();
+        moved.x += 1f;
+        history.execute(new EditSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, created.id, created.copy(), moved));
+        SpatialBlockData afterMove = SpatialBlockCommandSupport.find(
+                SpatialBlockCommandSupport.get(world, layerId), created.id);
+        Assert.assertEquals(2, afterMove.fixtureId);
+
+        SpatialBlockData disabled = afterMove.copy();
+        disabled.physicsCollision = false;
+        history.execute(new EditSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, created.id, afterMove.copy(), disabled));
+        SpatialBlockData afterDisable = SpatialBlockCommandSupport.find(
+                SpatialBlockCommandSupport.get(world, layerId), created.id);
+        Assert.assertEquals(0, afterDisable.fixtureId);
+
+        SpatialBlockData reenabled = afterDisable.copy();
+        reenabled.physicsCollision = true;
+        history.execute(new EditSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, created.id, afterDisable.copy(), reenabled));
+        SpatialBlockData afterReenable = SpatialBlockCommandSupport.find(
+                SpatialBlockCommandSupport.get(world, layerId), created.id);
+        Assert.assertEquals(3, afterReenable.fixtureId);
+    }
+    @Test
     public void addSpatialBlock_allocatesStableIdAndUndoRedoRestoresSelection() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -75,7 +127,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void addSpatialBlock_redoDoesNotDuplicateLinkedRefs() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -106,7 +158,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void addSpatialBlock_refusesMalformedAuthoredGeometry() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -146,7 +198,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void editSpatialBlock_updatesRuntimeDataWithUndoRedo() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -201,7 +253,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void moveSpatialBlock_onlyChangesTilePosition() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -248,7 +300,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void deleteSpatialBlock_preservesOrderOnUndo() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -293,7 +345,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void editSpatialBlockPhysicsCollision_enablesStaticLayerBodyAndAddsFootprintPolygon() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -345,7 +397,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void editSpatialBlockFootprint_updatesGeneratedCollisionPolygonAndUndoRestoresIt() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -390,7 +442,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void deleteSpatialBlock_removesGeneratedCollisionFixtureAndUndoRestoresIt() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -419,7 +471,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void toggleOffRemovesOnlyOwnedFixtureAndUndoRestoresExactSnapshot() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(16);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -434,7 +486,7 @@ public class SpatialBlockCommandsTest {
         owned.friction = 0.73f;
         owned.isSensor = true;
         float[] exactVerts = owned.polyVerts.clone();
-        FixtureDefData custom = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData custom = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         int customId = custom.fixtureId;
         world.getMapper(PhysicsFixturesComponent.class).get(layerId).fixtures.add(custom);
         EventFlow.i().flush();
@@ -468,7 +520,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void deletingOwnedFixtureUsesSameAtomicToggleTransition() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
         SelectionService selection = selectionService(world, history);
@@ -544,7 +596,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void deletingCustomFixtureDoesNotChangeSpatialFlag() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
         SelectionService selection = selectionService(world, history);
@@ -555,7 +607,7 @@ public class SpatialBlockCommandsTest {
         block.physicsCollision = true;
         blocks.blocks.add(block);
         SpatialBlockPhysicsSync.sync(world, layerId, block, this);
-        FixtureDefData custom = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData custom = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         world.getMapper(PhysicsFixturesComponent.class).get(layerId).fixtures.add(custom);
         physicsSelection.setSelectedFixture(layerId, custom.fixtureId);
         selection.selectOnly(layerId);
@@ -580,7 +632,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void deletingUnselectedFixturePreservesUnrelatedSelection() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
         SelectionService selection = selectionService(world, history);
@@ -589,8 +641,8 @@ public class SpatialBlockCommandsTest {
         world.getMapper(PhysicsBodyComponent.class).create(bodyId);
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).create(bodyId);
-        FixtureDefData selected = FixtureCommandSupport.createDefaultFixture();
-        FixtureDefData deleted = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData selected = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
+        FixtureDefData deleted = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         fixtures.fixtures.add(selected);
         fixtures.fixtures.add(deleted);
         physicsSelection.setSelectedFixture(bodyId, selected.fixtureId);
@@ -608,7 +660,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void rejectedFixtureDeletionPreservesSelectionAndHistory() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
         SelectionService selection = selectionService(world, history);
@@ -617,7 +669,7 @@ public class SpatialBlockCommandsTest {
         world.getMapper(PhysicsBodyComponent.class).create(bodyId);
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).create(bodyId);
-        FixtureDefData target = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData target = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         fixtures.fixtures.add(target);
         physicsSelection.setSelectedFixture(bodyId, target.fixtureId);
         selection.selectOnly(bodyId);
@@ -636,7 +688,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void ownedFixtureSilentlyRejectsGeometryButAllowsMaterial() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         PhysicsSelectionService physicsSelection = new PhysicsSelectionService();
         int layerId = tiledLayer(world);
@@ -705,7 +757,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void removingPhysicsComponentDisablesAllSpatialFlagsAndUndoRestoresThem() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         int layerId = tiledLayer(world);
         history.historyIds().ensureForEntity(layerId);
@@ -736,7 +788,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void fractionalFootprintUndoRedoHasNoDriftAndKeepsRefs() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -770,7 +822,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void rejectedExecuteLeavesModelRevisionAndHistoryUnchanged() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -799,7 +851,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void topologyRejectedExecuteDoesNotEnterHistory() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -823,7 +875,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void rejectedUndoStaysInUndoUntilAuthoredMapIsValidAgain() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -856,7 +908,7 @@ public class SpatialBlockCommandsTest {
 
     @Test
     public void rejectedRedoStaysRetryableWithoutRevisionOrModelChange() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager history = new HistoryManager(8);
         SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
         int layerId = tiledLayer(world);
@@ -957,7 +1009,9 @@ public class SpatialBlockCommandsTest {
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).getSafe(layerId, null);
         if (fixtures == null) return null;
-        int fixtureId = SpatialBlockPhysicsSync.fixtureIdForBlock(blockId);
+        SpatialBlockData block = SpatialBlockCommandSupport.find(
+                world.getMapper(SpatialBlocksComponent.class).getSafe(layerId, null), blockId);
+        int fixtureId = block != null ? block.fixtureId : 0;
         for (FixtureDefData fixture : fixtures.fixtures) {
             if (fixture != null && fixture.fixtureId == fixtureId) {
                 return fixture;

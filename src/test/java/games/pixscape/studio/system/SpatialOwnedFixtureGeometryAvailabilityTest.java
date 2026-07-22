@@ -20,6 +20,7 @@ public class SpatialOwnedFixtureGeometryAvailabilityTest {
         SpatialBlockData block = new SpatialBlockData();
         block.id = blockId;
         block.physicsCollision = true;
+        block.fixtureId = 42;
         world.getMapper(SpatialBlocksComponent.class)
                 .create(bodyEntityId)
                 .blocks
@@ -28,7 +29,7 @@ public class SpatialOwnedFixtureGeometryAvailabilityTest {
         assertFalse(PickingSystem.isFixtureGeometryEditable(
                 world,
                 bodyEntityId,
-                SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId)
+                block.fixtureId
         ));
         assertTrue(PickingSystem.isFixtureGeometryEditable(world, bodyEntityId, 77L));
 
@@ -36,7 +37,7 @@ public class SpatialOwnedFixtureGeometryAvailabilityTest {
         assertTrue(PickingSystem.isFixtureGeometryEditable(
                 world,
                 bodyEntityId,
-                SpatialOwnedFixtureSupport.fixtureIdForBlock(blockId)
+                block.fixtureId
         ));
     }
 }

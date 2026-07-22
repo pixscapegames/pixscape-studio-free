@@ -237,7 +237,7 @@ public class HistoryIdentityRegressionTest {
     }
 
     private static World world() {
-        return new World(new WorldConfiguration());
+        return games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
     }
 
     private static IdentityRegistry bindIdentities(World world) {
@@ -307,7 +307,7 @@ public class HistoryIdentityRegressionTest {
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
         PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(entityId);
-        FixtureDefData fixture = PhysicsService.createDefaultFixture();
+        FixtureDefData fixture = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         fixture.shapeType = FixtureDefData.SHAPE_BOX;
         fixtures.fixtures.add(fixture);
         return entityId;

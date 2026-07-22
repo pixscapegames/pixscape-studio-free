@@ -14,6 +14,8 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
@@ -25,6 +27,7 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
 import games.pixscape.studio.service.spatial.SpatialWallAuthoringValidator;
+import games.pixscape.studio.service.physics.StudioFixtureIdentityValidator;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.ui.log.StudioLog;
 
@@ -62,7 +65,14 @@ final class ResolvedSceneActivationPipeline {
     }
 
     void activate(ResolvedSceneTarget target) {
-        sceneLoader.load(world, target.sceneFile(), false);
+        FixtureIdAllocatorSystem fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);
+        if (fixtureIds != null) fixtureIds.bindScene(target.meta());
+        sceneLoader.load(world, target.sceneFile(), false, target.meta());
+        StudioFixtureIdentityValidator.validate(world, target.meta(), target.sceneFile().path());
+        if (fixtureIds == null && hasFixtureIdentityState()) {
+            throw new IllegalStateException(
+                    "FixtureIdAllocatorSystem is required to activate a scene containing fixtures");
+        }
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
         resolveTiledLayersForActivation(
@@ -391,7 +401,14 @@ final class ResolvedSceneActivationPipeline {
 
     @FunctionalInterface
     interface SceneLoadOperation {
-        void load(World world, FileHandle file, boolean editMode);
+        void load(World world, FileHandle file, boolean editMode, SceneMetaRuntime meta);
+    }
+
+    private boolean hasFixtureIdentityState() {
+        return world.getAspectSubscriptionManager().get(Aspect.one(
+                games.pixscape.runtime.component.physics.PhysicsFixturesComponent.class,
+                games.pixscape.studio.component.physics.PhysicsAuthoringComponent.class))
+                .getEntities().size() > 0;
     }
 
 }

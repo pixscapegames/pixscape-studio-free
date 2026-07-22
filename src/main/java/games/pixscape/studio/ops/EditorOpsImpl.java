@@ -760,7 +760,7 @@ public class EditorOpsImpl implements EditorOps {
     public void addBoxFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixtureTemplate();
         fixture.shapeType = FixtureDefData.SHAPE_BOX;
 
         fixture.offsetX = 0f;
@@ -780,7 +780,7 @@ public class EditorOpsImpl implements EditorOps {
     public void addCircleFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixtureTemplate();
         fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
         fixture.radius = 0.5f;
 

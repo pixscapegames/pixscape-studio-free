@@ -6,7 +6,6 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
@@ -24,7 +23,7 @@ public class ClipboardPhysicsAuthoringTest {
 
     @Test
     public void copyPastePreservesPhysicsAuthoringAndGeneratedFixtureIdsMapping() throws Exception {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         SelectionService selection = new SelectionService(world, null);
         HistoryManager history = new HistoryManager(32);
         ClipboardService clipboard = new ClipboardService(newTestCanvas(world, selection, history));
@@ -80,12 +79,12 @@ public class ClipboardPhysicsAuthoringTest {
         generatedFixture.shapeType = FixtureDefData.SHAPE_POLYGON;
         generatedFixture.polyCount = 4;
         generatedFixture.polyVerts = new float[] {0f, 0f, 2f, 0f, 2f, 1f, 0f, 1f};
-        FixtureIdSequence.i().ensure(generatedFixture);
+        generatedFixture.fixtureId = games.pixscape.studio.FixtureIdentityTestSupport.allocate(world);
         fixtures.fixtures.add(generatedFixture);
 
         FixtureDefData independent = new FixtureDefData();
         independent.shapeType = FixtureDefData.SHAPE_BOX;
-        FixtureIdSequence.i().ensure(independent);
+        independent.fixtureId = games.pixscape.studio.FixtureIdentityTestSupport.allocate(world);
         fixtures.fixtures.add(independent);
 
         PhysicsAuthoringComponent authoring = world.getMapper(PhysicsAuthoringComponent.class).create(eid);

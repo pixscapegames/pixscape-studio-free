@@ -2,7 +2,6 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -27,7 +26,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                              PhysicsSelectionService physicsSelectionService,
                              int bodyEntityId) {
         this(world, historyIds, physicsSelectionService, bodyEntityId,
-                FixtureCommandSupport.createDefaultFixture(), -1);
+                null, -1);
     }
 
     public AddFixtureCommand(World world,
@@ -56,13 +55,13 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
 
         FixtureDefData base = (template != null)
                 ? template.copy()
-                : FixtureCommandSupport.createDefaultFixture();
+                : FixtureCommandSupport.createDefaultFixtureTemplate();
 
-        this.createdFixtureId = FixtureIdSequence.i().ensure(base);
+        this.noop = (world == null || historyIds == null || physicsSelectionService == null || bodyHistoryId <= 0L);
+        this.createdFixtureId = noop ? 0 : FixtureCommandSupport.allocateNewFixtureId(world);
         base.fixtureId = createdFixtureId;
         this.template = base;
         this.insertIndex = insertIndex;
-        this.noop = (world == null || historyIds == null || physicsSelectionService == null || bodyHistoryId <= 0L);
     }
 
     @Override

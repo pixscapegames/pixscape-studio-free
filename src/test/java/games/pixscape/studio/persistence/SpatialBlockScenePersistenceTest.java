@@ -56,7 +56,8 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("\"orientation\""));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.copyHighWater(world, loaded);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, file, false);
         loaded.process();
 
         SpatialBlockData restored = restoredBlock(loaded);
@@ -109,7 +110,8 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("revision"));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.copyHighWater(world, loaded);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, file, false);
         loaded.process();
         SpatialBlockData restored = restoredBlock(loaded);
         Assert.assertEquals(0, loaded.getMapper(SpatialBlocksComponent.class)
@@ -149,8 +151,8 @@ public class SpatialBlockScenePersistenceTest {
         blocks.blocks.add(block);
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).create(layerId);
-        FixtureDefData custom = new FixtureDefData();
-        custom.fixtureId = 77;
+        FixtureDefData custom = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
+        int customFixtureId = custom.fixtureId;
         custom.shapeType = FixtureDefData.SHAPE_CIRCLE;
         custom.radius = 2.5f;
         fixtures.fixtures.add(custom);
@@ -160,7 +162,8 @@ public class SpatialBlockScenePersistenceTest {
         SceneService.saveScene(world, file, false);
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.copyHighWater(world, loaded);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, file, false);
         loaded.process();
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(SpatialBlocksComponent.class, PhysicsFixturesComponent.class))
@@ -173,7 +176,7 @@ public class SpatialBlockScenePersistenceTest {
                 .get(restoredLayer);
         Assert.assertFalse(restored.physicsCollision);
         Assert.assertEquals(1, restoredFixtures.fixtures.size);
-        Assert.assertEquals(77, restoredFixtures.fixtures.first().fixtureId);
+        Assert.assertEquals(customFixtureId, restoredFixtures.fixtures.first().fixtureId);
         Assert.assertEquals(2.5f, restoredFixtures.fixtures.first().radius, 0f);
         Assert.assertNotEquals(1_000_021, restoredFixtures.fixtures.first().fixtureId);
     }
@@ -190,8 +193,9 @@ public class SpatialBlockScenePersistenceTest {
         blocks.blocks.add(block);
         PhysicsFixturesComponent fixtures =
                 world.getMapper(PhysicsFixturesComponent.class).create(layerId);
-        FixtureDefData owned = new FixtureDefData();
-        owned.fixtureId = 1_000_022;
+        FixtureDefData owned = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
+        block.fixtureId = owned.fixtureId;
+        int ownedFixtureId = owned.fixtureId;
         owned.shapeType = FixtureDefData.SHAPE_BOX;
         owned.halfW = 0.5f;
         owned.halfH = 0.75f;
@@ -204,7 +208,8 @@ public class SpatialBlockScenePersistenceTest {
         SceneService.saveScene(world, file, false);
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        games.pixscape.studio.FixtureIdentityTestSupport.copyHighWater(world, loaded);
+        games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, file, false);
         loaded.process();
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(SpatialBlocksComponent.class, PhysicsFixturesComponent.class))
@@ -216,7 +221,8 @@ public class SpatialBlockScenePersistenceTest {
         FixtureDefData restoredFixture = loaded.getMapper(PhysicsFixturesComponent.class)
                 .get(restoredLayer).fixtures.first();
         Assert.assertTrue(restoredBlock.physicsCollision);
-        Assert.assertEquals(1_000_022, restoredFixture.fixtureId);
+        Assert.assertEquals(ownedFixtureId, restoredFixture.fixtureId);
+        Assert.assertEquals(ownedFixtureId, restoredBlock.fixtureId);
         Assert.assertTrue(restoredFixture.isSensor);
         Assert.assertEquals(0.65f, restoredFixture.friction, 0f);
     }
@@ -242,7 +248,7 @@ public class SpatialBlockScenePersistenceTest {
     }
 
     private static World worldWithSerialization() {
-        return new World(new WorldConfiguration()
+        return new World(games.pixscape.studio.FixtureIdentityTestSupport.configuration()
                 .setSystem(new WorldSerializationManager()));
     }
 

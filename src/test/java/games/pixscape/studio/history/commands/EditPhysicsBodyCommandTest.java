@@ -14,7 +14,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void editGravityScaleUndoRedoRestoresExactValues() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         int entityId = createBody(world, historyIds);
 
@@ -37,7 +37,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void editDampingUndoRedoRestoresBothDampings() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         int entityId = createBody(world, historyIds);
 
@@ -64,7 +64,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void toggleFlagsUndoRedoRestoresExactBooleanValues() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         int entityId = createBody(world, historyIds);
 
@@ -93,7 +93,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void editBodyTypeUndoRedoRestoresExactType() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         int entityId = createBody(world, historyIds);
 
@@ -117,7 +117,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void noopEditDoesNotCreateMeaningfulHistoryMutation() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         int entityId = createBody(world, historyIds);
 
@@ -137,7 +137,7 @@ public class EditPhysicsBodyCommandTest {
 
     @Test
     public void mixedChainEnableThenEditUndoRedoKeepsExactEcsValues() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(64);
 

@@ -304,7 +304,7 @@ public class SpatialBlockPropertiesTest {
     }
 
     private static Fixture fixture() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         return new Fixture(world, new HistoryManager(8), new SpatialBlockSelectionService());
     }
 

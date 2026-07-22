@@ -202,8 +202,8 @@ public class ClipboardPhysicsJointGraphTest {
     }
 
     private static final class W {
-        final World world = new World(new WorldConfiguration());
-        int bodyWithDefaultFixture() { int eid = bodyWithoutFixtures(); world.getMapper(PhysicsFixturesComponent.class).get(eid).fixtures.add(PhysicsService.createDefaultFixture()); return eid; }
+        final World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
+        int bodyWithDefaultFixture() { int eid = bodyWithoutFixtures(); world.getMapper(PhysicsFixturesComponent.class).get(eid).fixtures.add(games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world)); return eid; }
         int bodyWithoutFixtures() { int eid = world.create(); world.getMapper(TransformComponent.class).create(eid); world.getMapper(EntityIndexComponent.class).create(eid); world.getMapper(PhysicsBodyComponent.class).create(eid); world.getMapper(PhysicsFixturesComponent.class).create(eid); return eid; }
         int baseJoint(int type, int a, int b) { int eid = world.create(); world.getMapper(EntityIndexComponent.class).create(eid); PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(eid); joint.type = type; joint.aEid = a; joint.bEid = b; return eid; }
         int jointOfType(int type, int a, int b) { switch (type) { case PhysicsJointComponent.TYPE_DISTANCE: return distanceJoint(a,b); case PhysicsJointComponent.TYPE_WHEEL: return wheelJoint(a,b); case PhysicsJointComponent.TYPE_REVOLUTE: return revoluteJoint(a,b); case PhysicsJointComponent.TYPE_PRISMATIC: return prismaticJoint(a,b); case PhysicsJointComponent.TYPE_FRICTION: return frictionJoint(a,b); case PhysicsJointComponent.TYPE_MOTOR: return motorJoint(a,b); case PhysicsJointComponent.TYPE_WELD: return weldJoint(a,b); case PhysicsJointComponent.TYPE_PULLEY: return pulleyJoint(a,b); default: throw new IllegalArgumentException(); } }

@@ -38,7 +38,7 @@ public class CreateJointCommandRegressionTest {
     @Test public void createPulleyJointCommandCreatesExpectedComponentsAndValues() { assertJointCreated(PhysicsJointComponent.TYPE_PULLEY, p -> { Assert.assertTrue(p.ratio > 0f); Assert.assertTrue(p.lengthAM > 0f); Assert.assertTrue(p.lengthBM > 0f);}, PhysicsPulleyJointComponent.class); }
     @Test
     public void createWheelJointCommandPreservesSelectedBodyOrder() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
         try {
@@ -57,7 +57,7 @@ public class CreateJointCommandRegressionTest {
 
     @Test
     public void createWheelJointCommandCreatesFiniteReasonableAnchors() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
         try {
@@ -78,7 +78,7 @@ public class CreateJointCommandRegressionTest {
 
     @Test
     public void createTwoWheelJointsForCarHaveDistinctWheelEndpoints() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
         try {
@@ -103,7 +103,7 @@ public class CreateJointCommandRegressionTest {
         }
     }
     @Test public void wheelJointCreatedByRealPathHasNoEntityIndexAndNoTransform() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
         try {
@@ -125,7 +125,7 @@ public class CreateJointCommandRegressionTest {
     }
 
     private <T extends com.artemis.Component> void assertJointCreated(int type, Consumer<T> typeAssert, Class<T> specificType) {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
         try {
@@ -172,7 +172,7 @@ public class CreateJointCommandRegressionTest {
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(eid);
         PhysicsService.initDefaultBody(body);
         PhysicsFixturesComponent component = world.getMapper(PhysicsFixturesComponent.class).create(eid);
-        component.fixtures.add(PhysicsService.createDefaultFixture());
+        component.fixtures.add(games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world));
         return eid;
     }
 

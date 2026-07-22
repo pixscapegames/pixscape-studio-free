@@ -15,7 +15,7 @@ public class EntityGraphServicesTest {
 
     @Test
     public void capture_includesJointWhenBodiesSelected() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int a = body(world); int b = body(world); int j = distanceJoint(world, a, b);
 
         EntityGraphCaptureService svc = new EntityGraphCaptureService(world);
@@ -26,7 +26,7 @@ public class EntityGraphServicesTest {
 
     @Test
     public void capture_excludesJointWhenBodyMissing() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         int a = body(world); int b = body(world); int j = distanceJoint(world, a, b);
 
         EntityGraphCaptureService svc = new EntityGraphCaptureService(world);
@@ -37,7 +37,7 @@ public class EntityGraphServicesTest {
 
     @Test
     public void instantiate_remapsJointBodyReferences() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry(); reg.bind(world); reg.rebuild();
 
@@ -55,7 +55,7 @@ public class EntityGraphServicesTest {
 
     @Test
     public void instantiate_remapsGearJointReferences() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry(); reg.bind(world); reg.rebuild();
 
@@ -75,7 +75,7 @@ public class EntityGraphServicesTest {
     }
 
     private static IntArray arr(int... ids) { IntArray a = new IntArray(); for (int id : ids) a.add(id); return a; }
-    private static int body(World w){int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);w.getMapper(PhysicsBodyComponent.class).create(e);PhysicsFixturesComponent f=w.getMapper(PhysicsFixturesComponent.class).create(e);FixtureDefData d=new FixtureDefData();d.shapeType=FixtureDefData.SHAPE_BOX;f.fixtures.add(d);return e;}
+    private static int body(World w){int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);w.getMapper(PhysicsBodyComponent.class).create(e);PhysicsFixturesComponent f=w.getMapper(PhysicsFixturesComponent.class).create(e);FixtureDefData d=games.pixscape.studio.FixtureIdentityTestSupport.createFixture(w);d.shapeType=FixtureDefData.SHAPE_BOX;f.fixtures.add(d);return e;}
     private static int distanceJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_DISTANCE,a,b);w.getMapper(PhysicsDistanceJointComponent.class).create(e);return e;}
     private static int revoluteJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_REVOLUTE,a,b);w.getMapper(PhysicsRevoluteJointComponent.class).create(e);return e;}
     private static int prismaticJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_PRISMATIC,a,b);w.getMapper(PhysicsPrismaticJointComponent.class).create(e);return e;}

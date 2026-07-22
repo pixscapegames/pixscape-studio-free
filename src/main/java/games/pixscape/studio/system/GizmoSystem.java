@@ -719,8 +719,6 @@ public final class GizmoSystem extends BaseSystem {
         PhysicsFixturesComponent fixtures = physicsService.getFixturesComponent(bodyEid);
         if (fixtures == null || !fixtures.hasFixtures()) return;
 
-        physicsService.ensureFixtureIds(bodyEid);
-
         int hoveredBodyEid = physicsSelectionService.getHoveredBodyEid();
         long hoveredId = (hoveredBodyEid == bodyEid)
                 ? physicsSelectionService.getHoveredFixtureId()
@@ -1201,8 +1199,6 @@ public final class GizmoSystem extends BaseSystem {
 
         PhysicsFixturesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
         if (fixtures == null || !fixtures.hasFixtures()) return;
-
-        physicsService.ensureFixtureIds(bodyEid);
 
         FixtureDefData selectedFixture = null;
         for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {

@@ -208,7 +208,7 @@ public class EditFixtureCommandTest {
 
     @Test
     public void mixedChainEnableAddEditUndoRedoKeepsExactEcsValues() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(64);
         PhysicsSelectionService selection = new PhysicsSelectionService();
@@ -405,7 +405,7 @@ public class EditFixtureCommandTest {
         }
 
         static FixtureHarness create() {
-            World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
             HistoryIdRegistry historyIds = new HistoryIdRegistry();
             HistoryManager history = new HistoryManager(64);
             PhysicsSelectionService selection = new PhysicsSelectionService();
@@ -420,7 +420,7 @@ public class EditFixtureCommandTest {
 
             world.getMapper(PhysicsRuntimeBodyComponent.class).create(bodyEid);
             PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(bodyEid);
-            FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+            FixtureDefData fixture = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
             fixtures.fixtures.add(fixture);
 
             selection.setSelectedFixture(bodyEid, fixture.fixtureId);

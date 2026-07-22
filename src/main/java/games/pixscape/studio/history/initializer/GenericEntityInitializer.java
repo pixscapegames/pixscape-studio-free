@@ -3,6 +3,7 @@ package games.pixscape.studio.history.initializer;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
@@ -13,6 +14,7 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.ConvexPolygonPartData;
 import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
@@ -129,6 +131,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     protected boolean hasPhysicsFixtures;
     protected final Array<FixtureDefData> physFixtures = new Array<>();
+    private boolean allocateFreshFixtureIdsOnInit;
 
     // --- Physics authoring, studio-only ---
     protected boolean hasPhysicsAuthoring;
@@ -521,6 +524,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     @Override
     public void init(int e) {
+        prepareFreshFixtureIdentities();
         super.init(e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
@@ -718,7 +722,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                 if (fixture != null) fixtures.fixtures.add(fixture.copy());
             }
             if (!fixtures.hasFixtures()) {
-                fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+                FixtureDefData fixture = new FixtureDefData();
+                PhysicsService.initDefaultFixture(fixture);
+                fixture.fixtureId = fixtureIdAllocator().allocateNewFixtureId();
+                physFixtures.add(fixture.copy());
+                fixtures.fixtures.add(fixture);
             }
         }
 
@@ -1774,6 +1782,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                 copy.physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
             }
         }
+        copy.allocateFreshFixtureIdsOnInit = true;
         copy.hasPhysicsJoint = this.hasPhysicsJoint;
         copy.jointType = this.jointType;
         copy.jointAEid = this.jointAEid;
@@ -1867,6 +1876,67 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasObb = this.hasObb;
 
         return copy;
+    }
+
+    private void prepareFreshFixtureIdentities() {
+        if (!allocateFreshFixtureIdsOnInit) {
+            return;
+        }
+
+        if (physFixtures.size == 0) {
+            for (AuthoredPolygonData polygon : physAuthoringPolygons) {
+                if (polygon != null && polygon.generatedFixtureIds != null
+                        && polygon.generatedFixtureIds.length > 0) {
+                    throw new IllegalStateException(
+                            "Cannot duplicate authored fixture references without entity fixtures");
+                }
+            }
+            allocateFreshFixtureIdsOnInit = false;
+            return;
+        }
+
+        IntIntMap fixtureIdRemap = new IntIntMap();
+        FixtureIdAllocatorSystem allocator = fixtureIdAllocator();
+        for (FixtureDefData fixture : physFixtures) {
+            if (fixture == null) {
+                continue;
+            }
+            int sourceFixtureId = fixture.fixtureId;
+            if (sourceFixtureId <= 0) {
+                throw new IllegalStateException("Cannot duplicate fixture with invalid fixtureId=" + sourceFixtureId);
+            }
+            if (fixtureIdRemap.containsKey(sourceFixtureId)) {
+                throw new IllegalStateException("Cannot duplicate fixtures with duplicate fixtureId=" + sourceFixtureId);
+            }
+            int freshFixtureId = allocator.allocateNewFixtureId();
+            fixtureIdRemap.put(sourceFixtureId, freshFixtureId);
+            fixture.fixtureId = freshFixtureId;
+        }
+
+        for (AuthoredPolygonData polygon : physAuthoringPolygons) {
+            if (polygon == null || polygon.generatedFixtureIds == null) {
+                continue;
+            }
+            for (int i = 0; i < polygon.generatedFixtureIds.length; i++) {
+                int sourceFixtureId = polygon.generatedFixtureIds[i];
+                int freshFixtureId = fixtureIdRemap.get(sourceFixtureId, 0);
+                if (freshFixtureId <= 0) {
+                    throw new IllegalStateException(
+                            "Cannot duplicate authored polygon " + polygon.authoringId
+                                    + ": generated fixtureId=" + sourceFixtureId + " is not owned by the entity");
+                }
+                polygon.generatedFixtureIds[i] = freshFixtureId;
+            }
+        }
+        allocateFreshFixtureIdsOnInit = false;
+    }
+
+    private FixtureIdAllocatorSystem fixtureIdAllocator() {
+        FixtureIdAllocatorSystem allocator = world.getSystem(FixtureIdAllocatorSystem.class);
+        if (allocator == null) {
+            throw new IllegalStateException("FixtureIdAllocatorSystem is required to create fixture identities");
+        }
+        return allocator;
     }
 
     public PreviewVisualData toPreviewVisualData() {

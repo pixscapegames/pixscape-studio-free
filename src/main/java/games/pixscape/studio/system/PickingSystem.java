@@ -1956,7 +1956,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private FixtureDefData materialFromAuthoredPolygon(AuthoredPolygonData polygon) {
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixtureTemplate();
 
         fixture.shapeType = FixtureDefData.SHAPE_POLYGON;
         fixture.polyVerts = new float[0];
@@ -2155,7 +2155,7 @@ public final class PickingSystem extends BaseSystem {
             return selected.copy();
         }
 
-        FixtureDefData fallback = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData fallback = FixtureCommandSupport.createDefaultFixtureTemplate();
         fallback.shapeType = FixtureDefData.SHAPE_POLYGON;
         fallback.offsetX = 0f;
         fallback.offsetY = 0f;

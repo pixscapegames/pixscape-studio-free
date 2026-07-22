@@ -3,10 +3,11 @@ package games.pixscape.studio.history.commands;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
@@ -41,7 +42,6 @@ public final class FixtureCommandSupport {
         for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
             FixtureDefData fixture = fixtures.fixtures.get(i);
             if (fixture == null) continue;
-            FixtureIdSequence.i().ensure(fixture);
             if (fixture.fixtureId == fixtureId) return i;
         }
         return -1;
@@ -52,34 +52,25 @@ public final class FixtureCommandSupport {
         return index >= 0 ? fixtures.fixtures.get(index) : null;
     }
 
-    public static FixtureDefData createDefaultFixture() {
+    public static FixtureDefData createDefaultFixtureTemplate() {
         FixtureDefData fixture = new FixtureDefData();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
-        fixture.polyVerts = new float[0];
-        fixture.polyCount = 0;
-        fixture.halfW = 0.5f;
-        fixture.halfH = 0.5f;
-        fixture.angleDeg = 0f;
-        fixture.radius = 0.5f;
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
-        fixture.density = 1f;
-        fixture.friction = 0.2f;
-        fixture.restitution = 0f;
-        fixture.isSensor = false;
-        fixture.categoryBits = 0x0001;
-        fixture.maskBits = (short) 0xFFFF;
-        fixture.groupIndex = 0;
-        FixtureIdSequence.i().ensure(fixture);
+        PhysicsService.initDefaultFixture(fixture);
         return fixture;
     }
 
-    static FixtureDefData deepCopyWithFreshId(FixtureDefData source) {
-        if (source == null) return null;
-        FixtureDefData copy = source.copy();
-        copy.fixtureId = 0;
-        FixtureIdSequence.i().ensure(copy);
-        return copy;
+    public static FixtureDefData createDefaultFixture(World world) {
+        FixtureDefData fixture = createDefaultFixtureTemplate();
+        fixture.fixtureId = allocateNewFixtureId(world);
+        return fixture;
+    }
+
+    static int allocateNewFixtureId(World world) {
+        FixtureIdAllocatorSystem allocator = world != null
+                ? world.getSystem(FixtureIdAllocatorSystem.class) : null;
+        if (allocator == null) {
+            throw new IllegalStateException("FixtureIdAllocatorSystem is required to create a fixture.");
+        }
+        return allocator.allocateNewFixtureId();
     }
 
     static void focusAndSelect(PhysicsSelectionService selection, int bodyEid, int fixtureId) {

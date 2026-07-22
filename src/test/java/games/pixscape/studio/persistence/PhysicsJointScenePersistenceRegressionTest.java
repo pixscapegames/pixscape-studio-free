@@ -92,7 +92,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
             SceneService.saveScene(world, file, false);
 
             clearAllEntities(world);
-            SceneLoader.loadScene(world, file, false);
+            games.pixscape.studio.FixtureIdentityTestSupport.loadScene(world, file, false);
             world.process();
 
             assertWheelJointPresent(world);
@@ -132,7 +132,8 @@ public class PhysicsJointScenePersistenceRegressionTest {
             SceneService.saveScene(world, file, false);
 
             World loaded = worldWithSerialization();
-            SceneLoader.loadScene(loaded, file, false);
+            games.pixscape.studio.FixtureIdentityTestSupport.copyHighWater(world, loaded);
+            games.pixscape.studio.FixtureIdentityTestSupport.loadScene(loaded, file, false);
             loaded.process();
 
             for (int type : jointTypes) {
@@ -150,7 +151,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
     }
 
     private static World worldWithSerialization() {
-        return new World(new WorldConfiguration()
+        return new World(games.pixscape.studio.FixtureIdentityTestSupport.configuration()
                 .setSystem(new WorldSerializationManager()));
     }
 
@@ -171,7 +172,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
         PhysicsService.initDefaultBody(body);
 
         PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(eid);
-        fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+        fixtures.fixtures.add(games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world));
 
         return eid;
     }

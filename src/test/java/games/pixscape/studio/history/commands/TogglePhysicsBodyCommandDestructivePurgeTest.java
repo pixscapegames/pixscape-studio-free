@@ -16,7 +16,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void destructivePurgeClassicBodyRemovesBodyFixturesJointsRuntimeAndHistoryBindings() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         int bodyA = createBody(world, historyIds);
@@ -52,7 +52,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void destructivePurgeTiledLayerRemovesCollisionPhysicsAndReferencedJoints() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         int tiledLayer = createBody(world, historyIds);
@@ -84,7 +84,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void destructivePurgeBodyReferencedByJointDeletesDependentJointAndKeepsOtherBodyValid() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         int bodyA = createBody(world, historyIds);
@@ -113,7 +113,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void recreateAfterDestructivePurgeStartsFromCleanBaselineWithoutFixtureOrJointDuplication() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         int bodyA = createBody(world, historyIds);
@@ -151,7 +151,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void repeatedDestructivePurgeOnAlreadyCleanBodyIsSafeAndIdempotent() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         int body = createBody(world, historyIds);
@@ -185,7 +185,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
 
     @Test
     public void destructivePurgeThroughHistoryManager_undoRedoRestoresAndReappliesCleanState() {
-        World world = new World(new WorldConfiguration());
+        World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(16);
 
@@ -241,7 +241,7 @@ public class TogglePhysicsBodyCommandDestructivePurgeTest {
         body.enabled = true;
 
         PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(entityId);
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+        FixtureDefData fixture = games.pixscape.studio.FixtureIdentityTestSupport.createFixture(world);
         fixtures.fixtures.add(fixture);
 
         return entityId;

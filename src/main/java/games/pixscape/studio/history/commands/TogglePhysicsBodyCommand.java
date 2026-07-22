@@ -10,7 +10,6 @@ import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
@@ -36,6 +35,7 @@ public final class TogglePhysicsBodyCommand implements Command {
     private final boolean hasDefaultFixture;
     private final PhysicsBodyState bodySnapshot;
     private final PhysicsFixturesState fixturesSnapshot;
+    private FixtureDefData defaultFixture;
     private final List<DeleteJointCommand> dependentJointCommands;
     private final IntArray spatialPhysicsBlockIds = new IntArray();
 
@@ -159,7 +159,10 @@ public final class TogglePhysicsBodyCommand implements Command {
         if (fixturesSnapshot != null) {
             fixturesSnapshot.apply(fixtures);
         } else if (hasDefaultFixture) {
-            fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+            if (defaultFixture == null) {
+                defaultFixture = FixtureCommandSupport.createDefaultFixture(world);
+            }
+            fixtures.fixtures.add(defaultFixture.copy());
         }
 
         historyIds.ensureForEntity(entityId);

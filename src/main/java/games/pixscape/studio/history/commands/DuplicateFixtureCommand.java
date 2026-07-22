@@ -20,7 +20,7 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
         PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
         int sourceIndex = FixtureCommandSupport.indexOfFixture(fixtures, sourceFixtureId);
         FixtureDefData source = (sourceIndex >= 0) ? fixtures.fixtures.get(sourceIndex) : null;
-        FixtureDefData duplicate = FixtureCommandSupport.deepCopyWithFreshId(source);
+        FixtureDefData duplicate = source != null ? source.copy() : null;
 
         this.noop = (source == null || duplicate == null);
         this.delegate = new AddFixtureCommand(

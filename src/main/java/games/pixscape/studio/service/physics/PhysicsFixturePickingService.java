@@ -3,7 +3,6 @@ package games.pixscape.studio.service.physics;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.service.PhysicsService;
 
@@ -35,8 +34,6 @@ public final class PhysicsFixturePickingService {
         for (int i = fixtures.fixtures.size - 1; i >= 0; i--) {
             FixtureDefData fixture = fixtures.fixtures.get(i);
             if (fixture == null) continue;
-
-            FixtureIdSequence.i().ensure(fixture);
 
             if (hitTestFixture(bodyEid, fixture, worldX, worldY, toleranceWU, verts)) {
                 return fixture.fixtureId;

@@ -131,7 +131,8 @@ public final class TmxSceneImportService {
                     plan,
                     importedAssets.cellLogicalIdsByTileset(),
                     importedAssets.imageAssetsBySourceLayer(),
-                    createdSceneTag
+                    createdSceneTag,
+                    meta
             );
 
             projectDir.child(StudioFs.DIR_SCENES).mkdirs();
@@ -328,8 +329,11 @@ public final class TmxSceneImportService {
     private World buildImportedWorld(TmxImportPlan plan,
                                      Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
                                      Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
-                                     String sceneTag) {
-        World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+                                     String sceneTag,
+                                     SceneMeta sceneMeta) {
+        World world = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager())
+                .setSystem(new games.pixscape.runtime.system.FixtureIdAllocatorSystem(sceneMeta)));
         int layerIndex = 0;
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {

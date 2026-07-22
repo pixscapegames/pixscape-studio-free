@@ -4,10 +4,10 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.ConvexPolygonPartData;
 import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
@@ -81,11 +81,13 @@ public final class PhysicsPolygonAuthoringService {
         }
 
         int[] previousGeneratedIds = safeCopy(polygon.generatedFixtureIds);
+        Array<ConvexPolygonPartData> previousParts = copyParts(polygon.convexParts);
 
         removeGeneratedFixtures(fixtures, previousGeneratedIds);
         copyBuildToAuthoredPolygon(build, polygon);
 
-        int[] generatedIds = materializeFixtures(fixtures, polygon, previousGeneratedIds);
+        int[] generatedIds = materializeFixtures(
+                fixtures, polygon, previousParts, previousGeneratedIds, 0);
         polygon.generatedFixtureIds = generatedIds;
 
         markPhysicsDirty(bodyEntityId);
@@ -241,16 +243,19 @@ public final class PhysicsPolygonAuthoringService {
         }
     }
 
-    private static int[] materializeFixtures(
+    private int[] materializeFixtures(
             PhysicsFixturesComponent fixtures,
             AuthoredPolygonData polygon,
-            int[] preferredFixtureIds
+            Array<ConvexPolygonPartData> previousParts,
+            int[] previousFixtureIds,
+            int replacementFixtureId
     ) {
         if (fixtures == null || polygon == null || polygon.convexParts == null) {
             return new int[0];
         }
 
         int[] generatedIds = new int[polygon.convexParts.size];
+        boolean[] previousUsed = previousParts != null ? new boolean[previousParts.size] : new boolean[0];
 
         for (int i = 0; i < polygon.convexParts.size; i++) {
             ConvexPolygonPartData part = polygon.convexParts.get(i);
@@ -260,11 +265,14 @@ public final class PhysicsPolygonAuthoringService {
 
             FixtureDefData fixture = new FixtureDefData();
 
-            if (preferredFixtureIds != null && i < preferredFixtureIds.length && preferredFixtureIds[i] > 0L) {
-                fixture.fixtureId = preferredFixtureIds[i];
+            int restoredFixtureId = matchingPreviousFixtureId(
+                    part, i, polygon.convexParts.size,
+                    previousParts, previousFixtureIds, previousUsed);
+            if (restoredFixtureId == 0 && i == 0 && replacementFixtureId > 0) {
+                restoredFixtureId = replacementFixtureId;
             }
-
-            FixtureIdSequence.i().ensure(fixture);
+            fixture.fixtureId = restoredFixtureId > 0
+                    ? restoredFixtureId : allocateNewFixtureId();
 
             fixture.shapeType = FixtureDefData.SHAPE_POLYGON;
             fixture.polyCount = part.count;
@@ -303,8 +311,6 @@ public final class PhysicsPolygonAuthoringService {
             if (fixture == null) {
                 continue;
             }
-
-            FixtureIdSequence.i().ensure(fixture);
 
             if (contains(generatedFixtureIds, fixture.fixtureId)) {
                 fixtures.fixtures.removeIndex(i);
@@ -348,6 +354,7 @@ public final class PhysicsPolygonAuthoringService {
         }
 
         int[] previousGeneratedIds = safeCopy(polygon.generatedFixtureIds);
+        Array<ConvexPolygonPartData> previousParts = copyParts(polygon.convexParts);
 
         removeGeneratedFixtures(fixtures, previousGeneratedIds);
 
@@ -356,12 +363,14 @@ public final class PhysicsPolygonAuthoringService {
                 throw new IllegalArgumentException("fixtureIdToReplace exceeds int range: " + fixtureIdToReplace);
             }
             removeFixtureById(fixtures, fixtureIdToReplace);
-            previousGeneratedIds = new int[]{(int) fixtureIdToReplace};
         }
 
         copyBuildToAuthoredPolygon(build, polygon);
 
-        int[] generatedIds = materializeFixtures(fixtures, polygon, previousGeneratedIds);
+        int replacementFixtureId = creating && fixtureIdToReplace > 0L
+                ? (int) fixtureIdToReplace : 0;
+        int[] generatedIds = materializeFixtures(
+                fixtures, polygon, previousParts, previousGeneratedIds, replacementFixtureId);
         polygon.generatedFixtureIds = generatedIds;
 
         markPhysicsDirty(bodyEntityId);
@@ -393,8 +402,6 @@ public final class PhysicsPolygonAuthoringService {
         for (int i = fixtures.fixtures.size - 1; i >= 0; i--) {
             FixtureDefData fixture = fixtures.fixtures.get(i);
             if (fixture == null) continue;
-
-            FixtureIdSequence.i().ensure(fixture);
 
             if (fixture.fixtureId == fixtureId) {
                 fixtures.fixtures.removeIndex(i);
@@ -445,6 +452,65 @@ public final class PhysicsPolygonAuthoringService {
         }
 
         return false;
+    }
+
+    private static Array<ConvexPolygonPartData> copyParts(Array<ConvexPolygonPartData> source) {
+        Array<ConvexPolygonPartData> copy = new Array<>();
+        if (source == null) return copy;
+        for (ConvexPolygonPartData part : source) {
+            if (part == null) {
+                copy.add(null);
+                continue;
+            }
+            ConvexPolygonPartData cloned = new ConvexPolygonPartData();
+            cloned.count = part.count;
+            cloned.verts = copyVerts(part.verts, part.count);
+            copy.add(cloned);
+        }
+        return copy;
+    }
+
+    private static int matchingPreviousFixtureId(ConvexPolygonPartData candidate,
+                                                 int candidateIndex,
+                                                 int newPartCount,
+                                                 Array<ConvexPolygonPartData> previousParts,
+                                                 int[] previousFixtureIds,
+                                                 boolean[] previousUsed) {
+        if (candidate == null || previousParts == null || previousFixtureIds == null) return 0;
+        int count = Math.min(previousParts.size, previousFixtureIds.length);
+        for (int i = 0; i < count; i++) {
+            if (previousUsed[i] || previousFixtureIds[i] <= 0) continue;
+            if (samePart(candidate, previousParts.get(i))) {
+                previousUsed[i] = true;
+                return previousFixtureIds[i];
+            }
+        }
+        if (previousParts.size == newPartCount
+                && candidateIndex >= 0 && candidateIndex < count
+                && !previousUsed[candidateIndex]
+                && previousFixtureIds[candidateIndex] > 0) {
+            previousUsed[candidateIndex] = true;
+            return previousFixtureIds[candidateIndex];
+        }
+        return 0;
+    }
+
+    private static boolean samePart(ConvexPolygonPartData a, ConvexPolygonPartData b) {
+        if (a == null || b == null || a.count != b.count || a.verts == null || b.verts == null) return false;
+        int length = a.count * 2;
+        if (a.verts.length < length || b.verts.length < length) return false;
+        for (int i = 0; i < length; i++) {
+            if (Float.compare(a.verts[i], b.verts[i]) != 0) return false;
+        }
+        return true;
+    }
+
+    private int allocateNewFixtureId() {
+        FixtureIdAllocatorSystem allocator = world.getSystem(FixtureIdAllocatorSystem.class);
+        if (allocator == null) {
+            throw new IllegalStateException("FixtureIdAllocatorSystem is required to materialize a polygon fixture.");
+        }
+        return allocator.allocateNewFixtureId();
     }
 
     private static int[] compactIds(int[] ids) {

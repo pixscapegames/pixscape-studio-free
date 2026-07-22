@@ -20,6 +20,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
+    private SpatialBlockPhysicsSync.LayerPhysicsState physicsAfter;
     private final CommandOutcome initialOutcome;
 
     public EditSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
@@ -38,6 +39,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.edit(
                 component, blockId, replacement, tiled != null ? tiled.data : null);
         this.after = plan.walls;
+        clearFixtureIdsForNewBlocks(before, after);
         this.physicsBefore = hasPhysics(before) || hasPhysics(after)
                 ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
@@ -64,7 +66,16 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         if (selection != null) selection.selectBlock(layer, blockId);
         if (restorePhysics && physicsBefore != null) {
             physicsBefore.restore(world, layer, this);
+        } else if (physicsAfter != null) {
+            physicsAfter.restore(world, layer, this);
         } else {
+            for (int i = 0; i < before.size; i++) {
+                SpatialBlockData previous = before.get(i);
+                if (previous != null && find(after, previous.id) == null && previous.fixtureId > 0) {
+                    SpatialBlockPhysicsSync.removeBlockFixture(
+                            world, layer, previous.fixtureId, this);
+                }
+            }
             for (int i = 0; i < component.blocks.size; i++) {
                 SpatialBlockData wall = component.blocks.get(i);
                 SpatialBlockData previous = find(before, wall.id);
@@ -72,6 +83,8 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
                     SpatialBlockPhysicsSync.sync(world, layer, wall, this);
                 }
             }
+            copyFixtureIds(component.blocks, after);
+            physicsAfter = SpatialBlockPhysicsSync.captureLayerPhysics(world, layer);
         }
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
@@ -112,5 +125,22 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
             if (!SpatialBlockCommandSupport.same(a.get(i), b.get(i))) return false;
         }
         return true;
+    }
+
+    private static void clearFixtureIdsForNewBlocks(Array<SpatialBlockData> before,
+                                                    Array<SpatialBlockData> after) {
+        for (int i = 0; i < after.size; i++) {
+            SpatialBlockData wall = after.get(i);
+            if (wall != null && find(before, wall.id) == null) wall.fixtureId = 0;
+        }
+    }
+
+    private static void copyFixtureIds(Array<SpatialBlockData> source,
+                                       Array<SpatialBlockData> target) {
+        for (int i = 0; i < target.size; i++) {
+            SpatialBlockData targetWall = target.get(i);
+            SpatialBlockData sourceWall = targetWall != null ? find(source, targetWall.id) : null;
+            if (sourceWall != null) targetWall.fixtureId = sourceWall.fixtureId;
+        }
     }
 }

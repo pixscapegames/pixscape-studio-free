@@ -11,6 +11,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.ProjectFileCleanupService;
+import games.pixscape.studio.service.physics.StudioFixtureSceneJsonValidator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -64,6 +65,8 @@ public final class RuntimeExport {
         if (studioCfg.projectFileName == null || studioCfg.projectFileName.isBlank()) {
             throw new GdxRuntimeException("studioCfg.projectFileName is blank");
         }
+
+        validateFixtureIdentitiesBeforeExport(studioCfg, studioProjectDir);
 
         // 0) runtime root dir = <userProjectDir>/pixscape-project
         FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
@@ -207,6 +210,24 @@ public final class RuntimeExport {
         saveProject(out, runtimeDir, studioCfg);
 
         return out;
+    }
+
+    private static void validateFixtureIdentitiesBeforeExport(ProjectConfig studioCfg,
+                                                              FileHandle studioProjectDir) {
+        ObjectMap<String, SceneMeta> scenes = studioCfg.getScenesMap();
+        if (scenes == null || scenes.size == 0) {
+            throw new GdxRuntimeException("No scenes to export (studio config has empty scenes map).");
+        }
+        FileHandle scenesDir = studioProjectDir.child(StudioFs.DIR_SCENES);
+        for (ObjectMap.Entry<String, SceneMeta> entry : scenes) {
+            SceneMeta meta = entry.value;
+            String file = meta != null ? RuntimeFs.filenameOnly(meta.file) : null;
+            if (file == null || file.isBlank()) {
+                throw new GdxRuntimeException("Scene '" + entry.key + "' has no file; cannot export.");
+            }
+            StudioFixtureSceneJsonValidator.validate(
+                    scenesDir.child(file), meta, entry.key);
+        }
     }
 
     private static void copyRuntimeShaderResources(FileHandle shadersDir) {

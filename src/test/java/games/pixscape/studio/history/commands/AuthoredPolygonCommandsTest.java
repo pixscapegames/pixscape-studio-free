@@ -3,7 +3,6 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
@@ -221,7 +220,7 @@ public class AuthoredPolygonCommandsTest {
     }
 
     private static final class Harness {
-        final World world = new World(new WorldConfiguration());
+        final World world = games.pixscape.studio.FixtureIdentityTestSupport.newWorld();
         final HistoryIdRegistry historyIds = new HistoryIdRegistry();
         final PhysicsSelectionService selection = new PhysicsSelectionService();
         final int bodyEid = world.create();
@@ -241,7 +240,7 @@ public class AuthoredPolygonCommandsTest {
             fixture.density = 1.7f;
             fixture.friction = 0.52f;
             fixture.restitution = 0.13f;
-            FixtureIdSequence.i().ensure(fixture);
+            fixture.fixtureId = games.pixscape.studio.FixtureIdentityTestSupport.allocate(world);
             world.getMapper(PhysicsFixturesComponent.class).get(bodyEid).fixtures.add(fixture);
             return fixture;
         }

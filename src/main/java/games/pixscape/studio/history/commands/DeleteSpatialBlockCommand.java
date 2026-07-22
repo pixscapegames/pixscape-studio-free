@@ -20,6 +20,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
+    private final int removedFixtureId;
     private final CommandOutcome initialOutcome;
 
     public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
@@ -33,6 +34,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         SpatialBlocksComponent component = world != null ? SpatialBlockCommandSupport.get(world, layerEntityId) : null;
         this.before = SpatialBlockCommandSupport.snapshot(component);
         SpatialBlockData removed = SpatialBlockCommandSupport.find(component, blockId);
+        this.removedFixtureId = removed != null ? removed.fixtureId : 0;
         this.physicsBefore = removed != null && removed.physicsCollision
                 ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         TiledLayerComponent tiled = world != null
@@ -71,7 +73,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
                 world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
-        SpatialBlockPhysicsSync.removeBlockFixture(world, layer, blockId, this);
+        SpatialBlockPhysicsSync.removeBlockFixture(world, layer, removedFixtureId, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }
