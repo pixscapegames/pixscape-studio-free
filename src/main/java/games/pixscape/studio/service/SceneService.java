@@ -822,7 +822,7 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", this::finishSaveWithoutScene));
         } else {
             steps.add(SaveProgressRunner.Step.async(0.25f, "Repacking atlas...",
-                    (progress, next) -> maybeRepackAtlasAsync(plan, progress, next)));
+                    (progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)));
             steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
             steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
             steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
@@ -1443,7 +1443,8 @@ public final class SceneService {
 
     private void maybeRepackAtlasAsync(SaveExecutionPlan plan,
                                        SaveProgressRunner.ProgressHandle progress,
-                                       Runnable onDone) {
+                                       Runnable onDone,
+                                       java.util.function.Consumer<Throwable> onError) {
         if (!plan.hasSceneToSave() || !EditorSettings.get().autoRepackAtlases) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
             onDone.run();
@@ -1477,7 +1478,7 @@ public final class SceneService {
         if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
             Gdx.app.log("AtlasStudioService",
                     "Save atlas repack using pending pack scene=" + canonicalTag);
-            waitForAsyncPackCompletion(canonicalTag, progress, onDone);
+            waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
             return;
         }
 
@@ -1488,7 +1489,7 @@ public final class SceneService {
                 AsyncAtlasRepackCoordinator.RepackReason.SAVE
         );
 
-        waitForAsyncPackCompletion(canonicalTag, progress, onDone);
+        waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
     }
 
     private AtlasInputSyncResult syncSceneAtlasInputForSave(SaveExecutionPlan plan) {
@@ -1579,28 +1580,37 @@ public final class SceneService {
 
     private void waitForAsyncPackCompletion(String canonicalTag,
                                             SaveProgressRunner.ProgressHandle progress,
-                                            Runnable onDone) {
-        atlasStudioService.updateAsyncPack();
-        atlasStudioService.applyIfPackReady();
+                                            Runnable onDone,
+                                            java.util.function.Consumer<Throwable> onError) {
+        try {
+            atlasStudioService.updateAsyncPack();
+            atlasStudioService.applyIfPackReady();
 
-        if (atlasStudioService.isPackInProgress()) {
-            progress.update(0.45f, "Repacking atlas (1/1)...");
-        } else if (atlasStudioService.isPackRequested()) {
-            progress.update(0.35f, "Waiting atlas repack slot (1/1)...");
-        }
-
-        if (!canvas.getAtlasService().hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
-            progress.update(0.60f, "Repacking atlas (1/1): done");
-            onDone.run();
-            return;
-        }
-
-        Timer.schedule(new com.badlogic.gdx.utils.Timer.Task() {
-            @Override
-            public void run() {
-                waitForAsyncPackCompletion(canonicalTag, progress, onDone);
+            if (atlasStudioService.isPackInProgress()) {
+                progress.update(0.45f, "Repacking atlas (1/1)...");
+            } else if (atlasStudioService.isPackRequested()) {
+                progress.update(0.35f, "Waiting atlas repack slot (1/1)...");
             }
-        }, 1f / 60f);
+
+            if (!canvas.getAtlasService().hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
+                progress.update(0.60f, "Repacking atlas (1/1): done");
+                onDone.run();
+                return;
+            }
+
+            Timer.schedule(new com.badlogic.gdx.utils.Timer.Task() {
+                @Override
+                public void run() {
+                    waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+                }
+            }, 1f / 60f);
+        } catch (Throwable t) {
+            if (onError != null) {
+                onError.accept(t);
+            } else {
+                Gdx.app.error("SceneManager", "Async atlas save step failed", t);
+            }
+        }
     }
 
     private void repackSceneAtlas(ProjectConfig cfg,

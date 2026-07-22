@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 - Save Progress Reliability
+
+### Fixed
+
+* Prevented asynchronous save failures from leaving the modal save-progress dialog open indefinitely.
+
 ## 0.2.1 - TMX Import and Spatial V3
 
 ### Breaking changes

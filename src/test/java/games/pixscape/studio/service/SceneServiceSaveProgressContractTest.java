@@ -37,6 +37,17 @@ public class SceneServiceSaveProgressContractTest {
     }
 
     @Test
+    public void asyncAtlasProgress_propagatesDeferredFailuresToRunner() throws Exception {
+        String source = readSceneServiceSource();
+        String saveBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
+        String waitBody = methodBody(source, "private void waitForAsyncPackCompletion(");
+
+        assertTrue(saveBody.contains("(progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)"));
+        assertTrue(waitBody.contains("catch (Throwable t)"));
+        assertTrue(waitBody.contains("onError.accept(t)"));
+    }
+
+    @Test
     public void saveProjectAndCurrentSceneWithProgress_requiresRuntimeExportSuccess() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
