@@ -14,7 +14,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
-final class PhysicsAuthoringBodySnapshot {
+public final class PhysicsAuthoringBodySnapshot {
 
     private final boolean hadFixtures;
     private final Array<FixtureDefData> fixtures = new Array<>();
@@ -32,9 +32,9 @@ final class PhysicsAuthoringBodySnapshot {
         this.selectedFixtureId = selectedFixtureId;
     }
 
-    static PhysicsAuthoringBodySnapshot capture(World world,
-                                                PhysicsSelectionService selection,
-                                                int bodyEid) {
+    public static PhysicsAuthoringBodySnapshot capture(World world,
+                                                       PhysicsSelectionService selection,
+                                                       int bodyEid) {
         boolean hadFixtures = false;
         boolean hadAuthoring = false;
 

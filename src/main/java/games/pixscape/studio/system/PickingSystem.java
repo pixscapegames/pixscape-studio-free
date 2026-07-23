@@ -189,6 +189,7 @@ public final class PickingSystem extends BaseSystem {
     private boolean movingAuthoredPolygonVertexActive = false;
     private float[] movingAuthoredPolygonBeforeVerts = new float[0];
     private int movingAuthoredPolygonBeforeCount = 0;
+    private PhysicsAuthoringBodySnapshot movingAuthoredPolygonBeforeSnapshot = null;
 
     private boolean movingSpatialBlockActive = false;
     private int movingSpatialBlockLayerEid = -1;
@@ -1759,6 +1760,8 @@ public final class PickingSystem extends BaseSystem {
             movingAuthoredPolygonId = authored.authoringId;
             movingAuthoredPolygonBeforeCount = authored.sourceCount;
             movingAuthoredPolygonBeforeVerts = copyVerts(authored.sourceVerts, authored.sourceCount);
+            movingAuthoredPolygonBeforeSnapshot = PhysicsAuthoringBodySnapshot.capture(
+                    world, physicsSelectionService, bodyEid);
 
             movingPolygonVertexBeforeX = authored.sourceVerts[base];
             movingPolygonVertexBeforeY = authored.sourceVerts[base + 1];
@@ -2014,7 +2017,8 @@ public final class PickingSystem extends BaseSystem {
                     authored.sourceVerts,
                     authored.sourceCount,
                     materialSource,
-                    true // after already applied live during drag
+                    true, // after already applied live during drag
+                    movingAuthoredPolygonBeforeSnapshot
             );
 
             if (!cmd.isNoop()) {
@@ -2068,6 +2072,7 @@ public final class PickingSystem extends BaseSystem {
         movingAuthoredPolygonId = 0L;
         movingAuthoredPolygonBeforeVerts = new float[0];
         movingAuthoredPolygonBeforeCount = 0;
+        movingAuthoredPolygonBeforeSnapshot = null;
     }
 
     private void commitPolygonDrawSession() {

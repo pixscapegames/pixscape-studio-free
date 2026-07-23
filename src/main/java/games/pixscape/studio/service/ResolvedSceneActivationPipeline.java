@@ -66,7 +66,7 @@ final class ResolvedSceneActivationPipeline {
 
     void activate(ResolvedSceneTarget target) {
         FixtureIdAllocatorSystem fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);
-        if (fixtureIds != null) fixtureIds.bindScene(target.meta());
+        if (fixtureIds != null) fixtureIds.bind(target.meta());
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         StudioFixtureIdentityValidator.validate(world, target.meta(), target.sceneFile().path());
         if (fixtureIds == null && hasFixtureIdentityState()) {

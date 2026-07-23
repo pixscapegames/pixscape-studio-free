@@ -567,6 +567,7 @@ public final class SceneService {
             }
 
             ProjectConfig.setInstance(cfg);
+            bindFixtureAllocator(meta);
 
             projectDir = StudioFs.requireStudioProjectDir(cfg);
             projectDirExistedBeforeAttempt = projectDir.exists();
@@ -1896,6 +1897,7 @@ public final class SceneService {
             saveProjectFile(cfg);
 
             clearWorldAndRenderState();
+            bindFixtureAllocator(meta);
             int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
             int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
             app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
@@ -3276,6 +3278,10 @@ public final class SceneService {
         if (canvas == null) return;
 
         World world = canvas.getEcsWorld();
+        FixtureIdAllocatorSystem fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);
+        if (fixtureIds != null) {
+            fixtureIds.unbind();
+        }
 
         // Delete all entities
         IntBag bag = world.getAspectSubscriptionManager()
@@ -3306,6 +3312,19 @@ public final class SceneService {
         historyManager.clear();
         historyManager.historyIds().clear();
         clearPreviewSaveRequired();
+    }
+
+    private void bindFixtureAllocator(SceneMetaRuntime sceneMeta) {
+        if (canvas == null) {
+            throw new IllegalStateException("Cannot bind fixture ID allocator: Studio canvas is unavailable");
+        }
+        FixtureIdAllocatorSystem fixtureIds =
+                canvas.getEcsWorld().getSystem(FixtureIdAllocatorSystem.class);
+        if (fixtureIds == null) {
+            throw new IllegalStateException(
+                    "FixtureIdAllocatorSystem is required to activate a Studio scene");
+        }
+        fixtureIds.bind(sceneMeta);
     }
 
     private void flushWorldForSerialization() {

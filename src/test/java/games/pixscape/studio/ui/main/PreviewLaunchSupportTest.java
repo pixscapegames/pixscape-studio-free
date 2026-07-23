@@ -2,9 +2,26 @@ package games.pixscape.studio.ui.main;
 
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.Assert.*;
 
 public class PreviewLaunchSupportTest {
+
+    @Test
+    public void previewDesktopLoadsProjectBeforeActivatingTheCurrentScene() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/preview/PreviewWindow.java"),
+                StandardCharsets.UTF_8
+        );
+
+        int loadProject = source.indexOf("engine.loadProject(userRootDir);");
+        int loadScene = source.indexOf("engine.loadScene(cfg.getCurrentSceneName());");
+        assertTrue("Preview must load the project", loadProject >= 0);
+        assertTrue("Preview must activate the scene after project bootstrap", loadScene > loadProject);
+    }
 
     @Test
     public void launchKeepingEditorAlive_previewLaunchOperationalFailure_returnsFalseWithPopupAndNoFalseSuccess() {

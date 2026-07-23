@@ -28,7 +28,10 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
 
     private final FixtureDefData materialSource;
 
-    private boolean skipFirstRedo;
+    private final PhysicsAuthoringBodySnapshot before;
+    private PhysicsAuthoringBodySnapshot after;
+    private boolean firstRedo = true;
+    private final boolean afterAlreadyApplied;
     private final boolean noop;
 
     public MoveAuthoredPolygonVertexCommand(World world,
@@ -43,6 +46,24 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
                                             int afterCount,
                                             FixtureDefData materialSource,
                                             boolean afterAlreadyApplied) {
+        this(world, historyIds, physicsSelectionService, bodyEid, authoringId,
+                selectedFixtureId, beforeVerts, beforeCount, afterVerts, afterCount,
+                materialSource, afterAlreadyApplied, null);
+    }
+
+    public MoveAuthoredPolygonVertexCommand(World world,
+                                            HistoryIdRegistry historyIds,
+                                            PhysicsSelectionService physicsSelectionService,
+                                            int bodyEid,
+                                            long authoringId,
+                                            int selectedFixtureId,
+                                            float[] beforeVerts,
+                                            int beforeCount,
+                                            float[] afterVerts,
+                                            int afterCount,
+                                            FixtureDefData materialSource,
+                                            boolean afterAlreadyApplied,
+                                            PhysicsAuthoringBodySnapshot beforeSnapshot) {
         this.world = world;
         this.historyIds = historyIds;
         this.physicsSelectionService = physicsSelectionService;
@@ -58,7 +79,17 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
         this.afterVerts = copyVerts(afterVerts, this.afterCount);
 
         this.materialSource = materialSource != null ? materialSource.copy() : null;
-        this.skipFirstRedo = afterAlreadyApplied;
+        if (afterAlreadyApplied && beforeSnapshot == null) {
+            throw new IllegalArgumentException(
+                    "A pre-drag body snapshot is required when the vertex edit is already applied.");
+        }
+        this.before = beforeSnapshot != null
+                ? beforeSnapshot
+                : PhysicsAuthoringBodySnapshot.capture(world, physicsSelectionService, bodyEid);
+        this.afterAlreadyApplied = afterAlreadyApplied;
+        this.after = afterAlreadyApplied
+                ? PhysicsAuthoringBodySnapshot.capture(world, physicsSelectionService, bodyEid)
+                : null;
 
         this.noop = world == null
                 || historyIds == null
@@ -84,22 +115,33 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
     public void redo() {
         if (noop) return;
 
-        if (skipFirstRedo) {
-            skipFirstRedo = false;
-            restoreSelectionOnly();
+        if (firstRedo) {
+            firstRedo = false;
+            if (afterAlreadyApplied) {
+                if (after != null) {
+                    after.restore(world, historyIds, physicsSelectionService, bodyHistoryId);
+                }
+                return;
+            }
+
+            applyInitialChange();
+            int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
+            after = PhysicsAuthoringBodySnapshot.capture(world, physicsSelectionService, bodyEid);
             return;
         }
 
-        apply(afterVerts, afterCount);
+        if (after != null) {
+            after.restore(world, historyIds, physicsSelectionService, bodyHistoryId);
+        }
     }
 
     @Override
     public void undo() {
         if (noop) return;
-        apply(beforeVerts, beforeCount);
+        before.restore(world, historyIds, physicsSelectionService, bodyHistoryId);
     }
 
-    private void apply(float[] verts, int count) {
+    private void applyInitialChange() {
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
@@ -108,8 +150,8 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
         AuthoredPolygonData applied = service.applyAuthoredPolygonReplacingFixture(
                 bodyEid,
                 authoringId,
-                verts,
-                count,
+                afterVerts,
+                afterCount,
                 materialSource,
                 -1L
         );
@@ -123,28 +165,6 @@ public final class MoveAuthoredPolygonVertexCommand implements Command, HistoryM
                     && containsFixtureId(applied.generatedFixtureIds, selectedFixtureId)
                     ? selectedFixtureId
                     : applied.generatedFixtureIds[0];
-
-            physicsSelectionService.setSelectedFixture(bodyEid, fixtureToSelect);
-        }
-    }
-
-    private void restoreSelectionOnly() {
-        int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
-        if (bodyEid < 0) return;
-
-        physicsSelectionService.focusBody(bodyEid);
-
-        AuthoredPolygonData authored =
-                new PhysicsPolygonAuthoringService(world).findByAuthoringId(bodyEid, authoringId);
-
-        if (authored != null
-                && authored.generatedFixtureIds != null
-                && authored.generatedFixtureIds.length > 0) {
-
-            int fixtureToSelect = selectedFixtureId > 0
-                    && containsFixtureId(authored.generatedFixtureIds, selectedFixtureId)
-                    ? selectedFixtureId
-                    : authored.generatedFixtureIds[0];
 
             physicsSelectionService.setSelectedFixture(bodyEid, fixtureToSelect);
         }

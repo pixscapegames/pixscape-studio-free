@@ -78,9 +78,11 @@ public class RuntimeExportFixtureIdentityTest {
     private static String validScene(int authoredFixtureId, int spatialFixtureId) {
         return "{\"entities\":{" +
                 "\"0\":{\"components\":{" +
-                "\"PhysicsFixturesComponent\":{\"fixtures\":[{\"fixtureId\":" + authoredFixtureId + "}]}" +
+                "\"PhysicsFixturesComponent\":{\"fixtures\":[{\"fixtureId\":" + authoredFixtureId +
+                ",\"shapeType\":2,\"polyCount\":3,\"polyVerts\":[0,0,1,0,0,1]}]}" +
                 ",\"PhysicsAuthoringComponent\":{\"polygons\":[{\"authoringId\":5," +
-                "\"generatedFixtureIds\":[" + authoredFixtureId + "]}]}}}," +
+                "\"generatedFixtureIds\":[" + authoredFixtureId + "]," +
+                "\"convexParts\":[{\"count\":3,\"verts\":[0,0,1,0,0,1]}]}]}}}," +
                 "\"1\":{\"components\":{" +
                 "\"PhysicsFixturesComponent\":{\"fixtures\":[{\"fixtureId\":" + spatialFixtureId + "}]}" +
                 ",\"SpatialBlocksComponent\":{\"blocks\":[{\"id\":5," +

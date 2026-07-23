@@ -2,13 +2,17 @@ package games.pixscape.studio.service.physics;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 
 /** Strict read-only fixture identity validation for scene files before runtime export. */
 public final class StudioFixtureSceneJsonValidator {
+    private static final float GEOMETRY_EPSILON = 1e-6f;
+
     private StudioFixtureSceneJsonValidator() {
     }
 
@@ -29,6 +33,7 @@ public final class StudioFixtureSceneJsonValidator {
         if (entities == null) return;
 
         IntIntMap fixtureBodies = new IntIntMap();
+        IntMap<JsonValue> fixtureDefs = new IntMap<>();
         int maxFixtureId = 0;
         for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
             int body = entityId(entity);
@@ -43,6 +48,7 @@ public final class StudioFixtureSceneJsonValidator {
                             "duplicate fixtureId; firstBody=" + fixtureBodies.get(fixtureId, -1));
                 }
                 fixtureBodies.put(fixtureId, body);
+                fixtureDefs.put(fixtureId, fixture);
                 maxFixtureId = Math.max(maxFixtureId, fixtureId);
             }
         }
@@ -69,14 +75,66 @@ public final class StudioFixtureSceneJsonValidator {
 
             JsonValue polygons = child(components, "PhysicsAuthoringComponent", "polygons");
             if (polygons == null) continue;
-            for (JsonValue polygon = polygons.child; polygon != null; polygon = polygon.next) {
+            int polygonIndex = 0;
+            for (JsonValue polygon = polygons.child; polygon != null;
+                 polygon = polygon.next, polygonIndex++) {
+                long authoringId = polygon.getLong("authoringId", 0L);
                 JsonValue generated = polygon.get("generatedFixtureIds");
-                if (generated == null) continue;
-                for (JsonValue id = generated.child; id != null; id = id.next) {
-                    claim(scene, fixtureBodies, claims, body, id.asInt(), "authored polygon");
+                JsonValue parts = polygon.get("convexParts");
+                int idCount = generated != null ? generated.size : 0;
+                int partCount = parts != null ? parts.size : 0;
+                if (idCount != partCount) {
+                    failPolygon(scene, body, 0, authoringId, polygonIndex, -1,
+                            "convexParts/generatedFixtureIds cardinality mismatch; parts="
+                                    + partCount + ", ids=" + idCount);
+                }
+                IntSet polygonClaims = new IntSet();
+                for (int partIndex = 0; partIndex < idCount; partIndex++) {
+                    int fixtureId = generated.get(partIndex).asInt();
+                    if (!polygonClaims.add(fixtureId)) {
+                        failPolygon(scene, body, fixtureId, authoringId, polygonIndex, partIndex,
+                                "generated fixture reference is duplicated inside the polygon");
+                    }
+                    claim(scene, fixtureBodies, claims, body, fixtureId,
+                            "authored polygon authoringId=" + authoringId
+                                    + ", polygonIndex=" + polygonIndex
+                                    + ", partIndex=" + partIndex);
+                    String mismatch = geometryMismatch(parts.get(partIndex), fixtureDefs.get(fixtureId));
+                    if (mismatch != null) {
+                        failPolygon(scene, body, fixtureId, authoringId, polygonIndex, partIndex,
+                                "fixture geometry does not match convex part at the same index: "
+                                        + mismatch);
+                    }
                 }
             }
         }
+    }
+
+    private static String geometryMismatch(JsonValue part, JsonValue fixture) {
+        if (part == null) return "convex part is missing";
+        if (fixture == null) return "fixture is missing";
+        int shapeType = fixture.getInt("shapeType", -1);
+        if (shapeType != FixtureDefData.SHAPE_POLYGON) {
+            return "fixture shapeType=" + shapeType + " is not polygon";
+        }
+        int partCount = part.getInt("count", 0);
+        int fixtureCount = fixture.getInt("polyCount", 0);
+        if (partCount != fixtureCount) {
+            return "vertexCount part=" + partCount + ", fixture=" + fixtureCount;
+        }
+        JsonValue partVerts = part.get("verts");
+        JsonValue fixtureVerts = fixture.get("polyVerts");
+        int length = Math.max(0, partCount) * 2;
+        if (partVerts == null || partVerts.size < length) return "convex part vertex array is incomplete";
+        if (fixtureVerts == null || fixtureVerts.size < length) return "fixture vertex array is incomplete";
+        for (int i = 0; i < length; i++) {
+            float partValue = partVerts.get(i).asFloat();
+            float fixtureValue = fixtureVerts.get(i).asFloat();
+            if (Math.abs(partValue - fixtureValue) > GEOMETRY_EPSILON) {
+                return "coordinate=" + i + ", part=" + partValue + ", fixture=" + fixtureValue;
+            }
+        }
+        return null;
     }
 
     private static void claim(String scene, IntIntMap fixtureBodies, IntSet claims,
@@ -110,5 +168,13 @@ public final class StudioFixtureSceneJsonValidator {
     private static void fail(String scene, int body, int fixtureId, String reason) {
         throw new IllegalStateException("Invalid fixture identity state in scene=" + scene
                 + ", body=" + body + ", fixtureId=" + fixtureId + ": " + reason);
+    }
+
+    private static void failPolygon(String scene, int body, int fixtureId,
+                                    long authoringId, int polygonIndex, int partIndex,
+                                    String reason) {
+        fail(scene, body, fixtureId,
+                "authoringId=" + authoringId + ", polygonIndex=" + polygonIndex
+                        + ", partIndex=" + partIndex + ", " + reason);
     }
 }

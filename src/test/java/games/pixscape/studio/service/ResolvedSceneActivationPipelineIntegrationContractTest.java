@@ -59,6 +59,53 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         assertEquals(1, countOccurrences(loadBody, "clearWorldAndRenderState();"));
     }
 
+    @Test
+    public void studioWorldAcceptsNoCurrentSceneAndActivationBindsBeforeLoading() throws Exception {
+        String canvasSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"),
+                StandardCharsets.UTF_8
+        );
+        String createWorldBody = methodBody(canvasSource, "private void createWorld(");
+        assertTrue(createWorldBody.contains(
+                "SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
+        assertTrue(createWorldBody.contains("WorldConfigFactory.buildWorld("));
+        assertTrue(createWorldBody.contains("sceneMeta,"));
+
+        String activationSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/ResolvedSceneActivationPipeline.java"),
+                StandardCharsets.UTF_8
+        );
+        String activationBody = methodBody(activationSource, "void activate(");
+        assertOrdered(activationBody,
+                "FixtureIdAllocatorSystem fixtureIds = world.getSystem(FixtureIdAllocatorSystem.class);",
+                "fixtureIds.bind(target.meta());",
+                "sceneLoader.load(world, target.sceneFile(), false, target.meta());"
+        );
+
+        String sceneServiceSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String clearBody = methodBody(sceneServiceSource, "private void clearWorldAndRenderState(");
+        assertOrdered(clearBody,
+                "fixtureIds.unbind();",
+                "world.delete(data[i]);",
+                "world.process();"
+        );
+        String newProjectBody = methodBody(sceneServiceSource, "public void newProject(");
+        assertOrdered(newProjectBody,
+                "ProjectConfig.setInstance(cfg);",
+                "bindFixtureAllocator(meta);",
+                "getLayerService().addLayerTop("
+        );
+        String newSceneBody = methodBody(sceneServiceSource, "public void createNewScene(");
+        assertOrdered(newSceneBody,
+                "clearWorldAndRenderState();",
+                "bindFixtureAllocator(meta);",
+                "getLayerService().addLayerTop("
+        );
+    }
+
     private static void assertOrdered(String source, String... fragments) {
         int previous = -1;
         for (String fragment : fragments) {

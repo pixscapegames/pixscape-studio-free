@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.system.FixtureIdAllocatorSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 
 public class SceneServiceSingleLoadActivationTest {
 
@@ -50,7 +52,7 @@ public class SceneServiceSingleLoadActivationTest {
             throws Exception {
         Fixture fixture = fixture("single-load", "Main");
         writeScene(fixture.sceneFile("Main"), new int[]{448, 88}, new int[]{101, 201});
-        World active = serializationWorld();
+        World active = activationWorld();
         AtomicInteger loads = new AtomicInteger();
         AtomicInteger renderRebuilds = new AtomicInteger();
 
@@ -81,7 +83,7 @@ public class SceneServiceSingleLoadActivationTest {
         Fixture fixture = fixture("scene-switch", "A", "B");
         writeScene(fixture.sceneFile("A"), new int[]{37, 19}, new int[]{301, 302});
         writeScene(fixture.sceneFile("B"), new int[]{61, 23}, new int[]{401, 402});
-        World active = serializationWorld();
+        World active = activationWorld();
         AtomicInteger loads = new AtomicInteger();
         AtomicInteger renderRebuilds = new AtomicInteger();
 
@@ -107,7 +109,7 @@ public class SceneServiceSingleLoadActivationTest {
         String json = fixture.sceneFile("Main").readString("UTF-8")
                 .replace("\"structureId\":1", "\"structureId\":0");
         fixture.sceneFile("Main").writeString(json, false, "UTF-8");
-        World active = serializationWorld();
+        World active = activationWorld();
         AtomicInteger loads = new AtomicInteger();
         AtomicInteger renderRebuilds = new AtomicInteger();
 
@@ -126,7 +128,7 @@ public class SceneServiceSingleLoadActivationTest {
         Fixture fixture = fixture("spatial-non-spatial", "A", "B");
         writeScene(fixture.sceneFile("A"), new int[]{29, 11}, new int[]{601, 602});
         writeNonSpatialScene(fixture.sceneFile("B"), new int[]{17, 3}, new int[]{701, 702});
-        World active = serializationWorld();
+        World active = activationWorld();
         AtomicInteger loads = new AtomicInteger();
         AtomicInteger renderRebuilds = new AtomicInteger();
 
@@ -144,6 +146,36 @@ public class SceneServiceSingleLoadActivationTest {
         assertOccupiedCounts(active, 11, 29);
         assertEquals(3, loads.get());
         assertEquals(3, renderRebuilds.get());
+        active.dispose();
+    }
+
+    @Test
+    public void sceneSwitchRebindsAllocatorBeforeLoadingAndKeepsSceneCountersIndependent() throws Exception {
+        Fixture fixture = fixture("fixture-id-scene-switch", "A", "B");
+        fixture.cfg.getSceneMeta("A").nextFixtureId = 10;
+        fixture.cfg.getSceneMeta("B").nextFixtureId = 100;
+        writeEmptyScene(fixture.sceneFile("A"));
+        writeEmptyScene(fixture.sceneFile("B"));
+        World active = activationWorld();
+        FixtureIdAllocatorSystem allocator = active.getSystem(FixtureIdAllocatorSystem.class);
+
+        activateForFixtureIds(active, fixture, "A");
+        assertSame(fixture.cfg.getSceneMeta("A"), allocator.sceneMeta());
+        assertEquals(10, allocator.allocateNewFixtureId());
+        assertEquals(11, fixture.cfg.getSceneMeta("A").nextFixtureId);
+
+        clear(active);
+        activateForFixtureIds(active, fixture, "B");
+        assertSame(fixture.cfg.getSceneMeta("B"), allocator.sceneMeta());
+        assertEquals(100, allocator.allocateNewFixtureId());
+        assertEquals(101, fixture.cfg.getSceneMeta("B").nextFixtureId);
+
+        clear(active);
+        activateForFixtureIds(active, fixture, "A");
+        assertSame(fixture.cfg.getSceneMeta("A"), allocator.sceneMeta());
+        assertEquals(11, allocator.allocateNewFixtureId());
+        assertEquals(12, fixture.cfg.getSceneMeta("A").nextFixtureId);
+        assertEquals(101, fixture.cfg.getSceneMeta("B").nextFixtureId);
         active.dispose();
     }
 
@@ -173,6 +205,10 @@ public class SceneServiceSingleLoadActivationTest {
                     renderRebuilds.incrementAndGet();
                 },
                 (target, file, editMode, meta) -> {
+                    FixtureIdAllocatorSystem allocator =
+                            target.getSystem(FixtureIdAllocatorSystem.class);
+                    assertNotNull(allocator);
+                    assertSame(meta, allocator.sceneMeta());
                     loads.incrementAndGet();
                     SceneLoader.loadScene(target, file, editMode, meta);
                 }
@@ -180,6 +216,32 @@ public class SceneServiceSingleLoadActivationTest {
         pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
                 fixture.cfg,
                 fixture.cfg.getSceneMeta(sceneName),
+                fixture.sceneFile(sceneName),
+                fixture.projectDir,
+                fixture.cfg.projectTitle,
+                sceneName,
+                fixture.cfg.canonicalSceneTag(sceneName)
+        ));
+    }
+
+    private static void activateForFixtureIds(World world, Fixture fixture, String sceneName) {
+        SceneMeta meta = fixture.cfg.getSceneMeta(sceneName);
+        ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
+                world,
+                null,
+                null,
+                new HistoryManager(16),
+                (config, canonicalTag, projectDir) -> { },
+                (target, file, editMode, boundMeta) -> {
+                    FixtureIdAllocatorSystem allocator =
+                            target.getSystem(FixtureIdAllocatorSystem.class);
+                    assertSame(boundMeta, allocator.sceneMeta());
+                    SceneLoader.loadScene(target, file, editMode, boundMeta);
+                }
+        );
+        pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+                fixture.cfg,
+                meta,
                 fixture.sceneFile(sceneName),
                 fixture.projectDir,
                 fixture.cfg.projectTitle,
@@ -241,6 +303,12 @@ public class SceneServiceSingleLoadActivationTest {
             }
         }
         authored.process();
+        SceneService.saveScene(authored, sceneFile, false);
+        authored.dispose();
+    }
+
+    private static void writeEmptyScene(FileHandle sceneFile) {
+        World authored = serializationWorld();
         SceneService.saveScene(authored, sceneFile, false);
         authored.dispose();
     }
@@ -310,6 +378,12 @@ public class SceneServiceSingleLoadActivationTest {
 
     private static World serializationWorld() {
         return new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+    }
+
+    private static World activationWorld() {
+        return new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager())
+                .setSystem(new FixtureIdAllocatorSystem()));
     }
 
     private record Fixture(ProjectConfig cfg, FileHandle projectDir) {
