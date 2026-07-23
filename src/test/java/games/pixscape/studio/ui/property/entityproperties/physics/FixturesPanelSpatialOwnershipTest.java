@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.property.entityproperties.physics;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
@@ -10,7 +11,6 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;

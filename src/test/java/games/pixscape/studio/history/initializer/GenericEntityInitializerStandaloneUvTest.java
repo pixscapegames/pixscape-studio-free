@@ -1,12 +1,12 @@
 package games.pixscape.studio.history.initializer;
 
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.SpatialHeightComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import org.junit.Test;

@@ -1,9 +1,9 @@
 package games.pixscape.studio.service.spatial;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;

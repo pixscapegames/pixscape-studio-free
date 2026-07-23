@@ -1,8 +1,8 @@
 package games.pixscape.studio.service.tiled;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.PackedTileValue;
 import games.pixscape.studio.history.HistoryManager;

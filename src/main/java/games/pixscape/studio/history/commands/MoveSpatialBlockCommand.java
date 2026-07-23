@@ -1,8 +1,8 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;

@@ -1,5 +1,6 @@
 package games.pixscape.studio.service;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -11,7 +12,6 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.tiled.TileChunk;

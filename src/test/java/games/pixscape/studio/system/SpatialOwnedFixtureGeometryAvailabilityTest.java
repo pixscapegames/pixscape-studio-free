@@ -1,9 +1,9 @@
 package games.pixscape.studio.system;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import org.junit.Test;
 

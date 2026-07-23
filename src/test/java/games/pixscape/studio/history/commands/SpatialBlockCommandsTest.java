@@ -1,11 +1,11 @@
 package games.pixscape.studio.history.commands;
 
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
