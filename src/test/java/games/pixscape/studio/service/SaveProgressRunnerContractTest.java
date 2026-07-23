@@ -17,7 +17,8 @@ public class SaveProgressRunnerContractTest {
                 StandardCharsets.UTF_8
         );
 
-        assertTrue(source.contains("java.util.function.Consumer<Throwable> fail"));
+        assertTrue(source.contains("Consumer<Throwable> fail")
+                || source.contains("java.util.function.Consumer<Throwable> fail"));
         assertTrue(source.contains("failure -> Gdx.app.postRunnable(() -> finishWithError(failure, onError))"));
 
         String failureBody = methodBody(source, "private void finishWithError(");

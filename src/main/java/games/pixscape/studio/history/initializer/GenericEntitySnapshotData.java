@@ -4,8 +4,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ShaderFloatParam;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 
 public final class GenericEntitySnapshotData {
     public int sourceEntityId;
@@ -52,9 +52,7 @@ public final class GenericEntitySnapshotData {
     public int bodyType;
     public boolean fixedRotation, bullet, allowSleep, awake, bodyEnabled;
     public float gravityScale, linearDamping, angularDamping;
-    public Array<FixtureDefData> fixtures = new Array<>();
-    public boolean hasPhysicsAuthoring;
-    public Array<AuthoredPolygonData> physicsAuthoringPolygons = new Array<>();
+    public Array<PhysicsShapeData> shapes = new Array<>();
     public boolean hasJoint;
     public int jointType, jointAEid, jointBEid;
     public boolean jointCollideConnected;

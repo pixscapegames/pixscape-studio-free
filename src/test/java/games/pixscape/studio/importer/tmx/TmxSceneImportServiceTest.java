@@ -685,7 +685,11 @@ public class TmxSceneImportServiceTest {
 
     private static World loadImportedWorld(Harness h, TmxSceneImportResult result) {
         World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
-        SceneLoader.loadScene(world, h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()), false);
+        SceneLoader.loadScene(
+                world,
+                h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()),
+                false,
+                new games.pixscape.runtime.loading.SceneMetaRuntime());
         world.process();
         return world;
     }

@@ -45,6 +45,7 @@ public final class EntityGraphInstantiationService {
 
         for (EntityGraphEntry entry : graph.entries()) {
             GenericEntityInitializer init = entry.initializer().duplicate();
+            init.allocateFreshPhysicsShapeIds();
             init.overrideLayerIndex(activeLayerIndex);
             init.translate(dx, dy);
             init.setIdentityStableId(identityRegistry.allocateStableId());

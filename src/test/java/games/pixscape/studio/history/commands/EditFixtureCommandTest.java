@@ -3,19 +3,27 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.function.Consumer;
 
 public class EditFixtureCommandTest {
+    @Before
+    public void activateSceneAllocator() {
+        games.pixscape.studio.configuration.ProjectConfig config =
+                new games.pixscape.studio.configuration.ProjectConfig();
+        config.createSceneMeta("Main");
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(config);
+    }
 
     @Test
     public void editDensityFrictionRestitutionUndoRedoRestoresExactValues() {
@@ -41,16 +49,16 @@ public class EditFixtureCommandTest {
     public void toggleSensorUndoRedoRestoresExactValue() {
         FixtureHarness harness = FixtureHarness.create();
 
-        EditFixtureCommand command = harness.newEdit(cmd -> cmd.isSensor = true, false);
+        EditFixtureCommand command = harness.newEdit(cmd -> cmd.sensor = true, false);
 
         command.redo();
-        Assert.assertTrue(harness.fixture().isSensor);
+        Assert.assertTrue(harness.fixture().sensor);
 
         command.undo();
-        Assert.assertFalse(harness.fixture().isSensor);
+        Assert.assertFalse(harness.fixture().sensor);
 
         command.redo();
-        Assert.assertTrue(harness.fixture().isSensor);
+        Assert.assertTrue(harness.fixture().sensor);
     }
 
     @Test
@@ -78,31 +86,31 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand toBox = harness.newEdit(cmd -> {
-            cmd.shapeType = FixtureDefData.SHAPE_BOX;
-            cmd.halfW = 1.25f;
-            cmd.halfH = 0.75f;
+            cmd.shapeType = PhysicsShapeData.SHAPE_BOX;
+            cmd.halfWidth = 1.25f;
+            cmd.halfHeight = 0.75f;
             cmd.offsetX = 0.4f;
             cmd.offsetY = -0.2f;
         }, false);
 
         toBox.redo();
-        assertFixtureShape(harness.fixture(), FixtureDefData.SHAPE_BOX, 1.25f, 0.75f, 0.5f, 0.4f, -0.2f);
+        assertFixtureShape(harness.fixture(), PhysicsShapeData.SHAPE_BOX, 1.25f, 0.75f, 0.5f, 0.4f, -0.2f);
 
         toBox.undo();
-        assertFixtureShape(harness.fixture(), FixtureDefData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(harness.fixture(), PhysicsShapeData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
 
         EditFixtureCommand toCircle = harness.newEdit(cmd -> {
-            cmd.shapeType = FixtureDefData.SHAPE_CIRCLE;
+            cmd.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
             cmd.radius = 0.9f;
             cmd.offsetX = -0.15f;
             cmd.offsetY = 0.33f;
         }, false);
 
         toCircle.redo();
-        assertFixtureShape(harness.fixture(), FixtureDefData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, -0.15f, 0.33f);
+        assertFixtureShape(harness.fixture(), PhysicsShapeData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, -0.15f, 0.33f);
 
         toCircle.undo();
-        assertFixtureShape(harness.fixture(), FixtureDefData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(harness.fixture(), PhysicsShapeData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
     }
 
     @Test
@@ -110,9 +118,9 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand command = harness.newEdit(cmd -> {
-            cmd.shapeType = FixtureDefData.SHAPE_POLYGON;
-            cmd.polyCount = 4;
-            cmd.polyVerts = new float[] {
+            cmd.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+            cmd.polygonVertexCount = 4;
+            cmd.polygonVertices = new float[] {
                     -1f, -1f,
                     1f, -1f,
                     1f, 1f,
@@ -129,11 +137,11 @@ public class EditFixtureCommandTest {
         });
 
         command.undo();
-        Assert.assertEquals(FixtureDefData.SHAPE_BOX, harness.fixture().shapeType);
+        Assert.assertEquals(PhysicsShapeData.SHAPE_BOX, harness.fixture().shapeType);
         assertPolygon(harness.fixture(), 0, new float[0]);
 
         command.redo();
-        Assert.assertEquals(FixtureDefData.SHAPE_POLYGON, harness.fixture().shapeType);
+        Assert.assertEquals(PhysicsShapeData.SHAPE_POLYGON, harness.fixture().shapeType);
         assertPolygon(harness.fixture(), 4, new float[] {
                 -1f, -1f,
                 1f, -1f,
@@ -147,9 +155,9 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand toPolygon = harness.newEdit(cmd -> {
-            cmd.shapeType = FixtureDefData.SHAPE_POLYGON;
-            cmd.polyCount = 3;
-            cmd.polyVerts = new float[] {
+            cmd.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+            cmd.polygonVertexCount = 3;
+            cmd.polygonVertices = new float[] {
                     0f, 0f,
                     1f, 0f,
                     0f, 1f
@@ -158,8 +166,8 @@ public class EditFixtureCommandTest {
         toPolygon.redo();
 
         EditFixtureCommand replace = harness.newEdit(cmd -> {
-            cmd.polyCount = 4;
-            cmd.polyVerts = new float[] {
+            cmd.polygonVertexCount = 4;
+            cmd.polygonVertices = new float[] {
                     -0.5f, -0.5f,
                     0.8f, -0.4f,
                     1.2f, 0.7f,
@@ -230,108 +238,108 @@ public class EditFixtureCommandTest {
         AddFixtureCommand add = new AddFixtureCommand(world, historyIds, selection, bodyEid);
         history.execute(add);
 
-        int fixtureId = add.getCreatedFixtureId();
-        selection.setSelectedFixture(bodyEid, fixtureId);
+        int physicsShapeId = add.getCreatedFixtureId();
+        selection.setSelectedShape(bodyEid, physicsShapeId);
 
-        EditFixtureCommand editA = newEdit(world, historyIds, selection, bodyEid, fixtureId, fixture -> {
+        EditFixtureCommand editA = newEdit(world, historyIds, selection, bodyEid, physicsShapeId, fixture -> {
             fixture.density = 3f;
             fixture.friction = 0.65f;
             fixture.restitution = 0.1f;
         }, games.pixscape.runtime.render.PhysicsDirtyBits.FIXTURE, false);
         history.execute(editA);
 
-        EditFixtureCommand editB = newEdit(world, historyIds, selection, bodyEid, fixtureId, fixture -> {
-            fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
+        EditFixtureCommand editB = newEdit(world, historyIds, selection, bodyEid, physicsShapeId, fixture -> {
+            fixture.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
             fixture.radius = 0.9f;
             fixture.offsetX = 0.2f;
             fixture.offsetY = -0.25f;
-            fixture.isSensor = true;
+            fixture.sensor = true;
             fixture.categoryBits = (short) 0x0010;
             fixture.maskBits = (short) 0x0FFF;
             fixture.groupIndex = (short) -3;
         }, games.pixscape.runtime.render.PhysicsDirtyBits.FIXTURE, true);
         history.execute(editB);
 
-        FixtureDefData fixture = fixture(world, bodyEid, fixtureId);
+        PhysicsShapeData fixture = fixture(world, bodyEid, physicsShapeId);
         Assert.assertNotNull(fixture);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, FixtureDefData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
+        assertFixtureShape(fixture, PhysicsShapeData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
         assertFixtureFilter(fixture, (short) 0x0010, (short) 0x0FFF, (short) -3);
-        Assert.assertTrue(fixture.isSensor);
+        Assert.assertTrue(fixture.sensor);
 
         history.undo();
-        fixture = fixture(world, bodyEid, fixtureId);
+        fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, FixtureDefData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(fixture, PhysicsShapeData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
         assertFixtureFilter(fixture, (short) 0x0001, (short) 0xFFFF, (short) 0);
-        Assert.assertFalse(fixture.isSensor);
+        Assert.assertFalse(fixture.sensor);
 
         history.undo();
-        fixture = fixture(world, bodyEid, fixtureId);
+        fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 1f, 0.2f, 0f);
-        assertFixtureShape(fixture, FixtureDefData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(fixture, PhysicsShapeData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
 
         history.undo();
-        Assert.assertNull(fixture(world, bodyEid, fixtureId));
+        Assert.assertNull(fixture(world, bodyEid, physicsShapeId));
 
         history.undo();
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(bodyEid));
-        Assert.assertFalse(world.getMapper(PhysicsFixturesComponent.class).has(bodyEid));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(bodyEid));
 
         history.redo();
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(bodyEid));
-        Assert.assertTrue(world.getMapper(PhysicsFixturesComponent.class).has(bodyEid));
+        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class).has(bodyEid));
 
         history.redo();
-        fixture = fixture(world, bodyEid, fixtureId);
+        fixture = fixture(world, bodyEid, physicsShapeId);
         Assert.assertNotNull(fixture);
 
         history.redo();
-        fixture = fixture(world, bodyEid, fixtureId);
+        fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
 
         history.redo();
-        fixture = fixture(world, bodyEid, fixtureId);
+        fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, FixtureDefData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
+        assertFixtureShape(fixture, PhysicsShapeData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
         assertFixtureFilter(fixture, (short) 0x0010, (short) 0x0FFF, (short) -3);
-        Assert.assertTrue(fixture.isSensor);
+        Assert.assertTrue(fixture.sensor);
     }
 
-    private static void assertFixtureScalars(FixtureDefData fixture, float density, float friction, float restitution) {
+    private static void assertFixtureScalars(PhysicsShapeData fixture, float density, float friction, float restitution) {
         Assert.assertEquals(density, fixture.density, 0f);
         Assert.assertEquals(friction, fixture.friction, 0f);
         Assert.assertEquals(restitution, fixture.restitution, 0f);
     }
 
-    private static void assertFixtureFilter(FixtureDefData fixture, short categoryBits, short maskBits, short groupIndex) {
+    private static void assertFixtureFilter(PhysicsShapeData fixture, short categoryBits, short maskBits, short groupIndex) {
         Assert.assertEquals(categoryBits, fixture.categoryBits);
         Assert.assertEquals(maskBits, fixture.maskBits);
         Assert.assertEquals(groupIndex, fixture.groupIndex);
     }
 
-    private static void assertFixtureShape(FixtureDefData fixture,
+    private static void assertFixtureShape(PhysicsShapeData fixture,
                                            int shapeType,
-                                           float halfW,
-                                           float halfH,
+                                           float halfWidth,
+                                           float halfHeight,
                                            float radius,
                                            float offsetX,
                                            float offsetY) {
         Assert.assertEquals(shapeType, fixture.shapeType);
-        Assert.assertEquals(halfW, fixture.halfW, 0f);
-        Assert.assertEquals(halfH, fixture.halfH, 0f);
+        Assert.assertEquals(halfWidth, fixture.halfWidth, 0f);
+        Assert.assertEquals(halfHeight, fixture.halfHeight, 0f);
         Assert.assertEquals(radius, fixture.radius, 0f);
         Assert.assertEquals(offsetX, fixture.offsetX, 0f);
         Assert.assertEquals(offsetY, fixture.offsetY, 0f);
     }
 
-    private static void assertPolygon(FixtureDefData fixture, int expectedCount, float[] expectedVerts) {
-        Assert.assertEquals(expectedCount, fixture.polyCount);
-        Assert.assertNotNull(fixture.polyVerts);
-        Assert.assertEquals(expectedCount * 2, fixture.polyVerts.length);
+    private static void assertPolygon(PhysicsShapeData fixture, int expectedCount, float[] expectedVerts) {
+        Assert.assertEquals(expectedCount, fixture.polygonVertexCount);
+        Assert.assertNotNull(fixture.polygonVertices);
+        Assert.assertEquals(expectedCount * 2, fixture.polygonVertices.length);
 
         for (int i = 0; i < expectedCount * 2; i++) {
-            Assert.assertEquals(expectedVerts[i], fixture.polyVerts[i], 0f);
+            Assert.assertEquals(expectedVerts[i], fixture.polygonVertices[i], 0f);
         }
     }
 
@@ -339,14 +347,14 @@ public class EditFixtureCommandTest {
                                               HistoryIdRegistry historyIds,
                                               PhysicsSelectionService selection,
                                               int bodyEid,
-                                              int fixtureId,
-                                              Consumer<FixtureDefData> mutation,
+                                              int physicsShapeId,
+                                              Consumer<PhysicsShapeData> mutation,
                                               int dirtyMask,
                                               boolean publishStructureChanged) {
-        FixtureDefData current = fixture(world, bodyEid, fixtureId);
+        PhysicsShapeData current = fixture(world, bodyEid, physicsShapeId);
         Assert.assertNotNull(current);
 
-        FixtureDefData after = current.copy();
+        PhysicsShapeData after = current.copy();
         mutation.accept(after);
 
         return new EditFixtureCommand(
@@ -354,7 +362,7 @@ public class EditFixtureCommandTest {
                 historyIds,
                 selection,
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EditFixtureCommand.Snapshot.capture(current),
                 EditFixtureCommand.Snapshot.capture(after),
                 dirtyMask,
@@ -362,14 +370,14 @@ public class EditFixtureCommandTest {
         );
     }
 
-    private static FixtureDefData fixture(World world, int bodyEid, long fixtureId) {
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
-        if (fixtures == null || !fixtures.hasFixtures()) return null;
+    private static PhysicsShapeData fixture(World world, int bodyEid, long physicsShapeId) {
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
+        if (fixtures == null || !fixtures.hasShapes()) return null;
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData fixture = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData fixture = fixtures.shapes.get(i);
             if (fixture == null) continue;
-            if (fixture.fixtureId == fixtureId) return fixture;
+            if (fixture.physicsShapeId == physicsShapeId) return fixture;
         }
         return null;
     }
@@ -388,20 +396,20 @@ public class EditFixtureCommandTest {
         private final HistoryManager history;
         private final PhysicsSelectionService selection;
         private final int bodyEid;
-        private final int fixtureId;
+        private final int physicsShapeId;
 
         private FixtureHarness(World world,
                                HistoryIdRegistry historyIds,
                                HistoryManager history,
                                PhysicsSelectionService selection,
                                int bodyEid,
-                               int fixtureId) {
+                               int physicsShapeId) {
             this.world = world;
             this.historyIds = historyIds;
             this.history = history;
             this.selection = selection;
             this.bodyEid = bodyEid;
-            this.fixtureId = fixtureId;
+            this.physicsShapeId = physicsShapeId;
         }
 
         static FixtureHarness create() {
@@ -419,20 +427,21 @@ public class EditFixtureCommandTest {
             body.enabled = true;
 
             world.getMapper(PhysicsRuntimeBodyComponent.class).create(bodyEid);
-            PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(bodyEid);
-            FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
-            fixtures.fixtures.add(fixture);
+            PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(bodyEid);
+            PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+            fixture.physicsShapeId = 1;
+            fixtures.shapes.add(fixture);
 
-            selection.setSelectedFixture(bodyEid, fixture.fixtureId);
+            selection.setSelectedShape(bodyEid, fixture.physicsShapeId);
 
-            return new FixtureHarness(world, historyIds, history, selection, bodyEid, fixture.fixtureId);
+            return new FixtureHarness(world, historyIds, history, selection, bodyEid, fixture.physicsShapeId);
         }
 
-        EditFixtureCommand newEdit(Consumer<FixtureDefData> mutation, boolean publishStructureChanged) {
+        EditFixtureCommand newEdit(Consumer<PhysicsShapeData> mutation, boolean publishStructureChanged) {
             return newEdit(mutation, publishStructureChanged, games.pixscape.runtime.render.PhysicsDirtyBits.FIXTURE);
         }
 
-        EditFixtureCommand newEdit(Consumer<FixtureDefData> mutation,
+        EditFixtureCommand newEdit(Consumer<PhysicsShapeData> mutation,
                                    boolean publishStructureChanged,
                                    int dirtyMask) {
             return EditFixtureCommandTest.newEdit(
@@ -440,15 +449,15 @@ public class EditFixtureCommandTest {
                     historyIds,
                     selection,
                     bodyEid,
-                    fixtureId,
+                    physicsShapeId,
                     mutation,
                     dirtyMask,
                     publishStructureChanged
             );
         }
 
-        FixtureDefData fixture() {
-            return EditFixtureCommandTest.fixture(world, bodyEid, fixtureId);
+        PhysicsShapeData fixture() {
+            return EditFixtureCommandTest.fixture(world, bodyEid, physicsShapeId);
         }
     }
 }

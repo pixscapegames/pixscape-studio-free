@@ -172,9 +172,9 @@ public class SceneServiceSingleLoadActivationTest {
                             ResolvedSceneActivationPipeline.firstInvalidSpatialBlock(world));
                     renderRebuilds.incrementAndGet();
                 },
-                (target, file, editMode) -> {
+                (target, file, editMode, meta) -> {
                     loads.incrementAndGet();
-                    SceneLoader.loadScene(target, file, editMode);
+                    SceneLoader.loadScene(target, file, editMode, meta);
                 }
         );
         pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(

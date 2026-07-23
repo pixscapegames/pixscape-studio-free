@@ -5,8 +5,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.prefab.PrefabAsset;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
-import games.pixscape.studio.component.physics.ConvexPolygonPartData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
@@ -122,38 +121,9 @@ final class PrefabEntityDataMapper {
             d.physicsBody.angularDamping = s.angularDamping;
             d.physicsBody.enabled = s.bodyEnabled;
         }
-        d.fixtures.addAll(s.fixtures);
-        if (s.hasPhysicsAuthoring) {
-            d.physicsAuthoring = new PrefabAsset.PhysicsAuthoringData();
-            for (AuthoredPolygonData polygon : s.physicsAuthoringPolygons) {
-                if (polygon == null) continue;
-                PrefabAsset.AuthoredPolygonDto dto = new PrefabAsset.AuthoredPolygonDto();
-                dto.authoringId = polygon.authoringId;
-                dto.sourceCount = polygon.sourceCount;
-                dto.sourceVerts = copyFloatArray(polygon.sourceVerts, polygon.sourceCount * 2);
-                dto.decompositionAlgorithmVersion = polygon.decompositionAlgorithmVersion;
-                dto.sourceHash = polygon.sourceHash;
-                dto.generatedFixtureIds = copyIntArray(polygon.generatedFixtureIds);
-                dto.density = polygon.density;
-                dto.friction = polygon.friction;
-                dto.restitution = polygon.restitution;
-                dto.isSensor = polygon.isSensor;
-                dto.categoryBits = polygon.categoryBits;
-                dto.maskBits = polygon.maskBits;
-                dto.groupIndex = polygon.groupIndex;
-                dto.offsetX = polygon.offsetX;
-                dto.offsetY = polygon.offsetY;
-                dto.angleDeg = polygon.angleDeg;
-                if (polygon.convexParts != null) {
-                    for (ConvexPolygonPartData part : polygon.convexParts) {
-                        if (part == null) continue;
-                        PrefabAsset.ConvexPolygonPartDto partDto = new PrefabAsset.ConvexPolygonPartDto();
-                        partDto.count = part.count;
-                        partDto.verts = copyFloatArray(part.verts, part.count * 2);
-                        dto.convexParts.add(partDto);
-                    }
-                }
-                d.physicsAuthoring.polygons.add(dto);
+        for (PhysicsShapeData shape : s.shapes) {
+            if (shape != null) {
+                d.physicsShapes.add(shape.copy());
             }
         }
         if (s.hasJoint) {
@@ -351,40 +321,12 @@ final class PrefabEntityDataMapper {
             s.angularDamping = d.physicsBody.angularDamping;
             s.bodyEnabled = d.physicsBody.enabled;
         }
-        if (d.fixtures != null) {
-            s.fixtures.addAll(d.fixtures);
-        }
-        if (d.physicsAuthoring != null && d.physicsAuthoring.polygons != null) {
-            s.hasPhysicsAuthoring = true;
-            for (PrefabAsset.AuthoredPolygonDto dto : d.physicsAuthoring.polygons) {
-                if (dto == null) continue;
-                AuthoredPolygonData polygon = new AuthoredPolygonData();
-                polygon.authoringId = dto.authoringId;
-                polygon.sourceCount = dto.sourceCount;
-                polygon.sourceVerts = copyFloatArray(dto.sourceVerts, dto.sourceCount * 2);
-                polygon.decompositionAlgorithmVersion = dto.decompositionAlgorithmVersion;
-                polygon.sourceHash = dto.sourceHash;
-                polygon.generatedFixtureIds = copyIntArray(dto.generatedFixtureIds);
-                polygon.density = dto.density;
-                polygon.friction = dto.friction;
-                polygon.restitution = dto.restitution;
-                polygon.isSensor = dto.isSensor;
-                polygon.categoryBits = dto.categoryBits;
-                polygon.maskBits = dto.maskBits;
-                polygon.groupIndex = dto.groupIndex;
-                polygon.offsetX = dto.offsetX;
-                polygon.offsetY = dto.offsetY;
-                polygon.angleDeg = dto.angleDeg;
-                if (dto.convexParts != null) {
-                    for (PrefabAsset.ConvexPolygonPartDto partDto : dto.convexParts) {
-                        if (partDto == null) continue;
-                        ConvexPolygonPartData part = new ConvexPolygonPartData();
-                        part.count = partDto.count;
-                        part.verts = copyFloatArray(partDto.verts, partDto.count * 2);
-                        polygon.convexParts.add(part);
-                    }
+        if (d.physicsShapes != null) {
+            for (PhysicsShapeData source : d.physicsShapes) {
+                if (source == null) {
+                    continue;
                 }
-                s.physicsAuthoringPolygons.add(polygon);
+                s.shapes.add(source.copy());
             }
         }
         if (d.joint != null) {

@@ -85,7 +85,9 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
 
             cfg.setCurrentSceneByName("SceneA");
             clearAllEntities(world);
-            SceneLoader.loadScene(world, sceneAFile, false);
+            SceneLoader.loadScene(
+                    world, sceneAFile, false,
+                    sceneMeta());
             world.process();
 
             assertWheelJointPresent(world);
@@ -107,9 +109,19 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
 
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(eid);
         PhysicsService.initDefaultBody(body);
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(eid);
-        fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(eid);
+        games.pixscape.runtime.physics.PhysicsShapeData shape =
+                games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture();
+        shape.physicsShapeId = eid + 1;
+        fixtures.shapes.add(shape);
         return eid;
+    }
+
+    private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextPhysicsShapeId = 1000;
+        return meta;
     }
 
     private static int createWheelJoint(World world, PhysicsService physicsService, HistoryIdRegistry historyIds, int bodyA, int bodyB) {
@@ -171,8 +183,8 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
             Assert.assertTrue("Wheel body B is inactive. Existing joints:\n" + dumpPhysicsJoints(world), world.getEntityManager().isActive(base.bEid));
             Assert.assertTrue("Wheel body A missing PhysicsBodyComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsBodyComponent.class).has(base.aEid));
             Assert.assertTrue("Wheel body B missing PhysicsBodyComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsBodyComponent.class).has(base.bEid));
-            Assert.assertTrue("Wheel body A missing PhysicsFixturesComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsFixturesComponent.class).has(base.aEid));
-            Assert.assertTrue("Wheel body B missing PhysicsFixturesComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsFixturesComponent.class).has(base.bEid));
+            Assert.assertTrue("Wheel body A missing PhysicsShapesComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsShapesComponent.class).has(base.aEid));
+            Assert.assertTrue("Wheel body B missing PhysicsShapesComponent. Existing joints:\n" + dumpPhysicsJoints(world), world.getMapper(PhysicsShapesComponent.class).has(base.bEid));
             return;
         }
         Assert.fail("No TYPE_WHEEL joint found after scene switch. Existing joints:\n" + dumpPhysicsJoints(world));

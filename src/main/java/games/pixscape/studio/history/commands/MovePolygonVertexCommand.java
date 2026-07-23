@@ -1,12 +1,11 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
 public final class MovePolygonVertexCommand
         implements Command, PreExecutionNoopCommand {
@@ -18,7 +17,7 @@ public final class MovePolygonVertexCommand
     private final PhysicsSelectionService physicsSelectionService;
 
     private final long bodyHistoryId;
-    private final int fixtureId;
+    private final int physicsShapeId;
     private final int vertexIndex;
 
     private final long previousFocusedBodyHistoryId;
@@ -35,7 +34,7 @@ public final class MovePolygonVertexCommand
                                     HistoryIdRegistry historyIds,
                                     PhysicsSelectionService physicsSelectionService,
                                     int bodyEntityId,
-                                    int fixtureId,
+                                    int physicsShapeId,
                                     int vertexIndex,
                                     float beforeX,
                                     float beforeY,
@@ -46,7 +45,7 @@ public final class MovePolygonVertexCommand
         this.physicsSelectionService = physicsSelectionService;
 
         this.bodyHistoryId = FixtureCommandSupport.toHistoryId(historyIds, bodyEntityId);
-        this.fixtureId = fixtureId;
+        this.physicsShapeId = physicsShapeId;
         this.vertexIndex = vertexIndex;
 
         int previousFocusedBodyEid =
@@ -59,8 +58,8 @@ public final class MovePolygonVertexCommand
 
         this.previousSelectedFixtureId =
                 (physicsSelectionService != null)
-                        ? physicsSelectionService.getSelectedFixtureId()
-                        : PhysicsSelectionService.NO_FIXTURE;
+                        ? physicsSelectionService.getSelectedPhysicsShapeId()
+                        : PhysicsSelectionService.NO_SHAPE;
 
         this.beforeX = beforeX;
         this.beforeY = beforeY;
@@ -75,9 +74,8 @@ public final class MovePolygonVertexCommand
                 || historyIds == null
                 || physicsSelectionService == null
                 || bodyHistoryId <= 0L
-                || fixtureId <= 0L
+                || physicsShapeId <= 0L
                 || vertexIndex < 0
-                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
                 || unchanged);
     }
 
@@ -98,23 +96,23 @@ public final class MovePolygonVertexCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
         if (fixture == null) return;
-        if (fixture.shapeType != FixtureDefData.SHAPE_POLYGON) return;
-        if (fixture.polyVerts == null) return;
+        if (fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
+        if (fixture.polygonVertices == null) return;
 
         int base = vertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polyVerts.length) return;
+        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return;
 
-        fixture.polyVerts[base] = afterX;
-        fixture.polyVerts[base + 1] = afterY;
+        fixture.polygonVertices[base] = afterX;
+        fixture.polygonVertices[base + 1] = afterY;
 
-        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, fixtureId);
+        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
@@ -127,17 +125,17 @@ public final class MovePolygonVertexCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
         if (fixture == null) return;
-        if (fixture.shapeType != FixtureDefData.SHAPE_POLYGON) return;
-        if (fixture.polyVerts == null) return;
+        if (fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
+        if (fixture.polygonVertices == null) return;
 
         int base = vertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polyVerts.length) return;
+        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return;
 
-        fixture.polyVerts[base] = beforeX;
-        fixture.polyVerts[base + 1] = beforeY;
+        fixture.polygonVertices[base] = beforeX;
+        fixture.polygonVertices[base + 1] = beforeY;
 
         FixtureCommandSupport.restoreSelection(
                 world,
@@ -149,14 +147,14 @@ public final class MovePolygonVertexCommand
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
     }
 
     public long getFixtureId() {
-        return fixtureId;
+        return physicsShapeId;
     }
 
     public int getVertexIndex() {

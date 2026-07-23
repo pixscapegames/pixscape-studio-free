@@ -310,7 +310,7 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = serializableWorld();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class))

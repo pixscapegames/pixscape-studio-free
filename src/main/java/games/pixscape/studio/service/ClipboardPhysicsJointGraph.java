@@ -20,7 +20,7 @@ public final class ClipboardPhysicsJointGraph {
         ComponentMapper<PhysicsJointComponent> mBase = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsGearJointComponent> mGear = world.getMapper(PhysicsGearJointComponent.class);
         ComponentMapper<PhysicsBodyComponent> mBody = world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsFixturesComponent> mFixtures = world.getMapper(PhysicsFixturesComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mFixtures = world.getMapper(PhysicsShapesComponent.class);
 
         IntSet selected = new IntSet();
         for (int i = 0; i < supportedSelection.size; i++) {
@@ -130,7 +130,7 @@ public final class ClipboardPhysicsJointGraph {
     private static boolean isValidBodyJoint(World world,
                                             IntSet selected,
                                             ComponentMapper<PhysicsBodyComponent> mBody,
-                                            ComponentMapper<PhysicsFixturesComponent> mFixtures,
+                                            ComponentMapper<PhysicsShapesComponent> mFixtures,
                                             PhysicsJointComponent base) {
         return base.aEid != base.bEid
                 && selected.contains(base.aEid)
@@ -143,10 +143,10 @@ public final class ClipboardPhysicsJointGraph {
 
     private static boolean hasValidPhysicsBody(int eid,
                                                ComponentMapper<PhysicsBodyComponent> mBody,
-                                               ComponentMapper<PhysicsFixturesComponent> mFixtures) {
+                                               ComponentMapper<PhysicsShapesComponent> mFixtures) {
         if (!mBody.has(eid)) return false;
-        PhysicsFixturesComponent fixtures = mFixtures.getSafe(eid, null);
-        return fixtures != null && fixtures.hasFixtures();
+        PhysicsShapesComponent fixtures = mFixtures.getSafe(eid, null);
+        return fixtures != null && fixtures.hasShapes();
     }
 
     private static boolean isJointSpecificComponentPresent(World world, int eid, int type) {

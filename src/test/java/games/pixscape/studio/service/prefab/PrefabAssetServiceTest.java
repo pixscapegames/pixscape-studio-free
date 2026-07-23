@@ -8,9 +8,8 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
-import games.pixscape.studio.component.physics.ConvexPolygonPartData;
-import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
@@ -18,11 +17,19 @@ import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 
 public class PrefabAssetServiceTest {
+    @Before
+    public void activateSceneAllocator() {
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Main");
+        ProjectConfig.setInstance(config);
+    }
+
     @Test
     public void saveLoad_emptyOrSimpleGraph() {
         World world = new World(new WorldConfiguration());
@@ -61,9 +68,9 @@ public class PrefabAssetServiceTest {
         Assert.assertNotNull(restoredIdentity);
         Assert.assertEquals("Body", restoredIdentity.name);
 
-        PhysicsFixturesComponent restoredFixtures = world.getMapper(PhysicsFixturesComponent.class).get(probe);
+        PhysicsShapesComponent restoredFixtures = world.getMapper(PhysicsShapesComponent.class).get(probe);
         Assert.assertNotNull(restoredFixtures);
-        Assert.assertTrue(restoredFixtures.fixtures.size > 0);
+        Assert.assertTrue(restoredFixtures.shapes.size > 0);
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
@@ -264,27 +271,19 @@ public class PrefabAssetServiceTest {
     }
 
     @Test
-    public void saveLoad_preservesPhysicsAuthoringPolygons() {
+    public void saveLoad_preservesPolygonSourceAndAllocatesFreshIdentity() {
         World world = new World(new WorldConfiguration());
         int e = body(world);
 
-        PhysicsAuthoringComponent authoring = world.getMapper(PhysicsAuthoringComponent.class).create(e);
-        AuthoredPolygonData polygon = new AuthoredPolygonData();
-        polygon.authoringId = 77L;
-        polygon.sourceCount = 5;
-        polygon.sourceVerts = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
-        polygon.decompositionAlgorithmVersion = 2;
-        polygon.sourceHash = 12345L;
-        polygon.generatedFixtureIds = new int[]{11, 12};
-        ConvexPolygonPartData partA = new ConvexPolygonPartData();
-        partA.count = 3;
-        partA.verts = new float[]{0f, 0f, 2f, 0f, 1f, 1f};
-        ConvexPolygonPartData partB = new ConvexPolygonPartData();
-        partB.count = 3;
-        partB.verts = new float[]{1f, 1f, 3f, 1f, 1f, 3f};
-        polygon.convexParts.add(partA);
-        polygon.convexParts.add(partB);
-        authoring.polygons.add(polygon);
+        PhysicsShapesComponent sources =
+                world.getMapper(PhysicsShapesComponent.class).get(e);
+        sources.shapes.clear();
+        PhysicsShapeData polygon = new PhysicsShapeData();
+        polygon.physicsShapeId = 77;
+        polygon.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+        polygon.polygonVertexCount = 5;
+        polygon.polygonVertices = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
+        sources.shapes.add(polygon);
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(e));
         FileHandle file = tmpFile("authoring.pixprefab");
@@ -293,7 +292,8 @@ public class PrefabAssetServiceTest {
         EntityGraph loaded = service.loadPrefab(file);
 
         String serialized = file.readString("UTF-8");
-        Assert.assertTrue(serialized.contains("\"physicsAuthoring\""));
+        Assert.assertTrue(serialized.contains("\"physicsShapes\""));
+        Assert.assertFalse(serialized.contains("PhysicsCompiledFixturesComponent"));
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
@@ -303,17 +303,17 @@ public class PrefabAssetServiceTest {
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int created = result.createdIds().get(0);
-        PhysicsAuthoringComponent restored = world.getMapper(PhysicsAuthoringComponent.class).get(created);
+        PhysicsShapesComponent restored =
+                world.getMapper(PhysicsShapesComponent.class).get(created);
         Assert.assertNotNull(restored);
-        Assert.assertEquals(1, restored.polygons.size);
-        AuthoredPolygonData restoredPolygon = restored.polygons.first();
-        Assert.assertEquals(5, restoredPolygon.sourceCount);
-        Assert.assertArrayEquals(polygon.sourceVerts, restoredPolygon.sourceVerts, 0f);
-        Assert.assertEquals(2, restoredPolygon.convexParts.size);
-        Assert.assertArrayEquals(partA.verts, restoredPolygon.convexParts.get(0).verts, 0f);
+        Assert.assertEquals(1, restored.shapes.size);
+        PhysicsShapeData restoredPolygon = restored.shapes.first();
+        Assert.assertEquals(5, restoredPolygon.polygonVertexCount);
+        Assert.assertArrayEquals(polygon.polygonVertices, restoredPolygon.polygonVertices, 0f);
+        Assert.assertNotEquals(polygon.physicsShapeId, restoredPolygon.physicsShapeId);
+        Assert.assertTrue(restoredPolygon.physicsShapeId > 0);
         Assert.assertNotSame(polygon, restoredPolygon);
-        Assert.assertNotSame(polygon.sourceVerts, restoredPolygon.sourceVerts);
-        Assert.assertNotSame(polygon.convexParts.get(0), restoredPolygon.convexParts.get(0));
+        Assert.assertNotSame(polygon.polygonVertices, restoredPolygon.polygonVertices);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -373,10 +373,10 @@ public class PrefabAssetServiceTest {
         identity.name = "Body";
         w.getMapper(PhysicsBodyComponent.class).create(e);
 
-        PhysicsFixturesComponent f = w.getMapper(PhysicsFixturesComponent.class).create(e);
-        FixtureDefData d = new FixtureDefData();
-        d.shapeType = FixtureDefData.SHAPE_BOX;
-        f.fixtures.add(d);
+        PhysicsShapesComponent f = w.getMapper(PhysicsShapesComponent.class).create(e);
+        PhysicsShapeData d = new PhysicsShapeData();
+        d.shapeType = PhysicsShapeData.SHAPE_BOX;
+        f.shapes.add(d);
 
         return e;
     }

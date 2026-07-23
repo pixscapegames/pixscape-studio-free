@@ -1,8 +1,8 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
@@ -17,10 +17,10 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
                                    PhysicsSelectionService physicsSelectionService,
                                    int bodyEntityId,
                                    long sourceFixtureId) {
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
         int sourceIndex = FixtureCommandSupport.indexOfFixture(fixtures, sourceFixtureId);
-        FixtureDefData source = (sourceIndex >= 0) ? fixtures.fixtures.get(sourceIndex) : null;
-        FixtureDefData duplicate = FixtureCommandSupport.deepCopyWithFreshId(source);
+        PhysicsShapeData source = (sourceIndex >= 0) ? fixtures.shapes.get(sourceIndex) : null;
+        PhysicsShapeData duplicate = FixtureCommandSupport.deepCopyWithFreshId(source);
 
         this.noop = (source == null || duplicate == null);
         this.delegate = new AddFixtureCommand(

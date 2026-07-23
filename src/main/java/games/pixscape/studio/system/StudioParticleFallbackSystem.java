@@ -415,13 +415,13 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         BoundingBox box = fx.getBoundingBox();
         if (!box.isValid()) return true;
 
-        float halfW = camera.viewportWidth * 0.5f * camera.zoom;
-        float halfH = camera.viewportHeight * 0.5f * camera.zoom;
+        float halfWidth = camera.viewportWidth * 0.5f * camera.zoom;
+        float halfHeight = camera.viewportHeight * 0.5f * camera.zoom;
 
-        float minX = camera.position.x - halfW;
-        float maxX = camera.position.x + halfW;
-        float minY = camera.position.y - halfH;
-        float maxY = camera.position.y + halfH;
+        float minX = camera.position.x - halfWidth;
+        float maxX = camera.position.x + halfWidth;
+        float minY = camera.position.y - halfHeight;
+        float maxY = camera.position.y + halfHeight;
 
         return box.max.x >= minX
                 && box.min.x <= maxX

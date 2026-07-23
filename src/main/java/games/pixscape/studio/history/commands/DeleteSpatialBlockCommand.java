@@ -19,7 +19,6 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final int blockId;
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
-    private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
     private final CommandOutcome initialOutcome;
 
     public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
@@ -32,9 +31,6 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         this.blockId = blockId;
         SpatialBlocksComponent component = world != null ? SpatialBlockCommandSupport.get(world, layerEntityId) : null;
         this.before = SpatialBlockCommandSupport.snapshot(component);
-        SpatialBlockData removed = SpatialBlockCommandSupport.find(component, blockId);
-        this.physicsBefore = removed != null && removed.physicsCollision
-                ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         TiledLayerComponent tiled = world != null
                 ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.delete(
@@ -71,7 +67,6 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
                 world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
-        SpatialBlockPhysicsSync.removeBlockFixture(world, layer, blockId, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }
@@ -90,7 +85,6 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
                 world, layer, before);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.selectBlock(layer, blockId);
-        if (physicsBefore != null) physicsBefore.restore(world, layer, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }

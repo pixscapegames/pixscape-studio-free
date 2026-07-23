@@ -120,9 +120,6 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
             if (block == null) continue;
             if (Math.abs(block.altitude - previousDefaultAltitude) > 0.0001f) continue;
             block.altitude = nextDefaultAltitude;
-            if (block.physicsCollision) {
-                SpatialBlockPhysicsSync.sync(world, layerEntityId, block, this);
-            }
         }
     }
 

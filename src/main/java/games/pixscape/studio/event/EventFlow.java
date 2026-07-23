@@ -207,14 +207,14 @@ public final class EventFlow {
 
     public record FixtureSelectionChanged(
             int bodyEntityId,
-            long fixtureId,
+            long physicsShapeId,
             int sourceTag
     ) {
     }
 
     public record FixtureParametersChanged(
             int bodyEntityId,
-            long fixtureId,
+            long physicsShapeId,
             int sourceTag
     ) {
     }

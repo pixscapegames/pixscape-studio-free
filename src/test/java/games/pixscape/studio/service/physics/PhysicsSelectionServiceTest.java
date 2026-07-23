@@ -9,24 +9,24 @@ public class PhysicsSelectionServiceTest {
     @Test
     public void matchingFixtureClearPreservesBodyAndPublishesOnce() {
         PhysicsSelectionService selection = new PhysicsSelectionService();
-        selection.setSelectedFixture(17, 23);
-        selection.setHoveredFixture(17, 23);
+        selection.setSelectedShape(17, 23);
+        selection.setHoveredShape(17, 23);
         EventFlow.i().flush();
         int[] publications = {0};
         EventFlow.Listener<EventFlow.FixtureSelectionCleared> listener = event -> publications[0]++;
         EventFlow.i().subscribe(EventFlow.FixtureSelectionCleared.class, listener);
 
         try {
-            Assert.assertFalse(selection.clearSelectedFixtureIfMatches(18, 23));
-            Assert.assertFalse(selection.clearSelectedFixtureIfMatches(17, 24));
+            Assert.assertFalse(selection.clearSelectedShapeIfMatches(18, 23));
+            Assert.assertFalse(selection.clearSelectedShapeIfMatches(17, 24));
             EventFlow.i().flush();
             Assert.assertEquals(0, publications[0]);
-            Assert.assertEquals(23, selection.getSelectedFixtureId());
+            Assert.assertEquals(23, selection.getSelectedPhysicsShapeId());
 
-            Assert.assertTrue(selection.clearSelectedFixtureIfMatches(17, 23));
-            Assert.assertEquals(PhysicsSelectionService.NO_FIXTURE,
-                    selection.getSelectedFixtureId());
-            Assert.assertFalse(selection.hasHoveredFixture());
+            Assert.assertTrue(selection.clearSelectedShapeIfMatches(17, 23));
+            Assert.assertEquals(PhysicsSelectionService.NO_SHAPE,
+                    selection.getSelectedPhysicsShapeId());
+            Assert.assertFalse(selection.hasHoveredShape());
             Assert.assertTrue(selection.isFocusedBody(17));
 
             EventFlow.i().flush();

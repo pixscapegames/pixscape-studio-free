@@ -270,8 +270,8 @@ public final class SpatialStructureGeometryCache {
         Entry(int structureId) { this.structureId = structureId; }
 
         boolean matches(SpatialBlocksComponent component) {
-            int sourceCount = count(component, structureId);
-            if (sourceCount != snapshots.size) return false;
+            int polygonVertexCount = count(component, structureId);
+            if (polygonVertexCount != snapshots.size) return false;
             for (int i = 0; i < snapshots.size; i++) {
                 SpatialBlockData snapshot = snapshots.get(i);
                 SpatialBlockData current = find(component, snapshot.id, structureId);

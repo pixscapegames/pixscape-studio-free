@@ -49,10 +49,10 @@ public final class CursorDrawHelper {
 
         // pixel -> world conversion (constant on-screen size)
         float sizeWorld = HandleHelper.pxToWorld(ctx.cam, SIZE_PX);
-        float halfWorld = sizeWorld * 0.5f;
+        float halfWidthorld = sizeWorld * 0.5f;
 
-        float x = mouseWorld.x - halfWorld;
-        float y = mouseWorld.y - halfWorld;
+        float x = mouseWorld.x - halfWidthorld;
+        float y = mouseWorld.y - halfWidthorld;
 
         // no rotation -> standard drawable
         if (rotationRad == 0f) {
@@ -69,7 +69,7 @@ public final class CursorDrawHelper {
         ctx.batch.draw(
                 trd.getRegion(),
                 x, y,
-                halfWorld, halfWorld,
+                halfWidthorld, halfWidthorld,
                 sizeWorld, sizeWorld,
                 1f, 1f,
                 rotationRad * MathUtils.radiansToDegrees

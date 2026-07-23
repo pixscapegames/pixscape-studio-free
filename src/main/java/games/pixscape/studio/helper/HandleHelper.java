@@ -15,9 +15,9 @@ public final class HandleHelper {
         return px * worldUnitsPerPixel(cam);
     }
 
-    public static boolean insideSquare(float px, float py, float cx, float cy, float halfWorld) {
-        return px >= cx - halfWorld && px <= cx + halfWorld
-                && py >= cy - halfWorld && py <= cy + halfWorld;
+    public static boolean insideSquare(float px, float py, float cx, float cy, float halfWidthorld) {
+        return px >= cx - halfWidthorld && px <= cx + halfWidthorld
+                && py >= cy - halfWidthorld && py <= cy + halfWidthorld;
     }
 
     public static boolean insideCircle(float px, float py, float cx, float cy, float rWorld) {

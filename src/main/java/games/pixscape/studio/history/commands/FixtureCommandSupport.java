@@ -2,14 +2,14 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.PhysicsShapeIdService;
 
 public final class FixtureCommandSupport {
 
@@ -29,66 +29,64 @@ public final class FixtureCommandSupport {
         return historyIds.ensureForEntity(entityId);
     }
 
-    static PhysicsFixturesComponent getFixtures(World world, int entityId, boolean create) {
+    static PhysicsShapesComponent getFixtures(World world, int entityId, boolean create) {
         if (world == null || entityId < 0) return null;
-        ComponentMapper<PhysicsFixturesComponent> mapper = world.getMapper(PhysicsFixturesComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mapper = world.getMapper(PhysicsShapesComponent.class);
         if (mapper.has(entityId)) return mapper.get(entityId);
         return create ? mapper.create(entityId) : null;
     }
 
-    static int indexOfFixture(PhysicsFixturesComponent fixtures, long fixtureId) {
-        if (fixtures == null || fixtureId <= 0L) return -1;
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData fixture = fixtures.fixtures.get(i);
+    static int indexOfFixture(PhysicsShapesComponent fixtures, long physicsShapeId) {
+        if (fixtures == null || physicsShapeId <= 0L) return -1;
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData fixture = fixtures.shapes.get(i);
             if (fixture == null) continue;
-            FixtureIdSequence.i().ensure(fixture);
-            if (fixture.fixtureId == fixtureId) return i;
+            if (fixture.physicsShapeId == physicsShapeId) return i;
         }
         return -1;
     }
 
-    static FixtureDefData fixtureById(PhysicsFixturesComponent fixtures, long fixtureId) {
-        int index = indexOfFixture(fixtures, fixtureId);
-        return index >= 0 ? fixtures.fixtures.get(index) : null;
+    static PhysicsShapeData fixtureById(PhysicsShapesComponent fixtures, long physicsShapeId) {
+        int index = indexOfFixture(fixtures, physicsShapeId);
+        return index >= 0 ? fixtures.shapes.get(index) : null;
     }
 
-    public static FixtureDefData createDefaultFixture() {
-        FixtureDefData fixture = new FixtureDefData();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
-        fixture.polyVerts = new float[0];
-        fixture.polyCount = 0;
-        fixture.halfW = 0.5f;
-        fixture.halfH = 0.5f;
-        fixture.angleDeg = 0f;
+    public static PhysicsShapeData createDefaultFixture() {
+        PhysicsShapeData fixture = new PhysicsShapeData();
+        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
+        fixture.polygonVertices = new float[0];
+        fixture.polygonVertexCount = 0;
+        fixture.halfWidth = 0.5f;
+        fixture.halfHeight = 0.5f;
+        fixture.angleDegrees = 0f;
         fixture.radius = 0.5f;
         fixture.offsetX = 0f;
         fixture.offsetY = 0f;
         fixture.density = 1f;
         fixture.friction = 0.2f;
         fixture.restitution = 0f;
-        fixture.isSensor = false;
+        fixture.sensor = false;
         fixture.categoryBits = 0x0001;
         fixture.maskBits = (short) 0xFFFF;
         fixture.groupIndex = 0;
-        FixtureIdSequence.i().ensure(fixture);
+        fixture.physicsShapeId = 0;
         return fixture;
     }
 
-    static FixtureDefData deepCopyWithFreshId(FixtureDefData source) {
+    static PhysicsShapeData deepCopyWithFreshId(PhysicsShapeData source) {
         if (source == null) return null;
-        FixtureDefData copy = source.copy();
-        copy.fixtureId = 0;
-        FixtureIdSequence.i().ensure(copy);
+        PhysicsShapeData copy = source.copy();
+        copy.physicsShapeId = PhysicsShapeIdService.allocateNewPhysicsShapeId();
         return copy;
     }
 
-    static void focusAndSelect(PhysicsSelectionService selection, int bodyEid, int fixtureId) {
+    static void focusAndSelect(PhysicsSelectionService selection, int bodyEid, int physicsShapeId) {
         if (selection == null) return;
 
         selection.focusBody(bodyEid);
-        if (fixtureId > 0L) {
-            selection.setSelectedFixture(bodyEid, fixtureId);
-            EventFlow.i().publish(new EventFlow.FixtureSelectionChanged(bodyEid, fixtureId, EventFlow.tag(selection)));
+        if (physicsShapeId > 0L) {
+            selection.setSelectedShape(bodyEid, physicsShapeId);
+            EventFlow.i().publish(new EventFlow.FixtureSelectionChanged(bodyEid, physicsShapeId, EventFlow.tag(selection)));
         } else {
             selection.clearSelectionOnly();
             EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(EventFlow.tag(selection)));
@@ -119,9 +117,9 @@ public final class FixtureCommandSupport {
             return;
         }
 
-        PhysicsFixturesComponent fixtures = getFixtures(world, focusedBodyEid, false);
+        PhysicsShapesComponent fixtures = getFixtures(world, focusedBodyEid, false);
         if (indexOfFixture(fixtures, previousSelectedFixtureId) >= 0) {
-            selection.setSelectedFixture(focusedBodyEid, previousSelectedFixtureId);
+            selection.setSelectedShape(focusedBodyEid, previousSelectedFixtureId);
         } else {
             selection.clearSelectionOnly();
         }

@@ -18,11 +18,13 @@ import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Timer;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -730,6 +732,7 @@ public final class SceneService {
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
         }
+        canvas.getPhysicsService().setPhysicsShapeIdState(meta);
 
         FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
 
@@ -1042,8 +1045,11 @@ public final class SceneService {
 
     private static SceneVolatileStateSnapshot clearVolatileSceneStateForSave(World world, IntBag entitiesToSave) {
         ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
+        ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
 
         Array<VisibilityRuntimeSnapshot> visibilityStates = new Array<>();
+        Array<CompiledPhysicsSnapshot> compiledStates = new Array<>();
 
         int[] data = entitiesToSave.getData();
         for (int i = 0, n = entitiesToSave.size(); i < n; i++) {
@@ -1059,14 +1065,33 @@ public final class SceneService {
                 visibility.culledByFrustum = true;
                 visibility.inView = false;
             }
+
+            PhysicsCompiledFixturesComponent compiled =
+                    mCompiled.getSafe(entityId, null);
+            if (compiled != null) {
+                Array<CompiledFixtureData> fixtures =
+                        new Array<>(true, compiled.fixtures.size, CompiledFixtureData.class);
+                for (int fixtureIndex = 0;
+                     fixtureIndex < compiled.fixtures.size;
+                     fixtureIndex++) {
+                    fixtures.add(compiled.fixtures.get(fixtureIndex).copy());
+                }
+                compiledStates.add(new CompiledPhysicsSnapshot(
+                        entityId, fixtures, compiled.generation, compiled.valid));
+                mCompiled.remove(entityId);
+            }
         }
 
-        return new SceneVolatileStateSnapshot(visibilityStates);
+        return new SceneVolatileStateSnapshot(visibilityStates, compiledStates);
     }
 
-    private record SceneVolatileStateSnapshot(Array<VisibilityRuntimeSnapshot> visibilityStates) {
+    private record SceneVolatileStateSnapshot(
+            Array<VisibilityRuntimeSnapshot> visibilityStates,
+            Array<CompiledPhysicsSnapshot> compiledStates) {
         void restore(World world) {
             ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
+            ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
+                    world.getMapper(PhysicsCompiledFixturesComponent.class);
 
             for (VisibilityRuntimeSnapshot snapshot : visibilityStates) {
                 VisibilityComponent visibility = mVisibility.getSafe(snapshot.entityId(), null);
@@ -1074,7 +1099,22 @@ public final class SceneService {
                 visibility.culledByFrustum = snapshot.culledByFrustum();
                 visibility.inView = snapshot.inView();
             }
+
+            for (CompiledPhysicsSnapshot snapshot : compiledStates) {
+                PhysicsCompiledFixturesComponent compiled =
+                        mCompiled.create(snapshot.entityId());
+                compiled.replaceWith(snapshot.fixtures());
+                compiled.generation = snapshot.generation();
+                compiled.valid = snapshot.valid();
+            }
         }
+    }
+
+    private record CompiledPhysicsSnapshot(
+            int entityId,
+            Array<CompiledFixtureData> fixtures,
+            int generation,
+            boolean valid) {
     }
 
     private record VisibilityRuntimeSnapshot(int entityId, boolean culledByFrustum, boolean inView) {

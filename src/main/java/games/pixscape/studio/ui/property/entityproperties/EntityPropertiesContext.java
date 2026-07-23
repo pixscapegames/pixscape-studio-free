@@ -4,7 +4,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -45,7 +45,7 @@ public final class EntityPropertiesContext {
     public final ComponentMapper<RenderMaterialComponent> mMat;
     public final ComponentMapper<AnimationComponent> mAnim;
     public final ComponentMapper<PhysicsBodyComponent> mPhysBody;
-    public final ComponentMapper<PhysicsFixturesComponent> mPhysFixtures;
+    public final ComponentMapper<PhysicsShapesComponent> mPhysFixtures;
     public final ComponentMapper<PhysicsRuntimeBodyComponent> mPhysRuntime;
     public final ComponentMapper<SpatialHeightComponent> mSpatialHeight;
     public final ComponentMapper<TransformComponent> mTransform;
@@ -88,7 +88,7 @@ public final class EntityPropertiesContext {
         this.mMat = world.getMapper(RenderMaterialComponent.class);
         this.mAnim = world.getMapper(AnimationComponent.class);
         this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
+        this.mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
         this.mPhysRuntime = world.getMapper(PhysicsRuntimeBodyComponent.class);
         this.mSpatialHeight = world.getMapper(SpatialHeightComponent.class);
         this.mTransform = world.getMapper(TransformComponent.class);

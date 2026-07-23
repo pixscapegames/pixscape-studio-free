@@ -98,7 +98,6 @@ public class SpatialTileSelectionServiceTest {
         Assert.assertEquals(155f, block.altitude, 0.0001f);
         Assert.assertEquals(18f, block.height, 0.0001f);
         Assert.assertTrue(block.actorOccluder);
-        Assert.assertFalse(block.physicsCollision);
         Assert.assertTrue(block.linkedTileRefsAuthored);
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertEquals(2, block.linkedTileRefs.get(0).gx);

@@ -8,9 +8,9 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.component.EntityMetaComponent;
@@ -306,10 +306,10 @@ public class HistoryIdentityRegressionTest {
         int entityId = createPlainEntity(world, historyIds, stableId);
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(entityId);
-        FixtureDefData fixture = PhysicsService.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
-        fixtures.fixtures.add(fixture);
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(entityId);
+        PhysicsShapeData fixture = games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture();
+        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
+        fixtures.shapes.add(fixture);
         return entityId;
     }
 

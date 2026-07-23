@@ -1,31 +1,30 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
 public final class EditFixtureCommand
         implements Command, PreExecutionNoopCommand {
 
     public static final class Snapshot {
-        private final FixtureDefData data;
+        private final PhysicsShapeData data;
 
-        private Snapshot(FixtureDefData data) {
+        private Snapshot(PhysicsShapeData data) {
             this.data = data;
         }
 
-        public static Snapshot capture(FixtureDefData fixture) {
+        public static Snapshot capture(PhysicsShapeData fixture) {
             if (fixture == null) return null;
             return new Snapshot(fixture.copy());
         }
 
-        public FixtureDefData copyData() {
+        public PhysicsShapeData copyData() {
             return data != null ? data.copy() : null;
         }
 
@@ -33,18 +32,18 @@ public final class EditFixtureCommand
             if (other == null || data == null || other.data == null) return false;
 
             return data.shapeType == other.data.shapeType
-                    && data.polyCount == other.data.polyCount
-                    && samePoly(data.polyVerts, other.data.polyVerts, data.polyCount)
-                    && Float.compare(data.halfW, other.data.halfW) == 0
-                    && Float.compare(data.halfH, other.data.halfH) == 0
-                    && Float.compare(data.angleDeg, other.data.angleDeg) == 0
+                    && data.polygonVertexCount == other.data.polygonVertexCount
+                    && samePoly(data.polygonVertices, other.data.polygonVertices, data.polygonVertexCount)
+                    && Float.compare(data.halfWidth, other.data.halfWidth) == 0
+                    && Float.compare(data.halfHeight, other.data.halfHeight) == 0
+                    && Float.compare(data.angleDegrees, other.data.angleDegrees) == 0
                     && Float.compare(data.radius, other.data.radius) == 0
                     && Float.compare(data.offsetX, other.data.offsetX) == 0
                     && Float.compare(data.offsetY, other.data.offsetY) == 0
                     && Float.compare(data.density, other.data.density) == 0
                     && Float.compare(data.friction, other.data.friction) == 0
                     && Float.compare(data.restitution, other.data.restitution) == 0
-                    && data.isSensor == other.data.isSensor
+                    && data.sensor == other.data.sensor
                     && data.categoryBits == other.data.categoryBits
                     && data.maskBits == other.data.maskBits
                     && data.groupIndex == other.data.groupIndex;
@@ -53,11 +52,11 @@ public final class EditFixtureCommand
         public boolean sameGeometryAs(Snapshot other) {
             if (other == null || data == null || other.data == null) return false;
             return data.shapeType == other.data.shapeType
-                    && data.polyCount == other.data.polyCount
-                    && samePoly(data.polyVerts, other.data.polyVerts, data.polyCount)
-                    && Float.compare(data.halfW, other.data.halfW) == 0
-                    && Float.compare(data.halfH, other.data.halfH) == 0
-                    && Float.compare(data.angleDeg, other.data.angleDeg) == 0
+                    && data.polygonVertexCount == other.data.polygonVertexCount
+                    && samePoly(data.polygonVertices, other.data.polygonVertices, data.polygonVertexCount)
+                    && Float.compare(data.halfWidth, other.data.halfWidth) == 0
+                    && Float.compare(data.halfHeight, other.data.halfHeight) == 0
+                    && Float.compare(data.angleDegrees, other.data.angleDegrees) == 0
                     && Float.compare(data.radius, other.data.radius) == 0
                     && Float.compare(data.offsetX, other.data.offsetX) == 0
                     && Float.compare(data.offsetY, other.data.offsetY) == 0;
@@ -79,7 +78,7 @@ public final class EditFixtureCommand
     private final PhysicsSelectionService physicsSelectionService;
 
     private final long bodyHistoryId;
-    private final int fixtureId;
+    private final int physicsShapeId;
 
     private final long previousFocusedBodyHistoryId;
     private final int previousSelectedFixtureId;
@@ -94,7 +93,7 @@ public final class EditFixtureCommand
                               HistoryIdRegistry historyIds,
                               PhysicsSelectionService physicsSelectionService,
                               int bodyEntityId,
-                              int fixtureId,
+                              int physicsShapeId,
                               Snapshot before,
                               Snapshot after,
                               int dirtyMask,
@@ -104,14 +103,14 @@ public final class EditFixtureCommand
         this.physicsSelectionService = physicsSelectionService;
 
         this.bodyHistoryId = FixtureCommandSupport.toHistoryId(historyIds, bodyEntityId);
-        this.fixtureId = fixtureId;
+        this.physicsShapeId = physicsShapeId;
 
         int previousFocusedBodyEid = physicsSelectionService.getFocusedBodyEid();
 
         this.previousFocusedBodyHistoryId =
                 FixtureCommandSupport.toHistoryId(historyIds, previousFocusedBodyEid);
 
-        this.previousSelectedFixtureId = physicsSelectionService.getSelectedFixtureId();
+        this.previousSelectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
 
         this.before = before;
         this.after = after;
@@ -121,11 +120,9 @@ public final class EditFixtureCommand
         this.noop = world == null
                 || historyIds == null
                 || bodyHistoryId <= 0L
-                || fixtureId <= 0L
+                || physicsShapeId <= 0L
                 || before == null
                 || after == null
-                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
-                    && !before.sameGeometryAs(after)
                 || before.sameAs(after);
     }
 
@@ -155,17 +152,17 @@ public final class EditFixtureCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        int fixtureIndex = FixtureCommandSupport.indexOfFixture(fixtures, fixtureId);
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        int fixtureIndex = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
         if (fixtureIndex < 0) return;
 
-        FixtureDefData replacement = snapshot.copyData();
+        PhysicsShapeData replacement = snapshot.copyData();
         if (replacement == null) return;
-        replacement.fixtureId = fixtureId;
-        fixtures.fixtures.set(fixtureIndex, replacement);
+        replacement.physicsShapeId = physicsShapeId;
+        fixtures.shapes.set(fixtureIndex, replacement);
 
         if (keepCurrentSelection) {
-            FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, fixtureId);
+            FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         } else {
             FixtureCommandSupport.restoreSelection(
                     world,
@@ -183,7 +180,7 @@ public final class EditFixtureCommand
 
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
 

@@ -236,7 +236,7 @@ public class SpatialStructureGeometryCacheTest {
         cache.synchronize(13, walls, map);
         int initial = cache.compilationCount();
 
-        first.physicsCollision = !first.physicsCollision;
+        first.name = "display-only change";
         walls.revision++;
         Assert.assertFalse(cache.synchronize(13, walls, map).published());
         Assert.assertEquals(initial, cache.compilationCount());

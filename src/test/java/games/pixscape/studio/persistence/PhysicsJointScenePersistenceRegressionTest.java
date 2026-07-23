@@ -92,7 +92,8 @@ public class PhysicsJointScenePersistenceRegressionTest {
             SceneService.saveScene(world, file, false);
 
             clearAllEntities(world);
-            SceneLoader.loadScene(world, file, false);
+            SceneLoader.loadScene(
+                    world, file, false, sceneMeta());
             world.process();
 
             assertWheelJointPresent(world);
@@ -132,7 +133,8 @@ public class PhysicsJointScenePersistenceRegressionTest {
             SceneService.saveScene(world, file, false);
 
             World loaded = worldWithSerialization();
-            SceneLoader.loadScene(loaded, file, false);
+            SceneLoader.loadScene(
+                    loaded, file, false, sceneMeta());
             loaded.process();
 
             for (int type : jointTypes) {
@@ -170,10 +172,20 @@ public class PhysicsJointScenePersistenceRegressionTest {
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(eid);
         PhysicsService.initDefaultBody(body);
 
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(eid);
-        fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(eid);
+        games.pixscape.runtime.physics.PhysicsShapeData shape =
+                games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture();
+        shape.physicsShapeId = eid + 1;
+        fixtures.shapes.add(shape);
 
         return eid;
+    }
+
+    private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextPhysicsShapeId = 1000;
+        return meta;
     }
 
     private static int createJoint(

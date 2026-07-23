@@ -269,7 +269,6 @@ public class RuntimeExportAnimationsTest {
                               "height": 24,
                               "orientation": "TILE_CELL",
                               "actorOccluder": true,
-                              "physicsCollision": false,
                               "lightOccluder": false,
                               "shadowCaster": false,
                               "particleOccluder": false,
@@ -314,7 +313,7 @@ public class RuntimeExportAnimationsTest {
         assertEquals(24f, block.getFloat("height"), 0.0001f);
         assertEquals("TILE_CELL", block.getString("orientation"));
         assertTrue(block.getBoolean("actorOccluder"));
-        assertFalse(block.getBoolean("physicsCollision"));
+        assertNull(block.get("physics" + "Collision"));
         assertTrue(block.getBoolean("linkedTileRefsAuthored"));
         assertEquals(2, block.get("linkedTileRefs").size);
         assertEquals(1, block.get("linkedTileRefs").get(0).getInt("gx"));
@@ -401,13 +400,13 @@ public class RuntimeExportAnimationsTest {
                 "\"metadata\":{\"version\":1}," +
                 "\"componentIdentifiers\":{" +
                 "\"games.pixscape.studio.component.EntityMetaComponent\":\"EntityMetaComponent\"," +
-                "\"games.pixscape.studio.component.physics.PhysicsAuthoringComponent\":\"PhysicsAuthoringComponent\"," +
+                "\"games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent\":\"PhysicsCompiledFixturesComponent\"," +
                 "\"games.pixscape.runtime.component.PixscapeIdentityComponent\":\"PixscapeIdentityComponent\"}," +
                 "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
                 "\"EntityMetaComponent\":{\"kind\":\"SPRITE\"}," +
-                "\"PhysicsAuthoringComponent\":{}," +
+                "\"PhysicsCompiledFixturesComponent\":{}," +
                 "\"PixscapeIdentityComponent\":{\"stableId\":42,\"name\":\"car\"}}}}," +
-                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PhysicsAuthoringComponent\",\"PixscapeIdentityComponent\"]}}";
+                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PhysicsCompiledFixturesComponent\",\"PixscapeIdentityComponent\"]}}";
         Files.writeString(
                 studioDir.resolve(StudioFs.DIR_PREFABS).resolve("car.pixfragment.json"),
                 fragment,
@@ -424,7 +423,7 @@ public class RuntimeExportAnimationsTest {
 
         assertFalse(exported.contains("games.pixscape.studio"));
         assertFalse(exported.contains("EntityMetaComponent"));
-        assertFalse(exported.contains("PhysicsAuthoringComponent"));
+        assertFalse(exported.contains("PhysicsCompiledFixturesComponent"));
         assertFalse(exported.contains("stableId"));
         assertTrue(exported.contains("PixscapeIdentityComponent"));
     }

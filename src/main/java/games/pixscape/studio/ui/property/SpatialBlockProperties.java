@@ -40,7 +40,6 @@ public final class SpatialBlockProperties extends VisTable {
     private final SimpleFloatField altitudeField = new SimpleFloatField();
     private final SimpleFloatField heightField = new SimpleFloatField();
     private final VisCheckBox actorOccluderBox = new VisCheckBox("Actor occluder");
-    private final VisCheckBox physicsCollisionBox = new VisCheckBox("Use for physics collision");
     private final VisCheckBox lightOccluderBox = new VisCheckBox("Light occluder");
     private final VisCheckBox shadowCasterBox = new VisCheckBox("Shadow caster");
     private final VisCheckBox particleOccluderBox = new VisCheckBox("Particle occluder");
@@ -114,7 +113,6 @@ public final class SpatialBlockProperties extends VisTable {
         altitudeField.setName("spatialWallStructureAltitude");
         heightField.setName("spatialWallStructureHeight");
         actorOccluderBox.setName("spatialWallActorOccluder");
-        physicsCollisionBox.setName("spatialWallPhysicsCollision");
         lightOccluderBox.setName("spatialWallLightOccluder");
         shadowCasterBox.setName("spatialWallShadowCaster");
         particleOccluderBox.setName("spatialWallParticleOccluder");
@@ -134,13 +132,10 @@ public final class SpatialBlockProperties extends VisTable {
 
         data.addSeparator().colspan(2).growX().padTop(4).padBottom(4).row();
         data.add(actorOccluderBox).colspan(2).left().row();
-        data.add(physicsCollisionBox).colspan(2).left().row();
         data.add(lightOccluderBox).colspan(2).left().row();
         data.add(shadowCasterBox).colspan(2).left().row();
         data.add(particleOccluderBox).colspan(2).left().row();
         addTooltip(actorOccluderBox, "Controls actor spatial ordering.");
-        addTooltip(physicsCollisionBox,
-                "Controls Studio collision fixtures and compiled spatial-collision metadata.");
         addTooltip(lightOccluderBox,
                 "Stored and compiled; the downstream light-occlusion consumer is not implemented yet.");
         addTooltip(shadowCasterBox,
@@ -173,7 +168,6 @@ public final class SpatialBlockProperties extends VisTable {
         heightField.bind(() -> readFloat(block -> block.height), value -> submitEdit(block -> block.height = Math.max(0f, value)));
 
         bindCheckBox(actorOccluderBox, (block, value) -> block.actorOccluder = value);
-        bindCheckBox(physicsCollisionBox, (block, value) -> block.physicsCollision = value);
         bindCheckBox(lightOccluderBox, (block, value) -> block.lightOccluder = value);
         bindCheckBox(shadowCasterBox, (block, value) -> block.shadowCaster = value);
         bindCheckBox(particleOccluderBox, (block, value) -> block.particleOccluder = value);
@@ -307,7 +301,6 @@ public final class SpatialBlockProperties extends VisTable {
             altitudeField.setDisabled(!active);
             heightField.setDisabled(!active);
             actorOccluderBox.setDisabled(!active);
-            physicsCollisionBox.setDisabled(!active);
             lightOccluderBox.setDisabled(!active);
             shadowCasterBox.setDisabled(!active);
             particleOccluderBox.setDisabled(!active);
@@ -322,7 +315,6 @@ public final class SpatialBlockProperties extends VisTable {
             altitudeField.refresh();
             heightField.refresh();
             actorOccluderBox.setChecked(block != null && block.actorOccluder);
-            physicsCollisionBox.setChecked(block != null && block.physicsCollision);
             lightOccluderBox.setChecked(block != null && block.lightOccluder);
             shadowCasterBox.setChecked(block != null && block.shadowCaster);
             particleOccluderBox.setChecked(block != null && block.particleOccluder);

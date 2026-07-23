@@ -8,9 +8,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -329,14 +329,14 @@ public final class BodyPanel extends CollapsibleWidget {
     }
 
     private int countFixtures(int eid) {
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || fixtures.fixtures == null) return 0;
-        return fixtures.fixtures.size;
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null) return 0;
+        return fixtures.shapes.size;
     }
 
     private String buildShapeSummary(int eid) {
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || fixtures.fixtures == null || fixtures.fixtures.size == 0) {
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
             return EMPTY_SHAPE_SUMMARY;
         }
 
@@ -344,12 +344,12 @@ public final class BodyPanel extends CollapsibleWidget {
         int quads = 0;
         int polygons = 0;
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.shapeType == FixtureDefData.SHAPE_CIRCLE) circles++;
-            else if (f.shapeType == FixtureDefData.SHAPE_BOX) quads++;
-            else if (f.shapeType == FixtureDefData.SHAPE_POLYGON) polygons++;
+            if (f.shapeType == PhysicsShapeData.SHAPE_CIRCLE) circles++;
+            else if (f.shapeType == PhysicsShapeData.SHAPE_BOX) quads++;
+            else if (f.shapeType == PhysicsShapeData.SHAPE_POLYGON) polygons++;
         }
 
         return circles + " circles • " + quads + " quads • " + polygons + " polygons";

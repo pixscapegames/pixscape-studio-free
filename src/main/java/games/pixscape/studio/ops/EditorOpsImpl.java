@@ -14,8 +14,8 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.particle.ParticleEffect;
@@ -25,7 +25,7 @@ import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
@@ -42,7 +42,6 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
@@ -613,7 +612,7 @@ public class EditorOpsImpl implements EditorOps {
 
         float radius = 250f;
         float intensity = 1f;
-        float angleDeg = 60f;
+        float angleDegrees = 60f;
         float softness = 0.1f;
         float falloff = 1.5f;
         float r = 1f, g = 0.9f, b = 0.2f;
@@ -627,7 +626,7 @@ public class EditorOpsImpl implements EditorOps {
                         shaderIdx, blend, textureHandle,
                         activeLayerIndex,
                         "Cone light",
-                        radius, intensity, angleDeg, softness, falloff,
+                        radius, intensity, angleDegrees, softness, falloff,
                         r, g, b
                 );
         init.setIdentityStableId(allocateStableId());
@@ -722,28 +721,10 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void deleteFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0) return;
+    public void deleteFixture(int bodyEid, long physicsShapeId) {
+        if (bodyEid < 0 || physicsShapeId <= 0) return;
 
-        AuthoredPolygonData authored = polygonAuthoringService.findByGeneratedFixtureId(bodyEid, fixtureId);
-
-        if (authored != null) {
-            DeleteAuthoredPolygonCommand cmd = new DeleteAuthoredPolygonCommand(
-                    world,
-                    historyManager.historyIds(),
-                    physicsSelectionService,
-                    bodyEid,
-                    authored.authoringId
-            );
-
-            if (!cmd.isNoop()) {
-                historyManager.execute(cmd);
-            }
-
-            return;
-        }
-
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
 
         if (fixtures == null) {
             return;
@@ -754,7 +735,7 @@ public class EditorOpsImpl implements EditorOps {
                 historyManager.historyIds(),
                 physicsSelectionService,
                 bodyEid,
-                fixtureId
+                physicsShapeId
         ));
     }
 
@@ -762,8 +743,8 @@ public class EditorOpsImpl implements EditorOps {
     public void addBoxFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
+        PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
 
         fixture.offsetX = 0f;
         fixture.offsetY = 0f;
@@ -782,8 +763,8 @@ public class EditorOpsImpl implements EditorOps {
     public void addCircleFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
+        PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+        fixture.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
         fixture.radius = 0.5f;
 
         fixture.offsetX = 0f;
@@ -825,26 +806,25 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void beginEditPolygonFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0L) return;
-        if (SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) return;
+    public void beginEditPolygonFixture(int bodyEid, long physicsShapeId) {
+        if (bodyEid < 0 || physicsShapeId <= 0L) return;
 
-        PhysicsFixturesComponent fixtures =
-                world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
+        PhysicsShapesComponent fixtures =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
         if (fixtures == null) return;
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.fixtureId != fixtureId) continue;
-            if (f.shapeType != FixtureDefData.SHAPE_POLYGON) return;
-            if (f.polyVerts == null || f.polyCount < 3) return;
+            if (f.physicsShapeId != physicsShapeId) continue;
+            if (f.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
+            if (f.polygonVertices == null || f.polygonVertexCount < 3) return;
 
             polygonDrawSession.beginEdit(
                     bodyEid,
-                    fixtureId,
-                    f.polyVerts,
-                    f.polyCount
+                    physicsShapeId,
+                    f.polygonVertices,
+                    f.polygonVertexCount
             );
             return;
         }

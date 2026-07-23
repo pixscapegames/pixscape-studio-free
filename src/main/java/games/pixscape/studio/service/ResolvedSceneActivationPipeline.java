@@ -62,7 +62,7 @@ final class ResolvedSceneActivationPipeline {
     }
 
     void activate(ResolvedSceneTarget target) {
-        sceneLoader.load(world, target.sceneFile(), false);
+        sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
         resolveTiledLayersForActivation(
@@ -391,7 +391,7 @@ final class ResolvedSceneActivationPipeline {
 
     @FunctionalInterface
     interface SceneLoadOperation {
-        void load(World world, FileHandle file, boolean editMode);
+        void load(World world, FileHandle file, boolean editMode, SceneMeta meta);
     }
 
 }

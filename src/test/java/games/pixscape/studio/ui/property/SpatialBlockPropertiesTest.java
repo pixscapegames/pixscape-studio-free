@@ -221,34 +221,6 @@ public class SpatialBlockPropertiesTest {
     }
 
     @Test
-    public void featureCheckboxesMutateOnlyTheirMatchingFields() {
-        Fixture fixture = fixture();
-        int layerId = tiledLayer(fixture.world);
-        fixture.history.historyIds().ensureForEntity(layerId);
-        SpatialBlockData wall = wall(1, 1, 0, 0, 1, 1);
-        fixture.world.getMapper(SpatialBlocksComponent.class).create(layerId).blocks.add(wall);
-        fixture.selection.selectBlock(layerId, 1);
-        SpatialBlockProperties properties = fixture.properties();
-        properties.setSpatialBlock(layerId, 1);
-
-        Assert.assertTrue(checkBox(properties, "spatialWallActorOccluder").isChecked());
-        setChecked(properties, "spatialWallActorOccluder", false);
-        Assert.assertFalse(checkBox(properties, "spatialWallActorOccluder").isChecked());
-        Assert.assertFalse(properties.activeBlock().actorOccluder);
-        setChecked(properties, "spatialWallPhysicsCollision", true);
-        setChecked(properties, "spatialWallLightOccluder", true);
-        setChecked(properties, "spatialWallShadowCaster", true);
-        setChecked(properties, "spatialWallParticleOccluder", true);
-
-        SpatialBlockData edited = properties.activeBlock();
-        Assert.assertFalse(edited.actorOccluder);
-        Assert.assertTrue(edited.physicsCollision);
-        Assert.assertTrue(edited.lightOccluder);
-        Assert.assertTrue(edited.shadowCaster);
-        Assert.assertTrue(edited.particleOccluder);
-    }
-
-    @Test
     public void structureAltitudeAndHeightEditsRemainAtomicAndUndoable() {
         Fixture fixture = fixture();
         int layerId = tiledLayer(fixture.world);

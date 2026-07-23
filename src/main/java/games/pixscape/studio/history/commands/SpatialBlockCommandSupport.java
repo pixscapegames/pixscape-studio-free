@@ -62,7 +62,6 @@ final class SpatialBlockCommandSupport {
         target.altitude = source.altitude;
         target.height = source.height;
         target.actorOccluder = source.actorOccluder;
-        target.physicsCollision = source.physicsCollision;
         target.lightOccluder = source.lightOccluder;
         target.shadowCaster = source.shadowCaster;
         target.particleOccluder = source.particleOccluder;
@@ -83,7 +82,6 @@ final class SpatialBlockCommandSupport {
                 && Float.compare(a.altitude, b.altitude) == 0
                 && Float.compare(a.height, b.height) == 0
                 && a.actorOccluder == b.actorOccluder
-                && a.physicsCollision == b.physicsCollision
                 && a.lightOccluder == b.lightOccluder
                 && a.shadowCaster == b.shadowCaster
                 && a.particleOccluder == b.particleOccluder

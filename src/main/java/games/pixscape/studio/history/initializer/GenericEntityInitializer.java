@@ -1,5 +1,7 @@
 package games.pixscape.studio.history.initializer;
 
+import games.pixscape.runtime.physics.PhysicsShapeData;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
@@ -12,11 +14,8 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
-import games.pixscape.studio.component.physics.ConvexPolygonPartData;
-import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.model.EntityKind;
 
 
@@ -128,12 +127,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float physAngularDamping = 0f;
     protected boolean physEnabled = true;
 
-    protected boolean hasPhysicsFixtures;
-    protected final Array<FixtureDefData> physFixtures = new Array<>();
+    protected boolean hasPhysicsShapes;
+    protected final Array<PhysicsShapeData> physicsShapes = new Array<>();
 
-    // --- Physics authoring, studio-only ---
-    protected boolean hasPhysicsAuthoring;
-    protected final Array<AuthoredPolygonData> physAuthoringPolygons = new Array<>();
     protected boolean hasPhysicsJoint;
     protected int jointType;
     protected int jointAEid;
@@ -183,8 +179,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsFixturesComponent> mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        ComponentMapper<PhysicsAuthoringComponent> mPhysAuthoring = world.getMapper(PhysicsAuthoringComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<PhysicsJointComponent> mJoint = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> mDist = world.getMapper(PhysicsDistanceJointComponent.class);
         ComponentMapper<PhysicsRevoluteJointComponent> mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
@@ -391,38 +386,18 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
 
         // --- Physics fixtures ---
-        if (mPhysFixtures.has(e) && mPhysFixtures.get(e).hasFixtures()) {
-            PhysicsFixturesComponent fixtures = mPhysFixtures.get(e);
-            hasPhysicsFixtures = true;
-            physFixtures.clear();
-            for (FixtureDefData fixture : fixtures.fixtures) {
-                if (fixture != null) physFixtures.add(fixture.copy());
+        if (mPhysicsShapes.has(e) && mPhysicsShapes.get(e).hasShapes()) {
+            PhysicsShapesComponent fixtures = mPhysicsShapes.get(e);
+            hasPhysicsShapes = true;
+            physicsShapes.clear();
+            for (PhysicsShapeData fixture : fixtures.shapes) {
+                if (fixture != null) physicsShapes.add(fixture.copy());
             }
         } else {
-            hasPhysicsFixtures = false;
-            physFixtures.clear();
+            hasPhysicsShapes = false;
+            physicsShapes.clear();
         }
 
-        // --- Physics authoring ---
-        physAuthoringPolygons.clear();
-
-        if (mPhysAuthoring.has(e)) {
-            PhysicsAuthoringComponent authoring = mPhysAuthoring.get(e);
-
-            if (authoring != null && authoring.polygons != null && authoring.polygons.size > 0) {
-                hasPhysicsAuthoring = true;
-
-                for (AuthoredPolygonData polygon : authoring.polygons) {
-                    if (polygon != null) {
-                        physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-                    }
-                }
-            } else {
-                hasPhysicsAuthoring = false;
-            }
-        } else {
-            hasPhysicsAuthoring = false;
-        }
         hasPhysicsJoint = false;
         hasDistanceJoint = mDist.has(e);
         hasRevoluteJoint = mRev.has(e);
@@ -536,8 +511,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsFixturesComponent> mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        ComponentMapper<PhysicsAuthoringComponent> mPhysAuthoring = world.getMapper(PhysicsAuthoringComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<PhysicsJointComponent> mJoint = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> mDist = world.getMapper(PhysicsDistanceJointComponent.class);
         ComponentMapper<PhysicsRevoluteJointComponent> mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
@@ -712,28 +686,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
 
         // --- Physics fixtures ---
-        if (hasPhysicsFixtures) {
-            PhysicsFixturesComponent fixtures = mPhysFixtures.has(e) ? mPhysFixtures.get(e) : mPhysFixtures.create(e);
-            fixtures.fixtures.clear();
-            for (FixtureDefData fixture : physFixtures) {
-                if (fixture != null) fixtures.fixtures.add(fixture.copy());
-            }
-            if (!fixtures.hasFixtures()) {
-                fixtures.fixtures.add(PhysicsService.createDefaultFixture());
-            }
-        }
-
-        // --- Physics authoring ---
-        if (hasPhysicsAuthoring) {
-            PhysicsAuthoringComponent authoring =
-                    mPhysAuthoring.has(e) ? mPhysAuthoring.get(e) : mPhysAuthoring.create(e);
-
-            authoring.polygons.clear();
-
-            for (AuthoredPolygonData polygon : physAuthoringPolygons) {
-                if (polygon != null) {
-                    authoring.polygons.add(copyAuthoredPolygon(polygon));
-                }
+        if (hasPhysicsShapes) {
+            PhysicsShapesComponent fixtures = mPhysicsShapes.has(e) ? mPhysicsShapes.get(e) : mPhysicsShapes.create(e);
+            fixtures.shapes.clear();
+            for (PhysicsShapeData fixture : physicsShapes) {
+                if (fixture != null) fixtures.shapes.add(fixture.copy());
             }
         }
         if (hasPhysicsJoint) {
@@ -820,58 +777,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             c.ratio = gearRatio;
         }
 
-        if (dirty != null && (hasPhysicsBody || hasPhysicsFixtures)) {
+        if (dirty != null && (hasPhysicsBody || hasPhysicsShapes)) {
             dirty.physics(e, PhysicsDirtyBits.ALL);
         }
 
 
-    }
-
-    private static AuthoredPolygonData copyAuthoredPolygon(AuthoredPolygonData source) {
-        AuthoredPolygonData out = new AuthoredPolygonData();
-
-        if (source == null) {
-            return out;
-        }
-
-        out.authoringId = source.authoringId;
-
-        out.sourceCount = source.sourceCount;
-        out.sourceVerts = copyFloatArray(source.sourceVerts, source.sourceCount * 2);
-
-        out.decompositionAlgorithmVersion = source.decompositionAlgorithmVersion;
-        out.sourceHash = source.sourceHash;
-
-        out.generatedFixtureIds = copyIntArray(source.generatedFixtureIds);
-
-        out.density = source.density;
-        out.friction = source.friction;
-        out.restitution = source.restitution;
-        out.isSensor = source.isSensor;
-
-        out.categoryBits = source.categoryBits;
-        out.maskBits = source.maskBits;
-        out.groupIndex = source.groupIndex;
-
-        out.offsetX = source.offsetX;
-        out.offsetY = source.offsetY;
-        out.angleDeg = source.angleDeg;
-
-        out.convexParts.clear();
-
-        if (source.convexParts != null) {
-            for (ConvexPolygonPartData part : source.convexParts) {
-                if (part == null) continue;
-
-                ConvexPolygonPartData copy = new ConvexPolygonPartData();
-                copy.count = part.count;
-                copy.verts = copyFloatArray(part.verts, part.count * 2);
-
-                out.convexParts.add(copy);
-            }
-        }
-
-        return out;
     }
 
     private static float[] copyFloatArray(float[] source, int wantedLength) {
@@ -989,13 +899,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.linearDamping = physLinearDamping;
         out.angularDamping = physAngularDamping;
         out.bodyEnabled = physEnabled;
-        for (FixtureDefData fixture : physFixtures) {
-            if (fixture != null) out.fixtures.add(fixture.copy());
-        }
-        out.hasPhysicsAuthoring = hasPhysicsAuthoring;
-        out.physicsAuthoringPolygons.clear();
-        for (AuthoredPolygonData polygon : physAuthoringPolygons) {
-            if (polygon != null) out.physicsAuthoringPolygons.add(copyAuthoredPolygon(polygon));
+        for (PhysicsShapeData fixture : physicsShapes) {
+            if (fixture != null) out.shapes.add(fixture.copy());
         }
         out.hasJoint = hasPhysicsJoint;
         out.jointType = jointType;
@@ -1145,20 +1050,13 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         physLinearDamping = in.linearDamping;
         physAngularDamping = in.angularDamping;
         physEnabled = in.bodyEnabled;
-        physFixtures.clear();
-        if (in.fixtures != null) {
-            for (FixtureDefData fixture : in.fixtures) {
-                if (fixture != null) physFixtures.add(fixture.copy());
+        physicsShapes.clear();
+        if (in.shapes != null) {
+            for (PhysicsShapeData fixture : in.shapes) {
+                if (fixture != null) physicsShapes.add(fixture.copy());
             }
         }
-        hasPhysicsFixtures = in.fixtures != null && in.fixtures.size > 0;
-        hasPhysicsAuthoring = in.hasPhysicsAuthoring;
-        physAuthoringPolygons.clear();
-        if (in.physicsAuthoringPolygons != null) {
-            for (AuthoredPolygonData polygon : in.physicsAuthoringPolygons) {
-                if (polygon != null) physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-            }
-        }
+        hasPhysicsShapes = in.shapes != null && in.shapes.size > 0;
         hasPhysicsJoint = in.hasJoint;
         jointType = in.jointType;
         jointAEid = in.jointAEid;
@@ -1649,6 +1547,18 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
+    public GenericEntityInitializer allocateFreshPhysicsShapeIds() {
+        for (int i = 0; i < physicsShapes.size; i++) {
+            PhysicsShapeData shape = physicsShapes.get(i);
+            if (shape != null) {
+                shape.physicsShapeId =
+                        games.pixscape.studio.service.physics.PhysicsShapeIdService
+                                .allocateNewPhysicsShapeId();
+            }
+        }
+        return this;
+    }
+
     public GenericEntityInitializer duplicate() {
         GenericEntityInitializer copy = new GenericEntityInitializer(world);
 
@@ -1758,23 +1668,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.physAngularDamping = this.physAngularDamping;
         copy.physEnabled = this.physEnabled;
 
-        copy.hasPhysicsFixtures = this.hasPhysicsFixtures;
-        copy.physFixtures.clear();
-        for (FixtureDefData fixture : this.physFixtures) {
+        copy.hasPhysicsShapes = this.hasPhysicsShapes;
+        copy.physicsShapes.clear();
+        for (PhysicsShapeData fixture : this.physicsShapes) {
             if (fixture != null) {
-                copy.physFixtures.add(fixture.copy());
+                copy.physicsShapes.add(fixture.copy());
             }
         }
 
-        // --- Physics authoring ---
-        copy.hasPhysicsAuthoring = this.hasPhysicsAuthoring;
-        copy.physAuthoringPolygons.clear();
-
-        for (AuthoredPolygonData polygon : this.physAuthoringPolygons) {
-            if (polygon != null) {
-                copy.physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-            }
-        }
         copy.hasPhysicsJoint = this.hasPhysicsJoint;
         copy.jointType = this.jointType;
         copy.jointAEid = this.jointAEid;
@@ -1892,7 +1793,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         data.hasPointLight = this.hasPointLight;
         data.hasConeLight = this.hasConeLight;
         data.hasPhysicsBody = this.hasPhysicsBody;
-        data.hasPhysicsFixtures = this.hasPhysicsFixtures;
+        data.hasPhysicsShapes = this.hasPhysicsShapes;
         data.hasPhysicsJoint = this.hasPhysicsJoint;
         return data;
     }
@@ -1909,6 +1810,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         public boolean hasAnimation;
         public String animationName;
         public boolean hasPointLight, hasConeLight;
-        public boolean hasPhysicsBody, hasPhysicsFixtures, hasPhysicsJoint;
+        public boolean hasPhysicsBody, hasPhysicsShapes, hasPhysicsJoint;
     }
 }

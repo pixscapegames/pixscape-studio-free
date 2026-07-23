@@ -380,8 +380,8 @@ public final class ConeLightProperties extends VisTable {
     }
 
     private void setConeAngle(int entityId, float value) {
-        float angleDeg = MathUtils.clamp(value, 1f, 179f) * 0.5f;
-        setShaderFloat(entityId, "u_coneCos", MathUtils.cosDeg(angleDeg));
+        float angleDegrees = MathUtils.clamp(value, 1f, 179f) * 0.5f;
+        setShaderFloat(entityId, "u_coneCos", MathUtils.cosDeg(angleDegrees));
     }
 
     private void setFalloff(int entityId, float value) {

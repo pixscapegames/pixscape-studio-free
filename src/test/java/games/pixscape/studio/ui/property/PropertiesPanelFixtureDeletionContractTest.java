@@ -19,7 +19,7 @@ public class PropertiesPanelFixtureDeletionContractTest {
         Assert.assertTrue(source.contains("restoreAfterFixtureDeselection();"));
         Assert.assertTrue(source.contains("&& mPhysBody.has(bodyEntityId)"));
         Assert.assertTrue(source.contains("showBodyProperties(physicsContextBody);"));
-        Assert.assertTrue(source.contains("&& fixtureExists(bodyEntityId, fixtureId)"));
+        Assert.assertTrue(source.contains("&& fixtureExists(bodyEntityId, physicsShapeId)"));
 
         String pickingSource = Files.readString(Path.of(
                 "src/main/java/games/pixscape/studio/system/PickingSystem.java"));

@@ -4,13 +4,21 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class EditPhysicsBodyCommandTest {
+    @Before
+    public void activateSceneAllocator() {
+        games.pixscape.studio.configuration.ProjectConfig config =
+                new games.pixscape.studio.configuration.ProjectConfig();
+        config.createSceneMeta("Main");
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(config);
+    }
 
     @Test
     public void editGravityScaleUndoRedoRestoresExactValues() {
@@ -194,7 +202,7 @@ public class EditPhysicsBodyCommandTest {
 
         history.undo();
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
-        Assert.assertFalse(world.getMapper(PhysicsFixturesComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
 
         history.redo();
         body = world.getMapper(PhysicsBodyComponent.class).get(entityId);
@@ -222,7 +230,7 @@ public class EditPhysicsBodyCommandTest {
         body.angularDamping = 0f;
         body.enabled = true;
 
-        world.getMapper(PhysicsFixturesComponent.class).create(entityId);
+        world.getMapper(PhysicsShapesComponent.class).create(entityId);
         return entityId;
     }
 

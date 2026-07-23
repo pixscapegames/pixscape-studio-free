@@ -1,233 +1,157 @@
 package games.pixscape.studio.history.commands;
 
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import com.artemis.Aspect;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
-
-import java.util.ArrayList;
-import java.util.List;
+import games.pixscape.studio.service.physics.PhysicsShapeIdService;
 
 /**
- * History command for enabling/disabling physics on a body entity.
- * When disabling, dependent joints are deleted while preserving identity/history.
- * <p>
- * Default initialization settings:
- * - bodyType: PhysicsBodyComponent.STATIC / KINEMATIC / DYNAMIC
- * - hasDefaultFixture: true => creates a default BOX fixture if no snapshot exists,
- * false => creates only the body + empty fixtures component.
+ * Enables or disables a body without conflating disable with destructive removal.
  */
 public final class TogglePhysicsBodyCommand implements Command {
-
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final long bodyHistoryId;
     private final boolean enable;
     private final int bodyType;
-    private final boolean hasDefaultFixture;
-    private final PhysicsBodyState bodySnapshot;
-    private final PhysicsFixturesState fixturesSnapshot;
-    private final List<DeleteJointCommand> dependentJointCommands;
-    private final IntArray spatialPhysicsBlockIds = new IntArray();
+    private final boolean createDefaultShape;
+    private final boolean hadBody;
+    private final PhysicsBodyState bodyBefore;
+    private final Array<PhysicsShapeData> shapesBefore = new Array<>();
 
-    public TogglePhysicsBodyCommand(World world,
-                                    HistoryIdRegistry historyIds,
-                                    int bodyEntityId,
-                                    boolean enable,
-                                    int bodyType,
-                                    boolean hasDefaultFixture) {
+    public TogglePhysicsBodyCommand(
+            World world,
+            HistoryIdRegistry historyIds,
+            int bodyEntityId,
+            boolean enable,
+            int bodyType,
+            boolean createDefaultShape) {
         this.world = world;
         this.historyIds = historyIds;
         this.bodyHistoryId = historyIds.ensureForEntity(bodyEntityId);
         this.enable = enable;
         this.bodyType = sanitizeBodyType(bodyType);
-        this.hasDefaultFixture = hasDefaultFixture;
+        this.createDefaultShape = createDefaultShape;
 
-        var mBody = world.getMapper(PhysicsBodyComponent.class);
-        var mFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        this.bodySnapshot = mBody.has(bodyEntityId) ? PhysicsBodyState.capture(mBody.get(bodyEntityId)) : null;
-        this.fixturesSnapshot = mFixtures.has(bodyEntityId)
-                ? PhysicsFixturesState.capture(mFixtures.get(bodyEntityId))
-                : null;
+        PhysicsBodyComponent body =
+                world.getMapper(PhysicsBodyComponent.class).getSafe(bodyEntityId, null);
+        this.hadBody = body != null;
+        this.bodyBefore = body != null ? PhysicsBodyState.capture(body) : null;
 
-        this.dependentJointCommands = new ArrayList<>();
-        if (!enable) {
-            this.dependentJointCommands.addAll(captureDependentJointDeletes());
-            SpatialBlocksComponent blocks =
-                    world.getMapper(SpatialBlocksComponent.class).getSafe(bodyEntityId, null);
-            if (blocks != null && blocks.blocks != null) {
-                for (int i = 0; i < blocks.blocks.size; i++) {
-                    SpatialBlockData block = blocks.blocks.get(i);
-                    if (block != null && block.physicsCollision) {
-                        spatialPhysicsBlockIds.add(block.id);
-                    }
-                }
+        PhysicsShapesComponent shapes =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEntityId, null);
+        if (shapes != null && shapes.shapes != null) {
+            for (int i = 0; i < shapes.shapes.size; i++) {
+                PhysicsShapeData shape = shapes.shapes.get(i);
+                if (shape != null) shapesBefore.add(shape.copy());
             }
         }
     }
 
     @Override
     public String label() {
-        return enable ? "Enable Physics" : "Disable Physics";
+        return enable ? "Enable Physics Body" : "Disable Physics Body";
     }
 
     @Override
     public void redo() {
+        int entityId = resolveBodyEntityId();
+        if (entityId < 0) return;
+
         if (enable) {
-            enablePhysics();
+            PhysicsBodyComponent body = ensureBody(entityId);
+            body.enabled = true;
         } else {
-            for (DeleteJointCommand deleteJoint : dependentJointCommands) {
-                deleteJoint.redo();
-            }
-            setSpatialCollisionFlags(false);
-            disablePhysics();
+            PhysicsBodyComponent body =
+                    world.getMapper(PhysicsBodyComponent.class).getSafe(entityId, null);
+            if (body != null) body.enabled = false;
         }
-        markDirty();
-        markSpatialChanged();
+        markDirty(entityId);
     }
 
     @Override
     public void undo() {
-        if (enable) {
-            disablePhysics();
-        } else {
-            enablePhysics();
-            setSpatialCollisionFlags(true);
-            for (int i = dependentJointCommands.size() - 1; i >= 0; i--) {
-                dependentJointCommands.get(i).undo();
-            }
-        }
-        markDirty();
-        markSpatialChanged();
-    }
-
-    private List<DeleteJointCommand> captureDependentJointDeletes() {
-        List<DeleteJointCommand> commands = new ArrayList<>();
-        var mJoint = world.getMapper(PhysicsJointComponent.class);
-        IntBag joints = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PhysicsJointComponent.class))
-                .getEntities();
-
-        int currentBodyEntityId = resolveBodyEntityId();
-        if (currentBodyEntityId < 0) return commands;
-
-        int[] data = joints.getData();
-        for (int i = 0, n = joints.size(); i < n; i++) {
-            int jointEntityId = data[i];
-            PhysicsJointComponent joint = mJoint.getSafe(jointEntityId, null);
-            if (joint == null) continue;
-            if (joint.aEid == currentBodyEntityId || joint.bEid == currentBodyEntityId) {
-                commands.add(new DeleteJointCommand(world, historyIds, jointEntityId));
-            }
-        }
-        return commands;
-    }
-
-    private void enablePhysics() {
         int entityId = resolveBodyEntityId();
         if (entityId < 0) return;
 
-        var mBody = world.getMapper(PhysicsBodyComponent.class);
-        var mFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        var mTransform = world.getMapper(TransformComponent.class);
-
-        PhysicsBodyComponent body = mBody.has(entityId) ? mBody.get(entityId) : mBody.create(entityId);
-        PhysicsFixturesComponent fixtures = mFixtures.has(entityId) ? mFixtures.get(entityId) : mFixtures.create(entityId);
-
-        // Global invariant: every physics body must have a TransformComponent.
-        if (!mTransform.has(entityId)) {
-            TransformComponent transform = mTransform.create(entityId);
-            initDefaultTransform(transform);
-        }
-
-        if (bodySnapshot != null) {
-            bodySnapshot.apply(body);
+        if (!hadBody) {
+            removeCreatedPhysics(entityId);
         } else {
+            PhysicsBodyComponent body =
+                    world.getMapper(PhysicsBodyComponent.class).has(entityId)
+                            ? world.getMapper(PhysicsBodyComponent.class).get(entityId)
+                            : world.getMapper(PhysicsBodyComponent.class).create(entityId);
+            bodyBefore.apply(body);
+
+            PhysicsShapesComponent shapes =
+                    world.getMapper(PhysicsShapesComponent.class).has(entityId)
+                            ? world.getMapper(PhysicsShapesComponent.class).get(entityId)
+                            : world.getMapper(PhysicsShapesComponent.class).create(entityId);
+            shapes.shapes.clear();
+            for (int i = 0; i < shapesBefore.size; i++) {
+                shapes.add(shapesBefore.get(i).copy());
+            }
+        }
+        markDirty(entityId);
+    }
+
+    private PhysicsBodyComponent ensureBody(int entityId) {
+        var bodyMapper = world.getMapper(PhysicsBodyComponent.class);
+        PhysicsBodyComponent body =
+                bodyMapper.has(entityId) ? bodyMapper.get(entityId) : bodyMapper.create(entityId);
+        if (!hadBody) {
             initDefaultBody(body, bodyType);
         }
 
-        fixtures.fixtures.clear();
-        if (fixturesSnapshot != null) {
-            fixturesSnapshot.apply(fixtures);
-        } else if (hasDefaultFixture) {
-            fixtures.fixtures.add(PhysicsService.createDefaultFixture());
+        var transformMapper = world.getMapper(TransformComponent.class);
+        if (!transformMapper.has(entityId)) {
+            TransformComponent transform = transformMapper.create(entityId);
+            transform.scaleX = 1f;
+            transform.scaleY = 1f;
         }
 
-        historyIds.ensureForEntity(entityId);
+        var shapesMapper = world.getMapper(PhysicsShapesComponent.class);
+        PhysicsShapesComponent shapes =
+                shapesMapper.has(entityId)
+                        ? shapesMapper.get(entityId)
+                        : shapesMapper.create(entityId);
+        if (!hadBody && createDefaultShape && !shapes.hasShapes()) {
+            shapes.add(PhysicsService.createDefaultShape(
+                    PhysicsShapeIdService.allocateNewPhysicsShapeId()));
+        }
+        return body;
     }
 
-    private static void initDefaultTransform(TransformComponent t) {
-        t.x = 0f;
-        t.y = 0f;
-        t.rotationRad = 0f;
-        t.scaleX = 1f;
-        t.scaleY = 1f;
-        t.originX = 0f;
-        t.originY = 0f;
+    private void removeCreatedPhysics(int entityId) {
+        var bodyMapper = world.getMapper(PhysicsBodyComponent.class);
+        var shapesMapper = world.getMapper(PhysicsShapesComponent.class);
+        var compiledMapper = world.getMapper(PhysicsCompiledFixturesComponent.class);
+        var runtimeMapper = world.getMapper(PhysicsRuntimeBodyComponent.class);
+        if (runtimeMapper.has(entityId)) runtimeMapper.remove(entityId);
+        if (compiledMapper.has(entityId)) compiledMapper.remove(entityId);
+        if (shapesMapper.has(entityId)) shapesMapper.remove(entityId);
+        if (bodyMapper.has(entityId)) bodyMapper.remove(entityId);
     }
 
-    private void disablePhysics() {
-        int entityId = resolveBodyEntityId();
-        if (entityId < 0) return;
-
-        var mBody = world.getMapper(PhysicsBodyComponent.class);
-        var mFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        var mRuntimeBody = world.getMapper(PhysicsRuntimeBodyComponent.class);
-        if (mFixtures.has(entityId)) mFixtures.remove(entityId);
-        if (mBody.has(entityId)) mBody.remove(entityId);
-        if (mRuntimeBody.has(entityId)) mRuntimeBody.remove(entityId);
-    }
-
-    private void markDirty() {
-        int entityId = resolveBodyEntityId();
-        if (entityId < 0) return;
-
+    private void markDirty(int entityId) {
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        if (dirty != null) {
-            dirty.physics(entityId, PhysicsDirtyBits.ALL);
-        }
-    }
-
-    private void setSpatialCollisionFlags(boolean enabled) {
-        if (spatialPhysicsBlockIds.size == 0) return;
-        int entityId = resolveBodyEntityId();
-        if (entityId < 0) return;
-        SpatialBlocksComponent blocks =
-                world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
-        if (blocks == null || blocks.blocks == null) return;
-        boolean changed = false;
-        for (int i = 0; i < blocks.blocks.size; i++) {
-            SpatialBlockData block = blocks.blocks.get(i);
-            if (block == null || !spatialPhysicsBlockIds.contains(block.id)) continue;
-            if (block.physicsCollision != enabled) {
-                block.physicsCollision = enabled;
-                changed = true;
-            }
-        }
-        if (changed) blocks.revision++;
-    }
-
-    private void markSpatialChanged() {
-        if (spatialPhysicsBlockIds.size == 0) return;
-        int entityId = resolveBodyEntityId();
-        if (entityId >= 0) SpatialBlockCommandSupport.markChanged(world, entityId, this);
+        if (dirty != null) dirty.physics(entityId, PhysicsDirtyBits.ALL);
     }
 
     private int resolveBodyEntityId() {
         int entityId = historyIds.entityOfHistoryId(bodyHistoryId);
-        if (entityId < 0 || !world.getEntityManager().isActive(entityId)) {
-            return -1;
-        }
-        return entityId;
+        return entityId >= 0 && world.getEntityManager().isActive(entityId)
+                ? entityId
+                : -1;
     }
 
     private static int sanitizeBodyType(int bodyType) {
@@ -286,25 +210,6 @@ public final class TogglePhysicsBodyCommand implements Command {
             body.linearDamping = linearDamping;
             body.angularDamping = angularDamping;
             body.enabled = enabled;
-        }
-    }
-
-    private static final class PhysicsFixturesState {
-        private final Array<FixtureDefData> fixtures = new Array<>();
-
-        static PhysicsFixturesState capture(PhysicsFixturesComponent source) {
-            PhysicsFixturesState state = new PhysicsFixturesState();
-            for (FixtureDefData fixture : source.fixtures) {
-                if (fixture != null) state.fixtures.add(fixture.copy());
-            }
-            return state;
-        }
-
-        void apply(PhysicsFixturesComponent target) {
-            target.fixtures.clear();
-            for (FixtureDefData fixture : fixtures) {
-                if (fixture != null) target.fixtures.add(fixture.copy());
-            }
         }
     }
 }

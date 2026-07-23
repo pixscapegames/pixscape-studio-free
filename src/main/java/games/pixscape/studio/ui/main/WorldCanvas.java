@@ -912,7 +912,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
                         // 2) priority to selected shape
                         int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
-                        long selectedFixtureId = physicsSelectionService.getSelectedFixtureId();
+                        long selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
                         if (focusedBodyEid >= 0 && selectedFixtureId > 0) {
                             editorOps.deleteFixture(focusedBodyEid, selectedFixtureId);
                             return true;
@@ -1646,7 +1646,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     entry.initializer().toSnapshotData(entry.sourceEntityId());
 
             if (snapshot.hasPhysicsBody ||
-                    snapshot.hasPhysicsAuthoring ||
+                    snapshot.shapes.size > 0 ||
                     snapshot.hasJoint ||
                     snapshot.hasDistanceJoint ||
                     snapshot.hasRevoluteJoint ||
@@ -1657,7 +1657,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     snapshot.hasWeldJoint ||
                     snapshot.hasPulleyJoint ||
                     snapshot.hasGearJoint ||
-                    snapshot.fixtures.size > 0) {
+                    snapshot.shapes.size > 0) {
                 return true;
             }
         }
