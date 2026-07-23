@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.studio.history.HistoryManager;

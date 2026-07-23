@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
 import games.pixscape.runtime.tiled.TileChunk;

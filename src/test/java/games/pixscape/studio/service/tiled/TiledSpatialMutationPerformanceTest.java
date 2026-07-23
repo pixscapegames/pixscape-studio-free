@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
 import com.sun.management.ThreadMXBean;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TiledMapLayerData;

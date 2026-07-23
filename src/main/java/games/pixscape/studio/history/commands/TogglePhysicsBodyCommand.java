@@ -5,7 +5,7 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;

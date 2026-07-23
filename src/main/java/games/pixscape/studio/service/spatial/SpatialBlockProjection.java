@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 public final class SpatialBlockProjection {

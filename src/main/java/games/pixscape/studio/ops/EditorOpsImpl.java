@@ -22,6 +22,7 @@ import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.configuration.ProjectConfig;

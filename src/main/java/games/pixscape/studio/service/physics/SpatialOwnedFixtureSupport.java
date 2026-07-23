@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.physics;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.SpatialBlocksComponent;
 
 /** Resolves the existing deterministic Spatial wall-to-fixture ownership relation. */
