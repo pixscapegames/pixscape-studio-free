@@ -8,6 +8,9 @@ import games.pixscape.runtime.component.physics.FixtureIdSequence;
 import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.physics.PolygonBuildResult;
+import games.pixscape.runtime.physics.PolygonDecomposer;
+import games.pixscape.runtime.physics.PolygonPartData;
 import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.component.physics.ConvexPolygonPartData;
 import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
@@ -218,24 +221,24 @@ public final class PhysicsPolygonAuthoringService {
             PolygonBuildResult build,
             AuthoredPolygonData target
     ) {
-        target.sourceCount = build.sourceCount();
-        target.sourceVerts = copyVerts(build.sourceVerts(), build.sourceCount());
+        target.sourceCount = build.sourceVertexCount();
+        target.sourceVerts = copyVerts(build.sourceVertices(), build.sourceVertexCount());
 
         target.decompositionAlgorithmVersion = build.algorithmVersion();
         target.sourceHash = build.sourceHash();
 
         target.convexParts.clear();
 
-        Array<ConvexPolygonPartData> parts = build.parts();
+        Array<PolygonPartData> parts = build.parts();
         for (int i = 0; i < parts.size; i++) {
-            ConvexPolygonPartData sourcePart = parts.get(i);
+            PolygonPartData sourcePart = parts.get(i);
             if (sourcePart == null) {
                 continue;
             }
 
             ConvexPolygonPartData part = new ConvexPolygonPartData();
-            part.count = sourcePart.count;
-            part.verts = copyVerts(sourcePart.verts, sourcePart.count);
+            part.count = sourcePart.vertexCount;
+            part.verts = copyVerts(sourcePart.vertices, sourcePart.vertexCount);
 
             target.convexParts.add(part);
         }
