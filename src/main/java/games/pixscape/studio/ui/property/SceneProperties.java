@@ -500,6 +500,10 @@ public class SceneProperties extends VisTable {
                     v -> {
                         m.pixelsPerMeter = Math.max(0.0001f, v);
                         flagPreviewSaveRequired();
+                        EventFlow.i().publish(new EventFlow.ScenePhysicsPixelsPerMeterChanged(
+                                m.pixelsPerMeter,
+                                MY_TAG
+                        ));
                     }
             );
             pixelsPerMeter.refresh();

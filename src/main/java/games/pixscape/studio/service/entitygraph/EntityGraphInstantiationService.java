@@ -4,7 +4,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -43,23 +43,22 @@ public final class EntityGraphInstantiationService {
             return EntityGraphInstantiationResult.empty();
         }
 
-        List<Command> commands = new ArrayList<>();
         IntArray createdIds = new IntArray();
         IntIntMap sourceToCreated = new IntIntMap();
-        List<PreparedJointRemap> preparedJointRemaps = prepareJointRemaps(graph);
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            GenericEntityInitializer init = entry.initializer().duplicate();
-            init.allocateFreshPhysicsShapeIds();
-            validatePreparedPhysics(init, entry.sourceEntityId());
-            init.overrideLayerIndex(activeLayerIndex);
-            init.translate(dx, dy);
-            init.setIdentityStableId(identityRegistry.allocateStableId());
-
-            int sourceId = entry.sourceEntityId();
-            CreateEntityCommand cmd = new CreateEntityCommand(world, historyManager.historyIds(), init, createdEntityId -> {
+        IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
+        List<PreparedEntity> preparedEntities = prepareEntities(
+                graph, activeLayerIndex, dx, dy, snapshots);
+        List<PreparedJointRemap> preparedJointRemaps =
+                prepareJointRemaps(snapshots);
+        List<Command> commands = new ArrayList<>();
+        for (PreparedEntity prepared : preparedEntities) {
+            CreateEntityCommand cmd = new CreateEntityCommand(
+                    world,
+                    historyManager.historyIds(),
+                    prepared.initializer,
+                    createdEntityId -> {
                 createdIds.add(createdEntityId);
-                sourceToCreated.put(sourceId, createdEntityId);
+                sourceToCreated.put(prepared.sourceEntityId, createdEntityId);
             });
             commands.add(cmd);
         }
@@ -74,21 +73,40 @@ public final class EntityGraphInstantiationService {
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
     }
 
-    private static List<PreparedJointRemap> prepareJointRemaps(EntityGraph graph) {
-        IntSet sources = new IntSet(Math.max(1, graph.size()));
-        List<PreparedJointRemap> remaps = new ArrayList<>();
+    private List<PreparedEntity> prepareEntities(
+            EntityGraph graph,
+            int activeLayerIndex,
+            float dx,
+            float dy,
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        List<PreparedEntity> prepared = new ArrayList<>();
         for (EntityGraphEntry entry : graph.entries()) {
-            if (!sources.add(entry.sourceEntityId())) {
+            int sourceEntityId = entry.sourceEntityId();
+            if (snapshots.containsKey(sourceEntityId)) {
                 throw new IllegalArgumentException(
                         "Entity graph contains duplicate source entity "
-                                + entry.sourceEntityId() + ".");
+                                + sourceEntityId + ".");
             }
-        }
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            int sourceId = entry.sourceEntityId();
+            GenericEntityInitializer initializer = entry.initializer().duplicate();
+            initializer.allocateFreshPhysicsShapeIds();
+            initializer.overrideLayerIndex(activeLayerIndex);
+            initializer.translate(dx, dy);
+            initializer.setIdentityStableId(identityRegistry.allocateStableId());
             GenericEntitySnapshotData snapshot =
-                    entry.initializer().toSnapshotData(sourceId);
+                    initializer.toSnapshotData(sourceEntityId);
+            validatePreparedPhysics(snapshot, sourceEntityId);
+            snapshots.put(sourceEntityId, snapshot);
+            prepared.add(new PreparedEntity(sourceEntityId, initializer));
+        }
+        return prepared;
+    }
+
+    private static List<PreparedJointRemap> prepareJointRemaps(
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        List<PreparedJointRemap> remaps = new ArrayList<>();
+        for (IntMap.Entry<GenericEntitySnapshotData> entry : snapshots) {
+            int sourceId = entry.key;
+            GenericEntitySnapshotData snapshot = entry.value;
             if (!snapshot.hasJoint) continue;
             if (!hasSpecificJointData(snapshot)) {
                 throw new IllegalArgumentException(
@@ -96,27 +114,30 @@ public final class EntityGraphInstantiationService {
                                 + " is missing data for joint type "
                                 + snapshot.jointType + ".");
             }
-            requireMappedEndpoint(sources, sourceId, snapshot.jointAEid, "aEid");
-            requireMappedEndpoint(sources, sourceId, snapshot.jointBEid, "bEid");
+            requireBodyEndpoint(
+                    snapshots, sourceId, snapshot.jointAEid, "aEid");
+            requireBodyEndpoint(
+                    snapshots, sourceId, snapshot.jointBEid, "bEid");
             if (snapshot.jointAEid == snapshot.jointBEid) {
                 throw new IllegalArgumentException(
                         "Joint source " + sourceId + " has identical body endpoints.");
             }
             if (snapshot.jointType == PhysicsJointComponent.TYPE_GEAR) {
-                if (!snapshot.hasGearJoint) {
-                    throw new IllegalArgumentException(
-                            "Gear joint source " + sourceId
-                                    + " is missing PhysicsGearJointComponent data.");
-                }
-                requireMappedEndpoint(
-                        sources, sourceId, snapshot.gearJoint1Eid, "joint1Eid");
-                requireMappedEndpoint(
-                        sources, sourceId, snapshot.gearJoint2Eid, "joint2Eid");
                 if (snapshot.gearJoint1Eid == snapshot.gearJoint2Eid) {
                     throw new IllegalArgumentException(
                             "Gear joint source " + sourceId
                                     + " has identical joint dependencies.");
                 }
+                requireGearSource(
+                        snapshots,
+                        sourceId,
+                        snapshot.gearJoint1Eid,
+                        "joint1Eid");
+                requireGearSource(
+                        snapshots,
+                        sourceId,
+                        snapshot.gearJoint2Eid,
+                        "joint2Eid");
             }
             remaps.add(new PreparedJointRemap(
                     sourceId,
@@ -130,9 +151,7 @@ public final class EntityGraphInstantiationService {
     }
 
     private static void validatePreparedPhysics(
-            GenericEntityInitializer initializer, int sourceEntityId) {
-        GenericEntitySnapshotData snapshot =
-                initializer.toSnapshotData(sourceEntityId);
+            GenericEntitySnapshotData snapshot, int sourceEntityId) {
         if (snapshot.shapes == null || snapshot.shapes.size == 0) return;
         PhysicsShapesComponent shapes = new PhysicsShapesComponent();
         for (PhysicsShapeData shape : snapshot.shapes) {
@@ -171,12 +190,65 @@ public final class EntityGraphInstantiationService {
         }
     }
 
-    private static void requireMappedEndpoint(
-            IntSet sources, int jointSourceId, int referencedSourceId, String field) {
-        if (!sources.contains(referencedSourceId)) {
+    private static void requireBodyEndpoint(
+            IntMap<GenericEntitySnapshotData> snapshots,
+            int jointSourceId,
+            int referencedSourceId,
+            String field) {
+        GenericEntitySnapshotData endpoint = snapshots.get(referencedSourceId);
+        if (endpoint == null) {
             throw new IllegalArgumentException(
                     "Joint source " + jointSourceId + " references missing "
                             + field + " source " + referencedSourceId + ".");
+        }
+        if (!endpoint.hasPhysicsBody) {
+            throw new IllegalArgumentException(
+                    "Joint source " + jointSourceId + " references "
+                            + field + " source " + referencedSourceId
+                            + " without PhysicsBodyComponent.");
+        }
+        if (endpoint.shapes == null || endpoint.shapes.size == 0) {
+            throw new IllegalArgumentException(
+                    "Joint source " + jointSourceId + " references "
+                            + field + " source " + referencedSourceId
+                            + " without non-empty PhysicsShapesComponent.");
+        }
+    }
+
+    private static void requireGearSource(
+            IntMap<GenericEntitySnapshotData> snapshots,
+            int gearSourceId,
+            int referencedSourceId,
+            String field) {
+        if (referencedSourceId == gearSourceId) {
+            throw new IllegalArgumentException(
+                    "Gear joint source " + gearSourceId + " has "
+                            + field + " referencing itself.");
+        }
+        GenericEntitySnapshotData source = snapshots.get(referencedSourceId);
+        if (source == null) {
+            throw new IllegalArgumentException(
+                    "Gear joint source " + gearSourceId + " references missing "
+                            + field + " source " + referencedSourceId + ".");
+        }
+        if (!source.hasJoint) {
+            throw new IllegalArgumentException(
+                    "Gear joint source " + gearSourceId + " references "
+                            + field + " source " + referencedSourceId
+                            + " without PhysicsJointComponent.");
+        }
+        if (source.jointType != PhysicsJointComponent.TYPE_REVOLUTE
+                && source.jointType != PhysicsJointComponent.TYPE_PRISMATIC) {
+            throw new IllegalArgumentException(
+                    "Gear joint source " + gearSourceId + " references "
+                            + field + " source " + referencedSourceId
+                            + " which must be revolute or prismatic.");
+        }
+        if (!hasSpecificJointData(source)) {
+            throw new IllegalArgumentException(
+                    "Gear joint source " + gearSourceId + " references "
+                            + field + " source " + referencedSourceId
+                            + " without its specific joint component.");
         }
     }
 
@@ -200,16 +272,38 @@ public final class EntityGraphInstantiationService {
             ComponentMapper<PhysicsGearJointComponent> mGear =
                     world.getMapper(PhysicsGearJointComponent.class);
             for (PreparedJointRemap remap : remaps) {
-                int pastedId = sourceToCreated.get(remap.sourceJointId, -1);
-                PhysicsJointComponent base = mJointBase.get(pastedId);
-                base.aEid = sourceToCreated.get(remap.sourceBodyAId, -1);
-                base.bEid = sourceToCreated.get(remap.sourceBodyBId, -1);
+                remap.targetJointId = requireCreatedMapping(
+                        sourceToCreated, remap.sourceJointId);
+                remap.targetBodyAId = requireCreatedMapping(
+                        sourceToCreated, remap.sourceBodyAId);
+                remap.targetBodyBId = requireCreatedMapping(
+                        sourceToCreated, remap.sourceBodyBId);
                 if (remap.gear) {
-                    PhysicsGearJointComponent gear = mGear.get(pastedId);
-                    gear.joint1Eid =
-                            sourceToCreated.get(remap.sourceJoint1Id, -1);
-                    gear.joint2Eid =
-                            sourceToCreated.get(remap.sourceJoint2Id, -1);
+                    remap.targetJoint1Id = requireCreatedMapping(
+                            sourceToCreated, remap.sourceJoint1Id);
+                    remap.targetJoint2Id = requireCreatedMapping(
+                            sourceToCreated, remap.sourceJoint2Id);
+                }
+            }
+            for (PreparedJointRemap remap : remaps) {
+                PhysicsJointComponent base = mJointBase.get(remap.targetJointId);
+                if (base == null) {
+                    throw new IllegalStateException(
+                            "Prepared joint target " + remap.targetJointId
+                                    + " lost PhysicsJointComponent.");
+                }
+                base.aEid = remap.targetBodyAId;
+                base.bEid = remap.targetBodyBId;
+                if (remap.gear) {
+                    PhysicsGearJointComponent gear =
+                            mGear.get(remap.targetJointId);
+                    if (gear == null) {
+                        throw new IllegalStateException(
+                                "Prepared gear target " + remap.targetJointId
+                                        + " lost PhysicsGearJointComponent.");
+                    }
+                    gear.joint1Eid = remap.targetJoint1Id;
+                    gear.joint2Eid = remap.targetJoint2Id;
                 }
             }
         }
@@ -220,6 +314,27 @@ public final class EntityGraphInstantiationService {
         }
     }
 
+    private static int requireCreatedMapping(
+            IntIntMap sourceToCreated, int sourceEntityId) {
+        if (!sourceToCreated.containsKey(sourceEntityId)) {
+            throw new IllegalStateException(
+                    "Missing created entity mapping for prepared source "
+                            + sourceEntityId + ".");
+        }
+        return sourceToCreated.get(sourceEntityId, -1);
+    }
+
+    private static final class PreparedEntity {
+        final int sourceEntityId;
+        final GenericEntityInitializer initializer;
+
+        PreparedEntity(
+                int sourceEntityId, GenericEntityInitializer initializer) {
+            this.sourceEntityId = sourceEntityId;
+            this.initializer = initializer;
+        }
+    }
+
     private static final class PreparedJointRemap {
         final int sourceJointId;
         final int sourceBodyAId;
@@ -227,6 +342,11 @@ public final class EntityGraphInstantiationService {
         final boolean gear;
         final int sourceJoint1Id;
         final int sourceJoint2Id;
+        int targetJointId;
+        int targetBodyAId;
+        int targetBodyBId;
+        int targetJoint1Id;
+        int targetJoint2Id;
 
         PreparedJointRemap(
                 int sourceJointId,

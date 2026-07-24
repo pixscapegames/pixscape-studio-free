@@ -156,6 +156,12 @@ public final class EventFlow {
     ) {
     }
 
+    public record ScenePhysicsPixelsPerMeterChanged(
+            float pixelsPerMeter,
+            int sourceTag
+    ) {
+    }
+
     public record PhysicsBodyStructureChanged(
             int entityId,
             int sourceTag

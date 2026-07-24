@@ -43,6 +43,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -180,6 +181,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     // Box2D (lazy init + enable/disable system)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
+    private PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
     private GizmoSystem gizmoSystem;
     private final GridActor gridActor;
     private boolean lastPhysicsEnabled = false;
@@ -375,6 +377,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledToolService = new TiledToolService();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
+        physicsSpatialFootprintSyncSystem =
+                world.getSystem(PhysicsSpatialFootprintSyncSystem.class);
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
@@ -1418,6 +1422,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             ensureBox2dFromMeta(meta);
         });
 
+        EventFlow.i().subscribe(EventFlow.ScenePhysicsPixelsPerMeterChanged.class, ev -> {
+            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            if (physicsEnabled) {
+                ensureBox2dFromMeta(meta);
+            }
+        });
+
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, ev -> {
             SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
 
@@ -1472,10 +1483,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         // 2) Update params if changed
         // -------------------------------------------------
         else {
-            if (ppmChanged) {
-                box2dWorldService.setPpm(ppm);
-            }
-
             if (gravChanged) {
                 box2dWorldService.setGravity(gx, gy);
             }
@@ -1487,6 +1494,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             if (ppmChanged) {
                 box2DcameraUpdate();
             }
+        }
+
+        if (ppmChanged) {
+            applyPixelsPerMeter(
+                    box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
         }
 
         if (physicsService != null) {
@@ -1507,6 +1519,23 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         lastGx = gx;
         lastGy = gy;
         lastDoSleep = doSleep;
+    }
+
+    static void applyPixelsPerMeter(
+            Box2dWorldService box2d,
+            PhysicsSpatialFootprintSyncSystem footprintSync,
+            float pixelsPerMeter) {
+        if (box2d == null) {
+            throw new IllegalStateException(
+                    "Box2D service is required to apply pixelsPerMeter.");
+        }
+        if (footprintSync == null) {
+            throw new IllegalStateException(
+                    "Physics spatial footprint sync system is required "
+                            + "to apply pixelsPerMeter.");
+        }
+        box2d.setPpm(pixelsPerMeter);
+        footprintSync.setPixelsPerMeter(pixelsPerMeter);
     }
 
     private void box2DcameraUpdate() {
