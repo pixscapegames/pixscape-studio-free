@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
@@ -78,7 +79,11 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
         if (index < 0) return CommandOutcome.NO_CHANGE;
         fixtures.shapes.removeIndex(index);
 
-        physicsSelectionService.clearSelectedShapeIfMatches(bodyEid, deletedPhysicsShapeId);
+        if (physicsSelectionService.clearSelectedShapeIfMatches(
+                bodyEid, deletedPhysicsShapeId)) {
+            EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(
+                    EventFlow.tag(physicsSelectionService)));
+        }
         FixtureCommandSupport.markDirty(world, bodyEid);
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
         return CommandOutcome.APPLIED;

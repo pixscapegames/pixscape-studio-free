@@ -1,5 +1,6 @@
 package games.pixscape.studio.service.entitygraph;
 
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.IntArray;
@@ -9,10 +10,21 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class EntityGraphServicesTest {
+    @Before
+    public void activateSceneAllocator() {
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Main");
+        ProjectConfig.setInstance(config);
+    }
 
     @Test
     public void capture_includesJointWhenBodiesSelected() {
@@ -73,6 +85,60 @@ public class EntityGraphServicesTest {
         PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class).get(pastedG);
         Assert.assertEquals(result.sourceToCreated().get(j1, -1), gear.joint1Eid);
         Assert.assertEquals(result.sourceToCreated().get(j2, -1), gear.joint2Eid);
+    }
+
+    @Test
+    public void lateJointRemapFailureRollsBackEntitiesShapesAndJoints() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world);
+        identities.rebuild();
+
+        int bodyA = body(world);
+        int bodyB = body(world);
+        int joint = distanceJoint(world, bodyA, bodyB);
+        EntityGraph captured =
+                new EntityGraphCaptureService(world).capture(arr(bodyA, bodyB));
+        List<EntityGraphEntry> incompleteEntries = new ArrayList<>();
+        for (EntityGraphEntry entry : captured.entries()) {
+            if (entry.sourceEntityId() != bodyB) {
+                incompleteEntries.add(entry);
+            }
+        }
+        EntityGraph incomplete = new EntityGraph(incompleteEntries);
+        world.process();
+        int entitiesBefore = count(world, Aspect.all());
+        int shapesBefore = count(world, Aspect.all(PhysicsShapesComponent.class));
+        int jointsBefore = count(world, Aspect.all(PhysicsJointComponent.class));
+
+        try {
+            new EntityGraphInstantiationService(world, history, identities)
+                    .instantiate(incomplete, 0, 0f, 0f, "Invalid graph");
+            Assert.fail("Missing joint endpoint mapping must reject the graph.");
+        } catch (IllegalStateException expected) {
+            Assert.assertNotNull(expected.getCause());
+            Assert.assertTrue(expected.getCause().getMessage().contains(
+                    "Failed to remap pasted joint dependencies"));
+        }
+
+        Assert.assertEquals(entitiesBefore, count(world, Aspect.all()));
+        Assert.assertEquals(
+                shapesBefore,
+                count(world, Aspect.all(PhysicsShapesComponent.class)));
+        Assert.assertEquals(
+                jointsBefore,
+                count(world, Aspect.all(PhysicsJointComponent.class)));
+        Assert.assertFalse(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertTrue(world.getEntityManager().isActive(bodyA));
+        Assert.assertTrue(world.getEntityManager().isActive(bodyB));
+        Assert.assertTrue(world.getEntityManager().isActive(joint));
+    }
+
+    private static int count(World world, com.artemis.Aspect.Builder aspect) {
+        return world.getAspectSubscriptionManager().get(aspect).getEntities().size();
     }
 
     private static IntArray arr(int... ids) { IntArray a = new IntArray(); for (int id : ids) a.add(id); return a; }

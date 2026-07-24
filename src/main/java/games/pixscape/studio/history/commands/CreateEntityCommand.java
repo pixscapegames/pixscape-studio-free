@@ -44,19 +44,27 @@ public final class CreateEntityCommand implements Command {
     public void redo() {
         lastEntityId = world.create();
         createdEntityId = lastEntityId;
+        try {
+            if (historyId <= 0L) {
+                historyId = historyIds.ensureForEntity(lastEntityId);
+            } else {
+                historyIds.bind(lastEntityId, historyId);
+            }
 
-        if (historyId <= 0L) {
-            historyId = historyIds.ensureForEntity(lastEntityId);
-        } else {
-            historyIds.bind(lastEntityId, historyId);
-        }
+            // Build the entity (Transform/Dimensions/TR/Meta/Visibility...) through the initializer.
+            initializer.init(lastEntityId);
 
-        // Build the entity (Transform/Dimensions/TR/Meta/Visibility...) through the initializer.
-        initializer.init(lastEntityId);
-
-        // Notify the UI (selection, focus, etc.)
-        if (onCreated != null) {
-            onCreated.accept(lastEntityId);
+            // Notify the UI (selection, focus, etc.)
+            if (onCreated != null) {
+                onCreated.accept(lastEntityId);
+            }
+        } catch (RuntimeException | Error failure) {
+            IdentityRegistry.unindexEntityImmediately(world, lastEntityId);
+            if (world.getEntityManager().isActive(lastEntityId)) {
+                world.delete(lastEntityId);
+            }
+            historyIds.unbindEntity(lastEntityId);
+            throw failure;
         }
     }
 

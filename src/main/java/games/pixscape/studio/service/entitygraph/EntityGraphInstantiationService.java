@@ -59,27 +59,77 @@ public final class EntityGraphInstantiationService {
         }
 
         if (commands.isEmpty()) return EntityGraphInstantiationResult.empty();
+        commands.add(new RemapInstantiatedJointsCommand(graph, sourceToCreated));
 
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
-        historyManager.execute(new CompositeCommand(label, commands));
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            int sourceId = entry.sourceEntityId();
-            int pastedId = sourceToCreated.get(sourceId, -1);
-            if (pastedId < 0) continue;
-
-            GenericEntitySnapshotData sourceSnapshot =
-                    entry.initializer().toSnapshotData(sourceId);
-
-            if (sourceSnapshot.hasJoint && !mJointBase.has(pastedId)) {
-                throw new IllegalStateException("Pasted joint lost PhysicsJointComponent: source=" + sourceId + ", pasted=" + pastedId);
-            }
-            if (!ClipboardPhysicsJointGraph.remapJointReferences(world, pastedId, sourceToCreated)) {
-                throw new IllegalStateException("Failed to remap pasted joint dependencies for entity " + pastedId);
-            }
+        try {
+            historyManager.execute(new CompositeCommand(label, commands));
+        } catch (RuntimeException failure) {
+            finishDeferredRollback(failure);
+            throw failure;
+        } catch (Error failure) {
+            finishDeferredRollback(failure);
+            throw failure;
         }
 
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
+    }
+
+    private void finishDeferredRollback(Throwable originalFailure) {
+        try {
+            world.process();
+        } catch (Throwable rollbackFailure) {
+            originalFailure.addSuppressed(new IllegalStateException(
+                    "Failed to flush deferred entity removals after graph rollback.",
+                    rollbackFailure));
+        }
+    }
+
+    private final class RemapInstantiatedJointsCommand implements Command {
+        private final EntityGraph graph;
+        private final IntIntMap sourceToCreated;
+
+        private RemapInstantiatedJointsCommand(
+                EntityGraph graph, IntIntMap sourceToCreated) {
+            this.graph = graph;
+            this.sourceToCreated = sourceToCreated;
+        }
+
+        @Override
+        public String label() {
+            return "Remap Instantiated Joints";
+        }
+
+        @Override
+        public void redo() {
+            for (EntityGraphEntry entry : graph.entries()) {
+                int sourceId = entry.sourceEntityId();
+                int pastedId = sourceToCreated.get(sourceId, -1);
+                if (pastedId < 0) {
+                    throw new IllegalStateException(
+                            "Missing instantiated entity mapping for source " + sourceId + ".");
+                }
+
+                GenericEntitySnapshotData sourceSnapshot =
+                        entry.initializer().toSnapshotData(sourceId);
+                if (sourceSnapshot.hasJoint && !mJointBase.has(pastedId)) {
+                    throw new IllegalStateException(
+                            "Pasted joint lost PhysicsJointComponent: source="
+                                    + sourceId + ", pasted=" + pastedId + ".");
+                }
+                if (!ClipboardPhysicsJointGraph.remapJointReferences(
+                        world, pastedId, sourceToCreated)) {
+                    throw new IllegalStateException(
+                            "Failed to remap pasted joint dependencies for entity "
+                                    + pastedId + ".");
+                }
+            }
+        }
+
+        @Override
+        public void undo() {
+            // Joint components belong to the created entities and are removed by child undo.
+        }
     }
 
     private static boolean isBlank(String value) {

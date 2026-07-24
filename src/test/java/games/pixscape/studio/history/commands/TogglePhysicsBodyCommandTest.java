@@ -13,9 +13,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 public class TogglePhysicsBodyCommandTest {
+    private ProjectConfig config;
+
     @Before
     public void activateSceneAllocator() {
-        ProjectConfig config = new ProjectConfig();
+        config = new ProjectConfig();
         config.createSceneMeta("Main");
         ProjectConfig.setInstance(config);
     }
@@ -49,5 +51,47 @@ public class TogglePhysicsBodyCommandTest {
         Assert.assertTrue(body.enabled);
         Assert.assertEquals(1, shapes.shapes.size);
         Assert.assertEquals(2f, shapes.shapes.first().radius, 0f);
+    }
+
+    @Test
+    public void creatingBodyAllocatesShapeIdentityOnlyOnFirstExecution() {
+        World world = new World(new WorldConfiguration());
+        int entityId = world.create();
+        world.getMapper(TransformComponent.class).create(entityId);
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        TogglePhysicsBodyCommand command = new TogglePhysicsBodyCommand(
+                world,
+                historyIds,
+                entityId,
+                true,
+                PhysicsBodyComponent.DYNAMIC,
+                true);
+
+        int nextBefore = config.getCurrentSceneMeta().nextPhysicsShapeId;
+        command.redo();
+        int allocatedId = world.getMapper(PhysicsShapesComponent.class)
+                .get(entityId).shapes.first().physicsShapeId;
+        int nextAfterFirstExecution = config.getCurrentSceneMeta().nextPhysicsShapeId;
+
+        command.undo();
+        command.redo();
+        Assert.assertEquals(
+                allocatedId,
+                world.getMapper(PhysicsShapesComponent.class)
+                        .get(entityId).shapes.first().physicsShapeId);
+        Assert.assertEquals(
+                nextAfterFirstExecution,
+                config.getCurrentSceneMeta().nextPhysicsShapeId);
+
+        command.undo();
+        command.redo();
+        Assert.assertEquals(
+                allocatedId,
+                world.getMapper(PhysicsShapesComponent.class)
+                        .get(entityId).shapes.first().physicsShapeId);
+        Assert.assertEquals(nextBefore + 1, nextAfterFirstExecution);
+        Assert.assertEquals(
+                nextAfterFirstExecution,
+                config.getCurrentSceneMeta().nextPhysicsShapeId);
     }
 }

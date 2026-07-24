@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
@@ -27,6 +28,7 @@ public final class TogglePhysicsBodyCommand implements Command {
     private final boolean hadBody;
     private final PhysicsBodyState bodyBefore;
     private final Array<PhysicsShapeData> shapesBefore = new Array<>();
+    private PhysicsShapeData createdDefaultShape;
 
     public TogglePhysicsBodyCommand(
             World world,
@@ -125,8 +127,11 @@ public final class TogglePhysicsBodyCommand implements Command {
                         ? shapesMapper.get(entityId)
                         : shapesMapper.create(entityId);
         if (!hadBody && createDefaultShape && !shapes.hasShapes()) {
-            shapes.add(PhysicsService.createDefaultShape(
-                    PhysicsShapeIdService.allocateNewPhysicsShapeId()));
+            if (createdDefaultShape == null) {
+                createdDefaultShape = PhysicsService.createDefaultShape(
+                        PhysicsShapeIdService.allocateNewPhysicsShapeId()).copy();
+            }
+            shapes.add(createdDefaultShape.copy());
         }
         return body;
     }
@@ -135,9 +140,11 @@ public final class TogglePhysicsBodyCommand implements Command {
         var bodyMapper = world.getMapper(PhysicsBodyComponent.class);
         var shapesMapper = world.getMapper(PhysicsShapesComponent.class);
         var compiledMapper = world.getMapper(PhysicsCompiledFixturesComponent.class);
+        var spatialFootprintMapper = world.getMapper(SpatialPhysicsFootprintComponent.class);
         var runtimeMapper = world.getMapper(PhysicsRuntimeBodyComponent.class);
         if (runtimeMapper.has(entityId)) runtimeMapper.remove(entityId);
         if (compiledMapper.has(entityId)) compiledMapper.remove(entityId);
+        if (spatialFootprintMapper.has(entityId)) spatialFootprintMapper.remove(entityId);
         if (shapesMapper.has(entityId)) shapesMapper.remove(entityId);
         if (bodyMapper.has(entityId)) bodyMapper.remove(entityId);
     }

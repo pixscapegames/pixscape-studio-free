@@ -76,6 +76,7 @@ public final class PickingSystem extends BaseSystem {
     private LayerService layerService;
     private PhysicsService physicsService;
     private final PhysicsSelectionService physicsSelectionService;
+    private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final PolygonDrawSession polygonDrawSession;
@@ -234,6 +235,7 @@ public final class PickingSystem extends BaseSystem {
                          Stage uiStage,
                          TiledMapRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
+                         PhysicsSelectionReconciler physicsSelectionReconciler,
                          SpatialBlockSelectionService spatialBlockSelectionService,
                          SpatialTileSelectionService spatialTileSelectionService,
                          PolygonDrawSession polygonDrawSession) {
@@ -246,6 +248,7 @@ public final class PickingSystem extends BaseSystem {
         this.uiStage = uiStage;
         this.tiledState = tiledState;
         this.physicsSelectionService = physicsSelectionService;
+        this.physicsSelectionReconciler = physicsSelectionReconciler;
         this.spatialBlockSelectionService = spatialBlockSelectionService;
         this.spatialTileSelectionService = spatialTileSelectionService;
         this.polygonDrawSession = polygonDrawSession;
@@ -1064,33 +1067,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void syncPhysicsSelectionState() {
-        if (physicsService == null) {
-            physicsSelectionService.clear();
-            return;
-        }
-
-        int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
-        if (focusedBodyEid < 0) {
-            physicsSelectionService.clearHover();
-            return;
-        }
-
-        if (!world.getEntityManager().isActive(focusedBodyEid)
-                || !isSelectableInViewport(focusedBodyEid)
-                || !mPhysBody.has(focusedBodyEid)) {
-            boolean hadSelectedFixture = physicsSelectionService.hasSelectedShape();
-            physicsSelectionService.clear();
-            if (hadSelectedFixture) {
-                EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
-            }
-            return;
-        }
-
-        int selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
-        if (selectedFixtureId > 0
-                && physicsService.getShapeById(focusedBodyEid, selectedFixtureId) == null) {
-            physicsSelectionService.clearSelectedShapeIfMatches(
-                    focusedBodyEid, selectedFixtureId);
+        if (physicsSelectionReconciler != null) {
+            physicsSelectionReconciler.reconcile();
         }
     }
 

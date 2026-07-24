@@ -27,7 +27,8 @@ public class PropertiesPanelFixtureDeletionContractTest {
                 "EventFlow.i().subscribe(EventFlow.FixtureSelectionCleared.class"));
         Assert.assertTrue(pickingSource.contains("clearFixtureEditingState()"));
         Assert.assertTrue(pickingSource.contains("clearPolygonVertexMoveState();"));
-        Assert.assertTrue(pickingSource.contains("|| !mPhysBody.has(focusedBodyEid)"));
-        Assert.assertTrue(pickingSource.contains("physicsSelectionService.clear();"));
+        Assert.assertTrue(pickingSource.contains("physicsSelectionReconciler.reconcile();"));
+        Assert.assertFalse(pickingSource.contains(
+                "|| !mPhysBody.has(focusedBodyEid)"));
     }
 }

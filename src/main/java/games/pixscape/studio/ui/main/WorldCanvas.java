@@ -71,6 +71,7 @@ import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.prefab.PrefabAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
@@ -118,6 +119,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private LayerService layerService;
     private PhysicsService physicsService;
     private final PhysicsSelectionService physicsSelectionService;
+    private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final AtlasStudioService atlasStudioService;
@@ -210,6 +212,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 : null;
         atlasStudioService = new AtlasStudioService(this);
         physicsSelectionService = new PhysicsSelectionService();
+        physicsSelectionReconciler = new PhysicsSelectionReconciler(physicsSelectionService);
         spatialBlockSelectionService = new SpatialBlockSelectionService();
         spatialTileSelectionService = new SpatialTileSelectionService();
         shaderService = new ShaderService(app);
@@ -283,6 +286,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 app.getUiStage(),
                 tiledState,
                 physicsSelectionService,
+                physicsSelectionReconciler,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
                 polygonDrawSession
@@ -361,6 +365,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        physicsSelectionReconciler.bindWorld(world);
         tiledMutationController = new TiledMutationController(
                 world, historyManager, () -> app != null ? app.getSceneService() : null);
 
@@ -2012,6 +2017,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return physicsSelectionService;
     }
 
+    public PhysicsSelectionReconciler getPhysicsSelectionReconciler() {
+        return physicsSelectionReconciler;
+    }
+
     public SpatialBlockSelectionService getSpatialBlockSelectionService() {
         return spatialBlockSelectionService;
     }
@@ -2139,6 +2148,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         if (world != null) {
+            physicsSelectionReconciler.bindWorld(null);
             world.dispose();
             world = null;
         }

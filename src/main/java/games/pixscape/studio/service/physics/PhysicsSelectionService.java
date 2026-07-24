@@ -1,7 +1,5 @@
 package games.pixscape.studio.service.physics;
 
-import games.pixscape.studio.event.EventFlow;
-
 /** Central editor selection for physics sources and their compiled parts. */
 public final class PhysicsSelectionService {
     public static final int NO_SHAPE = -1;
@@ -140,6 +138,45 @@ public final class PhysicsSelectionService {
         hoveredJointEid = NO_JOINT;
     }
 
+    public boolean clearHoveredShape() {
+        if (hoveredPhysicsShapeId == NO_SHAPE) return false;
+        hoveredBodyEid = NO_BODY;
+        hoveredPhysicsShapeId = NO_SHAPE;
+        hoveredPartIndex = NO_PART;
+        return true;
+    }
+
+    public boolean clearHoveredJoint() {
+        if (hoveredJointEid == NO_JOINT) return false;
+        hoveredJointEid = NO_JOINT;
+        return true;
+    }
+
+    public boolean clearSelectedShape() {
+        if (selectedPhysicsShapeId == NO_SHAPE) return false;
+        selectedPhysicsShapeId = NO_SHAPE;
+        selectedPartIndex = NO_PART;
+        return true;
+    }
+
+    public boolean clearSelectedJoint() {
+        if (selectedJointEid == NO_JOINT) return false;
+        selectedJointEid = NO_JOINT;
+        return true;
+    }
+
+    public boolean resetSelectedPartIndex() {
+        if (selectedPartIndex == NO_PART) return false;
+        selectedPartIndex = NO_PART;
+        return true;
+    }
+
+    public boolean resetHoveredPartIndex() {
+        if (hoveredPartIndex == NO_PART) return false;
+        hoveredPartIndex = NO_PART;
+        return true;
+    }
+
     public void clearSelectionOnly() {
         clearHover();
         selectedPhysicsShapeId = NO_SHAPE;
@@ -152,7 +189,6 @@ public final class PhysicsSelectionService {
             return false;
         }
         clearSelectionOnly();
-        EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(EventFlow.tag(this)));
         return true;
     }
 

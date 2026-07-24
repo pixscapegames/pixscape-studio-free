@@ -224,6 +224,11 @@ public final class EventFlow {
     ) {
     }
 
+    public record PhysicsSelectionReconciled(
+            int sourceTag
+    ) {
+    }
+
     public record JointParametersChanged(
             int jointEntityId,
             int sourceTag

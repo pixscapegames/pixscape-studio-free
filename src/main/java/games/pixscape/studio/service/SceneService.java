@@ -19,12 +19,15 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Timer;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.physics.PhysicsBodyCompiler;
+import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -740,6 +743,7 @@ public final class SceneService {
         if (canonicalTag == null || canonicalTag.isBlank()) {
             throw new IllegalStateException("Missing canonical scene tag for scene '" + sceneName + "'.");
         }
+        canvas.getPhysicsSelectionReconciler().bindSceneContext(canonicalTag);
 
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
@@ -1047,9 +1051,12 @@ public final class SceneService {
         ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
         ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class);
+        ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialFootprint =
+                world.getMapper(SpatialPhysicsFootprintComponent.class);
 
         Array<VisibilityRuntimeSnapshot> visibilityStates = new Array<>();
         Array<CompiledPhysicsSnapshot> compiledStates = new Array<>();
+        Array<SpatialPhysicsFootprintSnapshot> spatialFootprintStates = new Array<>();
 
         int[] data = entitiesToSave.getData();
         for (int i = 0, n = entitiesToSave.size(); i < n; i++) {
@@ -1080,18 +1087,35 @@ public final class SceneService {
                         entityId, fixtures, compiled.generation, compiled.valid));
                 mCompiled.remove(entityId);
             }
+
+            SpatialPhysicsFootprintComponent spatialFootprint =
+                    mSpatialFootprint.getSafe(entityId, null);
+            if (spatialFootprint != null) {
+                spatialFootprintStates.add(new SpatialPhysicsFootprintSnapshot(
+                        entityId,
+                        spatialFootprint.valid,
+                        spatialFootprint.localOffsetXPx,
+                        spatialFootprint.localOffsetYPx,
+                        spatialFootprint.radiusPx,
+                        spatialFootprint.physicsGeneration));
+                mSpatialFootprint.remove(entityId);
+            }
         }
 
-        return new SceneVolatileStateSnapshot(visibilityStates, compiledStates);
+        return new SceneVolatileStateSnapshot(
+                visibilityStates, compiledStates, spatialFootprintStates);
     }
 
     private record SceneVolatileStateSnapshot(
             Array<VisibilityRuntimeSnapshot> visibilityStates,
-            Array<CompiledPhysicsSnapshot> compiledStates) {
+            Array<CompiledPhysicsSnapshot> compiledStates,
+            Array<SpatialPhysicsFootprintSnapshot> spatialFootprintStates) {
         void restore(World world) {
             ComponentMapper<VisibilityComponent> mVisibility = world.getMapper(VisibilityComponent.class);
             ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
                     world.getMapper(PhysicsCompiledFixturesComponent.class);
+            ComponentMapper<SpatialPhysicsFootprintComponent> mSpatialFootprint =
+                    world.getMapper(SpatialPhysicsFootprintComponent.class);
 
             for (VisibilityRuntimeSnapshot snapshot : visibilityStates) {
                 VisibilityComponent visibility = mVisibility.getSafe(snapshot.entityId(), null);
@@ -1103,9 +1127,21 @@ public final class SceneService {
             for (CompiledPhysicsSnapshot snapshot : compiledStates) {
                 PhysicsCompiledFixturesComponent compiled =
                         mCompiled.create(snapshot.entityId());
-                compiled.replaceWith(snapshot.fixtures());
+                new PhysicsCompiledFixtureCachePublisher().publish(
+                        compiled,
+                        new PhysicsBodyCompiler().prepare(snapshot.fixtures()));
                 compiled.generation = snapshot.generation();
                 compiled.valid = snapshot.valid();
+            }
+
+            for (SpatialPhysicsFootprintSnapshot snapshot : spatialFootprintStates) {
+                SpatialPhysicsFootprintComponent footprint =
+                        mSpatialFootprint.create(snapshot.entityId());
+                footprint.valid = snapshot.valid();
+                footprint.localOffsetXPx = snapshot.localOffsetXPx();
+                footprint.localOffsetYPx = snapshot.localOffsetYPx();
+                footprint.radiusPx = snapshot.radiusPx();
+                footprint.physicsGeneration = snapshot.physicsGeneration();
             }
         }
     }
@@ -1115,6 +1151,15 @@ public final class SceneService {
             Array<CompiledFixtureData> fixtures,
             int generation,
             boolean valid) {
+    }
+
+    private record SpatialPhysicsFootprintSnapshot(
+            int entityId,
+            boolean valid,
+            float localOffsetXPx,
+            float localOffsetYPx,
+            float radiusPx,
+            int physicsGeneration) {
     }
 
     private record VisibilityRuntimeSnapshot(int entityId, boolean culledByFrustum, boolean inView) {
@@ -3299,6 +3344,7 @@ public final class SceneService {
 
         if (canvas == null) return;
 
+        canvas.getPhysicsSelectionReconciler().clearSceneContext();
         World world = canvas.getEcsWorld();
 
         // Delete all entities
@@ -3320,7 +3366,6 @@ public final class SceneService {
 
         // Reset services studio
         canvas.getSelectionService().clearSelection();
-        canvas.getPhysicsSelectionService().clear();
         canvas.getLayerService().reset();
 
         // Nettoyage caches
