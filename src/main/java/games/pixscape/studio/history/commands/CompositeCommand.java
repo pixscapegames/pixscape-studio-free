@@ -5,6 +5,13 @@ import games.pixscape.studio.history.HistoryManager;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Groups commands and rolls completed children back in reverse order when a later child fails.
+ *
+ * <p>Every child command must provide strong exception safety: its {@link #redo()} either
+ * succeeds completely or restores its own partial state before throwing. The composite never
+ * advances the ECS world to finish a rollback.</p>
+ */
 public final class CompositeCommand implements Command, HistoryManager.SupportsNoop {
 
     private final String label;

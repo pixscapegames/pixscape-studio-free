@@ -1,8 +1,10 @@
 package games.pixscape.studio.service.entitygraph;
 
 import com.artemis.Aspect;
+import com.artemis.BaseSystem;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -88,8 +90,11 @@ public class EntityGraphServicesTest {
     }
 
     @Test
-    public void lateJointRemapFailureRollsBackEntitiesShapesAndJoints() {
-        World world = new World(new WorldConfiguration());
+    public void invalidJointGraphFailsDuringPreparationWithoutProcessingWorld() {
+        SentinelSystem sentinel = new SentinelSystem();
+        World world = new World(new WorldConfigurationBuilder()
+                .with(sentinel)
+                .build());
         HistoryManager history = new HistoryManager(32);
         IdentityRegistry identities = new IdentityRegistry();
         identities.bind(world);
@@ -108,6 +113,7 @@ public class EntityGraphServicesTest {
         }
         EntityGraph incomplete = new EntityGraph(incompleteEntries);
         world.process();
+        sentinel.processCount = 0;
         int entitiesBefore = count(world, Aspect.all());
         int shapesBefore = count(world, Aspect.all(PhysicsShapesComponent.class));
         int jointsBefore = count(world, Aspect.all(PhysicsJointComponent.class));
@@ -116,10 +122,9 @@ public class EntityGraphServicesTest {
             new EntityGraphInstantiationService(world, history, identities)
                     .instantiate(incomplete, 0, 0f, 0f, "Invalid graph");
             Assert.fail("Missing joint endpoint mapping must reject the graph.");
-        } catch (IllegalStateException expected) {
-            Assert.assertNotNull(expected.getCause());
-            Assert.assertTrue(expected.getCause().getMessage().contains(
-                    "Failed to remap pasted joint dependencies"));
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "references missing bEid source"));
         }
 
         Assert.assertEquals(entitiesBefore, count(world, Aspect.all()));
@@ -135,10 +140,20 @@ public class EntityGraphServicesTest {
         Assert.assertTrue(world.getEntityManager().isActive(bodyA));
         Assert.assertTrue(world.getEntityManager().isActive(bodyB));
         Assert.assertTrue(world.getEntityManager().isActive(joint));
+        Assert.assertEquals(0, sentinel.processCount);
     }
 
     private static int count(World world, com.artemis.Aspect.Builder aspect) {
         return world.getAspectSubscriptionManager().get(aspect).getEntities().size();
+    }
+
+    private static final class SentinelSystem extends BaseSystem {
+        int processCount;
+
+        @Override
+        protected void processSystem() {
+            processCount++;
+        }
     }
 
     private static IntArray arr(int... ids) { IntArray a = new IntArray(); for (int id : ids) a.add(id); return a; }
