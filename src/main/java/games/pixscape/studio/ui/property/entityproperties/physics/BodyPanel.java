@@ -256,6 +256,7 @@ public final class BodyPanel extends CollapsibleWidget {
         TogglePhysicsBodyCommand toggleCommand = new TogglePhysicsBodyCommand(
                 ctx.world,
                 ctx.history.historyIds(),
+                ctx.physicsService,
                 entityId,
                 enableBody,
                 PhysicsBodyComponent.DYNAMIC,
@@ -273,6 +274,7 @@ public final class BodyPanel extends CollapsibleWidget {
                 ctx.world,
                 ctx.history.historyIds(),
                 ctx.physicsSelectionService,
+                ctx.physicsService,
                 entityId
         ));
 

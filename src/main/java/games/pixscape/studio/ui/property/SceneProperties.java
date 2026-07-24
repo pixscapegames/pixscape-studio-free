@@ -14,6 +14,7 @@ import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -74,16 +75,19 @@ public class SceneProperties extends VisTable {
     private final LayerService layerService;
     private final SelectionService selectionService;
     private final HistoryManager historyManager;
+    private final PhysicsService physicsService;
     private final Runnable markPreviewSaveRequired;
 
     public SceneProperties(World world,
                            HistoryManager historyManager,
+                           PhysicsService physicsService,
                            SelectionService selectionService,
                            LayerService layerService,
                            Runnable markPreviewSaveRequired) {
         super(true);
         this.world = world;
         this.historyManager = historyManager;
+        this.physicsService = physicsService;
         this.selectionService = selectionService;
         this.layerService = layerService;
         this.markPreviewSaveRequired = markPreviewSaveRequired;
@@ -676,6 +680,7 @@ public class SceneProperties extends VisTable {
             new TogglePhysicsBodyCommand(
                     world,
                     historyManager.historyIds(),
+                    physicsService,
                     bodyEntityId,
                     false,
                     PhysicsBodyComponent.STATIC,

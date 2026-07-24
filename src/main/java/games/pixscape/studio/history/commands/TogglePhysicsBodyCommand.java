@@ -21,6 +21,7 @@ import games.pixscape.studio.service.physics.PhysicsShapeIdService;
 public final class TogglePhysicsBodyCommand implements Command {
     private final World world;
     private final HistoryIdRegistry historyIds;
+    private final PhysicsService physicsService;
     private final long bodyHistoryId;
     private final boolean enable;
     private final int bodyType;
@@ -33,12 +34,14 @@ public final class TogglePhysicsBodyCommand implements Command {
     public TogglePhysicsBodyCommand(
             World world,
             HistoryIdRegistry historyIds,
+            PhysicsService physicsService,
             int bodyEntityId,
             boolean enable,
             int bodyType,
             boolean createDefaultShape) {
         this.world = world;
         this.historyIds = historyIds;
+        this.physicsService = physicsService;
         this.bodyHistoryId = historyIds.ensureForEntity(bodyEntityId);
         this.enable = enable;
         this.bodyType = sanitizeBodyType(bodyType);
@@ -129,7 +132,7 @@ public final class TogglePhysicsBodyCommand implements Command {
         if (!hadBody && createDefaultShape && !shapes.hasShapes()) {
             if (createdDefaultShape == null) {
                 createdDefaultShape = PhysicsService.createDefaultShape(
-                        PhysicsShapeIdService.allocateNewPhysicsShapeId()).copy();
+                        PhysicsShapeIdService.allocateNewPhysicsShapeId(physicsService)).copy();
             }
             shapes.add(createdDefaultShape.copy());
         }

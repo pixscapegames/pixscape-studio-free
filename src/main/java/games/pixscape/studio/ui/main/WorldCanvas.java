@@ -393,7 +393,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         alignService = new AlignService(this);
 
         identityRegistry = new IdentityRegistry();
-        identityRegistry.bind(world);
+        identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
 
         clipboardService = new ClipboardService(this, identityRegistry);
@@ -402,7 +402,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         entityGraphInstantiationService = new EntityGraphInstantiationService(
                 world,
                 historyManager,
-                identityRegistry
+                identityRegistry,
+                physicsService
         );
 
         // Wiring
@@ -922,7 +923,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
                         // 2) priority to selected shape
                         int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
-                        long selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
+                        int selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
                         if (focusedBodyEid >= 0 && selectedFixtureId > 0) {
                             editorOps.deleteFixture(focusedBodyEid, selectedFixtureId);
                             return true;
@@ -2180,7 +2181,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (world != null) {
             physicsSelectionReconciler.bindWorld(null);
             if (identityRegistry != null) {
-                identityRegistry.bind(null);
+                identityRegistry.bind(null, null);
             }
             world.dispose();
             world = null;

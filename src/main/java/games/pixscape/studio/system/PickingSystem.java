@@ -1365,7 +1365,7 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return InputManipulationContext.Handle.NONE;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
         if (bodyEid < 0 || physicsShapeId <= 0) return InputManipulationContext.Handle.NONE;
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) {
             return InputManipulationContext.Handle.NONE;
@@ -1434,7 +1434,7 @@ public final class PickingSystem extends BaseSystem {
 
     private InputManipulationContext.Handle detectSelectedCircleRadiusHandleHover(float mx, float my) {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
         if (bodyEid < 0 || physicsShapeId <= 0L) return InputManipulationContext.Handle.NONE;
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) {
             return InputManipulationContext.Handle.NONE;
@@ -1638,7 +1638,7 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return -1;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
         if (bodyEid < 0 || physicsShapeId <= 0L) return -1;
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return -1;
 
@@ -1945,6 +1945,7 @@ public final class PickingSystem extends BaseSystem {
                     world,
                     historyIds,
                     physicsSelectionService,
+                    physicsService,
                     bodyEid,
                     polygon,
                     -1
@@ -1954,7 +1955,7 @@ public final class PickingSystem extends BaseSystem {
         polygonDrawSession.cancel();
     }
 
-    private PhysicsShapeData resolvePolygonMaterialSource(int bodyEid, long physicsShapeId) {
+    private PhysicsShapeData resolvePolygonMaterialSource(int bodyEid, int physicsShapeId) {
         PhysicsShapeData selected = physicsShapeId > 0L
                 ? getSelectedFixture(bodyEid, physicsShapeId)
                 : null;
@@ -2475,7 +2476,7 @@ public final class PickingSystem extends BaseSystem {
         return true;
     }
 
-    private PhysicsShapeData getSelectedFixture(int bodyEid, long physicsShapeId) {
+    private PhysicsShapeData getSelectedFixture(int bodyEid, int physicsShapeId) {
         if (bodyEid < 0 || physicsShapeId <= 0L) return null;
         PhysicsShapesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
         if (fixtures == null || !fixtures.hasShapes()) return null;
@@ -2594,7 +2595,7 @@ public final class PickingSystem extends BaseSystem {
         return physicsSelectionService.getFocusedBodyEid() >= 0;
     }
 
-    static boolean isFixtureGeometryEditable(World world, int bodyEid, long physicsShapeId) {
+    static boolean isFixtureGeometryEditable(World world, int bodyEid, int physicsShapeId) {
         return true;
     }
 

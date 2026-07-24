@@ -178,10 +178,13 @@ public class EntityGraphJointPrecommitValidationTest {
                 world.getMapper(PhysicsGearJointComponent.class).get(gearEntity);
 
         Fixture() {
-            identities.bind(world);
+            identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
             identities.rebuild();
             service =
-                    new EntityGraphInstantiationService(world, history, identities);
+                    new EntityGraphInstantiationService(
+                            world, history, identities,
+                            new games.pixscape.runtime.service.PhysicsService(
+                                    world, null, new games.pixscape.studio.configuration.SceneMeta()));
             world.process();
             sentinel.processCount = 0;
         }

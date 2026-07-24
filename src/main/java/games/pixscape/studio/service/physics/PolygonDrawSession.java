@@ -15,7 +15,7 @@ public final class PolygonDrawSession {
     private boolean active;
     private Mode mode = Mode.CREATE;
     private int bodyEid = -1;
-    private long physicsShapeId = -1L;
+    private int physicsShapeId = -1;
 
     private final Array<Vector2> points = new Array<>();
     private boolean closed;
@@ -28,7 +28,7 @@ public final class PolygonDrawSession {
         this.active = true;
         this.mode = Mode.CREATE;
         this.bodyEid = bodyEid;
-        this.physicsShapeId = -1L;
+        this.physicsShapeId = -1;
         this.closed = false;
         this.beforeVerts = new float[0];
         this.beforeCount = 0;
@@ -40,7 +40,7 @@ public final class PolygonDrawSession {
      * The session starts empty (redraw), but keeps the previous geometry
      * to allow undo/redo through ReplacePolygonVerticesCommand.
      */
-    public void beginEdit(int bodyEid, long physicsShapeId, float[] existingVerts, int existingCount) {
+    public void beginEdit(int bodyEid, int physicsShapeId, float[] existingVerts, int existingCount) {
         this.active = true;
         this.mode = Mode.EDIT;
         this.bodyEid = bodyEid;
@@ -55,7 +55,7 @@ public final class PolygonDrawSession {
         this.active = false;
         this.mode = Mode.CREATE;
         this.bodyEid = -1;
-        this.physicsShapeId = -1L;
+        this.physicsShapeId = -1;
         this.closed = false;
         this.beforeVerts = new float[0];
         this.beforeCount = 0;

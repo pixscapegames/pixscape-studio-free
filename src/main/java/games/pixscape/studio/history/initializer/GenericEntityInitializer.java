@@ -1547,13 +1547,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
-    public GenericEntityInitializer allocateFreshPhysicsShapeIds() {
+    public GenericEntityInitializer allocateFreshPhysicsShapeIds(
+            games.pixscape.runtime.service.PhysicsService physicsService) {
         for (int i = 0; i < physicsShapes.size; i++) {
             PhysicsShapeData shape = physicsShapes.get(i);
             if (shape != null) {
                 shape.physicsShapeId =
                         games.pixscape.studio.service.physics.PhysicsShapeIdService
-                                .allocateNewPhysicsShapeId();
+                                .allocateNewPhysicsShapeId(physicsService);
             }
         }
         return this;

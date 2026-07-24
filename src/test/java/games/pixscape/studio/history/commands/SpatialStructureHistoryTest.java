@@ -40,6 +40,7 @@ public class SpatialStructureHistoryTest {
         Fixture fixture = fixture();
         fixture.walls.blocks.add(wall(1, 1, 0, 0, 1, 1, 0f, 10f));
         fixture.walls.blocks.add(wall(3, 2, 3, 0, 1, 1, 0f, 10f));
+        fixture.walls.nextSpatialBlockId = 4;
         SpatialBlockData candidate = wall(0, 0, 6, 0, 1, 1, 0f, 10f);
         AddSpatialBlockCommand command = new AddSpatialBlockCommand(
                 fixture.world, fixture.history.historyIds(), fixture.selection, fixture.layer, candidate);
@@ -51,6 +52,7 @@ public class SpatialStructureHistoryTest {
         Assert.assertNull(find(fixture.walls, 4));
 
         fixture.walls.blocks.add(wall(20, 20, 9, 0, 1, 1, 0f, 10f));
+        fixture.walls.nextSpatialBlockId = 21;
         fixture.history.redo();
         Assert.assertEquals(4, command.getBlockId());
         Assert.assertNotNull(find(fixture.walls, 4));

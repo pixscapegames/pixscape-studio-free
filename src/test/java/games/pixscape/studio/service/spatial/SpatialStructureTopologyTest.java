@@ -172,10 +172,12 @@ public class SpatialStructureTopologyTest {
     }
 
     private static void assertJoins(TiledMapLayerData map, SpatialBlockData existing, SpatialBlockData candidate) {
-        candidate.id = SpatialBlockCommandSupport.nextBlockId(
-                SpatialWallAuthoringValidatorTest.component(existing));
+        SpatialBlocksComponent component =
+                SpatialWallAuthoringValidatorTest.component(existing);
+        component.nextSpatialBlockId = existing.id + 1;
+        candidate.id = component.peekNextSpatialBlockId();
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
-                SpatialWallAuthoringValidatorTest.component(existing), candidate, map);
+                component, candidate, map);
         Assert.assertTrue(plan.error, plan.valid);
         Assert.assertEquals(2, plan.walls.size);
         Assert.assertEquals(4, plan.walls.get(0).structureId);

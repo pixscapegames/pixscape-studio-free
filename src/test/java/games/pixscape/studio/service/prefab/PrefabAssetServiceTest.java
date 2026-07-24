@@ -74,10 +74,12 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         Assert.assertTrue(result.createdIds().size > 0);
@@ -113,10 +115,12 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
         Assert.assertTrue(result.createdIds().size > 0);
 
@@ -156,10 +160,12 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -201,10 +207,12 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -254,10 +262,12 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedG = result.sourceToCreated().get(g, -1);
@@ -297,9 +307,11 @@ public class PrefabAssetServiceTest {
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
-        reg.bind(world);
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         reg.rebuild();
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int created = result.createdIds().get(0);

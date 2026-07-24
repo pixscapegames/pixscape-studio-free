@@ -32,7 +32,8 @@ public class SceneServiceStateTransitionTest {
                 "\"glSamples\":0," +
                 "\"currentSceneName\":\"Ghost\"," +
                 "\"nextSceneIndex\":2," +
-                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\"}}" +
+                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
+                        + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}");
 
         Files.createDirectories(dir.resolve("scenes"));

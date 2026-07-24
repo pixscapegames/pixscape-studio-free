@@ -299,6 +299,7 @@ public final class FixturesPanel extends CollapsibleWidget {
                         ctx.world,
                         ctx.history.historyIds(),
                         ctx.physicsSelectionService,
+                        ctx.physicsService,
                         entityId,
                         ctx.physicsSelectionService.getSelectedPhysicsShapeId()
                 ));
@@ -312,7 +313,7 @@ public final class FixturesPanel extends CollapsibleWidget {
             public void changed(ChangeEvent event, Actor actor) {
                 if (internalRefresh || !canDeleteActiveFixture(entityId)) return;
 
-                long physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
+                int physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
                 if (physicsShapeId <= 0L) return;
 
                 executeCommand(new DeleteFixtureCommand(
@@ -353,7 +354,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         super.act(delta);
         if (entityId < 0 || internalRefresh) return;
 
-        long physicsShapeId = resolveSelectedFixtureIdForPanel(entityId);
+        int physicsShapeId = resolveSelectedFixtureIdForPanel(entityId);
         int shapeCount = countFixtures(entityId);
         int fixtureStateHash = fixtureStateHash(entityId);
         if (physicsShapeId != lastSelectedFixtureId
@@ -603,7 +604,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         return activeFixture(eid) != null;
     }
 
-    private long resolveSelectedFixtureIdForPanel(int eid) {
+    private int resolveSelectedFixtureIdForPanel(int eid) {
         PhysicsShapeData active = activeFixture(eid);
         return active != null ? active.physicsShapeId : PhysicsSelectionService.NO_SHAPE;
     }
@@ -611,7 +612,7 @@ public final class FixturesPanel extends CollapsibleWidget {
     private PhysicsShapeData activeFixture(int eid) {
         if (!hasPhysics(eid)) return null;
 
-        long physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
+        int physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
         if (physicsShapeId <= 0L) return null;
 
         PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);

@@ -16,6 +16,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -32,6 +33,7 @@ public class LayerProperties extends VisTable {
 
     private final World world;
     private final HistoryManager history;
+    private final PhysicsService physicsService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
@@ -67,10 +69,13 @@ public class LayerProperties extends VisTable {
     private boolean internalSpatialRefresh = false;
     private final Runnable markPreviewSaveRequired;
 
-    public LayerProperties(World world, HistoryManager history, Runnable markPreviewSaveRequired) {
+    public LayerProperties(
+            World world, HistoryManager history, PhysicsService physicsService,
+            Runnable markPreviewSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
+        this.physicsService = physicsService;
         this.markPreviewSaveRequired = markPreviewSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
@@ -465,6 +470,7 @@ public class LayerProperties extends VisTable {
         Command command = new TogglePhysicsBodyCommand(
                 world,
                 history.historyIds(),
+                physicsService,
                 layerEntityId,
                 true,
                 PhysicsBodyComponent.STATIC,
@@ -542,6 +548,7 @@ public class LayerProperties extends VisTable {
         history.execute(new TogglePhysicsBodyCommand(
                 world,
                 history.historyIds(),
+                physicsService,
                 layerEntityId,
                 false,
                 PhysicsBodyComponent.STATIC,

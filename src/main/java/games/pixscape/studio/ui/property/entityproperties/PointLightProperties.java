@@ -268,7 +268,7 @@ public final class PointLightProperties extends VisTable {
         currentEntityId = entityId;
 
         PixscapeIdentityComponent identity = ctx.mIdentity.getSafe(entityId, null);
-        long stableId = (identity != null && identity.stableId > 0L) ? identity.stableId : 0L;
+        int stableId = (identity != null && identity.stableId > 0) ? identity.stableId : 0;
         entityIdValueLabel.setText(String.valueOf(stableId));
         icon.setDrawable(ctx.iconResolver.iconForEntity(entityId));
 

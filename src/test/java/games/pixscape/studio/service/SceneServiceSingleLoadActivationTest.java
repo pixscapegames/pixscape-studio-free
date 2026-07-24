@@ -8,6 +8,7 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
@@ -192,6 +193,8 @@ public class SceneServiceSingleLoadActivationTest {
         World authored = serializationWorld();
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
@@ -217,7 +220,10 @@ public class SceneServiceSingleLoadActivationTest {
             wall.actorOccluder = true;
             wall.beginAuthoredLinkedTileRefs();
             wall.addLinkedTileRef(0, 0, assetIds[i]);
-            authored.getMapper(SpatialBlocksComponent.class).create(layerEntity).blocks.add(wall);
+            SpatialBlocksComponent blocks =
+                    authored.getMapper(SpatialBlocksComponent.class).create(layerEntity);
+            blocks.blocks.add(wall);
+            blocks.nextSpatialBlockId = wall.id + 1;
         }
         authored.process();
         SceneService.saveScene(authored, sceneFile, false);
@@ -228,6 +234,8 @@ public class SceneServiceSingleLoadActivationTest {
         World authored = serializationWorld();
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(layerEntity).stableId = i + 1;
             authored.getMapper(LayerComponent.class).create(layerEntity).spatialEnabled = false;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(layerEntity);
@@ -304,6 +312,7 @@ public class SceneServiceSingleLoadActivationTest {
             meta.tileHeight = 16;
             meta.chunkSize = 8;
             meta.tiledProjection = SceneMetaRuntime.TiledProjection.ORTHO;
+            meta.nextEntityStableId = 1000;
         }
         return new Fixture(cfg, projectDir);
     }

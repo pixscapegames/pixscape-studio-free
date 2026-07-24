@@ -689,7 +689,7 @@ public class TmxSceneImportServiceTest {
                 world,
                 h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()),
                 false,
-                new games.pixscape.runtime.loading.SceneMetaRuntime());
+                h.cfg.getSceneMeta(result.sceneName()));
         world.process();
         return world;
     }

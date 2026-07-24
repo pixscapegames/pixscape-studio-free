@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.CompositeCommand;
@@ -25,12 +26,16 @@ public final class EntityGraphInstantiationService {
     private final World world;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
+    private final PhysicsService physicsService;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
 
-    public EntityGraphInstantiationService(World world, HistoryManager historyManager, IdentityRegistry identityRegistry) {
+    public EntityGraphInstantiationService(
+            World world, HistoryManager historyManager,
+            IdentityRegistry identityRegistry, PhysicsService physicsService) {
         this.world = world;
         this.historyManager = historyManager;
         this.identityRegistry = identityRegistry;
+        this.physicsService = physicsService;
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
     }
 
@@ -88,7 +93,7 @@ public final class EntityGraphInstantiationService {
                                 + sourceEntityId + ".");
             }
             GenericEntityInitializer initializer = entry.initializer().duplicate();
-            initializer.allocateFreshPhysicsShapeIds();
+            initializer.allocateFreshPhysicsShapeIds(physicsService);
             initializer.overrideLayerIndex(activeLayerIndex);
             initializer.translate(dx, dy);
             initializer.setIdentityStableId(identityRegistry.allocateStableId());

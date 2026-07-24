@@ -723,7 +723,7 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void deleteFixture(int bodyEid, long physicsShapeId) {
+    public void deleteFixture(int bodyEid, int physicsShapeId) {
         if (bodyEid < 0 || physicsShapeId <= 0) return;
 
         PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
@@ -755,6 +755,7 @@ public class EditorOpsImpl implements EditorOps {
                 world,
                 historyManager.historyIds(),
                 physicsSelectionService,
+                physicsService,
                 bodyEid,
                 fixture,
                 -1
@@ -776,6 +777,7 @@ public class EditorOpsImpl implements EditorOps {
                 world,
                 historyManager.historyIds(),
                 physicsSelectionService,
+                physicsService,
                 bodyEid,
                 fixture,
                 -1
@@ -808,7 +810,7 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void beginEditPolygonFixture(int bodyEid, long physicsShapeId) {
+    public void beginEditPolygonFixture(int bodyEid, int physicsShapeId) {
         if (bodyEid < 0 || physicsShapeId <= 0L) return;
 
         PhysicsShapesComponent fixtures =

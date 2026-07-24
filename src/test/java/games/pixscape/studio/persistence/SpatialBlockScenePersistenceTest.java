@@ -1,6 +1,7 @@
 package games.pixscape.studio.persistence;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
@@ -27,7 +28,9 @@ public class SpatialBlockScenePersistenceTest {
     public void spatialBlockFootprintSurvivesSceneSaveLoadRoundtripWithoutAnchors() {
         World world = worldWithSerialization();
         int layerId = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(layerId).stableId = 1;
         SpatialBlocksComponent spatialBlocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        spatialBlocks.nextSpatialBlockId = 2;
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
         block.name = "Tall wall";
@@ -56,7 +59,7 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("\"orientation\""));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false, new SceneMetaRuntime());
+        SceneLoader.loadScene(loaded, file, false, sceneMeta());
         loaded.process();
 
         SpatialBlockData restored = restoredBlock(loaded);
@@ -97,7 +100,9 @@ public class SpatialBlockScenePersistenceTest {
 
         World world = worldWithSerialization();
         int layerId = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(layerId).stableId = 1;
         SpatialBlocksComponent authoredComponent = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        authoredComponent.nextSpatialBlockId = 2;
         authoredComponent.blocks.add(normalized);
         authoredComponent.revision = 7;
         world.process();
@@ -109,7 +114,7 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("revision"));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false, new SceneMetaRuntime());
+        SceneLoader.loadScene(loaded, file, false, sceneMeta());
         loaded.process();
         SpatialBlockData restored = restoredBlock(loaded);
         Assert.assertEquals(0, loaded.getMapper(SpatialBlocksComponent.class)
@@ -157,6 +162,12 @@ public class SpatialBlockScenePersistenceTest {
     private static World worldWithSerialization() {
         return new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+    }
+
+    private static SceneMetaRuntime sceneMeta() {
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+        return meta;
     }
 
     private static FileHandle tempSceneFile(String name) {

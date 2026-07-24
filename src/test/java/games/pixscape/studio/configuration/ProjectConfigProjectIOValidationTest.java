@@ -72,6 +72,38 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test(expected = RuntimeException.class)
+    public void missingEntityHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-entity-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextEntityStableId\":1,", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void nonPositiveEntityHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-invalid-entity-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextEntityStableId\":1", "\"nextEntityStableId\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingPhysicsHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-physics-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace(",\"nextPhysicsShapeId\":1", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void nonPositivePhysicsHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-invalid-physics-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextPhysicsShapeId\":1", "\"nextPhysicsShapeId\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
     public void loadProject_malformedJson_throws() throws Exception {
         Path dir = Files.createTempDirectory("project-config-malformed");
         writeProjectFile(dir, "{\"projectTitle\":\"bad\"");
@@ -286,7 +318,9 @@ public class ProjectConfigProjectIOValidationTest {
                 "\"scenes\":{" +
                 "\"Main\":{" +
                 "\"name\":\"Main\"," +
-                "\"file\":\"" + currentSceneFile + "\"" +
+                "\"file\":\"" + currentSceneFile + "\"," +
+                "\"nextEntityStableId\":1," +
+                "\"nextPhysicsShapeId\":1" +
                 "}" +
                 "}" +
                 "}";

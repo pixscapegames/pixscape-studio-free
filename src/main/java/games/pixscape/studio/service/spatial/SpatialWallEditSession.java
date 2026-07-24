@@ -304,6 +304,7 @@ public final class SpatialWallEditSession {
     private static SpatialBlocksComponent detached(SpatialBlocksComponent source) {
         SpatialBlocksComponent result = new SpatialBlocksComponent();
         result.blocks = SpatialStructureTopology.copyWalls(source);
+        result.nextSpatialBlockId = source != null ? source.nextSpatialBlockId : 1;
         result.revision = source != null ? source.revision : 0;
         return result;
     }

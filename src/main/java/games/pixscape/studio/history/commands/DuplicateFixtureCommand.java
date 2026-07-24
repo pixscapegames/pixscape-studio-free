@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
@@ -15,18 +16,21 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
     public DuplicateFixtureCommand(World world,
                                    HistoryIdRegistry historyIds,
                                    PhysicsSelectionService physicsSelectionService,
+                                   PhysicsService physicsService,
                                    int bodyEntityId,
-                                   long sourceFixtureId) {
+                                   int sourceFixtureId) {
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
         int sourceIndex = FixtureCommandSupport.indexOfFixture(fixtures, sourceFixtureId);
         PhysicsShapeData source = (sourceIndex >= 0) ? fixtures.shapes.get(sourceIndex) : null;
-        PhysicsShapeData duplicate = FixtureCommandSupport.deepCopyWithFreshId(source);
+        PhysicsShapeData duplicate =
+                FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
 
         this.noop = (source == null || duplicate == null);
         this.delegate = new AddFixtureCommand(
                 world,
                 historyIds,
                 physicsSelectionService,
+                physicsService,
                 bodyEntityId,
                 duplicate,
                 (sourceIndex >= 0) ? (sourceIndex + 1) : -1
@@ -55,7 +59,7 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
         delegate.undo();
     }
 
-    public long getCreatedFixtureId() {
+    public int getCreatedFixtureId() {
         return delegate.getCreatedFixtureId();
     }
 }

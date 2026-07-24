@@ -221,6 +221,7 @@ public class SpatialTileSelectionServiceTest {
         SpatialBlocksComponent existing = SpatialWallAuthoringValidatorTest.component(
                 SpatialWallAuthoringValidatorTest.wall(1, 1, 0, 0, 1, 1, 0f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(3, 2, 3, 3, 1, 1, 0f, 10f));
+        existing.nextSpatialBlockId = 4;
         selection.beginDrag(4, 6, 6);
         selection.finishDrag();
 
@@ -228,9 +229,7 @@ public class SpatialTileSelectionServiceTest {
 
         Assert.assertNull(failure);
         Assert.assertEquals(2, existing.blocks.size);
-        Assert.assertEquals(4,
-                games.pixscape.studio.history.commands.SpatialBlockCommandSupport
-                        .nextBlockId(existing));
+        Assert.assertEquals(4, existing.peekNextSpatialBlockId());
     }
 
     @Test

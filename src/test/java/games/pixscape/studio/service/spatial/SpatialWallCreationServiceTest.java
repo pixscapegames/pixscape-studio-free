@@ -295,6 +295,8 @@ public class SpatialWallCreationServiceTest {
         wall.id = f.walls.blocks.size + 1;
         wall.structureId = rect[4];
         f.walls.blocks.add(wall);
+        f.walls.nextSpatialBlockId =
+                Math.max(f.walls.nextSpatialBlockId, wall.id + 1);
         return wall;
     }
 

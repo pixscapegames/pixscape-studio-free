@@ -24,7 +24,7 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
                                 HistoryIdRegistry historyIds,
                                 PhysicsSelectionService physicsSelectionService,
                                 int bodyEntityId,
-                                long physicsShapeId) {
+                                int physicsShapeId) {
         this.world = world;
         this.historyIds = historyIds;
         this.physicsSelectionService = physicsSelectionService;

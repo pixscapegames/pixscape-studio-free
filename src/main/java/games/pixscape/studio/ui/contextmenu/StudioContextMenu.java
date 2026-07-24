@@ -236,7 +236,7 @@ public final class StudioContextMenu extends InputListener {
         PhysicsShapesComponent fixtures =
                 world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
 
-        long physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
         PhysicsShapeData selectedFixture = null;
 
         if (physicsShapeId > 0 && fixtures != null && fixtures.shapes != null) {

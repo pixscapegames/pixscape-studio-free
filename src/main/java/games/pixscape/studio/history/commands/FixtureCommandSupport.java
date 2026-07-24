@@ -36,7 +36,7 @@ public final class FixtureCommandSupport {
         return create ? mapper.create(entityId) : null;
     }
 
-    static int indexOfFixture(PhysicsShapesComponent fixtures, long physicsShapeId) {
+    static int indexOfFixture(PhysicsShapesComponent fixtures, int physicsShapeId) {
         if (fixtures == null || physicsShapeId <= 0L) return -1;
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData fixture = fixtures.shapes.get(i);
@@ -46,7 +46,7 @@ public final class FixtureCommandSupport {
         return -1;
     }
 
-    static PhysicsShapeData fixtureById(PhysicsShapesComponent fixtures, long physicsShapeId) {
+    static PhysicsShapeData fixtureById(PhysicsShapesComponent fixtures, int physicsShapeId) {
         int index = indexOfFixture(fixtures, physicsShapeId);
         return index >= 0 ? fixtures.shapes.get(index) : null;
     }
@@ -73,10 +73,12 @@ public final class FixtureCommandSupport {
         return fixture;
     }
 
-    static PhysicsShapeData deepCopyWithFreshId(PhysicsShapeData source) {
+    static PhysicsShapeData deepCopyWithFreshId(
+            games.pixscape.runtime.service.PhysicsService physicsService,
+            PhysicsShapeData source) {
         if (source == null) return null;
         PhysicsShapeData copy = source.copy();
-        copy.physicsShapeId = PhysicsShapeIdService.allocateNewPhysicsShapeId();
+        copy.physicsShapeId = PhysicsShapeIdService.allocateNewPhysicsShapeId(physicsService);
         return copy;
     }
 

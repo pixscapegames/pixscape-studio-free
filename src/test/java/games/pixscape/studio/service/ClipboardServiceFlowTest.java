@@ -136,7 +136,10 @@ public class ClipboardServiceFlowTest {
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .capture(new IntArray(new int[]{source}));
         EntityGraphInstantiationResult directResult =
-                new EntityGraphInstantiationService(world, history, identities)
+                new EntityGraphInstantiationService(
+                        world, history, identities,
+                        new games.pixscape.runtime.service.PhysicsService(
+                                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                         .instantiate(graph, 0, 4f, 4f, "Direct graph path");
         int directEntity = directResult.createdIds().first();
         int directStableId = world.getMapper(PixscapeIdentityComponent.class)
@@ -173,7 +176,7 @@ public class ClipboardServiceFlowTest {
 
     private static IdentityRegistry identityRegistry(World world) {
         IdentityRegistry identities = new IdentityRegistry();
-        identities.bind(world);
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         identities.rebuild();
         return identities;
     }

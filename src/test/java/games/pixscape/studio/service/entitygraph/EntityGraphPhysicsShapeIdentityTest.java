@@ -38,11 +38,13 @@ public class EntityGraphPhysicsShapeIdentityTest {
         selection.add(sourceEntity);
         EntityGraph graph = new EntityGraphCaptureService(world).capture(selection);
         IdentityRegistry identities = new IdentityRegistry();
-        identities.bind(world);
+        identities.bind(world, config.getCurrentSceneMeta());
         identities.rebuild();
         EntityGraphInstantiationResult result =
                 new EntityGraphInstantiationService(
-                        world, new HistoryManager(16), identities)
+                        world, new HistoryManager(16), identities,
+                        new games.pixscape.runtime.service.PhysicsService(
+                                world, null, config.getCurrentSceneMeta()))
                         .instantiate(graph, 0, 0f, 0f, "Copy");
 
         int created = result.createdIds().first();

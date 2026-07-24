@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.EntityMetaComponent;
@@ -28,6 +29,7 @@ public final class EntityPropertiesContext {
     public final AtlasStudioService atlasStudioService;
     public final SelectionService selectionService;
     public final PhysicsSelectionService physicsSelectionService;
+    public final PhysicsService physicsService;
     public final PhysicsPolygonAuthoringService physicsPolygonAuthoringService;
     public final IconResolver iconResolver;
     public final Runnable markPreviewSaveRequired;
@@ -57,6 +59,7 @@ public final class EntityPropertiesContext {
     public EntityPropertiesContext(World world,
                                    HistoryManager history,
                                    PhysicsSelectionService physicsSelectionService,
+                                   PhysicsService physicsService,
                                    LayerService layerService,
                                    AtlasStudioService atlasStudioService,
                                    SelectionService selectionService,
@@ -67,6 +70,7 @@ public final class EntityPropertiesContext {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
         this.physicsSelectionService = Objects.requireNonNull(physicsSelectionService, "physicsSelectionService");
+        this.physicsService = Objects.requireNonNull(physicsService, "physicsService");
         this.physicsPolygonAuthoringService = new PhysicsPolygonAuthoringService(world);
         this.layerService = Objects.requireNonNull(layerService, "layerService");
         this.atlasStudioService = Objects.requireNonNull(atlasStudioService, "atlasStudioService");

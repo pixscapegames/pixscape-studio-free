@@ -42,7 +42,7 @@ public interface EditorOps {
 
     void deleteJoint(int jointEntityId);
 
-    void deleteFixture(int bodyEid, long physicsShapeId);
+    void deleteFixture(int bodyEid, int physicsShapeId);
 
     void addBoxFixture(int bodyEid, float worldX, float worldY);
 
@@ -50,7 +50,7 @@ public interface EditorOps {
 
     void beginAddPolygonFixture(int bodyEid);
 
-    void beginEditPolygonFixture(int bodyEid, long physicsShapeId);
+    void beginEditPolygonFixture(int bodyEid, int physicsShapeId);
 
     void addSpatialBlock(int layerEntityId, float worldX, float worldY);
 

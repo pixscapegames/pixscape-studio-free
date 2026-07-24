@@ -54,12 +54,15 @@ public class EntityGraphServicesTest {
     public void instantiate_remapsJointBodyReferences() {
         World world = new World(new WorldConfiguration());
         HistoryManager hm = new HistoryManager(32);
-        IdentityRegistry reg = new IdentityRegistry(); reg.bind(world); reg.rebuild();
+        IdentityRegistry reg = new IdentityRegistry();
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta()); reg.rebuild();
 
         int a = body(world); int b = body(world); int j = distanceJoint(world, a, b);
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
 
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(graph, 0, 0f, 0f, "Test Instantiate");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -72,7 +75,8 @@ public class EntityGraphServicesTest {
     public void instantiate_remapsGearJointReferences() {
         World world = new World(new WorldConfiguration());
         HistoryManager hm = new HistoryManager(32);
-        IdentityRegistry reg = new IdentityRegistry(); reg.bind(world); reg.rebuild();
+        IdentityRegistry reg = new IdentityRegistry();
+        reg.bind(world, new games.pixscape.studio.configuration.SceneMeta()); reg.rebuild();
 
         int a = body(world); int b = body(world); int c = body(world);
         int j1 = revoluteJoint(world, a, b);
@@ -80,7 +84,9 @@ public class EntityGraphServicesTest {
         int g = gearJoint(world, a, c, j1, j2);
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b, c));
-        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(world, hm, reg)
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(graph, 0, 0f, 0f, "Test Instantiate");
 
         int pastedG = result.sourceToCreated().get(g, -1);
@@ -97,7 +103,7 @@ public class EntityGraphServicesTest {
                 .build());
         HistoryManager history = new HistoryManager(32);
         IdentityRegistry identities = new IdentityRegistry();
-        identities.bind(world);
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         identities.rebuild();
 
         int bodyA = body(world);
@@ -119,7 +125,9 @@ public class EntityGraphServicesTest {
         int jointsBefore = count(world, Aspect.all(PhysicsJointComponent.class));
 
         try {
-            new EntityGraphInstantiationService(world, history, identities)
+            new EntityGraphInstantiationService(
+                    world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                    world, null, new games.pixscape.studio.configuration.SceneMeta()))
                     .instantiate(incomplete, 0, 0f, 0f, "Invalid graph");
             Assert.fail("Missing joint endpoint mapping must reject the graph.");
         } catch (IllegalArgumentException expected) {

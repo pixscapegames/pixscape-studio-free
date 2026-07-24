@@ -745,7 +745,7 @@ public final class GizmoSystem extends BaseSystem {
 
     }
 
-    private PhysicsShapeData findPolygonShape(int bodyEid, long physicsShapeId) {
+    private PhysicsShapeData findPolygonShape(int bodyEid, int physicsShapeId) {
         if (physicsShapeId <= 0L || mFixDefs == null) return null;
         PhysicsShapesComponent shapes = mFixDefs.getSafe(bodyEid, null);
         if (shapes == null) return null;
@@ -840,7 +840,7 @@ public final class GizmoSystem extends BaseSystem {
         tmpAuthoringFixture.groupIndex = polygon != null ? polygon.groupIndex : (short) 0;
     }
 
-    private static boolean containsFixtureId(int[] ids, long physicsShapeId) {
+    private static boolean containsFixtureId(int[] ids, int physicsShapeId) {
         if (ids == null || physicsShapeId <= 0L) return false;
 
         for (int id : ids) {
@@ -1107,7 +1107,7 @@ public final class GizmoSystem extends BaseSystem {
 
     private void drawSelectedFixtureHandles() {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
 
         if (bodyEid < 0 || selectedFixtureId <= 0L) return;
         if (!isDrawableFixtureBody(bodyEid)) return;

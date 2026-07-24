@@ -39,7 +39,8 @@ public final class ClipboardService {
         this.identityRegistry = identityRegistry;
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
-        this.graphInstantiationService = new EntityGraphInstantiationService(world, historyManager, identityRegistry);
+        this.graphInstantiationService = new EntityGraphInstantiationService(
+                world, historyManager, identityRegistry, canvas.getPhysicsService());
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
     }

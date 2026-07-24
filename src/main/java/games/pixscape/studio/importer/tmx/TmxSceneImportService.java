@@ -14,6 +14,7 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -127,16 +128,22 @@ public final class TmxSceneImportService {
             createdSceneTag = cfg.canonicalSceneTagFor(meta);
 
             ImportAssetsResult importedAssets = importAssets(plan, meta);
-            World world = buildImportedWorld(
-                    plan,
-                    importedAssets.cellLogicalIdsByTileset(),
-                    importedAssets.imageAssetsBySourceLayer(),
-                    createdSceneTag
-            );
-
             projectDir.child(StudioFs.DIR_SCENES).mkdirs();
             FileHandle sceneFile = projectDir.child(StudioFs.DIR_SCENES).child(createdSceneFileName);
-            SceneService.saveScene(world, sceneFile, false);
+            World world = new World(new WorldConfiguration()
+                    .setSystem(new WorldSerializationManager()));
+            IdentityRegistry identityRegistry = new IdentityRegistry();
+            identityRegistry.bind(world, meta);
+            try {
+                populateImportedWorld(world, identityRegistry, plan,
+                        importedAssets.cellLogicalIdsByTileset(),
+                        importedAssets.imageAssetsBySourceLayer(),
+                        createdSceneTag);
+                SceneService.saveScene(world, sceneFile, false);
+            } finally {
+                identityRegistry.bind(null, null);
+                world.dispose();
+            }
 
             syncAtlasInputs(createdSceneTag, importedAssets.importedAssetIds());
             if (request.packSceneAtlas()) {
@@ -325,16 +332,17 @@ public final class TmxSceneImportService {
         return new ImportedImageAsset(meta.id, width, height);
     }
 
-    private World buildImportedWorld(TmxImportPlan plan,
-                                     Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
-                                     Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
-                                     String sceneTag) {
-        World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+    private void populateImportedWorld(World world,
+            IdentityRegistry identityRegistry, TmxImportPlan plan,
+            Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
+            Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
+            String sceneTag) {
         int layerIndex = 0;
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
                 createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                identityRegistry.ensureStableId(layerEntity);
                 populateTiles(world, layerEntity, tileLayer, tileAssetIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
@@ -344,12 +352,13 @@ public final class TmxSceneImportService {
                 }
                 int layerEntity = world.create();
                 createClassicLayerComponents(world, layerEntity, layerIndex, imageLayer);
-                createImageLayerSprite(world, layerIndex, plan.scene(), imageLayer, imageAsset, sceneTag);
+                identityRegistry.ensureStableId(layerEntity);
+                createImageLayerSprite(world, identityRegistry, layerIndex,
+                        plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
             }
         }
         world.process();
-        return world;
     }
 
     private void createTileLayerComponents(World world,
@@ -429,6 +438,7 @@ public final class TmxSceneImportService {
     }
 
     private void createImageLayerSprite(World world,
+                                        IdentityRegistry identityRegistry,
                                         int layerIndex,
                                         TmxScenePlan scene,
                                         TmxImageLayerPlan imageLayer,
@@ -455,6 +465,7 @@ public final class TmxSceneImportService {
                 )
                 .setTintRgba(tintForOpacity(imageLayer.opacity()));
         init.init(spriteEntity);
+        identityRegistry.ensureStableId(spriteEntity);
         if (imageLayer.repeatX() || imageLayer.repeatY()) {
             RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(spriteEntity);
             repeat.repeatX = imageLayer.repeatX();

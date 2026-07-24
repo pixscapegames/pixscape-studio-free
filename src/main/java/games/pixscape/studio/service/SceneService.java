@@ -735,6 +735,7 @@ public final class SceneService {
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
         }
+        canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
 
         FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
@@ -756,6 +757,7 @@ public final class SceneService {
                 sceneName,
                 canonicalTag
         ));
+        canvas.getIdentityRegistry().rebuild();
         // UI
 
         int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();

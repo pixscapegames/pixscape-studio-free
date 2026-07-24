@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
@@ -12,6 +13,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final PhysicsSelectionService physicsSelectionService;
+    private final PhysicsService physicsService;
 
     private final long bodyHistoryId;
     private final long previousFocusedBodyHistoryId;
@@ -24,20 +26,23 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
     public AddFixtureCommand(World world,
                              HistoryIdRegistry historyIds,
                              PhysicsSelectionService physicsSelectionService,
+                             PhysicsService physicsService,
                              int bodyEntityId) {
-        this(world, historyIds, physicsSelectionService, bodyEntityId,
+        this(world, historyIds, physicsSelectionService, physicsService, bodyEntityId,
                 FixtureCommandSupport.createDefaultFixture(), -1);
     }
 
     public AddFixtureCommand(World world,
                              HistoryIdRegistry historyIds,
                              PhysicsSelectionService physicsSelectionService,
+                             PhysicsService physicsService,
                              int bodyEntityId,
                              PhysicsShapeData template,
                              int insertIndex) {
         this.world = world;
         this.historyIds = historyIds;
         this.physicsSelectionService = physicsSelectionService;
+        this.physicsService = physicsService;
         this.bodyHistoryId = FixtureCommandSupport.toHistoryId(historyIds, bodyEntityId);
 
         int previousFocusedBodyEid =
@@ -59,7 +64,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
 
         this.createdFixtureId =
                 games.pixscape.studio.service.physics.PhysicsShapeIdService
-                        .allocateNewPhysicsShapeId();
+                        .allocateNewPhysicsShapeId(physicsService);
         base.physicsShapeId = createdFixtureId;
         this.template = base;
         this.insertIndex = insertIndex;

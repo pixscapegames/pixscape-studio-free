@@ -17,6 +17,7 @@ public class SpatialTileSelectionTopologyTest {
         horizontal.id = 1;
         horizontal.structureId = 1;
         walls.blocks.add(horizontal);
+        walls.nextSpatialBlockId = 2;
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
 
         selection.beginDrag(7, 1, 1);

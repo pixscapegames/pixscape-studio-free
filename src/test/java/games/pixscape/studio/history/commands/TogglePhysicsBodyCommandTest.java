@@ -39,7 +39,7 @@ public class TogglePhysicsBodyCommandTest {
         shapes.add(source);
 
         TogglePhysicsBodyCommand command = new TogglePhysicsBodyCommand(
-                world, new HistoryIdRegistry(), entityId, false,
+                world, new HistoryIdRegistry(), physicsService(world), entityId, false,
                 PhysicsBodyComponent.DYNAMIC, false);
         command.redo();
 
@@ -62,6 +62,7 @@ public class TogglePhysicsBodyCommandTest {
         TogglePhysicsBodyCommand command = new TogglePhysicsBodyCommand(
                 world,
                 historyIds,
+                physicsService(world),
                 entityId,
                 true,
                 PhysicsBodyComponent.DYNAMIC,
@@ -93,5 +94,10 @@ public class TogglePhysicsBodyCommandTest {
         Assert.assertEquals(
                 nextAfterFirstExecution,
                 config.getCurrentSceneMeta().nextPhysicsShapeId);
+    }
+
+    private games.pixscape.runtime.service.PhysicsService physicsService(World world) {
+        return new games.pixscape.runtime.service.PhysicsService(
+                world, null, config.getCurrentSceneMeta());
     }
 }

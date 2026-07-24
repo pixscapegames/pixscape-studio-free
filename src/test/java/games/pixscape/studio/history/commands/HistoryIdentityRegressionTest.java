@@ -150,7 +150,9 @@ public class HistoryIdentityRegressionTest {
         identities.rebuild();
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB, sourceC));
-        EntityGraphInstantiationService service = new EntityGraphInstantiationService(world, history, identities);
+        EntityGraphInstantiationService service = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()));
 
         EntityGraphInstantiationResult first = service.instantiate(graph, 0, 10f, 0f, "Instantiate Prefab");
         world.process();
@@ -176,7 +178,9 @@ public class HistoryIdentityRegressionTest {
         identities.rebuild();
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB));
-        EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(world, history, identities)
+        EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(graph, 0, 10f, 10f, "Instantiate Prefab");
         world.process();
 
@@ -246,7 +250,10 @@ public class HistoryIdentityRegressionTest {
 
     private static IdentityRegistry bindIdentities(World world) {
         IdentityRegistry registry = new IdentityRegistry();
-        registry.bind(world);
+        games.pixscape.studio.configuration.SceneMeta meta =
+                new games.pixscape.studio.configuration.SceneMeta();
+        meta.nextEntityStableId = 10_000;
+        registry.bind(world, meta);
         registry.rebuild();
         return registry;
     }

@@ -43,7 +43,11 @@ public class SpatialWallAuthoringValidatorTest {
 
     static SpatialBlocksComponent component(SpatialBlockData... walls) {
         SpatialBlocksComponent component = new SpatialBlocksComponent();
-        for (SpatialBlockData wall : walls) component.blocks.add(wall);
+        for (SpatialBlockData wall : walls) {
+            component.blocks.add(wall);
+            component.nextSpatialBlockId =
+                    Math.max(component.nextSpatialBlockId, wall.id + 1);
+        }
         return component;
     }
 

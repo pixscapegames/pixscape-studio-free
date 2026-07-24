@@ -39,17 +39,6 @@ public final class SpatialBlockCommandSupport {
         return index >= 0 ? component.blocks.get(index) : null;
     }
 
-    public static int nextBlockId(SpatialBlocksComponent component) {
-        int max = 0;
-        if (component != null && component.blocks != null) {
-            for (int i = 0; i < component.blocks.size; i++) {
-                SpatialBlockData block = component.blocks.get(i);
-                if (block != null) max = Math.max(max, block.id);
-            }
-        }
-        return max + 1;
-    }
-
     static void apply(SpatialBlockData target, SpatialBlockData source) {
         if (target == null || source == null) return;
         target.id = source.id;

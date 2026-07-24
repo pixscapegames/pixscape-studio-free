@@ -156,6 +156,10 @@ public class EditPhysicsBodyCommandTest {
         TogglePhysicsBodyCommand enable = new TogglePhysicsBodyCommand(
                 world,
                 historyIds,
+                new games.pixscape.runtime.service.PhysicsService(
+                        world, null,
+                        games.pixscape.studio.configuration.ProjectConfig.getInstance()
+                                .getCurrentSceneMeta()),
                 entityId,
                 true,
                 PhysicsBodyComponent.DYNAMIC,

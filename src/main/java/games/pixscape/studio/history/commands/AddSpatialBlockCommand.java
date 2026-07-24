@@ -20,6 +20,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
     private final Array<SpatialBlockData> after;
     private final int blockId;
     private final CommandOutcome initialOutcome;
+    private boolean identityAllocated;
 
     public AddSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                   SpatialBlockSelectionService selection, int layerEntityId,
@@ -33,8 +34,8 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         TiledLayerComponent tiled = world != null
                 ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
         SpatialBlockData prepared = block != null ? block.copy() : null;
-        if (prepared != null && prepared.id <= 0) {
-            prepared.id = SpatialBlockCommandSupport.nextBlockId(component);
+        if (prepared != null) {
+            prepared.id = component != null ? component.peekNextSpatialBlockId() : 1;
         }
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
                 component, prepared, tiled != null ? tiled.data : null);
@@ -69,6 +70,16 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (layer < 0) return CommandOutcome.NO_CHANGE;
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
+        if (!identityAllocated) {
+            SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
+            int allocated = component.allocateNextSpatialBlockId();
+            if (allocated != blockId) {
+                throw new IllegalStateException(
+                        "Spatial block allocation changed after prevalidation: expected "
+                                + blockId + ", got " + allocated + ".");
+            }
+            identityAllocated = true;
+        }
         if (selection != null) selection.selectBlock(layer, blockId);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;

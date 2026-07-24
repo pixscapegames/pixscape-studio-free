@@ -80,7 +80,7 @@ public class PropertiesPanel extends DockablePanel {
     private int pendingLayer = -1;
     private int pendingBody = -1;
     private int pendingFixtureBody = -1;
-    private long pendingFixtureId = PhysicsSelectionService.NO_SHAPE;
+    private int pendingFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int pendingSpatialBlockLayer = -1;
     private int pendingSpatialBlockId = -1;
 
@@ -112,6 +112,7 @@ public class PropertiesPanel extends DockablePanel {
                 world,
                 canvas.getHistoryManager(),
                 physicsSelectionService,
+                canvas.getPhysicsService(),
                 layerService,
                 canvas.getAtlasService(),
                 selectionService,
@@ -135,9 +136,12 @@ public class PropertiesPanel extends DockablePanel {
         );
 
         Runnable markPreviewSaveRequired = app.getSceneService()::markPreviewSaveRequired;
-        layerProperties = new LayerProperties(world, canvas.getHistoryManager(), markPreviewSaveRequired);
+        layerProperties = new LayerProperties(
+                world, canvas.getHistoryManager(), canvas.getPhysicsService(),
+                markPreviewSaveRequired);
         sceneProperties = new SceneProperties(
-                world, canvas.getHistoryManager(), selectionService, layerService, markPreviewSaveRequired);
+                world, canvas.getHistoryManager(), canvas.getPhysicsService(),
+                selectionService, layerService, markPreviewSaveRequired);
         tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
 
         contentHolder = new VisTable(true);
@@ -314,7 +318,7 @@ public class PropertiesPanel extends DockablePanel {
         physicsContextBody = bodyEntityId;
     }
 
-    private void showFixtureProperties(int bodyEntityId, long physicsShapeId) {
+    private void showFixtureProperties(int bodyEntityId, int physicsShapeId) {
         contentHolder.clearChildren();
         fixtureProperties.setEntityId(bodyEntityId);
         fixtureProperties.refreshNow();
@@ -470,7 +474,7 @@ public class PropertiesPanel extends DockablePanel {
         }
     }
 
-    public void onFixtureSelectionChanged(int bodyEntityId, long physicsShapeId) {
+    public void onFixtureSelectionChanged(int bodyEntityId, int physicsShapeId) {
         if (physicsShapeId > PhysicsSelectionService.NO_SHAPE
                 && bodyEntityId >= 0
                 && world.getEntityManager().isActive(bodyEntityId)
@@ -486,7 +490,7 @@ public class PropertiesPanel extends DockablePanel {
         restoreAfterFixtureDeselection();
     }
 
-    private boolean fixtureExists(int bodyEntityId, long physicsShapeId) {
+    private boolean fixtureExists(int bodyEntityId, int physicsShapeId) {
         PhysicsShapesComponent fixtures = mPhysFixtures.getSafe(bodyEntityId, null);
         if (fixtures == null || fixtures.shapes == null) return false;
         for (int i = 0; i < fixtures.shapes.size; i++) {
@@ -551,7 +555,7 @@ public class PropertiesPanel extends DockablePanel {
             return;
         }
 
-        long selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
+        int selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
         boolean explicitPhysicsActive = isExplicitPhysicsContextActive();
         boolean samePhysicsContext = hasValidPhysicsContext() && physicsContextBody == e;
 
