@@ -3,14 +3,15 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.history.commands.SpatialBlockCommandSupport;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialStructureTopologyTest {
     @Test
-    public void isolatedWallGetsPositiveIdentityAndExactGeometry() {
+    public void isolatedWallKeepsAssignedIdentityAndExactGeometry() {
         TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
-        SpatialBlockData candidate = SpatialWallAuthoringValidatorTest.wall(0, 0, 2, 3, 3, 2, 4f, 12f);
+        SpatialBlockData candidate = SpatialWallAuthoringValidatorTest.wall(1, 0, 2, 3, 3, 2, 4f, 12f);
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(new SpatialBlocksComponent(), candidate, map);
         Assert.assertTrue(plan.error, plan.valid);
         SpatialBlockData wall = plan.walls.first();
@@ -29,7 +30,7 @@ public class SpatialStructureTopologyTest {
         SpatialBlocksComponent existing = SpatialWallAuthoringValidatorTest.component(
                 SpatialWallAuthoringValidatorTest.wall(5, 7, 0, 2, 5, 3, 1f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(9, 3, 7, 2, 5, 3, 1f, 10f));
-        SpatialBlockData bridge = SpatialWallAuthoringValidatorTest.wall(0, 0, 3, 0, 6, 6, 99f, 99f);
+        SpatialBlockData bridge = SpatialWallAuthoringValidatorTest.wall(10, 0, 3, 0, 6, 6, 99f, 99f);
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(existing, bridge, map);
         Assert.assertTrue(plan.error, plan.valid);
         for (int i = 0; i < plan.walls.size; i++) {
@@ -74,7 +75,7 @@ public class SpatialStructureTopologyTest {
                 SpatialWallAuthoringValidatorTest.wall(1, 1, 0, 2, 4, 1, 0f, 10f),
                 SpatialWallAuthoringValidatorTest.wall(2, 2, 6, 2, 4, 1, 1f, 10f));
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(existing,
-                SpatialWallAuthoringValidatorTest.wall(0, 0, 2, 0, 6, 5, 0f, 10f), map);
+                SpatialWallAuthoringValidatorTest.wall(3, 0, 2, 0, 6, 5, 0f, 10f), map);
         Assert.assertFalse(plan.valid);
         Assert.assertEquals(1, existing.blocks.get(0).structureId);
         Assert.assertEquals(2, existing.blocks.get(1).structureId);
@@ -110,7 +111,7 @@ public class SpatialStructureTopologyTest {
         SpatialBlockData horizontal = wall(1, 4, 0, 1, 3, 1);
         horizontal.width = 2.1f;
         horizontal.depth = 0.2f;
-        SpatialBlockData vertical = wall(0, 0, 2, 0, 1, 3);
+        SpatialBlockData vertical = wall(2, 0, 2, 0, 1, 3);
         vertical.x = 2.5f;
         vertical.y = 0.2f;
         vertical.width = 0.2f;
@@ -129,7 +130,7 @@ public class SpatialStructureTopologyTest {
         SpatialBlockData horizontal = wall(1, 4, 0, 1, 3, 1);
         horizontal.width = 2.4f;
         horizontal.depth = 0.3f;
-        SpatialBlockData vertical = wall(0, 0, 2, 0, 1, 3);
+        SpatialBlockData vertical = wall(2, 0, 2, 0, 1, 3);
         vertical.x = 2.2f;
         vertical.y = 0.5f;
         vertical.width = 0.2f;
@@ -171,11 +172,27 @@ public class SpatialStructureTopologyTest {
     }
 
     private static void assertJoins(TiledMapLayerData map, SpatialBlockData existing, SpatialBlockData candidate) {
+        candidate.id = SpatialBlockCommandSupport.nextBlockId(
+                SpatialWallAuthoringValidatorTest.component(existing));
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
                 SpatialWallAuthoringValidatorTest.component(existing), candidate, map);
         Assert.assertTrue(plan.error, plan.valid);
         Assert.assertEquals(2, plan.walls.size);
         Assert.assertEquals(4, plan.walls.get(0).structureId);
         Assert.assertEquals(4, plan.walls.get(1).structureId);
+    }
+
+    @Test
+    public void addRejectsUnassignedIdentityWithoutAllocating() {
+        TiledMapLayerData map = SpatialWallAuthoringValidatorTest.map(8, 8);
+        SpatialBlockData candidate = wall(0, 0, 1, 1, 2, 1);
+
+        SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
+                new SpatialBlocksComponent(), candidate, map);
+
+        Assert.assertFalse(plan.valid);
+        Assert.assertTrue(plan.error.contains("strictly positive"));
+        Assert.assertEquals(0, candidate.id);
+        Assert.assertEquals(0, plan.walls.size);
     }
 }

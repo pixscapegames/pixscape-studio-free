@@ -15,6 +15,48 @@ import org.junit.Test;
 
 public class SpatialStructureHistoryTest {
     @Test
+    public void firstBlockCreatesMissingComponentOnlyWhenCommandExecutes() {
+        World world = new World(new WorldConfiguration());
+        int layer = world.create();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 4);
+        tiled.data.setTile(1, 1, 1);
+        HistoryManager history = new HistoryManager(8);
+        history.historyIds().ensureForEntity(layer);
+        SpatialBlockData candidate = wall(0, 0, 1, 1, 1, 1, 0f, 10f);
+
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                world, history.historyIds(), new SpatialBlockSelectionService(), layer, candidate);
+
+        Assert.assertFalse(world.getMapper(SpatialBlocksComponent.class).has(layer));
+        history.execute(command);
+        SpatialBlocksComponent created = world.getMapper(SpatialBlocksComponent.class).get(layer);
+        Assert.assertEquals(1, created.blocks.size);
+        Assert.assertEquals(1, created.blocks.first().id);
+    }
+
+    @Test
+    public void addUsesMaxPlusOneOnceAndRedoRestoresTheSameId() {
+        Fixture fixture = fixture();
+        fixture.walls.blocks.add(wall(1, 1, 0, 0, 1, 1, 0f, 10f));
+        fixture.walls.blocks.add(wall(3, 2, 3, 0, 1, 1, 0f, 10f));
+        SpatialBlockData candidate = wall(0, 0, 6, 0, 1, 1, 0f, 10f);
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                fixture.world, fixture.history.historyIds(), fixture.selection, fixture.layer, candidate);
+
+        fixture.history.execute(command);
+        Assert.assertEquals(4, command.getBlockId());
+        Assert.assertNotNull(find(fixture.walls, 4));
+        fixture.history.undo();
+        Assert.assertNull(find(fixture.walls, 4));
+
+        fixture.walls.blocks.add(wall(20, 20, 9, 0, 1, 1, 0f, 10f));
+        fixture.history.redo();
+        Assert.assertEquals(4, command.getBlockId());
+        Assert.assertNotNull(find(fixture.walls, 4));
+    }
+
+    @Test
     public void mergeUndoRedoRestoresEveryStructureIdentityAtomically() {
         Fixture fixture = fixture();
         fixture.walls.blocks.add(wall(2, 7, 0, 2, 4, 1, 0f, 10f));

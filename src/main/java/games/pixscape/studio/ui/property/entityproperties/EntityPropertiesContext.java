@@ -60,6 +60,7 @@ public final class EntityPropertiesContext {
                                    LayerService layerService,
                                    AtlasStudioService atlasStudioService,
                                    SelectionService selectionService,
+                                   IdentityRegistry identityRegistry,
                                    IconResolver iconResolver,
                                    Runnable markPreviewSaveRequired,
                                    int sourceTag) {
@@ -78,11 +79,9 @@ public final class EntityPropertiesContext {
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.mTags = world.getMapper(PixscapeTagComponent.class);
-        this.identityRegistry = new IdentityRegistry();
+        this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.tagRegistry = new TagRegistry();
-        this.identityRegistry.bind(world);
         this.tagRegistry.bind(world);
-        this.identityRegistry.rebuild();
         this.tagRegistry.rebuild();
         this.mTint = world.getMapper(TintComponent.class);
         this.mMat = world.getMapper(RenderMaterialComponent.class);

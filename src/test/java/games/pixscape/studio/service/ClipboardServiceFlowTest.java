@@ -6,8 +6,14 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.entitygraph.EntityGraph;
+import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
+import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
+import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
 import games.pixscape.studio.ui.main.WorldCanvas;
 import org.junit.Assert;
 import org.junit.Test;
@@ -22,7 +28,9 @@ public class ClipboardServiceFlowTest {
         World world = new World(new WorldConfiguration());
         SelectionService selection = new SelectionService(world, null);
         HistoryManager history = new HistoryManager(32);
-        ClipboardService clipboard = new ClipboardService(newTestCanvas(world, selection, history));
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
 
         int source = createEntity(world, 10f, 20f, 3);
         selection.selectOnly(source);
@@ -53,7 +61,9 @@ public class ClipboardServiceFlowTest {
         World world = new World(new WorldConfiguration());
         SelectionService selection = new SelectionService(world, null);
         HistoryManager history = new HistoryManager(32);
-        ClipboardService clipboard = new ClipboardService(newTestCanvas(world, selection, history));
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
 
         int source = createEntity(world, 4f, 5f, 2);
         selection.selectOnly(source);
@@ -76,7 +86,9 @@ public class ClipboardServiceFlowTest {
         World world = new World(new WorldConfiguration());
         SelectionService selection = new SelectionService(world, null);
         HistoryManager history = new HistoryManager(32);
-        ClipboardService clipboard = new ClipboardService(newTestCanvas(world, selection, history));
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
 
         int source = createEntity(world, 7f, 9f, 1);
         AnimationComponent animation = world.getMapper(AnimationComponent.class).create(source);
@@ -103,6 +115,39 @@ public class ClipboardServiceFlowTest {
         Assert.assertTrue(pastedAnimation.clips.get("run").flipX);
     }
 
+    @Test
+    public void clipboardAndEntityGraphShareOneIdentityRegistry() throws Exception {
+        World world = new World(new WorldConfiguration());
+        SelectionService selection = new SelectionService(world, null);
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
+
+        int source = createEntity(world, 1f, 2f, 0);
+        identities.ensureStableId(source);
+        selection.selectOnly(source);
+        Assert.assertTrue(clipboard.copySelection());
+        Assert.assertTrue(clipboard.paste());
+        int clipboardEntity = selection.getFirstSelectedEntityId();
+        int clipboardStableId = world.getMapper(PixscapeIdentityComponent.class)
+                .get(clipboardEntity).stableId;
+
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .capture(new IntArray(new int[]{source}));
+        EntityGraphInstantiationResult directResult =
+                new EntityGraphInstantiationService(world, history, identities)
+                        .instantiate(graph, 0, 4f, 4f, "Direct graph path");
+        int directEntity = directResult.createdIds().first();
+        int directStableId = world.getMapper(PixscapeIdentityComponent.class)
+                .get(directEntity).stableId;
+        world.process();
+
+        Assert.assertNotEquals(clipboardStableId, directStableId);
+        Assert.assertEquals(clipboardEntity, identities.findByStableId(clipboardStableId));
+        Assert.assertEquals(directEntity, identities.findByStableId(directStableId));
+    }
+
     private static int createEntity(World world, float x, float y, int layerIndex) {
         int eid = world.create();
         TransformComponent tr = world.getMapper(TransformComponent.class).create(eid);
@@ -124,6 +169,13 @@ public class ClipboardServiceFlowTest {
         setFieldUnsafe(unsafe, canvas, "selectionService", selection);
         setFieldUnsafe(unsafe, canvas, "historyManager", history);
         return canvas;
+    }
+
+    private static IdentityRegistry identityRegistry(World world) {
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world);
+        identities.rebuild();
+        return identities;
     }
 
     private static Unsafe getUnsafe() throws Exception {

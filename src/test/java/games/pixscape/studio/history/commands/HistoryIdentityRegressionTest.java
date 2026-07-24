@@ -12,6 +12,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -136,6 +137,9 @@ public class HistoryIdentityRegressionTest {
 
     @Test
     public void prefabInstantiationAssignsFreshIdentitiesForEachInstance() {
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Identity regression");
+        ProjectConfig.setInstance(config);
         World world = world();
         HistoryManager history = new HistoryManager(32);
         IdentityRegistry identities = bindIdentities(world);

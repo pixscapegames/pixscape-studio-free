@@ -4,6 +4,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.commands.SpatialBlockCommandSupport;
 
 public final class SpatialTileSelectionService {
     public static final int NO_LAYER = -1;
@@ -207,6 +208,7 @@ public final class SpatialTileSelectionService {
         SpatialWallThicknessInheritance.Result inherited =
                 SpatialWallThicknessInheritance.apply(candidate, existingWalls, gestureAxis());
         if (!inherited.valid) return inherited.error;
+        inherited.wall.id = SpatialBlockCommandSupport.nextBlockId(existingWalls);
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(existingWalls, inherited.wall, map);
         return plan.valid ? null : plan.error;
     }

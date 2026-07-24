@@ -132,7 +132,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private PrefabAssetService prefabAssetService;
     private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
-    private IdentityRegistry prefabIdentityRegistry;
+    private IdentityRegistry identityRegistry;
     private String cachedPrefabPhysicsPath;
     private boolean cachedPrefabContainsPhysics;
 
@@ -391,17 +391,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gizmoSystem.setSelectionService(selectionService);
         physicsService = new PhysicsService(world, box2dWorldService);
         alignService = new AlignService(this);
-        clipboardService = new ClipboardService(this);
 
-        prefabIdentityRegistry = new IdentityRegistry();
-        prefabIdentityRegistry.bind(world);
-        prefabIdentityRegistry.rebuild();
+        identityRegistry = new IdentityRegistry();
+        identityRegistry.bind(world);
+        identityRegistry.rebuild();
+
+        clipboardService = new ClipboardService(this, identityRegistry);
 
         prefabAssetService = new PrefabAssetService(world);
         entityGraphInstantiationService = new EntityGraphInstantiationService(
                 world,
                 historyManager,
-                prefabIdentityRegistry
+                identityRegistry
         );
 
         // Wiring
@@ -417,7 +418,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         zOrderRuntimeService = new ZOrderRuntimeService(world);
 
-        editorOps = new EditorOpsImpl(this);
+        editorOps = new EditorOpsImpl(this, identityRegistry);
 
         contextMenu = new StudioContextMenu(this, app.getUiStage());
         app.getUiStage().getRoot().addListener(contextMenu);
@@ -1635,10 +1636,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
 
         EntityGraphInstantiationResult result;
-        if (prefabIdentityRegistry != null) {
-            prefabIdentityRegistry.rebuild();
-        }
-
         try {
             result = entityGraphInstantiationService.instantiate(
                     graph,
@@ -2090,6 +2087,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return world;
     }
 
+    public IdentityRegistry getIdentityRegistry() {
+        return identityRegistry;
+    }
+
     public Stage getGridStage() {
         return gridStage;
     }
@@ -2178,6 +2179,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (world != null) {
             physicsSelectionReconciler.bindWorld(null);
+            if (identityRegistry != null) {
+                identityRegistry.bind(null);
+            }
             world.dispose();
             world = null;
         }

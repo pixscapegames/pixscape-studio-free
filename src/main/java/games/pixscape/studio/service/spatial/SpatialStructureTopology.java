@@ -40,7 +40,7 @@ public final class SpatialStructureTopology {
         Array<SpatialBlockData> after = copyWalls(current);
         if (candidate == null) return invalid("Authored wall is missing.", after);
         SpatialBlockData added = candidate.copy();
-        if (added.id <= 0) added.id = maxBlockId(after) + 1;
+        if (added.id <= 0) return invalid("Authored wall id must be strictly positive.", after);
         if (find(after, added.id) != null) return invalid("Authored wall id is not unique.", after);
         after.add(added);
         return normalize(before, after, map);
@@ -267,12 +267,6 @@ public final class SpatialStructureTopology {
         int lowest = Integer.MAX_VALUE;
         for (SpatialBlockData wall : walls) lowest = Math.min(lowest, wall.id);
         return lowest;
-    }
-
-    private static int maxBlockId(Array<SpatialBlockData> walls) {
-        int max = 0;
-        for (int i = 0; i < walls.size; i++) max = Math.max(max, walls.get(i).id);
-        return max;
     }
 
     private static int maxStructureId(Array<SpatialBlockData> walls) {

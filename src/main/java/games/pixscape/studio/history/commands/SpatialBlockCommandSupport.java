@@ -12,7 +12,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
 
-final class SpatialBlockCommandSupport {
+public final class SpatialBlockCommandSupport {
     private SpatialBlockCommandSupport() {
     }
 
@@ -39,7 +39,7 @@ final class SpatialBlockCommandSupport {
         return index >= 0 ? component.blocks.get(index) : null;
     }
 
-    static int allocateId(SpatialBlocksComponent component) {
+    public static int nextBlockId(SpatialBlocksComponent component) {
         int max = 0;
         if (component != null && component.blocks != null) {
             for (int i = 0; i < component.blocks.size; i++) {

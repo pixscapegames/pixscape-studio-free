@@ -32,8 +32,12 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         this.before = SpatialBlockCommandSupport.snapshot(component);
         TiledLayerComponent tiled = world != null
                 ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
+        SpatialBlockData prepared = block != null ? block.copy() : null;
+        if (prepared != null && prepared.id <= 0) {
+            prepared.id = SpatialBlockCommandSupport.nextBlockId(component);
+        }
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
-                component, block, tiled != null ? tiled.data : null);
+                component, prepared, tiled != null ? tiled.data : null);
         this.after = plan.walls;
         this.blockId = addedBlockId(before, after);
         this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED

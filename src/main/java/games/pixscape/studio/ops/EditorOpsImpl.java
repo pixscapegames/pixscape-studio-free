@@ -76,7 +76,8 @@ public class EditorOpsImpl implements EditorOps {
     private final Vector2 tmpLocal = new Vector2();
 
     public EditorOpsImpl(
-            WorldCanvas canvas
+            WorldCanvas canvas,
+            IdentityRegistry identityRegistry
     ) {
         this.canvas = canvas;
         this.world = canvas.getEcsWorld();
@@ -87,9 +88,10 @@ public class EditorOpsImpl implements EditorOps {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
         this.spatialTileSelectionService = canvas.getSpatialTileSelectionService();
-        this.identityRegistry = new IdentityRegistry();
-        this.identityRegistry.bind(this.world);
-        this.identityRegistry.rebuild();
+        if (identityRegistry == null) {
+            throw new IllegalArgumentException("identityRegistry must not be null.");
+        }
+        this.identityRegistry = identityRegistry;
         this.atlasStudioService = canvas.getAtlasService();
         this.physicsService = canvas.getPhysicsService();
         this.polygonAuthoringService = new PhysicsPolygonAuthoringService(world);

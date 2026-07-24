@@ -115,6 +115,7 @@ public class PropertiesPanel extends DockablePanel {
                 layerService,
                 canvas.getAtlasService(),
                 selectionService,
+                canvas.getIdentityRegistry(),
                 new IconResolver(world),
                 app.getSceneService()::markPreviewSaveRequired,
                 MY_TAG

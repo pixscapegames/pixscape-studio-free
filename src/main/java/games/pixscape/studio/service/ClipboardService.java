@@ -27,15 +27,16 @@ public final class ClipboardService {
     private EntityGraph graph = EntityGraph.empty();
     private int pasteCount = 0;
 
-    public ClipboardService(WorldCanvas canvas) {
+    public ClipboardService(WorldCanvas canvas, IdentityRegistry identityRegistry) {
         this.canvas = canvas;
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
         this.historyManager = canvas.getHistoryManager();
 
-        this.identityRegistry = new IdentityRegistry();
-        this.identityRegistry.bind(world);
-        this.identityRegistry.rebuild();
+        if (identityRegistry == null) {
+            throw new IllegalArgumentException("identityRegistry must not be null.");
+        }
+        this.identityRegistry = identityRegistry;
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
         this.graphInstantiationService = new EntityGraphInstantiationService(world, historyManager, identityRegistry);
