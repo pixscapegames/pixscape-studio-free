@@ -11,6 +11,7 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.event.EventFlow;
@@ -101,6 +102,36 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(1, component.blocks.first().linkedTileRefs.size);
         Assert.assertEquals(2, component.blocks.first().linkedTileRefs.first().gx);
         Assert.assertEquals(3, component.blocks.first().linkedTileRefs.first().gy);
+    }
+
+    @Test
+    public void addSpatialBlock_highWaterMismatchDoesNotMutateStateOrHistory() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        SpatialBlockSelectionService selection = new SpatialBlockSelectionService();
+        int layerId = tiledLayer(world);
+        history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData candidate = block(0, "Prepared", 2f, 3f);
+        occupyLinkedTiles(world, layerId, candidate);
+        AddSpatialBlockCommand command = new AddSpatialBlockCommand(
+                world, history.historyIds(), selection, layerId, candidate);
+
+        SpatialBlocksComponent component =
+                world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        component.nextSpatialBlockId = 2;
+        component.revision = 7;
+        selection.selectBlock(layerId, 41);
+
+        IllegalStateException failure = Assert.assertThrows(
+                IllegalStateException.class, () -> history.execute(command));
+
+        Assert.assertTrue(failure.getMessage().contains("expected 1, current 2"));
+        Assert.assertEquals(0, component.blocks.size);
+        Assert.assertEquals(7, component.revision);
+        Assert.assertEquals(2, component.nextSpatialBlockId);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertEquals(layerId, selection.getEditingLayerEntityId());
+        Assert.assertEquals(41, selection.getSelectedBlockId());
     }
 
     @Test
@@ -510,7 +541,14 @@ public class SpatialBlockCommandsTest {
         LayerService layers = new LayerService(
                 world,
                 new TiledAllocatorService(),
-                history.historyIds());
+                history.historyIds(),
+                identityRegistry(world));
         return new SelectionService(world, layers);
+    }
+
+    private static IdentityRegistry identityRegistry(World world) {
+        IdentityRegistry registry = new IdentityRegistry();
+        registry.bind(world, new SceneMetaRuntime());
+        return registry;
     }
 }

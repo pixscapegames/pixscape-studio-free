@@ -9,7 +9,6 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.PhysicsShapeIdService;
 
 public final class FixtureCommandSupport {
 
@@ -78,7 +77,7 @@ public final class FixtureCommandSupport {
             PhysicsShapeData source) {
         if (source == null) return null;
         PhysicsShapeData copy = source.copy();
-        copy.physicsShapeId = PhysicsShapeIdService.allocateNewPhysicsShapeId(physicsService);
+        copy.physicsShapeId = physicsService.allocateNewPhysicsShapeId();
         return copy;
     }
 

@@ -13,10 +13,13 @@ import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -24,6 +27,35 @@ import org.junit.Test;
 import java.io.File;
 
 public class SpatialBlockScenePersistenceTest {
+    @Test
+    public void layerCreatedThroughLayerServiceWithSpatialBlockLoadsSuccessfully() {
+        World world = worldWithSerialization();
+        SceneMetaRuntime meta = sceneMeta();
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        LayerService layers = new LayerService(world, null, new HistoryIdRegistry(), identities);
+        int layerId = layers.getLayerEntity(layers.addLayerTop("Spatial"));
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        blocks.nextSpatialBlockId = 2;
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = 1;
+        block.structureId = 1;
+        block.width = 1f;
+        block.depth = 1f;
+        blocks.blocks.add(block);
+        world.process();
+        FileHandle file = tempSceneFile("layer-service-spatial-roundtrip");
+        SceneService.saveScene(world, file, false);
+
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, meta);
+        } finally {
+            loaded.dispose();
+            world.dispose();
+        }
+    }
+
     @Test
     public void spatialBlockFootprintSurvivesSceneSaveLoadRoundtripWithoutAnchors() {
         World world = worldWithSerialization();

@@ -68,6 +68,15 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        if (!identityAllocated) {
+            SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
+            int currentNextSpatialBlockId = current != null ? current.peekNextSpatialBlockId() : 1;
+            if (currentNextSpatialBlockId != blockId) {
+                throw new IllegalStateException(
+                        "Spatial block allocation changed after command preparation: expected "
+                                + blockId + ", current " + currentNextSpatialBlockId + ".");
+            }
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (!identityAllocated) {

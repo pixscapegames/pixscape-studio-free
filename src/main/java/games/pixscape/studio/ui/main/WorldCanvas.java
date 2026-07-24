@@ -385,16 +385,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         // Services
-        layerService = new LayerService(world, tiledAllocatorService, historyManager.historyIds());
+        identityRegistry = new IdentityRegistry();
+        identityRegistry.bind(world, sceneMeta);
+        identityRegistry.rebuild();
+
+        layerService = new LayerService(
+                world, tiledAllocatorService, historyManager.historyIds(), identityRegistry);
         selectionService = new SelectionService(world, layerService);
         keyboardNudgeService = new KeyboardNudgeService(world, historyManager, selectionService);
         gizmoSystem.setSelectionService(selectionService);
         physicsService = new PhysicsService(world, box2dWorldService);
         alignService = new AlignService(this);
-
-        identityRegistry = new IdentityRegistry();
-        identityRegistry.bind(world, sceneMeta);
-        identityRegistry.rebuild();
 
         clipboardService = new ClipboardService(this, identityRegistry);
 

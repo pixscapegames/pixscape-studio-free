@@ -13,7 +13,6 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.service.physics.PhysicsShapeIdService;
 
 /**
  * Enables or disables a body without conflating disable with destructive removal.
@@ -132,7 +131,7 @@ public final class TogglePhysicsBodyCommand implements Command {
         if (!hadBody && createDefaultShape && !shapes.hasShapes()) {
             if (createdDefaultShape == null) {
                 createdDefaultShape = PhysicsService.createDefaultShape(
-                        PhysicsShapeIdService.allocateNewPhysicsShapeId(physicsService)).copy();
+                        physicsService.allocateNewPhysicsShapeId()).copy();
             }
             shapes.add(createdDefaultShape.copy());
         }

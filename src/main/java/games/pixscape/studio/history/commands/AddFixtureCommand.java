@@ -62,9 +62,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                 ? template.copy()
                 : FixtureCommandSupport.createDefaultFixture();
 
-        this.createdFixtureId =
-                games.pixscape.studio.service.physics.PhysicsShapeIdService
-                        .allocateNewPhysicsShapeId(physicsService);
+        this.createdFixtureId = physicsService.allocateNewPhysicsShapeId();
         base.physicsShapeId = createdFixtureId;
         this.template = base;
         this.insertIndex = insertIndex;

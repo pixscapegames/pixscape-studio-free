@@ -570,6 +570,7 @@ public final class SceneService {
             }
 
             ProjectConfig.setInstance(cfg);
+            bindSceneIdentityAuthorities(meta);
 
             projectDir = StudioFs.requireStudioProjectDir(cfg);
             projectDirExistedBeforeAttempt = projectDir.exists();
@@ -715,6 +716,7 @@ public final class SceneService {
 
     public void unloadProjectToEmptyEditor() {
         clearWorldAndRenderState();
+        bindSceneIdentityAuthorities(null);
         resetProjectConfigToEmptyState();
         refreshAssetsPanel();
         sceneMetaBridge.pushCurrentSceneMetaToUI();
@@ -735,8 +737,7 @@ public final class SceneService {
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
         }
-        canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
-        canvas.getPhysicsService().setPhysicsShapeIdState(meta);
+        bindSceneIdentityAuthorities(meta);
 
         FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
 
@@ -1967,6 +1968,7 @@ public final class SceneService {
             saveProjectFile(cfg);
 
             clearWorldAndRenderState();
+            bindSceneIdentityAuthorities(meta);
             int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
             int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
             app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
@@ -3377,6 +3379,11 @@ public final class SceneService {
         historyManager.clear();
         historyManager.historyIds().clear();
         clearPreviewSaveRequired();
+    }
+
+    private void bindSceneIdentityAuthorities(SceneMeta meta) {
+        canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
+        canvas.getPhysicsService().setPhysicsShapeIdState(meta);
     }
 
     private void flushWorldForSerialization() {
