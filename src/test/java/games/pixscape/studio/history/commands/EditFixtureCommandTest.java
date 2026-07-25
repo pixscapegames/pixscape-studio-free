@@ -6,6 +6,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -60,6 +61,38 @@ public class EditFixtureCommandTest {
 
         command.redo();
         Assert.assertTrue(harness.fixture().sensor);
+    }
+
+    @Test
+    public void toggleEnabledRebuildsEmptyCacheAndUndoRedoKeepsShapeIdentity() {
+        FixtureHarness harness = FixtureHarness.create();
+        int physicsShapeId = harness.fixture().physicsShapeId;
+        Assert.assertTrue(harness.fixture().enabled);
+        Assert.assertEquals(1, harness.compiled().fixtures.size);
+
+        EditFixtureCommand command =
+                harness.newEdit(shape -> shape.enabled = false, false);
+        Assert.assertFalse(command.isNoop());
+
+        command.redo();
+        Assert.assertFalse(harness.fixture().enabled);
+        Assert.assertEquals(physicsShapeId, harness.fixture().physicsShapeId);
+        Assert.assertTrue(harness.compiled().valid);
+        Assert.assertEquals(0, harness.compiled().fixtures.size);
+
+        command.undo();
+        Assert.assertTrue(harness.fixture().enabled);
+        Assert.assertEquals(physicsShapeId, harness.fixture().physicsShapeId);
+        Assert.assertEquals(1, harness.compiled().fixtures.size);
+
+        command.redo();
+        Assert.assertFalse(harness.fixture().enabled);
+        Assert.assertEquals(physicsShapeId, harness.fixture().physicsShapeId);
+        Assert.assertEquals(0, harness.compiled().fixtures.size);
+
+        EditFixtureCommand noop =
+                harness.newEdit(shape -> shape.enabled = false, false);
+        Assert.assertTrue(noop.isNoop());
     }
 
     @Test
@@ -439,9 +472,16 @@ public class EditFixtureCommandTest {
 
             world.getMapper(PhysicsRuntimeBodyComponent.class).create(bodyEid);
             PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(bodyEid);
-            PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+            PhysicsShapeData fixture =
+                    games.pixscape.runtime.service.PhysicsService.createDefaultShape(1);
             fixture.physicsShapeId = 1;
             fixtures.shapes.add(fixture);
+            games.pixscape.runtime.service.PhysicsService.publishPreparedCandidate(
+                    fixtures,
+                    world.getMapper(PhysicsCompiledFixturesComponent.class)
+                            .create(bodyEid),
+                    games.pixscape.runtime.service.PhysicsService
+                            .prepareBodyCandidate(fixtures.shapes));
 
             selection.setSelectedShape(bodyEid, fixture.physicsShapeId);
 
@@ -469,6 +509,11 @@ public class EditFixtureCommandTest {
 
         PhysicsShapeData fixture() {
             return EditFixtureCommandTest.fixture(world, bodyEid, physicsShapeId);
+        }
+
+        PhysicsCompiledFixturesComponent compiled() {
+            return world.getMapper(PhysicsCompiledFixturesComponent.class)
+                    .get(bodyEid);
         }
     }
 }

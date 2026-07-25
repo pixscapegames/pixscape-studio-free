@@ -319,7 +319,8 @@ public class HistoryIdentityRegressionTest {
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
         PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(entityId);
-        PhysicsShapeData fixture = games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture();
+        PhysicsShapeData fixture =
+                games.pixscape.runtime.service.PhysicsService.createDefaultShape(entityId + 1);
         fixture.physicsShapeId = stableId;
         fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
         fixtures.shapes.add(fixture);

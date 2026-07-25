@@ -172,7 +172,8 @@ public class CreateJointCommandRegressionTest {
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(eid);
         PhysicsService.initDefaultBody(body);
         PhysicsShapesComponent component = world.getMapper(PhysicsShapesComponent.class).create(eid);
-        component.shapes.add(games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture());
+        component.shapes.add(
+                games.pixscape.runtime.service.PhysicsService.createDefaultShape(eid + 1));
         return eid;
     }
 

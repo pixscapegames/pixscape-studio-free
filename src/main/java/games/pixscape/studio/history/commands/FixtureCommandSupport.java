@@ -5,7 +5,6 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
@@ -53,20 +52,6 @@ public final class FixtureCommandSupport {
     static PhysicsShapeData fixtureById(PhysicsShapesComponent fixtures, int physicsShapeId) {
         int index = indexOfFixture(fixtures, physicsShapeId);
         return index >= 0 ? fixtures.shapes.get(index) : null;
-    }
-
-    public static PhysicsShapeData createDefaultFixture() {
-        PhysicsShapeData fixture = new PhysicsShapeData();
-        fixture.directGeometry = new PhysicsDirectGeometryData();
-        fixture.density = 1f;
-        fixture.friction = 0.2f;
-        fixture.restitution = 0f;
-        fixture.sensor = false;
-        fixture.categoryBits = 0x0001;
-        fixture.maskBits = (short) 0xFFFF;
-        fixture.groupIndex = 0;
-        fixture.physicsShapeId = 0;
-        return fixture;
     }
 
     public static Array<PhysicsShapeData> copyFixtures(World world, int entityId) {

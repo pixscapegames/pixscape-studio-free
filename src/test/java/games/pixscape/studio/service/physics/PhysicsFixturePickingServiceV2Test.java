@@ -49,6 +49,25 @@ public class PhysicsFixturePickingServiceV2Test {
     }
 
     @Test
+    public void compiledCachePickSurvivesCompleteAuthoredShapeRemoval() {
+        Fixture fixture = fixture(shape(31, PhysicsDirectGeometryData.SHAPE_BOX));
+        PhysicsFixturePickingService picker =
+                new PhysicsFixturePickingService(fixture.physics);
+        PhysicsFixturePickingService.PickResult before =
+                picker.pick(fixture.body, 0f, 0f, 0f);
+        Assert.assertTrue(before.hit());
+
+        fixture.world.getMapper(PhysicsShapesComponent.class).remove(fixture.body);
+
+        PhysicsFixturePickingService.PickResult after =
+                picker.pick(fixture.body, 0f, 0f, 0f);
+        Assert.assertTrue(after.hit());
+        Assert.assertEquals(before.bodyEntityId, after.bodyEntityId);
+        Assert.assertEquals(before.physicsShapeId, after.physicsShapeId);
+        Assert.assertEquals(before.partIndex, after.partIndex);
+    }
+
+    @Test
     public void overlapOfTwoCompiledPartsUsesHighestPartIndex() {
         Fixture fixture = fixture(shape(21, PhysicsDirectGeometryData.SHAPE_BOX));
         PhysicsCompiledFixturesComponent cache =

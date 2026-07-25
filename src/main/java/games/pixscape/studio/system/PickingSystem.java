@@ -1828,7 +1828,10 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private PhysicsShapeData materialFromAuthoredPolygon(PhysicsShapeData polygon) {
-        PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(
+                polygon != null && polygon.physicsShapeId > 0
+                        ? polygon.physicsShapeId
+                        : 1);
 
         fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
         fixture.directGeometry.polygonVertices = new float[0];
@@ -1983,7 +1986,8 @@ public final class PickingSystem extends BaseSystem {
             return selected.copy();
         }
 
-        PhysicsShapeData fallback = FixtureCommandSupport.createDefaultFixture();
+        PhysicsShapeData fallback = PhysicsService.createDefaultShape(
+                physicsShapeId > 0 ? physicsShapeId : 1);
         fallback.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
         fallback.directGeometry.offsetX = 0f;
         fallback.directGeometry.offsetY = 0f;

@@ -30,16 +30,9 @@ public final class EditFixtureCommand
         }
 
         public boolean sameAs(Snapshot other) {
-            if (other == null || data == null || other.data == null) return false;
-
-            return sameGeometryAs(other)
-                    && Float.compare(data.density, other.data.density) == 0
-                    && Float.compare(data.friction, other.data.friction) == 0
-                    && Float.compare(data.restitution, other.data.restitution) == 0
-                    && data.sensor == other.data.sensor
-                    && data.categoryBits == other.data.categoryBits
-                    && data.maskBits == other.data.maskBits
-                    && data.groupIndex == other.data.groupIndex;
+            return other != null
+                    && data != null
+                    && data.contentEquals(other.data);
         }
 
         public boolean sameGeometryAs(Snapshot other) {

@@ -44,7 +44,10 @@ public class PhysicsFixtureAuthoringAvailabilityContractTest {
         String source = read("src/main/java/games/pixscape/studio/service/physics/PhysicsFixturePickingService.java");
 
         String pick = methodBody(source, "public PickResult pick(");
-        assertTrue(pick.contains("!physicsService.hasPhysics(bodyEntityId)"));
+        assertFalse(pick.contains("hasPhysics("));
+        assertFalse(pick.contains("hasShapes("));
+        assertFalse(pick.contains("PhysicsBodyComponent"));
+        assertFalse(pick.contains("PhysicsShapesComponent"));
         assertTrue(pick.contains("getCompiledFixturesComponent(bodyEntityId)"));
         assertTrue(pick.contains("compiled.fixtures.size - 1"));
         assertFalse(pick.contains("compile("));

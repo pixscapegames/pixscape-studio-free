@@ -747,7 +747,7 @@ public class EditorOpsImpl implements EditorOps {
     public void addBoxFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
         fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
 
         fixture.directGeometry.offsetX = 0f;
@@ -768,7 +768,7 @@ public class EditorOpsImpl implements EditorOps {
     public void addCircleFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
         fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
         fixture.directGeometry.radius = 0.5f;
 

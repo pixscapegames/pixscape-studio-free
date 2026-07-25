@@ -30,7 +30,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                              PhysicsService physicsService,
                              int bodyEntityId) {
         this(world, historyIds, physicsSelectionService, physicsService, bodyEntityId,
-                FixtureCommandSupport.createDefaultFixture(), -1);
+                null, -1);
     }
 
     public AddFixtureCommand(World world,
@@ -59,11 +59,10 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                         ? physicsSelectionService.getSelectedPhysicsShapeId()
                         : PhysicsSelectionService.NO_SHAPE;
 
-        PhysicsShapeData base = (template != null)
-                ? template.copy()
-                : FixtureCommandSupport.createDefaultFixture();
-
         this.createdFixtureId = physicsService.allocateNewPhysicsShapeId();
+        PhysicsShapeData base = template != null
+                ? template.copy()
+                : PhysicsService.createDefaultShape(createdFixtureId);
         base.physicsShapeId = createdFixtureId;
         this.template = base;
         this.insertIndex = insertIndex;

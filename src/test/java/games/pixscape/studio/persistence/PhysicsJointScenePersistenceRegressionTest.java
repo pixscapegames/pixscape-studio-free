@@ -174,7 +174,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
 
         PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(eid);
         games.pixscape.runtime.physics.PhysicsShapeData shape =
-                games.pixscape.studio.history.commands.FixtureCommandSupport.createDefaultFixture();
+                games.pixscape.runtime.service.PhysicsService.createDefaultShape(eid + 1);
         shape.physicsShapeId = eid + 1;
         fixtures.shapes.add(shape);
 

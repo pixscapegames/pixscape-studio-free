@@ -34,10 +34,6 @@ public final class PhysicsFixturePickingService {
     public PickResult pick(
             int bodyEntityId, float worldX, float worldY, float toleranceWU) {
         PickResult result = new PickResult();
-        if (!physicsService.hasPhysics(bodyEntityId)) {
-            return result;
-        }
-
         PhysicsCompiledFixturesComponent compiled =
                 physicsService.getCompiledFixturesComponent(bodyEntityId);
         if (compiled == null || !compiled.valid || compiled.fixtures == null) {
