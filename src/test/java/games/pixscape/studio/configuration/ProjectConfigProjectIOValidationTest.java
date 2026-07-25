@@ -211,6 +211,25 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
+    public void saveProject_purgedScenePhysicsRemainsDisabledAfterReload() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-purged-physics");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Purged Physics";
+        cfg.projectFileName = "purged-physics";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.previewTarget = PreviewTarget.DESKTOP;
+        cfg.glSamples = 0;
+        cfg.createSceneMeta("Main");
+        cfg.getCurrentSceneMeta().physicsEnabled = false;
+
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        ProjectConfig restored = ProjectConfig.ProjectIO.loadProject(projectFile);
+
+        assertFalse(restored.getCurrentSceneMeta().physicsEnabled);
+    }
+
+    @Test
     public void saveProject_sceneMetaPhysicsRemainsPersistentAcrossSceneSwitchAndBack() throws Exception {
         Path dir = Files.createTempDirectory("project-config-scene-switch-meta");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());

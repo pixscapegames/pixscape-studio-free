@@ -30,7 +30,7 @@ import java.util.List;
 
 public final class PrefabAssetService {
     private static final String PREFAB_TYPE = "pixscape-prefab";
-    private static final int PREFAB_VERSION = 1;
+    private static final int PREFAB_VERSION = 2;
 
     private final World world;
     private final Json json;

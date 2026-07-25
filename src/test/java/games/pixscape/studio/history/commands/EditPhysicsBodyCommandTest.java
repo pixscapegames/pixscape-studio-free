@@ -153,7 +153,7 @@ public class EditPhysicsBodyCommandTest {
         historyIds.ensureForEntity(entityId);
         world.getMapper(TransformComponent.class).create(entityId);
 
-        TogglePhysicsBodyCommand enable = new TogglePhysicsBodyCommand(
+        AddPhysicsBodyCommand enable = new AddPhysicsBodyCommand(
                 world,
                 historyIds,
                 new games.pixscape.runtime.service.PhysicsService(
@@ -161,7 +161,6 @@ public class EditPhysicsBodyCommandTest {
                         games.pixscape.studio.configuration.ProjectConfig.getInstance()
                                 .getCurrentSceneMeta()),
                 entityId,
-                true,
                 PhysicsBodyComponent.DYNAMIC,
                 true
         );
@@ -232,7 +231,6 @@ public class EditPhysicsBodyCommandTest {
         body.gravityScale = 1f;
         body.linearDamping = 0f;
         body.angularDamping = 0f;
-        body.enabled = true;
 
         world.getMapper(PhysicsShapesComponent.class).create(entityId);
         return entityId;

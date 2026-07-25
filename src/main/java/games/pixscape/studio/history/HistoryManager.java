@@ -80,6 +80,21 @@ public final class HistoryManager {
         }
     }
 
+    public void resetAfterIrreversibleChange() {
+        enterOp("resetAfterIrreversibleChange");
+        try {
+            undo.clear();
+            redo.clear();
+            capturing = null;
+            groupStack.clear();
+            cursor = 1;
+            savedCursor = 0;
+        } finally {
+            exitOp();
+            fireChanged();
+        }
+    }
+
     public boolean canUndo() {
         return !undo.isEmpty();
     }

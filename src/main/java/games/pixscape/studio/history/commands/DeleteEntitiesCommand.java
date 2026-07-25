@@ -188,6 +188,9 @@ public final class DeleteEntitiesCommand implements Command {
         float wheelMotorSpeedRad, wheelMaxMotorTorque;
         float wheelFrequencyHz, wheelDampingRatio;
 
+        boolean hasGear;
+        long gearJoint1HistoryId, gearJoint2HistoryId;
+
         static JointSnapshot capture(World world, HistoryIdRegistry historyIds, int jointEid) {
             var mJoint = world.getMapper(PhysicsJointComponent.class);
             PhysicsJointComponent base = mJoint.getSafe(jointEid, null);
@@ -251,6 +254,18 @@ public final class DeleteEntitiesCommand implements Command {
                 snap.wheelDampingRatio = wheel.dampingRatio;
             }
 
+            var mGear = world.getMapper(PhysicsGearJointComponent.class);
+            PhysicsGearJointComponent gear = mGear.getSafe(jointEid, null);
+            if (gear != null) {
+                snap.hasGear = true;
+                snap.gearJoint1HistoryId = gear.joint1Eid >= 0
+                        ? historyIds.ensureForEntity(gear.joint1Eid)
+                        : -1L;
+                snap.gearJoint2HistoryId = gear.joint2Eid >= 0
+                        ? historyIds.ensureForEntity(gear.joint2Eid)
+                        : -1L;
+            }
+
             return snap;
         }
 
@@ -311,6 +326,14 @@ public final class DeleteEntitiesCommand implements Command {
                 wheel.maxMotorTorque = wheelMaxMotorTorque;
                 wheel.frequencyHz = wheelFrequencyHz;
                 wheel.dampingRatio = wheelDampingRatio;
+            }
+
+            if (hasGear) {
+                var mGear = world.getMapper(PhysicsGearJointComponent.class);
+                PhysicsGearJointComponent gear =
+                        mGear.has(jointEid) ? mGear.get(jointEid) : mGear.create(jointEid);
+                gear.joint1Eid = historyIds.entityOfHistoryId(gearJoint1HistoryId);
+                gear.joint2Eid = historyIds.entityOfHistoryId(gearJoint2HistoryId);
             }
         }
     }

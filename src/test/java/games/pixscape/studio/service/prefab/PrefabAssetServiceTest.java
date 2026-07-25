@@ -348,7 +348,7 @@ public class PrefabAssetServiceTest {
         World world = new World(new WorldConfiguration());
         FileHandle file = tmpFile("bad-version.pixprefab");
         file.writeString(
-                "{\"type\":\"pixscape-prefab\",\"version\":2,\"entities\":[]}",
+                "{\"type\":\"pixscape-prefab\",\"version\":1,\"entities\":[]}",
                 false,
                 "UTF-8"
         );

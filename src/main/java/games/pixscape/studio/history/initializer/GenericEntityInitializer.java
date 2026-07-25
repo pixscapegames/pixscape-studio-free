@@ -126,7 +126,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float physGravityScale = 1f;
     protected float physLinearDamping = 0f;
     protected float physAngularDamping = 0f;
-    protected boolean physEnabled = true;
 
     protected boolean hasPhysicsShapes;
     protected final Array<PhysicsShapeData> physicsShapes = new Array<>();
@@ -381,7 +380,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             physGravityScale = body.gravityScale;
             physLinearDamping = body.linearDamping;
             physAngularDamping = body.angularDamping;
-            physEnabled = body.enabled;
         } else {
             hasPhysicsBody = false;
         }
@@ -690,7 +688,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             body.gravityScale = physGravityScale;
             body.linearDamping = physLinearDamping;
             body.angularDamping = physAngularDamping;
-            body.enabled = physEnabled;
         }
 
         // --- Physics fixtures ---
@@ -913,7 +910,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.gravityScale = physGravityScale;
         out.linearDamping = physLinearDamping;
         out.angularDamping = physAngularDamping;
-        out.bodyEnabled = physEnabled;
         for (PhysicsShapeData fixture : physicsShapes) {
             if (fixture != null) out.shapes.add(fixture.copy());
         }
@@ -1064,7 +1060,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         physGravityScale = in.gravityScale;
         physLinearDamping = in.linearDamping;
         physAngularDamping = in.angularDamping;
-        physEnabled = in.bodyEnabled;
         physicsShapes.clear();
         if (in.shapes != null) {
             for (PhysicsShapeData fixture : in.shapes) {
@@ -1680,7 +1675,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.physGravityScale = this.physGravityScale;
         copy.physLinearDamping = this.physLinearDamping;
         copy.physAngularDamping = this.physAngularDamping;
-        copy.physEnabled = this.physEnabled;
 
         copy.hasPhysicsShapes = this.hasPhysicsShapes;
         copy.physicsShapes.clear();

@@ -259,7 +259,7 @@ public class EditFixtureCommandTest {
         historyIds.ensureForEntity(bodyEid);
         world.getMapper(TransformComponent.class).create(bodyEid);
 
-        TogglePhysicsBodyCommand enable = new TogglePhysicsBodyCommand(
+        AddPhysicsBodyCommand enable = new AddPhysicsBodyCommand(
                 world,
                 historyIds,
                 new games.pixscape.runtime.service.PhysicsService(
@@ -267,7 +267,6 @@ public class EditFixtureCommandTest {
                         games.pixscape.studio.configuration.ProjectConfig.getInstance()
                                 .getCurrentSceneMeta()),
                 bodyEid,
-                true,
                 PhysicsBodyComponent.DYNAMIC,
                 true
         );
@@ -468,7 +467,6 @@ public class EditFixtureCommandTest {
 
             PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(bodyEid);
             body.type = PhysicsBodyComponent.DYNAMIC;
-            body.enabled = true;
 
             world.getMapper(PhysicsRuntimeBodyComponent.class).create(bodyEid);
             PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(bodyEid);

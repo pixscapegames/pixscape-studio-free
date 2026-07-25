@@ -28,6 +28,24 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class HistoryIdentityRegressionTest {
+    @Test
+    public void pruneInactiveRemovesDeletedMappingsAndPreservesLiveMappings() {
+        World world = new World();
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        int live = world.create();
+        int deleted = world.create();
+        long liveHistoryId = historyIds.ensureForEntity(live);
+        long deletedHistoryId = historyIds.ensureForEntity(deleted);
+        world.delete(deleted);
+        world.process();
+
+        historyIds.pruneInactive(world);
+
+        Assert.assertEquals(live, historyIds.entityOfHistoryId(liveHistoryId));
+        Assert.assertEquals(-1, historyIds.entityOfHistoryId(deletedHistoryId));
+        Assert.assertEquals(-1L, historyIds.historyIdOfEntity(deleted));
+    }
+
 
     @Test
     public void createUndoRedoCyclesPreserveHistoryIdentityWithoutDuplicatingStableIdentity() {

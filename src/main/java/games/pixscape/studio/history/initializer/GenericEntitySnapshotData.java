@@ -5,7 +5,6 @@ import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
 
 public final class GenericEntitySnapshotData {
     public int sourceEntityId;
@@ -50,7 +49,7 @@ public final class GenericEntitySnapshotData {
     public float spatialHeight;
     public boolean hasPhysicsBody;
     public int bodyType;
-    public boolean fixedRotation, bullet, allowSleep, awake, bodyEnabled;
+    public boolean fixedRotation, bullet, allowSleep, awake;
     public float gravityScale, linearDamping, angularDamping;
     public Array<PhysicsShapeData> shapes = new Array<>();
     public boolean hasJoint;

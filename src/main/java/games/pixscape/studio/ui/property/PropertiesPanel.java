@@ -141,7 +141,10 @@ public class PropertiesPanel extends DockablePanel {
                 markPreviewSaveRequired);
         sceneProperties = new SceneProperties(
                 world, canvas.getHistoryManager(), canvas.getPhysicsService(),
-                selectionService, layerService, markPreviewSaveRequired);
+                selectionService, layerService,
+                canvas.getPhysicsSelectionReconciler(),
+                canvas::disposeBox2dAfterPhysicsPurge,
+                markPreviewSaveRequired);
         tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
 
         contentHolder = new VisTable(true);

@@ -22,9 +22,6 @@ import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.widget.UiBinders;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public final class BodyPanel extends CollapsibleWidget {
     private static final Array<String> BODY_TYPES = Array.with("Static", "Kinematic", "Dynamic");
     private static final String EMPTY_SHAPE_SUMMARY = "0 circles • 0 quads • 0 polygons";
@@ -116,7 +113,6 @@ public final class BodyPanel extends CollapsibleWidget {
                 executeBodyToggle(enableBody, hadPhysicsBeforeToggle);
                 refreshFromModel(entityId);
 
-                EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(entityId, MY_TAG));
                 event.handle();
             }
         });
@@ -249,37 +245,26 @@ public final class BodyPanel extends CollapsibleWidget {
     }
 
     private void executeBodyToggle(boolean enableBody, boolean hadPhysicsBeforeToggle) {
-        boolean needsDefaultFixture = enableBody
-                && !hadPhysicsBeforeToggle
-                && shouldCreateDefaultFixture(entityId)
-                && countFixtures(entityId) == 0;
-
-        TogglePhysicsBodyCommand toggleCommand = new TogglePhysicsBodyCommand(
-                ctx.world,
-                ctx.history.historyIds(),
-                ctx.physicsService,
-                entityId,
-                enableBody,
-                PhysicsBodyComponent.DYNAMIC,
-                !needsDefaultFixture
-        );
-
-        if (!needsDefaultFixture) {
-            ctx.history.execute(toggleCommand);
-            return;
+        if (enableBody) {
+            boolean createDefaultShape = !hadPhysicsBeforeToggle
+                    && shouldCreateDefaultFixture(entityId)
+                    && countFixtures(entityId) == 0;
+            ctx.history.execute(new AddPhysicsBodyCommand(
+                    ctx.world,
+                    ctx.history.historyIds(),
+                    ctx.physicsService,
+                    entityId,
+                    PhysicsBodyComponent.DYNAMIC,
+                    createDefaultShape
+            ));
+        } else {
+            ctx.history.execute(new RemovePhysicsBodyCommand(
+                    ctx.world,
+                    ctx.history.historyIds(),
+                    ctx.physicsService,
+                    entityId
+            ));
         }
-
-        List<Command> commands = new ArrayList<>(2);
-        commands.add(toggleCommand);
-        commands.add(new AddFixtureCommand(
-                ctx.world,
-                ctx.history.historyIds(),
-                ctx.physicsSelectionService,
-                ctx.physicsService,
-                entityId
-        ));
-
-        ctx.history.execute(new CompositeCommand("Enable body with default shape", commands));
     }
 
     private void refreshFromModel(int eid) {

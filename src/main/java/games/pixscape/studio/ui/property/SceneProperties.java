@@ -14,14 +14,16 @@ import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.TogglePhysicsBodyCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.*;
@@ -76,13 +78,18 @@ public class SceneProperties extends VisTable {
     private final SelectionService selectionService;
     private final HistoryManager historyManager;
     private final PhysicsService physicsService;
+    private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final Runnable markPreviewSaveRequired;
+    private final Runnable teardownBox2dAfterPurge;
+    private SceneMeta pendingPhysicsPurge;
 
     public SceneProperties(World world,
                            HistoryManager historyManager,
                            PhysicsService physicsService,
                            SelectionService selectionService,
                            LayerService layerService,
+                           PhysicsSelectionReconciler physicsSelectionReconciler,
+                           Runnable teardownBox2dAfterPurge,
                            Runnable markPreviewSaveRequired) {
         super(true);
         this.world = world;
@@ -90,6 +97,8 @@ public class SceneProperties extends VisTable {
         this.physicsService = physicsService;
         this.selectionService = selectionService;
         this.layerService = layerService;
+        this.physicsSelectionReconciler = physicsSelectionReconciler;
+        this.teardownBox2dAfterPurge = teardownBox2dAfterPurge;
         this.markPreviewSaveRequired = markPreviewSaveRequired;
 
         top().left();
@@ -341,6 +350,7 @@ public class SceneProperties extends VisTable {
 
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
+        postProcess.add(this::completePendingPhysicsPurge);
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, ev -> {
             if (ev.sourceTag() == MY_TAG) return;
@@ -640,14 +650,7 @@ public class SceneProperties extends VisTable {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {
-                    removeAllPhysicsFromEcs();
-                    removeAllPhysicsLayers();
-
-                    m.physicsEnabled = false;
-                    flagPreviewSaveRequired();
-                    physicsBlock.show(false);
-                    setPhysicsParallaxControlsEnabled(false);
-                    EventFlow.i().publish(new EventFlow.ScenePhysicsEnabledChanged(false, MY_TAG));
+                    beginPhysicsPurge(m);
                 } else {
                     refreshPhysicsFromMeta();
                 }
@@ -674,29 +677,41 @@ public class SceneProperties extends VisTable {
         }
     }
 
-    private void removeAllPhysicsFromEcs() {
+    private void beginPhysicsPurge(SceneMeta sceneMeta) {
         List<Integer> bodyEntityIds = entitiesWith(Aspect.all(PhysicsBodyComponent.class));
+        List<Integer> physicsLayerEntityIds = collectPhysicsLayerEntityIds();
+        validateActive(bodyEntityIds);
+        validateActive(physicsLayerEntityIds);
+        com.badlogic.gdx.utils.IntArray jointEntityIds =
+                new com.badlogic.gdx.utils.IntArray(false, 16);
+        com.badlogic.gdx.utils.IntSet uniqueJointIds =
+                new com.badlogic.gdx.utils.IntSet();
+        com.badlogic.gdx.utils.IntArray connected =
+                new com.badlogic.gdx.utils.IntArray(false, 8);
         for (int bodyEntityId : bodyEntityIds) {
-            new TogglePhysicsBodyCommand(
-                    world,
-                    historyManager.historyIds(),
-                    physicsService,
-                    bodyEntityId,
-                    false,
-                    PhysicsBodyComponent.STATIC,
-                    false
-            ).redo();
+            physicsService.listJointsForBody(bodyEntityId, connected);
+            for (int i = 0; i < connected.size; i++) {
+                int jointEntityId = connected.get(i);
+                if (uniqueJointIds.add(jointEntityId)) {
+                    jointEntityIds.add(jointEntityId);
+                }
+            }
+        }
+
+        for (int bodyEntityId : bodyEntityIds) {
+            physicsService.removePhysics(bodyEntityId);
             EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(bodyEntityId, MY_TAG));
         }
+        for (int i = 0; i < jointEntityIds.size; i++) {
+            historyManager.historyIds().unbindEntity(jointEntityIds.get(i));
+        }
+        removeAllPhysicsLayers(physicsLayerEntityIds);
+        pendingPhysicsPurge = sceneMeta;
     }
 
-    private void removeAllPhysicsLayers() {
-        if (layerService == null) {
-            return;
-        }
-
+    private List<Integer> collectPhysicsLayerEntityIds() {
         List<Integer> physicsLayerEntityIds = new ArrayList<>();
-
+        if (layerService == null) return physicsLayerEntityIds;
         int layerCount = layerService.count();
         for (int i = 0; i < layerCount; i++) {
             int layerEntityId = layerService.getLayerEntity(i);
@@ -708,11 +723,10 @@ public class SceneProperties extends VisTable {
                 physicsLayerEntityIds.add(layerEntityId);
             }
         }
+        return physicsLayerEntityIds;
+    }
 
-        if (physicsLayerEntityIds.isEmpty()) {
-            return;
-        }
-
+    private void removeAllPhysicsLayers(List<Integer> physicsLayerEntityIds) {
         int activeLayerId = selectionService != null ? selectionService.getActivelayerId() : -1;
         boolean activeLayerWasRemoved = false;
 
@@ -731,6 +745,55 @@ public class SceneProperties extends VisTable {
 
         if (selectionService != null && activeLayerWasRemoved) {
             selectionService.setActivelayerId(layerService.getFirstLayerEntity());
+        }
+    }
+
+    private void completePendingPhysicsPurge() {
+        if (pendingPhysicsPurge == null) return;
+        Box2dSyncSystem sync = world.getSystem(Box2dSyncSystem.class);
+        Box2dWorldService box2d = sync != null ? sync.getBox2d() : null;
+        if (box2d != null && box2d.world != null
+                && (box2d.world.getBodyCount() != 0 || box2d.world.getJointCount() != 0)) {
+            return;
+        }
+
+        if (teardownBox2dAfterPurge != null) {
+            teardownBox2dAfterPurge.run();
+        }
+        historyManager.historyIds().pruneInactive(world);
+        if (physicsSelectionReconciler != null) {
+            physicsSelectionReconciler.reconcile();
+        }
+        clearInactiveGeneralSelection();
+
+        SceneMeta completed = pendingPhysicsPurge;
+        pendingPhysicsPurge = null;
+        completed.physicsEnabled = false;
+        physicsBlock.show(false);
+        setPhysicsParallaxControlsEnabled(false);
+        flagPreviewSaveRequired();
+        historyManager.resetAfterIrreversibleChange();
+        EventFlow.i().publish(new EventFlow.ScenePhysicsEnabledChanged(false, MY_TAG));
+    }
+
+    private void clearInactiveGeneralSelection() {
+        if (selectionService == null) return;
+        com.badlogic.gdx.utils.IntArray selected = selectionService.getSelectionSnapshot();
+        for (int i = 0; i < selected.size; i++) {
+            if (!world.getEntityManager().isActive(selected.get(i))) {
+                selectionService.clearSelection();
+                return;
+            }
+        }
+    }
+
+    private void validateActive(List<Integer> entityIds) {
+        for (int i = 0; i < entityIds.size(); i++) {
+            int entityId = entityIds.get(i);
+            if (!world.getEntityManager().isActive(entityId)) {
+                throw new IllegalStateException(
+                        "Physics purge target is inactive: entityId " + entityId + ".");
+            }
         }
     }
 

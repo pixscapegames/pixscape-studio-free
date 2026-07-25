@@ -119,7 +119,6 @@ final class PrefabEntityDataMapper {
             d.physicsBody.gravityScale = s.gravityScale;
             d.physicsBody.linearDamping = s.linearDamping;
             d.physicsBody.angularDamping = s.angularDamping;
-            d.physicsBody.enabled = s.bodyEnabled;
         }
         for (PhysicsShapeData shape : s.shapes) {
             if (shape != null) {
@@ -319,7 +318,6 @@ final class PrefabEntityDataMapper {
             s.gravityScale = d.physicsBody.gravityScale;
             s.linearDamping = d.physicsBody.linearDamping;
             s.angularDamping = d.physicsBody.angularDamping;
-            s.bodyEnabled = d.physicsBody.enabled;
         }
         if (d.physicsShapes != null) {
             for (PhysicsShapeData source : d.physicsShapes) {

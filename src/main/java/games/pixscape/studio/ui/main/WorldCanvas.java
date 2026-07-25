@@ -1448,10 +1448,27 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private void disableBox2dRuntimeSync() {
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
+            box2dSyncSystem.setStepEnabled(false);
+            box2dSyncSystem.setBox2d(null);
         }
         if (physicsService != null) {
             physicsService.setBox2d(null);
         }
+        if (box2dWorldService != null) {
+            if (box2dWorldService.world != null
+                    && (box2dWorldService.world.getBodyCount() != 0
+                    || box2dWorldService.world.getJointCount() != 0)) {
+                throw new IllegalStateException(
+                        "Cannot dispose Box2D while native bodies or joints remain.");
+            }
+            box2dWorldService.dispose();
+            box2dWorldService = null;
+        }
+        lastPhysicsEnabled = false;
+    }
+
+    public void disposeBox2dAfterPhysicsPurge() {
+        disableBox2dRuntimeSync();
     }
 
     private void ensureBox2dFromMeta(SceneMeta meta) {

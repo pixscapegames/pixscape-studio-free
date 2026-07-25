@@ -21,10 +21,11 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.AddPhysicsBodyCommand;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditTiledLayerSpatialDefaultsCommand;
+import games.pixscape.studio.history.commands.RemovePhysicsBodyCommand;
 import games.pixscape.studio.history.commands.ToggleLayerSpatialDepthCommand;
-import games.pixscape.studio.history.commands.TogglePhysicsBodyCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.*;
@@ -467,18 +468,15 @@ public class LayerProperties extends VisTable {
             return;
         }
 
-        Command command = new TogglePhysicsBodyCommand(
+        Command command = new AddPhysicsBodyCommand(
                 world,
                 history.historyIds(),
                 physicsService,
                 layerEntityId,
-                true,
                 PhysicsBodyComponent.STATIC,
                 false
         );
         history.execute(command);
-
-        EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(layerEntityId, MY_TAG));
     }
 
     private void submitTiledSpatialEdit(
@@ -545,17 +543,12 @@ public class LayerProperties extends VisTable {
     }
 
     private void removePhysicsFromTiledLayer(int layerEntityId) {
-        history.execute(new TogglePhysicsBodyCommand(
+        history.execute(new RemovePhysicsBodyCommand(
                 world,
                 history.historyIds(),
                 physicsService,
-                layerEntityId,
-                false,
-                PhysicsBodyComponent.STATIC,
-                false
+                layerEntityId
         ));
-
-        EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(layerEntityId, MY_TAG));
         flagPreviewSaveRequired();
     }
 
