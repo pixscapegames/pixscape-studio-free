@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
@@ -93,11 +94,14 @@ public final class MoveFixtureCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-
-        fixture.offsetX = afterOffsetX;
-        fixture.offsetY = afterOffsetY;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        fixture.directGeometry.offsetX = afterOffsetX;
+        fixture.directGeometry.offsetY = afterOffsetY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
@@ -117,11 +121,14 @@ public final class MoveFixtureCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-
-        fixture.offsetX = beforeOffsetX;
-        fixture.offsetY = beforeOffsetY;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        fixture.directGeometry.offsetX = beforeOffsetX;
+        fixture.directGeometry.offsetY = beforeOffsetY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(
                 world,

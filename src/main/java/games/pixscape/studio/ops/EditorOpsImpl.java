@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -26,6 +27,7 @@ import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
@@ -746,10 +748,10 @@ public class EditorOpsImpl implements EditorOps {
         if (bodyEid < 0) return;
 
         PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
+        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
 
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
+        fixture.directGeometry.offsetX = 0f;
+        fixture.directGeometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -767,11 +769,11 @@ public class EditorOpsImpl implements EditorOps {
         if (bodyEid < 0) return;
 
         PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-        fixture.radius = 0.5f;
+        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        fixture.directGeometry.radius = 0.5f;
 
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
+        fixture.directGeometry.offsetX = 0f;
+        fixture.directGeometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -821,14 +823,16 @@ public class EditorOpsImpl implements EditorOps {
             PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
             if (f.physicsShapeId != physicsShapeId) continue;
-            if (f.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
-            if (f.polygonVertices == null || f.polygonVertexCount < 3) return;
+            PhysicsDirectGeometryData geometry = f.directGeometry;
+            if (geometry == null
+                    || geometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+            if (geometry.polygonVertices == null || geometry.polygonVertexCount < 3) return;
 
             polygonDrawSession.beginEdit(
                     bodyEid,
                     physicsShapeId,
-                    f.polygonVertices,
-                    f.polygonVertexCount
+                    geometry.polygonVertices,
+                    geometry.polygonVertexCount
             );
             return;
         }

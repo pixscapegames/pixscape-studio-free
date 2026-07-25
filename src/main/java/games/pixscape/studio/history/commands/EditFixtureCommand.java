@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
@@ -31,15 +32,7 @@ public final class EditFixtureCommand
         public boolean sameAs(Snapshot other) {
             if (other == null || data == null || other.data == null) return false;
 
-            return data.shapeType == other.data.shapeType
-                    && data.polygonVertexCount == other.data.polygonVertexCount
-                    && samePoly(data.polygonVertices, other.data.polygonVertices, data.polygonVertexCount)
-                    && Float.compare(data.halfWidth, other.data.halfWidth) == 0
-                    && Float.compare(data.halfHeight, other.data.halfHeight) == 0
-                    && Float.compare(data.angleDegrees, other.data.angleDegrees) == 0
-                    && Float.compare(data.radius, other.data.radius) == 0
-                    && Float.compare(data.offsetX, other.data.offsetX) == 0
-                    && Float.compare(data.offsetY, other.data.offsetY) == 0
+            return sameGeometryAs(other)
                     && Float.compare(data.density, other.data.density) == 0
                     && Float.compare(data.friction, other.data.friction) == 0
                     && Float.compare(data.restitution, other.data.restitution) == 0
@@ -51,25 +44,8 @@ public final class EditFixtureCommand
 
         public boolean sameGeometryAs(Snapshot other) {
             if (other == null || data == null || other.data == null) return false;
-            return data.shapeType == other.data.shapeType
-                    && data.polygonVertexCount == other.data.polygonVertexCount
-                    && samePoly(data.polygonVertices, other.data.polygonVertices, data.polygonVertexCount)
-                    && Float.compare(data.halfWidth, other.data.halfWidth) == 0
-                    && Float.compare(data.halfHeight, other.data.halfHeight) == 0
-                    && Float.compare(data.angleDegrees, other.data.angleDegrees) == 0
-                    && Float.compare(data.radius, other.data.radius) == 0
-                    && Float.compare(data.offsetX, other.data.offsetX) == 0
-                    && Float.compare(data.offsetY, other.data.offsetY) == 0;
-        }
-
-        private static boolean samePoly(float[] a, float[] b, int count) {
-            int floatCount = Math.max(0, count) * 2;
-            for (int i = 0; i < floatCount; i++) {
-                float av = (a != null && i < a.length) ? a[i] : 0f;
-                float bv = (b != null && i < b.length) ? b[i] : 0f;
-                if (Float.compare(av, bv) != 0) return false;
-            }
-            return true;
+            return data.directGeometry != null
+                    && data.directGeometry.contentEquals(other.data.directGeometry);
         }
     }
 
@@ -159,7 +135,10 @@ public final class EditFixtureCommand
         PhysicsShapeData replacement = snapshot.copyData();
         if (replacement == null) return;
         replacement.physicsShapeId = physicsShapeId;
-        fixtures.shapes.set(fixtureIndex, replacement);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        candidate.set(fixtureIndex, replacement);
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         if (keepCurrentSelection) {
             FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);

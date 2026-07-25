@@ -4,16 +4,14 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.service.SceneService;
 import org.junit.Assert;
 import org.junit.Test;
@@ -28,23 +26,16 @@ public class PhysicsShapeScenePersistenceTest {
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsShapeData shape = new PhysicsShapeData();
+        shape.directGeometry = new PhysicsDirectGeometryData();
         shape.physicsShapeId = 1;
-        shape.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-        shape.radius = 2f;
+        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        shape.directGeometry.radius = 2f;
         sources.add(shape);
 
         PhysicsCompiledFixturesComponent cache =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
-        CompiledFixtureData fixture = new CompiledFixtureData();
-        fixture.physicsShapeId = 1;
-        fixture.partIndex = 0;
-        fixture.shapeType = CompiledFixtureData.SHAPE_CIRCLE;
-        fixture.radius = 2f;
-        Array<CompiledFixtureData> candidate =
-                new Array<>(true, 1, CompiledFixtureData.class);
-        candidate.add(fixture);
-        new PhysicsCompiledFixtureCachePublisher().publish(
-                cache, new PhysicsBodyCompiler().prepare(candidate));
+        PhysicsService.publishPreparedCandidate(
+                sources, cache, PhysicsService.prepareBodyCandidate(sources.shapes));
         int generation = cache.generation;
         SpatialPhysicsFootprintComponent footprint =
                 world.getMapper(SpatialPhysicsFootprintComponent.class).create(entityId);
@@ -86,6 +77,39 @@ public class PhysicsShapeScenePersistenceTest {
                 loaded.getMapper(PhysicsCompiledFixturesComponent.class).has(loadedEntity));
         Assert.assertFalse(
                 loaded.getMapper(SpatialPhysicsFootprintComponent.class).has(loadedEntity));
+    }
+
+    @Test
+    public void sceneWithoutDirectGeometryIsRejectedAsCleanBreak() {
+        World world = world();
+        int entityId = world.create();
+        PhysicsShapesComponent sources =
+                world.getMapper(PhysicsShapesComponent.class).create(entityId);
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.physicsShapeId = 13;
+        sources.add(shape);
+        world.process();
+
+        FileHandle file = new FileHandle(new File(
+                System.getProperty("java.io.tmpdir"), "pixscape-missing-direct-geometry.json"));
+        SceneService.saveScene(world, file, false);
+        String json = file.readString("UTF-8");
+        file.writeString(
+                json.replaceFirst(",?\"directGeometry\":\\{[^}]*\\}", ""),
+                false,
+                "UTF-8");
+
+        try {
+            SceneLoader.loadScene(world(), file, false, new SceneMetaRuntime());
+            Assert.fail("Missing directGeometry must be rejected.");
+        } catch (RuntimeException expected) {
+            Assert.assertTrue(expected.getMessage().contains(file.path()));
+            Assert.assertTrue(expected.getMessage().contains("entityId"));
+            Assert.assertTrue(expected.getMessage().contains("physicsShapeId 13"));
+            Assert.assertTrue(expected.getMessage().contains("directGeometry is missing"));
+            Assert.assertTrue(expected.getMessage().contains("clean break Physics Model"));
+        }
     }
 
     private static World world() {

@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -71,13 +72,29 @@ public final class TogglePhysicsBodyCommand implements Command {
         int entityId = resolveBodyEntityId();
         if (entityId < 0) return;
 
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, entityId);
+        if (enable && !hadBody && createDefaultShape && candidate.size == 0) {
+            if (createdDefaultShape == null) {
+                createdDefaultShape = PhysicsService.createDefaultShape(
+                        physicsService.allocateNewPhysicsShapeId()).copy();
+            }
+            candidate.add(createdDefaultShape.copy());
+        }
+        PreparedPhysicsBodyCandidate prepared =
+                PhysicsService.prepareBodyCandidate(candidate);
+
         if (enable) {
-            PhysicsBodyComponent body = ensureBody(entityId);
+            PhysicsBodyComponent body = ensureBodyStructure(entityId);
+            publishPrepared(entityId, prepared);
             body.enabled = true;
         } else {
             PhysicsBodyComponent body =
                     world.getMapper(PhysicsBodyComponent.class).getSafe(entityId, null);
-            if (body != null) body.enabled = false;
+            if (body != null) {
+                publishPrepared(entityId, prepared);
+                body.enabled = false;
+            }
         }
         markDirty(entityId);
     }
@@ -90,25 +107,24 @@ public final class TogglePhysicsBodyCommand implements Command {
         if (!hadBody) {
             removeCreatedPhysics(entityId);
         } else {
+            Array<PhysicsShapeData> candidate =
+                    new Array<>(true, shapesBefore.size, PhysicsShapeData.class);
+            for (int i = 0; i < shapesBefore.size; i++) {
+                candidate.add(shapesBefore.get(i).copy());
+            }
+            PreparedPhysicsBodyCandidate prepared =
+                    PhysicsService.prepareBodyCandidate(candidate);
             PhysicsBodyComponent body =
                     world.getMapper(PhysicsBodyComponent.class).has(entityId)
                             ? world.getMapper(PhysicsBodyComponent.class).get(entityId)
                             : world.getMapper(PhysicsBodyComponent.class).create(entityId);
             bodyBefore.apply(body);
-
-            PhysicsShapesComponent shapes =
-                    world.getMapper(PhysicsShapesComponent.class).has(entityId)
-                            ? world.getMapper(PhysicsShapesComponent.class).get(entityId)
-                            : world.getMapper(PhysicsShapesComponent.class).create(entityId);
-            shapes.shapes.clear();
-            for (int i = 0; i < shapesBefore.size; i++) {
-                shapes.add(shapesBefore.get(i).copy());
-            }
+            publishPrepared(entityId, prepared);
         }
         markDirty(entityId);
     }
 
-    private PhysicsBodyComponent ensureBody(int entityId) {
+    private PhysicsBodyComponent ensureBodyStructure(int entityId) {
         var bodyMapper = world.getMapper(PhysicsBodyComponent.class);
         PhysicsBodyComponent body =
                 bodyMapper.has(entityId) ? bodyMapper.get(entityId) : bodyMapper.create(entityId);
@@ -123,19 +139,19 @@ public final class TogglePhysicsBodyCommand implements Command {
             transform.scaleY = 1f;
         }
 
-        var shapesMapper = world.getMapper(PhysicsShapesComponent.class);
-        PhysicsShapesComponent shapes =
-                shapesMapper.has(entityId)
-                        ? shapesMapper.get(entityId)
-                        : shapesMapper.create(entityId);
-        if (!hadBody && createDefaultShape && !shapes.hasShapes()) {
-            if (createdDefaultShape == null) {
-                createdDefaultShape = PhysicsService.createDefaultShape(
-                        physicsService.allocateNewPhysicsShapeId()).copy();
-            }
-            shapes.add(createdDefaultShape.copy());
-        }
         return body;
+    }
+
+    private void publishPrepared(int entityId, PreparedPhysicsBodyCandidate prepared) {
+        var shapesMapper = world.getMapper(PhysicsShapesComponent.class);
+        var compiledMapper = world.getMapper(PhysicsCompiledFixturesComponent.class);
+        PhysicsShapesComponent shapes = shapesMapper.has(entityId)
+                ? shapesMapper.get(entityId)
+                : shapesMapper.create(entityId);
+        PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
+                ? compiledMapper.get(entityId)
+                : compiledMapper.create(entityId);
+        PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
     }
 
     private void removeCreatedPhysics(int entityId) {

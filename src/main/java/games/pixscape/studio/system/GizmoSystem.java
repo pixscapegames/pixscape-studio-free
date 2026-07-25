@@ -1,7 +1,5 @@
 package games.pixscape.studio.system;
 
-import games.pixscape.runtime.physics.PhysicsShapeData;
-
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
@@ -17,6 +15,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -25,6 +24,7 @@ import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -108,6 +108,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<PhysicsShapesComponent> mFixDefs;
+    private ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled;
     private ComponentMapper<PhysicsJointComponent> mJoint;
     private ComponentMapper<PhysicsWheelJointComponent> mWheel;
     private ComponentMapper<PhysicsMotorJointComponent> mMotor;
@@ -146,6 +147,7 @@ public final class GizmoSystem extends BaseSystem {
         this.spatialTileSelectionService = spatialTileSelectionService;
         this.tiledPreviewService = tiledPreviewService;
         this.polygonDrawSession = polygonDrawSession;
+        this.tmpAuthoringFixture.directGeometry = new PhysicsDirectGeometryData();
 
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> selected = evt.ids().toArray());
     }
@@ -702,7 +704,7 @@ public final class GizmoSystem extends BaseSystem {
 
     private void drawAllFixturesExcept(int skipBodyEid) {
         IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PhysicsShapesComponent.class))
+                .get(Aspect.all(PhysicsCompiledFixturesComponent.class))
                 .getEntities();
         int[] data = bag.getData();
 
@@ -717,8 +719,9 @@ public final class GizmoSystem extends BaseSystem {
     private void drawBodyFixtures(int bodyEid, boolean focusedBody) {
         if (!isDrawableFixtureBody(bodyEid)) return;
 
-        PhysicsShapesComponent fixtures = physicsService.getShapesComponent(bodyEid);
-        if (fixtures == null || !fixtures.hasShapes()) return;
+        PhysicsCompiledFixturesComponent compiled =
+                physicsService.getCompiledFixturesComponent(bodyEid);
+        if (compiled == null || !compiled.valid || compiled.fixtures == null) return;
 
         int hoveredBodyEid = physicsSelectionService.getHoveredBodyEid();
         long hoveredId = (hoveredBodyEid == bodyEid)
@@ -729,11 +732,11 @@ public final class GizmoSystem extends BaseSystem {
                 ? physicsSelectionService.getSelectedPhysicsShapeId()
                 : PhysicsSelectionService.NO_SHAPE;
 
-        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
-            PhysicsShapeData fixture = fixtures.shapes.get(i);
+        for (int i = 0, n = compiled.fixtures.size; i < n; i++) {
+            CompiledFixtureData fixture = compiled.fixtures.get(i);
             if (fixture == null) continue;
 
-            if (shouldHideEditedPolygon(bodyEid, fixture)) {
+            if (shouldHideEditedFixture(bodyEid, fixture.physicsShapeId)) {
                 continue;
             }
 
@@ -753,7 +756,7 @@ public final class GizmoSystem extends BaseSystem {
             PhysicsShapeData shape = shapes.shapes.get(i);
             if (shape != null
                     && shape.physicsShapeId == physicsShapeId
-                    && shape.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
+                    && shape.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
                 return shape;
             }
         }
@@ -776,9 +779,9 @@ public final class GizmoSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDegrees : 0f);
+        float fixtureOffsetX = polygon != null ? polygon.directGeometry.offsetX : 0f;
+        float fixtureOffsetY = polygon != null ? polygon.directGeometry.offsetY : 0f;
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.directGeometry.angleDegrees : 0f);
 
         float fixtureCos = MathUtils.cos(fixtureAngleRad);
         float fixtureSin = MathUtils.sin(fixtureAngleRad);
@@ -817,18 +820,18 @@ public final class GizmoSystem extends BaseSystem {
             PhysicsShapeData polygon
     ) {
         tmpAuthoringFixture.physicsShapeId = 0;
-        tmpAuthoringFixture.shapeType = PhysicsShapeData.SHAPE_POLYGON;
+        tmpAuthoringFixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
 
-        tmpAuthoringFixture.polygonVertexCount = count;
-        tmpAuthoringFixture.polygonVertices = verts;
+        tmpAuthoringFixture.directGeometry.polygonVertexCount = count;
+        tmpAuthoringFixture.directGeometry.polygonVertices = verts;
 
-        tmpAuthoringFixture.halfWidth = 0.5f;
-        tmpAuthoringFixture.halfHeight = 0.5f;
-        tmpAuthoringFixture.radius = 0.5f;
+        tmpAuthoringFixture.directGeometry.halfWidth = 0.5f;
+        tmpAuthoringFixture.directGeometry.halfHeight = 0.5f;
+        tmpAuthoringFixture.directGeometry.radius = 0.5f;
 
-        tmpAuthoringFixture.offsetX = polygon != null ? polygon.offsetX : 0f;
-        tmpAuthoringFixture.offsetY = polygon != null ? polygon.offsetY : 0f;
-        tmpAuthoringFixture.angleDegrees = polygon != null ? polygon.angleDegrees : 0f;
+        tmpAuthoringFixture.directGeometry.offsetX = polygon != null ? polygon.directGeometry.offsetX : 0f;
+        tmpAuthoringFixture.directGeometry.offsetY = polygon != null ? polygon.directGeometry.offsetY : 0f;
+        tmpAuthoringFixture.directGeometry.angleDegrees = polygon != null ? polygon.directGeometry.angleDegrees : 0f;
 
         tmpAuthoringFixture.density = polygon != null ? polygon.density : 1f;
         tmpAuthoringFixture.friction = polygon != null ? polygon.friction : 0.2f;
@@ -918,19 +921,19 @@ public final class GizmoSystem extends BaseSystem {
             boolean selected
     ) {
         if (polygon == null
-                || polygon.polygonVertices == null
-                || polygon.polygonVertexCount < 3
-                || polygon.polygonVertices.length < polygon.polygonVertexCount * 2) {
+                || polygon.directGeometry.polygonVertices == null
+                || polygon.directGeometry.polygonVertexCount < 3
+                || polygon.directGeometry.polygonVertices.length < polygon.directGeometry.polygonVertexCount * 2) {
             return;
         }
 
-        int floatCount = Math.max(0, polygon.polygonVertexCount * 2);
+        int floatCount = Math.max(0, polygon.directGeometry.polygonVertexCount * 2);
         ensureFixtureVertsCapacity(floatCount);
 
         int vertexCount = computeAuthoredPolygonVertsWU(
                 bodyEid,
-                polygon.polygonVertices,
-                polygon.polygonVertexCount,
+                polygon.directGeometry.polygonVertices,
+                polygon.directGeometry.polygonVertexCount,
                 polygon,
                 tmpFixtureVerts
         );
@@ -941,27 +944,30 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private boolean isDrawableFixtureBody(int bodyEid) {
-        PhysicsShapesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
+        PhysicsCompiledFixturesComponent compiled =
+                mCompiled != null ? mCompiled.getSafe(bodyEid, null) : null;
 
         return bodyEid >= 0
                 && physicsService != null
-                && fixtures != null
-                && fixtures.hasShapes()
+                && compiled != null
+                && compiled.valid
+                && compiled.fixtures != null
                 && isEntityVisibleForGizmo(bodyEid);
     }
 
     private void drawFixture(int bodyEid,
-                             PhysicsShapeData fixture,
+                             CompiledFixtureData fixture,
                              boolean focusedBody,
                              boolean hovered,
                              boolean selected) {
         if (fixture == null) return;
 
-        if (fixture.shapeType == PhysicsShapeData.SHAPE_CIRCLE) {
-            if (!physicsService.computeShapeCenterWU(bodyEid, fixture, tmpFixtureCenter)) return;
+        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) {
+            if (!physicsService.computeCompiledFixtureCenterWU(
+                    bodyEid, fixture, tmpFixtureCenter)) return;
 
             applyDisplayOffset(bodyEid, tmpFixtureCenter);
-            float radiusWU = physicsService.computeShapeRadiusWU(fixture);
+            float radiusWU = physicsService.computeCompiledFixtureRadiusWU(fixture);
 
             GizmoDrawHelper.drawFixtureCircle(
                     ctx,
@@ -976,13 +982,14 @@ public final class GizmoSystem extends BaseSystem {
             return;
         }
 
-        int floatCount = fixture.shapeType == PhysicsShapeData.SHAPE_BOX
+        int floatCount = fixture.shapeType == PhysicsDirectGeometryData.SHAPE_BOX
                 ? 8
                 : Math.max(0, fixture.polygonVertexCount * 2);
 
         ensureFixtureVertsCapacity(floatCount);
 
-        int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
+        int vertexCount = physicsService.computeCompiledFixtureVerticesWU(
+                bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount < 2) return;
 
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
@@ -1065,13 +1072,12 @@ public final class GizmoSystem extends BaseSystem {
         }
     }
 
-    private boolean shouldHideEditedPolygon(int bodyEid, PhysicsShapeData fixture) {
+    private boolean shouldHideEditedFixture(int bodyEid, int physicsShapeId) {
         if (polygonDrawSession == null || !polygonDrawSession.isActive()) return false;
         if (!polygonDrawSession.isEditMode()) return false;
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return false;
 
         return bodyEid == polygonDrawSession.getBodyEid()
-                && fixture.physicsShapeId == polygonDrawSession.getFixtureId();
+                && physicsShapeId == polygonDrawSession.getFixtureId();
     }
 
     private void drawJointOverlays() {
@@ -1134,7 +1140,7 @@ public final class GizmoSystem extends BaseSystem {
             return;
         }
 
-        if (selectedFixture.shapeType == PhysicsShapeData.SHAPE_CIRCLE) {
+        if (selectedFixture.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) {
             if (!physicsService.computeShapeCenterWU(bodyEid, selectedFixture, tmpFixtureCenter)) return;
             applyDisplayOffset(bodyEid, tmpFixtureCenter);
             float radiusWU = physicsService.computeShapeRadiusWU(selectedFixture);
@@ -1142,13 +1148,13 @@ public final class GizmoSystem extends BaseSystem {
             return;
         }
 
-        if (shouldHideEditedPolygon(bodyEid, selectedFixture)) {
+        if (shouldHideEditedFixture(bodyEid, selectedFixture.physicsShapeId)) {
             return;
         }
 
-        int floatCount = selectedFixture.shapeType == PhysicsShapeData.SHAPE_BOX
+        int floatCount = selectedFixture.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_BOX
                 ? 8
-                : Math.max(0, selectedFixture.polygonVertexCount * 2);
+                : Math.max(0, selectedFixture.directGeometry.polygonVertexCount * 2);
 
         ensureFixtureVertsCapacity(floatCount);
 
@@ -1161,19 +1167,19 @@ public final class GizmoSystem extends BaseSystem {
 
     private void drawAuthoredPolygonSourceHandles(int bodyEid, PhysicsShapeData polygon) {
         if (polygon == null
-                || polygon.polygonVertices == null
-                || polygon.polygonVertexCount < 3
-                || polygon.polygonVertices.length < polygon.polygonVertexCount * 2) {
+                || polygon.directGeometry.polygonVertices == null
+                || polygon.directGeometry.polygonVertexCount < 3
+                || polygon.directGeometry.polygonVertices.length < polygon.directGeometry.polygonVertexCount * 2) {
             return;
         }
 
         prepareTempPolygonFixture(
-                polygon.polygonVertices,
-                polygon.polygonVertexCount,
+                polygon.directGeometry.polygonVertices,
+                polygon.directGeometry.polygonVertexCount,
                 polygon
         );
 
-        int floatCount = Math.max(0, polygon.polygonVertexCount * 2);
+        int floatCount = Math.max(0, polygon.directGeometry.polygonVertexCount * 2);
         ensureFixtureVertsCapacity(floatCount);
 
         int vertexCount = physicsService.computeShapeVerticesWU(

@@ -2,16 +2,16 @@ package games.pixscape.studio.service.physics;
 
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsShapeCompiler;
-import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.PhysicsService;
 
 /** Picks compiled fixture geometry while returning source-shape provenance. */
 public final class PhysicsFixturePickingService {
 
     public static final class PickResult {
+        public int bodyEntityId = PhysicsSelectionService.NO_BODY;
         public int physicsShapeId = PhysicsSelectionService.NO_SHAPE;
         public int partIndex = PhysicsSelectionService.NO_PART;
 
@@ -21,8 +21,8 @@ public final class PhysicsFixturePickingService {
     }
 
     private final PhysicsService physicsService;
-    private final PhysicsShapeCompiler compiler = new PhysicsShapeCompiler();
     private final Vector2 tmpCenter = new Vector2();
+    private final float[] vertexScratch = new float[16];
 
     public PhysicsFixturePickingService(PhysicsService physicsService) {
         if (physicsService == null) {
@@ -38,22 +38,20 @@ public final class PhysicsFixturePickingService {
             return result;
         }
 
-        PhysicsShapesComponent sources = physicsService.getShapesComponent(bodyEntityId);
-        if (sources == null || sources.shapes == null) {
+        PhysicsCompiledFixturesComponent compiled =
+                physicsService.getCompiledFixturesComponent(bodyEntityId);
+        if (compiled == null || !compiled.valid || compiled.fixtures == null) {
             return result;
         }
 
-        for (int sourceIndex = sources.shapes.size - 1; sourceIndex >= 0; sourceIndex--) {
-            PhysicsShapeData source = sources.shapes.get(sourceIndex);
-            if (source == null) continue;
-            CompiledFixtureData[] parts = compiler.compile(source);
-            for (int part = parts.length - 1; part >= 0; part--) {
-                CompiledFixtureData fixture = parts[part];
-                if (hitTest(bodyEntityId, fixture, worldX, worldY, toleranceWU)) {
-                    result.physicsShapeId = fixture.physicsShapeId;
-                    result.partIndex = fixture.partIndex;
-                    return result;
-                }
+        for (int i = compiled.fixtures.size - 1; i >= 0; i--) {
+            CompiledFixtureData fixture = compiled.fixtures.get(i);
+            if (fixture != null
+                    && hitTest(bodyEntityId, fixture, worldX, worldY, toleranceWU)) {
+                result.bodyEntityId = bodyEntityId;
+                result.physicsShapeId = fixture.physicsShapeId;
+                result.partIndex = fixture.partIndex;
+                return result;
             }
         }
         return result;
@@ -65,7 +63,7 @@ public final class PhysicsFixturePickingService {
             float worldX,
             float worldY,
             float toleranceWU) {
-        if (fixture.shapeType == CompiledFixtureData.SHAPE_CIRCLE) {
+        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) {
             if (!physicsService.computeCompiledFixtureCenterWU(
                     bodyEntityId, fixture, tmpCenter)) {
                 return false;
@@ -75,18 +73,18 @@ public final class PhysicsFixturePickingService {
             return tmpCenter.dst2(worldX, worldY) <= radius * radius;
         }
 
-        int required = fixture.shapeType == CompiledFixtureData.SHAPE_BOX
+        int required = fixture.shapeType == PhysicsDirectGeometryData.SHAPE_BOX
                 ? 8 : fixture.polygonVertexCount * 2;
-        if (required <= 0) return false;
-        float[] vertices = new float[required];
+        if (required <= 0 || required > vertexScratch.length) return false;
         int count = physicsService.computeCompiledFixtureVerticesWU(
-                bodyEntityId, fixture, vertices);
+                bodyEntityId, fixture, vertexScratch);
         if (count < 3) return false;
-        if (Intersector.isPointInPolygon(vertices, 0, count * 2, worldX, worldY)) {
+        if (Intersector.isPointInPolygon(
+                vertexScratch, 0, count * 2, worldX, worldY)) {
             return true;
         }
         return isNearClosedPolyline(
-                vertices, count, worldX, worldY, toleranceWU);
+                vertexScratch, count, worldX, worldY, toleranceWU);
     }
 
     private static boolean isNearClosedPolyline(

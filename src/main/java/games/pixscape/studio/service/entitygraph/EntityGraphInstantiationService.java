@@ -7,8 +7,6 @@ import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
@@ -100,6 +98,7 @@ public final class EntityGraphInstantiationService {
             GenericEntitySnapshotData snapshot =
                     initializer.toSnapshotData(sourceEntityId);
             validatePreparedPhysics(snapshot, sourceEntityId);
+            initializer.preparePhysicsCandidate();
             snapshots.put(sourceEntityId, snapshot);
             prepared.add(new PreparedEntity(sourceEntityId, initializer));
         }
@@ -158,16 +157,13 @@ public final class EntityGraphInstantiationService {
     private static void validatePreparedPhysics(
             GenericEntitySnapshotData snapshot, int sourceEntityId) {
         if (snapshot.shapes == null || snapshot.shapes.size == 0) return;
-        PhysicsShapesComponent shapes = new PhysicsShapesComponent();
         for (PhysicsShapeData shape : snapshot.shapes) {
             if (shape == null) {
                 throw new IllegalArgumentException(
                         "Entity graph source " + sourceEntityId
                                 + " contains a null physics shape.");
             }
-            shapes.add(shape.copy());
         }
-        new PhysicsBodyCompiler().compile(shapes);
     }
 
     private static boolean hasSpecificJointData(GenericEntitySnapshotData snapshot) {

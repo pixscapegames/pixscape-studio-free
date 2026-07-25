@@ -2,9 +2,14 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -35,7 +40,7 @@ public final class FixtureCommandSupport {
         return create ? mapper.create(entityId) : null;
     }
 
-    static int indexOfFixture(PhysicsShapesComponent fixtures, int physicsShapeId) {
+    public static int indexOfFixture(PhysicsShapesComponent fixtures, int physicsShapeId) {
         if (fixtures == null || physicsShapeId <= 0L) return -1;
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData fixture = fixtures.shapes.get(i);
@@ -52,15 +57,7 @@ public final class FixtureCommandSupport {
 
     public static PhysicsShapeData createDefaultFixture() {
         PhysicsShapeData fixture = new PhysicsShapeData();
-        fixture.shapeType = PhysicsShapeData.SHAPE_BOX;
-        fixture.polygonVertices = new float[0];
-        fixture.polygonVertexCount = 0;
-        fixture.halfWidth = 0.5f;
-        fixture.halfHeight = 0.5f;
-        fixture.angleDegrees = 0f;
-        fixture.radius = 0.5f;
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
+        fixture.directGeometry = new PhysicsDirectGeometryData();
         fixture.density = 1f;
         fixture.friction = 0.2f;
         fixture.restitution = 0f;
@@ -70,6 +67,39 @@ public final class FixtureCommandSupport {
         fixture.groupIndex = 0;
         fixture.physicsShapeId = 0;
         return fixture;
+    }
+
+    public static Array<PhysicsShapeData> copyFixtures(World world, int entityId) {
+        PhysicsShapesComponent fixtures = getFixtures(world, entityId, false);
+        Array<PhysicsShapeData> copy =
+                new Array<>(
+                        true,
+                        fixtures != null && fixtures.shapes != null ? fixtures.shapes.size : 0,
+                        PhysicsShapeData.class);
+        if (fixtures != null && fixtures.shapes != null) {
+            for (int i = 0; i < fixtures.shapes.size; i++) {
+                PhysicsShapeData fixture = fixtures.shapes.get(i);
+                copy.add(fixture != null ? fixture.copy() : null);
+            }
+        }
+        return copy;
+    }
+
+    public static void prepareAndPublish(
+            World world, int entityId, Array<PhysicsShapeData> candidateShapes) {
+        PreparedPhysicsBodyCandidate prepared =
+                PhysicsService.prepareBodyCandidate(candidateShapes);
+        ComponentMapper<PhysicsShapesComponent> shapesMapper =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
+        PhysicsShapesComponent targetShapes = shapesMapper.has(entityId)
+                ? shapesMapper.get(entityId)
+                : shapesMapper.create(entityId);
+        PhysicsCompiledFixturesComponent targetCompiled = compiledMapper.has(entityId)
+                ? compiledMapper.get(entityId)
+                : compiledMapper.create(entityId);
+        PhysicsService.publishPreparedCandidate(targetShapes, targetCompiled, prepared);
     }
 
     static PhysicsShapeData deepCopyWithFreshId(

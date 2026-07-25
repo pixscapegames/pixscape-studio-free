@@ -20,6 +20,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -290,7 +291,7 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(addPolygonShape);
 
         if (selectedFixture != null
-                && selectedFixture.shapeType == PhysicsShapeData.SHAPE_POLYGON) {
+                && selectedFixture.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) {
             menu.addSeparator();
 
             MenuItem editPolygon = new MenuItem("Edit polygon");
@@ -306,7 +307,7 @@ public final class StudioContextMenu extends InputListener {
         }
 
         if (selectedFixture != null) {
-            if (selectedFixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) {
+            if (selectedFixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) {
                 menu.addSeparator();
             }
 

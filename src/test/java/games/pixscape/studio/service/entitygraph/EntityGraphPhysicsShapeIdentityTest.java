@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
@@ -29,9 +30,10 @@ public class EntityGraphPhysicsShapeIdentityTest {
         PhysicsShapesComponent sourceShapes =
                 world.getMapper(PhysicsShapesComponent.class).create(sourceEntity);
         PhysicsShapeData source = new PhysicsShapeData();
+        source.directGeometry = new PhysicsDirectGeometryData();
         source.physicsShapeId = 42;
-        source.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-        source.radius = 3f;
+        source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        source.directGeometry.radius = 3f;
         sourceShapes.add(source);
 
         IntArray selection = new IntArray();
@@ -51,7 +53,7 @@ public class EntityGraphPhysicsShapeIdentityTest {
         PhysicsShapeData copied = world.getMapper(PhysicsShapesComponent.class)
                 .get(created).shapes.first();
         Assert.assertEquals(1, copied.physicsShapeId);
-        Assert.assertEquals(3f, copied.radius, 0f);
+        Assert.assertEquals(3f, copied.directGeometry.radius, 0f);
         Assert.assertEquals(2,
                 config.getCurrentSceneMeta().nextPhysicsShapeId);
         Assert.assertEquals(42, source.physicsShapeId);

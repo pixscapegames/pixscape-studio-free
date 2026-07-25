@@ -13,7 +13,13 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
@@ -62,6 +68,11 @@ final class ResolvedSceneActivationPipeline {
     }
 
     void activate(ResolvedSceneTarget target) {
+        Box2dSyncSystem box2dSync = world.getSystem(Box2dSyncSystem.class);
+        if (box2dSync != null) {
+            box2dSync.setEnabled(false);
+            box2dSync.setStepEnabled(false);
+        }
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
@@ -75,11 +86,33 @@ final class ResolvedSceneActivationPipeline {
         );
         validateAndCompileSpatialBlocksForActivation(
                 world, target.projectTitle(), target.sceneName());
+        rebuildPhysicsCaches();
         rebuildHistoryIdsFromWorld();
         assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
         renderRuntimeRebuilder.rebuild(
                 target.config(), target.canonicalTag(), target.projectDir());
         world.process();
+    }
+
+    private void rebuildPhysicsCaches() {
+        ComponentMapper<PhysicsShapesComponent> shapesMapper =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsCompiledFixturesComponent> compiledMapper =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
+        IntBag bodies = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PhysicsBodyComponent.class, PhysicsShapesComponent.class))
+                .getEntities();
+        int[] entities = bodies.getData();
+        for (int i = 0; i < bodies.size(); i++) {
+            int entityId = entities[i];
+            PhysicsShapesComponent shapes = shapesMapper.get(entityId);
+            PreparedPhysicsBodyCandidate prepared =
+                    PhysicsService.prepareBodyCandidate(shapes.shapes);
+            PhysicsCompiledFixturesComponent compiled = compiledMapper.has(entityId)
+                    ? compiledMapper.get(entityId)
+                    : compiledMapper.create(entityId);
+            PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
+        }
     }
 
     static void resolveTiledLayersForActivation(World world,

@@ -1,6 +1,7 @@
 package games.pixscape.studio.system;
 
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 
 import com.artemis.Aspect;
 import com.artemis.BaseSystem;
@@ -35,6 +36,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -1372,7 +1374,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_BOX) {
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_BOX) {
             return InputManipulationContext.Handle.NONE;
         }
 
@@ -1416,17 +1418,17 @@ public final class PickingSystem extends BaseSystem {
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
 
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_BOX) return false;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_BOX) return false;
 
         resizingBoxActive = true;
         resizingBoxBodyEid = bodyEid;
         resizingBoxFixtureId = physicsShapeId;
         resizingBoxHandle = ctx.hoveredHandle();
 
-        resizeBoxBeforeOffsetX = fixture.offsetX;
-        resizeBoxBeforeOffsetY = fixture.offsetY;
-        resizeBoxBeforeHalfW = fixture.halfWidth;
-        resizeBoxBeforeHalfH = fixture.halfHeight;
+        resizeBoxBeforeOffsetX = fixture.directGeometry.offsetX;
+        resizeBoxBeforeOffsetY = fixture.directGeometry.offsetY;
+        resizeBoxBeforeHalfW = fixture.directGeometry.halfWidth;
+        resizeBoxBeforeHalfH = fixture.directGeometry.halfHeight;
 
         oldDrag.set(mx, my);
         return true;
@@ -1440,7 +1442,7 @@ public final class PickingSystem extends BaseSystem {
             return InputManipulationContext.Handle.NONE;
         }
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_CIRCLE)
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_CIRCLE)
             return InputManipulationContext.Handle.NONE;
         if (!physicsService.computeShapeCenterWU(bodyEid, fixture, tmpA)) return InputManipulationContext.Handle.NONE;
         applyDisplayOffset(bodyEid, tmpA);
@@ -1458,12 +1460,12 @@ public final class PickingSystem extends BaseSystem {
         if (bodyEid < 0 || physicsShapeId <= 0L) return false;
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_CIRCLE) return false;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_CIRCLE) return false;
         resizingCircleActive = true;
         resizingCircleBodyEid = bodyEid;
         resizingCircleFixtureId = physicsShapeId;
-        resizeCircleBeforeRadius = fixture.radius;
-        circleRadiusDragCurrent = fixture.radius;
+        resizeCircleBeforeRadius = fixture.directGeometry.radius;
+        circleRadiusDragCurrent = fixture.directGeometry.radius;
         oldDrag.set(mx, my);
         return true;
     }
@@ -1498,7 +1500,7 @@ public final class PickingSystem extends BaseSystem {
         if (!resizingBoxActive) return;
 
         PhysicsShapeData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_BOX) return;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_BOX) return;
 
         copyFixtureBoxCornersWorld(resizingBoxBodyEid, fixture, tmpFixtureBoxWorldCorners);
         float[] worldCorners = tmpFixtureBoxWorldCorners;
@@ -1539,10 +1541,16 @@ public final class PickingSystem extends BaseSystem {
         float halfWidthPx = Math.max(minHalfPx, Math.abs(dragLocalPx.x - fixedLocalPx.x) * 0.5f);
         float halfHeightPx = Math.max(minHalfPx, Math.abs(dragLocalPx.y - fixedLocalPx.y) * 0.5f);
 
-        fixture.offsetX = physicsService.pxToM(centerLocalPxX);
-        fixture.offsetY = physicsService.pxToM(centerLocalPxY);
-        fixture.halfWidth = physicsService.pxToM(halfWidthPx);
-        fixture.halfHeight = physicsService.pxToM(halfHeightPx);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, resizingBoxBodyEid);
+        int index = indexOfPhysicsShape(candidate, resizingBoxFixtureId);
+        if (index < 0) return;
+        PhysicsDirectGeometryData geometry = candidate.get(index).directGeometry;
+        geometry.offsetX = physicsService.pxToM(centerLocalPxX);
+        geometry.offsetY = physicsService.pxToM(centerLocalPxY);
+        geometry.halfWidth = physicsService.pxToM(halfWidthPx);
+        geometry.halfHeight = physicsService.pxToM(halfHeightPx);
+        FixtureCommandSupport.prepareAndPublish(world, resizingBoxBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, resizingBoxBodyEid);
     }
@@ -1551,7 +1559,7 @@ public final class PickingSystem extends BaseSystem {
         if (!resizingBoxActive) return;
 
         PhysicsShapeData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_BOX) {
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_BOX) {
             clearBoxResizeState();
             return;
         }
@@ -1566,10 +1574,10 @@ public final class PickingSystem extends BaseSystem {
                 resizeBoxBeforeOffsetY,
                 resizeBoxBeforeHalfW,
                 resizeBoxBeforeHalfH,
-                fixture.offsetX,
-                fixture.offsetY,
-                fixture.halfWidth,
-                fixture.halfHeight
+                fixture.directGeometry.offsetX,
+                fixture.directGeometry.offsetY,
+                fixture.directGeometry.halfWidth,
+                fixture.directGeometry.halfHeight
         );
 
         if (!cmd.isNoop()) {
@@ -1588,30 +1596,34 @@ public final class PickingSystem extends BaseSystem {
 
     private void onCircleResizeDragging(float mx, float my) {
         PhysicsShapeData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_CIRCLE) return;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_CIRCLE) return;
         if (!physicsService.computeShapeCenterWU(resizingCircleBodyEid, fixture, tmpA)) return;
         applyDisplayOffset(resizingCircleBodyEid, tmpA);
         float radiusWorld = Vector2.dst(tmpA.x, tmpA.y, mx, my);
         float radiusM = Math.max(0.001f, physicsService.pxToM(radiusWorld));
-        fixture.radius = radiusM;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, resizingCircleBodyEid);
+        int index = indexOfPhysicsShape(candidate, resizingCircleFixtureId);
+        if (index < 0) return;
+        candidate.get(index).directGeometry.radius = radiusM;
+        FixtureCommandSupport.prepareAndPublish(world, resizingCircleBodyEid, candidate);
         circleRadiusDragCurrent = radiusM;
         FixtureCommandSupport.markDirty(world, resizingCircleBodyEid);
     }
 
     private void onCircleResizeReleased() {
         PhysicsShapeData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_CIRCLE) {
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_CIRCLE) {
             clearCircleResizeState();
             return;
         }
         float afterRadius = Math.max(0.001f, circleRadiusDragCurrent);
         PhysicsShapeData beforeData = fixture.copy();
-        beforeData.radius = Math.max(0.001f, resizeCircleBeforeRadius);
+        beforeData.directGeometry.radius = Math.max(0.001f, resizeCircleBeforeRadius);
         EditFixtureCommand.Snapshot before = EditFixtureCommand.Snapshot.capture(beforeData);
         PhysicsShapeData edited = fixture.copy();
-        edited.radius = afterRadius;
+        edited.directGeometry.radius = afterRadius;
         EditFixtureCommand.Snapshot after = EditFixtureCommand.Snapshot.capture(edited);
-        fixture.radius = resizeCircleBeforeRadius;
         EditFixtureCommand cmd = new EditFixtureCommand(
                 world, historyIds, physicsSelectionService,
                 resizingCircleBodyEid, resizingCircleFixtureId,
@@ -1643,11 +1655,11 @@ public final class PickingSystem extends BaseSystem {
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return -1;
 
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) {
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) {
             return -1;
         }
 
-        int floatCount = Math.max(0, fixture.polygonVertexCount * 2);
+        int floatCount = Math.max(0, fixture.directGeometry.polygonVertexCount * 2);
         if (floatCount < 6) return -1;
 
         ensureFixtureVertsCapacity(floatCount);
@@ -1679,19 +1691,19 @@ public final class PickingSystem extends BaseSystem {
         if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
 
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return false;
-        if (fixture.polygonVertices == null) return false;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) return false;
+        if (fixture.directGeometry.polygonVertices == null) return false;
 
         int base = hoveredPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return false;
+        if (base < 0 || base + 1 >= fixture.directGeometry.polygonVertices.length) return false;
 
         movingPolygonVertexActive = true;
         movingPolygonVertexBodyEid = bodyEid;
         movingPolygonVertexFixtureId = physicsShapeId;
         movingPolygonVertexIndex = hoveredPolygonVertexIndex;
 
-        movingPolygonVertexBeforeX = fixture.polygonVertices[base];
-        movingPolygonVertexBeforeY = fixture.polygonVertices[base + 1];
+        movingPolygonVertexBeforeX = fixture.directGeometry.polygonVertices[base];
+        movingPolygonVertexBeforeY = fixture.directGeometry.polygonVertices[base + 1];
 
         oldDrag.set(mx, my);
         return true;
@@ -1713,9 +1725,9 @@ public final class PickingSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDegrees : 0f);
+        float fixtureOffsetX = polygon != null ? polygon.directGeometry.offsetX : 0f;
+        float fixtureOffsetY = polygon != null ? polygon.directGeometry.offsetY : 0f;
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.directGeometry.angleDegrees : 0f);
 
         float fixtureCos = MathUtils.cos(fixtureAngleRad);
         float fixtureSin = MathUtils.sin(fixtureAngleRad);
@@ -1750,16 +1762,23 @@ public final class PickingSystem extends BaseSystem {
         if (!movingPolygonVertexActive) return;
 
         PhysicsShapeData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
-        if (fixture.polygonVertices == null) return;
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+        if (fixture.directGeometry.polygonVertices == null) return;
 
         int base = movingPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return;
+        if (base < 0 || base + 1 >= fixture.directGeometry.polygonVertices.length) return;
 
         worldToBodyLocalPx(movingPolygonVertexBodyEid, mx, my, tmpA);
 
-        fixture.polygonVertices[base] = physicsService.pxToM(tmpA.x);
-        fixture.polygonVertices[base + 1] = physicsService.pxToM(tmpA.y);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, movingPolygonVertexBodyEid);
+        int index = indexOfPhysicsShape(candidate, movingPolygonVertexFixtureId);
+        if (index < 0) return;
+        PhysicsDirectGeometryData geometry = candidate.get(index).directGeometry;
+        geometry.polygonVertices[base] = physicsService.pxToM(tmpA.x);
+        geometry.polygonVertices[base + 1] = physicsService.pxToM(tmpA.y);
+        FixtureCommandSupport.prepareAndPublish(
+                world, movingPolygonVertexBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, movingPolygonVertexBodyEid);
     }
@@ -1792,9 +1811,9 @@ public final class PickingSystem extends BaseSystem {
         float bodyLocalX = tmpA.x / ppm;
         float bodyLocalY = tmpA.y / ppm;
 
-        float offsetX = polygon != null ? polygon.offsetX : 0f;
-        float offsetY = polygon != null ? polygon.offsetY : 0f;
-        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDegrees : 0f);
+        float offsetX = polygon != null ? polygon.directGeometry.offsetX : 0f;
+        float offsetY = polygon != null ? polygon.directGeometry.offsetY : 0f;
+        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.directGeometry.angleDegrees : 0f);
 
         float dx = bodyLocalX - offsetX;
         float dy = bodyLocalY - offsetY;
@@ -1811,9 +1830,9 @@ public final class PickingSystem extends BaseSystem {
     private PhysicsShapeData materialFromAuthoredPolygon(PhysicsShapeData polygon) {
         PhysicsShapeData fixture = FixtureCommandSupport.createDefaultFixture();
 
-        fixture.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        fixture.polygonVertices = new float[0];
-        fixture.polygonVertexCount = 0;
+        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        fixture.directGeometry.polygonVertices = new float[0];
+        fixture.directGeometry.polygonVertexCount = 0;
 
         if (polygon == null) {
             return fixture;
@@ -1828,9 +1847,9 @@ public final class PickingSystem extends BaseSystem {
         fixture.maskBits = polygon.maskBits;
         fixture.groupIndex = polygon.groupIndex;
 
-        fixture.offsetX = polygon.offsetX;
-        fixture.offsetY = polygon.offsetY;
-        fixture.angleDegrees = polygon.angleDegrees;
+        fixture.directGeometry.offsetX = polygon.directGeometry.offsetX;
+        fixture.directGeometry.offsetY = polygon.directGeometry.offsetY;
+        fixture.directGeometry.angleDegrees = polygon.directGeometry.angleDegrees;
 
         return fixture;
     }
@@ -1839,13 +1858,13 @@ public final class PickingSystem extends BaseSystem {
         if (!movingPolygonVertexActive) return;
 
         PhysicsShapeData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
-        if (fixture == null || fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON || fixture.polygonVertices == null) {
+        if (fixture == null || fixture.directGeometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON || fixture.directGeometry.polygonVertices == null) {
             clearPolygonVertexMoveState();
             return;
         }
 
         int base = movingPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polygonVertices.length) {
+        if (base < 0 || base + 1 >= fixture.directGeometry.polygonVertices.length) {
             clearPolygonVertexMoveState();
             return;
         }
@@ -1859,8 +1878,8 @@ public final class PickingSystem extends BaseSystem {
                 movingPolygonVertexIndex,
                 movingPolygonVertexBeforeX,
                 movingPolygonVertexBeforeY,
-                fixture.polygonVertices[base],
-                fixture.polygonVertices[base + 1]
+                fixture.directGeometry.polygonVertices[base],
+                fixture.directGeometry.polygonVertices[base + 1]
         );
 
         if (!cmd.isNoop()) {
@@ -1928,8 +1947,8 @@ public final class PickingSystem extends BaseSystem {
                     physicsSelectionService,
                     bodyEid,
                     physicsShapeId,
-                    existing.polygonVertices,
-                    existing.polygonVertexCount,
+                    existing.directGeometry.polygonVertices,
+                    existing.directGeometry.polygonVertexCount,
                     localVertsM,
                     vertexCount
             );
@@ -1938,9 +1957,9 @@ public final class PickingSystem extends BaseSystem {
             }
         } else {
             PhysicsShapeData polygon = resolvePolygonMaterialSource(bodyEid, physicsShapeId);
-            polygon.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-            polygon.polygonVertices = copyVerts(localVertsM, vertexCount);
-            polygon.polygonVertexCount = vertexCount;
+            polygon.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+            polygon.directGeometry.polygonVertices = copyVerts(localVertsM, vertexCount);
+            polygon.directGeometry.polygonVertexCount = vertexCount;
             historyManager.execute(new AddFixtureCommand(
                     world,
                     historyIds,
@@ -1965,12 +1984,12 @@ public final class PickingSystem extends BaseSystem {
         }
 
         PhysicsShapeData fallback = FixtureCommandSupport.createDefaultFixture();
-        fallback.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        fallback.offsetX = 0f;
-        fallback.offsetY = 0f;
-        fallback.angleDegrees = 0f;
-        fallback.polygonVertices = new float[0];
-        fallback.polygonVertexCount = 0;
+        fallback.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        fallback.directGeometry.offsetX = 0f;
+        fallback.directGeometry.offsetY = 0f;
+        fallback.directGeometry.angleDegrees = 0f;
+        fallback.directGeometry.polygonVertices = new float[0];
+        fallback.directGeometry.polygonVertexCount = 0;
 
         return fallback;
     }
@@ -2512,8 +2531,8 @@ public final class PickingSystem extends BaseSystem {
 
         movingFixtureBodyEid = bodyEid;
         movingFixtureId = physicsShapeId;
-        movingFixtureBeforeOffsetX = fixture.offsetX;
-        movingFixtureBeforeOffsetY = fixture.offsetY;
+        movingFixtureBeforeOffsetX = fixture.directGeometry.offsetX;
+        movingFixtureBeforeOffsetY = fixture.directGeometry.offsetY;
 
         oldDrag.set(mx, my);
         return true;
@@ -2538,8 +2557,14 @@ public final class PickingSystem extends BaseSystem {
         float dyLocalPx = -dxWorld * sin + dyWorld * cos;
 
         // fixture offsets stored in local Box2D authoring meters
-        fixture.offsetX += physicsService.pxToM(dxLocalPx);
-        fixture.offsetY += physicsService.pxToM(dyLocalPx);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, movingFixtureBodyEid);
+        int index = indexOfPhysicsShape(candidate, movingFixtureId);
+        if (index < 0) return false;
+        PhysicsDirectGeometryData geometry = candidate.get(index).directGeometry;
+        geometry.offsetX += physicsService.pxToM(dxLocalPx);
+        geometry.offsetY += physicsService.pxToM(dyLocalPx);
+        FixtureCommandSupport.prepareAndPublish(world, movingFixtureBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, movingFixtureBodyEid);
         oldDrag.set(mx, my);
@@ -2555,8 +2580,8 @@ public final class PickingSystem extends BaseSystem {
             return true;
         }
 
-        float afterOffsetX = fixture.offsetX;
-        float afterOffsetY = fixture.offsetY;
+        float afterOffsetX = fixture.directGeometry.offsetX;
+        float afterOffsetY = fixture.directGeometry.offsetY;
 
         MoveFixtureCommand cmd = new MoveFixtureCommand(
                 world,
@@ -2596,7 +2621,24 @@ public final class PickingSystem extends BaseSystem {
     }
 
     static boolean isFixtureGeometryEditable(World world, int bodyEid, int physicsShapeId) {
-        return true;
+        if (world == null || bodyEid < 0 || physicsShapeId <= 0) return false;
+        PhysicsShapesComponent shapes =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
+        if (shapes == null) return false;
+        int index = shapes.indexOf(physicsShapeId);
+        return index >= 0
+                && shapes.shapes.get(index) != null
+                && shapes.shapes.get(index).directGeometry != null;
+    }
+
+    private static int indexOfPhysicsShape(
+            Array<PhysicsShapeData> shapes, int physicsShapeId) {
+        if (shapes == null) return -1;
+        for (int i = 0; i < shapes.size; i++) {
+            PhysicsShapeData shape = shapes.get(i);
+            if (shape != null && shape.physicsShapeId == physicsShapeId) return i;
+        }
+        return -1;
     }
 
     private boolean isInSelection(IntArray sel, int e) {

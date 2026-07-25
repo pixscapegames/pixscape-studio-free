@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.PhysicsService;
@@ -84,14 +85,18 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, true);
+        PhysicsShapesComponent fixtures =
+                FixtureCommandSupport.getFixtures(world, bodyEid, false);
         if (FixtureCommandSupport.indexOfFixture(fixtures, createdFixtureId) < 0) {
+            Array<PhysicsShapeData> candidate =
+                    FixtureCommandSupport.copyFixtures(world, bodyEid);
             PhysicsShapeData created = template.copy();
             created.physicsShapeId = createdFixtureId;
             int index = (insertIndex < 0)
-                    ? fixtures.shapes.size
-                    : Math.max(0, Math.min(insertIndex, fixtures.shapes.size));
-            fixtures.shapes.insert(index, created);
+                    ? candidate.size
+                    : Math.max(0, Math.min(insertIndex, candidate.size));
+            candidate.insert(index, created);
+            FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
         }
 
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, createdFixtureId);
@@ -104,10 +109,14 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        PhysicsShapesComponent fixtures =
+                FixtureCommandSupport.getFixtures(world, bodyEid, false);
         int index = FixtureCommandSupport.indexOfFixture(fixtures, createdFixtureId);
         if (index >= 0) {
-            fixtures.shapes.removeIndex(index);
+            Array<PhysicsShapeData> candidate =
+                    FixtureCommandSupport.copyFixtures(world, bodyEid);
+            candidate.removeIndex(index);
+            FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
         }
 
         FixtureCommandSupport.restoreSelection(

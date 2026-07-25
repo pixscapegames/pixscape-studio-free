@@ -26,8 +26,6 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
-import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -1130,9 +1128,10 @@ public final class SceneService {
             for (CompiledPhysicsSnapshot snapshot : compiledStates) {
                 PhysicsCompiledFixturesComponent compiled =
                         mCompiled.create(snapshot.entityId());
-                new PhysicsCompiledFixtureCachePublisher().publish(
-                        compiled,
-                        new PhysicsBodyCompiler().prepare(snapshot.fixtures()));
+                compiled.fixtures.clear();
+                for (int i = 0; i < snapshot.fixtures().size; i++) {
+                    compiled.fixtures.add(snapshot.fixtures().get(i).copy());
+                }
                 compiled.generation = snapshot.generation();
                 compiled.valid = snapshot.valid();
             }

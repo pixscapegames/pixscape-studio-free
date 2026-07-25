@@ -1,7 +1,9 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -97,16 +99,22 @@ public final class MovePolygonVertexCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-        if (fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
-        if (fixture.polygonVertices == null) return;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.directGeometry == null
+                || fixture.directGeometry.shapeType
+                != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+        if (fixture.directGeometry.polygonVertices == null) return;
 
         int base = vertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return;
+        if (base < 0 || base + 1 >= fixture.directGeometry.polygonVertices.length) return;
 
-        fixture.polygonVertices[base] = afterX;
-        fixture.polygonVertices[base + 1] = afterY;
+        fixture.directGeometry.polygonVertices[base] = afterX;
+        fixture.directGeometry.polygonVertices[base + 1] = afterY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
@@ -126,16 +134,22 @@ public final class MovePolygonVertexCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-        if (fixture.shapeType != PhysicsShapeData.SHAPE_POLYGON) return;
-        if (fixture.polygonVertices == null) return;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.directGeometry == null
+                || fixture.directGeometry.shapeType
+                != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+        if (fixture.directGeometry.polygonVertices == null) return;
 
         int base = vertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polygonVertices.length) return;
+        if (base < 0 || base + 1 >= fixture.directGeometry.polygonVertices.length) return;
 
-        fixture.polygonVertices[base] = beforeX;
-        fixture.polygonVertices[base + 1] = beforeY;
+        fixture.directGeometry.polygonVertices[base] = beforeX;
+        fixture.directGeometry.polygonVertices[base + 1] = beforeY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(
                 world,

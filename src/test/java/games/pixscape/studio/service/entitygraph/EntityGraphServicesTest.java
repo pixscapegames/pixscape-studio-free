@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -165,7 +166,7 @@ public class EntityGraphServicesTest {
     }
 
     private static IntArray arr(int... ids) { IntArray a = new IntArray(); for (int id : ids) a.add(id); return a; }
-    private static int body(World w){int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);w.getMapper(PhysicsBodyComponent.class).create(e);PhysicsShapesComponent f=w.getMapper(PhysicsShapesComponent.class).create(e);PhysicsShapeData d=new PhysicsShapeData();d.shapeType=PhysicsShapeData.SHAPE_BOX;f.shapes.add(d);return e;}
+    private static int body(World w){int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);w.getMapper(PhysicsBodyComponent.class).create(e);PhysicsShapesComponent f=w.getMapper(PhysicsShapesComponent.class).create(e);PhysicsShapeData d=new PhysicsShapeData();d.directGeometry=new PhysicsDirectGeometryData();d.physicsShapeId=e+1;d.directGeometry.shapeType=PhysicsDirectGeometryData.SHAPE_BOX;f.shapes.add(d);return e;}
     private static int distanceJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_DISTANCE,a,b);w.getMapper(PhysicsDistanceJointComponent.class).create(e);return e;}
     private static int revoluteJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_REVOLUTE,a,b);w.getMapper(PhysicsRevoluteJointComponent.class).create(e);return e;}
     private static int prismaticJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_PRISMATIC,a,b);w.getMapper(PhysicsPrismaticJointComponent.class).create(e);return e;}

@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
@@ -77,7 +78,10 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
 
         int index = FixtureCommandSupport.indexOfFixture(fixtures, deletedPhysicsShapeId);
         if (index < 0) return CommandOutcome.NO_CHANGE;
-        fixtures.shapes.removeIndex(index);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        candidate.removeIndex(index);
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         if (physicsSelectionService.clearSelectedShapeIfMatches(
                 bodyEid, deletedPhysicsShapeId)) {
@@ -101,10 +105,14 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return CommandOutcome.NO_CHANGE;
 
-        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, true);
+        PhysicsShapesComponent fixtures =
+                FixtureCommandSupport.getFixtures(world, bodyEid, false);
         if (FixtureCommandSupport.indexOfFixture(fixtures, deletedPhysicsShapeId) < 0) {
-            int index = Math.max(0, Math.min(deletedIndex, fixtures.shapes.size));
-            fixtures.shapes.insert(index, deletedSnapshot.copy());
+            Array<PhysicsShapeData> candidate =
+                    FixtureCommandSupport.copyFixtures(world, bodyEid);
+            int index = Math.max(0, Math.min(deletedIndex, candidate.size));
+            candidate.insert(index, deletedSnapshot.copy());
+            FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
         }
 
         FixtureCommandSupport.markDirty(world, bodyEid);

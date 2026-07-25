@@ -14,6 +14,7 @@ import games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
@@ -198,8 +199,9 @@ public class EntityGraphJointPrecommitValidationTest {
             PhysicsShapesComponent shapes =
                     world.getMapper(PhysicsShapesComponent.class).create(entityId);
             PhysicsShapeData shape = new PhysicsShapeData();
+            shape.directGeometry = new PhysicsDirectGeometryData();
             shape.physicsShapeId = nextSourceShapeId++;
-            shape.shapeType = PhysicsShapeData.SHAPE_BOX;
+            shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
             shapes.add(shape);
             return entityId;
         }

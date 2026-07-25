@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
@@ -289,10 +290,11 @@ public class PrefabAssetServiceTest {
                 world.getMapper(PhysicsShapesComponent.class).get(e);
         sources.shapes.clear();
         PhysicsShapeData polygon = new PhysicsShapeData();
+        polygon.directGeometry = new PhysicsDirectGeometryData();
         polygon.physicsShapeId = 77;
-        polygon.shapeType = PhysicsShapeData.SHAPE_POLYGON;
-        polygon.polygonVertexCount = 5;
-        polygon.polygonVertices = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
+        polygon.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
+        polygon.directGeometry.polygonVertexCount = 5;
+        polygon.directGeometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
         sources.shapes.add(polygon);
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(e));
@@ -320,12 +322,12 @@ public class PrefabAssetServiceTest {
         Assert.assertNotNull(restored);
         Assert.assertEquals(1, restored.shapes.size);
         PhysicsShapeData restoredPolygon = restored.shapes.first();
-        Assert.assertEquals(5, restoredPolygon.polygonVertexCount);
-        Assert.assertArrayEquals(polygon.polygonVertices, restoredPolygon.polygonVertices, 0f);
+        Assert.assertEquals(5, restoredPolygon.directGeometry.polygonVertexCount);
+        Assert.assertArrayEquals(polygon.directGeometry.polygonVertices, restoredPolygon.directGeometry.polygonVertices, 0f);
         Assert.assertNotEquals(polygon.physicsShapeId, restoredPolygon.physicsShapeId);
         Assert.assertTrue(restoredPolygon.physicsShapeId > 0);
         Assert.assertNotSame(polygon, restoredPolygon);
-        Assert.assertNotSame(polygon.polygonVertices, restoredPolygon.polygonVertices);
+        Assert.assertNotSame(polygon.directGeometry.polygonVertices, restoredPolygon.directGeometry.polygonVertices);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -387,7 +389,9 @@ public class PrefabAssetServiceTest {
 
         PhysicsShapesComponent f = w.getMapper(PhysicsShapesComponent.class).create(e);
         PhysicsShapeData d = new PhysicsShapeData();
-        d.shapeType = PhysicsShapeData.SHAPE_BOX;
+        d.directGeometry = new PhysicsDirectGeometryData();
+        d.physicsShapeId = e + 1;
+        d.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
         f.shapes.add(d);
 
         return e;

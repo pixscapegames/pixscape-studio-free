@@ -1,7 +1,5 @@
 package games.pixscape.studio.history.initializer;
 
-import games.pixscape.runtime.physics.PhysicsShapeData;
-
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
@@ -14,8 +12,10 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.studio.model.EntityKind;
 
 
@@ -36,6 +36,7 @@ import games.pixscape.studio.model.EntityKind;
  * - CreateEntityCommand (by initializing fields manually)
  */
 public class GenericEntityInitializer extends AbstractCommonInitializer {
+    private PreparedPhysicsBodyCandidate preparedPhysicsCandidate;
     // --- TextureRegion (runtime) ---
     protected boolean hasTextureRegion;
     protected float u1, v1, u2, v2;
@@ -497,6 +498,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     @Override
     public void init(int e) {
+        PreparedPhysicsBodyCandidate preparedPhysics = preparedPhysicsCandidate;
+        preparedPhysicsCandidate = null;
+        if (preparedPhysics == null && (hasPhysicsBody || hasPhysicsShapes)) {
+            preparedPhysics = PhysicsService.prepareBodyCandidate(physicsShapes);
+        }
         super.init(e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
@@ -512,6 +518,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsShapesComponent> mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<PhysicsJointComponent> mJoint = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> mDist = world.getMapper(PhysicsDistanceJointComponent.class);
         ComponentMapper<PhysicsRevoluteJointComponent> mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
@@ -686,12 +694,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
 
         // --- Physics fixtures ---
-        if (hasPhysicsShapes) {
-            PhysicsShapesComponent fixtures = mPhysicsShapes.has(e) ? mPhysicsShapes.get(e) : mPhysicsShapes.create(e);
-            fixtures.shapes.clear();
-            for (PhysicsShapeData fixture : physicsShapes) {
-                if (fixture != null) fixtures.shapes.add(fixture.copy());
-            }
+        if (preparedPhysics != null) {
+            PhysicsShapesComponent fixtures =
+                    mPhysicsShapes.has(e) ? mPhysicsShapes.get(e) : mPhysicsShapes.create(e);
+            PhysicsCompiledFixturesComponent compiled =
+                    mCompiled.has(e) ? mCompiled.get(e) : mCompiled.create(e);
+            PhysicsService.publishPreparedCandidate(fixtures, compiled, preparedPhysics);
         }
         if (hasPhysicsJoint) {
             PhysicsJointComponent c = mJoint.has(e) ? mJoint.get(e) : mJoint.create(e);
@@ -814,6 +822,13 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     @Override
     public String label() {
         return "GenericEntity";
+    }
+
+    public void preparePhysicsCandidate() {
+        preparedPhysicsCandidate =
+                hasPhysicsBody || hasPhysicsShapes
+                        ? PhysicsService.prepareBodyCandidate(physicsShapes)
+                        : null;
     }
 
     public GenericEntitySnapshotData toSnapshotData(int sourceEntityId) {

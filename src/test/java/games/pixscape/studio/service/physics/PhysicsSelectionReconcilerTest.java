@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
 import games.pixscape.studio.event.EventFlow;
 import org.junit.Assert;
@@ -171,7 +172,7 @@ public class PhysicsSelectionReconcilerTest {
             CompiledFixtureData part = new CompiledFixtureData();
             part.physicsShapeId = fixture.shape.physicsShapeId;
             part.partIndex = partIndex;
-            part.shapeType = CompiledFixtureData.SHAPE_CIRCLE;
+            part.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
             part.radius = 1f;
             candidate.add(part);
         }
@@ -182,8 +183,12 @@ public class PhysicsSelectionReconcilerTest {
             compiled = fixture.world.getMapper(PhysicsCompiledFixturesComponent.class)
                     .create(fixture.body);
         }
-        new PhysicsCompiledFixtureCachePublisher().publish(
-                compiled, new PhysicsBodyCompiler().prepare(candidate));
+        compiled.fixtures.clear();
+        for (int i = 0; i < candidate.size; i++) {
+            compiled.fixtures.add(candidate.get(i).copy());
+        }
+        compiled.valid = true;
+        compiled.generation++;
     }
 
     private static void assertCleared(PhysicsSelectionService selection) {
@@ -208,9 +213,10 @@ public class PhysicsSelectionReconcilerTest {
 
         Fixture() {
             world.getMapper(PhysicsBodyComponent.class).create(body);
+            shape.directGeometry = new PhysicsDirectGeometryData();
             shape.physicsShapeId = 31;
-            shape.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-            shape.radius = 1f;
+            shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+            shape.directGeometry.radius = 1f;
             shapes.add(shape);
         }
     }

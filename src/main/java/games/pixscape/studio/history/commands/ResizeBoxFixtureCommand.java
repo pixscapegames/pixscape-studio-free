@@ -1,7 +1,9 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -109,14 +111,20 @@ public final class ResizeBoxFixtureCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-        if (fixture.shapeType != PhysicsShapeData.SHAPE_BOX) return;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.directGeometry == null
+                || fixture.directGeometry.shapeType
+                != PhysicsDirectGeometryData.SHAPE_BOX) return;
 
-        fixture.offsetX = afterOffsetX;
-        fixture.offsetY = afterOffsetY;
-        fixture.halfWidth = afterHalfW;
-        fixture.halfHeight = afterHalfH;
+        fixture.directGeometry.offsetX = afterOffsetX;
+        fixture.directGeometry.offsetY = afterOffsetY;
+        fixture.directGeometry.halfWidth = afterHalfW;
+        fixture.directGeometry.halfHeight = afterHalfH;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
@@ -136,14 +144,20 @@ public final class ResizeBoxFixtureCommand
         if (bodyEid < 0) return;
 
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        PhysicsShapeData fixture = FixtureCommandSupport.fixtureById(fixtures, physicsShapeId);
-        if (fixture == null) return;
-        if (fixture.shapeType != PhysicsShapeData.SHAPE_BOX) return;
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.directGeometry == null
+                || fixture.directGeometry.shapeType
+                != PhysicsDirectGeometryData.SHAPE_BOX) return;
 
-        fixture.offsetX = beforeOffsetX;
-        fixture.offsetY = beforeOffsetY;
-        fixture.halfWidth = beforeHalfW;
-        fixture.halfHeight = beforeHalfH;
+        fixture.directGeometry.offsetX = beforeOffsetX;
+        fixture.directGeometry.offsetY = beforeOffsetY;
+        fixture.directGeometry.halfWidth = beforeHalfW;
+        fixture.directGeometry.halfHeight = beforeHalfH;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(
                 world,

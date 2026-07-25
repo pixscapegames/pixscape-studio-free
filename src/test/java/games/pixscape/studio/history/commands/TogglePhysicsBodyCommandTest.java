@@ -6,6 +6,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Assert;
@@ -33,9 +34,10 @@ public class TogglePhysicsBodyCommandTest {
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsShapeData source = new PhysicsShapeData();
+        source.directGeometry = new PhysicsDirectGeometryData();
         source.physicsShapeId = 41;
-        source.shapeType = PhysicsShapeData.SHAPE_CIRCLE;
-        source.radius = 2f;
+        source.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        source.directGeometry.radius = 2f;
         shapes.add(source);
 
         TogglePhysicsBodyCommand command = new TogglePhysicsBodyCommand(
@@ -50,7 +52,7 @@ public class TogglePhysicsBodyCommandTest {
         command.undo();
         Assert.assertTrue(body.enabled);
         Assert.assertEquals(1, shapes.shapes.size);
-        Assert.assertEquals(2f, shapes.shapes.first().radius, 0f);
+        Assert.assertEquals(2f, shapes.shapes.first().directGeometry.radius, 0f);
     }
 
     @Test
