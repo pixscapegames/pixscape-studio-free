@@ -25,6 +25,26 @@ public class DeleteJointCommandAdditionalCoverageTest {
     };
 
     @Test
+    public void nonJointEntityIsRejectedAndPreserved() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+
+        int entityId = world.create();
+        world.getMapper(TransformComponent.class).create(entityId);
+        world.process();
+
+        try {
+            new DeleteJointCommand(world, historyIds, entityId);
+            Assert.fail("A non-joint entity must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "Invalid joint entity for deletion"));
+        }
+
+        Assert.assertTrue(world.getEntityManager().isActive(entityId));
+    }
+
+    @Test
     public void deleteEntitiesRestoresEveryJointTypeThroughInitializerAndRemapsReferences() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
