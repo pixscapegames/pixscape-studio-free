@@ -4,7 +4,9 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -290,6 +292,361 @@ public class PrefabAssetServiceTest {
     }
 
     @Test
+    public void saveLoad_roundTripsAllJointTypesAndAuthoredFields() {
+        World world = new World(new WorldConfiguration());
+        int bodyA = body(world);
+        int bodyB = body(world);
+        int bodyC = body(world);
+        int bodyD = body(world);
+
+        int distance = distanceJoint(world, bodyA, bodyB);
+        int revolute = revoluteJoint(world, bodyA, bodyB);
+        int prismatic = prismaticJoint(world, bodyB, bodyC);
+        int wheel = wheelJoint(world, bodyC, bodyD);
+        int friction = frictionJoint(world, bodyA, bodyD);
+        int motor = motorJoint(world, bodyB, bodyD);
+        int weld = weldJoint(world, bodyA, bodyC);
+        int pulley = pulleyJoint(world, bodyB, bodyD);
+        int gear = gearJoint(
+                world, bodyA, bodyC, revolute, prismatic);
+
+        int[] sourceBodies = {bodyA, bodyB, bodyC, bodyD};
+        int[] sourceJoints = {
+                distance, revolute, prismatic, wheel, friction,
+                motor, weld, pulley, gear
+        };
+        int[] jointTypes = {
+                PhysicsJointComponent.TYPE_DISTANCE,
+                PhysicsJointComponent.TYPE_REVOLUTE,
+                PhysicsJointComponent.TYPE_PRISMATIC,
+                PhysicsJointComponent.TYPE_WHEEL,
+                PhysicsJointComponent.TYPE_FRICTION,
+                PhysicsJointComponent.TYPE_MOTOR,
+                PhysicsJointComponent.TYPE_WELD,
+                PhysicsJointComponent.TYPE_PULLEY,
+                PhysicsJointComponent.TYPE_GEAR
+        };
+        int[] endpointA = {
+                bodyA, bodyA, bodyB, bodyC, bodyA,
+                bodyB, bodyA, bodyB, bodyA
+        };
+        int[] endpointB = {
+                bodyB, bodyB, bodyC, bodyD, bodyD,
+                bodyD, bodyC, bodyD, bodyC
+        };
+
+        for (int i = 0; i < sourceJoints.length; i++) {
+            configureBaseJoint(
+                    world, sourceJoints[i], i, (i & 1) == 0);
+        }
+
+        PhysicsDistanceJointComponent distanceData =
+                world.getMapper(PhysicsDistanceJointComponent.class)
+                        .get(distance);
+        distanceData.lengthM = 3.25f;
+        distanceData.frequencyHz = 4.50f;
+        distanceData.dampingRatio = 0.35f;
+
+        PhysicsRevoluteJointComponent revoluteData =
+                world.getMapper(PhysicsRevoluteJointComponent.class)
+                        .get(revolute);
+        revoluteData.enableLimit = true;
+        revoluteData.lowerAngleRad = -0.75f;
+        revoluteData.upperAngleRad = 1.25f;
+        revoluteData.enableMotor = true;
+        revoluteData.motorSpeedRad = 2.50f;
+        revoluteData.maxMotorTorque = 8.75f;
+
+        PhysicsPrismaticJointComponent prismaticData =
+                world.getMapper(PhysicsPrismaticJointComponent.class)
+                        .get(prismatic);
+        prismaticData.axisX = 0.60f;
+        prismaticData.axisY = 0.80f;
+        prismaticData.enableLimit = true;
+        prismaticData.lowerTranslationM = -1.50f;
+        prismaticData.upperTranslationM = 2.75f;
+        prismaticData.enableMotor = true;
+        prismaticData.motorSpeedMps = -3.25f;
+        prismaticData.maxMotorForce = 9.50f;
+
+        PhysicsWheelJointComponent wheelData =
+                world.getMapper(PhysicsWheelJointComponent.class).get(wheel);
+        wheelData.axisX = -0.80f;
+        wheelData.axisY = 0.60f;
+        wheelData.enableMotor = true;
+        wheelData.motorSpeedRad = 4.25f;
+        wheelData.maxMotorTorque = 10.50f;
+        wheelData.frequencyHz = 5.75f;
+        wheelData.dampingRatio = 0.45f;
+
+        PhysicsFrictionJointComponent frictionData =
+                world.getMapper(PhysicsFrictionJointComponent.class)
+                        .get(friction);
+        frictionData.maxForce = 11.25f;
+        frictionData.maxTorque = 12.50f;
+
+        PhysicsMotorJointComponent motorData =
+                world.getMapper(PhysicsMotorJointComponent.class).get(motor);
+        motorData.linearOffsetX = 1.25f;
+        motorData.linearOffsetY = -2.50f;
+        motorData.angularOffsetRad = 0.65f;
+        motorData.maxForce = 13.75f;
+        motorData.maxTorque = 14.50f;
+        motorData.correctionFactor = 0.35f;
+
+        PhysicsWeldJointComponent weldData =
+                world.getMapper(PhysicsWeldJointComponent.class).get(weld);
+        weldData.referenceAngleRad = -0.45f;
+        weldData.frequencyHz = 6.25f;
+        weldData.dampingRatio = 0.55f;
+
+        PhysicsPulleyJointComponent pulleyData =
+                world.getMapper(PhysicsPulleyJointComponent.class)
+                        .get(pulley);
+        pulleyData.groundAx = 10.25f;
+        pulleyData.groundAy = 11.50f;
+        pulleyData.groundBx = 12.75f;
+        pulleyData.groundBy = 13.25f;
+        pulleyData.lengthAM = 4.50f;
+        pulleyData.lengthBM = 5.75f;
+        pulleyData.ratio = 1.75f;
+
+        PhysicsGearJointComponent gearData =
+                world.getMapper(PhysicsGearJointComponent.class).get(gear);
+        gearData.ratio = 2.25f;
+
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .capture(arr(bodyA, bodyB, bodyC, bodyD));
+        Assert.assertEquals(
+                "Four bodies and all nine joints should be captured",
+                13, graph.size());
+
+        FileHandle file = tmpFile("all-joints.pixprefab");
+        PrefabAssetService service = new PrefabAssetService(world);
+        service.savePrefab(file, "all-joints", graph);
+        EntityGraph loaded = service.loadPrefab(file);
+
+        String serialized = file.readString("UTF-8");
+        JsonValue root = new JsonReader().parse(serialized);
+        Assert.assertEquals("pixscape-prefab", root.getString("type"));
+        Assert.assertEquals(1, root.getInt("version"));
+        Assert.assertEquals("all-joints", root.getString("name"));
+        String[] jointBlocks = {
+                "\"joint\"", "\"distanceJoint\"", "\"revoluteJoint\"",
+                "\"prismaticJoint\"", "\"wheelJoint\"",
+                "\"frictionJoint\"", "\"motorJoint\"", "\"weldJoint\"",
+                "\"pulleyJoint\"", "\"gearJoint\""
+        };
+        for (String block : jointBlocks) {
+            Assert.assertTrue(
+                    "Serialized prefab should contain " + block,
+                    serialized.contains(block));
+        }
+
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        games.pixscape.studio.configuration.SceneMeta sceneMeta =
+                new games.pixscape.studio.configuration.SceneMeta();
+        identities.bind(world, sceneMeta);
+        identities.rebuild();
+
+        EntityGraphInstantiationResult result =
+                new EntityGraphInstantiationService(
+                        world,
+                        history,
+                        identities,
+                        new games.pixscape.runtime.service.PhysicsService(
+                                world, null, sceneMeta))
+                        .instantiate(
+                                loaded,
+                                0,
+                                0f,
+                                0f,
+                                "Instantiate All Joint Types");
+
+        IntSet restoredBodies = new IntSet();
+        for (int sourceBody : sourceBodies) {
+            int restoredBody =
+                    assertMappedActiveDistinct(world, result, sourceBody);
+            Assert.assertTrue(
+                    "Restored bodies should be distinct",
+                    restoredBodies.add(restoredBody));
+        }
+        Assert.assertEquals(4, restoredBodies.size);
+
+        IntSet restoredJoints = new IntSet();
+        for (int i = 0; i < sourceJoints.length; i++) {
+            int restoredJoint = assertRestoredJointBase(
+                    world,
+                    result,
+                    sourceJoints[i],
+                    jointTypes[i],
+                    endpointA[i],
+                    endpointB[i],
+                    i,
+                    (i & 1) == 0);
+            Assert.assertTrue(
+                    "Restored joints should be distinct",
+                    restoredJoints.add(restoredJoint));
+            PhysicsJointComponent restoredBase =
+                    world.getMapper(PhysicsJointComponent.class)
+                            .get(restoredJoint);
+            assertNotSourceBody(restoredBase.aEid, sourceBodies);
+            assertNotSourceBody(restoredBase.bEid, sourceBodies);
+            Assert.assertTrue(
+                    world.getEntityManager().isActive(restoredBase.aEid));
+            Assert.assertTrue(
+                    world.getEntityManager().isActive(restoredBase.bEid));
+        }
+        Assert.assertEquals(9, restoredJoints.size);
+
+        int restoredDistance = result.sourceToCreated().get(distance, -1);
+        PhysicsDistanceJointComponent restoredDistanceData =
+                world.getMapper(PhysicsDistanceJointComponent.class)
+                        .get(restoredDistance);
+        Assert.assertNotNull(restoredDistanceData);
+        Assert.assertEquals(3.25f, restoredDistanceData.lengthM, 0.0001f);
+        Assert.assertEquals(
+                4.50f, restoredDistanceData.frequencyHz, 0.0001f);
+        Assert.assertEquals(
+                0.35f, restoredDistanceData.dampingRatio, 0.0001f);
+
+        int restoredRevolute = result.sourceToCreated().get(revolute, -1);
+        PhysicsRevoluteJointComponent restoredRevoluteData =
+                world.getMapper(PhysicsRevoluteJointComponent.class)
+                        .get(restoredRevolute);
+        Assert.assertNotNull(restoredRevoluteData);
+        Assert.assertTrue(restoredRevoluteData.enableLimit);
+        Assert.assertEquals(
+                -0.75f, restoredRevoluteData.lowerAngleRad, 0.0001f);
+        Assert.assertEquals(
+                1.25f, restoredRevoluteData.upperAngleRad, 0.0001f);
+        Assert.assertTrue(restoredRevoluteData.enableMotor);
+        Assert.assertEquals(
+                2.50f, restoredRevoluteData.motorSpeedRad, 0.0001f);
+        Assert.assertEquals(
+                8.75f, restoredRevoluteData.maxMotorTorque, 0.0001f);
+
+        int restoredPrismatic =
+                result.sourceToCreated().get(prismatic, -1);
+        PhysicsPrismaticJointComponent restoredPrismaticData =
+                world.getMapper(PhysicsPrismaticJointComponent.class)
+                        .get(restoredPrismatic);
+        Assert.assertNotNull(restoredPrismaticData);
+        Assert.assertEquals(
+                0.60f, restoredPrismaticData.axisX, 0.0001f);
+        Assert.assertEquals(
+                0.80f, restoredPrismaticData.axisY, 0.0001f);
+        Assert.assertTrue(restoredPrismaticData.enableLimit);
+        Assert.assertEquals(
+                -1.50f,
+                restoredPrismaticData.lowerTranslationM,
+                0.0001f);
+        Assert.assertEquals(
+                2.75f,
+                restoredPrismaticData.upperTranslationM,
+                0.0001f);
+        Assert.assertTrue(restoredPrismaticData.enableMotor);
+        Assert.assertEquals(
+                -3.25f, restoredPrismaticData.motorSpeedMps, 0.0001f);
+        Assert.assertEquals(
+                9.50f, restoredPrismaticData.maxMotorForce, 0.0001f);
+
+        int restoredWheel = result.sourceToCreated().get(wheel, -1);
+        PhysicsWheelJointComponent restoredWheelData =
+                world.getMapper(PhysicsWheelJointComponent.class)
+                        .get(restoredWheel);
+        Assert.assertNotNull(restoredWheelData);
+        Assert.assertEquals(-0.80f, restoredWheelData.axisX, 0.0001f);
+        Assert.assertEquals(0.60f, restoredWheelData.axisY, 0.0001f);
+        Assert.assertTrue(restoredWheelData.enableMotor);
+        Assert.assertEquals(
+                4.25f, restoredWheelData.motorSpeedRad, 0.0001f);
+        Assert.assertEquals(
+                10.50f, restoredWheelData.maxMotorTorque, 0.0001f);
+        Assert.assertEquals(
+                5.75f, restoredWheelData.frequencyHz, 0.0001f);
+        Assert.assertEquals(
+                0.45f, restoredWheelData.dampingRatio, 0.0001f);
+
+        int restoredFriction = result.sourceToCreated().get(friction, -1);
+        PhysicsFrictionJointComponent restoredFrictionData =
+                world.getMapper(PhysicsFrictionJointComponent.class)
+                        .get(restoredFriction);
+        Assert.assertNotNull(restoredFrictionData);
+        Assert.assertEquals(
+                11.25f, restoredFrictionData.maxForce, 0.0001f);
+        Assert.assertEquals(
+                12.50f, restoredFrictionData.maxTorque, 0.0001f);
+
+        int restoredMotor = result.sourceToCreated().get(motor, -1);
+        PhysicsMotorJointComponent restoredMotorData =
+                world.getMapper(PhysicsMotorJointComponent.class)
+                        .get(restoredMotor);
+        Assert.assertNotNull(restoredMotorData);
+        Assert.assertEquals(
+                1.25f, restoredMotorData.linearOffsetX, 0.0001f);
+        Assert.assertEquals(
+                -2.50f, restoredMotorData.linearOffsetY, 0.0001f);
+        Assert.assertEquals(
+                0.65f, restoredMotorData.angularOffsetRad, 0.0001f);
+        Assert.assertEquals(
+                13.75f, restoredMotorData.maxForce, 0.0001f);
+        Assert.assertEquals(
+                14.50f, restoredMotorData.maxTorque, 0.0001f);
+        Assert.assertEquals(
+                0.35f, restoredMotorData.correctionFactor, 0.0001f);
+
+        int restoredWeld = result.sourceToCreated().get(weld, -1);
+        PhysicsWeldJointComponent restoredWeldData =
+                world.getMapper(PhysicsWeldJointComponent.class)
+                        .get(restoredWeld);
+        Assert.assertNotNull(restoredWeldData);
+        Assert.assertEquals(
+                -0.45f, restoredWeldData.referenceAngleRad, 0.0001f);
+        Assert.assertEquals(
+                6.25f, restoredWeldData.frequencyHz, 0.0001f);
+        Assert.assertEquals(
+                0.55f, restoredWeldData.dampingRatio, 0.0001f);
+
+        int restoredPulley = result.sourceToCreated().get(pulley, -1);
+        PhysicsPulleyJointComponent restoredPulleyData =
+                world.getMapper(PhysicsPulleyJointComponent.class)
+                        .get(restoredPulley);
+        Assert.assertNotNull(restoredPulleyData);
+        Assert.assertEquals(
+                10.25f, restoredPulleyData.groundAx, 0.0001f);
+        Assert.assertEquals(
+                11.50f, restoredPulleyData.groundAy, 0.0001f);
+        Assert.assertEquals(
+                12.75f, restoredPulleyData.groundBx, 0.0001f);
+        Assert.assertEquals(
+                13.25f, restoredPulleyData.groundBy, 0.0001f);
+        Assert.assertEquals(
+                4.50f, restoredPulleyData.lengthAM, 0.0001f);
+        Assert.assertEquals(
+                5.75f, restoredPulleyData.lengthBM, 0.0001f);
+        Assert.assertEquals(1.75f, restoredPulleyData.ratio, 0.0001f);
+
+        int restoredGear = result.sourceToCreated().get(gear, -1);
+        PhysicsGearJointComponent restoredGearData =
+                world.getMapper(PhysicsGearJointComponent.class)
+                        .get(restoredGear);
+        Assert.assertNotNull(restoredGearData);
+        Assert.assertEquals(restoredRevolute, restoredGearData.joint1Eid);
+        Assert.assertEquals(restoredPrismatic, restoredGearData.joint2Eid);
+        Assert.assertEquals(2.25f, restoredGearData.ratio, 0.0001f);
+        Assert.assertTrue(restoredJoints.contains(
+                restoredGearData.joint1Eid));
+        Assert.assertTrue(restoredJoints.contains(
+                restoredGearData.joint2Eid));
+        Assert.assertTrue(world.getEntityManager().isActive(
+                restoredGearData.joint1Eid));
+        Assert.assertTrue(world.getEntityManager().isActive(
+                restoredGearData.joint2Eid));
+    }
+
+    @Test
     public void saveLoad_preservesPolygonSourceAndAllocatesFreshIdentity() {
         World world = new World(new WorldConfiguration());
         int e = body(world);
@@ -499,6 +856,104 @@ public class PrefabAssetServiceTest {
         g.joint2Eid = j2;
 
         return e;
+    }
+
+    private static int frictionJoint(World w, int a, int b) {
+        int e = base(w, PhysicsJointComponent.TYPE_FRICTION, a, b);
+        w.getMapper(PhysicsFrictionJointComponent.class).create(e);
+        return e;
+    }
+
+    private static int motorJoint(World w, int a, int b) {
+        int e = base(w, PhysicsJointComponent.TYPE_MOTOR, a, b);
+        w.getMapper(PhysicsMotorJointComponent.class).create(e);
+        return e;
+    }
+
+    private static int weldJoint(World w, int a, int b) {
+        int e = base(w, PhysicsJointComponent.TYPE_WELD, a, b);
+        w.getMapper(PhysicsWeldJointComponent.class).create(e);
+        return e;
+    }
+
+    private static int pulleyJoint(World w, int a, int b) {
+        int e = base(w, PhysicsJointComponent.TYPE_PULLEY, a, b);
+        w.getMapper(PhysicsPulleyJointComponent.class).create(e);
+        return e;
+    }
+
+    private static void configureBaseJoint(
+            World world,
+            int jointEntityId,
+            int ordinal,
+            boolean collideConnected) {
+        PhysicsJointComponent joint =
+                world.getMapper(PhysicsJointComponent.class)
+                        .get(jointEntityId);
+        joint.collideConnected = collideConnected;
+        joint.anchorAx = ordinal + 1.10f;
+        joint.anchorAy = -(ordinal + 1.20f);
+        joint.anchorBx = ordinal + 2.30f;
+        joint.anchorBy = -(ordinal + 2.40f);
+    }
+
+    private static int assertRestoredJointBase(
+            World world,
+            EntityGraphInstantiationResult result,
+            int sourceJointId,
+            int expectedType,
+            int sourceBodyA,
+            int sourceBodyB,
+            int ordinal,
+            boolean collideConnected) {
+        int restoredJoint =
+                assertMappedActiveDistinct(world, result, sourceJointId);
+        PhysicsJointComponent joint =
+                world.getMapper(PhysicsJointComponent.class)
+                        .get(restoredJoint);
+        Assert.assertNotNull(
+                "Restored joint should have PhysicsJointComponent",
+                joint);
+        Assert.assertEquals(expectedType, joint.type);
+        Assert.assertEquals(
+                result.sourceToCreated().get(sourceBodyA, -1),
+                joint.aEid);
+        Assert.assertEquals(
+                result.sourceToCreated().get(sourceBodyB, -1),
+                joint.bEid);
+        Assert.assertEquals(collideConnected, joint.collideConnected);
+        Assert.assertEquals(
+                ordinal + 1.10f, joint.anchorAx, 0.0001f);
+        Assert.assertEquals(
+                -(ordinal + 1.20f), joint.anchorAy, 0.0001f);
+        Assert.assertEquals(
+                ordinal + 2.30f, joint.anchorBx, 0.0001f);
+        Assert.assertEquals(
+                -(ordinal + 2.40f), joint.anchorBy, 0.0001f);
+        return restoredJoint;
+    }
+
+    private static int assertMappedActiveDistinct(
+            World world,
+            EntityGraphInstantiationResult result,
+            int sourceEntityId) {
+        Assert.assertTrue(
+                "sourceToCreated should contain source entity "
+                        + sourceEntityId,
+                result.sourceToCreated().containsKey(sourceEntityId));
+        int restored =
+                result.sourceToCreated().get(sourceEntityId, -1);
+        Assert.assertTrue(restored >= 0);
+        Assert.assertNotEquals(sourceEntityId, restored);
+        Assert.assertTrue(world.getEntityManager().isActive(restored));
+        return restored;
+    }
+
+    private static void assertNotSourceBody(
+            int entityId, int[] sourceBodies) {
+        for (int sourceBody : sourceBodies) {
+            Assert.assertNotEquals(sourceBody, entityId);
+        }
     }
 
     private static int base(World w, int type, int a, int b) {

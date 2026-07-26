@@ -65,6 +65,7 @@ public class PhysicsShapeScenePersistenceTest {
 
         World loaded = world();
         SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
         meta.nextPhysicsShapeId = 2;
         SceneLoader.loadScene(loaded, file, false, meta);
         int loadedEntity = loaded.getAspectSubscriptionManager()
@@ -100,8 +101,12 @@ public class PhysicsShapeScenePersistenceTest {
                 false,
                 "UTF-8");
 
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
+        meta.nextPhysicsShapeId = 14;
+
         try {
-            SceneLoader.loadScene(world(), file, false, new SceneMetaRuntime());
+            SceneLoader.loadScene(world(), file, false, meta);
             Assert.fail("Missing directGeometry must be rejected.");
         } catch (RuntimeException expected) {
             Assert.assertTrue(expected.getMessage().contains(file.path()));
