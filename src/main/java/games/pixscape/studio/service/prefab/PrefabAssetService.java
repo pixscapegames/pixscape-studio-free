@@ -4,19 +4,18 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.artemis.io.JsonArtemisSerializer;
-import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
-import com.badlogic.gdx.utils.Json;
-import com.badlogic.gdx.utils.JsonWriter;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.prefab.PrefabAsset;
+import games.pixscape.runtime.prefab.PrefabLoader;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
@@ -29,29 +28,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class PrefabAssetService {
-    private static final String PREFAB_TYPE = "pixscape-prefab";
-    private static final int PREFAB_VERSION = 2;
-
     private final World world;
-    private final Json json;
+    private final PrefabLoader prefabLoader = new PrefabLoader();
     private final PrefabEntityDataMapper mapper = new PrefabEntityDataMapper();
 
     public PrefabAssetService(World world) {
         this.world = world;
-        this.json = createJson();
-    }
-
-    private static Json createJson() {
-        Json json = new Json();
-        json.setOutputType(JsonWriter.OutputType.json);
-        json.setIgnoreUnknownFields(true);
-
-        // Always write default-valued fields such as:
-        // type = "pixscape-prefab"
-        // version = 1
-        json.setUsePrototypes(false);
-
-        return json;
     }
 
     public void savePrefab(FileHandle file, String name, EntityGraph graph) {
@@ -66,15 +48,11 @@ public final class PrefabAssetService {
             asset.entities.add(mapper.fromGraphEntry(entry));
         }
 
-        file.writeString(json.prettyPrint(asset), false, "UTF-8");
+        prefabLoader.save(file, asset);
 
-        try {
-            FileHandle fragmentFile = file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
-            saveRuntimeFragment(fragmentFile, graph);
-        } catch (Exception ex) {
-            System.err.println("[Prefab] Failed to write runtime fragment: " + ex.getMessage());
-            ex.printStackTrace();
-        }
+        FileHandle fragmentFile =
+                file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
+        saveRuntimeFragment(fragmentFile, graph);
     }
 
     public void saveRuntimeFragment(FileHandle file, EntityGraph graph) {
@@ -87,7 +65,9 @@ public final class PrefabAssetService {
                 .build());
 
         WorldSerializationManager wsm = tempWorld.getSystem(WorldSerializationManager.class);
-        wsm.setSerializer(new JsonArtemisSerializer(tempWorld));
+        wsm.setSerializer(
+                new JsonArtemisSerializer(tempWorld)
+                        .setUsePrototypes(false));
 
         IntIntMap sourceToTemp = new IntIntMap();
         IntArray created = new IntArray();
@@ -124,7 +104,7 @@ public final class PrefabAssetService {
 
         tempWorld.process();
 
-        SaveFileFormat request = new SaveFileFormat();
+        RuntimePrefabFragment request = new RuntimePrefabFragment();
         for (int i = 0; i < created.size; i++) {
             request.entities.add(created.get(i));
         }
@@ -210,8 +190,7 @@ public final class PrefabAssetService {
         if (file == null) throw new IllegalArgumentException("Prefab file is required");
         if (!file.exists()) throw new IllegalArgumentException("Prefab file does not exist: " + file.path());
 
-        PrefabAsset asset = json.fromJson(PrefabAsset.class, file.readString("UTF-8"));
-        validate(asset, file);
+        PrefabAsset asset = prefabLoader.load(file);
 
         List<EntityGraphEntry> entries = new ArrayList<>();
         for (PrefabAsset.PrefabEntityData data : asset.entities) {
@@ -219,23 +198,5 @@ public final class PrefabAssetService {
         }
 
         return new EntityGraph(entries);
-    }
-
-    private void validate(PrefabAsset asset, FileHandle file) {
-        if (asset == null) {
-            throw new IllegalArgumentException("Invalid prefab JSON: " + file.path());
-        }
-
-        if (!PREFAB_TYPE.equals(asset.type)) {
-            throw new IllegalArgumentException("Invalid prefab type: " + asset.type);
-        }
-
-        if (asset.version != PREFAB_VERSION) {
-            throw new IllegalArgumentException("Unsupported prefab version: " + asset.version);
-        }
-
-        if (asset.entities == null) {
-            asset.entities = new ArrayList<>();
-        }
     }
 }

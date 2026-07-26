@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
 import games.pixscape.studio.io.StudioFs;
@@ -253,6 +254,7 @@ public final class RuntimeExport {
 
     private static void sanitizeRuntimePrefabFragment(FileHandle inFile, FileHandle outFile) {
         JsonValue root = new JsonReader().parse(inFile);
+        RuntimePrefabFragment.requireCurrentSchema(root);
         removeStudioOnlyArtemisComponents(root, RUNTIME_EXCLUDED_COMPONENTS);
 
         JsonValue entities = root.get("entities");

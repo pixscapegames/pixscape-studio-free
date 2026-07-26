@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.JsonReader;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -49,11 +50,18 @@ public class PrefabAssetServiceTest {
 
         String serialized = file.readString("UTF-8");
         assertPrefabHeader(serialized, "simple");
+        Assert.assertEquals(
+                1, new JsonReader().parse(serialized).getInt("version"));
         Assert.assertTrue(serialized.contains("\"entities\""));
         Assert.assertFalse(serialized.contains("ownerClass"));
         Assert.assertFalse(serialized.contains("fieldName"));
         Assert.assertFalse(serialized.contains("fieldType"));
         Assert.assertFalse(serialized.contains("valueJson"));
+        FileHandle fragmentFile =
+                file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
+        Assert.assertEquals(
+                1,
+                new JsonReader().parse(fragmentFile).getInt("schemaVersion"));
 
         Assert.assertEquals(graph.size(), loaded.size());
 
@@ -344,11 +352,38 @@ public class PrefabAssetServiceTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void unsupportedVersionThrows() {
+    public void differentVersionIsRejected() {
         World world = new World(new WorldConfiguration());
         FileHandle file = tmpFile("bad-version.pixprefab");
         file.writeString(
-                "{\"type\":\"pixscape-prefab\",\"version\":1,\"entities\":[]}",
+                "{\"type\":\"pixscape-prefab\",\"version\":2,\"entities\":[]}",
+                false,
+                "UTF-8"
+        );
+
+        new PrefabAssetService(world).loadPrefab(file);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void missingVersionIsRejected() {
+        World world = new World(new WorldConfiguration());
+        FileHandle file = tmpFile("missing-version.pixprefab");
+        file.writeString(
+                "{\"type\":\"pixscape-prefab\",\"entities\":[]}",
+                false,
+                "UTF-8"
+        );
+
+        new PrefabAssetService(world).loadPrefab(file);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void unknownFieldIsRejected() {
+        World world = new World(new WorldConfiguration());
+        FileHandle file = tmpFile("unknown-field.pixprefab");
+        file.writeString(
+                "{\"type\":\"pixscape-prefab\",\"version\":1,"
+                        + "\"entities\":[],\"unexpected\":true}",
                 false,
                 "UTF-8"
         );
