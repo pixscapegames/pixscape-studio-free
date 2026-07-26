@@ -35,6 +35,9 @@ import org.junit.Test;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class ScenePropertiesPhysicsPurgeTest {
     @BeforeClass
@@ -175,7 +178,7 @@ public class ScenePropertiesPhysicsPurgeTest {
         stage.addActor(properties);
 
         Method show = SceneProperties.class.getDeclaredMethod(
-                "showDisablePhysicsDialog", SceneMeta.class);
+                "showRemoveAllPhysicsDialog", SceneMeta.class);
         show.setAccessible(true);
         show.invoke(properties, meta);
         VisDialog dialog = null;
@@ -194,6 +197,16 @@ public class ScenePropertiesPhysicsPurgeTest {
         Assert.assertFalse(previewDirty[0]);
         stage.dispose();
         world.dispose();
+    }
+
+    @Test
+    public void globalPhysicsPurgeWarningRemainsPermanent() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/property/SceneProperties.java"),
+                StandardCharsets.UTF_8);
+
+        Assert.assertTrue(source.contains(
+                "Disabling physics will permanently delete all physics in this scene."));
     }
 
     private static Object primitiveDefault(Class<?> type) {

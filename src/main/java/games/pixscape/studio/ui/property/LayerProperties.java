@@ -224,12 +224,12 @@ public class LayerProperties extends VisTable {
                 }
 
                 if (requestedActive) {
-                    executePhysicsToggle(layerEntityId);
+                    addPhysicsToTiledLayer(layerEntityId);
                     refreshFromModel(layerEntityId);
                     return;
                 }
 
-                showDisableCollisionsDialog(layerEntityId);
+                showRemoveCollisionsDialog(layerEntityId);
             }
         });
 
@@ -462,7 +462,7 @@ public class LayerProperties extends VisTable {
         return false;
     }
 
-    private void executePhysicsToggle(int layerEntityId) {
+    private void addPhysicsToTiledLayer(int layerEntityId) {
         if (!isScenePhysicsEnabled()) {
             refreshFromModel(layerEntityId);
             return;
@@ -552,7 +552,7 @@ public class LayerProperties extends VisTable {
         flagPreviewSaveRequired();
     }
 
-    private void showDisableCollisionsDialog(int layerEntityId) {
+    private void showRemoveCollisionsDialog(int layerEntityId) {
         if (!mPhysBody.has(layerEntityId)) {
             refreshFromModel(layerEntityId);
             return;
@@ -570,10 +570,8 @@ public class LayerProperties extends VisTable {
 
         dialog.text(
                 """
-                        Removing collisions will permanently delete the physics on this layer.
-                        This includes its body, fixtures and attached joints.
-                        
-                        Do you want to continue?"""
+                        Removing collisions will delete the physics on this layer.
+                        This action can be undone."""
         );
         dialog.button("Remove", true);
         dialog.button("Cancel", false);

@@ -58,14 +58,23 @@ public class LayerPropertiesCollisionVisibilityContractTest {
     }
 
     @Test
-    public void collisionToggleCannotEnableLayerPhysicsWhenScenePhysicsIsOff() throws Exception {
+    public void addingCollisionsCannotAddLayerPhysicsWhenScenePhysicsIsOff() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
-        String toggle = methodBody(source, "private void executePhysicsToggle(int layerEntityId)");
+        String addPhysics = methodBody(source, "private void addPhysicsToTiledLayer(int layerEntityId)");
 
         assertTrue(source.contains("if (!isScenePhysicsEnabled()) {\n" +
                 "                    refreshFromModel(layerEntityId);"));
-        assertTrue(toggle.contains("if (!isScenePhysicsEnabled())"));
-        assertTrue(toggle.contains("return;"));
+        assertTrue(addPhysics.contains("if (!isScenePhysicsEnabled())"));
+        assertTrue(addPhysics.contains("return;"));
+    }
+
+    @Test
+    public void localCollisionRemovalExplainsThatItCanBeUndone() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
+
+        assertTrue(source.contains("Removing collisions will delete the physics on this layer.\n" +
+                "                        This action can be undone."));
+        assertFalse(source.contains("Removing collisions will permanently delete"));
     }
 
     @Test

@@ -223,7 +223,7 @@ public class SceneProperties extends VisTable {
 
                 boolean requestedEnabled = physicsEnabled.isChecked();
                 if (!requestedEnabled && m.physicsEnabled) {
-                    showDisablePhysicsDialog(m);
+                    showRemoveAllPhysicsDialog(m);
                     return;
                 }
 
@@ -640,7 +640,7 @@ public class SceneProperties extends VisTable {
         physicsParallaxYSpinner.setDisabled(!enabled);
     }
 
-    private void showDisablePhysicsDialog(SceneMeta m) {
+    private void showRemoveAllPhysicsDialog(SceneMeta m) {
         if (m == null) {
             refreshPhysicsFromMeta();
             return;

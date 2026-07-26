@@ -107,10 +107,10 @@ public final class BodyPanel extends CollapsibleWidget {
             public void changed(ChangeEvent event, Actor actor) {
                 if (!showBodyToggle || internalRefresh || entityId < 0) return;
 
-                boolean enableBody = addPhysicsBox.isChecked();
-                boolean hadPhysicsBeforeToggle = hasPhysics(entityId);
+                boolean addBody = addPhysicsBox.isChecked();
+                boolean hadPhysicsBeforeChange = hasPhysics(entityId);
 
-                executeBodyToggle(enableBody, hadPhysicsBeforeToggle);
+                applyBodyPresenceChange(addBody, hadPhysicsBeforeChange);
                 refreshFromModel(entityId);
 
                 event.handle();
@@ -244,9 +244,9 @@ public final class BodyPanel extends CollapsibleWidget {
         }
     }
 
-    private void executeBodyToggle(boolean enableBody, boolean hadPhysicsBeforeToggle) {
-        if (enableBody) {
-            boolean createDefaultShape = !hadPhysicsBeforeToggle
+    private void applyBodyPresenceChange(boolean addBody, boolean hadPhysicsBeforeChange) {
+        if (addBody) {
+            boolean createDefaultShape = !hadPhysicsBeforeChange
                     && shouldCreateDefaultFixture(entityId)
                     && countFixtures(entityId) == 0;
             ctx.history.execute(new AddPhysicsBodyCommand(
