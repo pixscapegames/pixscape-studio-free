@@ -61,7 +61,8 @@ public final class RemovePhysicsBodyCommand
         }
 
         IntArray jointIds = valid
-                ? physicsService.listJointsForBody(bodyEntityId, new IntArray(false, 8))
+                ? physicsService.collectJointsAffectedByBodyRemoval(
+                        bodyEntityId, new IntArray(false, 8))
                 : new IntArray();
         this.jointDeleteCommand = valid
                 ? new DeleteEntitiesCommand(

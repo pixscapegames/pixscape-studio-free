@@ -689,7 +689,8 @@ public class SceneProperties extends VisTable {
         com.badlogic.gdx.utils.IntArray connected =
                 new com.badlogic.gdx.utils.IntArray(false, 8);
         for (int bodyEntityId : bodyEntityIds) {
-            physicsService.listJointsForBody(bodyEntityId, connected);
+            physicsService.collectJointsAffectedByBodyRemoval(
+                    bodyEntityId, connected);
             for (int i = 0; i < connected.size; i++) {
                 int jointEntityId = connected.get(i);
                 if (uniqueJointIds.add(jointEntityId)) {

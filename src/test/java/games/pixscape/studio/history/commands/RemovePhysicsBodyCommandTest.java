@@ -2,7 +2,10 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.artemis.utils.IntBag;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
@@ -12,7 +15,9 @@ import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -92,43 +97,140 @@ public class RemovePhysicsBodyCommandTest {
     }
 
     @Test
-    public void gearDependenciesAreRemappedThroughJointHistoryIds() {
-        Harness harness = new Harness();
-        int bodyA = harness.body(10f);
-        int bodyB = harness.body(20f);
-        int source1 = harness.physics.createRevoluteJoint(bodyA, bodyB, 15f, 0f);
-        int source2 = harness.physics.createPrismaticJoint(bodyA, bodyB, 15f, 0f);
-        int gearEntity = harness.world.create();
-        PhysicsJointComponent base = harness.world.getMapper(
-                PhysicsJointComponent.class).create(gearEntity);
-        base.type = PhysicsJointComponent.TYPE_GEAR;
-        base.aEid = bodyA;
-        base.bEid = bodyB;
-        PhysicsGearJointComponent gear = harness.world.getMapper(
-                PhysicsGearJointComponent.class).create(gearEntity);
-        gear.joint1Eid = source1;
-        gear.joint2Eid = source2;
-        gear.ratio = 2f;
-        long sourceHistory1 = harness.historyIds.ensureForEntity(source1);
-        long sourceHistory2 = harness.historyIds.ensureForEntity(source2);
-        long gearHistory = harness.historyIds.ensureForEntity(gearEntity);
+    public void indirectGearClosureSurvivesTwoRedoUndoCycles() {
+        GdxNativesLoader.load();
+        GearHarness harness = new GearHarness();
+        try {
+            int staticA = harness.body(0f, PhysicsBodyComponent.STATIC);
+            int dynamicA = harness.body(100f, PhysicsBodyComponent.DYNAMIC);
+            int staticB = harness.body(200f, PhysicsBodyComponent.STATIC);
+            int dynamicB = harness.body(300f, PhysicsBodyComponent.DYNAMIC);
+            int source1 = harness.physics.createRevoluteJoint(
+                    staticA, dynamicA, 50f, 0f);
+            int source2 = harness.physics.createPrismaticJoint(
+                    staticB, dynamicB, 250f, 0f);
+            int gearEntity = harness.physics.createGearJoint(source1, source2, 2f);
+            long sourceHistory1 = harness.historyIds.ensureForEntity(source1);
+            long sourceHistory2 = harness.historyIds.ensureForEntity(source2);
+            long gearHistory = harness.historyIds.ensureForEntity(gearEntity);
 
-        harness.history.execute(new RemovePhysicsBodyCommand(
-                harness.world, harness.historyIds, harness.physics, bodyA));
-        harness.world.process();
-        for (int i = 0; i < 8; i++) harness.world.create();
+            harness.processPhysics();
+            Assert.assertEquals(3, harness.box2d.world.getJointCount());
 
-        harness.history.undo();
-        harness.world.process();
+            harness.history.execute(new RemovePhysicsBodyCommand(
+                    harness.world, harness.historyIds, harness.physics, staticA));
+            harness.processPhysics();
+            assertIndirectRemoval(
+                    harness, staticA, sourceHistory1, sourceHistory2, gearHistory);
+            occupyReleasedEntityIds(harness.world);
 
-        int restoredSource1 = harness.historyIds.entityOfHistoryId(sourceHistory1);
-        int restoredSource2 = harness.historyIds.entityOfHistoryId(sourceHistory2);
+            int previousSource1EntityId = source1;
+            int previousGearEntityId = gearEntity;
+            for (int cycle = 0; cycle < 2; cycle++) {
+                harness.history.undo();
+                harness.processPhysics();
+                assertIndirectRestore(
+                        harness, sourceHistory1, sourceHistory2, gearHistory);
+                int restoredSource1 =
+                        harness.historyIds.entityOfHistoryId(sourceHistory1);
+                int restoredGear = harness.historyIds.entityOfHistoryId(gearHistory);
+                Assert.assertNotEquals(previousSource1EntityId, restoredSource1);
+                Assert.assertNotEquals(previousGearEntityId, restoredGear);
+                Assert.assertEquals(
+                        source2, harness.historyIds.entityOfHistoryId(sourceHistory2));
+                previousSource1EntityId = restoredSource1;
+                previousGearEntityId = restoredGear;
+
+                harness.history.redo();
+                harness.processPhysics();
+                assertIndirectRemoval(
+                        harness, staticA, sourceHistory1, sourceHistory2, gearHistory);
+                occupyReleasedEntityIds(harness.world);
+            }
+
+            harness.history.undo();
+            harness.processPhysics();
+            assertIndirectRestore(
+                    harness, sourceHistory1, sourceHistory2, gearHistory);
+            Assert.assertNotEquals(
+                    previousSource1EntityId,
+                    harness.historyIds.entityOfHistoryId(sourceHistory1));
+            Assert.assertNotEquals(
+                    previousGearEntityId,
+                    harness.historyIds.entityOfHistoryId(gearHistory));
+            Assert.assertEquals(
+                    source2, harness.historyIds.entityOfHistoryId(sourceHistory2));
+        } finally {
+            harness.close();
+        }
+    }
+
+    private static void assertIndirectRemoval(
+            GearHarness harness,
+            int removedBody,
+            long sourceHistory1,
+            long sourceHistory2,
+            long gearHistory) {
+        Assert.assertFalse(harness.world.getMapper(
+                PhysicsBodyComponent.class).has(removedBody));
+        Assert.assertEquals(-1, harness.historyIds.entityOfHistoryId(sourceHistory1));
+        Assert.assertEquals(-1, harness.historyIds.entityOfHistoryId(gearHistory));
+        int source2 = harness.historyIds.entityOfHistoryId(sourceHistory2);
+        Assert.assertTrue(harness.world.getEntityManager().isActive(source2));
+        Assert.assertTrue(harness.world.getMapper(
+                PhysicsJointComponent.class).has(source2));
+        Assert.assertEquals(1, harness.box2d.world.getJointCount());
+        assertAuthoredJointGraphValid(harness.world);
+    }
+
+    private static void assertIndirectRestore(
+            GearHarness harness,
+            long sourceHistory1,
+            long sourceHistory2,
+            long gearHistory) {
+        int restoredSource1 =
+                harness.historyIds.entityOfHistoryId(sourceHistory1);
+        int restoredSource2 =
+                harness.historyIds.entityOfHistoryId(sourceHistory2);
         int restoredGear = harness.historyIds.entityOfHistoryId(gearHistory);
+        Assert.assertTrue(restoredSource1 >= 0);
+        Assert.assertTrue(restoredSource2 >= 0);
+        Assert.assertTrue(restoredGear >= 0);
         PhysicsGearJointComponent restored = harness.world.getMapper(
                 PhysicsGearJointComponent.class).get(restoredGear);
         Assert.assertEquals(restoredSource1, restored.joint1Eid);
         Assert.assertEquals(restoredSource2, restored.joint2Eid);
         Assert.assertEquals(2f, restored.ratio, 0f);
+        Assert.assertEquals(3, harness.box2d.world.getJointCount());
+        assertAuthoredJointGraphValid(harness.world);
+    }
+
+    private static void assertAuthoredJointGraphValid(World world) {
+        IntBag joints = world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsJointComponent.class))
+                .getEntities();
+        int[] data = joints.getData();
+        for (int i = 0, n = joints.size(); i < n; i++) {
+            int jointEntityId = data[i];
+            PhysicsJointComponent joint = world.getMapper(
+                    PhysicsJointComponent.class).get(jointEntityId);
+            Assert.assertTrue(world.getMapper(
+                    PhysicsBodyComponent.class).has(joint.aEid));
+            Assert.assertTrue(world.getMapper(
+                    PhysicsBodyComponent.class).has(joint.bEid));
+            if (joint.type == PhysicsJointComponent.TYPE_GEAR) {
+                PhysicsGearJointComponent gear = world.getMapper(
+                        PhysicsGearJointComponent.class).get(jointEntityId);
+                Assert.assertTrue(world.getMapper(
+                        PhysicsJointComponent.class).has(gear.joint1Eid));
+                Assert.assertTrue(world.getMapper(
+                        PhysicsJointComponent.class).has(gear.joint2Eid));
+            }
+        }
+    }
+
+    private static void occupyReleasedEntityIds(World world) {
+        for (int i = 0; i < 8; i++) world.create();
     }
 
     private static void assertRemoved(
@@ -172,6 +274,45 @@ public class RemovePhysicsBodyCommandTest {
                     true);
             add.redo();
             return entityId;
+        }
+    }
+
+    private static final class GearHarness {
+        final DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
+        final Box2dWorldService box2d =
+                new Box2dWorldService(100f, new Vector2(0f, -9.8f));
+        final Box2dSyncSystem sync = new Box2dSyncSystem(box2d);
+        final World world = new World(
+                new WorldConfigurationBuilder().with(dirty, sync).build());
+        final SceneMeta meta = new SceneMeta();
+        final PhysicsService physics = new PhysicsService(world, box2d, meta);
+        final HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        final HistoryManager history = new HistoryManager(16);
+
+        GearHarness() {
+            history.setListener((undoSize, redoSize, undoLabel, redoLabel, dirty) -> {
+            });
+        }
+
+        int body(float x, int type) {
+            int entityId = world.create();
+            TransformComponent transform =
+                    world.getMapper(TransformComponent.class).create(entityId);
+            transform.x = x;
+            historyIds.ensureForEntity(entityId);
+            physics.ensurePhysics(entityId);
+            world.getMapper(PhysicsBodyComponent.class).get(entityId).type = type;
+            return entityId;
+        }
+
+        void close() {
+            world.dispose();
+            box2d.dispose();
+        }
+
+        void processPhysics() {
+            world.process();
+            world.process();
         }
     }
 }
