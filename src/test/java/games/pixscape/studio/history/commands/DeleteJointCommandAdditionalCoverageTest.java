@@ -133,6 +133,70 @@ public class DeleteJointCommandAdditionalCoverageTest {
         }
     }
 
+    @Test
+    public void deletingSourceJointAlsoRestoresItsDependentGearAcrossCycles() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        HistoryManager history = new HistoryManager(16);
+        int bodyA = createBody(world, historyIds, 1f);
+        int bodyB = createBody(world, historyIds, 2f);
+        int bodyC = createBody(world, historyIds, 3f);
+        int source1 = createJoint(
+                world, historyIds, PhysicsJointComponent.TYPE_REVOLUTE, bodyA, bodyB);
+        int source2 = createJoint(
+                world, historyIds, PhysicsJointComponent.TYPE_PRISMATIC, bodyB, bodyC);
+        int gear = createGearJoint(
+                world, historyIds, bodyA, bodyC, source1, source2);
+        long source1HistoryId = historyIds.historyIdOfEntity(source1);
+        long source2HistoryId = historyIds.historyIdOfEntity(source2);
+        long gearHistoryId = historyIds.historyIdOfEntity(gear);
+
+        history.execute(new DeleteJointCommand(world, historyIds, source1));
+        world.process();
+
+        int previousSource1 = source1;
+        int previousGear = gear;
+        for (int cycle = 0; cycle < 2; cycle++) {
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(source1HistoryId));
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(gearHistoryId));
+            Assert.assertEquals(source2, historyIds.entityOfHistoryId(source2HistoryId));
+            Assert.assertTrue(world.getEntityManager().isActive(source2));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyA));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyB));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyC));
+
+            consumeFreedEntityIds(world, 2);
+            history.undo();
+            world.process();
+
+            int restoredSource1 = historyIds.entityOfHistoryId(source1HistoryId);
+            int restoredGear = historyIds.entityOfHistoryId(gearHistoryId);
+            Assert.assertTrue(restoredSource1 >= 0);
+            Assert.assertTrue(restoredGear >= 0);
+            Assert.assertNotEquals(previousSource1, restoredSource1);
+            Assert.assertNotEquals(previousGear, restoredGear);
+            Assert.assertEquals(source2, historyIds.entityOfHistoryId(source2HistoryId));
+
+            PhysicsGearJointComponent restoredGearComponent =
+                    world.getMapper(PhysicsGearJointComponent.class).get(restoredGear);
+            PhysicsJointComponent restoredGearBase =
+                    world.getMapper(PhysicsJointComponent.class).get(restoredGear);
+            Assert.assertEquals(restoredSource1, restoredGearComponent.joint1Eid);
+            Assert.assertEquals(source2, restoredGearComponent.joint2Eid);
+            Assert.assertEquals(2.25f, restoredGearComponent.ratio, 0f);
+            Assert.assertEquals(bodyA, restoredGearBase.aEid);
+            Assert.assertEquals(bodyC, restoredGearBase.bEid);
+            assertJointReferencesAreActive(world, restoredSource1);
+            assertJointReferencesAreActive(world, source2);
+            assertJointReferencesAreActive(world, restoredGear);
+
+            previousSource1 = restoredSource1;
+            previousGear = restoredGear;
+            history.redo();
+            world.process();
+        }
+    }
+
     private static int createBody(World world, HistoryIdRegistry historyIds, float x) {
         int eid = world.create();
         historyIds.ensureForEntity(eid);
@@ -362,6 +426,20 @@ public class DeleteJointCommandAdditionalCoverageTest {
     private static void consumeFreedEntityIds(World world, int count) {
         for (int i = 0; i < count; i++) {
             world.create();
+        }
+    }
+
+    private static void assertJointReferencesAreActive(World world, int jointEntityId) {
+        PhysicsJointComponent joint =
+                world.getMapper(PhysicsJointComponent.class).get(jointEntityId);
+        Assert.assertTrue(world.getEntityManager().isActive(joint.aEid));
+        Assert.assertTrue(world.getEntityManager().isActive(joint.bEid));
+        PhysicsGearJointComponent gear =
+                world.getMapper(PhysicsGearJointComponent.class)
+                        .getSafe(jointEntityId, null);
+        if (gear != null) {
+            Assert.assertTrue(world.getEntityManager().isActive(gear.joint1Eid));
+            Assert.assertTrue(world.getEntityManager().isActive(gear.joint2Eid));
         }
     }
 }

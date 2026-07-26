@@ -1,12 +1,12 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.LongArray;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 
@@ -135,25 +135,13 @@ public final class DeleteEntitiesCommand implements Command {
             out.add(e);
         }
 
-        var mJoint = world.getMapper(PhysicsJointComponent.class);
-        IntBag joints = world.getAspectSubscriptionManager()
-                .get(com.artemis.Aspect.all(PhysicsJointComponent.class))
-                .getEntities();
-
-        int[] data = joints.getData();
-        for (int i = 0, n = joints.size(); i < n; i++) {
-            int jointEid = data[i];
-            if (!em.isActive(jointEid)) continue;
-
-            PhysicsJointComponent joint = mJoint.getSafe(jointEid, null);
-            if (joint == null) continue;
-
-            if (selected.contains(jointEid)
-                    || selected.contains(joint.aEid)
-                    || selected.contains(joint.bEid)) {
-                if (selected.add(jointEid)) {
-                    out.add(jointEid);
-                }
+        IntArray affectedJoints =
+                PhysicsService.collectJointsAffectedByEntityRemoval(
+                        world, out, new IntArray(false, 8));
+        for (int i = 0; i < affectedJoints.size; i++) {
+            int jointEid = affectedJoints.get(i);
+            if (selected.add(jointEid)) {
+                out.add(jointEid);
             }
         }
 
