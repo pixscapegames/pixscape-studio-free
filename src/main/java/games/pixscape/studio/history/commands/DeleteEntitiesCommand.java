@@ -161,33 +161,7 @@ public final class DeleteEntitiesCommand implements Command {
     }
 
     private static final class JointSnapshot {
-        int type;
-        boolean collideConnected;
-        float anchorAx, anchorAy, anchorBx, anchorBy;
         long aHistoryId, bHistoryId;
-
-        boolean hasDistance;
-        float distLengthM, distFrequencyHz, distDampingRatio;
-
-        boolean hasRevolute;
-        boolean revEnableLimit;
-        float revLowerAngleRad, revUpperAngleRad;
-        boolean revEnableMotor;
-        float revMotorSpeedRad, revMaxMotorTorque;
-
-        boolean hasPrismatic;
-        float prismAxisX, prismAxisY;
-        boolean prismEnableLimit;
-        float prismLowerTranslationM, prismUpperTranslationM;
-        boolean prismEnableMotor;
-        float prismMotorSpeedMps, prismMaxMotorForce;
-
-        boolean hasWheel;
-        float wheelAxisX, wheelAxisY;
-        boolean wheelEnableMotor;
-        float wheelMotorSpeedRad, wheelMaxMotorTorque;
-        float wheelFrequencyHz, wheelDampingRatio;
-
         boolean hasGear;
         long gearJoint1HistoryId, gearJoint2HistoryId;
 
@@ -197,62 +171,8 @@ public final class DeleteEntitiesCommand implements Command {
             if (base == null) return null;
 
             JointSnapshot snap = new JointSnapshot();
-            snap.type = base.type;
-            snap.collideConnected = base.collideConnected;
-            snap.anchorAx = base.anchorAx;
-            snap.anchorAy = base.anchorAy;
-            snap.anchorBx = base.anchorBx;
-            snap.anchorBy = base.anchorBy;
             snap.aHistoryId = (base.aEid >= 0) ? historyIds.ensureForEntity(base.aEid) : -1L;
             snap.bHistoryId = (base.bEid >= 0) ? historyIds.ensureForEntity(base.bEid) : -1L;
-
-            var mDist = world.getMapper(PhysicsDistanceJointComponent.class);
-            PhysicsDistanceJointComponent dist = mDist.getSafe(jointEid, null);
-            if (dist != null) {
-                snap.hasDistance = true;
-                snap.distLengthM = dist.lengthM;
-                snap.distFrequencyHz = dist.frequencyHz;
-                snap.distDampingRatio = dist.dampingRatio;
-            }
-
-            var mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
-            PhysicsRevoluteJointComponent rev = mRev.getSafe(jointEid, null);
-            if (rev != null) {
-                snap.hasRevolute = true;
-                snap.revEnableLimit = rev.enableLimit;
-                snap.revLowerAngleRad = rev.lowerAngleRad;
-                snap.revUpperAngleRad = rev.upperAngleRad;
-                snap.revEnableMotor = rev.enableMotor;
-                snap.revMotorSpeedRad = rev.motorSpeedRad;
-                snap.revMaxMotorTorque = rev.maxMotorTorque;
-            }
-
-            var mPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
-            PhysicsPrismaticJointComponent prism = mPrism.getSafe(jointEid, null);
-            if (prism != null) {
-                snap.hasPrismatic = true;
-                snap.prismAxisX = prism.axisX;
-                snap.prismAxisY = prism.axisY;
-                snap.prismEnableLimit = prism.enableLimit;
-                snap.prismLowerTranslationM = prism.lowerTranslationM;
-                snap.prismUpperTranslationM = prism.upperTranslationM;
-                snap.prismEnableMotor = prism.enableMotor;
-                snap.prismMotorSpeedMps = prism.motorSpeedMps;
-                snap.prismMaxMotorForce = prism.maxMotorForce;
-            }
-
-            var mWheel = world.getMapper(PhysicsWheelJointComponent.class);
-            PhysicsWheelJointComponent wheel = mWheel.getSafe(jointEid, null);
-            if (wheel != null) {
-                snap.hasWheel = true;
-                snap.wheelAxisX = wheel.axisX;
-                snap.wheelAxisY = wheel.axisY;
-                snap.wheelEnableMotor = wheel.enableMotor;
-                snap.wheelMotorSpeedRad = wheel.motorSpeedRad;
-                snap.wheelMaxMotorTorque = wheel.maxMotorTorque;
-                snap.wheelFrequencyHz = wheel.frequencyHz;
-                snap.wheelDampingRatio = wheel.dampingRatio;
-            }
 
             var mGear = world.getMapper(PhysicsGearJointComponent.class);
             PhysicsGearJointComponent gear = mGear.getSafe(jointEid, null);
@@ -270,68 +190,14 @@ public final class DeleteEntitiesCommand implements Command {
         }
 
         void restore(World world, HistoryIdRegistry historyIds, int jointEid) {
-            int aEid = historyIds.entityOfHistoryId(aHistoryId);
-            int bEid = historyIds.entityOfHistoryId(bHistoryId);
-
             var mJoint = world.getMapper(PhysicsJointComponent.class);
-            PhysicsJointComponent base = mJoint.has(jointEid) ? mJoint.get(jointEid) : mJoint.create(jointEid);
-            base.type = type;
-            base.aEid = aEid;
-            base.bEid = bEid;
-            base.collideConnected = collideConnected;
-            base.anchorAx = anchorAx;
-            base.anchorAy = anchorAy;
-            base.anchorBx = anchorBx;
-            base.anchorBy = anchorBy;
-
-            if (hasDistance) {
-                var mDist = world.getMapper(PhysicsDistanceJointComponent.class);
-                PhysicsDistanceJointComponent dist = mDist.has(jointEid) ? mDist.get(jointEid) : mDist.create(jointEid);
-                dist.lengthM = distLengthM;
-                dist.frequencyHz = distFrequencyHz;
-                dist.dampingRatio = distDampingRatio;
-            }
-
-            if (hasRevolute) {
-                var mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
-                PhysicsRevoluteJointComponent rev = mRev.has(jointEid) ? mRev.get(jointEid) : mRev.create(jointEid);
-                rev.enableLimit = revEnableLimit;
-                rev.lowerAngleRad = revLowerAngleRad;
-                rev.upperAngleRad = revUpperAngleRad;
-                rev.enableMotor = revEnableMotor;
-                rev.motorSpeedRad = revMotorSpeedRad;
-                rev.maxMotorTorque = revMaxMotorTorque;
-            }
-
-            if (hasPrismatic) {
-                var mPrism = world.getMapper(PhysicsPrismaticJointComponent.class);
-                PhysicsPrismaticJointComponent prism = mPrism.has(jointEid) ? mPrism.get(jointEid) : mPrism.create(jointEid);
-                prism.axisX = prismAxisX;
-                prism.axisY = prismAxisY;
-                prism.enableLimit = prismEnableLimit;
-                prism.lowerTranslationM = prismLowerTranslationM;
-                prism.upperTranslationM = prismUpperTranslationM;
-                prism.enableMotor = prismEnableMotor;
-                prism.motorSpeedMps = prismMotorSpeedMps;
-                prism.maxMotorForce = prismMaxMotorForce;
-            }
-
-            if (hasWheel) {
-                var mWheel = world.getMapper(PhysicsWheelJointComponent.class);
-                PhysicsWheelJointComponent wheel = mWheel.has(jointEid) ? mWheel.get(jointEid) : mWheel.create(jointEid);
-                wheel.axisX = wheelAxisX;
-                wheel.axisY = wheelAxisY;
-                wheel.enableMotor = wheelEnableMotor;
-                wheel.motorSpeedRad = wheelMotorSpeedRad;
-                wheel.maxMotorTorque = wheelMaxMotorTorque;
-                wheel.frequencyHz = wheelFrequencyHz;
-                wheel.dampingRatio = wheelDampingRatio;
-            }
+            PhysicsJointComponent base = mJoint.get(jointEid);
+            base.aEid = historyIds.entityOfHistoryId(aHistoryId);
+            base.bEid = historyIds.entityOfHistoryId(bHistoryId);
 
             if (hasGear) {
                 var mGear = world.getMapper(PhysicsGearJointComponent.class);
-                PhysicsGearJointComponent gear =
-                        mGear.has(jointEid) ? mGear.get(jointEid) : mGear.create(jointEid);
+                PhysicsGearJointComponent gear = mGear.get(jointEid);
                 gear.joint1Eid = historyIds.entityOfHistoryId(gearJoint1HistoryId);
                 gear.joint2Eid = historyIds.entityOfHistoryId(gearJoint2HistoryId);
             }
