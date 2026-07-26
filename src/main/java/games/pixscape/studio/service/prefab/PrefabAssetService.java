@@ -63,56 +63,59 @@ public final class PrefabAssetService {
         World tempWorld = new World(new WorldConfigurationBuilder()
                 .with(new WorldSerializationManager(), new DirtyTrackerSystem(1024))
                 .build());
+        try {
+            WorldSerializationManager wsm = tempWorld.getSystem(WorldSerializationManager.class);
+            wsm.setSerializer(
+                    new JsonArtemisSerializer(tempWorld)
+                            .setUsePrototypes(false));
 
-        WorldSerializationManager wsm = tempWorld.getSystem(WorldSerializationManager.class);
-        wsm.setSerializer(
-                new JsonArtemisSerializer(tempWorld)
-                        .setUsePrototypes(false));
+            IntIntMap sourceToTemp = new IntIntMap();
+            IntArray created = new IntArray();
 
-        IntIntMap sourceToTemp = new IntIntMap();
-        IntArray created = new IntArray();
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            int eid = tempWorld.create();
-            sourceToTemp.put(entry.sourceEntityId(), eid);
-            created.add(eid);
-        }
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            int eid = sourceToTemp.get(entry.sourceEntityId(), -1);
-
-            GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-            GenericEntityInitializer init = new GenericEntityInitializer(tempWorld).applySnapshotData(snapshot);
-            init.init(eid);
-            copyResolvedRenderState(world, entry.sourceEntityId(), tempWorld, eid);
-
-            PixscapeIdentityComponent id = tempWorld.getMapper(PixscapeIdentityComponent.class).getSafe(eid, null);
-
-            if (id == null) {
-                id = tempWorld.getMapper(PixscapeIdentityComponent.class).create(eid);
+            for (EntityGraphEntry entry : graph.entries()) {
+                int eid = tempWorld.create();
+                sourceToTemp.put(entry.sourceEntityId(), eid);
+                created.add(eid);
             }
 
-            id.stableId = IdentityRegistry.UNASSIGNED_STABLE_ID;
+            for (EntityGraphEntry entry : graph.entries()) {
+                int eid = sourceToTemp.get(entry.sourceEntityId(), -1);
 
-            PhysicsJointComponent joint = tempWorld.getMapper(PhysicsJointComponent.class).getSafe(eid, null);
+                GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
+                GenericEntityInitializer init = new GenericEntityInitializer(tempWorld).applySnapshotData(snapshot);
+                init.init(eid);
+                copyResolvedRenderState(world, entry.sourceEntityId(), tempWorld, eid);
 
-            if (id.name == null || id.name.isBlank()) {
-                id.name = (joint != null) ? "prefab_joint" : "prefab_entity";
+                PixscapeIdentityComponent id = tempWorld.getMapper(PixscapeIdentityComponent.class).getSafe(eid, null);
+
+                if (id == null) {
+                    id = tempWorld.getMapper(PixscapeIdentityComponent.class).create(eid);
+                }
+
+                id.stableId = IdentityRegistry.UNASSIGNED_STABLE_ID;
+
+                PhysicsJointComponent joint = tempWorld.getMapper(PhysicsJointComponent.class).getSafe(eid, null);
+
+                if (id.name == null || id.name.isBlank()) {
+                    id.name = (joint != null) ? "prefab_joint" : "prefab_entity";
+                }
             }
+            remapRuntimeFragmentJointReferences(tempWorld, created, sourceToTemp);
+
+            tempWorld.process();
+
+            RuntimePrefabFragment request = new RuntimePrefabFragment();
+            for (int i = 0; i < created.size; i++) {
+                request.entities.add(created.get(i));
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            wsm.save(out, request);
+
+            file.writeBytes(out.toByteArray(), false);
+        } finally {
+            tempWorld.dispose();
         }
-        remapRuntimeFragmentJointReferences(tempWorld, created, sourceToTemp);
-
-        tempWorld.process();
-
-        RuntimePrefabFragment request = new RuntimePrefabFragment();
-        for (int i = 0; i < created.size; i++) {
-            request.entities.add(created.get(i));
-        }
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        wsm.save(out, request);
-
-        file.writeBytes(out.toByteArray(), false);
     }
 
     private static void copyResolvedRenderState(
