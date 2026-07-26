@@ -45,7 +45,7 @@ public class PhysicsShapeScenePersistenceTest {
         world.process();
 
         FileHandle file = new FileHandle(new File(
-                System.getProperty("java.io.tmpdir"), "pixscape-v2-source-scene.json"));
+                System.getProperty("java.io.tmpdir"), "pixscape-physics-source-scene.json"));
         SceneService.saveScene(world, file, false);
 
         String json = file.readString("UTF-8");
@@ -80,7 +80,7 @@ public class PhysicsShapeScenePersistenceTest {
     }
 
     @Test
-    public void sceneWithoutDirectGeometryIsRejectedAsCleanBreak() {
+    public void sceneWithoutDirectGeometryIsRejectedAsInvalid() {
         World world = world();
         int entityId = world.create();
         PhysicsShapesComponent sources =
@@ -108,7 +108,6 @@ public class PhysicsShapeScenePersistenceTest {
             Assert.assertTrue(expected.getMessage().contains("entityId"));
             Assert.assertTrue(expected.getMessage().contains("physicsShapeId 13"));
             Assert.assertTrue(expected.getMessage().contains("directGeometry is missing"));
-            Assert.assertTrue(expected.getMessage().contains("clean break Physics Model"));
         }
     }
 

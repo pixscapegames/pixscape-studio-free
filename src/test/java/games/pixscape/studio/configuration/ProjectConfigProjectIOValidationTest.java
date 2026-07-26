@@ -63,12 +63,37 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void validStudioProjectKindLoads() throws Exception {
+    public void sceneSchemaVersionOneIsAcceptedByStudioProjectIO() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid-kind");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
 
         ProjectConfig cfg = ProjectConfig.ProjectIO.loadProject(projectFile);
         assertEquals(ProjectConfig.STUDIO_PROJECT_KIND, cfg.projectKind);
+        assertEquals(1, cfg.getCurrentSceneMeta().sceneSchemaVersion);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingSceneSchemaVersionIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":1,", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void sceneSchemaVersionZeroIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-zero-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":1", "\"sceneSchemaVersion\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void sceneSchemaVersionTwoIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-future-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":1", "\"sceneSchemaVersion\":2");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
     @Test(expected = RuntimeException.class)
@@ -180,7 +205,7 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void saveProject_sceneMetaPhysicsAndScaleFieldsRemainPersistentAfterReload() throws Exception {
+    public void saveProject_sceneMetaSchemaPhysicsAndScaleFieldsRemainPersistentAfterReload() throws Exception {
         Path dir = Files.createTempDirectory("project-config-scene-meta-physics");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
 
@@ -204,6 +229,7 @@ public class ProjectConfigProjectIOValidationTest {
         SceneMeta reloadedMain = reloaded.getCurrentSceneMeta();
 
         assertNotNull(reloadedMain);
+        assertEquals(1, reloadedMain.sceneSchemaVersion);
         assertTrue(reloadedMain.physicsEnabled);
         assertEquals(0.75f, reloadedMain.gravityX, 0.0001f);
         assertEquals(-15.25f, reloadedMain.gravityY, 0.0001f);
@@ -336,6 +362,7 @@ public class ProjectConfigProjectIOValidationTest {
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{" +
                 "\"Main\":{" +
+                "\"sceneSchemaVersion\":1," +
                 "\"name\":\"Main\"," +
                 "\"file\":\"" + currentSceneFile + "\"," +
                 "\"nextEntityStableId\":1," +

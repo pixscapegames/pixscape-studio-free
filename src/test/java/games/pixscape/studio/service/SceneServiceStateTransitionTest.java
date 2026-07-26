@@ -33,6 +33,7 @@ public class SceneServiceStateTransitionTest {
                 "\"currentSceneName\":\"Ghost\"," +
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
+                        + "\"sceneSchemaVersion\":1,"
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}");
 

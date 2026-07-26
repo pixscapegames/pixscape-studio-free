@@ -120,6 +120,7 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
     private static games.pixscape.runtime.loading.SceneMetaRuntime sceneMeta() {
         games.pixscape.runtime.loading.SceneMetaRuntime meta =
                 new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.physicsEnabled = true;
         meta.nextPhysicsShapeId = 1000;
         return meta;
     }

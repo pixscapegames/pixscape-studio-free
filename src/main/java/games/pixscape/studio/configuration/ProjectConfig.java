@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.ui.preview.PreviewTarget;
@@ -330,6 +331,8 @@ public class ProjectConfig {
             }
             for (com.badlogic.gdx.utils.JsonValue scene = scenes.child;
                  scene != null; scene = scene.next) {
+                SceneMetaRuntime.requireCurrentSceneSchemaVersion(
+                        scene, scene.name);
                 requirePositiveRawInt(scene, "nextEntityStableId", path);
                 requirePositiveRawInt(scene, "nextPhysicsShapeId", path);
             }
@@ -376,6 +379,7 @@ public class ProjectConfig {
                     throw new RuntimeException("Scene '" + entry.key
                             + "' has invalid identity high-water metadata in: " + path);
                 }
+                SceneMetaRuntime.validateSceneSchemaVersion(scene.sceneSchemaVersion, entry.key);
             }
 
             SceneMeta currentMeta = cfg.scenes.get(cfg.currentSceneName);
