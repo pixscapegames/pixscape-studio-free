@@ -51,6 +51,33 @@ public class SimpleWidgetsSyncTest {
     }
 
     @Test
+    public void simpleFloatField_commitValidatorRejectsWithoutMutatingSource() {
+        AtomicReference<Float> model = new AtomicReference<>(100f);
+        AtomicInteger applyCalls = new AtomicInteger();
+        SimpleFloatField field = new SimpleFloatField()
+                .validateCommitWith(value -> value != null
+                        && Float.isFinite(value) && value > 0f)
+                .bind(model::get, value -> {
+                    applyCalls.incrementAndGet();
+                    model.set(value);
+                });
+
+        field.setText("50");
+        field.commit();
+        Assert.assertEquals(50f, model.get(), 0f);
+        Assert.assertEquals(1, applyCalls.get());
+
+        String[] invalid = {"", "-", "0", "-10", "NaN", "Infinity"};
+        for (String value : invalid) {
+            field.setText(value);
+            field.commit();
+            Assert.assertEquals(50f, model.get(), 0f);
+            Assert.assertEquals(1, applyCalls.get());
+            Assert.assertEquals("50.00", field.getText());
+        }
+    }
+
+    @Test
     public void simpleFloatSlider_resyncsFromReaderAndHasNoRefreshCommitLoop() {
         AtomicReference<Float> model = new AtomicReference<>(1f);
         AtomicInteger applyCalls = new AtomicInteger();

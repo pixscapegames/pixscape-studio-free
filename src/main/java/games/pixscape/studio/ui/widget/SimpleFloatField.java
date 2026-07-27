@@ -7,6 +7,7 @@ import com.kotcrab.vis.ui.widget.VisTextField;
 
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -20,6 +21,7 @@ public final class SimpleFloatField extends VisTextField {
 
     private Supplier<Float> reader;
     private Consumer<Float> applier;
+    private Predicate<Float> commitValidator;
 
     private VisTextField.TextFieldFilter activeFilter;
     private boolean internalUpdate = false;
@@ -62,6 +64,11 @@ public final class SimpleFloatField extends VisTextField {
         return this;
     }
 
+    public SimpleFloatField validateCommitWith(Predicate<Float> validator) {
+        this.commitValidator = validator;
+        return this;
+    }
+
     public SimpleFloatField useExactText() {
         exactText = true;
         refresh();
@@ -87,7 +94,8 @@ public final class SimpleFloatField extends VisTextField {
         if (internalUpdate) return;
 
         Float parsed = parse(getText());
-        if (parsed == null) {
+        if (parsed == null
+                || (commitValidator != null && !commitValidator.test(parsed))) {
             rollbackToKnownValue();
             return;
         }
