@@ -907,12 +907,12 @@ public final class SceneService {
             flushWorldForSerialization();
             return new SaveExecutionPlan(cfg, studioDir, null, null, null, false);
         }
+        flushWorldForSerialization();
         validateSceneForSave(
                 canvas.getEcsWorld(),
                 false,
                 meta,
                 canvas.getBlockPhysicsBindingRepository());
-        flushWorldForSerialization();
 
         final String sceneName = meta.getName();
         final String sceneFileName = meta.getFile();
@@ -1002,6 +1002,11 @@ public final class SceneService {
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         SceneMeta meta = cfg.getCurrentSceneMeta();
         if (meta == null) return;
+        validateSceneForSave(
+                canvas.getEcsWorld(),
+                false,
+                meta,
+                canvas.getBlockPhysicsBindingRepository());
 
         FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
         scenesDir.mkdirs();

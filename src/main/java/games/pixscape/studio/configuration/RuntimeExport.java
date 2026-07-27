@@ -143,7 +143,7 @@ public final class RuntimeExport {
         out.applyDefaultsAndValidate(runtimeDir.child(PROJECT_JSON).path());
 
         FileHandle studioScenesDir = studioProjectDir.child(StudioFs.DIR_SCENES);
-        preflightLinkedBlockPhysicsScenes(out, studioScenesDir);
+        preflightAllScenes(out, studioScenesDir);
 
         if (runtimeDir.exists()) {
             runtimeDir.deleteDirectory();
@@ -216,7 +216,7 @@ public final class RuntimeExport {
         return out;
     }
 
-    private static void preflightLinkedBlockPhysicsScenes(
+    private static void preflightAllScenes(
             RuntimeConfig runtimeConfig, FileHandle studioScenesDir) {
         World validationWorld = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
@@ -231,22 +231,12 @@ public final class RuntimeExport {
                     throw new GdxRuntimeException(
                             "Missing studio scene file: " + sceneFile.path());
                 }
-                if (!requiresLinkedBlockPhysicsPreflight(sceneFile)) {
-                    continue;
-                }
                 SceneLoader.loadScene(
                         validationWorld, sceneFile, true, sceneMeta);
             }
         } finally {
             validationWorld.dispose();
         }
-    }
-
-    private static boolean requiresLinkedBlockPhysicsPreflight(FileHandle sceneFile) {
-        String serialized = sceneFile.readString("UTF-8");
-        return serialized.contains("BlockPhysicsBindingsComponent")
-                || (serialized.contains("PhysicsShapesComponent")
-                && !serialized.contains("directGeometry"));
     }
 
     private static void copyRuntimeShaderResources(FileHandle shadersDir) {

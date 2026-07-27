@@ -183,7 +183,7 @@ public class RuntimeExportAnimationsTest {
         cfg.createSceneMeta("Main");
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), """
+        /* Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), """
                 {
                   "entities": {
                     "0": {
@@ -204,7 +204,8 @@ public class RuntimeExportAnimationsTest {
                     }
                   }
                 }
-                """, StandardCharsets.UTF_8);
+                """, StandardCharsets.UTF_8); */
+        RuntimeExportTestSceneSupport.writeSpatialLayerScene(new FileHandle(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json").toFile()), cfg.getCurrentSceneMeta());
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
@@ -238,7 +239,7 @@ public class RuntimeExportAnimationsTest {
         cfg.createSceneMeta("Main");
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), """
+        /* Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), """
                 {
                   "entities": {
                     "0": {
@@ -284,7 +285,8 @@ public class RuntimeExportAnimationsTest {
                     }
                   }
                 }
-                """, StandardCharsets.UTF_8);
+                """, StandardCharsets.UTF_8); */
+        RuntimeExportTestSceneSupport.writeSpatialScene(new FileHandle(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json").toFile()), cfg.getCurrentSceneMeta());
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
@@ -311,8 +313,8 @@ public class RuntimeExportAnimationsTest {
         assertEquals(1f, block.getFloat("depth"), 0.0001f);
         assertEquals(4f, block.getFloat("altitude"), 0.0001f);
         assertEquals(24f, block.getFloat("height"), 0.0001f);
-        assertEquals("TILE_CELL", block.getString("orientation"));
-        assertTrue(block.getBoolean("actorOccluder"));
+        assertNull(block.get("orientation"));
+        assertTrue(block.getBoolean("actorOccluder", true));
         assertNull(block.get("physics" + "Collision"));
         assertTrue(block.getBoolean("linkedTileRefsAuthored"));
         assertEquals(2, block.get("linkedTileRefs").size);

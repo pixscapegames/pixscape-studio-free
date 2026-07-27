@@ -218,11 +218,9 @@ public class RuntimeExportTilesetProfilesTest {
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.writeString(
-                studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"),
-                tiledSceneJson(first.id, 0, second.id),
-                StandardCharsets.UTF_8
-        );
+        RuntimeExportTestSceneSupport.writeTiledScene(
+                new FileHandle(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json").toFile()),
+                cfg.getCurrentSceneMeta(), first.id, 0, second.id);
 
         assertTrue(cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.isEmpty());
 
@@ -305,11 +303,9 @@ public class RuntimeExportTilesetProfilesTest {
         );
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.writeString(
-                studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"),
-                tiledSceneJson(animation.id),
-                StandardCharsets.UTF_8
-        );
+        RuntimeExportTestSceneSupport.writeTiledScene(
+                new FileHandle(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json").toFile()),
+                cfg.getCurrentSceneMeta(), animation.id);
 
         assertTrue(cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.isEmpty());
 
@@ -347,11 +343,9 @@ public class RuntimeExportTilesetProfilesTest {
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.writeString(
-                studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"),
-                tiledSceneJson(1451),
-                StandardCharsets.UTF_8
-        );
+        RuntimeExportTestSceneSupport.writeTiledScene(
+                new FileHandle(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json").toFile()),
+                cfg.getCurrentSceneMeta(), 1451);
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
     }

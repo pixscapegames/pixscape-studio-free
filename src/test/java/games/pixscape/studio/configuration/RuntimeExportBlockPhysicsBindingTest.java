@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.BlockPhysicsBindingData;
+import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -42,7 +43,7 @@ public class RuntimeExportBlockPhysicsBindingTest {
     }
 
     @Test
-    public void orphanLinkedShapeRejectsBeforeReplacingExistingRuntimeExport() throws Exception {
+    public void mixedDirectAndOrphanLinkedShapesRejectBeforeReplacingExistingRuntimeExport() throws Exception {
         Fixture fixture = new Fixture();
         fixture.writeLinkedScene(1);
         fixture.sceneFile().writeString(
@@ -55,6 +56,8 @@ public class RuntimeExportBlockPhysicsBindingTest {
         Assert.assertThrows(RuntimeException.class,
                 () -> RuntimeExport.exportRuntime(fixture.config, fixture.studioDir, fixture.userDir));
         Assert.assertEquals("keep", fixture.sentinel().readString("UTF-8"));
+        Assert.assertFalse(fixture.userDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                .child("scenes").exists());
     }
 
     @Test
@@ -97,8 +100,8 @@ public class RuntimeExportBlockPhysicsBindingTest {
             config.exportRootPathDir = userPath.toString();
             config.createSceneMeta("Main");
             config.getCurrentSceneMeta().physicsEnabled = true;
-            config.getCurrentSceneMeta().nextEntityStableId = 2;
-            config.getCurrentSceneMeta().nextPhysicsShapeId = 2;
+            config.getCurrentSceneMeta().nextEntityStableId = 3;
+            config.getCurrentSceneMeta().nextPhysicsShapeId = 3;
             studioDir.child(StudioFs.DIR_SCENES).mkdirs();
             new AssetMetaDatabase().save(studioDir.child(StudioFs.FILE_ASSETS_JSON));
         }
@@ -125,6 +128,14 @@ public class RuntimeExportBlockPhysicsBindingTest {
                 binding.spatialBlockId = 1;
                 binding.physicsShapeId = bindingShapeId;
                 world.getMapper(BlockPhysicsBindingsComponent.class).create(owner).bindings.add(binding);
+                int directOwner = world.create();
+                world.getMapper(PixscapeIdentityComponent.class).create(directOwner).stableId = 2;
+                PhysicsShapeData direct = new PhysicsShapeData();
+                direct.physicsShapeId = 2;
+                direct.directGeometry = new PhysicsDirectGeometryData();
+                direct.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+                direct.directGeometry.radius = 1f;
+                world.getMapper(PhysicsShapesComponent.class).create(directOwner).shapes.add(direct);
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(owner);
                 world.getMapper(SpatialPhysicsFootprintComponent.class).create(owner);
                 world.process();

@@ -2,6 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.BaseSystem;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.Aspect;
 import com.artemis.utils.IntBag;
@@ -23,10 +24,22 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Assert;
 import org.junit.Test;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.backends.headless.HeadlessApplication;
+import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
+import games.pixscape.studio.ui.main.WorldCanvas;
+import sun.misc.Unsafe;
 
 import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class SceneServiceBlockPhysicsBindingSaveTest {
+    private static HeadlessApplication headlessApplication;
+
     @Test
     public void linkedBindingSavesStructurallyWithoutDerivedPhysicsCaches() {
         World world = new World(new WorldConfiguration()
@@ -138,6 +151,84 @@ public class SceneServiceBlockPhysicsBindingSaveTest {
         world.dispose();
     }
 
+    @Test
+    public void preparedSaveFlushesThenRejectsUnflushedOrphanBeforeAnyWrite() throws Exception {
+        ensureHeadlessApplication();
+        ProcessCounterSystem processCounter = new ProcessCounterSystem();
+        World world = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager())
+                .setSystem(processCounter));
+        world.process();
+        processCounter.processCount = 0;
+
+        ProjectConfig config = new ProjectConfig();
+        Path projectPath = Files.createTempDirectory("pixscape-unflushed-save");
+        config.projectFileName = "project";
+        config.projectDirectoryPath = projectPath.toString();
+        config.exportRootPathDir = projectPath.resolve("export").toString();
+        config.createSceneMeta("Main");
+        games.pixscape.studio.configuration.SceneMeta meta = config.getCurrentSceneMeta();
+        meta.physicsEnabled = true;
+        meta.nextEntityStableId = 2;
+        meta.nextPhysicsShapeId = 2;
+        ProjectConfig.setInstance(config);
+        FileHandle sentinel = new FileHandle(projectPath.resolve("scenes")
+                .resolve(meta.getFile()).toFile());
+        sentinel.parent().mkdirs();
+        sentinel.writeString("keep", false, "UTF-8");
+
+        IdentityRegistry identities = new IdentityRegistry();
+        BlockPhysicsBindingRepository bindings = new BlockPhysicsBindingRepository();
+        identities.bind(world, meta);
+        bindings.bind(world, identities);
+        int owner = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(owner).stableId = 1;
+        PhysicsShapeData linked = new PhysicsShapeData();
+        linked.physicsShapeId = 1;
+        world.getMapper(PhysicsShapesComponent.class).create(owner).shapes.add(linked);
+
+        WorldCanvas canvas = allocate(WorldCanvas.class);
+        setField(canvas, "world", world);
+        setField(canvas, "blockPhysicsBindingRepository", bindings);
+        SceneService service = allocate(SceneService.class);
+        setField(service, "canvas", canvas);
+
+        Method prepare = SceneService.class.getDeclaredMethod("prepareSaveExecutionPlan");
+        prepare.setAccessible(true);
+        InvocationTargetException failure = Assert.assertThrows(
+                InvocationTargetException.class, () -> prepare.invoke(service));
+        Assert.assertTrue(failure.getCause() instanceof IllegalStateException);
+        Assert.assertEquals(1, processCounter.processCount);
+        Assert.assertEquals("keep", sentinel.readString("UTF-8"));
+        Assert.assertEquals(2, meta.nextEntityStableId);
+        Assert.assertEquals(2, meta.nextPhysicsShapeId);
+        bindings.clear();
+        identities.bind(null, null);
+        world.dispose();
+    }
+
+    @Test
+    public void savePipelinesValidateAfterFlushBeforeTheirFirstWrites() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/games/pixscape/studio/service/SceneService.java"));
+        String prepared = methodBody(source, "private SaveExecutionPlan prepareSaveExecutionPlan()");
+        assertOrdered(prepared,
+                "flushWorldForSerialization()",
+                "validateSceneForSave(",
+                "scenesDir.mkdirs()");
+
+        String currentOnly = methodBody(source, "private void saveCurrentSceneOnly(ProjectConfig cfg)");
+        Assert.assertEquals(1, occurrences(currentOnly, "flushWorldForSerialization()"));
+        assertOrdered(currentOnly,
+                "flushWorldForSerialization()",
+                "validateSceneForSave(",
+                "scenesDir.mkdirs()",
+                "repackSceneAtlas(cfg, sceneName, projectDir)",
+                "rebuildSparseFromDense()",
+                "saveActiveScene(sceneFile)",
+                "TileAnimationsIO.save(");
+    }
+
     private static void writeLinkedScene(FileHandle file, SceneMetaRuntime meta) {
         World authored = new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
@@ -174,5 +265,72 @@ public class SceneServiceBlockPhysicsBindingSaveTest {
             world.delete(data[i]);
         }
         world.process();
+    }
+
+    private static void ensureHeadlessApplication() {
+        if (headlessApplication == null) {
+            headlessApplication = new HeadlessApplication(
+                    new ApplicationAdapter() {}, new HeadlessApplicationConfiguration());
+        }
+    }
+
+    private static <T> T allocate(Class<T> type) throws Exception {
+        return type.cast(unsafe().allocateInstance(type));
+    }
+
+    private static void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        unsafe().putObject(target, unsafe().objectFieldOffset(field), value);
+    }
+
+    private static Unsafe unsafe() throws Exception {
+        Field field = Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        return (Unsafe) field.get(null);
+    }
+
+    private static final class ProcessCounterSystem extends BaseSystem {
+        int processCount;
+
+        @Override
+        protected void processSystem() {
+            processCount++;
+        }
+    }
+
+    private static String methodBody(String source, String signature) {
+        int signatureIndex = source.indexOf(signature);
+        Assert.assertTrue("Method signature not found: " + signature, signatureIndex >= 0);
+        int bodyStart = source.indexOf('{', signatureIndex);
+        int depth = 0;
+        for (int index = bodyStart; index < source.length(); index++) {
+            char current = source.charAt(index);
+            if (current == '{') depth++;
+            if (current == '}' && --depth == 0) {
+                return source.substring(bodyStart + 1, index);
+            }
+        }
+        throw new AssertionError("Method body not closed: " + signature);
+    }
+
+    private static void assertOrdered(String source, String... snippets) {
+        int previous = -1;
+        for (String snippet : snippets) {
+            int current = source.indexOf(snippet);
+            Assert.assertTrue("Missing: " + snippet, current >= 0);
+            Assert.assertTrue("Out of order: " + snippet, current > previous);
+            previous = current;
+        }
+    }
+
+    private static int occurrences(String source, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = source.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 }
