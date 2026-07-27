@@ -22,6 +22,7 @@ import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
+import games.pixscape.studio.service.entitygraph.ActorPrefabSpatialScopeGuard;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public final class PrefabAssetService {
     public void savePrefab(FileHandle file, String name, EntityGraph graph) {
         if (file == null) throw new IllegalArgumentException("Prefab file is required");
         if (graph == null) throw new IllegalArgumentException("EntityGraph is required");
+        ActorPrefabSpatialScopeGuard.requireSupportedGraph(graph);
         if (file.parent() != null) file.parent().mkdirs();
 
         PrefabAsset asset = new PrefabAsset();
@@ -58,6 +60,7 @@ public final class PrefabAssetService {
     public void saveRuntimeFragment(FileHandle file, EntityGraph graph) {
         if (file == null) throw new IllegalArgumentException("Fragment file is required");
         if (graph == null) throw new IllegalArgumentException("EntityGraph is required");
+        ActorPrefabSpatialScopeGuard.requireSupportedGraph(graph);
         if (file.parent() != null) file.parent().mkdirs();
 
         World tempWorld = new World(new WorldConfigurationBuilder()
@@ -194,6 +197,7 @@ public final class PrefabAssetService {
         if (!file.exists()) throw new IllegalArgumentException("Prefab file does not exist: " + file.path());
 
         PrefabAsset asset = prefabLoader.load(file);
+        ActorPrefabSpatialScopeGuard.requireSupportedPrefab(asset);
 
         List<EntityGraphEntry> entries = new ArrayList<>();
         for (PrefabAsset.PrefabEntityData data : asset.entities) {

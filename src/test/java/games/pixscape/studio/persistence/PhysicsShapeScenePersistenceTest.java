@@ -46,7 +46,10 @@ public class PhysicsShapeScenePersistenceTest {
 
         FileHandle file = new FileHandle(new File(
                 System.getProperty("java.io.tmpdir"), "pixscape-physics-source-scene.json"));
-        SceneService.saveScene(world, file, false);
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
+        meta.nextPhysicsShapeId = 2;
+        games.pixscape.studio.service.SceneSaveTestSupport.save(world, file, meta);
 
         String json = file.readString("UTF-8");
         Assert.assertTrue(json.contains("PhysicsShapesComponent"));
@@ -64,9 +67,6 @@ public class PhysicsShapeScenePersistenceTest {
         Assert.assertEquals(generation, restoredFootprint.physicsGeneration);
 
         World loaded = world();
-        SceneMetaRuntime meta = new SceneMetaRuntime();
-        meta.physicsEnabled = true;
-        meta.nextPhysicsShapeId = 2;
         SceneLoader.loadScene(loaded, file, false, meta);
         int loadedEntity = loaded.getAspectSubscriptionManager()
                 .get(com.artemis.Aspect.all(PhysicsShapesComponent.class))
@@ -94,16 +94,15 @@ public class PhysicsShapeScenePersistenceTest {
 
         FileHandle file = new FileHandle(new File(
                 System.getProperty("java.io.tmpdir"), "pixscape-missing-direct-geometry.json"));
-        SceneService.saveScene(world, file, false);
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
+        meta.nextPhysicsShapeId = 14;
+        games.pixscape.studio.service.SceneSaveTestSupport.save(world, file, meta);
         String json = file.readString("UTF-8");
         file.writeString(
                 json.replaceFirst(",?\"directGeometry\":\\{[^}]*\\}", ""),
                 false,
                 "UTF-8");
-
-        SceneMetaRuntime meta = new SceneMetaRuntime();
-        meta.physicsEnabled = true;
-        meta.nextPhysicsShapeId = 14;
 
         try {
             SceneLoader.loadScene(world(), file, false, meta);

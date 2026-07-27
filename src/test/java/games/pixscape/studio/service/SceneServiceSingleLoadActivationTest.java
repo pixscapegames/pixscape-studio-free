@@ -13,6 +13,8 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -35,6 +37,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 public class SceneServiceSingleLoadActivationTest {
+    private static final IdentityRegistry TEST_IDENTITIES = new IdentityRegistry();
+    private static final BlockPhysicsBindingRepository TEST_BINDINGS =
+            new BlockPhysicsBindingRepository();
 
     @BeforeClass
     public static void loadVisUi() {
@@ -155,11 +160,15 @@ public class SceneServiceSingleLoadActivationTest {
                                  AtomicInteger renderRebuilds) {
         HistoryManager history = new HistoryManager(16);
         history.historyIds().ensureForEntity(999);
+        TEST_IDENTITIES.bind(world, fixture.cfg.getSceneMeta(sceneName));
+        TEST_BINDINGS.bind(world, TEST_IDENTITIES);
         ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
                 world,
                 null,
                 null,
                 history,
+                TEST_IDENTITIES,
+                TEST_BINDINGS,
                 (config, canonicalTag, projectDir) -> {
                     int[] layers = tiledLayerIds(world);
                     assertEquals(2, layers.length);
@@ -226,7 +235,7 @@ public class SceneServiceSingleLoadActivationTest {
             blocks.nextSpatialBlockId = wall.id + 1;
         }
         authored.process();
-        SceneService.saveScene(authored, sceneFile, false);
+        SceneSaveTestSupport.save(authored, sceneFile, authoredSaveMeta());
         authored.dispose();
     }
 
@@ -249,7 +258,7 @@ public class SceneServiceSingleLoadActivationTest {
             }
         }
         authored.process();
-        SceneService.saveScene(authored, sceneFile, false);
+        SceneSaveTestSupport.save(authored, sceneFile, authoredSaveMeta());
         authored.dispose();
     }
 
@@ -319,6 +328,12 @@ public class SceneServiceSingleLoadActivationTest {
 
     private static World serializationWorld() {
         return new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+    }
+
+    private static SceneMetaRuntime authoredSaveMeta() {
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 1000;
+        return meta;
     }
 
     private record Fixture(ProjectConfig cfg, FileHandle projectDir) {

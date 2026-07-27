@@ -15,6 +15,8 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -39,13 +41,18 @@ final class ResolvedSceneActivationPipeline {
     private final HistoryManager historyManager;
     private final RenderRuntimeRebuilder renderRuntimeRebuilder;
     private final SceneLoadOperation sceneLoader;
+    private final IdentityRegistry identityRegistry;
+    private final BlockPhysicsBindingRepository blockPhysicsBindingRepository;
 
     ResolvedSceneActivationPipeline(World world,
                                     TileAnimationLookup tileAnimationLookup,
                                     TiledAllocatorService tiledAllocatorService,
                                     HistoryManager historyManager,
+                                    IdentityRegistry identityRegistry,
+                                    BlockPhysicsBindingRepository blockPhysicsBindingRepository,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder) {
         this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
+                identityRegistry, blockPhysicsBindingRepository,
                 renderRuntimeRebuilder, SceneLoader::loadScene);
     }
 
@@ -53,12 +60,16 @@ final class ResolvedSceneActivationPipeline {
                                     TileAnimationLookup tileAnimationLookup,
                                     TiledAllocatorService tiledAllocatorService,
                                     HistoryManager historyManager,
+                                    IdentityRegistry identityRegistry,
+                                    BlockPhysicsBindingRepository blockPhysicsBindingRepository,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
                                     SceneLoadOperation sceneLoader) {
         this.world = world;
         this.tileAnimationLookup = tileAnimationLookup;
         this.tiledAllocatorService = tiledAllocatorService;
         this.historyManager = historyManager;
+        this.identityRegistry = identityRegistry;
+        this.blockPhysicsBindingRepository = blockPhysicsBindingRepository;
         this.renderRuntimeRebuilder = renderRuntimeRebuilder;
         this.sceneLoader = sceneLoader;
     }
@@ -69,25 +80,38 @@ final class ResolvedSceneActivationPipeline {
             box2dSync.setEnabled(false);
             box2dSync.setStepEnabled(false);
         }
-        sceneLoader.load(world, target.sceneFile(), false, target.meta());
-        normalizeSceneAtlasTags(target.canonicalTag());
-        world.process();
-        resolveTiledLayersForActivation(
-                world,
-                target.meta(),
-                tileAnimationLookup,
-                tiledAllocatorService,
-                target.projectTitle(),
-                target.sceneName()
-        );
-        validateAndCompileSpatialBlocksForActivation(
-                world, target.projectTitle(), target.sceneName());
-        PhysicsService.rebuildPreparedBodyCaches(world);
-        rebuildHistoryIdsFromWorld();
-        assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
-        renderRuntimeRebuilder.rebuild(
-                target.config(), target.canonicalTag(), target.projectDir());
-        world.process();
+        try {
+            sceneLoader.load(world, target.sceneFile(), false, target.meta());
+            normalizeSceneAtlasTags(target.canonicalTag());
+            world.process();
+            resolveTiledLayersForActivation(
+                    world,
+                    target.meta(),
+                    tileAnimationLookup,
+                    tiledAllocatorService,
+                    target.projectTitle(),
+                    target.sceneName()
+            );
+            validateAndCompileSpatialBlocksForActivation(
+                    world, target.projectTitle(), target.sceneName());
+            identityRegistry.rebuild();
+            blockPhysicsBindingRepository.rebuild();
+            if (blockPhysicsBindingRepository.hasAnyBindings()) {
+                throw new IllegalStateException(
+                        "Linked block physics bindings are structurally valid but cannot be "
+                                + "activated in Studio until Spatial-Physics Binding Phase D "
+                                + "is available.");
+            }
+            PhysicsService.rebuildPreparedBodyCaches(world);
+            rebuildHistoryIdsFromWorld();
+            assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
+            renderRuntimeRebuilder.rebuild(
+                    target.config(), target.canonicalTag(), target.projectDir());
+            world.process();
+        } catch (RuntimeException failure) {
+            blockPhysicsBindingRepository.clear();
+            throw failure;
+        }
     }
 
     static void resolveTiledLayersForActivation(World world,

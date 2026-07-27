@@ -721,6 +721,47 @@ public class PrefabAssetServiceTest {
         new PrefabAssetService(world).loadPrefab(file);
     }
 
+    @Test
+    public void saveManualLinkedGraphRejectsWithoutReplacingSentinel() {
+        World world = new World(new WorldConfiguration());
+        int entity = body(world);
+        world.getMapper(PhysicsShapesComponent.class).get(entity).shapes.first().directGeometry = null;
+        GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+        initializer.syncFrom(entity);
+        EntityGraph manual = new EntityGraph(java.util.List.of(
+                new games.pixscape.studio.service.entitygraph.EntityGraphEntry(entity, initializer)));
+        FileHandle file = tmpFile("linked-sentinel.pixprefab");
+        file.writeString("sentinel", false, "UTF-8");
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new PrefabAssetService(world).savePrefab(file, "linked", manual));
+        Assert.assertEquals(
+                games.pixscape.studio.service.entitygraph.ActorPrefabSpatialScopeGuard.MESSAGE,
+                failure.getMessage());
+        Assert.assertEquals("sentinel", file.readString("UTF-8"));
+    }
+
+    @Test
+    public void handcraftedPrefabWithLinkedShapeIsRejectedBeforeGraphIsPublished() {
+        World world = new World(new WorldConfiguration());
+        FileHandle file = tmpFile("linked-handcrafted.pixprefab");
+        file.writeString("""
+                {"type":"pixscape-prefab","version":1,"entities":[
+                  {"sourceEntityId":1,"physicsShapes":[
+                    {"physicsShapeId":1,"enabled":true}
+                  ]}
+                ]}
+                """, false, "UTF-8");
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new PrefabAssetService(world).loadPrefab(file));
+        Assert.assertEquals(
+                games.pixscape.studio.service.entitygraph.ActorPrefabSpatialScopeGuard.MESSAGE,
+                failure.getMessage());
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void missingVersionIsRejected() {
         World world = new World(new WorldConfiguration());

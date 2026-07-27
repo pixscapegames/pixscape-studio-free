@@ -8,8 +8,11 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
@@ -151,6 +154,71 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals(directEntity, identities.findByStableId(directStableId));
     }
 
+    @Test
+    public void copyingSpatialEntityRejectsAndPreservesPreviousClipboardContent() throws Exception {
+        World world = new World(new WorldConfiguration());
+        SelectionService selection = new SelectionService(world, null);
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
+        int direct = createEntity(world, 1f, 2f, 0);
+        selection.selectOnly(direct);
+        Assert.assertTrue(clipboard.copySelection());
+
+        int spatial = createEntity(world, 3f, 4f, 0);
+        world.getMapper(SpatialBlocksComponent.class).create(spatial);
+        selection.selectOnly(spatial);
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class, clipboard::copySelection);
+        Assert.assertEquals(
+                games.pixscape.studio.service.entitygraph.ActorPrefabSpatialScopeGuard.MESSAGE,
+                failure.getMessage());
+        Assert.assertTrue(clipboard.hasContent());
+
+        selection.selectOnly(direct);
+        Assert.assertTrue(clipboard.paste());
+    }
+
+    @Test
+    public void injectedLinkedGraphRejectsPasteWithoutWorldOrHistoryMutation() throws Exception {
+        World world = new World(new WorldConfiguration());
+        SelectionService selection = new SelectionService(world, null);
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = identityRegistry(world);
+        ClipboardService clipboard = new ClipboardService(
+                newTestCanvas(world, selection, history), identities);
+        int source = createEntity(world, 1f, 2f, 0);
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(source);
+        games.pixscape.runtime.physics.PhysicsShapeData linked =
+                new games.pixscape.runtime.physics.PhysicsShapeData();
+        linked.physicsShapeId = 1;
+        shapes.shapes.add(linked);
+        GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+        initializer.syncFrom(source);
+        setPrivateField(clipboard, "graph", new EntityGraph(java.util.List.of(
+                new games.pixscape.studio.service.entitygraph.EntityGraphEntry(source, initializer))));
+        int entitiesBefore = world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all()).getEntities().size();
+        int cursorBefore = history.getCursor();
+        games.pixscape.runtime.loading.SceneMetaRuntime meta =
+                (games.pixscape.runtime.loading.SceneMetaRuntime) getPrivateField(
+                        identities, "sceneMeta");
+        int stableHighWaterBefore = meta.nextEntityStableId;
+        int shapeHighWaterBefore = meta.nextPhysicsShapeId;
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class, clipboard::paste);
+        Assert.assertEquals(
+                games.pixscape.studio.service.entitygraph.ActorPrefabSpatialScopeGuard.MESSAGE,
+                failure.getMessage());
+        Assert.assertEquals(entitiesBefore, world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all()).getEntities().size());
+        Assert.assertEquals(cursorBefore, history.getCursor());
+        Assert.assertEquals(stableHighWaterBefore, meta.nextEntityStableId);
+        Assert.assertEquals(shapeHighWaterBefore, meta.nextPhysicsShapeId);
+    }
+
     private static int createEntity(World world, float x, float y, int layerIndex) {
         int eid = world.create();
         TransformComponent tr = world.getMapper(TransformComponent.class).create(eid);
@@ -192,6 +260,18 @@ public class ClipboardServiceFlowTest {
         field.setAccessible(true);
         long offset = unsafe.objectFieldOffset(field);
         unsafe.putObject(target, offset, value);
+    }
+
+    private static void setPrivateField(Object target, String fieldName, Object value) throws Exception {
+        Field field = ClipboardService.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static Object getPrivateField(Object target, String fieldName) throws Exception {
+        Field field = IdentityRegistry.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(target);
     }
 
     private static int countEntitiesAt(World world, float x, float y) {

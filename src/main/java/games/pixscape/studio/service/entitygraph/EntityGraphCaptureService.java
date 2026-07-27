@@ -35,6 +35,7 @@ public final class EntityGraphCaptureService {
         IntArray supported = collectSupportedSelection(selection);
         supported = ClipboardPhysicsJointGraph.filterCopyableSelection(world, supported);
         if (supported.size == 0) return EntityGraph.empty();
+        ActorPrefabSpatialScopeGuard.requireSupportedClosure(world, supported);
 
         List<EntityGraphEntry> entries = new ArrayList<>(supported.size);
         for (int i = 0; i < supported.size; i++) {

@@ -67,7 +67,7 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
             world.process();
 
             FileHandle sceneAFile = scenesDir.child(sceneAMeta.getFile());
-            SceneService.saveScene(world, sceneAFile, false);
+            SceneSaveTestSupport.save(world, sceneAFile, sceneMeta());
             Assert.assertTrue("SceneA file was not created", sceneAFile.exists());
             String sceneAJson = sceneAFile.readString(StandardCharsets.UTF_8.name());
             Assert.assertTrue("SceneA JSON missing PhysicsWheelJointComponent", sceneAJson.contains("PhysicsWheelJointComponent"));
@@ -75,7 +75,7 @@ public class SceneServiceJointSceneFilePersistenceRegressionTest {
             clearAllEntities(world);
             cfg.setCurrentSceneByName("SceneB");
             FileHandle sceneBFile = scenesDir.child(sceneBMeta.getFile());
-            SceneService.saveScene(world, sceneBFile, false);
+            SceneSaveTestSupport.save(world, sceneBFile, sceneMeta());
             Assert.assertTrue("SceneB file was not created", sceneBFile.exists());
             Assert.assertTrue("SceneA file disappeared after SceneB save", sceneAFile.exists());
             String sceneAJsonAfterSceneBSave = sceneAFile.readString(StandardCharsets.UTF_8.name());

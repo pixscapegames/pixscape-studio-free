@@ -32,7 +32,8 @@ public class SceneServiceRenderRepeatPersistenceTest {
         ));
         sceneFile.parent().mkdirs();
 
-        SceneService.saveScene(world, sceneFile, false);
+        SceneSaveTestSupport.save(
+                world, sceneFile, new games.pixscape.runtime.loading.SceneMetaRuntime());
         Assert.assertTrue(sceneFile.exists());
         String json = sceneFile.readString(StandardCharsets.UTF_8.name());
         Assert.assertTrue(json.contains("RenderRepeatComponent"));
@@ -80,7 +81,8 @@ public class SceneServiceRenderRepeatPersistenceTest {
         ));
         sceneFile.parent().mkdirs();
 
-        SceneService.saveScene(world, sceneFile, false);
+        SceneSaveTestSupport.save(
+                world, sceneFile, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         World loaded = worldWithSerialization();
         SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());

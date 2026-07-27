@@ -15,6 +15,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -133,14 +134,20 @@ public final class TmxSceneImportService {
             World world = new World(new WorldConfiguration()
                     .setSystem(new WorldSerializationManager()));
             IdentityRegistry identityRegistry = new IdentityRegistry();
+            BlockPhysicsBindingRepository blockPhysicsBindingRepository =
+                    new BlockPhysicsBindingRepository();
             identityRegistry.bind(world, meta);
+            blockPhysicsBindingRepository.bind(world, identityRegistry);
             try {
                 populateImportedWorld(world, identityRegistry, plan,
                         importedAssets.cellLogicalIdsByTileset(),
                         importedAssets.imageAssetsBySourceLayer(),
                         createdSceneTag);
-                SceneService.saveScene(world, sceneFile, false);
+                identityRegistry.rebuild();
+                SceneService.saveScene(
+                        world, sceneFile, false, meta, blockPhysicsBindingRepository);
             } finally {
+                blockPhysicsBindingRepository.clear();
                 identityRegistry.bind(null, null);
                 world.dispose();
             }

@@ -1,10 +1,14 @@
 package games.pixscape.studio.configuration;
 
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
@@ -69,12 +73,6 @@ public final class RuntimeExport {
 
         // 0) runtime root dir = <userProjectDir>/pixscape-project
         FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
-
-        if (runtimeDir.exists()) {
-            runtimeDir.deleteDirectory();
-        }
-
-        runtimeDir.mkdirs();
 
         // 1) RuntimeConfig
         RuntimeConfig out = new RuntimeConfig();
@@ -144,8 +142,15 @@ public final class RuntimeExport {
         // 4) Validation AVANT export physique
         out.applyDefaultsAndValidate(runtimeDir.child(PROJECT_JSON).path());
 
-        // 5) Export runtime scenes
         FileHandle studioScenesDir = studioProjectDir.child(StudioFs.DIR_SCENES);
+        preflightLinkedBlockPhysicsScenes(out, studioScenesDir);
+
+        if (runtimeDir.exists()) {
+            runtimeDir.deleteDirectory();
+        }
+        runtimeDir.mkdirs();
+
+        // 5) Export runtime scenes
         FileHandle runtimeScenesDir = runtimeDir.child(out.scenesDir);
         runtimeScenesDir.mkdirs();
 
@@ -209,6 +214,39 @@ public final class RuntimeExport {
         saveProject(out, runtimeDir, studioCfg);
 
         return out;
+    }
+
+    private static void preflightLinkedBlockPhysicsScenes(
+            RuntimeConfig runtimeConfig, FileHandle studioScenesDir) {
+        World validationWorld = new World(new WorldConfiguration()
+                .setSystem(new WorldSerializationManager()));
+        try {
+            for (ObjectMap.Entry<String, SceneMetaRuntime> entry
+                    : runtimeConfig.scenes) {
+                SceneMetaRuntime sceneMeta = entry.value;
+                if (sceneMeta == null) continue;
+
+                FileHandle sceneFile = studioScenesDir.child(sceneMeta.file);
+                if (!sceneFile.exists()) {
+                    throw new GdxRuntimeException(
+                            "Missing studio scene file: " + sceneFile.path());
+                }
+                if (!requiresLinkedBlockPhysicsPreflight(sceneFile)) {
+                    continue;
+                }
+                SceneLoader.loadScene(
+                        validationWorld, sceneFile, true, sceneMeta);
+            }
+        } finally {
+            validationWorld.dispose();
+        }
+    }
+
+    private static boolean requiresLinkedBlockPhysicsPreflight(FileHandle sceneFile) {
+        String serialized = sceneFile.readString("UTF-8");
+        return serialized.contains("BlockPhysicsBindingsComponent")
+                || (serialized.contains("PhysicsShapesComponent")
+                && !serialized.contains("directGeometry"));
     }
 
     private static void copyRuntimeShaderResources(FileHandle shadersDir) {

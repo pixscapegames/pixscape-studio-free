@@ -307,7 +307,8 @@ public class LayerSpatialDepthCommandsTest {
         Path scenePath = Files.createTempFile("layer-spatial-depth", ".json");
         FileHandle sceneFile = new FileHandle(scenePath.toFile());
 
-        SceneService.saveScene(world, sceneFile, false);
+        games.pixscape.studio.service.SceneSaveTestSupport.save(
+                world, sceneFile, new SceneMetaRuntime());
 
         World loaded = serializableWorld();
         SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
@@ -341,7 +342,8 @@ public class LayerSpatialDepthCommandsTest {
         Path scenePath = Files.createTempFile("layer-runtime-state", ".json");
         FileHandle sceneFile = new FileHandle(scenePath.toFile());
 
-        SceneService.saveScene(world, sceneFile, false);
+        games.pixscape.studio.service.SceneSaveTestSupport.save(
+                world, sceneFile, new SceneMetaRuntime());
 
         String saved = Files.readString(scenePath);
         Assert.assertFalse(saved.contains("\"culledByFrustum\""));

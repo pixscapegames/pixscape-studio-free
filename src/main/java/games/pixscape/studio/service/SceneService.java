@@ -26,6 +26,8 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -121,6 +123,8 @@ public final class SceneService {
                 canvas.getTileAnimationRegistry(),
                 canvas.getTiledAllocatorService(),
                 historyManager,
+                canvas.getIdentityRegistry(),
+                canvas.getBlockPhysicsBindingRepository(),
                 this::rebuildRenderRuntimeForScene
         );
 
@@ -756,7 +760,6 @@ public final class SceneService {
                 sceneName,
                 canonicalTag
         ));
-        canvas.getIdentityRegistry().rebuild();
         // UI
 
         int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
@@ -792,7 +795,12 @@ public final class SceneService {
 
         maybeRepackAtlas(plan);
         rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        saveScene(
+                canvas.getEcsWorld(),
+                plan.sceneFile(),
+                false,
+                plan.cfg().getCurrentSceneMeta(),
+                canvas.getBlockPhysicsBindingRepository());
         saveTileAnimations(plan);
         exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
@@ -832,7 +840,8 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.async(0.25f, "Repacking atlas...",
                     (progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)));
             steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
-            steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
+            steps.add(SaveProgressRunner.Step.sync(
+                    0.75f, "Saving scene...", () -> saveActiveScene(plan.sceneFile())));
             steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
             steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
@@ -883,8 +892,6 @@ public final class SceneService {
     private SaveExecutionPlan prepareSaveExecutionPlan() {
         final ProjectConfig cfg = ProjectConfig.getInstance();
 
-        flushWorldForSerialization();
-
         if (cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
             throw new IllegalStateException("saveProjectAndCurrentScene: projectName is empty, abort.");
         }
@@ -897,8 +904,15 @@ public final class SceneService {
 
         final SceneMeta meta = cfg.getCurrentSceneMeta();
         if (meta == null || meta.getName() == null || meta.getName().isEmpty()) {
+            flushWorldForSerialization();
             return new SaveExecutionPlan(cfg, studioDir, null, null, null, false);
         }
+        validateSceneForSave(
+                canvas.getEcsWorld(),
+                false,
+                meta,
+                canvas.getBlockPhysicsBindingRepository());
+        flushWorldForSerialization();
 
         final String sceneName = meta.getName();
         final String sceneFileName = meta.getFile();
@@ -924,7 +938,7 @@ public final class SceneService {
 
         maybeRepackAtlas(plan);
         rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        saveActiveScene(plan.sceneFile());
         saveTileAnimations(plan);
         exportRuntime(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
@@ -1006,7 +1020,7 @@ public final class SceneService {
         }
         rebuildSparseFromDense();
 
-        saveScene(canvas.getEcsWorld(), sceneFile, false);
+        saveActiveScene(sceneFile);
         if (tileAnimationsMetaDatabase != null) {
             TileAnimationsIO.save(
                     tileAnimationsMetaDatabase,
@@ -1024,9 +1038,19 @@ public final class SceneService {
      * @param outFile     output file (for example, scenes/scene1.json)
      * @param contentOnly if true, saves only "scene" content (entities with EntityIndexComponent)
      */
-    public static void saveScene(World world, FileHandle outFile, boolean contentOnly) {
+    public static void saveScene(World world,
+                                 FileHandle outFile,
+                                 boolean contentOnly,
+                                 SceneMetaRuntime activeSceneMeta,
+                                 BlockPhysicsBindingRepository blockPhysicsBindingRepository) {
         if (world == null) throw new IllegalArgumentException("world is null");
         if (outFile == null) throw new IllegalArgumentException("outFile is null");
+
+        IntBag entitiesToSave = contentOnly
+                ? world.getAspectSubscriptionManager().get(Aspect.all(EntityIndexComponent.class)).getEntities()
+                : world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
+        validateSceneForSave(
+                world, contentOnly, activeSceneMeta, blockPhysicsBindingRepository);
 
         WorldSerializationManager wsm = world.getSystem(WorldSerializationManager.class);
         if (!(wsm.getSerializer() instanceof JsonArtemisSerializer)) {
@@ -1035,10 +1059,6 @@ public final class SceneService {
             wsm.setSerializer(ser);
         }
 
-        IntBag entitiesToSave = contentOnly
-                ? world.getAspectSubscriptionManager().get(Aspect.all(EntityIndexComponent.class)).getEntities()
-                : world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
-
         SaveFileFormat format = new SaveFileFormat(entitiesToSave);
         SceneVolatileStateSnapshot volatileState = clearVolatileSceneStateForSave(world, entitiesToSave);
         try {
@@ -1046,6 +1066,39 @@ public final class SceneService {
         } finally {
             volatileState.restore(world);
         }
+    }
+
+    private void saveActiveScene(FileHandle outFile) {
+        saveScene(
+                canvas.getEcsWorld(),
+                outFile,
+                false,
+                ProjectConfig.getInstance().getCurrentSceneMeta(),
+                canvas.getBlockPhysicsBindingRepository());
+    }
+
+    private static void validateSceneForSave(
+            World world,
+            boolean contentOnly,
+            SceneMetaRuntime activeSceneMeta,
+            BlockPhysicsBindingRepository blockPhysicsBindingRepository) {
+        if (activeSceneMeta == null) {
+            throw new IllegalStateException("Active scene metadata is required for scene save.");
+        }
+        if (blockPhysicsBindingRepository == null) {
+            throw new IllegalArgumentException(
+                    "BlockPhysicsBindingRepository is required for scene save.");
+        }
+
+        IntBag persistentEntities = contentOnly
+                ? world.getAspectSubscriptionManager()
+                        .get(Aspect.all(EntityIndexComponent.class)).getEntities()
+                : world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
+        if (!activeSceneMeta.physicsEnabled) {
+            PhysicsService.requireNoAuthoredPhysics(
+                    world, persistentEntities, "Scene save");
+        }
+        blockPhysicsBindingRepository.rebuild();
     }
 
     private static SceneVolatileStateSnapshot clearVolatileSceneStateForSave(World world, IntBag entitiesToSave) {
@@ -3348,6 +3401,7 @@ public final class SceneService {
         if (canvas == null) return;
 
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
+        canvas.getBlockPhysicsBindingRepository().clear();
         World world = canvas.getEcsWorld();
 
         // Delete all entities
@@ -3382,6 +3436,8 @@ public final class SceneService {
 
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
         canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
+        canvas.getBlockPhysicsBindingRepository().bind(
+                canvas.getEcsWorld(), canvas.getIdentityRegistry());
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
     }
 

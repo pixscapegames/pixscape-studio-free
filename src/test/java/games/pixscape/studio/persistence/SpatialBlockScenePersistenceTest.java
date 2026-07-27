@@ -14,6 +14,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -45,7 +46,14 @@ public class SpatialBlockScenePersistenceTest {
         blocks.blocks.add(block);
         world.process();
         FileHandle file = tempSceneFile("layer-service-spatial-roundtrip");
-        SceneService.saveScene(world, file, false);
+        BlockPhysicsBindingRepository bindings = new BlockPhysicsBindingRepository();
+        bindings.bind(world, identities);
+        try {
+            identities.rebuild();
+            SceneService.saveScene(world, file, false, meta, bindings);
+        } finally {
+            bindings.clear();
+        }
 
         World loaded = worldWithSerialization();
         try {
@@ -82,7 +90,8 @@ public class SpatialBlockScenePersistenceTest {
         world.process();
 
         FileHandle file = tempSceneFile("spatial-block-footprint-roundtrip");
-        SceneService.saveScene(world, file, false);
+        games.pixscape.studio.service.SceneSaveTestSupport.save(
+                world, file, sceneMeta());
 
         String json = file.readString("UTF-8");
         Assert.assertFalse(json.contains("\"" + legacyAnchorField("Gx") + "\""));
@@ -139,7 +148,8 @@ public class SpatialBlockScenePersistenceTest {
         authoredComponent.revision = 7;
         world.process();
         FileHandle file = tempSceneFile("normalized-spatial-selection-roundtrip");
-        SceneService.saveScene(world, file, false);
+        games.pixscape.studio.service.SceneSaveTestSupport.save(
+                world, file, sceneMeta());
         String json = file.readString("UTF-8");
         Assert.assertFalse(json.contains("CompiledSpatialStructure"));
         Assert.assertFalse(json.contains("segmentCount"));

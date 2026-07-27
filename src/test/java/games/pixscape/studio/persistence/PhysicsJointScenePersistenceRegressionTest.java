@@ -56,7 +56,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
             world.process();
 
             FileHandle file = tempSceneFile("wheel-json-contains-wheel-specific-component");
-            SceneService.saveScene(world, file, false);
+            games.pixscape.studio.service.SceneSaveTestSupport.save(world, file, sceneMeta());
 
             String json = file.readString(String.valueOf(StandardCharsets.UTF_8));
             Assert.assertTrue("Saved JSON missing base joint component marker", json.contains("PhysicsJointComponent"));
@@ -89,7 +89,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
             world.process();
 
             FileHandle file = tempSceneFile("wheel-reload-into-existing-world-after-clear");
-            SceneService.saveScene(world, file, false);
+            games.pixscape.studio.service.SceneSaveTestSupport.save(world, file, sceneMeta());
 
             clearAllEntities(world);
             SceneLoader.loadScene(
@@ -130,7 +130,7 @@ public class PhysicsJointScenePersistenceRegressionTest {
             world.process();
 
             FileHandle file = tempSceneFile(sceneName);
-            SceneService.saveScene(world, file, false);
+            games.pixscape.studio.service.SceneSaveTestSupport.save(world, file, sceneMeta());
 
             World loaded = worldWithSerialization();
             SceneLoader.loadScene(

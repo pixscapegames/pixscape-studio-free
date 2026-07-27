@@ -9,10 +9,13 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.BlockPhysicsBindingsComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Assert;
 import org.junit.Before;
@@ -97,6 +100,56 @@ public class EntityGraphServicesTest {
     }
 
     @Test
+    public void capture_rejectsSpatialBlocksComponent() {
+        World world = new World(new WorldConfiguration());
+        int entity = body(world);
+        world.getMapper(SpatialBlocksComponent.class).create(entity);
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new EntityGraphCaptureService(world).capture(arr(entity)));
+        Assert.assertEquals(ActorPrefabSpatialScopeGuard.MESSAGE, failure.getMessage());
+    }
+
+    @Test
+    public void capture_rejectsBlockPhysicsBindingsComponent() {
+        World world = new World(new WorldConfiguration());
+        int entity = body(world);
+        world.getMapper(BlockPhysicsBindingsComponent.class).create(entity);
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new EntityGraphCaptureService(world).capture(arr(entity)));
+        Assert.assertEquals(ActorPrefabSpatialScopeGuard.MESSAGE, failure.getMessage());
+    }
+
+    @Test
+    public void capture_rejectsLinkedPhysicsShape() {
+        World world = new World(new WorldConfiguration());
+        int entity = body(world);
+        world.getMapper(PhysicsShapesComponent.class).get(entity).shapes.first().directGeometry = null;
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new EntityGraphCaptureService(world).capture(arr(entity)));
+        Assert.assertEquals(ActorPrefabSpatialScopeGuard.MESSAGE, failure.getMessage());
+    }
+
+    @Test
+    public void capture_rejectsOutOfScopeDataIntroducedOnlyByJointClosure() {
+        World world = new World(new WorldConfiguration());
+        int bodyA = body(world);
+        int bodyB = body(world);
+        int joint = distanceJoint(world, bodyA, bodyB);
+        world.getMapper(BlockPhysicsBindingsComponent.class).create(joint);
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new EntityGraphCaptureService(world).capture(arr(bodyA, bodyB)));
+        Assert.assertEquals(ActorPrefabSpatialScopeGuard.MESSAGE, failure.getMessage());
+    }
+
+    @Test
     public void invalidJointGraphFailsDuringPreparationWithoutProcessingWorld() {
         SentinelSystem sentinel = new SentinelSystem();
         World world = new World(new WorldConfigurationBuilder()
@@ -149,6 +202,46 @@ public class EntityGraphServicesTest {
         Assert.assertTrue(world.getEntityManager().isActive(bodyA));
         Assert.assertTrue(world.getEntityManager().isActive(bodyB));
         Assert.assertTrue(world.getEntityManager().isActive(joint));
+        Assert.assertEquals(0, sentinel.processCount);
+    }
+
+    @Test
+    public void manualLinkedGraphIsRejectedBeforeAllocatorsHistoryEntitiesAndProcess() {
+        SentinelSystem sentinel = new SentinelSystem();
+        World world = new World(new WorldConfigurationBuilder().with(sentinel).build());
+        games.pixscape.studio.configuration.SceneMeta meta =
+                new games.pixscape.studio.configuration.SceneMeta();
+        meta.nextEntityStableId = 40;
+        meta.nextPhysicsShapeId = 80;
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        identities.rebuild();
+        int source = body(world);
+        world.getMapper(PhysicsShapesComponent.class).get(source).shapes.first().directGeometry = null;
+        GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+        initializer.syncFrom(source);
+        EntityGraph manual = new EntityGraph(List.of(new EntityGraphEntry(source, initializer)));
+        int entitiesBefore = count(world, Aspect.all());
+        int stableHighWaterBefore = meta.nextEntityStableId;
+        int shapeHighWaterBefore = meta.nextPhysicsShapeId;
+        sentinel.processCount = 0;
+
+        IllegalArgumentException failure = Assert.assertThrows(
+                IllegalArgumentException.class,
+                () -> new EntityGraphInstantiationService(
+                        world,
+                        history,
+                        identities,
+                        new games.pixscape.runtime.service.PhysicsService(world, null, meta))
+                        .instantiate(manual, 0, 0f, 0f, "Manual linked graph"));
+
+        Assert.assertEquals(ActorPrefabSpatialScopeGuard.MESSAGE, failure.getMessage());
+        Assert.assertEquals(entitiesBefore, count(world, Aspect.all()));
+        Assert.assertEquals(stableHighWaterBefore, meta.nextEntityStableId);
+        Assert.assertEquals(shapeHighWaterBefore, meta.nextPhysicsShapeId);
+        Assert.assertEquals(0, history.getCursor());
+        Assert.assertFalse(history.canUndo());
         Assert.assertEquals(0, sentinel.processCount);
     }
 

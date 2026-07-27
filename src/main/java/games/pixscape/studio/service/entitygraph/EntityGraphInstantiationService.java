@@ -45,6 +45,7 @@ public final class EntityGraphInstantiationService {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
+        ActorPrefabSpatialScopeGuard.requireSupportedGraph(graph);
 
         IntArray createdIds = new IntArray();
         IntIntMap sourceToCreated = new IntIntMap();
