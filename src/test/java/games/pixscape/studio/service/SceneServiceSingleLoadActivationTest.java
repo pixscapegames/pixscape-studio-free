@@ -153,6 +153,29 @@ public class SceneServiceSingleLoadActivationTest {
         active.dispose();
     }
 
+    @Test
+    public void activationPipelineRejectsMissingAuthoredRegistryRebuilder() {
+        World world = serializationWorld();
+        try {
+            new ResolvedSceneActivationPipeline(
+                    world,
+                    null,
+                    null,
+                    new HistoryManager(16),
+                    (config, canonicalTag, projectDir) -> { },
+                    null,
+                    SceneLoader::loadScene
+            );
+            org.junit.Assert.fail(
+                    "Authored registry rebuild action must be required.");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage().contains(
+                    "Authored registry rebuild action"));
+        } finally {
+            world.dispose();
+        }
+    }
+
     private static void activate(World world,
                                  Fixture fixture,
                                  String sceneName,

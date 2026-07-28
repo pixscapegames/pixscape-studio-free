@@ -45,33 +45,6 @@ final class ResolvedSceneActivationPipeline {
                                     TileAnimationLookup tileAnimationLookup,
                                     TiledAllocatorService tiledAllocatorService,
                                     HistoryManager historyManager,
-                                    RenderRuntimeRebuilder renderRuntimeRebuilder) {
-        this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
-                renderRuntimeRebuilder, new Runnable() {
-                    @Override
-                    public void run() {
-                    }
-                }, SceneLoader::loadScene);
-    }
-
-    ResolvedSceneActivationPipeline(World world,
-                                    TileAnimationLookup tileAnimationLookup,
-                                    TiledAllocatorService tiledAllocatorService,
-                                    HistoryManager historyManager,
-                                    RenderRuntimeRebuilder renderRuntimeRebuilder,
-                                    SceneLoadOperation sceneLoader) {
-        this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
-                renderRuntimeRebuilder, new Runnable() {
-                    @Override
-                    public void run() {
-                    }
-                }, sceneLoader);
-    }
-
-    ResolvedSceneActivationPipeline(World world,
-                                    TileAnimationLookup tileAnimationLookup,
-                                    TiledAllocatorService tiledAllocatorService,
-                                    HistoryManager historyManager,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
                                     Runnable authoredRegistryRebuilder) {
         this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
@@ -86,6 +59,14 @@ final class ResolvedSceneActivationPipeline {
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
                                     Runnable authoredRegistryRebuilder,
                                     SceneLoadOperation sceneLoader) {
+        if (authoredRegistryRebuilder == null) {
+            throw new IllegalArgumentException(
+                    "Authored registry rebuild action is required.");
+        }
+        if (sceneLoader == null) {
+            throw new IllegalArgumentException(
+                    "Scene load operation is required.");
+        }
         this.world = world;
         this.tileAnimationLookup = tileAnimationLookup;
         this.tiledAllocatorService = tiledAllocatorService;
