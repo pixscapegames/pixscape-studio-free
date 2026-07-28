@@ -201,8 +201,11 @@ public final class SpatialBlockProperties extends VisTable {
                         history.historyIds(), mutations, bindingRepository, layerEntityId, blockId,
                         physicsCollisionBox.isChecked());
                 if (!command.isNoop()) {
+                    int cursor = history.getCursor();
                     history.execute(command);
-                    if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+                    if (history.getCursor() != cursor && markPreviewSaveRequired != null) {
+                        markPreviewSaveRequired.run();
+                    }
                 }
                 refreshFromModel();
                 event.handle();
@@ -244,8 +247,11 @@ public final class SpatialBlockProperties extends VisTable {
                 after
         );
         if (!command.isNoop()) {
+            int cursor = history.getCursor();
             history.execute(command);
-            if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+            if (history.getCursor() != cursor && markPreviewSaveRequired != null) {
+                markPreviewSaveRequired.run();
+            }
         }
         refreshFromModel();
     }
@@ -278,8 +284,11 @@ public final class SpatialBlockProperties extends VisTable {
         EditSpatialBlockCommand command = new EditSpatialBlockCommand(
                 world, history.historyIds(), selection, layerEntityId, blockId, current, after);
         if (!command.isNoop()) {
+            int cursor = history.getCursor();
             history.execute(command);
-            if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+            if (history.getCursor() != cursor && markPreviewSaveRequired != null) {
+                markPreviewSaveRequired.run();
+            }
         }
         refreshFromModel();
     }

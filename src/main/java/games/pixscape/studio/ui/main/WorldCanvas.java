@@ -2223,10 +2223,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (world != null) {
             physicsSelectionReconciler.bindWorld(null);
-            if (worldBlockMutationService != null) {
-                worldBlockMutationService.detach();
-                worldBlockMutationService = null;
-            }
+            bindWorldBlockMutationService(null);
             blockPhysicsBindingRepository.clear();
             if (identityRegistry != null) {
                 identityRegistry.bind(null, null);
