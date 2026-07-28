@@ -62,7 +62,7 @@ public class PrefabAssetServiceTest {
         FileHandle fragmentFile =
                 file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
         Assert.assertEquals(
-                1,
+                2,
                 new JsonReader().parse(fragmentFile).getInt("schemaVersion"));
 
         Assert.assertEquals(graph.size(), loaded.size());

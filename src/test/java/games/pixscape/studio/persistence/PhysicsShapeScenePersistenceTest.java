@@ -115,7 +115,7 @@ public class PhysicsShapeScenePersistenceTest {
             Assert.fail("Missing geometry must be rejected.");
         } catch (RuntimeException expected) {
             Assert.assertTrue(expected.getMessage().contains(file.path()));
-            Assert.assertTrue(expected.getMessage().contains("entityId"));
+            Assert.assertTrue(expected.getMessage().contains("ownerEntityId"));
             Assert.assertTrue(expected.getMessage().contains("physicsShapeId 13"));
             Assert.assertTrue(expected.getMessage().contains("manual shape geometry is required"));
         }

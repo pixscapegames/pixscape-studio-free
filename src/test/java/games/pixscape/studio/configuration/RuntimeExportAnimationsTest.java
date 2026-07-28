@@ -397,7 +397,7 @@ public class RuntimeExportAnimationsTest {
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         String fragment = "{" +
-                "\"schemaVersion\":1," +
+                "\"schemaVersion\":2," +
                 "\"metadata\":{\"version\":1}," +
                 "\"componentIdentifiers\":{" +
                 "\"games.pixscape.studio.component.EntityMetaComponent\":\"EntityMetaComponent\"," +
@@ -422,7 +422,7 @@ public class RuntimeExportAnimationsTest {
                 .toFile());
         String exported = out.readString("UTF-8");
 
-        assertTrue(exported.contains("\"schemaVersion\": 1"));
+        assertTrue(exported.contains("\"schemaVersion\": 2"));
         assertFalse(exported.contains("games.pixscape.studio"));
         assertFalse(exported.contains("EntityMetaComponent"));
         assertFalse(exported.contains("PhysicsCompiledFixturesComponent"));

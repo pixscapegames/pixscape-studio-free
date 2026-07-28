@@ -38,6 +38,7 @@ final class ResolvedSceneActivationPipeline {
     private final TiledAllocatorService tiledAllocatorService;
     private final HistoryManager historyManager;
     private final RenderRuntimeRebuilder renderRuntimeRebuilder;
+    private final Runnable authoredRegistryRebuilder;
     private final SceneLoadOperation sceneLoader;
 
     ResolvedSceneActivationPipeline(World world,
@@ -46,7 +47,11 @@ final class ResolvedSceneActivationPipeline {
                                     HistoryManager historyManager,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder) {
         this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
-                renderRuntimeRebuilder, SceneLoader::loadScene);
+                renderRuntimeRebuilder, new Runnable() {
+                    @Override
+                    public void run() {
+                    }
+                }, SceneLoader::loadScene);
     }
 
     ResolvedSceneActivationPipeline(World world,
@@ -55,11 +60,38 @@ final class ResolvedSceneActivationPipeline {
                                     HistoryManager historyManager,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
                                     SceneLoadOperation sceneLoader) {
+        this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
+                renderRuntimeRebuilder, new Runnable() {
+                    @Override
+                    public void run() {
+                    }
+                }, sceneLoader);
+    }
+
+    ResolvedSceneActivationPipeline(World world,
+                                    TileAnimationLookup tileAnimationLookup,
+                                    TiledAllocatorService tiledAllocatorService,
+                                    HistoryManager historyManager,
+                                    RenderRuntimeRebuilder renderRuntimeRebuilder,
+                                    Runnable authoredRegistryRebuilder) {
+        this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
+                renderRuntimeRebuilder, authoredRegistryRebuilder,
+                SceneLoader::loadScene);
+    }
+
+    ResolvedSceneActivationPipeline(World world,
+                                    TileAnimationLookup tileAnimationLookup,
+                                    TiledAllocatorService tiledAllocatorService,
+                                    HistoryManager historyManager,
+                                    RenderRuntimeRebuilder renderRuntimeRebuilder,
+                                    Runnable authoredRegistryRebuilder,
+                                    SceneLoadOperation sceneLoader) {
         this.world = world;
         this.tileAnimationLookup = tileAnimationLookup;
         this.tiledAllocatorService = tiledAllocatorService;
         this.historyManager = historyManager;
         this.renderRuntimeRebuilder = renderRuntimeRebuilder;
+        this.authoredRegistryRebuilder = authoredRegistryRebuilder;
         this.sceneLoader = sceneLoader;
     }
 
@@ -72,6 +104,7 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
+        authoredRegistryRebuilder.run();
         resolveTiledLayersForActivation(
                 world,
                 target.meta(),

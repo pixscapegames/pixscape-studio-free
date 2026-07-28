@@ -13,6 +13,8 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.SpatialBlockPhysicsRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -29,10 +31,13 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class SceneServiceSingleLoadActivationTest {
 
@@ -155,12 +160,21 @@ public class SceneServiceSingleLoadActivationTest {
                                  AtomicInteger renderRebuilds) {
         HistoryManager history = new HistoryManager(16);
         history.historyIds().ensureForEntity(999);
+        SceneMeta meta = fixture.cfg.getSceneMeta(sceneName);
+        IdentityRegistry identities = new IdentityRegistry();
+        SpatialBlockPhysicsRegistry spatialPhysics =
+                new SpatialBlockPhysicsRegistry();
+        identities.bind(world, meta);
+        spatialPhysics.bind(world, identities, meta);
+        AtomicBoolean registriesRebuilt = new AtomicBoolean();
         ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
                 world,
                 null,
                 null,
                 history,
                 (config, canonicalTag, projectDir) -> {
+                    assertTrue(registriesRebuilt.get());
+                    assertNull(spatialPhysics.findByPhysicsShapeId(1));
                     int[] layers = tiledLayerIds(world);
                     assertEquals(2, layers.length);
                     for (int layer : layers) {
@@ -173,9 +187,15 @@ public class SceneServiceSingleLoadActivationTest {
                             ResolvedSceneActivationPipeline.firstInvalidSpatialBlock(world));
                     renderRebuilds.incrementAndGet();
                 },
-                (target, file, editMode, meta) -> {
+                () -> {
+                    identities.rebuild();
+                    spatialPhysics.rebuild();
+                    registriesRebuilt.set(true);
+                },
+                (target, file, editMode, loadedMeta) -> {
                     loads.incrementAndGet();
-                    SceneLoader.loadScene(target, file, editMode, meta);
+                    SceneLoader.loadScene(
+                            target, file, editMode, loadedMeta);
                 }
         );
         pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
@@ -187,6 +207,9 @@ public class SceneServiceSingleLoadActivationTest {
                 sceneName,
                 fixture.cfg.canonicalSceneTag(sceneName)
         ));
+        assertTrue(spatialPhysics.isBoundTo(world));
+        spatialPhysics.detach();
+        identities.bind(null, null);
     }
 
     private static void writeScene(FileHandle sceneFile, int[] counts, int[] assetIds) {
