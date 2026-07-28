@@ -7,6 +7,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -17,6 +18,11 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 public final class FixtureCommandSupport {
 
     private FixtureCommandSupport() {
+    }
+
+    static boolean isSpatialReserved(World world, int entityId) {
+        return world != null && entityId >= 0 && world.getEntityManager().isActive(entityId)
+                && world.getMapper(SpatialBlocksComponent.class).has(entityId);
     }
 
     static int resolveBodyEntityId(World world, HistoryIdRegistry historyIds, long bodyHistoryId) {

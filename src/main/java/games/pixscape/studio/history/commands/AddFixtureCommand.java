@@ -59,14 +59,16 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                         ? physicsSelectionService.getSelectedPhysicsShapeId()
                         : PhysicsSelectionService.NO_SHAPE;
 
-        this.createdFixtureId = physicsService.allocateNewPhysicsShapeId();
-        PhysicsShapeData base = template != null
-                ? template.copy()
-                : PhysicsService.createDefaultShape(createdFixtureId);
-        base.physicsShapeId = createdFixtureId;
+        boolean reserved = FixtureCommandSupport.isSpatialReserved(world, bodyEntityId);
+        this.createdFixtureId = reserved || physicsService == null
+                ? -1 : physicsService.allocateNewPhysicsShapeId();
+        PhysicsShapeData base = createdFixtureId > 0 ? (template != null
+                ? template.copy() : PhysicsService.createDefaultShape(createdFixtureId)) : null;
+        if (base != null) base.physicsShapeId = createdFixtureId;
         this.template = base;
         this.insertIndex = insertIndex;
-        this.noop = (world == null || historyIds == null || physicsSelectionService == null || bodyHistoryId <= 0L);
+        this.noop = (world == null || historyIds == null || physicsSelectionService == null
+                || bodyHistoryId <= 0L || reserved || template == null && physicsService == null);
     }
 
     @Override

@@ -22,10 +22,11 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
         int sourceIndex = FixtureCommandSupport.indexOfFixture(fixtures, sourceFixtureId);
         PhysicsShapeData source = (sourceIndex >= 0) ? fixtures.shapes.get(sourceIndex) : null;
-        PhysicsShapeData duplicate =
-                FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
+        boolean reserved = FixtureCommandSupport.isSpatialReserved(world, bodyEntityId);
+        PhysicsShapeData duplicate = reserved ? null
+                : FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
 
-        this.noop = (source == null || duplicate == null);
+        this.noop = reserved || source == null || duplicate == null;
         this.delegate = new AddFixtureCommand(
                 world,
                 historyIds,

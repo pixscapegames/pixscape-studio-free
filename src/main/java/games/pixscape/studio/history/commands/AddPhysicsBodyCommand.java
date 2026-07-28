@@ -43,6 +43,7 @@ public final class AddPhysicsBodyCommand
                 && physicsService != null
                 && bodyEntityId >= 0
                 && world.getEntityManager().isActive(bodyEntityId)
+                && !FixtureCommandSupport.isSpatialReserved(world, bodyEntityId)
                 && !world.getMapper(PhysicsBodyComponent.class).has(bodyEntityId);
         this.bodyHistoryId = valid ? historyIds.ensureForEntity(bodyEntityId) : -1L;
         this.transformExistedBefore = valid
