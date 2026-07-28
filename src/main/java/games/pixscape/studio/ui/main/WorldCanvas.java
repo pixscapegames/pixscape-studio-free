@@ -2131,6 +2131,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (worldBlockMutationService != null) worldBlockMutationService.detach();
         worldBlockMutationService = sceneMeta == null ? null : new WorldBlockMutationService(world,
                 sceneMeta, identityRegistry, blockPhysicsBindingRepository, physicsService);
+        games.pixscape.studio.history.commands.SpatialBlockCommandSupport.bindMutationService(
+                world, worldBlockMutationService);
     }
 
     public Stage getGridStage() {

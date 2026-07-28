@@ -9,6 +9,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.service.WorldBlockMutationService;
+import games.pixscape.runtime.service.WorldBlockOwnerSnapshot;
 
 /** Atomic full-layer authored-wall snapshot command for edits, merges, splits, and shared properties. */
 public final class EditSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
@@ -20,6 +23,8 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final CommandOutcome initialOutcome;
+    private WorldBlockOwnerSnapshot beforeOwner;
+    private WorldBlockOwnerSnapshot afterOwner;
 
     public EditSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                    SpatialBlockSelectionService selection, int layerEntityId,
@@ -49,12 +54,38 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
 
     @Override public CommandOutcome executeOutcome() { return apply(after); }
     @Override public CommandOutcome redoOutcome() { return apply(after); }
-    @Override public CommandOutcome undoOutcome() { return apply(before); }
+    @Override public CommandOutcome undoOutcome() {
+        if (beforeOwner != null) {
+            WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+            if (service != null) {
+                service.restoreOwnerState(beforeOwner);
+                return CommandOutcome.APPLIED;
+            }
+        }
+        return apply(before);
+    }
 
     private CommandOutcome apply(Array<SpatialBlockData> snapshot) {
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+        PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(layer, null);
+        if (service != null && identity != null) {
+            if (afterOwner != null && snapshot == after) {
+                service.restoreOwnerState(afterOwner);
+            } else {
+                if (beforeOwner == null) beforeOwner = service.captureOwnerState(identity.stableId);
+                SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
+                service.replaceSpatialBlocks(identity.stableId,
+                        current != null ? current.nextSpatialBlockId : 1, snapshot);
+                afterOwner = service.captureOwnerState(identity.stableId);
+            }
+            if (selection != null) selection.selectBlock(layer, blockId);
+            SpatialBlockCommandSupport.markChanged(world, layer, this);
+            return CommandOutcome.APPLIED;
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, snapshot);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.selectBlock(layer, blockId);

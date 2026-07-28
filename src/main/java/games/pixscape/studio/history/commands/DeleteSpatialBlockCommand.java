@@ -9,6 +9,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.service.WorldBlockMutationService;
+import games.pixscape.runtime.service.WorldBlockOwnerSnapshot;
 
 /** Atomic full-layer authored-wall snapshot command for deletion and structure splits. */
 public final class DeleteSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
@@ -20,6 +23,8 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final CommandOutcome initialOutcome;
+    private WorldBlockOwnerSnapshot beforeOwner;
+    private WorldBlockOwnerSnapshot afterOwner;
 
     public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                      SpatialBlockSelectionService selection,
@@ -56,6 +61,13 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
 
     @Override
     public CommandOutcome redoOutcome() {
+        if (afterOwner != null) {
+            WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+            if (service != null) {
+                service.restoreOwnerState(afterOwner);
+                return CommandOutcome.APPLIED;
+            }
+        }
         return applyAfter();
     }
 
@@ -63,6 +75,19 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+        PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(layer, null);
+        if (service != null && identity != null) {
+            beforeOwner = service.captureOwnerState(identity.stableId);
+            SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
+            service.deleteSpatialBlock(identity.stableId, blockId,
+                    current != null ? current.nextSpatialBlockId : 1, after);
+            afterOwner = service.captureOwnerState(identity.stableId);
+            if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
+            SpatialBlockCommandSupport.markChanged(world, layer, this);
+            return CommandOutcome.APPLIED;
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
                 world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
@@ -81,6 +106,15 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        if (beforeOwner != null) {
+            WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+            if (service != null) {
+                service.restoreOwnerState(beforeOwner);
+                if (selection != null) selection.selectBlock(layer, blockId);
+                SpatialBlockCommandSupport.markChanged(world, layer, this);
+                return CommandOutcome.APPLIED;
+            }
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
                 world, layer, before);
         if (outcome != CommandOutcome.APPLIED) return outcome;

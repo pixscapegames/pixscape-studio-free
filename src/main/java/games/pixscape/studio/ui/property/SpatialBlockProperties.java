@@ -341,8 +341,10 @@ public final class SpatialBlockProperties extends VisTable {
             lightOccluderBox.setDisabled(!active);
             shadowCasterBox.setDisabled(!active);
             particleOccluderBox.setDisabled(!active);
-            physicsCollisionBox.setDisabled(!active || mutationSupplier == null
-                    || mutationSupplier.get() == null || bindingRepository == null);
+            WorldBlockMutationService mutationService = mutationSupplier != null
+                    ? mutationSupplier.get() : null;
+            physicsCollisionBox.setDisabled(!active || mutationService == null
+                    || !mutationService.isPhysicsEnabled() || bindingRepository == null);
             constraints.cancel();
 
             nameField.refresh();

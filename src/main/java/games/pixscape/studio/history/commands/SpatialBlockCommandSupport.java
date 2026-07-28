@@ -11,9 +11,25 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
+import games.pixscape.runtime.service.WorldBlockMutationService;
+
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class SpatialBlockCommandSupport {
+    private static final Map<World, WorldBlockMutationService> MUTATIONS = new WeakHashMap<>();
     private SpatialBlockCommandSupport() {
+    }
+
+    public static synchronized void bindMutationService(World world,
+                                                        WorldBlockMutationService service) {
+        if (world == null) return;
+        if (service == null) MUTATIONS.remove(world);
+        else MUTATIONS.put(world, service);
+    }
+
+    static synchronized WorldBlockMutationService mutationService(World world) {
+        return MUTATIONS.get(world);
     }
 
     static SpatialBlocksComponent getOrCreate(World world, int layerEntityId) {

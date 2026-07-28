@@ -9,6 +9,9 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.service.WorldBlockMutationService;
+import games.pixscape.runtime.service.WorldBlockOwnerSnapshot;
 
 /** Atomic full-layer authored-wall snapshot command for creation and structure merges. */
 public final class AddSpatialBlockCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
@@ -21,6 +24,8 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
     private final int blockId;
     private final CommandOutcome initialOutcome;
     private boolean identityAllocated;
+    private WorldBlockOwnerSnapshot beforeOwner;
+    private WorldBlockOwnerSnapshot afterOwner;
 
     public AddSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                   SpatialBlockSelectionService selection, int layerEntityId,
@@ -61,6 +66,13 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
 
     @Override
     public CommandOutcome redoOutcome() {
+        if (afterOwner != null) {
+            WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+            if (service != null) {
+                service.restoreOwnerState(afterOwner);
+                return CommandOutcome.APPLIED;
+            }
+        }
         return applyAfter();
     }
 
@@ -68,6 +80,22 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+        PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(layer, null);
+        if (service != null && identity != null) {
+            SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
+            int next = current != null ? current.nextSpatialBlockId : 1;
+            if (!identityAllocated && next != blockId) throw new IllegalStateException(
+                    "Spatial block allocation changed after command preparation.");
+            beforeOwner = service.captureOwnerState(identity.stableId);
+            service.replaceSpatialBlocks(identity.stableId, identityAllocated ? next : next + 1, after);
+            identityAllocated = true;
+            afterOwner = service.captureOwnerState(identity.stableId);
+            if (selection != null) selection.selectBlock(layer, blockId);
+            SpatialBlockCommandSupport.markChanged(world, layer, this);
+            return CommandOutcome.APPLIED;
+        }
         if (!identityAllocated) {
             SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
             int currentNextSpatialBlockId = current != null ? current.peekNextSpatialBlockId() : 1;
@@ -104,6 +132,15 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        if (beforeOwner != null) {
+            WorldBlockMutationService service = SpatialBlockCommandSupport.mutationService(world);
+            if (service != null) {
+                service.restoreOwnerState(beforeOwner);
+                if (selection != null) selection.enterLayer(layer);
+                SpatialBlockCommandSupport.markChanged(world, layer, this);
+                return CommandOutcome.APPLIED;
+            }
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
                 world, layer, before);
         if (outcome != CommandOutcome.APPLIED) return outcome;
