@@ -10,7 +10,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -86,10 +86,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         widthWUField = new FloatField(ctx.world, this::readWidthWU, this::hasActiveFixture).setDisplayDecimals(2);
         widthWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isBoxShape(snapshot.directGeometry.shapeType)) return;
+                if (!isBoxShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float wM = wuToM(Math.abs(v), ppm);
-                snapshot.directGeometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -97,10 +97,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         heightWUField = new FloatField(ctx.world, this::readHeightWU, this::hasActiveFixture).setDisplayDecimals(2);
         heightWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isBoxShape(snapshot.directGeometry.shapeType)) return;
+                if (!isBoxShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float hM = wuToM(Math.abs(v), ppm);
-                snapshot.directGeometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -108,10 +108,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         diameterWUField = new FloatField(ctx.world, this::readDiameterWU, this::hasActiveFixture).setDisplayDecimals(2);
         diameterWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isCircleShape(snapshot.directGeometry.shapeType)) return;
+                if (!isCircleShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float dM = wuToM(Math.abs(v), ppm);
-                snapshot.directGeometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -120,7 +120,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         offsetXWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
-                snapshot.directGeometry.offsetX = wuToM(v, ppm);
+                snapshot.geometry.offsetX = wuToM(v, ppm);
             });
         });
 
@@ -128,7 +128,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         offsetYWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
-                snapshot.directGeometry.offsetY = wuToM(v, ppm);
+                snapshot.geometry.offsetY = wuToM(v, ppm);
             });
         });
 
@@ -261,16 +261,16 @@ public final class FixturesPanel extends CollapsibleWidget {
                 this::hasActiveFixture,
                 (int e) -> {
                     PhysicsShapeData f = activeFixture(e);
-                    return SHAPES.get(clamp((f != null) ? f.directGeometry.shapeType : PhysicsDirectGeometryData.SHAPE_BOX, SHAPES.size - 1));
+                    return SHAPES.get(clamp((f != null) ? f.geometry.shapeType : PhysicsGeometryData.SHAPE_BOX, SHAPES.size - 1));
                 },
                 (eid, before, after) -> {
                     int idx = SHAPES.indexOf(after, false);
-                    if (idx < 0) idx = PhysicsDirectGeometryData.SHAPE_BOX;
+                    if (idx < 0) idx = PhysicsGeometryData.SHAPE_BOX;
                     final int targetShape = idx;
                     applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, true, snapshot -> {
-                        int prevType = snapshot.directGeometry.shapeType;
-                        snapshot.directGeometry.shapeType = targetShape;
-                        if (targetShape == PhysicsDirectGeometryData.SHAPE_POLYGON) {
+                        int prevType = snapshot.geometry.shapeType;
+                        snapshot.geometry.shapeType = targetShape;
+                        if (targetShape == PhysicsGeometryData.SHAPE_POLYGON) {
                             seedDefaultPolygon(snapshot, prevType);
                         }
                     });
@@ -501,12 +501,12 @@ public final class FixturesPanel extends CollapsibleWidget {
         if (fixture == null) return 0;
 
         int result = Long.hashCode(fixture.physicsShapeId);
-        result = 31 * result + fixture.directGeometry.shapeType;
-        result = 31 * result + Float.floatToIntBits(fixture.directGeometry.offsetX);
-        result = 31 * result + Float.floatToIntBits(fixture.directGeometry.offsetY);
-        result = 31 * result + Float.floatToIntBits(fixture.directGeometry.halfWidth);
-        result = 31 * result + Float.floatToIntBits(fixture.directGeometry.halfHeight);
-        result = 31 * result + Float.floatToIntBits(fixture.directGeometry.radius);
+        result = 31 * result + fixture.geometry.shapeType;
+        result = 31 * result + Float.floatToIntBits(fixture.geometry.offsetX);
+        result = 31 * result + Float.floatToIntBits(fixture.geometry.offsetY);
+        result = 31 * result + Float.floatToIntBits(fixture.geometry.halfWidth);
+        result = 31 * result + Float.floatToIntBits(fixture.geometry.halfHeight);
+        result = 31 * result + Float.floatToIntBits(fixture.geometry.radius);
         result = 31 * result + Float.floatToIntBits(fixture.density);
         result = 31 * result + Float.floatToIntBits(fixture.friction);
         result = 31 * result + Float.floatToIntBits(fixture.restitution);
@@ -519,9 +519,9 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private boolean hasValidPolygon(PhysicsShapeData f) {
         return f != null
-                && f.directGeometry.polygonVertices != null
-                && f.directGeometry.polygonVertexCount >= 3
-                && f.directGeometry.polygonVertices.length >= f.directGeometry.polygonVertexCount * 2;
+                && f.geometry.polygonVertices != null
+                && f.geometry.polygonVertexCount >= 3
+                && f.geometry.polygonVertices.length >= f.geometry.polygonVertexCount * 2;
     }
 
     private void seedDefaultPolygon(PhysicsShapeData f, int previousShapeType) {
@@ -530,17 +530,17 @@ public final class FixturesPanel extends CollapsibleWidget {
         float hx;
         float hy;
 
-        if (previousShapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) {
-            float r = Math.max(MIN_SHAPE_HALF_M, f.directGeometry.radius);
+        if (previousShapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
+            float r = Math.max(MIN_SHAPE_HALF_M, f.geometry.radius);
             hx = r;
             hy = r;
         } else {
-            hx = Math.max(MIN_SHAPE_HALF_M, f.directGeometry.halfWidth);
-            hy = Math.max(MIN_SHAPE_HALF_M, f.directGeometry.halfHeight);
+            hx = Math.max(MIN_SHAPE_HALF_M, f.geometry.halfWidth);
+            hy = Math.max(MIN_SHAPE_HALF_M, f.geometry.halfHeight);
         }
 
-        f.directGeometry.polygonVertexCount = 4;
-        f.directGeometry.polygonVertices = new float[]{
+        f.geometry.polygonVertexCount = 4;
+        f.geometry.polygonVertices = new float[]{
                 -hx, -hy,
                 hx, -hy,
                 hx, hy,
@@ -598,7 +598,8 @@ public final class FixturesPanel extends CollapsibleWidget {
         return eid >= 0
                 && ctx.mPhysBody.has(eid)
                 && ctx.mPhysFixtures.has(eid)
-                && ctx.mPhysFixtures.get(eid).hasShapes();
+                && ctx.mPhysFixtures.get(eid).shapes != null
+                && ctx.mPhysFixtures.get(eid).shapes.size > 0;
     }
 
     private boolean hasActiveFixture(int eid) {
@@ -617,7 +618,9 @@ public final class FixturesPanel extends CollapsibleWidget {
         if (physicsShapeId <= 0L) return null;
 
         PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || !fixtures.hasShapes()) return null;
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
+            return null;
+        }
 
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData f = fixtures.shapes.get(i);
@@ -628,52 +631,52 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     private static boolean isBox(PhysicsShapeData f) {
-        return f != null && isBoxShape(f.directGeometry.shapeType);
+        return f != null && isBoxShape(f.geometry.shapeType);
     }
 
     private static boolean isCircle(PhysicsShapeData f) {
-        return f != null && isCircleShape(f.directGeometry.shapeType);
+        return f != null && isCircleShape(f.geometry.shapeType);
     }
 
     private static boolean isBoxShape(int shapeType) {
-        return shapeType == PhysicsDirectGeometryData.SHAPE_BOX;
+        return shapeType == PhysicsGeometryData.SHAPE_BOX;
     }
 
     private static boolean isCircleShape(int shapeType) {
-        return shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        return shapeType == PhysicsGeometryData.SHAPE_CIRCLE;
     }
 
     private float readWidthWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
         if (!isBox(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.directGeometry.halfWidth), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.halfWidth), ppm);
     }
 
     private float readHeightWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
         if (!isBox(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.directGeometry.halfHeight), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.halfHeight), ppm);
     }
 
     private float readDiameterWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
         if (!isCircle(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.directGeometry.radius), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.radius), ppm);
     }
 
     private float readOffsetXWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
         if (f == null) return 0f;
-        return mToWu(f.directGeometry.offsetX, resolvePixelsPerMeter());
+        return mToWu(f.geometry.offsetX, resolvePixelsPerMeter());
     }
 
     private float readOffsetYWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
         if (f == null) return 0f;
-        return mToWu(f.directGeometry.offsetY, resolvePixelsPerMeter());
+        return mToWu(f.geometry.offsetY, resolvePixelsPerMeter());
     }
 
     private void autoSizeFromSprite(int eid) {
@@ -692,12 +695,12 @@ public final class FixturesPanel extends CollapsibleWidget {
         float hM = clampMin(wuToM(worldHwu, ppm), 2f * MIN_SHAPE_HALF_M);
 
         applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-            if (isBoxShape(snapshot.directGeometry.shapeType)) {
-                snapshot.directGeometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
-                snapshot.directGeometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
-            } else if (isCircleShape(snapshot.directGeometry.shapeType)) {
+            if (isBoxShape(snapshot.geometry.shapeType)) {
+                snapshot.geometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
+            } else if (isCircleShape(snapshot.geometry.shapeType)) {
                 float dM = Math.max(2f * MIN_SHAPE_HALF_M, Math.min(wM, hM));
-                snapshot.directGeometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
             }
         });
     }

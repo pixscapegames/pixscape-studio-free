@@ -37,8 +37,8 @@ public final class EditFixtureCommand
 
         public boolean sameGeometryAs(Snapshot other) {
             if (other == null || data == null || other.data == null) return false;
-            return data.directGeometry != null
-                    && data.directGeometry.contentEquals(other.data.directGeometry);
+            return data.geometry != null
+                    && data.geometry.contentEquals(other.data.geometry);
         }
     }
 

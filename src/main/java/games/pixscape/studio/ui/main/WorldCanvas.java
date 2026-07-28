@@ -1477,7 +1477,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         // --- scene settings ---
-        final float ppm = (meta.pixelsPerMeter > 0f) ? meta.pixelsPerMeter : 100f;
+        final float ppm = meta.pixelsPerMeter;
         final float gx = meta.gravityX;
         final float gy = meta.gravityY;
         final boolean doSleep = meta.doSleep;

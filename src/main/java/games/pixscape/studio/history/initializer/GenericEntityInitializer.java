@@ -385,7 +385,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         }
 
         // --- Physics fixtures ---
-        if (mPhysicsShapes.has(e) && mPhysicsShapes.get(e).hasShapes()) {
+        if (mPhysicsShapes.has(e)
+                && mPhysicsShapes.get(e).shapes != null
+                && mPhysicsShapes.get(e).shapes.size > 0) {
             PhysicsShapesComponent fixtures = mPhysicsShapes.get(e);
             hasPhysicsShapes = true;
             physicsShapes.clear();

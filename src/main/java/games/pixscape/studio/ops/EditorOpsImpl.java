@@ -15,7 +15,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -27,7 +27,7 @@ import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
@@ -748,10 +748,10 @@ public class EditorOpsImpl implements EditorOps {
         if (bodyEid < 0) return;
 
         PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
-        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
 
-        fixture.directGeometry.offsetX = 0f;
-        fixture.directGeometry.offsetY = 0f;
+        fixture.geometry.offsetX = 0f;
+        fixture.geometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -769,11 +769,11 @@ public class EditorOpsImpl implements EditorOps {
         if (bodyEid < 0) return;
 
         PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
-        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-        fixture.directGeometry.radius = 0.5f;
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        fixture.geometry.radius = 0.5f;
 
-        fixture.directGeometry.offsetX = 0f;
-        fixture.directGeometry.offsetY = 0f;
+        fixture.geometry.offsetX = 0f;
+        fixture.geometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -823,9 +823,9 @@ public class EditorOpsImpl implements EditorOps {
             PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
             if (f.physicsShapeId != physicsShapeId) continue;
-            PhysicsDirectGeometryData geometry = f.directGeometry;
+            PhysicsGeometryData geometry = f.geometry;
             if (geometry == null
-                    || geometry.shapeType != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+                    || geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) return;
             if (geometry.polygonVertices == null || geometry.polygonVertexCount < 3) return;
 
             polygonDrawSession.beginEdit(

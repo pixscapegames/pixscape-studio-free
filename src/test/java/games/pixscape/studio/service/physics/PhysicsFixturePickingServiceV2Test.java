@@ -10,7 +10,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Assert;
@@ -19,12 +19,12 @@ import org.junit.Test;
 public class PhysicsFixturePickingServiceV2Test {
     @Test
     public void picksBoxCircleAndConvexPolygonFromCompiledCache() {
-        PhysicsShapeData box = shape(1, PhysicsDirectGeometryData.SHAPE_BOX);
-        PhysicsShapeData circle = shape(2, PhysicsDirectGeometryData.SHAPE_CIRCLE);
-        PhysicsShapeData polygon = shape(3, PhysicsDirectGeometryData.SHAPE_POLYGON);
-        polygon.directGeometry.polygonVertices =
+        PhysicsShapeData box = shape(1, PhysicsGeometryData.SHAPE_BOX);
+        PhysicsShapeData circle = shape(2, PhysicsGeometryData.SHAPE_CIRCLE);
+        PhysicsShapeData polygon = shape(3, PhysicsGeometryData.SHAPE_POLYGON);
+        polygon.geometry.polygonVertices =
                 new float[]{0f, 0f, 1f, 0f, 0f, 1f};
-        polygon.directGeometry.polygonVertexCount = 3;
+        polygon.geometry.polygonVertexCount = 3;
 
         Assert.assertTrue(pickSingle(box, 0f, 0f).hit());
         Assert.assertTrue(pickSingle(circle, 0f, 0f).hit());
@@ -34,13 +34,13 @@ public class PhysicsFixturePickingServiceV2Test {
     @Test
     public void reverseCacheOrderWinsAndAuthoredMutationDoesNotAffectStablePicks() {
         Fixture fixture = fixture(
-                shape(11, PhysicsDirectGeometryData.SHAPE_CIRCLE),
-                shape(12, PhysicsDirectGeometryData.SHAPE_CIRCLE));
+                shape(11, PhysicsGeometryData.SHAPE_CIRCLE),
+                shape(12, PhysicsGeometryData.SHAPE_CIRCLE));
         PhysicsFixturePickingService picker =
                 new PhysicsFixturePickingService(fixture.physics);
 
         Assert.assertEquals(12, picker.pick(fixture.body, 0f, 0f, 0f).physicsShapeId);
-        fixture.shapes.shapes.get(1).directGeometry.offsetX = 1000f;
+        fixture.shapes.shapes.get(1).geometry.offsetX = 1000f;
         for (int i = 0; i < 1000; i++) {
             PhysicsFixturePickingService.PickResult result =
                     picker.pick(fixture.body, 0f, 0f, 0f);
@@ -50,7 +50,7 @@ public class PhysicsFixturePickingServiceV2Test {
 
     @Test
     public void compiledCachePickSurvivesCompleteAuthoredShapeRemoval() {
-        Fixture fixture = fixture(shape(31, PhysicsDirectGeometryData.SHAPE_BOX));
+        Fixture fixture = fixture(shape(31, PhysicsGeometryData.SHAPE_BOX));
         PhysicsFixturePickingService picker =
                 new PhysicsFixturePickingService(fixture.physics);
         PhysicsFixturePickingService.PickResult before =
@@ -69,7 +69,7 @@ public class PhysicsFixturePickingServiceV2Test {
 
     @Test
     public void overlapOfTwoCompiledPartsUsesHighestPartIndex() {
-        Fixture fixture = fixture(shape(21, PhysicsDirectGeometryData.SHAPE_BOX));
+        Fixture fixture = fixture(shape(21, PhysicsGeometryData.SHAPE_BOX));
         PhysicsCompiledFixturesComponent cache =
                 fixture.world.getMapper(PhysicsCompiledFixturesComponent.class)
                         .get(fixture.body);
@@ -96,13 +96,13 @@ public class PhysicsFixturePickingServiceV2Test {
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).create(bodyEntityId);
         PhysicsShapeData polygon = new PhysicsShapeData();
-        polygon.directGeometry = new PhysicsDirectGeometryData();
+        polygon.geometry = new PhysicsGeometryData();
         polygon.physicsShapeId = 17;
-        polygon.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-        polygon.directGeometry.polygonVertices =
+        polygon.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        polygon.geometry.polygonVertices =
                 new float[]{0f, 0f, 2f, 0f, 2f, 2f, 1f, 1f, 0f, 2f};
-        polygon.directGeometry.polygonVertexCount = 5;
-        shapes.add(polygon);
+        polygon.geometry.polygonVertexCount = 5;
+        shapes.shapes.add(polygon);
         PhysicsService.publishPreparedCandidate(
                 shapes,
                 world.getMapper(PhysicsCompiledFixturesComponent.class)
@@ -136,7 +136,7 @@ public class PhysicsFixturePickingServiceV2Test {
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).create(body);
         for (PhysicsShapeData shape : sourceShapes) {
-            shapes.add(shape);
+            shapes.shapes.add(shape);
         }
         PhysicsService.publishPreparedCandidate(
                 shapes,
@@ -150,8 +150,8 @@ public class PhysicsFixturePickingServiceV2Test {
     private static PhysicsShapeData shape(int id, int type) {
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.physicsShapeId = id;
-        shape.directGeometry = new PhysicsDirectGeometryData();
-        shape.directGeometry.shapeType = type;
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = type;
         return shape;
     }
 
@@ -159,7 +159,7 @@ public class PhysicsFixturePickingServiceV2Test {
         CompiledFixtureData fixture = new CompiledFixtureData();
         fixture.physicsShapeId = id;
         fixture.partIndex = partIndex;
-        fixture.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
+        fixture.shapeType = PhysicsGeometryData.SHAPE_BOX;
         fixture.halfWidth = 0.5f;
         fixture.halfHeight = 0.5f;
         return fixture;

@@ -99,8 +99,8 @@ public final class MoveFixtureCommand
         Array<PhysicsShapeData> candidate =
                 FixtureCommandSupport.copyFixtures(world, bodyEid);
         PhysicsShapeData fixture = candidate.get(index);
-        fixture.directGeometry.offsetX = afterOffsetX;
-        fixture.directGeometry.offsetY = afterOffsetY;
+        fixture.geometry.offsetX = afterOffsetX;
+        fixture.geometry.offsetY = afterOffsetY;
         FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
@@ -126,8 +126,8 @@ public final class MoveFixtureCommand
         Array<PhysicsShapeData> candidate =
                 FixtureCommandSupport.copyFixtures(world, bodyEid);
         PhysicsShapeData fixture = candidate.get(index);
-        fixture.directGeometry.offsetX = beforeOffsetX;
-        fixture.directGeometry.offsetY = beforeOffsetY;
+        fixture.geometry.offsetX = beforeOffsetX;
+        fixture.geometry.offsetY = beforeOffsetY;
         FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(

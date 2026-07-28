@@ -3,7 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -99,9 +99,9 @@ public final class ReplacePolygonVerticesCommand
         Array<PhysicsShapeData> candidate =
                 FixtureCommandSupport.copyFixtures(world, bodyEid);
         PhysicsShapeData fixture = candidate.get(index);
-        if (fixture.directGeometry == null
-                || fixture.directGeometry.shapeType
-                != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+        if (fixture.geometry == null
+                || fixture.geometry.shapeType
+                != PhysicsGeometryData.SHAPE_POLYGON) return;
 
         applyPolygon(fixture, afterVerts, afterCount);
         FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
@@ -129,9 +129,9 @@ public final class ReplacePolygonVerticesCommand
         Array<PhysicsShapeData> candidate =
                 FixtureCommandSupport.copyFixtures(world, bodyEid);
         PhysicsShapeData fixture = candidate.get(index);
-        if (fixture.directGeometry == null
-                || fixture.directGeometry.shapeType
-                != PhysicsDirectGeometryData.SHAPE_POLYGON) return;
+        if (fixture.geometry == null
+                || fixture.geometry.shapeType
+                != PhysicsGeometryData.SHAPE_POLYGON) return;
 
         applyPolygon(fixture, beforeVerts, beforeCount);
         FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
@@ -165,8 +165,8 @@ public final class ReplacePolygonVerticesCommand
     }
 
     private static void applyPolygon(PhysicsShapeData fixture, float[] verts, int count) {
-        fixture.directGeometry.polygonVertexCount = count;
-        fixture.directGeometry.polygonVertices = copyVerts(verts, count);
+        fixture.geometry.polygonVertexCount = count;
+        fixture.geometry.polygonVertices = copyVerts(verts, count);
     }
 
     private static float[] copyVerts(float[] verts, int count) {

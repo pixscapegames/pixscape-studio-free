@@ -43,12 +43,12 @@ public class EditorOpsImplIntegrationContractTest {
         String addBox = methodBody(source, "public void addBoxFixture(int bodyEid, float worldX, float worldY)");
         String addCircle = methodBody(source, "public void addCircleFixture(int bodyEid, float worldX, float worldY)");
 
-        assertTrue(addBox.contains("fixture.directGeometry.offsetX = 0f;"));
-        assertTrue(addBox.contains("fixture.directGeometry.offsetY = 0f;"));
+        assertTrue(addBox.contains("fixture.geometry.offsetX = 0f;"));
+        assertTrue(addBox.contains("fixture.geometry.offsetY = 0f;"));
         assertTrue(addBox.contains("historyManager.execute(new AddFixtureCommand("));
 
-        assertTrue(addCircle.contains("fixture.directGeometry.offsetX = 0f;"));
-        assertTrue(addCircle.contains("fixture.directGeometry.offsetY = 0f;"));
+        assertTrue(addCircle.contains("fixture.geometry.offsetX = 0f;"));
+        assertTrue(addCircle.contains("fixture.geometry.offsetY = 0f;"));
         assertTrue(addCircle.contains("historyManager.execute(new AddFixtureCommand("));
     }
 

@@ -10,7 +10,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsBodyCompiler;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
 import games.pixscape.studio.event.EventFlow;
 import org.junit.Assert;
@@ -172,7 +172,7 @@ public class PhysicsSelectionReconcilerTest {
             CompiledFixtureData part = new CompiledFixtureData();
             part.physicsShapeId = fixture.shape.physicsShapeId;
             part.partIndex = partIndex;
-            part.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+            part.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
             part.radius = 1f;
             candidate.add(part);
         }
@@ -213,11 +213,11 @@ public class PhysicsSelectionReconcilerTest {
 
         Fixture() {
             world.getMapper(PhysicsBodyComponent.class).create(body);
-            shape.directGeometry = new PhysicsDirectGeometryData();
+            shape.geometry = new PhysicsGeometryData();
             shape.physicsShapeId = 31;
-            shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-            shape.directGeometry.radius = 1f;
-            shapes.add(shape);
+            shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            shape.geometry.radius = 1f;
+            shapes.shapes.add(shape);
         }
     }
 }

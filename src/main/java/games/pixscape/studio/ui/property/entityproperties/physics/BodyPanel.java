@@ -9,7 +9,7 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -335,9 +335,9 @@ public final class BodyPanel extends CollapsibleWidget {
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) circles++;
-            else if (f.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_BOX) quads++;
-            else if (f.directGeometry.shapeType == PhysicsDirectGeometryData.SHAPE_POLYGON) polygons++;
+            if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) circles++;
+            else if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_BOX) quads++;
+            else if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) polygons++;
         }
 
         return circles + " circles • " + quads + " quads • " + polygons + " polygons";

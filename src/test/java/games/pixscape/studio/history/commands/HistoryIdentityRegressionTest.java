@@ -9,7 +9,7 @@ import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -340,7 +340,7 @@ public class HistoryIdentityRegressionTest {
         PhysicsShapeData fixture =
                 games.pixscape.runtime.service.PhysicsService.createDefaultShape(entityId + 1);
         fixture.physicsShapeId = stableId;
-        fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
         fixtures.shapes.add(fixture);
         return entityId;
     }

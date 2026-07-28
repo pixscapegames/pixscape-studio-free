@@ -4,7 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -120,31 +120,31 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand toBox = harness.newEdit(cmd -> {
-            cmd.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_BOX;
-            cmd.directGeometry.halfWidth = 1.25f;
-            cmd.directGeometry.halfHeight = 0.75f;
-            cmd.directGeometry.offsetX = 0.4f;
-            cmd.directGeometry.offsetY = -0.2f;
+            cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+            cmd.geometry.halfWidth = 1.25f;
+            cmd.geometry.halfHeight = 0.75f;
+            cmd.geometry.offsetX = 0.4f;
+            cmd.geometry.offsetY = -0.2f;
         }, false);
 
         toBox.redo();
-        assertFixtureShape(harness.fixture(), PhysicsDirectGeometryData.SHAPE_BOX, 1.25f, 0.75f, 0.5f, 0.4f, -0.2f);
+        assertFixtureShape(harness.fixture(), PhysicsGeometryData.SHAPE_BOX, 1.25f, 0.75f, 0.5f, 0.4f, -0.2f);
 
         toBox.undo();
-        assertFixtureShape(harness.fixture(), PhysicsDirectGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(harness.fixture(), PhysicsGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
 
         EditFixtureCommand toCircle = harness.newEdit(cmd -> {
-            cmd.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-            cmd.directGeometry.radius = 0.9f;
-            cmd.directGeometry.offsetX = -0.15f;
-            cmd.directGeometry.offsetY = 0.33f;
+            cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            cmd.geometry.radius = 0.9f;
+            cmd.geometry.offsetX = -0.15f;
+            cmd.geometry.offsetY = 0.33f;
         }, false);
 
         toCircle.redo();
-        assertFixtureShape(harness.fixture(), PhysicsDirectGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, -0.15f, 0.33f);
+        assertFixtureShape(harness.fixture(), PhysicsGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, -0.15f, 0.33f);
 
         toCircle.undo();
-        assertFixtureShape(harness.fixture(), PhysicsDirectGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(harness.fixture(), PhysicsGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
     }
 
     @Test
@@ -152,9 +152,9 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand command = harness.newEdit(cmd -> {
-            cmd.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-            cmd.directGeometry.polygonVertexCount = 4;
-            cmd.directGeometry.polygonVertices = new float[] {
+            cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+            cmd.geometry.polygonVertexCount = 4;
+            cmd.geometry.polygonVertices = new float[] {
                     -1f, -1f,
                     1f, -1f,
                     1f, 1f,
@@ -171,11 +171,11 @@ public class EditFixtureCommandTest {
         });
 
         command.undo();
-        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_BOX, harness.fixture().directGeometry.shapeType);
+        Assert.assertEquals(PhysicsGeometryData.SHAPE_BOX, harness.fixture().geometry.shapeType);
         assertPolygon(harness.fixture(), 0, new float[0]);
 
         command.redo();
-        Assert.assertEquals(PhysicsDirectGeometryData.SHAPE_POLYGON, harness.fixture().directGeometry.shapeType);
+        Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON, harness.fixture().geometry.shapeType);
         assertPolygon(harness.fixture(), 4, new float[] {
                 -1f, -1f,
                 1f, -1f,
@@ -189,9 +189,9 @@ public class EditFixtureCommandTest {
         FixtureHarness harness = FixtureHarness.create();
 
         EditFixtureCommand toPolygon = harness.newEdit(cmd -> {
-            cmd.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_POLYGON;
-            cmd.directGeometry.polygonVertexCount = 3;
-            cmd.directGeometry.polygonVertices = new float[] {
+            cmd.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+            cmd.geometry.polygonVertexCount = 3;
+            cmd.geometry.polygonVertices = new float[] {
                     0f, 0f,
                     1f, 0f,
                     0f, 1f
@@ -200,8 +200,8 @@ public class EditFixtureCommandTest {
         toPolygon.redo();
 
         EditFixtureCommand replace = harness.newEdit(cmd -> {
-            cmd.directGeometry.polygonVertexCount = 4;
-            cmd.directGeometry.polygonVertices = new float[] {
+            cmd.geometry.polygonVertexCount = 4;
+            cmd.geometry.polygonVertices = new float[] {
                     -0.5f, -0.5f,
                     0.8f, -0.4f,
                     1.2f, 0.7f,
@@ -249,6 +249,70 @@ public class EditFixtureCommandTest {
     }
 
     @Test
+    public void snapshotCopyPreservesSpatialBlockId() {
+        PhysicsShapeData linked = new PhysicsShapeData();
+        linked.physicsShapeId = 7;
+        linked.spatialBlockId = 19;
+
+        PhysicsShapeData copy = EditFixtureCommand.Snapshot.capture(linked).copyData();
+
+        Assert.assertEquals(19, copy.spatialBlockId);
+        Assert.assertNull(copy.geometry);
+    }
+
+    @Test
+    public void duplicateAndDeleteUndoPreserveManualShapeState() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        PhysicsSelectionService selection = new PhysicsSelectionService();
+        int bodyEid = world.create();
+        historyIds.ensureForEntity(bodyEid);
+        world.getMapper(TransformComponent.class).create(bodyEid);
+        world.getMapper(PhysicsBodyComponent.class).create(bodyEid);
+        games.pixscape.runtime.service.PhysicsService physics =
+                new games.pixscape.runtime.service.PhysicsService(
+                        world,
+                        null,
+                        games.pixscape.studio.configuration.ProjectConfig.getInstance()
+                                .getCurrentSceneMeta());
+        physics.ensurePhysics(bodyEid);
+        PhysicsShapeData original =
+                world.getMapper(PhysicsShapesComponent.class).get(bodyEid).shapes.first();
+
+        DuplicateFixtureCommand duplicate = new DuplicateFixtureCommand(
+                world,
+                historyIds,
+                selection,
+                physics,
+                bodyEid,
+                original.physicsShapeId);
+        duplicate.redo();
+        PhysicsShapeData duplicated =
+                fixture(world, bodyEid, duplicate.getCreatedFixtureId());
+
+        Assert.assertNotNull(duplicated);
+        Assert.assertEquals(0, duplicated.spatialBlockId);
+        Assert.assertNotNull(duplicated.geometry);
+
+        DeleteFixtureCommand delete = new DeleteFixtureCommand(
+                world,
+                historyIds,
+                selection,
+                bodyEid,
+                duplicated.physicsShapeId);
+        delete.redo();
+        Assert.assertNull(fixture(world, bodyEid, duplicated.physicsShapeId));
+
+        delete.undo();
+        PhysicsShapeData restored =
+                fixture(world, bodyEid, duplicated.physicsShapeId);
+        Assert.assertNotNull(restored);
+        Assert.assertEquals(0, restored.spatialBlockId);
+        Assert.assertNotNull(restored.geometry);
+        world.dispose();
+    }
+
+    @Test
     public void mixedChainEnableAddEditUndoRedoKeepsExactEcsValues() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
@@ -283,6 +347,8 @@ public class EditFixtureCommandTest {
 
         int physicsShapeId = add.getCreatedFixtureId();
         selection.setSelectedShape(bodyEid, physicsShapeId);
+        Assert.assertEquals(0, fixture(world, bodyEid, physicsShapeId).spatialBlockId);
+        Assert.assertNotNull(fixture(world, bodyEid, physicsShapeId).geometry);
 
         EditFixtureCommand editA = newEdit(world, historyIds, selection, bodyEid, physicsShapeId, fixture -> {
             fixture.density = 3f;
@@ -292,10 +358,10 @@ public class EditFixtureCommandTest {
         history.execute(editA);
 
         EditFixtureCommand editB = newEdit(world, historyIds, selection, bodyEid, physicsShapeId, fixture -> {
-            fixture.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-            fixture.directGeometry.radius = 0.9f;
-            fixture.directGeometry.offsetX = 0.2f;
-            fixture.directGeometry.offsetY = -0.25f;
+            fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            fixture.geometry.radius = 0.9f;
+            fixture.geometry.offsetX = 0.2f;
+            fixture.geometry.offsetY = -0.25f;
             fixture.sensor = true;
             fixture.categoryBits = (short) 0x0010;
             fixture.maskBits = (short) 0x0FFF;
@@ -306,21 +372,21 @@ public class EditFixtureCommandTest {
         PhysicsShapeData fixture = fixture(world, bodyEid, physicsShapeId);
         Assert.assertNotNull(fixture);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, PhysicsDirectGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
+        assertFixtureShape(fixture, PhysicsGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
         assertFixtureFilter(fixture, (short) 0x0010, (short) 0x0FFF, (short) -3);
         Assert.assertTrue(fixture.sensor);
 
         history.undo();
         fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, PhysicsDirectGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(fixture, PhysicsGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
         assertFixtureFilter(fixture, (short) 0x0001, (short) 0xFFFF, (short) 0);
         Assert.assertFalse(fixture.sensor);
 
         history.undo();
         fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 1f, 0.2f, 0f);
-        assertFixtureShape(fixture, PhysicsDirectGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
+        assertFixtureShape(fixture, PhysicsGeometryData.SHAPE_BOX, 0.5f, 0.5f, 0.5f, 0f, 0f);
 
         history.undo();
         Assert.assertNull(fixture(world, bodyEid, physicsShapeId));
@@ -344,7 +410,7 @@ public class EditFixtureCommandTest {
         history.redo();
         fixture = fixture(world, bodyEid, physicsShapeId);
         assertFixtureScalars(fixture, 3f, 0.65f, 0.1f);
-        assertFixtureShape(fixture, PhysicsDirectGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
+        assertFixtureShape(fixture, PhysicsGeometryData.SHAPE_CIRCLE, 0.5f, 0.5f, 0.9f, 0.2f, -0.25f);
         assertFixtureFilter(fixture, (short) 0x0010, (short) 0x0FFF, (short) -3);
         Assert.assertTrue(fixture.sensor);
     }
@@ -368,21 +434,21 @@ public class EditFixtureCommandTest {
                                            float radius,
                                            float offsetX,
                                            float offsetY) {
-        Assert.assertEquals(shapeType, fixture.directGeometry.shapeType);
-        Assert.assertEquals(halfWidth, fixture.directGeometry.halfWidth, 0f);
-        Assert.assertEquals(halfHeight, fixture.directGeometry.halfHeight, 0f);
-        Assert.assertEquals(radius, fixture.directGeometry.radius, 0f);
-        Assert.assertEquals(offsetX, fixture.directGeometry.offsetX, 0f);
-        Assert.assertEquals(offsetY, fixture.directGeometry.offsetY, 0f);
+        Assert.assertEquals(shapeType, fixture.geometry.shapeType);
+        Assert.assertEquals(halfWidth, fixture.geometry.halfWidth, 0f);
+        Assert.assertEquals(halfHeight, fixture.geometry.halfHeight, 0f);
+        Assert.assertEquals(radius, fixture.geometry.radius, 0f);
+        Assert.assertEquals(offsetX, fixture.geometry.offsetX, 0f);
+        Assert.assertEquals(offsetY, fixture.geometry.offsetY, 0f);
     }
 
     private static void assertPolygon(PhysicsShapeData fixture, int expectedCount, float[] expectedVerts) {
-        Assert.assertEquals(expectedCount, fixture.directGeometry.polygonVertexCount);
-        Assert.assertNotNull(fixture.directGeometry.polygonVertices);
-        Assert.assertEquals(expectedCount * 2, fixture.directGeometry.polygonVertices.length);
+        Assert.assertEquals(expectedCount, fixture.geometry.polygonVertexCount);
+        Assert.assertNotNull(fixture.geometry.polygonVertices);
+        Assert.assertEquals(expectedCount * 2, fixture.geometry.polygonVertices.length);
 
         for (int i = 0; i < expectedCount * 2; i++) {
-            Assert.assertEquals(expectedVerts[i], fixture.directGeometry.polygonVertices[i], 0f);
+            Assert.assertEquals(expectedVerts[i], fixture.geometry.polygonVertices[i], 0f);
         }
     }
 
@@ -415,7 +481,9 @@ public class EditFixtureCommandTest {
 
     private static PhysicsShapeData fixture(World world, int bodyEid, int physicsShapeId) {
         PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
-        if (fixtures == null || !fixtures.hasShapes()) return null;
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
+            return null;
+        }
 
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData fixture = fixtures.shapes.get(i);

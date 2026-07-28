@@ -179,7 +179,10 @@ public class SceneProperties extends VisTable {
 
         gravityXField = new SimpleFloatField();
         gravityYField = new SimpleFloatField();
-        pixelsPerMeter = new SimpleFloatField();
+        pixelsPerMeter = new SimpleFloatField().validateCommitWith(
+                value -> value != null
+                        && Float.isFinite(value)
+                        && value > 0f);
 
         physicsBlock.content().add(new VisLabel("Gravity X:")).left();
         physicsBlock.content().add(gravityXField).width(100).left().row();
@@ -512,7 +515,7 @@ public class SceneProperties extends VisTable {
             pixelsPerMeter.bind(
                     () -> m.pixelsPerMeter,
                     v -> {
-                        m.pixelsPerMeter = Math.max(0.0001f, v);
+                        m.pixelsPerMeter = v;
                         flagPreviewSaveRequired();
                         EventFlow.i().publish(new EventFlow.ScenePhysicsPixelsPerMeterChanged(
                                 m.pixelsPerMeter,

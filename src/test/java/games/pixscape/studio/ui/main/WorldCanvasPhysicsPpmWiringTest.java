@@ -7,7 +7,7 @@ import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import org.junit.Assert;
@@ -27,7 +27,7 @@ public class WorldCanvasPhysicsPpmWiringTest {
         PhysicsCompiledFixturesComponent compiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
         CompiledFixtureData circle = new CompiledFixtureData();
-        circle.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
+        circle.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.radius = 0.5f;
         compiled.fixtures.add(circle);
         compiled.generation = 1;

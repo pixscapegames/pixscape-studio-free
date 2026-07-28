@@ -19,6 +19,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.service.LayerService;
@@ -27,12 +28,14 @@ import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
+import games.pixscape.studio.ui.widget.SimpleFloatField;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -207,6 +210,70 @@ public class ScenePropertiesPhysicsPurgeTest {
 
         Assert.assertTrue(source.contains(
                 "Disabling physics will permanently delete all physics in this scene."));
+    }
+
+    @Test
+    public void pixelsPerMeterDefaultsToOneHundredAndEditingKeepsLiveCallback()
+            throws Exception {
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Main");
+        SceneMeta meta = config.getCurrentSceneMeta();
+        ProjectConfig.setInstance(config);
+        boolean[] previewDirty = {false};
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new UiRefreshDispatchSystem())
+                .build());
+        SceneProperties properties = new SceneProperties(
+                world, new HistoryManager(8), null, null, null, null, null,
+                () -> previewDirty[0] = true);
+
+        Assert.assertEquals(100f, meta.pixelsPerMeter, 0f);
+        Method refreshPhysics = SceneProperties.class.getDeclaredMethod(
+                "refreshPhysicsFromMeta");
+        refreshPhysics.setAccessible(true);
+        refreshPhysics.invoke(properties);
+        Field ppmField = SceneProperties.class.getDeclaredField("pixelsPerMeter");
+        ppmField.setAccessible(true);
+        SimpleFloatField ppm = (SimpleFloatField) ppmField.get(properties);
+        int[] eventCount = {0};
+        float[] publishedPpm = {0f};
+        EventFlow.Listener<EventFlow.ScenePhysicsPixelsPerMeterChanged> listener =
+                event -> {
+                    eventCount[0]++;
+                    publishedPpm[0] = event.pixelsPerMeter();
+                };
+        EventFlow.i().flush();
+        EventFlow.i().subscribe(
+                EventFlow.ScenePhysicsPixelsPerMeterChanged.class, listener);
+
+        String[] invalidValues = {"0", "-1", "NaN", "Infinity"};
+        for (String invalid : invalidValues) {
+            ppm.setText(invalid);
+            ppm.commit();
+            Assert.assertEquals(100f, meta.pixelsPerMeter, 0f);
+            Assert.assertFalse(previewDirty[0]);
+        }
+
+        ppm.setText("64");
+        ppm.commit();
+
+        Assert.assertEquals(64f, meta.pixelsPerMeter, 0f);
+        Assert.assertTrue(previewDirty[0]);
+        Assert.assertEquals(0, eventCount[0]);
+        EventFlow.i().flush();
+        Assert.assertEquals(1, eventCount[0]);
+        Assert.assertEquals(64f, publishedPpm[0], 0f);
+        EventFlow.i().unsubscribe(
+                EventFlow.ScenePhysicsPixelsPerMeterChanged.class, listener);
+        String eventSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/event/EventFlow.java"),
+                StandardCharsets.UTF_8);
+        String propertiesSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/property/SceneProperties.java"),
+                StandardCharsets.UTF_8);
+        Assert.assertTrue(eventSource.contains("ScenePhysicsPixelsPerMeterChanged"));
+        Assert.assertTrue(propertiesSource.contains("ScenePhysicsPixelsPerMeterChanged"));
+        world.dispose();
     }
 
     private static Object primitiveDefault(Class<?> type) {

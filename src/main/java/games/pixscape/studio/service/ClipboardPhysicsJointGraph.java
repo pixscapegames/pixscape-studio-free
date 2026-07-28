@@ -146,7 +146,7 @@ public final class ClipboardPhysicsJointGraph {
                                                ComponentMapper<PhysicsShapesComponent> mFixtures) {
         if (!mBody.has(eid)) return false;
         PhysicsShapesComponent fixtures = mFixtures.getSafe(eid, null);
-        return fixtures != null && fixtures.hasShapes();
+        return fixtures != null && fixtures.shapes != null && fixtures.shapes.size > 0;
     }
 
     private static boolean isJointSpecificComponentPresent(World world, int eid, int type) {

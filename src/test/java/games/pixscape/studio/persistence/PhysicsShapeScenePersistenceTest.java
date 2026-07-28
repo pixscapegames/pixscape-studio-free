@@ -10,7 +10,7 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.service.SceneService;
 import org.junit.Assert;
@@ -26,11 +26,11 @@ public class PhysicsShapeScenePersistenceTest {
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.geometry = new PhysicsGeometryData();
         shape.physicsShapeId = 1;
-        shape.directGeometry.shapeType = PhysicsDirectGeometryData.SHAPE_CIRCLE;
-        shape.directGeometry.radius = 2f;
-        sources.add(shape);
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.geometry.radius = 2f;
+        sources.shapes.add(shape);
 
         PhysicsCompiledFixturesComponent cache =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
@@ -50,6 +50,8 @@ public class PhysicsShapeScenePersistenceTest {
 
         String json = file.readString("UTF-8");
         Assert.assertTrue(json.contains("PhysicsShapesComponent"));
+        Assert.assertTrue(json.contains("\"physicsShapeId\":1"));
+        Assert.assertTrue(json.contains("\"geometry\":"));
         Assert.assertFalse(json.contains("PhysicsCompiledFixturesComponent"));
         Assert.assertFalse(json.contains("SpatialPhysicsFootprintComponent"));
         PhysicsCompiledFixturesComponent restoredCache =
@@ -74,6 +76,9 @@ public class PhysicsShapeScenePersistenceTest {
         Assert.assertEquals(1,
                 loaded.getMapper(PhysicsShapesComponent.class)
                         .get(loadedEntity).shapes.first().physicsShapeId);
+        Assert.assertEquals(0,
+                loaded.getMapper(PhysicsShapesComponent.class)
+                        .get(loadedEntity).shapes.first().spatialBlockId);
         Assert.assertFalse(
                 loaded.getMapper(PhysicsCompiledFixturesComponent.class).has(loadedEntity));
         Assert.assertFalse(
@@ -81,23 +86,23 @@ public class PhysicsShapeScenePersistenceTest {
     }
 
     @Test
-    public void sceneWithoutDirectGeometryIsRejectedAsInvalid() {
+    public void sceneWithoutManualGeometryIsRejectedAsInvalid() {
         World world = world();
         int entityId = world.create();
         PhysicsShapesComponent sources =
                 world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsShapeData shape = new PhysicsShapeData();
-        shape.directGeometry = new PhysicsDirectGeometryData();
+        shape.geometry = new PhysicsGeometryData();
         shape.physicsShapeId = 13;
-        sources.add(shape);
+        sources.shapes.add(shape);
         world.process();
 
         FileHandle file = new FileHandle(new File(
-                System.getProperty("java.io.tmpdir"), "pixscape-missing-direct-geometry.json"));
+                System.getProperty("java.io.tmpdir"), "pixscape-missing-manual-geometry.json"));
         SceneService.saveScene(world, file, false);
         String json = file.readString("UTF-8");
         file.writeString(
-                json.replaceFirst(",?\"directGeometry\":\\{[^}]*\\}", ""),
+                json.replaceFirst(",?\"geometry\":\\{[^}]*\\}", ""),
                 false,
                 "UTF-8");
 
@@ -107,12 +112,12 @@ public class PhysicsShapeScenePersistenceTest {
 
         try {
             SceneLoader.loadScene(world(), file, false, meta);
-            Assert.fail("Missing directGeometry must be rejected.");
+            Assert.fail("Missing geometry must be rejected.");
         } catch (RuntimeException expected) {
             Assert.assertTrue(expected.getMessage().contains(file.path()));
             Assert.assertTrue(expected.getMessage().contains("entityId"));
             Assert.assertTrue(expected.getMessage().contains("physicsShapeId 13"));
-            Assert.assertTrue(expected.getMessage().contains("directGeometry is missing"));
+            Assert.assertTrue(expected.getMessage().contains("manual shape geometry is required"));
         }
     }
 

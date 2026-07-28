@@ -4,7 +4,7 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsDirectGeometryData;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.PhysicsService;
 
 /** Picks compiled fixture geometry while returning source-shape provenance. */
@@ -59,7 +59,7 @@ public final class PhysicsFixturePickingService {
             float worldX,
             float worldY,
             float toleranceWU) {
-        if (fixture.shapeType == PhysicsDirectGeometryData.SHAPE_CIRCLE) {
+        if (fixture.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
             if (!physicsService.computeCompiledFixtureCenterWU(
                     bodyEntityId, fixture, tmpCenter)) {
                 return false;
@@ -69,7 +69,7 @@ public final class PhysicsFixturePickingService {
             return tmpCenter.dst2(worldX, worldY) <= radius * radius;
         }
 
-        int required = fixture.shapeType == PhysicsDirectGeometryData.SHAPE_BOX
+        int required = fixture.shapeType == PhysicsGeometryData.SHAPE_BOX
                 ? 8 : fixture.polygonVertexCount * 2;
         if (required <= 0 || required > vertexScratch.length) return false;
         int count = physicsService.computeCompiledFixtureVerticesWU(
