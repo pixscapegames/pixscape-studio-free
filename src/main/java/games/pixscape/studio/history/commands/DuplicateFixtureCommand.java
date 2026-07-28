@@ -8,7 +8,7 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
-public final class DuplicateFixtureCommand implements Command, HistoryManager.SupportsNoop {
+public final class DuplicateFixtureCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
 
     private final AddFixtureCommand delegate;
     private final boolean noop;
@@ -50,15 +50,20 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
 
     @Override
     public void redo() {
-        if (isNoop()) return;
-        delegate.redo();
+        redoOutcome();
     }
 
     @Override
     public void undo() {
-        if (isNoop()) return;
-        delegate.undo();
+        undoOutcome();
     }
+
+    @Override public CommandOutcome executeOutcome() { return isNoop()
+            ? CommandOutcome.REJECTED : delegate.executeOutcome(); }
+    @Override public CommandOutcome redoOutcome() { return isNoop()
+            ? CommandOutcome.REJECTED : delegate.redoOutcome(); }
+    @Override public CommandOutcome undoOutcome() { return isNoop()
+            ? CommandOutcome.REJECTED : delegate.undoOutcome(); }
 
     public int getCreatedFixtureId() {
         return delegate.getCreatedFixtureId();

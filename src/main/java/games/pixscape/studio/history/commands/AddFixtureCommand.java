@@ -9,7 +9,7 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
-public final class AddFixtureCommand implements Command, HistoryManager.SupportsNoop {
+public final class AddFixtureCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
 
     private final World world;
     private final HistoryIdRegistry historyIds;
@@ -23,6 +23,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
     private final int insertIndex;
     private final int createdFixtureId;
     private final boolean noop;
+    private final boolean reserved;
 
     public AddFixtureCommand(World world,
                              HistoryIdRegistry historyIds,
@@ -59,7 +60,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
                         ? physicsSelectionService.getSelectedPhysicsShapeId()
                         : PhysicsSelectionService.NO_SHAPE;
 
-        boolean reserved = FixtureCommandSupport.isSpatialReserved(world, bodyEntityId);
+        reserved = FixtureCommandSupport.isSpatialReserved(world, bodyEntityId);
         this.createdFixtureId = reserved || physicsService == null
                 ? -1 : physicsService.allocateNewPhysicsShapeId();
         PhysicsShapeData base = createdFixtureId > 0 ? (template != null
@@ -83,8 +84,20 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
 
     @Override
     public void redo() {
+        redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome executeOutcome() {
+        return redoOutcome();
+    }
+
+    @Override
+    public CommandOutcome redoOutcome() {
+        if (reserved) return CommandOutcome.REJECTED;
+        if (noop) return CommandOutcome.NO_CHANGE;
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
-        if (bodyEid < 0) return;
+        if (bodyEid < 0 || template == null) return CommandOutcome.NO_CHANGE;
 
         PhysicsShapesComponent fixtures =
                 FixtureCommandSupport.getFixtures(world, bodyEid, false);
@@ -103,12 +116,20 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
         FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, createdFixtureId);
         FixtureCommandSupport.markDirty(world, bodyEid);
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
+        return CommandOutcome.APPLIED;
     }
 
     @Override
     public void undo() {
+        undoOutcome();
+    }
+
+    @Override
+    public CommandOutcome undoOutcome() {
+        if (reserved) return CommandOutcome.REJECTED;
+        if (noop) return CommandOutcome.NO_CHANGE;
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
-        if (bodyEid < 0) return;
+        if (bodyEid < 0) return CommandOutcome.NO_CHANGE;
 
         PhysicsShapesComponent fixtures =
                 FixtureCommandSupport.getFixtures(world, bodyEid, false);
@@ -129,6 +150,7 @@ public final class AddFixtureCommand implements Command, HistoryManager.Supports
         );
         FixtureCommandSupport.markDirty(world, bodyEid);
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
+        return CommandOutcome.APPLIED;
     }
 
     public int getCreatedFixtureId() {

@@ -23,6 +23,7 @@ public final class AddPhysicsBodyCommand
     private final boolean createDefaultShape;
     private final boolean transformExistedBefore;
     private final boolean noop;
+    private final boolean reserved;
     private PhysicsShapeData createdDefaultShape;
 
     public AddPhysicsBodyCommand(
@@ -38,12 +39,13 @@ public final class AddPhysicsBodyCommand
         this.bodyType = sanitizeBodyType(bodyType);
         this.createDefaultShape = createDefaultShape;
 
+        reserved = FixtureCommandSupport.isSpatialReserved(world, bodyEntityId);
         boolean valid = world != null
                 && historyIds != null
                 && physicsService != null
                 && bodyEntityId >= 0
                 && world.getEntityManager().isActive(bodyEntityId)
-                && !FixtureCommandSupport.isSpatialReserved(world, bodyEntityId)
+                && !reserved
                 && !world.getMapper(PhysicsBodyComponent.class).has(bodyEntityId);
         this.bodyHistoryId = valid ? historyIds.ensureForEntity(bodyEntityId) : -1L;
         this.transformExistedBefore = valid
@@ -73,6 +75,7 @@ public final class AddPhysicsBodyCommand
 
     @Override
     public CommandOutcome redoOutcome() {
+        if (reserved) return CommandOutcome.REJECTED;
         int entityId = resolveEntity();
         if (noop || entityId < 0
                 || world.getMapper(PhysicsBodyComponent.class).has(entityId)) {
@@ -114,6 +117,7 @@ public final class AddPhysicsBodyCommand
 
     @Override
     public CommandOutcome undoOutcome() {
+        if (reserved) return CommandOutcome.REJECTED;
         int entityId = resolveEntity();
         if (noop || entityId < 0
                 || !world.getMapper(PhysicsBodyComponent.class).has(entityId)) {
