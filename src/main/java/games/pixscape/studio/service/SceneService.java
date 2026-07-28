@@ -3406,6 +3406,7 @@ public final class SceneService {
         if (canvas == null) return;
 
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
+        canvas.bindWorldBlockMutationService(null);
         canvas.getBlockPhysicsBindingRepository().clear();
         World world = canvas.getEcsWorld();
 

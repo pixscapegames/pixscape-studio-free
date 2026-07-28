@@ -86,6 +86,7 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
             SpatialBlockCommandSupport.markChanged(world, layer, this);
             return CommandOutcome.APPLIED;
         }
+        if (identity != null) return CommandOutcome.REJECTED;
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, snapshot);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.selectBlock(layer, blockId);

@@ -96,6 +96,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
             SpatialBlockCommandSupport.markChanged(world, layer, this);
             return CommandOutcome.APPLIED;
         }
+        if (identity != null) return CommandOutcome.REJECTED;
         if (!identityAllocated) {
             SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
             int currentNextSpatialBlockId = current != null ? current.peekNextSpatialBlockId() : 1;

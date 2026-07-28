@@ -88,6 +88,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
             SpatialBlockCommandSupport.markChanged(world, layer, this);
             return CommandOutcome.APPLIED;
         }
+        if (identity != null) return CommandOutcome.REJECTED;
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
                 world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
