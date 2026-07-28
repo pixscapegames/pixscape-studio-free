@@ -135,6 +135,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private IdentityRegistry identityRegistry;
     private final BlockPhysicsBindingRepository blockPhysicsBindingRepository =
             new BlockPhysicsBindingRepository();
+    private WorldBlockMutationService worldBlockMutationService;
     private String cachedPrefabPhysicsPath;
     private boolean cachedPrefabContainsPhysics;
 
@@ -399,6 +400,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         keyboardNudgeService = new KeyboardNudgeService(world, historyManager, selectionService);
         gizmoSystem.setSelectionService(selectionService);
         physicsService = new PhysicsService(world, box2dWorldService);
+        if (sceneMeta != null) {
+            worldBlockMutationService = new WorldBlockMutationService(world, sceneMeta,
+                    identityRegistry, blockPhysicsBindingRepository, physicsService);
+        }
         alignService = new AlignService(this);
 
         clipboardService = new ClipboardService(this, identityRegistry);
@@ -2118,6 +2123,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return blockPhysicsBindingRepository;
     }
 
+    public WorldBlockMutationService getWorldBlockMutationService() {
+        return worldBlockMutationService;
+    }
+
+    public void bindWorldBlockMutationService(SceneMeta sceneMeta) {
+        if (worldBlockMutationService != null) worldBlockMutationService.detach();
+        worldBlockMutationService = sceneMeta == null ? null : new WorldBlockMutationService(world,
+                sceneMeta, identityRegistry, blockPhysicsBindingRepository, physicsService);
+    }
+
     public Stage getGridStage() {
         return gridStage;
     }
@@ -2206,6 +2221,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (world != null) {
             physicsSelectionReconciler.bindWorld(null);
+            if (worldBlockMutationService != null) {
+                worldBlockMutationService.detach();
+                worldBlockMutationService = null;
+            }
             blockPhysicsBindingRepository.clear();
             if (identityRegistry != null) {
                 identityRegistry.bind(null, null);

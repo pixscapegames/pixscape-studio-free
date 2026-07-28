@@ -96,13 +96,7 @@ final class ResolvedSceneActivationPipeline {
                     world, target.projectTitle(), target.sceneName());
             identityRegistry.rebuild();
             blockPhysicsBindingRepository.rebuild();
-            if (blockPhysicsBindingRepository.hasAnyBindings()) {
-                throw new IllegalStateException(
-                        "Linked block physics bindings are structurally valid but cannot be "
-                                + "activated in Studio until Spatial-Physics Binding Phase D "
-                                + "is available.");
-            }
-            PhysicsService.rebuildPreparedBodyCaches(world);
+            PhysicsService.rebuildPreparedBodyCaches(world, blockPhysicsBindingRepository, target.meta());
             rebuildHistoryIdsFromWorld();
             assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
             renderRuntimeRebuilder.rebuild(

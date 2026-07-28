@@ -3440,10 +3440,12 @@ public final class SceneService {
     }
 
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
+        canvas.bindWorldBlockMutationService(null);
         canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
         canvas.getBlockPhysicsBindingRepository().bind(
                 canvas.getEcsWorld(), canvas.getIdentityRegistry());
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
+        canvas.bindWorldBlockMutationService(meta);
     }
 
     private void flushWorldForSerialization() {

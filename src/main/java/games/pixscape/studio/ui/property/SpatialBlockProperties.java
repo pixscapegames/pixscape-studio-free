@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.property;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -14,6 +15,9 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditSpatialBlockCommand;
+import games.pixscape.studio.history.commands.ToggleSpatialBlockCollisionCommand;
+import games.pixscape.runtime.service.BlockPhysicsBindingRepository;
+import games.pixscape.runtime.service.WorldBlockMutationService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
 import games.pixscape.studio.service.spatial.SpatialWallEditSession;
@@ -23,6 +27,7 @@ import games.pixscape.studio.ui.widget.SimpleFloatField;
 import games.pixscape.studio.ui.widget.SimpleTextField;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public final class SpatialBlockProperties extends VisTable {
     private final World world;
@@ -30,6 +35,8 @@ public final class SpatialBlockProperties extends VisTable {
     private final SpatialBlockSelectionService selection;
     private final Runnable markPreviewSaveRequired;
     private final ComponentMapper<SpatialBlocksComponent> mBlocks;
+    private final Supplier<WorldBlockMutationService> mutationSupplier;
+    private final BlockPhysicsBindingRepository bindingRepository;
 
     private final SimpleTextField nameField = new SimpleTextField();
     private final VisLabel structureIdValue = new VisLabel("-");
@@ -43,6 +50,7 @@ public final class SpatialBlockProperties extends VisTable {
     private final VisCheckBox lightOccluderBox = new VisCheckBox("Light occluder");
     private final VisCheckBox shadowCasterBox = new VisCheckBox("Shadow caster");
     private final VisCheckBox particleOccluderBox = new VisCheckBox("Particle occluder");
+    private final VisCheckBox physicsCollisionBox = new VisCheckBox("Use for physics collision");
 
     private int layerEntityId = -1;
     private int blockId = -1;
@@ -52,10 +60,21 @@ public final class SpatialBlockProperties extends VisTable {
                                   HistoryManager history,
                                   SpatialBlockSelectionService selection,
                                   Runnable markPreviewSaveRequired) {
+        this(world, history, selection, null, null, markPreviewSaveRequired);
+    }
+
+    public SpatialBlockProperties(World world,
+                                  HistoryManager history,
+                                  SpatialBlockSelectionService selection,
+                                  Supplier<WorldBlockMutationService> mutationSupplier,
+                                  BlockPhysicsBindingRepository bindingRepository,
+                                  Runnable markPreviewSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.selection = selection;
+        this.mutationSupplier = mutationSupplier;
+        this.bindingRepository = bindingRepository;
         this.markPreviewSaveRequired = markPreviewSaveRequired;
         this.mBlocks = world.getMapper(SpatialBlocksComponent.class);
 
@@ -116,6 +135,7 @@ public final class SpatialBlockProperties extends VisTable {
         lightOccluderBox.setName("spatialWallLightOccluder");
         shadowCasterBox.setName("spatialWallShadowCaster");
         particleOccluderBox.setName("spatialWallParticleOccluder");
+        physicsCollisionBox.setName("spatialWallPhysicsCollision");
 
         addRow(data, "Name (optional)", nameField);
         addRow(data, "Structure ID", structureIdValue);
@@ -132,10 +152,12 @@ public final class SpatialBlockProperties extends VisTable {
 
         data.addSeparator().colspan(2).growX().padTop(4).padBottom(4).row();
         data.add(actorOccluderBox).colspan(2).left().row();
+        data.add(physicsCollisionBox).colspan(2).left().row();
         data.add(lightOccluderBox).colspan(2).left().row();
         data.add(shadowCasterBox).colspan(2).left().row();
         data.add(particleOccluderBox).colspan(2).left().row();
         addTooltip(actorOccluderBox, "Controls actor spatial ordering.");
+        addTooltip(physicsCollisionBox, "Builds collision geometry from this spatial wall.");
         addTooltip(lightOccluderBox,
                 "Stored and compiled; the downstream light-occlusion consumer is not implemented yet.");
         addTooltip(shadowCasterBox,
@@ -171,6 +193,21 @@ public final class SpatialBlockProperties extends VisTable {
         bindCheckBox(lightOccluderBox, (block, value) -> block.lightOccluder = value);
         bindCheckBox(shadowCasterBox, (block, value) -> block.shadowCaster = value);
         bindCheckBox(particleOccluderBox, (block, value) -> block.particleOccluder = value);
+        physicsCollisionBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                WorldBlockMutationService mutations = mutationSupplier != null ? mutationSupplier.get() : null;
+                if (internalRefresh || mutations == null || bindingRepository == null) return;
+                ToggleSpatialBlockCollisionCommand command = new ToggleSpatialBlockCollisionCommand(world,
+                        history.historyIds(), mutations, bindingRepository, layerEntityId, blockId,
+                        physicsCollisionBox.isChecked());
+                if (!command.isNoop()) {
+                    history.execute(command);
+                    if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+                }
+                refreshFromModel();
+                event.handle();
+            }
+        });
     }
 
     private void bindCheckBox(VisCheckBox checkBox, BooleanWriter writer) {
@@ -304,6 +341,8 @@ public final class SpatialBlockProperties extends VisTable {
             lightOccluderBox.setDisabled(!active);
             shadowCasterBox.setDisabled(!active);
             particleOccluderBox.setDisabled(!active);
+            physicsCollisionBox.setDisabled(!active || mutationSupplier == null
+                    || mutationSupplier.get() == null || bindingRepository == null);
             constraints.cancel();
 
             nameField.refresh();
@@ -318,6 +357,10 @@ public final class SpatialBlockProperties extends VisTable {
             lightOccluderBox.setChecked(block != null && block.lightOccluder);
             shadowCasterBox.setChecked(block != null && block.shadowCaster);
             particleOccluderBox.setChecked(block != null && block.particleOccluder);
+            PixscapeIdentityComponent identity = activeLayerEntity() >= 0
+                    ? world.getMapper(PixscapeIdentityComponent.class).getSafe(activeLayerEntity(), null) : null;
+            physicsCollisionBox.setChecked(identity != null && bindingRepository != null
+                    && bindingRepository.hasBinding(identity.stableId, blockId));
         } finally {
             internalRefresh = false;
         }
