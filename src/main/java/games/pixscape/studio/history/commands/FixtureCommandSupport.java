@@ -134,92 +134,31 @@ public final class FixtureCommandSupport {
             Array<PhysicsShapeData> candidates) {
         Array<PhysicsShapeData> currentShapes =
                 current != null ? current.shapes : null;
-
-        if (currentShapes != null) {
-            for (int i = 0; i < currentShapes.size; i++) {
-                PhysicsShapeData linked = currentShapes.get(i);
-                if (!isLinked(linked)) continue;
-                int candidateCount = countByPhysicsShapeId(
-                        candidates, linked.physicsShapeId);
-                if (candidateCount == 0) {
-                    PhysicsShapeData changedId =
-                            findLinkedBySpatialBlockId(
-                                    candidates, linked.spatialBlockId);
-                    if (changedId != null) {
-                        throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                                "changing physicsShapeId is not supported");
-                    }
-                    throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                            "deleting a linked shape is not supported");
-                }
-                if (candidateCount > 1) {
-                    throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                            "duplicating a linked shape is not supported");
-                }
-                PhysicsShapeData candidate =
-                        findByPhysicsShapeId(candidates, linked.physicsShapeId);
-                if (!isLinked(candidate)) {
-                    throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                            "converting linked to manual is not supported");
-                }
-                if (candidate.spatialBlockId != linked.spatialBlockId) {
-                    throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                            "changing spatialBlockId is not supported");
-                }
-                if (candidate.geometry != null) {
-                    throw linkedMutation(bodyEntityId, linked.physicsShapeId,
-                            "writing linked geometry is not supported");
-                }
+        int currentIndex = nextLinkedIndex(currentShapes, 0);
+        int candidateIndex = nextLinkedIndex(candidates, 0);
+        while (currentIndex >= 0 || candidateIndex >= 0) {
+            if (currentIndex < 0) {
+                PhysicsShapeData candidate = candidates.get(candidateIndex);
+                throw linkedMutation(bodyEntityId, candidate.physicsShapeId,
+                        "linked relation mutations are not supported");
             }
-        }
-
-        if (candidates != null) {
-            for (int i = 0; i < candidates.size; i++) {
-                PhysicsShapeData candidate = candidates.get(i);
-                if (!isLinked(candidate)) continue;
-                if (candidate.geometry != null) {
-                    throw linkedMutation(bodyEntityId, candidate.physicsShapeId,
-                            "writing linked geometry is not supported");
-                }
-                PhysicsShapeData existing = findByPhysicsShapeId(
-                        currentShapes, candidate.physicsShapeId);
-                if (existing == null) {
-                    PhysicsShapeData sameBlock = findLinkedBySpatialBlockId(
-                            currentShapes, candidate.spatialBlockId);
-                    String operation = sameBlock != null
-                            ? "duplicating or changing physicsShapeId of a linked shape is not supported"
-                            : "adding a linked shape is not supported";
-                    throw linkedMutation(
-                            bodyEntityId, candidate.physicsShapeId, operation);
-                }
-                if (!isLinked(existing)) {
-                    throw linkedMutation(bodyEntityId, candidate.physicsShapeId,
-                            "converting manual to linked is not supported");
-                }
+            PhysicsShapeData linked = currentShapes.get(currentIndex);
+            if (candidateIndex < 0) {
+                throw linkedMutation(bodyEntityId, linked.physicsShapeId,
+                        "linked relation mutations are not supported");
             }
-            validateLinkedOrder(bodyEntityId, currentShapes, candidates);
-        }
-    }
-
-    private static void validateLinkedOrder(
-            int bodyEntityId,
-            Array<PhysicsShapeData> current,
-            Array<PhysicsShapeData> candidates) {
-        int candidateIndex = 0;
-        for (int i = 0; current != null && i < current.size; i++) {
-            PhysicsShapeData shape = current.get(i);
-            if (!isLinked(shape)) continue;
-            while (candidateIndex < candidates.size
-                    && !isLinked(candidates.get(candidateIndex))) {
-                candidateIndex++;
+            PhysicsShapeData candidate = candidates.get(candidateIndex);
+            if (candidate.physicsShapeId != linked.physicsShapeId
+                    || candidate.spatialBlockId != linked.spatialBlockId) {
+                throw linkedMutation(bodyEntityId, linked.physicsShapeId,
+                        "linked relation mutations are not supported");
             }
-            if (candidateIndex >= candidates.size
-                    || candidates.get(candidateIndex).physicsShapeId
-                    != shape.physicsShapeId) {
-                throw linkedMutation(bodyEntityId, shape.physicsShapeId,
-                        "reordering linked shapes is not supported");
+            if (candidate.geometry != null) {
+                throw linkedMutation(bodyEntityId, linked.physicsShapeId,
+                        "writing linked geometry is not supported");
             }
-            candidateIndex++;
+            currentIndex = nextLinkedIndex(currentShapes, currentIndex + 1);
+            candidateIndex = nextLinkedIndex(candidates, candidateIndex + 1);
         }
     }
 
@@ -227,39 +166,13 @@ public final class FixtureCommandSupport {
         return shape != null && shape.spatialBlockId > 0;
     }
 
-    private static PhysicsShapeData findByPhysicsShapeId(
-            Array<PhysicsShapeData> shapes, int physicsShapeId) {
-        if (shapes == null) return null;
-        for (int i = 0; i < shapes.size; i++) {
-            PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && shape.physicsShapeId == physicsShapeId) {
-                return shape;
-            }
+    private static int nextLinkedIndex(
+            Array<PhysicsShapeData> shapes, int startIndex) {
+        if (shapes == null) return -1;
+        for (int i = startIndex; i < shapes.size; i++) {
+            if (isLinked(shapes.get(i))) return i;
         }
-        return null;
-    }
-
-    private static PhysicsShapeData findLinkedBySpatialBlockId(
-            Array<PhysicsShapeData> shapes, int spatialBlockId) {
-        if (shapes == null) return null;
-        for (int i = 0; i < shapes.size; i++) {
-            PhysicsShapeData shape = shapes.get(i);
-            if (isLinked(shape) && shape.spatialBlockId == spatialBlockId) {
-                return shape;
-            }
-        }
-        return null;
-    }
-
-    private static int countByPhysicsShapeId(
-            Array<PhysicsShapeData> shapes, int physicsShapeId) {
-        if (shapes == null) return 0;
-        int count = 0;
-        for (int i = 0; i < shapes.size; i++) {
-            PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && shape.physicsShapeId == physicsShapeId) count++;
-        }
-        return count;
+        return -1;
     }
 
     private static IllegalArgumentException linkedMutation(

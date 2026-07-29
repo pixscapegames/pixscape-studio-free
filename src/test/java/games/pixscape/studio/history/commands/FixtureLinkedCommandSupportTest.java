@@ -126,28 +126,60 @@ public class FixtureLinkedCommandSupportTest {
     @Test
     public void relationMutationsAreRejectedWithBodyAndShapeDiagnostics() {
         Harness harness = new Harness();
+        String relationMutation =
+                "linked relation mutations are not supported";
 
         Array<PhysicsShapeData> deleted =
                 FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
         deleted.removeIndex(1);
-        assertRejected(harness, deleted, 2, "deleting");
+        assertRejected(harness, deleted, 2, relationMutation);
+
+        Array<PhysicsShapeData> changedId =
+                FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
+        changedId.get(1).physicsShapeId = 20;
+        assertRejected(harness, changedId, 2, relationMutation);
 
         Array<PhysicsShapeData> changedBlock =
                 FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
         changedBlock.get(1).spatialBlockId = 8;
-        assertRejected(harness, changedBlock, 2, "spatialBlockId");
+        assertRejected(harness, changedBlock, 2, relationMutation);
 
         Array<PhysicsShapeData> changedGeometry =
                 FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
         changedGeometry.get(1).geometry = new PhysicsGeometryData();
-        assertRejected(harness, changedGeometry, 2, "geometry");
+        assertRejected(harness, changedGeometry, 2,
+                "writing linked geometry is not supported");
+
+        Array<PhysicsShapeData> added =
+                FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
+        PhysicsShapeData additional = added.get(1).copy();
+        additional.physicsShapeId = 30;
+        added.add(additional);
+        assertRejected(harness, added, 30, relationMutation);
 
         Array<PhysicsShapeData> duplicated =
                 FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
         PhysicsShapeData duplicate = duplicated.get(1).copy();
-        duplicate.physicsShapeId = 30;
         duplicated.add(duplicate);
-        assertRejected(harness, duplicated, 30, "duplicating");
+        assertRejected(harness, duplicated, 2, relationMutation);
+
+        Array<PhysicsShapeData> manualToLinked =
+                FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
+        manualToLinked.get(0).spatialBlockId = 7;
+        manualToLinked.get(0).geometry = null;
+        assertRejected(harness, manualToLinked, 2, relationMutation);
+
+        Array<PhysicsShapeData> linkedToManual =
+                FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
+        linkedToManual.get(1).spatialBlockId = 0;
+        linkedToManual.get(1).geometry = new PhysicsGeometryData();
+        assertRejected(harness, linkedToManual, 2, relationMutation);
+
+        harness.appendLinked(20, 8);
+        Array<PhysicsShapeData> reordered =
+                FixtureCommandSupport.copyFixtures(harness.world, harness.owner);
+        reordered.swap(1, 3);
+        assertRejected(harness, reordered, 2, relationMutation);
     }
 
     @Test
@@ -193,6 +225,7 @@ public class FixtureLinkedCommandSupportTest {
             Array<PhysicsShapeData> candidate,
             int physicsShapeId,
             String operation) {
+        int currentSize = harness.shapes().shapes.size;
         IllegalArgumentException failure = Assert.assertThrows(
                 IllegalArgumentException.class,
                 () -> FixtureCommandSupport.prepareAndPublish(
@@ -205,7 +238,7 @@ public class FixtureLinkedCommandSupportTest {
                         "physicsShapeId " + physicsShapeId));
         Assert.assertTrue(failure.getMessage(),
                 failure.getMessage().contains(operation));
-        Assert.assertEquals(3, harness.shapes().shapes.size);
+        Assert.assertEquals(currentSize, harness.shapes().shapes.size);
         Assert.assertNull(harness.shapes().shapes.get(1).geometry);
     }
 
@@ -259,6 +292,28 @@ public class FixtureLinkedCommandSupportTest {
         PhysicsCompiledFixturesComponent compiled() {
             return world.getMapper(
                     PhysicsCompiledFixturesComponent.class).get(owner);
+        }
+
+        void appendLinked(int physicsShapeId, int spatialBlockId) {
+            SpatialBlockData block = new SpatialBlockData();
+            block.id = spatialBlockId;
+            block.structureId = 2;
+            block.x = 8f;
+            block.y = 9f;
+            block.width = 1f;
+            block.depth = 1f;
+            world.getMapper(SpatialBlocksComponent.class)
+                    .get(owner).blocks.add(block);
+
+            PhysicsShapeData linked = new PhysicsShapeData();
+            linked.physicsShapeId = physicsShapeId;
+            linked.spatialBlockId = spatialBlockId;
+            shapes().shapes.add(linked);
+            PreparedPhysicsBodyCandidate prepared =
+                    PhysicsService.prepareBodyCandidate(
+                            world, owner, shapes().shapes, meta.pixelsPerMeter);
+            PhysicsService.publishPreparedCandidate(
+                    shapes(), compiled(), prepared);
         }
     }
 
