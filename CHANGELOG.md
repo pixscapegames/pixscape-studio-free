@@ -6,6 +6,7 @@
 
 * Replaced the legacy Studio physics authoring model with persistent Runtime physics shapes.
 * Existing physics scenes and prefabs using the previous schema must be recreated or re-exported.
+* Pixscape Studio Free 0.2.2 requires Pixscape Runtime 0.1.9.
 
 ### Added
 
