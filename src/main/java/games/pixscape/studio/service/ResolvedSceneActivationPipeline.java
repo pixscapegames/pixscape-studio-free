@@ -13,7 +13,9 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
@@ -107,6 +109,10 @@ final class ResolvedSceneActivationPipeline {
         ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
         ComponentMapper<PhysicsBodyComponent> mBody =
                 world.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mShapes =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<TransformComponent> mTransform =
+                world.getMapper(TransformComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -124,6 +130,11 @@ final class ResolvedSceneActivationPipeline {
             if (tiled == null) continue;
             PhysicsBodyComponent body = mBody.getSafe(e, null);
             if (body != null) body.type = PhysicsBodyComponent.STATIC;
+            PhysicsShapesComponent shapes = mShapes.getSafe(e, null);
+            if (shapes != null && shapes.shapes != null && shapes.shapes.size > 0
+                    && !mTransform.has(e)) {
+                mTransform.create(e);
+            }
 
             if (tiled.mapWidthCells <= 0 || tiled.mapHeightCells <= 0
                     || meta.tileWidth <= 0 || meta.tileHeight <= 0 || meta.chunkSize <= 0

@@ -40,12 +40,22 @@ public class SpatialBlockPhysicsCollisionCommandTest {
     }
 
     @Test
-    public void enableUndoRedoCreatesStaticPolygonAndReusesId() {
-        Harness harness = new Harness(true);
+    public void enableWithoutTransformCreatesIdentityTransformAndCollision() {
+        Harness harness = new Harness();
         int highWaterBefore = harness.meta.nextPhysicsShapeId;
+        Assert.assertFalse(harness.world.getMapper(TransformComponent.class)
+                .has(harness.owner));
 
-        harness.execute(7, true);
+        SetSpatialBlockPhysicsCollisionCommand command = harness.command(7, true);
+        Assert.assertEquals(CommandOutcome.APPLIED, command.executeOutcome());
 
+        TransformComponent transform = harness.world.getMapper(
+                TransformComponent.class).get(harness.owner);
+        Assert.assertEquals(0f, transform.x, 0f);
+        Assert.assertEquals(0f, transform.y, 0f);
+        Assert.assertEquals(0f, transform.rotationRad, 0f);
+        Assert.assertEquals(1f, transform.scaleX, 0f);
+        Assert.assertEquals(1f, transform.scaleY, 0f);
         PhysicsShapeData linked = harness.linked(7);
         Assert.assertNotNull(linked);
         Assert.assertTrue(linked.physicsShapeId > 0);
@@ -59,20 +69,24 @@ public class SpatialBlockPhysicsCollisionCommandTest {
         int allocatedId = linked.physicsShapeId;
         int highWater = harness.meta.nextPhysicsShapeId;
 
-        harness.history.undo();
+        Assert.assertEquals(CommandOutcome.APPLIED, command.undoOutcome());
         Assert.assertNull(harness.linked(7));
         Assert.assertFalse(harness.hasBody());
         Assert.assertNotNull(harness.block(7));
+        Assert.assertSame(transform, harness.world.getMapper(
+                TransformComponent.class).get(harness.owner));
 
-        harness.history.redo();
+        Assert.assertEquals(CommandOutcome.APPLIED, command.redoOutcome());
         Assert.assertEquals(allocatedId, harness.linked(7).physicsShapeId);
         Assert.assertEquals(highWater, harness.meta.nextPhysicsShapeId);
         Assert.assertEquals(PhysicsBodyComponent.STATIC, harness.body().type);
+        Assert.assertSame(transform, harness.world.getMapper(
+                TransformComponent.class).get(harness.owner));
     }
 
     @Test
     public void disablePreservesManualShapeAndUndoRestoresPhysicalProperties() {
-        Harness harness = new Harness(true);
+        Harness harness = new Harness();
         harness.execute(7, true);
         PhysicsShapeData linked = harness.linked(7);
         linked.density = 2.5f;
@@ -108,7 +122,7 @@ public class SpatialBlockPhysicsCollisionCommandTest {
 
     @Test
     public void twoBlocksHaveIndependentLinkedShapes() {
-        Harness harness = new Harness(true);
+        Harness harness = new Harness();
         harness.execute(7, true);
         harness.execute(8, true);
         int firstId = harness.linked(7).physicsShapeId;
@@ -124,13 +138,16 @@ public class SpatialBlockPhysicsCollisionCommandTest {
 
     @Test
     public void failedPreparationPublishesNothing() {
-        Harness harness = new Harness(false);
+        Harness harness = new Harness();
+        harness.block(7).width = 0f;
         int revision = harness.blocks().revision;
 
         SetSpatialBlockPhysicsCollisionCommand command = harness.command(7, true);
         Assert.assertEquals(CommandOutcome.REJECTED, command.executeOutcome());
 
         Assert.assertFalse(harness.hasBody());
+        Assert.assertFalse(harness.world.getMapper(TransformComponent.class)
+                .has(harness.owner));
         Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class)
                 .has(harness.owner));
         Assert.assertFalse(harness.world.getMapper(PhysicsCompiledFixturesComponent.class)
@@ -148,13 +165,7 @@ public class SpatialBlockPhysicsCollisionCommandTest {
         final SceneMeta meta = new SceneMeta();
         final PhysicsService physics = new PhysicsService(world, null, meta);
 
-        Harness(boolean withTransform) {
-            if (withTransform) {
-                TransformComponent transform =
-                        world.getMapper(TransformComponent.class).create(owner);
-                transform.scaleX = 1f;
-                transform.scaleY = 1f;
-            }
+        Harness() {
             TiledLayerComponent tiled =
                     world.getMapper(TiledLayerComponent.class).create(owner);
             tiled.data = new TiledMapLayerData(

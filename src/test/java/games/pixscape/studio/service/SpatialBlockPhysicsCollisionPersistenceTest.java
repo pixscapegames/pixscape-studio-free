@@ -65,10 +65,6 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         int layer = source.create();
         source.getMapper(PixscapeIdentityComponent.class)
                 .create(layer).stableId = 1;
-        TransformComponent transform =
-                source.getMapper(TransformComponent.class).create(layer);
-        transform.scaleX = 1f;
-        transform.scaleY = 1f;
         TiledLayerComponent tiled =
                 source.getMapper(TiledLayerComponent.class).create(layer);
         tiled.mapWidthCells = 4;
@@ -104,6 +100,10 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
                 layer,
                 1,
                 true));
+        TransformComponent createdTransform = source.getMapper(
+                TransformComponent.class).getSafe(layer, null);
+        Assert.assertNotNull(createdTransform);
+        assertIdentityTransform(createdTransform);
         int physicsShapeId = source.getMapper(PhysicsShapesComponent.class)
                 .get(layer).shapes.first().physicsShapeId;
         source.process();
@@ -131,7 +131,11 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
                     PhysicsShapesComponent.class).get(restoredLayer).shapes.first();
             PhysicsCompiledFixturesComponent compiled = loaded.getMapper(
                     PhysicsCompiledFixturesComponent.class).get(restoredLayer);
+            TransformComponent restoredTransform = loaded.getMapper(
+                    TransformComponent.class).getSafe(restoredLayer, null);
             Assert.assertEquals(1, restoredBlock.id);
+            Assert.assertNotNull(restoredTransform);
+            assertIdentityTransform(restoredTransform);
             Assert.assertEquals(physicsShapeId, restoredShape.physicsShapeId);
             Assert.assertEquals(restoredBlock.id, restoredShape.spatialBlockId);
             Assert.assertNull(restoredShape.geometry);
@@ -146,9 +150,70 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         }
     }
 
+    @Test
+    public void activationCreatesIdentityTransformForAuthoredTiledPhysics() {
+        World world = serializationWorld();
+        int layer = world.create();
+        TiledLayerComponent tiled =
+                world.getMapper(TiledLayerComponent.class).create(layer);
+        tiled.mapWidthCells = 4;
+        tiled.mapHeightCells = 4;
+        tiled.tileXs.add(1);
+        tiled.tileYs.add(1);
+        tiled.tileAssetIds.add(101);
+        tiled.tileTransformFlags.add(TileTransformFlags.NONE);
+        SpatialBlocksComponent blocks =
+                world.getMapper(SpatialBlocksComponent.class).create(layer);
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = 1;
+        block.structureId = 1;
+        block.x = 1f;
+        block.y = 1f;
+        block.width = 1f;
+        block.depth = 1f;
+        block.beginAuthoredLinkedTileRefs();
+        block.addLinkedTileRef(1, 1, 101);
+        blocks.blocks.add(block);
+        PhysicsBodyComponent body =
+                world.getMapper(PhysicsBodyComponent.class).create(layer);
+        PhysicsService.initDefaultBody(body);
+        PhysicsShapesComponent shapes =
+                world.getMapper(PhysicsShapesComponent.class).create(layer);
+        PhysicsShapeData linked = new PhysicsShapeData();
+        linked.physicsShapeId = 1;
+        linked.spatialBlockId = 1;
+        shapes.shapes.add(linked);
+        world.process();
+        Assert.assertFalse(world.getMapper(TransformComponent.class).has(layer));
+
+        try {
+            ResolvedSceneActivationPipeline.resolveTiledLayersForActivation(
+                    world, meta, null, null, "Test", "MissingTransform");
+            PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
+
+            TransformComponent transform = world.getMapper(
+                    TransformComponent.class).getSafe(layer, null);
+            Assert.assertNotNull(transform);
+            assertIdentityTransform(transform);
+            Assert.assertEquals(PhysicsBodyComponent.STATIC, body.type);
+            Assert.assertTrue(world.getMapper(PhysicsCompiledFixturesComponent.class)
+                    .get(layer).valid);
+        } finally {
+            world.dispose();
+        }
+    }
+
     private static World serializationWorld() {
         return new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+    }
+
+    private static void assertIdentityTransform(TransformComponent transform) {
+        Assert.assertEquals(0f, transform.x, 0f);
+        Assert.assertEquals(0f, transform.y, 0f);
+        Assert.assertEquals(0f, transform.rotationRad, 0f);
+        Assert.assertEquals(1f, transform.scaleX, 0f);
+        Assert.assertEquals(1f, transform.scaleY, 0f);
     }
 
     private static FileHandle tempSceneFile() {

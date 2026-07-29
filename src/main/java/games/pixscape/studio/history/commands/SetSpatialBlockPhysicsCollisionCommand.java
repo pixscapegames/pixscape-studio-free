@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -138,11 +139,21 @@ public final class SetSpatialBlockPhysicsCollisionCommand
             candidate.removeIndex(currentIndex);
         }
 
+        boolean createdTransform = false;
+        if (candidate.size > 0
+                && !world.getMapper(TransformComponent.class).has(layerEntityId)) {
+            world.getMapper(TransformComponent.class).create(layerEntityId);
+            createdTransform = true;
+        }
+
         PreparedPhysicsBodyCandidate prepared;
         try {
             prepared = SpatialBlockCommandSupport.preparePhysicsCandidateAgainstBlocks(
                     world, layerEntityId, blocks.blocks, candidate);
         } catch (RuntimeException failure) {
+            if (createdTransform) {
+                world.getMapper(TransformComponent.class).remove(layerEntityId);
+            }
             logRejection(layerEntityId, failure);
             return CommandOutcome.REJECTED;
         }
