@@ -1497,12 +1497,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     new Vector2(gx, gy),
                     doSleep
             );
+            applyPixelsPerMeter(
+                    box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
             box2DcameraUpdate();
         }
         // -------------------------------------------------
         // 2) Update params if changed
         // -------------------------------------------------
         else {
+            if (ppmChanged) {
+                PhysicsService.rebuildPreparedBodyCaches(world, ppm);
+            }
+
             if (gravChanged) {
                 box2dWorldService.setGravity(gx, gy);
             }
@@ -1512,13 +1518,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
 
             if (ppmChanged) {
+                applyPixelsPerMeter(
+                        box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
                 box2DcameraUpdate();
             }
-        }
-
-        if (ppmChanged) {
-            applyPixelsPerMeter(
-                    box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
         }
 
         if (physicsService != null) {

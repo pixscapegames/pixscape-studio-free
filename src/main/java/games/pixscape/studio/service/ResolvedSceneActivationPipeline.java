@@ -86,7 +86,9 @@ final class ResolvedSceneActivationPipeline {
         );
         validateAndCompileSpatialBlocksForActivation(
                 world, target.projectTitle(), target.sceneName());
-        PhysicsService.rebuildPreparedBodyCaches(world);
+        PhysicsService.rebuildPreparedBodyCaches(
+                world,
+                target.meta().pixelsPerMeter);
         rebuildHistoryIdsFromWorld();
         assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
         renderRuntimeRebuilder.rebuild(

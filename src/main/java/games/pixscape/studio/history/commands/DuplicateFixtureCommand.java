@@ -22,19 +22,23 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
         PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEntityId, false);
         int sourceIndex = FixtureCommandSupport.indexOfFixture(fixtures, sourceFixtureId);
         PhysicsShapeData source = (sourceIndex >= 0) ? fixtures.shapes.get(sourceIndex) : null;
-        PhysicsShapeData duplicate =
-                FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
+        boolean linked = source != null && source.spatialBlockId > 0;
+        PhysicsShapeData duplicate = linked
+                ? null
+                : FixtureCommandSupport.deepCopyWithFreshId(physicsService, source);
 
-        this.noop = (source == null || duplicate == null);
-        this.delegate = new AddFixtureCommand(
-                world,
-                historyIds,
-                physicsSelectionService,
-                physicsService,
-                bodyEntityId,
-                duplicate,
-                (sourceIndex >= 0) ? (sourceIndex + 1) : -1
-        );
+        this.noop = (source == null || linked || duplicate == null);
+        this.delegate = noop
+                ? null
+                : new AddFixtureCommand(
+                        world,
+                        historyIds,
+                        physicsSelectionService,
+                        physicsService,
+                        bodyEntityId,
+                        duplicate,
+                        sourceIndex + 1
+                );
     }
 
     @Override
@@ -44,7 +48,7 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
 
     @Override
     public boolean isNoop() {
-        return noop || delegate.isNoop();
+        return noop || delegate == null || delegate.isNoop();
     }
 
     @Override
@@ -60,6 +64,6 @@ public final class DuplicateFixtureCommand implements Command, HistoryManager.Su
     }
 
     public int getCreatedFixtureId() {
-        return delegate.getCreatedFixtureId();
+        return delegate != null ? delegate.getCreatedFixtureId() : -1;
     }
 }

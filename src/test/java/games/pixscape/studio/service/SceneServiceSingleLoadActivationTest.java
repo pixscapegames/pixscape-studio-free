@@ -9,6 +9,12 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
@@ -77,6 +83,45 @@ public class SceneServiceSingleLoadActivationTest {
         fixture.cfg.setCurrentSceneByName("Main");
         ProjectConfig.setInstance(fixture.cfg);
         new TiledMapProperties(active, () -> { }).setLayerEntityId(tiledLayers[0]);
+        active.dispose();
+    }
+
+    @Test
+    public void activationReconstructsLinkedPhysicsAfterTiledData()
+            throws Exception {
+        Fixture fixture = fixture("linked-physics", "Main");
+        fixture.cfg.getSceneMeta("Main").physicsEnabled = true;
+        fixture.cfg.getSceneMeta("Main").nextPhysicsShapeId = 701;
+        writeScene(
+                fixture.sceneFile("Main"),
+                new int[]{12, 8},
+                new int[]{111, 222},
+                true);
+        World active = serializationWorld();
+
+        activate(
+                active,
+                fixture,
+                "Main",
+                new AtomicInteger(),
+                new AtomicInteger());
+
+        IntBag bodies = active.getAspectSubscriptionManager()
+                .get(Aspect.all(PhysicsBodyComponent.class)).getEntities();
+        assertEquals(1, bodies.size());
+        int owner = bodies.get(0);
+        assertNotNull(active.getMapper(
+                TiledLayerComponent.class).get(owner).data);
+        PhysicsCompiledFixturesComponent compiled = active.getMapper(
+                PhysicsCompiledFixturesComponent.class).get(owner);
+        assertTrue(compiled.valid);
+        assertEquals(1, compiled.fixtures.size);
+        assertEquals(700, compiled.fixtures.first().physicsShapeId);
+        assertEquals(
+                PhysicsGeometryData.SHAPE_POLYGON,
+                compiled.fixtures.first().shapeType);
+        assertNull(active.getMapper(PhysicsShapesComponent.class)
+                .get(owner).shapes.first().geometry);
         active.dispose();
     }
 
@@ -199,6 +244,14 @@ public class SceneServiceSingleLoadActivationTest {
     }
 
     private static void writeScene(FileHandle sceneFile, int[] counts, int[] assetIds) {
+        writeScene(sceneFile, counts, assetIds, false);
+    }
+
+    private static void writeScene(
+            FileHandle sceneFile,
+            int[] counts,
+            int[] assetIds,
+            boolean linkedPhysics) {
         World authored = serializationWorld();
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
@@ -233,6 +286,18 @@ public class SceneServiceSingleLoadActivationTest {
                     authored.getMapper(SpatialBlocksComponent.class).create(layerEntity);
             blocks.blocks.add(wall);
             blocks.nextSpatialBlockId = wall.id + 1;
+
+            if (linkedPhysics && i == 0) {
+                authored.getMapper(TransformComponent.class)
+                        .create(layerEntity);
+                authored.getMapper(PhysicsBodyComponent.class)
+                        .create(layerEntity);
+                PhysicsShapeData linked = new PhysicsShapeData();
+                linked.physicsShapeId = 700;
+                linked.spatialBlockId = wall.id;
+                authored.getMapper(PhysicsShapesComponent.class)
+                        .create(layerEntity).shapes.add(linked);
+            }
         }
         authored.process();
         SceneService.saveScene(authored, sceneFile, false);

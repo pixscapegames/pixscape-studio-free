@@ -291,6 +291,7 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(addPolygonShape);
 
         if (selectedFixture != null
+                && selectedFixture.geometry != null
                 && selectedFixture.geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
             menu.addSeparator();
 
@@ -306,7 +307,7 @@ public final class StudioContextMenu extends InputListener {
             menu.addItem(editPolygon);
         }
 
-        if (selectedFixture != null) {
+        if (selectedFixture != null && selectedFixture.geometry != null) {
             if (selectedFixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) {
                 menu.addSeparator();
             }

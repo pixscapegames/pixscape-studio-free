@@ -261,7 +261,8 @@ public final class FixturesPanel extends CollapsibleWidget {
                 this::hasActiveFixture,
                 (int e) -> {
                     PhysicsShapeData f = activeFixture(e);
-                    return SHAPES.get(clamp((f != null) ? f.geometry.shapeType : PhysicsGeometryData.SHAPE_BOX, SHAPES.size - 1));
+                    return SHAPES.get(clamp(
+                            effectiveShapeType(f), SHAPES.size - 1));
                 },
                 (eid, before, after) -> {
                     int idx = SHAPES.indexOf(after, false);
@@ -433,9 +434,16 @@ public final class FixturesPanel extends CollapsibleWidget {
                 return;
             }
 
-            shapeBox.setDisabled(false);
+            boolean linked = isLinked(f);
+            shapeBox.setDisabled(linked);
 
-            if (isBox(f)) {
+            if (linked) {
+                boxSizeBlock.show(false);
+                circleSizeBlock.show(false);
+                offsetsBlock.show(false);
+                autoSizeBtn.setVisible(false);
+                autoSizeBtn.setDisabled(true);
+            } else if (isBox(f)) {
                 boxSizeBlock.show(true);
                 circleSizeBlock.show(false);
                 offsetsBlock.show(true);
@@ -465,11 +473,11 @@ public final class FixturesPanel extends CollapsibleWidget {
             offsetXWUField.refreshFromModel();
             offsetYWUField.refreshFromModel();
 
-            widthWUField.setDisabled(false);
-            heightWUField.setDisabled(false);
-            diameterWUField.setDisabled(false);
-            offsetXWUField.setDisabled(false);
-            offsetYWUField.setDisabled(false);
+            widthWUField.setDisabled(linked);
+            heightWUField.setDisabled(linked);
+            diameterWUField.setDisabled(linked);
+            offsetXWUField.setDisabled(linked);
+            offsetYWUField.setDisabled(linked);
         } finally {
             internalRefresh = false;
         }
@@ -484,11 +492,13 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     private boolean canDuplicateActiveFixture(int eid) {
-        return hasActiveFixture(eid);
+        PhysicsShapeData fixture = activeFixture(eid);
+        return fixture != null && !isLinked(fixture);
     }
 
     private boolean canDeleteActiveFixture(int eid) {
-        return hasActiveFixture(eid);
+        PhysicsShapeData fixture = activeFixture(eid);
+        return fixture != null && !isLinked(fixture);
     }
 
     private int countFixtures(int eid) {
@@ -501,12 +511,16 @@ public final class FixturesPanel extends CollapsibleWidget {
         if (fixture == null) return 0;
 
         int result = Long.hashCode(fixture.physicsShapeId);
-        result = 31 * result + fixture.geometry.shapeType;
-        result = 31 * result + Float.floatToIntBits(fixture.geometry.offsetX);
-        result = 31 * result + Float.floatToIntBits(fixture.geometry.offsetY);
-        result = 31 * result + Float.floatToIntBits(fixture.geometry.halfWidth);
-        result = 31 * result + Float.floatToIntBits(fixture.geometry.halfHeight);
-        result = 31 * result + Float.floatToIntBits(fixture.geometry.radius);
+        result = 31 * result + fixture.spatialBlockId;
+        PhysicsGeometryData geometry = fixture.geometry;
+        result = 31 * result + effectiveShapeType(fixture);
+        if (geometry != null) {
+            result = 31 * result + Float.floatToIntBits(geometry.offsetX);
+            result = 31 * result + Float.floatToIntBits(geometry.offsetY);
+            result = 31 * result + Float.floatToIntBits(geometry.halfWidth);
+            result = 31 * result + Float.floatToIntBits(geometry.halfHeight);
+            result = 31 * result + Float.floatToIntBits(geometry.radius);
+        }
         result = 31 * result + Float.floatToIntBits(fixture.density);
         result = 31 * result + Float.floatToIntBits(fixture.friction);
         result = 31 * result + Float.floatToIntBits(fixture.restitution);
@@ -519,6 +533,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private boolean hasValidPolygon(PhysicsShapeData f) {
         return f != null
+                && f.geometry != null
                 && f.geometry.polygonVertices != null
                 && f.geometry.polygonVertexCount >= 3
                 && f.geometry.polygonVertices.length >= f.geometry.polygonVertexCount * 2;
@@ -585,7 +600,7 @@ public final class FixturesPanel extends CollapsibleWidget {
                                    boolean publishStructureChanged,
                                    Consumer<PhysicsShapeData> edit) {
         PhysicsShapeData current = activeFixture(eid);
-        if (current == null) return;
+        if (current == null || current.geometry == null) return;
         applyFixtureEdit(eid, dirtyMask, publishStructureChanged, edit);
     }
 
@@ -631,11 +646,26 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     private static boolean isBox(PhysicsShapeData f) {
-        return f != null && isBoxShape(f.geometry.shapeType);
+        return f != null
+                && f.geometry != null
+                && isBoxShape(f.geometry.shapeType);
     }
 
     private static boolean isCircle(PhysicsShapeData f) {
-        return f != null && isCircleShape(f.geometry.shapeType);
+        return f != null
+                && f.geometry != null
+                && isCircleShape(f.geometry.shapeType);
+    }
+
+    static boolean isLinked(PhysicsShapeData fixture) {
+        return fixture != null && fixture.spatialBlockId > 0;
+    }
+
+    static int effectiveShapeType(PhysicsShapeData fixture) {
+        if (isLinked(fixture)) return PhysicsGeometryData.SHAPE_POLYGON;
+        return fixture != null && fixture.geometry != null
+                ? fixture.geometry.shapeType
+                : PhysicsGeometryData.SHAPE_BOX;
     }
 
     private static boolean isBoxShape(int shapeType) {
@@ -669,19 +699,19 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private float readOffsetXWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
-        if (f == null) return 0f;
+        if (f == null || f.geometry == null) return 0f;
         return mToWu(f.geometry.offsetX, resolvePixelsPerMeter());
     }
 
     private float readOffsetYWU(int eid) {
         PhysicsShapeData f = activeFixture(eid);
-        if (f == null) return 0f;
+        if (f == null || f.geometry == null) return 0f;
         return mToWu(f.geometry.offsetY, resolvePixelsPerMeter());
     }
 
     private void autoSizeFromSprite(int eid) {
         PhysicsShapeData f = activeFixture(eid);
-        if (f == null) return;
+        if (f == null || f.geometry == null) return;
         if (!ctx.mTransform.has(eid) || !ctx.mDimensions.has(eid)) return;
 
         TransformComponent t = ctx.mTransform.get(eid);

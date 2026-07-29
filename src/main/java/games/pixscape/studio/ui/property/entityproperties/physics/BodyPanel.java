@@ -274,6 +274,7 @@ public final class BodyPanel extends CollapsibleWidget {
 
             if (showBodyToggle) {
                 addPhysicsBox.setChecked(has);
+                addPhysicsBox.setDisabled(hasLinkedShape(eid));
             }
 
             detailsBlock.show(has);
@@ -335,12 +336,27 @@ public final class BodyPanel extends CollapsibleWidget {
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) circles++;
-            else if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_BOX) quads++;
-            else if (f.geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) polygons++;
+            int shapeType = f.spatialBlockId > 0
+                    ? PhysicsGeometryData.SHAPE_POLYGON
+                    : f.geometry != null
+                    ? f.geometry.shapeType
+                    : -1;
+            if (shapeType == PhysicsGeometryData.SHAPE_CIRCLE) circles++;
+            else if (shapeType == PhysicsGeometryData.SHAPE_BOX) quads++;
+            else if (shapeType == PhysicsGeometryData.SHAPE_POLYGON) polygons++;
         }
 
         return circles + " circles • " + quads + " quads • " + polygons + " polygons";
+    }
+
+    private boolean hasLinkedShape(int eid) {
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null) return false;
+        for (int i = 0; i < fixtures.shapes.size; i++) {
+            PhysicsShapeData shape = fixtures.shapes.get(i);
+            if (shape != null && shape.spatialBlockId > 0) return true;
+        }
+        return false;
     }
 
     private String buildJointSummary(int eid) {

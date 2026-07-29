@@ -59,6 +59,27 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         assertEquals(1, countOccurrences(loadBody, "clearWorldAndRenderState();"));
     }
 
+    @Test
+    public void activationCompilesLinkedPhysicsAfterTiledAndSpatialResolution()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/"
+                        + "ResolvedSceneActivationPipeline.java"),
+                StandardCharsets.UTF_8
+        );
+        String body = methodBody(source, "void activate(");
+
+        assertOrdered(body,
+                "sceneLoader.load(",
+                "world.process();",
+                "resolveTiledLayersForActivation(",
+                "validateAndCompileSpatialBlocksForActivation(",
+                "PhysicsService.rebuildPreparedBodyCaches(",
+                "target.meta().pixelsPerMeter",
+                "renderRuntimeRebuilder.rebuild("
+        );
+    }
+
     private static void assertOrdered(String source, String... fragments) {
         int previous = -1;
         for (String fragment : fragments) {

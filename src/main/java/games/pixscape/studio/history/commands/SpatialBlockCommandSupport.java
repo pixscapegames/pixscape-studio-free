@@ -5,6 +5,12 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.render.PhysicsDirtyBits;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -124,8 +130,63 @@ public final class SpatialBlockCommandSupport {
             for (int i = 0; i < snapshot.size; i++) replacement.add(snapshot.get(i).copy());
         }
         SpatialBlocksComponent component = getOrCreate(world, layerEntityId);
+        PhysicsShapesComponent shapes = world.getMapper(
+                PhysicsShapesComponent.class).getSafe(layerEntityId, null);
+        if (!hasLinkedShape(shapes)) {
+            component.blocks = replacement;
+            component.revision++;
+            return CommandOutcome.APPLIED;
+        }
+
+        PhysicsCompiledFixturesComponent compiled = world.getMapper(
+                PhysicsCompiledFixturesComponent.class).getSafe(layerEntityId, null);
+        if (compiled == null || !compiled.valid) {
+            logPhysicsRejection(layerEntityId,
+                    "linked body has no valid PhysicsCompiledFixturesComponent");
+            return CommandOutcome.REJECTED;
+        }
+
+        PreparedPhysicsBodyCandidate prepared;
+        Array<SpatialBlockData> original = component.blocks;
+        component.blocks = replacement;
+        try {
+            prepared = PhysicsService.prepareBodyCandidate(
+                    world,
+                    layerEntityId,
+                    shapes.shapes,
+                    FixtureCommandSupport.requireCurrentPixelsPerMeter());
+        } catch (RuntimeException failure) {
+            logPhysicsRejection(layerEntityId, failure.getMessage());
+            return CommandOutcome.REJECTED;
+        } finally {
+            component.blocks = original;
+        }
+
         component.blocks = replacement;
         component.revision++;
+        PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        if (dirty != null) {
+            dirty.physics(layerEntityId, PhysicsDirtyBits.ALL);
+        }
         return CommandOutcome.APPLIED;
+    }
+
+    private static boolean hasLinkedShape(PhysicsShapesComponent shapes) {
+        if (shapes == null || shapes.shapes == null) return false;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialBlockId > 0) return true;
+        }
+        return false;
+    }
+
+    private static void logPhysicsRejection(int layerEntityId, String diagnostic) {
+        if (Gdx.app != null) {
+            Gdx.app.error(
+                    "SpatialBlockCommand",
+                    "Rejected linked physics compilation for layer "
+                            + layerEntityId + ": " + diagnostic);
+        }
     }
 }

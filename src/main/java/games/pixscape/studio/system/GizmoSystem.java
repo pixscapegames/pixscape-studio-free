@@ -756,6 +756,7 @@ public final class GizmoSystem extends BaseSystem {
             PhysicsShapeData shape = shapes.shapes.get(i);
             if (shape != null
                     && shape.physicsShapeId == physicsShapeId
+                    && shape.geometry != null
                     && shape.geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
                 return shape;
             }
@@ -921,6 +922,7 @@ public final class GizmoSystem extends BaseSystem {
             boolean selected
     ) {
         if (polygon == null
+                || polygon.geometry == null
                 || polygon.geometry.polygonVertices == null
                 || polygon.geometry.polygonVertexCount < 3
                 || polygon.geometry.polygonVertices.length < polygon.geometry.polygonVertexCount * 2) {
@@ -1167,6 +1169,7 @@ public final class GizmoSystem extends BaseSystem {
 
     private void drawAuthoredPolygonSourceHandles(int bodyEid, PhysicsShapeData polygon) {
         if (polygon == null
+                || polygon.geometry == null
                 || polygon.geometry.polygonVertices == null
                 || polygon.geometry.polygonVertexCount < 3
                 || polygon.geometry.polygonVertices.length < polygon.geometry.polygonVertexCount * 2) {

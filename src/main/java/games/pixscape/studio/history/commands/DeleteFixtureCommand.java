@@ -36,6 +36,7 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
         PhysicsShapeData deleted = (deletedIndex >= 0) ? fixtures.shapes.get(deletedIndex) : null;
         this.deletedSnapshot = (deleted != null) ? deleted.copy() : null;
         this.deletedPhysicsShapeId = (deleted != null) ? deleted.physicsShapeId : -1;
+        boolean linked = deleted != null && deleted.spatialBlockId > 0;
 
         this.noop = (world == null
                 || historyIds == null
@@ -43,7 +44,8 @@ public final class DeleteFixtureCommand implements Command, HistoryManager.Suppo
                 || bodyHistoryId <= 0L
                 || fixtures == null
                 || deletedSnapshot == null
-                || deletedPhysicsShapeId <= 0);
+                || deletedPhysicsShapeId <= 0
+                || linked);
     }
 
     @Override

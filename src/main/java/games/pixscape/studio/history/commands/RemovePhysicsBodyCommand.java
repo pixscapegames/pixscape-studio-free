@@ -59,16 +59,23 @@ public final class RemovePhysicsBodyCommand
                 }
             }
         }
+        boolean containsLinkedShape = false;
+        for (int i = 0; i < shapeSnapshots.size; i++) {
+            if (shapeSnapshots.get(i).spatialBlockId > 0) {
+                containsLinkedShape = true;
+                break;
+            }
+        }
 
-        IntArray jointIds = valid
+        IntArray jointIds = valid && !containsLinkedShape
                 ? physicsService.collectJointsAffectedByBodyRemoval(
                         bodyEntityId, new IntArray(false, 8))
                 : new IntArray();
-        this.jointDeleteCommand = valid
+        this.jointDeleteCommand = valid && !containsLinkedShape
                 ? new DeleteEntitiesCommand(
                         world, historyIds, jointIds, this::markRestoredJointDirty)
                 : null;
-        this.noop = !valid || bodyHistoryId <= 0L;
+        this.noop = !valid || containsLinkedShape || bodyHistoryId <= 0L;
     }
 
     @Override
