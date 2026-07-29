@@ -14,7 +14,6 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.SpatialBlockPhysicsRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -31,7 +30,6 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
@@ -153,29 +151,6 @@ public class SceneServiceSingleLoadActivationTest {
         active.dispose();
     }
 
-    @Test
-    public void activationPipelineRejectsMissingAuthoredRegistryRebuilder() {
-        World world = serializationWorld();
-        try {
-            new ResolvedSceneActivationPipeline(
-                    world,
-                    null,
-                    null,
-                    new HistoryManager(16),
-                    (config, canonicalTag, projectDir) -> { },
-                    null,
-                    SceneLoader::loadScene
-            );
-            org.junit.Assert.fail(
-                    "Authored registry rebuild action must be required.");
-        } catch (IllegalArgumentException expected) {
-            assertTrue(expected.getMessage().contains(
-                    "Authored registry rebuild action"));
-        } finally {
-            world.dispose();
-        }
-    }
-
     private static void activate(World world,
                                  Fixture fixture,
                                  String sceneName,
@@ -185,19 +160,13 @@ public class SceneServiceSingleLoadActivationTest {
         history.historyIds().ensureForEntity(999);
         SceneMeta meta = fixture.cfg.getSceneMeta(sceneName);
         IdentityRegistry identities = new IdentityRegistry();
-        SpatialBlockPhysicsRegistry spatialPhysics =
-                new SpatialBlockPhysicsRegistry();
         identities.bind(world, meta);
-        spatialPhysics.bind(world, identities, meta);
-        AtomicBoolean registriesRebuilt = new AtomicBoolean();
         ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
                 world,
                 null,
                 null,
                 history,
                 (config, canonicalTag, projectDir) -> {
-                    assertTrue(registriesRebuilt.get());
-                    assertNull(spatialPhysics.findByPhysicsShapeId(1));
                     int[] layers = tiledLayerIds(world);
                     assertEquals(2, layers.length);
                     for (int layer : layers) {
@@ -209,11 +178,6 @@ public class SceneServiceSingleLoadActivationTest {
                     org.junit.Assert.assertNull(
                             ResolvedSceneActivationPipeline.firstInvalidSpatialBlock(world));
                     renderRebuilds.incrementAndGet();
-                },
-                () -> {
-                    identities.rebuild();
-                    spatialPhysics.rebuild();
-                    registriesRebuilt.set(true);
                 },
                 (target, file, editMode, loadedMeta) -> {
                     loads.incrementAndGet();
@@ -230,8 +194,7 @@ public class SceneServiceSingleLoadActivationTest {
                 sceneName,
                 fixture.cfg.canonicalSceneTag(sceneName)
         ));
-        assertTrue(spatialPhysics.isBoundTo(world));
-        spatialPhysics.detach();
+        identities.rebuild();
         identities.bind(null, null);
     }
 

@@ -38,18 +38,15 @@ final class ResolvedSceneActivationPipeline {
     private final TiledAllocatorService tiledAllocatorService;
     private final HistoryManager historyManager;
     private final RenderRuntimeRebuilder renderRuntimeRebuilder;
-    private final Runnable authoredRegistryRebuilder;
     private final SceneLoadOperation sceneLoader;
 
     ResolvedSceneActivationPipeline(World world,
                                     TileAnimationLookup tileAnimationLookup,
                                     TiledAllocatorService tiledAllocatorService,
                                     HistoryManager historyManager,
-                                    RenderRuntimeRebuilder renderRuntimeRebuilder,
-                                    Runnable authoredRegistryRebuilder) {
+                                    RenderRuntimeRebuilder renderRuntimeRebuilder) {
         this(world, tileAnimationLookup, tiledAllocatorService, historyManager,
-                renderRuntimeRebuilder, authoredRegistryRebuilder,
-                SceneLoader::loadScene);
+                renderRuntimeRebuilder, SceneLoader::loadScene);
     }
 
     ResolvedSceneActivationPipeline(World world,
@@ -57,12 +54,7 @@ final class ResolvedSceneActivationPipeline {
                                     TiledAllocatorService tiledAllocatorService,
                                     HistoryManager historyManager,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
-                                    Runnable authoredRegistryRebuilder,
                                     SceneLoadOperation sceneLoader) {
-        if (authoredRegistryRebuilder == null) {
-            throw new IllegalArgumentException(
-                    "Authored registry rebuild action is required.");
-        }
         if (sceneLoader == null) {
             throw new IllegalArgumentException(
                     "Scene load operation is required.");
@@ -72,7 +64,6 @@ final class ResolvedSceneActivationPipeline {
         this.tiledAllocatorService = tiledAllocatorService;
         this.historyManager = historyManager;
         this.renderRuntimeRebuilder = renderRuntimeRebuilder;
-        this.authoredRegistryRebuilder = authoredRegistryRebuilder;
         this.sceneLoader = sceneLoader;
     }
 
@@ -85,7 +76,6 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
-        authoredRegistryRebuilder.run();
         resolveTiledLayersForActivation(
                 world,
                 target.meta(),

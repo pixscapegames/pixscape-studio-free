@@ -133,8 +133,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
     private IdentityRegistry identityRegistry;
-    private final SpatialBlockPhysicsRegistry spatialBlockPhysicsRegistry =
-            new SpatialBlockPhysicsRegistry();
     private String cachedPrefabPhysicsPath;
     private boolean cachedPrefabContainsPhysics;
 
@@ -390,11 +388,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         identityRegistry = new IdentityRegistry();
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
-        if (sceneMeta != null) {
-            spatialBlockPhysicsRegistry.bind(
-                    world, identityRegistry, sceneMeta);
-            spatialBlockPhysicsRegistry.rebuild();
-        }
 
         layerService = new LayerService(
                 world, tiledAllocatorService, historyManager.historyIds(), identityRegistry);
@@ -2117,10 +2110,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return identityRegistry;
     }
 
-    public SpatialBlockPhysicsRegistry getSpatialBlockPhysicsRegistry() {
-        return spatialBlockPhysicsRegistry;
-    }
-
     public Stage getGridStage() {
         return gridStage;
     }
@@ -2209,7 +2198,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (world != null) {
             physicsSelectionReconciler.bindWorld(null);
-            spatialBlockPhysicsRegistry.detach();
             if (identityRegistry != null) {
                 identityRegistry.bind(null, null);
             }

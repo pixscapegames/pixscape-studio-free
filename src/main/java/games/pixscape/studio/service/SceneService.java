@@ -121,8 +121,7 @@ public final class SceneService {
                 canvas.getTileAnimationRegistry(),
                 canvas.getTiledAllocatorService(),
                 historyManager,
-                this::rebuildRenderRuntimeForScene,
-                this::rebuildAuthoredRegistries
+                this::rebuildRenderRuntimeForScene
         );
 
         registerEditorOpsCallbacks();
@@ -748,21 +747,17 @@ public final class SceneService {
 
         FileHandle sceneFile = scenesDir.child(meta.getFile());
 
-        try {
-            sceneActivationPipeline.activate(
-                    new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
-                            cfg,
-                            meta,
-                            sceneFile,
-                            projectDir,
-                            cfg.projectTitle,
-                            sceneName,
-                            canonicalTag
-                    ));
-        } catch (RuntimeException failure) {
-            canvas.getSpatialBlockPhysicsRegistry().detach();
-            throw failure;
-        }
+        sceneActivationPipeline.activate(
+                new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+                        cfg,
+                        meta,
+                        sceneFile,
+                        projectDir,
+                        cfg.projectTitle,
+                        sceneName,
+                        canonicalTag
+                ));
+        canvas.getIdentityRegistry().rebuild();
         // UI
 
         int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
@@ -3353,7 +3348,6 @@ public final class SceneService {
 
         if (canvas == null) return;
 
-        canvas.getSpatialBlockPhysicsRegistry().detach();
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
         World world = canvas.getEcsWorld();
 
@@ -3390,19 +3384,6 @@ public final class SceneService {
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
         canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
-        if (meta == null) {
-            canvas.getSpatialBlockPhysicsRegistry().detach();
-        } else {
-            canvas.getSpatialBlockPhysicsRegistry().bind(
-                    canvas.getEcsWorld(),
-                    canvas.getIdentityRegistry(),
-                    meta);
-        }
-    }
-
-    private void rebuildAuthoredRegistries() {
-        canvas.getIdentityRegistry().rebuild();
-        canvas.getSpatialBlockPhysicsRegistry().rebuild();
     }
 
     private void flushWorldForSerialization() {
