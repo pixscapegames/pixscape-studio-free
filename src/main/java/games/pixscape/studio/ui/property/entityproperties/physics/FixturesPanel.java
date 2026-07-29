@@ -40,6 +40,7 @@ public final class FixturesPanel extends CollapsibleWidget {
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
 
     private final VisSelectBox<String> shapeBox = new VisSelectBox<>();
+    private final VisLabel linkedSpatialBlockLabel = new VisLabel("");
     private final VisCheckBox sensorBox = new VisCheckBox("Sensor");
     private final FloatField densityField;
     private final FloatField frictionField;
@@ -63,6 +64,8 @@ public final class FixturesPanel extends CollapsibleWidget {
     private final CollapsibleVisTable boxSizeBlock = new CollapsibleVisTable(true);
     private final CollapsibleVisTable circleSizeBlock = new CollapsibleVisTable(true);
     private final CollapsibleVisTable offsetsBlock = new CollapsibleVisTable(true);
+    private final CollapsibleVisTable linkedSpatialBlockBlock =
+            new CollapsibleVisTable(true);
 
     private final UiBinders.SelectBoxBinder<String> shapeBinder;
     private final UiBinders.CheckBoxBinder sensorBinder;
@@ -201,6 +204,14 @@ public final class FixturesPanel extends CollapsibleWidget {
         shape.add(shapeBox).width(CommonLayout.FIELD_WIDTH).left();
         shape.add(autoSizeBtn).left();
         d.add(shape).colspan(2).left().row();
+
+        linkedSpatialBlockLabel.setName("physicsLinkedSpatialBlockLabel");
+        VisTable linkedSpatialBlock = linkedSpatialBlockBlock.content();
+        linkedSpatialBlock.left().top();
+        linkedSpatialBlock.add(linkedSpatialBlockLabel).left().row();
+        d.add(linkedSpatialBlockBlock).colspan(2).left().growX().row();
+        linkedSpatialBlockBlock.show(false);
+        linkedSpatialBlockLabel.setVisible(false);
 
         d.add(sensorBox).left().colspan(2).row();
 
@@ -381,6 +392,7 @@ public final class FixturesPanel extends CollapsibleWidget {
             boolean hasActive = active != null;
 
             detailsBlock.show(hasActive);
+            updateLinkedSpatialBlockIndicator(active);
 
             lastSelectedFixtureId = resolveSelectedFixtureIdForPanel(eid);
             lastFixtureCount = countFixtures(eid);
@@ -424,6 +436,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         internalRefresh = true;
         try {
             PhysicsShapeData f = activeFixture(eid);
+            updateLinkedSpatialBlockIndicator(f);
             if (f == null) {
                 shapeBox.setDisabled(true);
                 boxSizeBlock.show(false);
@@ -482,6 +495,14 @@ public final class FixturesPanel extends CollapsibleWidget {
             internalRefresh = false;
         }
         invalidateHierarchy();
+    }
+
+    private void updateLinkedSpatialBlockIndicator(PhysicsShapeData fixture) {
+        boolean linked = isLinked(fixture);
+        linkedSpatialBlockLabel.setText(
+                linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
+        linkedSpatialBlockLabel.setVisible(linked);
+        linkedSpatialBlockBlock.show(linked);
     }
 
     private void updateActionButtons(boolean hasActive) {
