@@ -79,14 +79,121 @@ public class SpatialLinkedPhysicsCommandsTest {
     }
 
     @Test
-    public void linkedBlockDeletionIsRejectedWithoutPartialPublication() {
+    public void linkedBlockDeletionRemovesCollisionAndUndoRestoresSameIdAndStaticBody() {
+        Harness harness = new Harness(true);
+        SpatialBlocksComponent blocks = harness.blocks();
+        int revision = blocks.revision;
+        int physicsShapeId = harness.shapes().shapes.first().physicsShapeId;
+
+        DeleteSpatialBlockCommand command = new DeleteSpatialBlockCommand(
+                harness.world,
+                harness.history.historyIds(),
+                harness.selection,
+                harness.owner,
+                7);
+        harness.history.execute(command);
+
+        Assert.assertEquals(1, harness.history.getCursor());
+        Assert.assertNull(harness.block(7));
+        Assert.assertEquals(revision + 1, blocks.revision);
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class)
+                .has(harness.owner));
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class)
+                .has(harness.owner));
+
+        harness.history.undo();
+        Assert.assertNotNull(harness.block(7));
+        Assert.assertEquals(physicsShapeId,
+                harness.shapes().shapes.first().physicsShapeId);
+        Assert.assertNull(harness.shapes().shapes.first().geometry);
+        Assert.assertEquals(PhysicsBodyComponent.STATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class)
+                        .get(harness.owner).type);
+        Assert.assertTrue(harness.compiled().valid);
+        Assert.assertEquals(7, harness.selection.getSelectedBlockId());
+
+        harness.history.redo();
+        Assert.assertNull(harness.block(7));
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class)
+                .has(harness.owner));
+    }
+
+    @Test
+    public void deletingLinkedBlockPreservesManualShapeAndStaticBody() {
+        Harness harness = new Harness(true);
+        PhysicsShapeData manual = PhysicsService.createDefaultShape(2);
+        harness.shapes().shapes.add(manual);
+        PreparedPhysicsBodyCandidate prepared = PhysicsService.prepareBodyCandidate(
+                harness.world,
+                harness.owner,
+                harness.shapes().shapes,
+                meta.pixelsPerMeter);
+        PhysicsService.publishPreparedCandidate(
+                harness.shapes(), harness.compiled(), prepared);
+        harness.world.getMapper(PhysicsBodyComponent.class)
+                .get(harness.owner).type = PhysicsBodyComponent.DYNAMIC;
+
+        harness.history.execute(new DeleteSpatialBlockCommand(
+                harness.world,
+                harness.history.historyIds(),
+                harness.selection,
+                harness.owner,
+                7));
+
+        Assert.assertNull(harness.block(7));
+        Assert.assertEquals(1, harness.shapes().shapes.size);
+        Assert.assertEquals(2, harness.shapes().shapes.first().physicsShapeId);
+        Assert.assertEquals(PhysicsBodyComponent.STATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class)
+                        .get(harness.owner).type);
+        Assert.assertEquals(1, harness.compiled().fixtures.size);
+    }
+
+    @Test
+    public void deletingOneLinkedBlockPreservesOtherLinkedCollision() {
+        Harness harness = new Harness(true);
+        PhysicsShapeData other = new PhysicsShapeData();
+        other.physicsShapeId = 2;
+        other.spatialBlockId = 8;
+        harness.shapes().shapes.add(other);
+        PreparedPhysicsBodyCandidate prepared = PhysicsService.prepareBodyCandidate(
+                harness.world,
+                harness.owner,
+                harness.shapes().shapes,
+                meta.pixelsPerMeter);
+        PhysicsService.publishPreparedCandidate(
+                harness.shapes(), harness.compiled(), prepared);
+
+        harness.history.execute(new DeleteSpatialBlockCommand(
+                harness.world,
+                harness.history.historyIds(),
+                harness.selection,
+                harness.owner,
+                7));
+
+        Assert.assertNull(harness.block(7));
+        Assert.assertNotNull(harness.block(8));
+        Assert.assertEquals(1, harness.shapes().shapes.size);
+        Assert.assertEquals(2, harness.shapes().shapes.first().physicsShapeId);
+        Assert.assertEquals(8, harness.shapes().shapes.first().spatialBlockId);
+        Assert.assertNull(harness.shapes().shapes.first().geometry);
+        Assert.assertEquals(PhysicsBodyComponent.STATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class)
+                        .get(harness.owner).type);
+    }
+
+    @Test
+    public void deletePreparationFailureLeavesBlockRelationCacheAndRevisionUntouched() {
         Harness harness = new Harness(true);
         SpatialBlocksComponent blocks = harness.blocks();
         int revision = blocks.revision;
         PhysicsShapesComponent shapes = harness.shapes();
         PhysicsCompiledFixturesComponent compiled = harness.compiled();
         CompiledFixtureData fixture = compiled.fixtures.first();
-        float[] before = vertices(compiled);
+        PhysicsShapeData invalid = new PhysicsShapeData();
+        invalid.physicsShapeId = 2;
+        invalid.spatialBlockId = 999;
+        shapes.shapes.add(invalid);
 
         DeleteSpatialBlockCommand command = new DeleteSpatialBlockCommand(
                 harness.world,
@@ -101,8 +208,7 @@ public class SpatialLinkedPhysicsCommandsTest {
         Assert.assertSame(shapes, harness.shapes());
         Assert.assertSame(compiled, harness.compiled());
         Assert.assertSame(fixture, compiled.fixtures.first());
-        Assert.assertArrayEquals(before, vertices(compiled), 0f);
-        Assert.assertNull(shapes.shapes.first().geometry);
+        Assert.assertEquals(2, shapes.shapes.size);
     }
 
     @Test

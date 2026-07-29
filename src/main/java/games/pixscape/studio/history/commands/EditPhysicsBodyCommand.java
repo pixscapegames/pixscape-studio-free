@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -149,6 +150,9 @@ public final class EditPhysicsBodyCommand implements Command, HistoryManager.Sup
         if (body == null) return;
 
         snapshot.apply(body);
+        if (world.getMapper(TiledLayerComponent.class).has(entityId)) {
+            body.type = PhysicsBodyComponent.STATIC;
+        }
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {

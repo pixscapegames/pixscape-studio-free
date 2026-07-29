@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -76,6 +77,25 @@ public class AddPhysicsBodyCommandTest {
                 PhysicsCompiledFixturesComponent.class).get(entityId);
         Assert.assertTrue(compiled.valid);
         Assert.assertEquals(0, compiled.fixtures.size);
+    }
+
+    @Test
+    public void tiledLayerIgnoresRequestedDynamicBodyType() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.world.getMapper(TiledLayerComponent.class).create(entityId);
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world,
+                harness.historyIds,
+                harness.physics,
+                entityId,
+                PhysicsBodyComponent.DYNAMIC,
+                false));
+
+        Assert.assertEquals(PhysicsBodyComponent.STATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class)
+                        .get(entityId).type);
     }
 
     @Test

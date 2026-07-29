@@ -186,7 +186,9 @@ public final class BodyPanel extends CollapsibleWidget {
                 ctx.world,
                 bodyTypeBox,
                 this::hasPhysics,
-                eid -> BODY_TYPES.get(clamp(ctx.mPhysBody.get(eid).type, BODY_TYPES.size - 1)),
+                eid -> BODY_TYPES.get(mTiled.has(eid)
+                        ? PhysicsBodyComponent.STATIC
+                        : clamp(ctx.mPhysBody.get(eid).type, BODY_TYPES.size - 1)),
                 (eid, before, after) -> {
                     int idx = BODY_TYPES.indexOf(after, false);
                     int typeIdx = (idx < 0) ? PhysicsBodyComponent.DYNAMIC : idx;
@@ -280,6 +282,7 @@ public final class BodyPanel extends CollapsibleWidget {
             detailsBlock.show(has);
 
             bodyTypeBinder.setEntityId(eid);
+            bodyTypeBox.setDisabled(mTiled.has(eid));
             fixedRotationBinder.setEntityId(eid);
             bulletBinder.setEntityId(eid);
             allowSleepBinder.setEntityId(eid);

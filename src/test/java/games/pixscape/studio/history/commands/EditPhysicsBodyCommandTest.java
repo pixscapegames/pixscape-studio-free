@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -121,6 +122,31 @@ public class EditPhysicsBodyCommandTest {
 
         command.redo();
         Assert.assertEquals(PhysicsBodyComponent.KINEMATIC, body.type);
+    }
+
+    @Test
+    public void tiledLayerRemainsStaticForProgrammaticEditAndUndo() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        int entityId = createBody(world, historyIds);
+        world.getMapper(TiledLayerComponent.class).create(entityId);
+        PhysicsBodyComponent body =
+                world.getMapper(PhysicsBodyComponent.class).get(entityId);
+        body.type = PhysicsBodyComponent.STATIC;
+        EditPhysicsBodyCommand.Snapshot before =
+                EditPhysicsBodyCommand.Snapshot.capture(body);
+
+        EditPhysicsBodyCommand command = new EditPhysicsBodyCommand(
+                world,
+                historyIds,
+                entityId,
+                before,
+                before.withType(PhysicsBodyComponent.DYNAMIC));
+
+        command.redo();
+        Assert.assertEquals(PhysicsBodyComponent.STATIC, body.type);
+        command.undo();
+        Assert.assertEquals(PhysicsBodyComponent.STATIC, body.type);
     }
 
     @Test

@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -88,7 +89,9 @@ public final class AddPhysicsBodyCommand
         PhysicsBodyComponent body =
                 world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
-        body.type = bodyType;
+        body.type = world.getMapper(TiledLayerComponent.class).has(entityId)
+                ? PhysicsBodyComponent.STATIC
+                : bodyType;
 
         Array<PhysicsShapeData> candidate =
                 FixtureCommandSupport.copyFixtures(world, entityId);

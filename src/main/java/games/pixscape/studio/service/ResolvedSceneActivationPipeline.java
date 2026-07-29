@@ -13,6 +13,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
@@ -104,6 +105,8 @@ final class ResolvedSceneActivationPipeline {
                                                 String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
+        ComponentMapper<PhysicsBodyComponent> mBody =
+                world.getMapper(PhysicsBodyComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -119,6 +122,8 @@ final class ResolvedSceneActivationPipeline {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+            PhysicsBodyComponent body = mBody.getSafe(e, null);
+            if (body != null) body.type = PhysicsBodyComponent.STATIC;
 
             if (tiled.mapWidthCells <= 0 || tiled.mapHeightCells <= 0
                     || meta.tileWidth <= 0 || meta.tileHeight <= 0 || meta.chunkSize <= 0

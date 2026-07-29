@@ -132,6 +132,7 @@ public class PropertiesPanel extends DockablePanel {
                 world,
                 canvas.getHistoryManager(),
                 canvas.getSpatialBlockSelectionService(),
+                canvas.getPhysicsService(),
                 app.getSceneService()::markPreviewSaveRequired
         );
 

@@ -6,6 +6,8 @@ import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -111,18 +113,123 @@ public final class SpatialBlockCommandSupport {
         return SpatialStructureTopology.copyWalls(component);
     }
 
+    static int indexOfLinkedPhysicsShape(
+            PhysicsShapesComponent shapes, int spatialBlockId) {
+        if (shapes == null || shapes.shapes == null || spatialBlockId <= 0) return -1;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialBlockId == spatialBlockId) return i;
+        }
+        return -1;
+    }
+
+    static int countLinkedPhysicsShapes(
+            PhysicsShapesComponent shapes, int spatialBlockId) {
+        if (shapes == null || shapes.shapes == null || spatialBlockId <= 0) return 0;
+        int count = 0;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialBlockId == spatialBlockId) count++;
+        }
+        return count;
+    }
+
+    static Array<PhysicsShapeData> copyPhysicsShapes(PhysicsShapesComponent shapes) {
+        Array<PhysicsShapeData> copy = new Array<>(
+                true,
+                shapes != null && shapes.shapes != null ? shapes.shapes.size : 0,
+                PhysicsShapeData.class);
+        if (shapes != null && shapes.shapes != null) {
+            for (int i = 0; i < shapes.shapes.size; i++) {
+                PhysicsShapeData shape = shapes.shapes.get(i);
+                copy.add(shape != null ? shape.copy() : null);
+            }
+        }
+        return copy;
+    }
+
+    static CommandOutcome validateBlocks(
+            World world, int layerEntityId, Array<SpatialBlockData> snapshot) {
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
+                .getSafe(layerEntityId, null);
+        SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
+                snapshot, tiled != null ? tiled.data : null);
+        if (compilation.success()) return CommandOutcome.APPLIED;
+        if (Gdx.app != null) {
+            Gdx.app.error("SpatialBlockCommand",
+                    "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
+                            + compilation.diagnostic());
+        }
+        return CommandOutcome.REJECTED;
+    }
+
+    static PreparedPhysicsBodyCandidate preparePhysicsCandidateAgainstBlocks(
+            World world,
+            int layerEntityId,
+            Array<SpatialBlockData> candidateBlocks,
+            Array<PhysicsShapeData> candidateShapes) {
+        if (candidateShapes == null || candidateShapes.size == 0) return null;
+        if (!FixtureCommandSupport.containsLinkedShape(candidateShapes)) {
+            return PhysicsService.prepareBodyCandidate(candidateShapes);
+        }
+        SpatialBlocksComponent component = get(world, layerEntityId);
+        if (component == null) {
+            throw new IllegalArgumentException(
+                    "SpatialBlocksComponent is required for linked physics compilation.");
+        }
+        Array<SpatialBlockData> originalBlocks = component.blocks;
+        component.blocks = candidateBlocks;
+        try {
+            return PhysicsService.prepareBodyCandidate(
+                    world,
+                    layerEntityId,
+                    candidateShapes,
+                    FixtureCommandSupport.requireCurrentPixelsPerMeter());
+        } finally {
+            component.blocks = originalBlocks;
+        }
+    }
+
+    static void publishStaticTiledPhysicsCandidate(
+            World world,
+            int layerEntityId,
+            Array<PhysicsShapeData> candidateShapes,
+            PreparedPhysicsBodyCandidate prepared) {
+        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+        if (candidateShapes == null || candidateShapes.size == 0) {
+            world.getMapper(PhysicsRuntimeBodyComponent.class).remove(layerEntityId);
+            world.getMapper(PhysicsCompiledFixturesComponent.class).remove(layerEntityId);
+            world.getMapper(PhysicsShapesComponent.class).remove(layerEntityId);
+            world.getMapper(PhysicsBodyComponent.class).remove(layerEntityId);
+        } else {
+            PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class)
+                    .getSafe(layerEntityId, null);
+            if (body == null) {
+                body = world.getMapper(PhysicsBodyComponent.class).create(layerEntityId);
+                PhysicsService.initDefaultBody(body);
+            }
+            body.type = PhysicsBodyComponent.STATIC;
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class)
+                    .getSafe(layerEntityId, null);
+            if (shapes == null) {
+                shapes = world.getMapper(PhysicsShapesComponent.class).create(layerEntityId);
+            }
+            PhysicsCompiledFixturesComponent compiled =
+                    world.getMapper(PhysicsCompiledFixturesComponent.class)
+                            .getSafe(layerEntityId, null);
+            if (compiled == null) {
+                compiled = world.getMapper(PhysicsCompiledFixturesComponent.class)
+                        .create(layerEntityId);
+            }
+            PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
+        }
+        if (dirty != null) dirty.physics(layerEntityId, PhysicsDirtyBits.ALL);
+    }
+
     static CommandOutcome replaceAllValidated(World world,
                                               int layerEntityId,
                                               Array<SpatialBlockData> snapshot) {
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
-                snapshot, tiled != null ? tiled.data : null);
-        if (!compilation.success()) {
-            if (Gdx.app != null) {
-                Gdx.app.error("SpatialBlockCommand",
-                        "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
-                                + compilation.diagnostic());
-            }
+        if (validateBlocks(world, layerEntityId, snapshot) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
@@ -164,11 +271,8 @@ public final class SpatialBlockCommandSupport {
 
         component.blocks = replacement;
         component.revision++;
-        PhysicsService.publishPreparedCandidate(shapes, compiled, prepared);
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        if (dirty != null) {
-            dirty.physics(layerEntityId, PhysicsDirtyBits.ALL);
-        }
+        publishStaticTiledPhysicsCandidate(
+                world, layerEntityId, shapes.shapes, prepared);
         return CommandOutcome.APPLIED;
     }
 

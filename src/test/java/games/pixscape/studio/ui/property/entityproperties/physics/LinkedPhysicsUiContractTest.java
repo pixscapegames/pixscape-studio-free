@@ -45,6 +45,8 @@ public class LinkedPhysicsUiContractTest {
         Assert.assertTrue(body.contains(
                 "addPhysicsBox.setDisabled(hasLinkedShape(eid));"));
         Assert.assertTrue(body.contains(
+                "bodyTypeBox.setDisabled(mTiled.has(eid));"));
+        Assert.assertTrue(body.contains(
                 "? PhysicsGeometryData.SHAPE_POLYGON"));
         Assert.assertTrue(context.contains(
                 "selectedFixture.geometry != null"));
