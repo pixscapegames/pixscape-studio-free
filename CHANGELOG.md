@@ -1,10 +1,38 @@
 # Changelog
 
-## 0.2.2 - Save Progress Reliability
+## 0.2.2 - Physics Authoring and Spatial Collisions
+
+### Breaking changes
+
+* Replaced the legacy Studio physics authoring model with persistent Runtime physics shapes.
+* Existing physics scenes and prefabs using the previous schema must be recreated or re-exported.
+
+### Added
+
+* Added stable physics shape identities across editing, persistence, duplication and prefab instantiation.
+* Added `Physics collision` to Spatial Blocks, deriving a static polygon fixture from the block footprint.
+* Added a read-only `Linked to Spatial Block #...` indicator for linked fixtures.
+
+### Changed
+
+* Unified body, fixture, polygon, joint, clipboard, prefab and scene workflows around the new authored physics model.
+* Tiled layer physics bodies are now always static.
+* Linked fixture geometry is read-only, while material, sensor, filter and enabled properties remain editable.
+* Spatial Block edits and pixels-per-meter changes now recompile linked collisions at commit or activation boundaries.
+* Deleting a Spatial Block now removes its linked collision atomically; undo restores both with the same physics shape identity.
 
 ### Fixed
 
-* Prevented asynchronous save failures from leaving the modal save-progress dialog open indefinitely.
+* Prevented failed physics and Spatial operations from publishing partial state or incorrectly advancing history.
+* Fixed stale physics selection and picking after fixture or body changes, undo/redo and scene activation.
+* Fixed linked collision activation and scene loading when a tiled layer initially has no transform.
+* Fixed prefab and clipboard instantiation so physics shapes receive fresh identities and joint references remain valid.
+* Prevented asynchronous save failures from leaving the save-progress dialog open indefinitely.
+
+### Tests
+
+* Expanded regression coverage for physics authoring, persistence, history, prefabs, joints and linked Spatial collisions.
+
 
 ## 0.2.1 - TMX Import and Spatial V3
 
