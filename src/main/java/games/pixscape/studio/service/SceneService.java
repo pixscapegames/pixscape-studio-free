@@ -3167,6 +3167,7 @@ public final class SceneService {
                 AssetMeta.AssetScope.USER
         );
 
+        canvas.invalidateStudioParticleFallbacks();
         return true;
     }
 

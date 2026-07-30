@@ -159,8 +159,8 @@ public final class AtlasStudioService extends AtlasRuntimeService {
                     canvas.getEcsWorld().getSystem(RenderParticleSyncSystem.class);
             if (particleSystem != null) {
                 particleSystem.invalidateAllEffects();
-                canvas.invalidateStudioParticleFallbacks();
             }
+            canvas.invalidateStudioParticleFallbacks();
         } finally {
             artifact.outputDir().deleteDirectory();
         }

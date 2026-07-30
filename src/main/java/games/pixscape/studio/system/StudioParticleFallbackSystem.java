@@ -30,6 +30,7 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 
@@ -39,7 +40,8 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
 
     private final VfxRenderState vfxState;
     private final OrthographicCamera camera;
-    private final AtlasStudioService atlasStudioService;
+    private final AtlasRuntimeService atlasStudioService;
+    private final ParticleAtlasReadinessCache atlasReadiness;
     private final int defaultShaderIdx;
 
     private FileHandle effectsRoot;
@@ -69,12 +71,34 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                                         FileHandle effectsRoot,
                                         FileHandle imagesRoot,
                                         int defaultShaderIdx) {
+        this(
+                vfxState,
+                camera,
+                atlasStudioService,
+                effectsRoot,
+                imagesRoot,
+                defaultShaderIdx,
+                new ParticleAtlasReadinessCache()
+        );
+    }
+
+    StudioParticleFallbackSystem(VfxRenderState vfxState,
+                                 OrthographicCamera camera,
+                                 AtlasRuntimeService atlasStudioService,
+                                 FileHandle effectsRoot,
+                                 FileHandle imagesRoot,
+                                 int defaultShaderIdx,
+                                 ParticleAtlasReadinessCache atlasReadiness) {
         this.vfxState = vfxState;
         this.camera = camera;
         this.atlasStudioService = atlasStudioService;
         this.effectsRoot = effectsRoot;
         this.imagesRoot = imagesRoot;
         this.defaultShaderIdx = defaultShaderIdx;
+        if (atlasReadiness == null) {
+            throw new IllegalArgumentException("Particle atlas readiness cache must not be null.");
+        }
+        this.atlasReadiness = atlasReadiness;
     }
 
     public void setEffectsRoot(FileHandle effectsRoot) {
@@ -88,6 +112,8 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     }
 
     public void invalidateAll() {
+        atlasReadiness.clear();
+
         for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
             ParticleEffectPool.PooledEffect fx = it.next().value;
             if (fx != null) fx.free();
@@ -161,7 +187,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 continue;
             }
 
-            if (isReadyInAtlas(e, comp)) {
+            if (isReadyInAtlas(comp)) {
                 removeEffect(e);
                 continue;
             }
@@ -215,27 +241,18 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         }
     }
 
-    private boolean isReadyInAtlas(int entityId, ParticleEmitterComponent emitter) {
+    private boolean isReadyInAtlas(ParticleEmitterComponent emitter) {
         if (atlasStudioService == null) return false;
         if (emitter.atlasTag == null || emitter.atlasTag.isBlank()) return false;
         if (emitter.effectPath == null || emitter.effectPath.isBlank()) return false;
-        if (effectsRoot == null) return false;
 
         TextureAtlas atlas = atlasStudioService.getAtlas(emitter.atlasTag);
-        if (atlas == null) return false;
-
-        FileHandle effectFile = effectsRoot.child(emitter.effectPath);
-        if (!effectFile.exists()) return false;
-
-        ParticleEffect probe = new ParticleEffect();
-        try {
-            probe.load(effectFile, atlas);
-            return true;
-        } catch (RuntimeException ex) {
-            return false;
-        } finally {
-            probe.dispose();
-        }
+        return atlasReadiness.isReady(
+                emitter.atlasTag,
+                emitter.effectPath,
+                atlas,
+                effectsRoot
+        );
     }
 
     private ParticleEffectPool.PooledEffect createStandaloneEffect(int entityId,
@@ -469,6 +486,11 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         if (v < 0f) return 0f;
         if (v > 1f) return 1f;
         return v;
+    }
+
+    @Override
+    protected void dispose() {
+        invalidateAll();
     }
 
     @Override
