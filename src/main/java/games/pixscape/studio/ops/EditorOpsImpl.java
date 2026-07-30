@@ -26,6 +26,7 @@ import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -214,7 +215,9 @@ public class EditorOpsImpl implements EditorOps {
 
         String sceneTag = getCurrentSceneTag();
         String sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
-        int assetId = (sceneService != null) ? sceneService.resolveAssetIdBySourceRelPath(sourceRelPath) : -1;
+        int assetId = (sceneService != null)
+                ? sceneService.resolveAssetIdBySourceRelPath(sourceRelPath, AssetType.IMAGE)
+                : -1;
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
@@ -356,12 +359,10 @@ public class EditorOpsImpl implements EditorOps {
 
             int assetId = -1;
             if (sceneService != null) {
-                // Animation assets are directory-based in assets.json (orig/animations/<animDir>),
-                // not frame-based. Keep first-frame lookup as a backward-compatible fallback.
-                assetId = sceneService.resolveAssetIdBySourceRelPath(animationRelPath);
-                if (assetId < 0) {
-                    assetId = sceneService.resolveAssetIdBySourceRelPath(firstFrameRelPath);
-                }
+                assetId = sceneService.resolveAssetIdBySourceRelPath(
+                        animationRelPath,
+                        AssetType.ANIMATION
+                );
             }
             init.configureStandaloneSprite(
                     assetId,

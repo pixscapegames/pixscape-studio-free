@@ -63,10 +63,10 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         db.save(file);
 
         String assetsJson = Files.readString(tmp);
-        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TilesetAssetMeta\""));
-        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TileAssetMeta\""));
-        assertTrue(assetsJson.contains("\"type\": \"TILESET\""));
-        assertTrue(assetsJson.contains("\"type\": \"TILE\""));
+        assertFalse(assetsJson.contains("\"class\""));
+        assertFalse(assetsJson.contains("games.pixscape.studio.asset"));
+        assertTrue(assetsJson.contains("\"type\": \"tileset\""));
+        assertTrue(assetsJson.contains("\"type\": \"tile\""));
         assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id()));
         assertTrue(assetsJson.contains("\"sheetIndex\": 10"));
         assertTrue(assetsJson.contains("\"cellX\": 2"));
@@ -86,7 +86,6 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertTrue(assetsJson.contains("\"offsetX\": -3"));
         assertTrue(assetsJson.contains("\"offsetY\": 5"));
         assertTrue(assetsJson.contains("\"renderSize\": \"native\""));
-        assertFalse(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.AssetMeta\""));
 
         AssetMetaDatabase loaded = AssetMetaDatabase.load(file);
         assertTrue(loaded.findByLogicalPath("tiles/terrain") instanceof TilesetAssetMeta);

@@ -4,6 +4,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
 
@@ -58,7 +59,10 @@ public final class AssetsFolderScanner {
                 && !folder.path.isEmpty()) {
 
             String sourceRel = StudioFs.DIR_ORIG_ANIMATIONS + "/" + folder.path;
-            AssetMeta meta = db.findBySourceRelPath(sourceRel);
+            AssetMeta meta = db.findUniqueBySourceRelPath(
+                    sourceRel,
+                    AssetType.ANIMATION
+            );
 
             if (isUserVisible(meta)) {
                 out.add(new AssetNode(
@@ -118,7 +122,10 @@ public final class AssetsFolderScanner {
                     String relDir = relativePath(baseDir, f);
                     String sourceRel = StudioFs.DIR_ORIG_ANIMATIONS + "/" + relDir;
 
-                    AssetMeta meta = db.findBySourceRelPath(sourceRel);
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            sourceRel,
+                            AssetType.ANIMATION
+                    );
 
                     if (isUserVisible(meta)) {
                         out.add(new AssetNode(
@@ -144,8 +151,9 @@ public final class AssetsFolderScanner {
                 case IMAGES -> {
                     if (!isImage(ext)) continue;
 
-                    AssetMeta meta = db.findBySourceRelPath(
-                            StudioFs.DIR_ORIG_IMAGES + "/" + rel
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_IMAGES + "/" + rel,
+                            AssetType.IMAGE
                     );
 
                     if (!isUserVisible(meta)) continue;
@@ -162,8 +170,9 @@ public final class AssetsFolderScanner {
                 case TILES -> {
                     if (!isImage(ext)) continue;
 
-                    AssetMeta meta = db.findBySourceRelPath(
-                            StudioFs.DIR_ORIG_TILES + "/" + rel
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_TILES + "/" + rel,
+                            AssetType.TILE
                     );
 
                     if (!isUserVisible(meta)) continue;
@@ -180,8 +189,9 @@ public final class AssetsFolderScanner {
                 case PARTICLES -> {
                     if (!ext.equals("p")) continue;
 
-                    AssetMeta meta = db.findBySourceRelPath(
-                            StudioFs.DIR_ORIG_EFFECTS + "/" + rel
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_EFFECTS + "/" + rel,
+                            AssetType.PARTICLE
                     );
 
                     if (!isUserVisible(meta)) continue;

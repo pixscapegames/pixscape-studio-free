@@ -586,7 +586,10 @@ public final class AssetsThumbsView extends VisTable {
         String sourceRelPath = buildSourceRelPath(node);
         if (sourceRelPath == null || sourceRelPath.isBlank()) return null;
 
-        return db.findBySourceRelPath(sourceRelPath);
+        AssetType type = assetTypeForNode(node);
+        return type != null
+                ? db.findUniqueBySourceRelPath(sourceRelPath, type)
+                : null;
     }
 
     private String buildSourceRelPath(AssetNode node) {
@@ -1382,7 +1385,11 @@ public final class AssetsThumbsView extends VisTable {
                 continue;
             }
 
-            int assetId = db.getIdBySourceRelPath(sourceRelPath);
+            AssetType type = assetTypeForNode(node);
+            AssetMeta meta = type != null
+                    ? db.findUniqueBySourceRelPath(sourceRelPath, type)
+                    : null;
+            int assetId = meta != null ? meta.id() : -1;
 
             if (assetId < 0) {
                 Gdx.app.error("AssetDelete", "Asset id not found for " + sourceRelPath);
@@ -1719,7 +1726,22 @@ public final class AssetsThumbsView extends VisTable {
         if (sourceRelPath == null) return -1;
 
         AssetMetaDatabase db = loadAssetMetaDatabase();
-        return db != null ? db.getIdBySourceRelPath(sourceRelPath) : -1;
+        AssetType type = assetTypeForNode(data);
+        AssetMeta meta = db != null && type != null
+                ? db.findUniqueBySourceRelPath(sourceRelPath, type)
+                : null;
+        return meta != null ? meta.id() : -1;
+    }
+
+    private static AssetType assetTypeForNode(AssetNode node) {
+        if (node == null) return null;
+        return switch (node.root) {
+            case IMAGES -> AssetType.IMAGE;
+            case ANIMATIONS -> AssetType.ANIMATION;
+            case PARTICLES -> AssetType.PARTICLE;
+            case TILES -> AssetType.TILE;
+            case PREFABS -> null;
+        };
     }
 
     private void buildTiledAnimationGhost(DragPayload p, AssetNode data) {

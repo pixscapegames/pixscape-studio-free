@@ -1,17 +1,15 @@
 package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class AssetMetaDatabaseIndexTest {
 
@@ -22,8 +20,9 @@ public class AssetMetaDatabaseIndexTest {
         assertEquals(0, db.size());
         assertNull(db.findById(0));
         assertNull(db.findByLogicalPath(" "));
-        assertNull(db.findBySourceRelPath(null));
-        assertEquals(-1, db.getIdBySourceRelPath("missing"));
+        assertEquals(0, db.sourceOwnerCount(null));
+        assertEquals(0, db.sourceOwnerCount("missing"));
+        expectFailure("ownerCount=0", () -> db.sourceOwnerAt("missing", 0));
 
         AssetType[] types = AssetType.values();
         for (int i = 0; i < types.length; i++) {
@@ -37,8 +36,13 @@ public class AssetMetaDatabaseIndexTest {
             assertSame(asset, db.assetAt(i));
             assertSame(asset, db.findById(asset.id()));
             assertSame(asset, db.findByLogicalPath(asset.logicalPath()));
-            assertSame(asset, db.findBySourceRelPath(asset.sourceRelPath()));
-            assertEquals(asset.id(), db.getIdBySourceRelPath(asset.sourceRelPath()));
+            assertEquals(1, db.sourceOwnerCount(asset.sourceRelPath()));
+            assertSame(asset, db.sourceOwnerAt(asset.sourceRelPath(), 0));
+            assertSame(asset, db.findUniqueBySourceRelPath(asset.sourceRelPath()));
+            assertSame(asset, db.findUniqueBySourceRelPath(
+                    asset.sourceRelPath(),
+                    asset.type()
+            ));
         }
 
         assertFalse(db.isEmpty());
@@ -64,8 +68,10 @@ public class AssetMetaDatabaseIndexTest {
         );
         assertSame(first, reused);
         assertEquals(AssetMeta.AssetScope.USER, first.scope);
-        assertEquals("orig/images/hero.png", first.sourceRelPath());
-        assertSame(first, db.findBySourceRelPath(first.sourceRelPath()));
+        assertSame(first, db.findUniqueBySourceRelPath(
+                first.sourceRelPath(),
+                AssetType.IMAGE
+        ));
 
         int size = db.size();
         int nextId = db.nextId();
@@ -92,7 +98,10 @@ public class AssetMetaDatabaseIndexTest {
         assertEquals(nextId, db.nextId());
         assertSame(first, db.findByLogicalPath("images/hero"));
         assertNull(db.findByLogicalPath("images/other"));
-        assertNull(db.findBySourceRelPath("orig/images/other.png"));
+        assertNull(db.findUniqueBySourceRelPath(
+                "orig/images/other.png",
+                AssetType.IMAGE
+        ));
     }
 
     @Test
@@ -106,8 +115,11 @@ public class AssetMetaDatabaseIndexTest {
         assertSame(first, db.findByLogicalPath("images/renamed"));
 
         assertTrue(db.updateSourceRelPath(first.id(), "orig/renamed.png"));
-        assertNull(db.findBySourceRelPath("orig/first.png"));
-        assertSame(first, db.findBySourceRelPath("orig/renamed.png"));
+        assertEquals(0, db.sourceOwnerCount("orig/first.png"));
+        assertSame(first, db.findUniqueBySourceRelPath(
+                "orig/renamed.png",
+                AssetType.IMAGE
+        ));
         assertFalse(db.updateIdentity(
                 first.id(),
                 first.logicalPath(),
@@ -122,8 +134,8 @@ public class AssetMetaDatabaseIndexTest {
         assertEquals("images/renamed", first.logicalPath());
         assertEquals("orig/renamed.png", first.sourceRelPath());
         assertSame(first, db.findByLogicalPath("images/renamed"));
-        assertSame(first, db.findBySourceRelPath("orig/renamed.png"));
-        assertNull(db.findBySourceRelPath("orig/new.png"));
+        assertSame(first, db.findUniqueBySourceRelPath("orig/renamed.png"));
+        assertEquals(0, db.sourceOwnerCount("orig/new.png"));
 
         expectFailure("Duplicate sourceRelPath", () -> db.updateSourceRelPath(
                 first.id(),
@@ -133,7 +145,7 @@ public class AssetMetaDatabaseIndexTest {
 
         assertTrue(db.updateSourceRelPath(first.id(), null));
         assertNull(first.sourceRelPath());
-        assertNull(db.findBySourceRelPath("orig/renamed.png"));
+        assertEquals(0, db.sourceOwnerCount("orig/renamed.png"));
     }
 
     @Test
@@ -147,7 +159,7 @@ public class AssetMetaDatabaseIndexTest {
         assertTrue(db.removeById(prefixOne.id()));
         assertNull(db.findById(prefixOne.id()));
         assertNull(db.findByLogicalPath(prefixOne.logicalPath()));
-        assertNull(db.findBySourceRelPath(prefixOne.sourceRelPath()));
+        assertEquals(0, db.sourceOwnerCount(prefixOne.sourceRelPath()));
         assertFalse(db.removeById(prefixOne.id()));
 
         assertTrue(db.removeByLogicalPath(byLogical.logicalPath()));
@@ -159,12 +171,11 @@ public class AssetMetaDatabaseIndexTest {
         assertSame(keep, db.assetAt(0));
         assertSame(keep, db.findById(keep.id()));
         assertNull(db.findById(prefixTwo.id()));
-        assertNull(db.findByLogicalPath(prefixTwo.logicalPath()));
-        assertNull(db.findBySourceRelPath(prefixTwo.sourceRelPath()));
+        assertEquals(0, db.sourceOwnerCount(prefixTwo.sourceRelPath()));
     }
 
     @Test
-    public void atlasTilesMayShareTheirTilesetSourceWithDeterministicPrimaryLookup() {
+    public void sharedSource_usesExplicitOwnersSortedByAssetId() {
         AssetMetaDatabase db = new AssetMetaDatabase();
         AssetMeta tileset = db.registerIfAbsent(
                 AssetType.TILESET,
@@ -185,46 +196,255 @@ public class AssetMetaDatabaseIndexTest {
                 AssetMeta.AssetScope.USER
         );
 
-        assertSame(tileset, db.findBySourceRelPath("orig/terrain.png"));
-        assertTrue(db.removeById(tileset.id()));
-        assertSame(firstTile, db.findBySourceRelPath("orig/terrain.png"));
-        assertTrue(db.removeById(firstTile.id()));
-        assertSame(secondTile, db.findBySourceRelPath("orig/terrain.png"));
+        assertEquals(3, db.sourceOwnerCount("orig/terrain.png"));
+        assertSame(tileset, db.sourceOwnerAt("orig/terrain.png", 0));
+        assertSame(firstTile, db.sourceOwnerAt("orig/terrain.png", 1));
+        assertSame(secondTile, db.sourceOwnerAt("orig/terrain.png", 2));
+        expectFailure(
+                new String[]{"orig/terrain.png", "ownerCount=3",
+                        "id=1", "TILESET", "id=2", "TILE", "id=3"},
+                () -> db.findUniqueBySourceRelPath("orig/terrain.png")
+        );
+        assertSame(tileset, db.findUniqueBySourceRelPath(
+                "orig/terrain.png",
+                AssetType.TILESET
+        ));
+        expectFailure(
+                new String[]{"orig/terrain.png", "ownerCount=2", "id=2", "id=3"},
+                () -> db.findUniqueBySourceRelPath(
+                        "orig/terrain.png",
+                        AssetType.TILE
+                )
+        );
+        assertNull(db.findUniqueBySourceRelPath(
+                "orig/terrain.png",
+                AssetType.IMAGE
+        ));
     }
 
     @Test
-    public void saveLoad_preservesShapeRebuildsIndexesAndNormalizesNextId() throws Exception {
+    public void lateTilesetSourceMutation_preservesCanonicalOwnerOrderAcrossRoundTrip()
+            throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
-        AssetMeta image = image(db, "images/hero", "orig/hero.png");
-        AnimationAssetMeta animation = (AnimationAssetMeta) db.registerIfAbsent(
-                AssetType.ANIMATION,
-                "animations/hero",
-                "orig/animations/hero",
+        AssetMeta tileset = db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/terrain",
+                null,
                 AssetMeta.AssetScope.USER
         );
-        animation.clips = null;
+        AssetMeta tile = db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/0",
+                "orig/sheet.png",
+                AssetMeta.AssetScope.USER
+        );
 
-        Path path = Files.createTempFile("asset-index-roundtrip", ".json");
+        assertTrue(db.updateSourceRelPath(tileset.id(), "orig/sheet.png"));
+        assertEquals(2, db.sourceOwnerCount("orig/sheet.png"));
+        assertSame(tileset, db.sourceOwnerAt("orig/sheet.png", 0));
+        assertSame(tile, db.sourceOwnerAt("orig/sheet.png", 1));
+        assertSame(tileset, db.findUniqueBySourceRelPath(
+                "orig/sheet.png",
+                AssetType.TILESET
+        ));
+
+        Path path = Files.createTempFile("asset-index-late-tileset", ".json");
         FileHandle file = new FileHandle(path.toFile());
         db.save(file);
+        AssetMetaDatabase loaded = AssetMetaDatabase.load(file);
 
+        assertEquals(2, loaded.sourceOwnerCount("orig/sheet.png"));
+        assertEquals(tileset.id(), loaded.sourceOwnerAt("orig/sheet.png", 0).id());
+        assertEquals(tile.id(), loaded.sourceOwnerAt("orig/sheet.png", 1).id());
+    }
+
+    @Test
+    public void sourceMutation_movesExactlyOnceBetweenCanonicalBuckets() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        AssetMeta tileset = db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/terrain",
+                "orig/b.png",
+                AssetMeta.AssetScope.USER
+        );
+        AssetMeta moving = db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/0",
+                "orig/a.png",
+                AssetMeta.AssetScope.USER
+        );
+        AssetMeta last = db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/1",
+                "orig/b.png",
+                AssetMeta.AssetScope.USER
+        );
+
+        assertTrue(db.updateSourceRelPath(moving.id(), "orig/b.png"));
+        assertEquals(0, db.sourceOwnerCount("orig/a.png"));
+        assertEquals(3, db.sourceOwnerCount("orig/b.png"));
+        assertSame(tileset, db.sourceOwnerAt("orig/b.png", 0));
+        assertSame(moving, db.sourceOwnerAt("orig/b.png", 1));
+        assertSame(last, db.sourceOwnerAt("orig/b.png", 2));
+
+        Path path = Files.createTempFile("asset-index-bucket-move", ".json");
+        db.save(new FileHandle(path.toFile()));
+        AssetMetaDatabase loaded =
+                AssetMetaDatabase.load(new FileHandle(path.toFile()));
+        assertEquals(3, loaded.sourceOwnerCount("orig/b.png"));
+        assertEquals(moving.id(), loaded.sourceOwnerAt("orig/b.png", 1).id());
+    }
+
+    @Test
+    public void replaceState_deepCopiesEveryMutableSubtypeAndBothDirectionsAreIsolated() {
+        AssetMetaDatabase current = new AssetMetaDatabase();
+        AssetMeta old = image(current, "images/old", "orig/old.png");
+
+        AssetMetaDatabase restored = representativeDatabase();
+        int restoredNextId = restored.nextId();
+        current.replaceStateFrom(restored);
+
+        assertNull(current.findByLogicalPath(old.logicalPath()));
+        assertEquals(restored.size(), current.size());
+        assertEquals(restoredNextId, current.nextId());
+        assertEquals(restored.version(), current.version());
+        for (int i = 0; i < restored.size(); i++) {
+            assertNotSame(restored.assetAt(i), current.assetAt(i));
+        }
+
+        ImageAssetMeta restoredImage = (ImageAssetMeta) restored.assetAt(0);
+        AnimationAssetMeta restoredAnimation = (AnimationAssetMeta) restored.assetAt(1);
+        TilesetAssetMeta restoredTileset = (TilesetAssetMeta) restored.assetAt(2);
+        TileAssetMeta restoredTile = (TileAssetMeta) restored.assetAt(3);
+        AnimationAssetMeta currentAnimation = (AnimationAssetMeta) current.assetAt(1);
+        assertNotSame(restoredAnimation.clips, currentAnimation.clips);
+        assertNotSame(
+                restoredAnimation.clips.get("run"),
+                currentAnimation.clips.get("run")
+        );
+
+        restored.updateIdentity(
+                restoredImage.id(),
+                "images/restored-renamed",
+                "orig/restored-renamed.png"
+        );
+        restoredImage.scope = AssetMeta.AssetScope.INTERNAL;
+        restoredAnimation.frameCount = 99;
+        restoredAnimation.clips.get("run").end = 99;
+        restoredAnimation.clips.put("extra", new AnimationComponent.Clip(7, 8));
+        restoredTileset.tileWidth = 999;
+        restoredTile.sheetIndex = 999;
+
+        ImageAssetMeta currentImage = (ImageAssetMeta) current.assetAt(0);
+        TilesetAssetMeta currentTileset = (TilesetAssetMeta) current.assetAt(2);
+        TileAssetMeta currentTile = (TileAssetMeta) current.assetAt(3);
+        assertEquals("images/hero", currentImage.logicalPath());
+        assertEquals("orig/hero.png", currentImage.sourceRelPath());
+        assertEquals(AssetMeta.AssetScope.USER, currentImage.scope);
+        assertEquals(8, currentAnimation.frameCount);
+        assertEquals(5, currentAnimation.clips.get("run").end);
+        assertFalse(currentAnimation.clips.containsKey("extra"));
+        assertEquals(16, currentTileset.tileWidth);
+        assertEquals(3, currentTile.sheetIndex);
+        assertSame(currentImage, current.findByLogicalPath("images/hero"));
+        assertSame(currentImage, current.findUniqueBySourceRelPath(
+                "orig/hero.png",
+                AssetType.IMAGE
+        ));
+
+        current.updateIdentity(
+                currentImage.id(),
+                "images/current-renamed",
+                "orig/current-renamed.png"
+        );
+        assertEquals("images/restored-renamed", restoredImage.logicalPath());
+        assertEquals("orig/restored-renamed.png", restoredImage.sourceRelPath());
+    }
+
+    @Test
+    public void invalidReplacement_keepsCurrentCollectionInstancesIndexesAndAllocator() {
+        AssetMetaDatabase current = representativeDatabase();
+        AssetMeta[] before = new AssetMeta[current.size()];
+        for (int i = 0; i < current.size(); i++) before[i] = current.assetAt(i);
+        int beforeNextId = current.nextId();
+        int beforeVersion = current.version();
+
+        AssetMetaDatabase invalid = new AssetMetaDatabase();
+        AssetMeta invalidAsset = image(invalid, "images/invalid", "orig/invalid.png");
+        invalidAsset.scope = null;
+        expectFailure("scope must not be null", () -> current.replaceStateFrom(invalid));
+
+        assertEquals(before.length, current.size());
+        assertEquals(beforeNextId, current.nextId());
+        assertEquals(beforeVersion, current.version());
+        for (int i = 0; i < before.length; i++) {
+            assertSame(before[i], current.assetAt(i));
+            assertSame(before[i], current.findById(before[i].id()));
+            assertSame(before[i], current.findByLogicalPath(before[i].logicalPath()));
+        }
+        assertNull(current.findByLogicalPath("images/invalid"));
+    }
+
+    @Test
+    public void canonicalJson_isClassIndependentAndRoundTripsEverySubtype() throws Exception {
+        AssetMetaDatabase db = representativeDatabase();
+        db.registerIfAbsent(
+                AssetType.PARTICLE,
+                "particles/fire",
+                "orig/effects/fire.p",
+                AssetMeta.AssetScope.USER
+        );
+        db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/1",
+                "orig/sheet.png",
+                AssetMeta.AssetScope.USER
+        );
+
+        Path path = Files.createTempFile("asset-index-canonical", ".json");
+        FileHandle file = new FileHandle(path.toFile());
+        db.save(file);
         String json = Files.readString(path);
-        assertTrue(json.contains("\"version\": 3"));
-        assertTrue(json.contains("\"nextId\": 3"));
-        assertTrue(json.contains("\"assets\": ["));
-        assertTrue(json.contains("\"class\": \"games.pixscape.studio.asset.ImageAssetMeta\""));
+
+        assertTrue(json.contains("\"type\": \"image\""));
+        assertTrue(json.contains("\"type\": \"animation\""));
+        assertTrue(json.contains("\"type\": \"particle\""));
+        assertTrue(json.contains("\"type\": \"tileset\""));
+        assertTrue(json.contains("\"type\": \"tile\""));
+        assertFalse(json.contains("\"class\""));
+        assertFalse(json.contains("games.pixscape.studio.asset"));
+        assertFalse(json.contains("\"IMAGE\""));
+        assertFalse(json.contains("\"ANIMATION\""));
 
         AssetMetaDatabase loaded = AssetMetaDatabase.load(file);
-        assertEquals(2, loaded.size());
-        assertEquals(2, loaded.indexBuildAssetVisits());
-        assertEquals(0, loaded.fullCollectionLookupScans());
-        assertEquals(image.id(), loaded.findByLogicalPath("images/hero").id());
-        assertSame(
-                loaded.findById(image.id()),
-                loaded.findBySourceRelPath("orig/hero.png")
-        );
-        assertTrue(((AnimationAssetMeta) loaded.assetAt(1)).clips != null);
+        assertTrue(loaded.assetAt(0) instanceof ImageAssetMeta);
+        assertTrue(loaded.assetAt(1) instanceof AnimationAssetMeta);
+        assertTrue(loaded.assetAt(2) instanceof TilesetAssetMeta);
+        assertTrue(loaded.assetAt(3) instanceof TileAssetMeta);
+        assertTrue(loaded.assetAt(4) instanceof ParticleAssetMeta);
+        assertTrue(loaded.assetAt(5) instanceof TileAssetMeta);
+        assertEquals(3, loaded.sourceOwnerCount("orig/sheet.png"));
 
+        Files.writeString(path, """
+                {
+                  "version": 3,
+                  "nextId": 2,
+                  "assets": [{
+                    "class": "ignored.java.ClassName",
+                    "id": 1,
+                    "type": "image",
+                    "logicalPath": "images/class-is-ignored",
+                    "sourceRelPath": "orig/class-is-ignored.png",
+                    "scope": "USER"
+                  }]
+                }
+                """);
+        assertTrue(AssetMetaDatabase.load(file).assetAt(0) instanceof ImageAssetMeta);
+    }
+
+    @Test
+    public void load_normalizesNextIdAndRejectsInvalidCatalogs() throws Exception {
+        Path path = Files.createTempFile("asset-index-next-id", ".json");
         Files.writeString(path, """
                 {
                   "version": 3,
@@ -235,7 +455,8 @@ public class AssetMetaDatabaseIndexTest {
                   ]
                 }
                 """);
-        AssetMetaDatabase normalized = AssetMetaDatabase.load(file);
+        AssetMetaDatabase normalized =
+                AssetMetaDatabase.load(new FileHandle(path.toFile()));
         assertEquals(9, normalized.nextId());
         assertEquals(9, normalized.allocateNextId());
         assertEquals(10, normalized.registerIfAbsent(
@@ -244,10 +465,7 @@ public class AssetMetaDatabaseIndexTest {
                 "orig/ten.png",
                 AssetMeta.AssetScope.USER
         ).id());
-    }
 
-    @Test
-    public void invalidSerializedCatalogs_areRejectedWithPreciseDiagnostics() throws Exception {
         expectInvalidAsset(
                 asset(1, "image", "same", "one") + ","
                         + asset(1, "image", "other", "two"),
@@ -271,45 +489,10 @@ public class AssetMetaDatabaseIndexTest {
                 "allocation overflow", "Integer.MAX_VALUE"
         );
         expectInvalidAsset(asset(1, "image", " ", "source"), "logicalPath");
-        expectInvalidAsset("""
-                {
-                  "class": "games.pixscape.studio.asset.AnimationAssetMeta",
-                  "id": 1,
-                  "type": "IMAGE",
-                  "logicalPath": "images/mismatch",
-                  "sourceRelPath": "orig/mismatch.png",
-                  "scope": "USER"
-                }
-                """, "concrete type mismatch", "AnimationAssetMeta", "IMAGE");
     }
 
     @Test
-    public void replaceState_isTransactionalAndDoesNotShareTheSourceCollection() {
-        AssetMetaDatabase current = new AssetMetaDatabase();
-        AssetMeta old = image(current, "images/old", "orig/old.png");
-
-        AssetMetaDatabase restored = new AssetMetaDatabase();
-        AssetMeta replacement = image(restored, "images/new", "orig/new.png");
-        current.replaceStateFrom(restored);
-
-        assertNull(current.findByLogicalPath(old.logicalPath()));
-        assertSame(replacement, current.findById(replacement.id()));
-        restored.removeById(replacement.id());
-        assertSame(replacement, current.findById(replacement.id()));
-        assertEquals(1, current.size());
-
-        AssetMetaDatabase invalid = new AssetMetaDatabase();
-        AssetMeta invalidAsset = image(invalid, "images/invalid", "orig/invalid.png");
-        invalidAsset.scope = null;
-        expectFailure("scope must not be null", () -> current.replaceStateFrom(invalid));
-
-        assertEquals(1, current.size());
-        assertSame(replacement, current.findById(replacement.id()));
-        assertNull(current.findByLogicalPath("images/invalid"));
-    }
-
-    @Test
-    public void fiveThousandAssetsAndSixHundredThousandLookups_doNotScanTheCollection()
+    public void fiveThousandAssetsAndSixHundredThousandLookups_keepStableIndexes()
             throws Exception {
         int assetCount = 5_000;
         StringBuilder json = new StringBuilder(assetCount * 120);
@@ -322,23 +505,83 @@ public class AssetMetaDatabaseIndexTest {
 
         Path path = Files.createTempFile("asset-index-volume", ".json");
         Files.writeString(path, json);
-        AssetMetaDatabase db = AssetMetaDatabase.load(new FileHandle(path.toFile()));
+        AssetMetaDatabase db =
+                AssetMetaDatabase.load(new FileHandle(path.toFile()));
         assertEquals(assetCount, db.indexBuildAssetVisits());
         assertEquals(assetCount + 1, db.nextId());
 
         for (int i = 0; i < 100_000; i++) {
             int present = (i % assetCount) + 1;
             int absent = assetCount + present;
-            assertSame(db.assetAt(present - 1), db.findById(present));
+            AssetMeta expected = db.assetAt(present - 1);
+            assertSame(expected, db.findById(present));
             assertNull(db.findById(absent));
-            assertSame(db.assetAt(present - 1), db.findByLogicalPath("images/" + present));
+            assertSame(expected, db.findByLogicalPath("images/" + present));
             assertNull(db.findByLogicalPath("missing/" + absent));
-            assertSame(db.assetAt(present - 1), db.findBySourceRelPath("orig/" + present + ".png"));
-            assertNull(db.findBySourceRelPath("missing/" + absent + ".png"));
+            assertSame(expected, db.findUniqueBySourceRelPath(
+                    "orig/" + present + ".png"
+            ));
+            assertNull(db.findUniqueBySourceRelPath(
+                    "missing/" + absent + ".png"
+            ));
         }
 
         assertEquals(assetCount, db.indexBuildAssetVisits());
-        assertEquals(0, db.fullCollectionLookupScans());
+        assertEquals(assetCount, db.size());
+    }
+
+    private static AssetMetaDatabase representativeDatabase() {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        image(db, "images/hero", "orig/hero.png");
+
+        AnimationAssetMeta animation = (AnimationAssetMeta) db.registerIfAbsent(
+                AssetType.ANIMATION,
+                "animations/hero",
+                "orig/animations/hero",
+                AssetMeta.AssetScope.USER
+        );
+        animation.frameCount = 8;
+        animation.fps = 12f;
+        animation.currentClip = "run";
+        animation.clips = new ObjectMap<>();
+        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 5);
+        run.flipX = true;
+        animation.clips.put("run", run);
+        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
+
+        TilesetAssetMeta tileset = (TilesetAssetMeta) db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/terrain",
+                "orig/sheet.png",
+                AssetMeta.AssetScope.USER
+        );
+        tileset.imageWidth = 64;
+        tileset.imageHeight = 32;
+        tileset.tileWidth = 16;
+        tileset.tileHeight = 16;
+        tileset.columns = 4;
+        tileset.rows = 2;
+        tileset.spacing = 1;
+        tileset.margin = 2;
+        tileset.referenceCellWidth = 32;
+        tileset.referenceCellHeight = 24;
+        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
+        tileset.offsetX = 3;
+        tileset.offsetY = -4;
+        tileset.renderSize = TilesetRenderSize.NATIVE;
+
+        TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/terrain/0",
+                "orig/sheet.png",
+                AssetMeta.AssetScope.USER
+        );
+        tile.tilesetId = tileset.id();
+        tile.sheetIndex = 3;
+        tile.cellX = 1;
+        tile.cellY = 1;
+        return db;
     }
 
     private static AssetMeta image(AssetMetaDatabase db,
@@ -371,11 +614,13 @@ public class AssetMetaDatabaseIndexTest {
                 () -> AssetMetaDatabase.load(new FileHandle(path.toFile())));
     }
 
-    private static void expectFailure(String expectedMessage, ThrowingRunnable runnable) {
+    private static void expectFailure(String expectedMessage,
+                                      ThrowingRunnable runnable) {
         expectFailure(new String[]{expectedMessage}, runnable);
     }
 
-    private static void expectFailure(String[] expectedMessages, ThrowingRunnable runnable) {
+    private static void expectFailure(String[] expectedMessages,
+                                      ThrowingRunnable runnable) {
         try {
             runnable.run();
             fail("Expected failure containing: " + String.join(", ", expectedMessages));

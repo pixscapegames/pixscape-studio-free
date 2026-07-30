@@ -144,7 +144,10 @@ public final class SceneService {
         ensureAssetMetaDatabaseLoaded();
 
         AssetMeta meta = assetMetaDatabase != null
-                ? assetMetaDatabase.findBySourceRelPath(sourceRelPath)
+                ? assetMetaDatabase.findUniqueBySourceRelPath(
+                        sourceRelPath,
+                        AssetType.ANIMATION
+                )
                 : null;
         return meta instanceof AnimationAssetMeta animation ? animation : null;
     }
@@ -169,7 +172,10 @@ public final class SceneService {
         FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
         assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
 
-        AssetMeta meta = assetMetaDatabase.findBySourceRelPath(sourceRelPath);
+        AssetMeta meta = assetMetaDatabase.findUniqueBySourceRelPath(
+                sourceRelPath,
+                AssetType.ANIMATION
+        );
         if (!(meta instanceof AnimationAssetMeta animation)) {
             throw new IllegalStateException("Animation asset not found: " + sourceRelPath);
         }
@@ -512,9 +518,9 @@ public final class SceneService {
     // ASSET METADATA ACCESS
     // ---------------------------------------------------------------------
 
-    public int resolveAssetIdBySourceRelPath(String sourceRelPath) {
+    public int resolveAssetIdBySourceRelPath(String sourceRelPath, AssetType type) {
         if (assetMetaDatabase == null || sourceRelPath == null || sourceRelPath.isBlank()) return -1;
-        AssetMeta meta = assetMetaDatabase.findBySourceRelPath(sourceRelPath);
+        AssetMeta meta = assetMetaDatabase.findUniqueBySourceRelPath(sourceRelPath, type);
         return (meta != null) ? meta.id() : -1;
     }
 

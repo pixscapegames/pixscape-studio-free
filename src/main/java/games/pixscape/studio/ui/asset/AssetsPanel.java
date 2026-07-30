@@ -6,6 +6,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
@@ -84,7 +85,8 @@ public final class AssetsPanel extends DockablePanel {
 
                 for (String tilePath : tilePaths) {
                     String sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + tilePath;
-                    int tileAssetId = app.getSceneService().resolveAssetIdBySourceRelPath(sourceRelPath);
+                    int tileAssetId = app.getSceneService()
+                            .resolveAssetIdBySourceRelPath(sourceRelPath, AssetType.TILE);
 
                     if (tileAssetId <= 0) {
                         throw new IllegalStateException("Tile asset id could not be resolved.");

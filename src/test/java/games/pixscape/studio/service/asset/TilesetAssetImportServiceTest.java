@@ -34,6 +34,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -130,7 +131,10 @@ public class TilesetAssetImportServiceTest {
             assertEquals(i + 2, tile.id());
             assertEquals(i, tile.sheetIndex);
             assertEquals(Integer.valueOf(tile.id()), result.localTileAssetIds().get(i));
-            assertEquals(tile.id(), db.getIdBySourceRelPath(tile.sourceRelPath()));
+            assertSame(tile, db.findUniqueBySourceRelPath(
+                    tile.sourceRelPath(),
+                    games.pixscape.studio.asset.AssetType.TILE
+            ));
         }
     }
 

@@ -26,7 +26,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
     private final ObjectMap<String, SourceAssets> bySourceRelPath = new ObjectMap<>();
 
     private int indexBuildAssetVisits;
-    private int fullCollectionLookupScans;
 
     public AssetMetaDatabase() {
     }
@@ -72,15 +71,49 @@ public final class AssetMetaDatabase implements Json.Serializable {
         return id > 0 ? byId.get(id) : null;
     }
 
-    public AssetMeta findBySourceRelPath(String sourceRelPath) {
-        SourceAssets matches =
-                isBlank(sourceRelPath) ? null : bySourceRelPath.get(sourceRelPath);
-        return matches != null ? matches.primary() : null;
+    public int sourceOwnerCount(String sourceRelPath) {
+        SourceAssets matches = sourceOwners(sourceRelPath);
+        return matches != null ? matches.assets.size : 0;
     }
 
-    public int getIdBySourceRelPath(String sourceRelPath) {
-        AssetMeta meta = findBySourceRelPath(sourceRelPath);
-        return meta != null ? meta.id() : -1;
+    public AssetMeta sourceOwnerAt(String sourceRelPath, int ownerIndex) {
+        SourceAssets matches = sourceOwners(sourceRelPath);
+        int count = matches != null ? matches.assets.size : 0;
+        if (ownerIndex < 0 || ownerIndex >= count) {
+            throw new IndexOutOfBoundsException(
+                    "Source owner index out of range: path='" + sourceRelPath
+                            + "', index=" + ownerIndex + ", ownerCount=" + count + ".");
+        }
+        return matches.assets.get(ownerIndex);
+    }
+
+    public AssetMeta findUniqueBySourceRelPath(String sourceRelPath) {
+        SourceAssets matches = sourceOwners(sourceRelPath);
+        if (matches == null) return null;
+        if (matches.assets.size == 1) return matches.assets.first();
+        throw ambiguousSource(sourceRelPath, null, matches);
+    }
+
+    public AssetMeta findUniqueBySourceRelPath(String sourceRelPath, AssetType type) {
+        Objects.requireNonNull(type, "type");
+        SourceAssets matches = sourceOwners(sourceRelPath);
+        if (matches == null) return null;
+
+        AssetMeta found = null;
+        int matchCount = 0;
+        for (int i = 0; i < matches.assets.size; i++) {
+            AssetMeta candidate = matches.assets.get(i);
+            if (candidate.type() != type) continue;
+            found = candidate;
+            matchCount++;
+        }
+        if (matchCount == 0) return null;
+        if (matchCount == 1) return found;
+        throw ambiguousSource(sourceRelPath, type, matches);
+    }
+
+    private SourceAssets sourceOwners(String sourceRelPath) {
+        return isBlank(sourceRelPath) ? null : bySourceRelPath.get(sourceRelPath);
     }
 
     // ----------------------------------------------------
@@ -224,32 +257,43 @@ public final class AssetMetaDatabase implements Json.Serializable {
         verifyIdentityAvailable(assetId, asset.type(), newLogicalPath, normalizedSource);
         verifyIndexed(asset);
 
-        if (byLogicalPath.remove(oldLogicalPath) != asset) {
-            throw new IllegalStateException(
-                    "Logical path index is inconsistent for " + describe(asset) + ".");
-        }
-        if (oldSourceRelPath != null) {
-            removeSourceIndex(bySourceRelPath, asset);
-        }
-        asset.replaceIdentityPaths(newLogicalPath, normalizedSource);
-        byLogicalPath.put(newLogicalPath, asset);
-        if (normalizedSource != null) {
-            addSourceIndex(bySourceRelPath, asset);
+        try {
+            if (byLogicalPath.remove(oldLogicalPath) != asset) {
+                throw new IllegalStateException(
+                        "Logical path index is inconsistent for " + describe(asset) + ".");
+            }
+            if (oldSourceRelPath != null) {
+                removeSourceIndex(bySourceRelPath, asset);
+            }
+            asset.replaceIdentityPaths(newLogicalPath, normalizedSource);
+            byLogicalPath.put(newLogicalPath, asset);
+            if (normalizedSource != null) {
+                addSourceIndex(bySourceRelPath, asset);
+            }
+        } catch (RuntimeException failure) {
+            asset.replaceIdentityPaths(oldLogicalPath, oldSourceRelPath);
+            try {
+                rebuildIndexesAndValidate();
+            } catch (RuntimeException rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
+            throw failure;
         }
         return true;
     }
 
     /**
-     * Replaces the complete catalog after validating the candidate state.
-     * The source Array is never shared. Asset instances are transferred because
-     * their indexed identity is immutable outside this database.
+     * Replaces the complete catalog with a deep copy of the validated restored
+     * state. No mutable metadata state is shared between the databases.
      */
     public void replaceStateFrom(AssetMetaDatabase restored) {
         Objects.requireNonNull(restored, "restored");
         restored.verifyInternalState();
 
         Array<AssetMeta> candidateAssets = new Array<>(restored.assets.size);
-        candidateAssets.addAll(restored.assets);
+        for (int i = 0; i < restored.assets.size; i++) {
+            candidateAssets.add(copyAsset(restored.assets.get(i)));
+        }
         ValidatedIndexes candidateIndexes = buildValidatedIndexes(candidateAssets);
         int candidateNextId = normalizedNextId(restored.nextId, candidateIndexes.maxId);
         int candidateVersion = Math.max(restored.version, 1);
@@ -259,6 +303,65 @@ public final class AssetMetaDatabase implements Json.Serializable {
         version = candidateVersion;
         nextId = candidateNextId;
         publishIndexes(candidateIndexes);
+    }
+
+    private static AssetMeta copyAsset(AssetMeta source) {
+        AssetMeta copy = newMeta(
+                source.id(),
+                source.type(),
+                source.logicalPath(),
+                source.sourceRelPath(),
+                source.scope
+        );
+        if (source instanceof AnimationAssetMeta sourceAnimation
+                && copy instanceof AnimationAssetMeta copyAnimation) {
+            copyAnimation.frameCount = sourceAnimation.frameCount;
+            copyAnimation.fps = sourceAnimation.fps;
+            copyAnimation.currentClip = sourceAnimation.currentClip;
+            copyAnimation.clips = copyClips(sourceAnimation.clips);
+        } else if (source instanceof TilesetAssetMeta sourceTileset
+                && copy instanceof TilesetAssetMeta copyTileset) {
+            copyTileset.imageWidth = sourceTileset.imageWidth;
+            copyTileset.imageHeight = sourceTileset.imageHeight;
+            copyTileset.tileWidth = sourceTileset.tileWidth;
+            copyTileset.tileHeight = sourceTileset.tileHeight;
+            copyTileset.columns = sourceTileset.columns;
+            copyTileset.rows = sourceTileset.rows;
+            copyTileset.spacing = sourceTileset.spacing;
+            copyTileset.margin = sourceTileset.margin;
+            copyTileset.referenceCellWidth = sourceTileset.referenceCellWidth;
+            copyTileset.referenceCellHeight = sourceTileset.referenceCellHeight;
+            copyTileset.projection = sourceTileset.projection;
+            copyTileset.anchor = sourceTileset.anchor;
+            copyTileset.offsetX = sourceTileset.offsetX;
+            copyTileset.offsetY = sourceTileset.offsetY;
+            copyTileset.renderSize = sourceTileset.renderSize;
+        } else if (source instanceof TileAssetMeta sourceTile
+                && copy instanceof TileAssetMeta copyTile) {
+            copyTile.tilesetId = sourceTile.tilesetId;
+            copyTile.sheetIndex = sourceTile.sheetIndex;
+            copyTile.cellX = sourceTile.cellX;
+            copyTile.cellY = sourceTile.cellY;
+        }
+        return copy;
+    }
+
+    private static ObjectMap<String, AnimationComponent.Clip> copyClips(
+            ObjectMap<String, AnimationComponent.Clip> source) {
+        ObjectMap<String, AnimationComponent.Clip> copy = new ObjectMap<>();
+        if (source == null) return copy;
+        for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : source) {
+            AnimationComponent.Clip sourceClip = entry.value;
+            if (sourceClip == null) {
+                copy.put(entry.key, null);
+                continue;
+            }
+            AnimationComponent.Clip copyClip =
+                    new AnimationComponent.Clip(sourceClip.start, sourceClip.end);
+            copyClip.flipX = sourceClip.flipX;
+            copy.put(entry.key, copyClip);
+        }
+        return copy;
     }
 
     private static void promoteScopeIfNeeded(AssetMeta meta,
@@ -329,6 +432,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
     // Persistence
     // ----------------------------------------------------
 
+    private static final AssetMetaJsonSerializer ASSET_META_SERIALIZER =
+            new AssetMetaJsonSerializer();
     private static final Json JSON = buildJson();
 
     private static Json buildJson() {
@@ -336,7 +441,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
         json.setUsePrototypes(false);
         json.setOutputType(JsonWriter.OutputType.json);
         json.setIgnoreUnknownFields(true);
-        json.setSerializer(AssetMeta.class, new AssetMetaJsonSerializer());
+        json.setSerializer(AssetMeta.class, ASSET_META_SERIALIZER);
         json.setSerializer(SceneMetaRuntime.TiledProjection.class,
                 new Json.Serializer<SceneMetaRuntime.TiledProjection>() {
                     @Override
@@ -412,7 +517,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
         json.writeValue("nextId", nextId);
         json.writeArrayStart("assets");
         for (int i = 0; i < assets.size; i++) {
-            json.writeValue(assets.get(i), AssetMeta.class);
+            ASSET_META_SERIALIZER.write(json, assets.get(i), AssetMeta.class);
         }
         json.writeArrayEnd();
     }
@@ -426,7 +531,9 @@ public final class AssetMetaDatabase implements Json.Serializable {
         JsonValue assetsJson = jsonData.get("assets");
         if (assetsJson != null) {
             for (JsonValue child = assetsJson.child; child != null; child = child.next) {
-                assets.add(child.isNull() ? null : json.readValue(AssetMeta.class, child));
+                assets.add(child.isNull()
+                        ? null
+                        : ASSET_META_SERIALIZER.read(json, child, AssetMeta.class));
             }
         }
 
@@ -460,7 +567,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
         ValidatedIndexes indexes = buildValidatedIndexes(assets);
         publishIndexes(indexes);
         indexBuildAssetVisits = assets.size;
-        fullCollectionLookupScans = 0;
     }
 
     private void publishIndexes(ValidatedIndexes indexes) {
@@ -477,7 +583,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
             bySourceRelPath.put(entry.key, entry.value);
         }
         indexBuildAssetVisits = assets.size;
-        fullCollectionLookupScans = 0;
     }
 
     private static ValidatedIndexes buildValidatedIndexes(Array<AssetMeta> source) {
@@ -646,11 +751,38 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 + "', sourceRelPath='" + asset.sourceRelPath() + "'}";
     }
 
+    private static IllegalStateException ambiguousSource(String sourceRelPath,
+                                                         AssetType type,
+                                                         SourceAssets matches) {
+        int ownerCount = 0;
+        for (int i = 0; i < matches.assets.size; i++) {
+            if (type == null || matches.assets.get(i).type() == type) {
+                ownerCount++;
+            }
+        }
+        StringBuilder message = new StringBuilder("Ambiguous sourceRelPath '")
+                .append(sourceRelPath)
+                .append("': ");
+        if (type != null) {
+            message.append("multiple owners of type ").append(type).append("; ");
+        }
+        message.append("ownerCount=").append(ownerCount).append(", owners=[");
+        boolean first = true;
+        for (int i = 0; i < matches.assets.size; i++) {
+            AssetMeta owner = matches.assets.get(i);
+            if (type != null && owner.type() != type) continue;
+            if (!first) message.append(", ");
+            first = false;
+            message.append("{id=").append(owner.id())
+                    .append(", type=").append(owner.type())
+                    .append(", logicalPath='").append(owner.logicalPath()).append("'}");
+        }
+        return new IllegalStateException(message.append("].").toString());
+    }
+
     /**
-     * Atlas-backed TILE metadata may share the tileset sheet source. The
-     * historical single-result lookup resolves to the first catalog entry,
-     * while the bucket retains every owner so removals and validation remain
-     * exact. Other asset types keep a unique non-null source path.
+     * Atlas-backed TILE metadata may share the tileset sheet source with other
+     * tiles and its TILESET. Other asset types keep a unique non-null source.
      */
     private static AssetMeta firstIncompatibleSource(SourceAssets matches,
                                                      int selfId,
@@ -680,7 +812,12 @@ public final class AssetMetaDatabase implements Json.Serializable {
             matches = new SourceAssets();
             index.put(asset.sourceRelPath(), matches);
         }
-        matches.assets.add(asset);
+        int insertIndex = matches.assets.size;
+        while (insertIndex > 0
+                && matches.assets.get(insertIndex - 1).id() > asset.id()) {
+            insertIndex--;
+        }
+        matches.assets.insert(insertIndex, asset);
     }
 
     private static void removeSourceIndex(ObjectMap<String, SourceAssets> index,
@@ -704,10 +841,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
 
     int indexBuildAssetVisits() {
         return indexBuildAssetVisits;
-    }
-
-    int fullCollectionLookupScans() {
-        return fullCollectionLookupScans;
     }
 
     private static String tiledProjectionWireName(
@@ -738,10 +871,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
 
     private static final class SourceAssets {
         final Array<AssetMeta> assets = new Array<>();
-
-        AssetMeta primary() {
-            return assets.first();
-        }
     }
 
     private static final class AssetMetaJsonSerializer
@@ -750,10 +879,9 @@ public final class AssetMetaDatabase implements Json.Serializable {
         @Override
         public void write(Json json, AssetMeta object, Class knownType) {
             json.writeObjectStart();
-            json.writeValue("class", object.getClass().getName());
             json.writeValue("id", object.id());
             json.writeValue("type",
-                    object.type() != null ? object.type().name() : null);
+                    object.type() != null ? object.type().wireName() : null);
             json.writeValue("logicalPath", object.logicalPath());
             json.writeValue("sourceRelPath", object.sourceRelPath());
             json.writeValue("scope",
@@ -795,7 +923,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
         @Override
         public AssetMeta read(Json json, JsonValue jsonData, Class type) {
             AssetType assetType = readAssetType(jsonData);
-            validateSerializedClass(jsonData, assetType);
             int id = jsonData.getInt("id", 0);
             String logicalPath = jsonData.getString("logicalPath", null);
             String sourceRelPath = normalizeOptionalSourcePath(
@@ -842,26 +969,6 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 tile.cellY = jsonData.getInt("cellY", -1);
             }
             return meta;
-        }
-
-        private static void validateSerializedClass(JsonValue jsonData,
-                                                    AssetType assetType) {
-            String serializedClass = jsonData.getString("class", null);
-            if (isBlank(serializedClass)) return;
-
-            String expectedClass = switch (assetType) {
-                case IMAGE -> ImageAssetMeta.class.getName();
-                case ANIMATION -> AnimationAssetMeta.class.getName();
-                case PARTICLE -> ParticleAssetMeta.class.getName();
-                case TILESET -> TilesetAssetMeta.class.getName();
-                case TILE -> TileAssetMeta.class.getName();
-            };
-            if (!expectedClass.equals(serializedClass)) {
-                throw new IllegalStateException(
-                        "Asset concrete type mismatch: class=" + serializedClass
-                                + ", declaredType=" + assetType
-                                + ", expectedClass=" + expectedClass + ".");
-            }
         }
 
         private static AssetType readAssetType(JsonValue jsonData) {
