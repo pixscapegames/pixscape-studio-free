@@ -68,7 +68,7 @@ public final class AssetsPanel extends DockablePanel {
             AssetMeta asset = assetMetaDatabase.findByLogicalPath(logical);
 
             if (asset != null) {
-                tiledPaintService.setActiveTileAssetId(asset.id);
+                tiledPaintService.setActiveTileAssetId(asset.id());
             }
         });
 

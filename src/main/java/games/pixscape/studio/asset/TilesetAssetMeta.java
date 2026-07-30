@@ -21,7 +21,7 @@ public final class TilesetAssetMeta extends AssetMeta {
     public TilesetRenderSize renderSize = TilesetRenderSize.NATIVE;
 
     public TilesetAssetMeta() {
-        // required for Json
+        super(AssetType.TILESET);
     }
 
     public TilesetAssetMeta(int id,

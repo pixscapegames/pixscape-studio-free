@@ -515,7 +515,7 @@ public final class SceneService {
     public int resolveAssetIdBySourceRelPath(String sourceRelPath) {
         if (assetMetaDatabase == null || sourceRelPath == null || sourceRelPath.isBlank()) return -1;
         AssetMeta meta = assetMetaDatabase.findBySourceRelPath(sourceRelPath);
-        return (meta != null) ? meta.id : -1;
+        return (meta != null) ? meta.id() : -1;
     }
 
     public AssetMeta getAssetMeta(int assetId) {
@@ -1212,14 +1212,14 @@ public final class SceneService {
         if (atlasStudioService.isPacked(assetId, sceneTag)) return false;
 
         AssetMeta meta = assetMetaDatabase.findById(assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
             return false;
         }
 
         return sceneAtlasInputService.ensureAssetInInput(
                 ProjectConfig.getInstance(),
                 sceneTag,
-                meta.sourceRelPath
+                meta.sourceRelPath()
         );
     }
 
@@ -1388,7 +1388,7 @@ public final class SceneService {
                 assetMetaDatabase
         );
         for (AssetMeta meta : metasToDelete) {
-            AssetUsageScanner.AssetUsageReport usage = usageScanner.scanAsset(meta.id);
+            AssetUsageScanner.AssetUsageReport usage = usageScanner.scanAsset(meta.id());
             if (usage.used()) {
                 throw new IllegalStateException(buildAssetInUseMessage(meta, usage));
             }
@@ -1398,7 +1398,7 @@ public final class SceneService {
         for (AssetMeta meta : metasToDelete) {
             deleteAssetSource(projectDir, meta);
             runtimeAvailabilityChanged |= runtimeAvailabilityService.removeDeletedAsset(cfg, meta);
-            assetMetaDatabase.removeById(meta.id);
+            assetMetaDatabase.removeById(meta.id());
         }
 
         assetMetaDatabase.save(assetsFile);
@@ -1429,11 +1429,11 @@ public final class SceneService {
     }
 
     private void deleteAssetSource(FileHandle projectDir, AssetMeta meta) {
-        if (meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+        if (meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
             return;
         }
 
-        FileHandle file = projectDir.child(meta.sourceRelPath);
+        FileHandle file = projectDir.child(meta.sourceRelPath());
         if (!file.exists()) {
             return;
         }
@@ -1445,14 +1445,14 @@ public final class SceneService {
         }
 
         if (file.exists()) {
-            throw new IllegalStateException("Failed to delete asset source: " + meta.sourceRelPath);
+            throw new IllegalStateException("Failed to delete asset source: " + meta.sourceRelPath());
         }
     }
 
     private String buildAssetInUseMessage(AssetMeta meta, AssetUsageScanner.AssetUsageReport usage) {
         StringBuilder message = new StringBuilder();
         message.append("Cannot delete asset \"")
-                .append(meta.logicalPath != null ? meta.logicalPath : meta.id)
+                .append(meta.logicalPath() != null ? meta.logicalPath() : meta.id())
                 .append("\" because it is still used in the project.");
 
         if (usage != null && usage.sceneNames() != null && usage.sceneNames().size > 0) {
@@ -2847,7 +2847,7 @@ public final class SceneService {
                 AssetMeta.AssetScope.USER
         );
 
-        int id = meta.id;
+        int id = meta.id();
 
         String newFileName = base + "__a" + id + "." + item.file.extension();
         FileHandle dst = ctx.imagesRoot.child(newFileName);
@@ -2856,7 +2856,10 @@ public final class SceneService {
             item.file.copyTo(dst);
         }
 
-        meta.sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + newFileName;
+        assetMetaDatabase.updateSourceRelPath(
+                meta.id(),
+                StudioFs.DIR_ORIG_IMAGES + "/" + newFileName
+        );
         return 1;
     }
 
@@ -2984,13 +2987,13 @@ public final class SceneService {
                 assetMetaDatabase
         );
 
-        AssetUsageScanner.AssetUsageReport usage = usageScanner.scanTileset(tilesetMeta.id);
+        AssetUsageScanner.AssetUsageReport usage = usageScanner.scanTileset(tilesetMeta.id());
         if (usage.used()) {
             throw new IllegalStateException(buildTilesetInUseMessage(normalizedPath, usage));
         }
 
         boolean runtimeAvailabilityChanged =
-                runtimeAvailabilityService.removeDeletedTileset(cfg, assetMetaDatabase, tilesetMeta.id);
+                runtimeAvailabilityService.removeDeletedTileset(cfg, assetMetaDatabase, tilesetMeta.id());
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
@@ -3042,7 +3045,7 @@ public final class SceneService {
                 AssetMeta.AssetScope.USER
         );
 
-        int id = meta.id;
+        int id = meta.id();
         String physicalName = base + "__a" + id;
 
         FileHandle animDir = ctx.animRoot.child(physicalName);
@@ -3060,7 +3063,10 @@ public final class SceneService {
                 physicalName
         );
 
-        meta.sourceRelPath = ctx.animRootRel + "/" + physicalName;
+        assetMetaDatabase.updateSourceRelPath(
+                meta.id(),
+                ctx.animRootRel + "/" + physicalName
+        );
         meta.frameCount = columns * rows;
         meta.fps = meta.fps > 0f ? meta.fps : 12f;
         return 1;
@@ -3136,7 +3142,7 @@ public final class SceneService {
                     AssetMeta.AssetScope.INTERNAL
             );
 
-            int id = meta.id;
+            int id = meta.id();
 
             String newName = base + "__a" + id + "." + srcImg.extension();
             FileHandle dstImg = imagesRoot.child(newName);
@@ -3145,7 +3151,10 @@ public final class SceneService {
                 srcImg.copyTo(dstImg);
             }
 
-            meta.sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + newName;
+            assetMetaDatabase.updateSourceRelPath(
+                    meta.id(),
+                    StudioFs.DIR_ORIG_IMAGES + "/" + newName
+            );
 
             renameMap.put(fileName, newName);
         }

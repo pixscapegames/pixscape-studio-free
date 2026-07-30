@@ -18,6 +18,6 @@ public class AssetsPanelTileSelectionContractTest {
         );
 
         assertTrue(source.contains("if (node.root != AssetNode.Root.TILES || node.kind != AssetNode.Kind.IMAGE)"));
-        assertTrue(source.contains("tiledPaintService.setActiveTileAssetId(asset.id);"));
+        assertTrue(source.contains("tiledPaintService.setActiveTileAssetId(asset.id());"));
     }
 }

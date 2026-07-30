@@ -76,7 +76,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals("tiles/terrain", result.tilesetLogicalPath());
 
         TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/terrain"));
-        assertEquals(tileset.id, result.tilesetAssetId());
+        assertEquals(tileset.id(), result.tilesetAssetId());
         assertEquals(32, tileset.imageWidth);
         assertEquals(32, tileset.imageHeight);
         assertEquals(16, tileset.tileWidth);
@@ -92,19 +92,45 @@ public class TilesetAssetImportServiceTest {
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
         assertEquals(TilesetRenderSize.NATIVE, tileset.renderSize);
-        assertEquals("orig/tiles/terrain/terrain__a" + tileset.id + ".png", tileset.sourceRelPath);
-        assertTrue(projectDir.child(tileset.sourceRelPath).exists());
+        assertEquals("orig/tiles/terrain/terrain__a" + tileset.id() + ".png", tileset.sourceRelPath());
+        assertTrue(projectDir.child(tileset.sourceRelPath()).exists());
 
         assertEquals(4, result.localTileAssetIds().size());
         for (int i = 0; i < 4; i++) {
             TileAssetMeta tile = requireTile(db.findByLogicalPath("tiles/terrain/" + i));
-            assertEquals(tileset.id, tile.tilesetId);
+            assertEquals(tileset.id(), tile.tilesetId);
             assertEquals(i, tile.sheetIndex);
             assertEquals(i % 2, tile.cellX);
             assertEquals(i / 2, tile.cellY);
-            assertEquals(Integer.valueOf(tile.id), result.localTileAssetIds().get(i));
-            assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id + ".png", tile.sourceRelPath);
-            assertTrue(projectDir.child(tile.sourceRelPath).exists());
+            assertEquals(Integer.valueOf(tile.id()), result.localTileAssetIds().get(i));
+            assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id() + ".png", tile.sourceRelPath());
+            assertTrue(projectDir.child(tile.sourceRelPath()).exists());
+        }
+    }
+
+    @Test
+    public void importLargeAtlasRegistersUniqueIdsPathsAndIndexedLookups() throws Exception {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetImportService service = new TilesetAssetImportService(db);
+
+        Path temp = Files.createTempDirectory("tileset-large-atlas-import");
+        FileHandle projectDir = new FileHandle(temp.toFile());
+        FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
+        FileHandle source = projectDir.child("large.png");
+        writePng(source, 20, 20, 0.3f, 0.5f, 0.7f, 1f);
+
+        TilesetImportResult result = service.importAtlas(
+                new TilesetAtlasImportRequest(source, tilesRoot, 1, 1, 0, 0)
+        );
+
+        assertEquals(400, result.localTileAssetIds().size());
+        assertEquals(401, db.size());
+        for (int i = 0; i < 400; i++) {
+            TileAssetMeta tile = requireTile(db.findByLogicalPath("tiles/large/" + i));
+            assertEquals(i + 2, tile.id());
+            assertEquals(i, tile.sheetIndex);
+            assertEquals(Integer.valueOf(tile.id()), result.localTileAssetIds().get(i));
+            assertEquals(tile.id(), db.getIdBySourceRelPath(tile.sourceRelPath()));
         }
     }
 
@@ -281,13 +307,13 @@ public class TilesetAssetImportServiceTest {
 
         for (int i = 0; i < 4; i++) {
             TileAssetMeta tile = requireTile(db.findByLogicalPath("tiles/terrain/" + i));
-            assertEquals(tileset.id, tile.tilesetId);
+            assertEquals(tileset.id(), tile.tilesetId);
             assertEquals(i, tile.sheetIndex);
             assertEquals(i % 2, tile.cellX);
             assertEquals(i / 2, tile.cellY);
-            assertEquals(Integer.valueOf(tile.id), result.localTileAssetIds().get(i));
-            assertPngSize(projectDir.child(tile.sourceRelPath), 2, 2);
-            assertPngPixels(projectDir.child(tile.sourceRelPath), tileColors[i]);
+            assertEquals(Integer.valueOf(tile.id()), result.localTileAssetIds().get(i));
+            assertPngSize(projectDir.child(tile.sourceRelPath()), 2, 2);
+            assertPngPixels(projectDir.child(tile.sourceRelPath()), tileColors[i]);
         }
     }
 
@@ -455,10 +481,10 @@ public class TilesetAssetImportServiceTest {
         assertEquals("tiles/terrain", result.tilesetLogicalPath());
 
         TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/terrain"));
-        assertEquals(tileset.id, result.tilesetAssetId());
+        assertEquals(tileset.id(), result.tilesetAssetId());
         assertEquals(0, tileset.imageWidth);
         assertEquals(0, tileset.imageHeight);
-        assertNull(tileset.sourceRelPath);
+        assertNull(tileset.sourceRelPath());
         assertEquals(10, tileset.tileWidth);
         assertEquals(10, tileset.tileHeight);
         assertEquals(3, tileset.columns);
@@ -482,14 +508,14 @@ public class TilesetAssetImportServiceTest {
 
         for (int i = 0; i < 3; i++) {
             TileAssetMeta tile = requireTile(db.findByLogicalPath("tiles/terrain/" + i));
-            assertEquals(tileset.id, tile.tilesetId);
+            assertEquals(tileset.id(), tile.tilesetId);
             assertEquals(i, tile.sheetIndex);
             assertEquals(i, tile.cellX);
             assertEquals(0, tile.cellY);
-            assertEquals(Integer.valueOf(tile.id), result.localTileAssetIds().get(i));
-            assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id + ".png", tile.sourceRelPath);
+            assertEquals(Integer.valueOf(tile.id()), result.localTileAssetIds().get(i));
+            assertEquals("orig/tiles/terrain/" + i + "__a" + tile.id() + ".png", tile.sourceRelPath());
 
-            FileHandle generated = projectDir.child(tile.sourceRelPath);
+            FileHandle generated = projectDir.child(tile.sourceRelPath());
             assertTrue(generated.exists());
             assertPngSize(generated, expectedSizes.get(i), expectedSizes.get(i));
         }
@@ -587,12 +613,12 @@ public class TilesetAssetImportServiceTest {
 
         TileAssetMeta treeTile = requireTile(db.findByLogicalPath("tiles/props/0"));
         TileAssetMeta rockTile = requireTile(db.findByLogicalPath("tiles/props/1"));
-        assertEquals(tileset.id, treeTile.tilesetId);
+        assertEquals(tileset.id(), treeTile.tilesetId);
         assertEquals(0, treeTile.sheetIndex);
-        assertEquals(tileset.id, rockTile.tilesetId);
+        assertEquals(tileset.id(), rockTile.tilesetId);
         assertEquals(1, rockTile.sheetIndex);
-        assertPngSize(projectDir.child(treeTile.sourceRelPath), 16, 32);
-        assertPngSize(projectDir.child(rockTile.sourceRelPath), 16, 16);
+        assertPngSize(projectDir.child(treeTile.sourceRelPath()), 16, 32);
+        assertPngSize(projectDir.child(rockTile.sourceRelPath()), 16, 16);
     }
 
     @Test

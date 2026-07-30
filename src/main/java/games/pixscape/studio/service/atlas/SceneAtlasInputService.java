@@ -235,10 +235,10 @@ public final class SceneAtlasInputService {
         if (cfg == null || assetDb == null || required == null || assetId <= 0) return;
 
         AssetMeta meta = assetDb.findById(assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) return;
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) return;
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        FileHandle source = projectDir.child(meta.sourceRelPath);
+        FileHandle source = projectDir.child(meta.sourceRelPath());
 
         if (!source.exists()) return;
 
@@ -247,10 +247,10 @@ public final class SceneAtlasInputService {
                 if (child == null || child.isDirectory()) continue;
                 if (!"png".equalsIgnoreCase(child.extension())) continue;
 
-                required.add(meta.sourceRelPath + "/" + child.name());
+                required.add(meta.sourceRelPath() + "/" + child.name());
             }
         } else {
-            required.add(meta.sourceRelPath);
+            required.add(meta.sourceRelPath());
         }
     }
 

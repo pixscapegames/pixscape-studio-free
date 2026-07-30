@@ -392,8 +392,8 @@ public final class AssetsThumbsView extends VisTable {
             AssetNode node = new AssetNode(
                     AssetNode.Kind.TILED_ANIMATION_FRAME,
                     AssetNode.Root.TILES,
-                    meta.sourceRelPath,
-                    meta.logicalPath != null ? meta.logicalPath : ("Frame " + i),
+                    meta.sourceRelPath(),
+                    meta.logicalPath() != null ? meta.logicalPath() : ("Frame " + i),
                     null
             );
             node.assetId = frameAssetId;
@@ -506,7 +506,7 @@ public final class AssetsThumbsView extends VisTable {
         Array<AssetNode> filteredTiles = new Array<>();
         for (AssetNode node : currentAssets) {
             TileAssetMeta tileMeta = findTileMetaForNode(db, node);
-            if (tileMeta != null && tileMeta.tilesetId == tilesetMeta.id) {
+            if (tileMeta != null && tileMeta.tilesetId == tilesetMeta.id()) {
                 filteredTiles.add(node);
             }
         }
@@ -530,8 +530,8 @@ public final class AssetsThumbsView extends VisTable {
     static boolean shouldPreserveTilesetLayout(TilesetAssetMeta tilesetMeta) {
         return tilesetMeta != null
                 && tilesetMeta.columns > 0
-                && tilesetMeta.sourceRelPath != null
-                && !tilesetMeta.sourceRelPath.isBlank();
+                && tilesetMeta.sourceRelPath() != null
+                && !tilesetMeta.sourceRelPath().isBlank();
     }
 
     private boolean isTilesFolder(AssetNode folder) {
@@ -863,11 +863,11 @@ public final class AssetsThumbsView extends VisTable {
 
         for (int frameAssetId : def.frameAssetIds) {
             AssetMeta frameMeta = assetDb.findById(frameAssetId);
-            if (frameMeta == null || frameMeta.sourceRelPath == null || frameMeta.sourceRelPath.isBlank()) {
+            if (frameMeta == null || frameMeta.sourceRelPath() == null || frameMeta.sourceRelPath().isBlank()) {
                 continue;
             }
 
-            Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath);
+            Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath());
             if (tex != null) {
                 textures.add(tex);
             }
@@ -925,11 +925,11 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         AssetMeta meta = assetDb.findById(node.assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
             return new VisImage();
         }
 
-        Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
+        Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
         if (texture == null) {
             return new VisImage();
         }
@@ -1749,7 +1749,7 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         AssetMeta frameMeta = assetDb.findById(def.frameAssetIds[0]);
-        if (frameMeta == null || frameMeta.sourceRelPath == null || frameMeta.sourceRelPath.isBlank()) {
+        if (frameMeta == null || frameMeta.sourceRelPath() == null || frameMeta.sourceRelPath().isBlank()) {
             return null;
         }
 
@@ -1758,7 +1758,7 @@ public final class AssetsThumbsView extends VisTable {
             return null;
         }
 
-        FileHandle frameFile = StudioFs.requireStudioProjectDir(cfg).child(frameMeta.sourceRelPath);
+        FileHandle frameFile = StudioFs.requireStudioProjectDir(cfg).child(frameMeta.sourceRelPath());
         if (!frameFile.exists() || frameFile.isDirectory()) {
             return null;
         }

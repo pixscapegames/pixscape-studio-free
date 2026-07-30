@@ -188,12 +188,12 @@ public final class RenderRebindHelper {
         if (assetMetaDb == null || src.assetId <= 0) return false;
 
         AssetMeta meta = assetMetaDb.findById(src.assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) return false;
-        if (!isStandaloneImageSource(meta.sourceRelPath)) return false;
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) return false;
+        if (!isStandaloneImageSource(meta.sourceRelPath())) return false;
 
         Texture tex;
         try {
-            tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
+            tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
         } catch (RuntimeException ex) {
             return false;
         }

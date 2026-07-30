@@ -320,16 +320,19 @@ public final class TmxSceneImportService {
         );
 
         String extension = source.extension();
-        String newName = base + "__a" + meta.id + (extension == null || extension.isBlank() ? "" : "." + extension);
+        String newName = base + "__a" + meta.id() + (extension == null || extension.isBlank() ? "" : "." + extension);
         FileHandle dst = imagesRoot.child(newName);
         if (!dst.exists()) {
             source.copyTo(dst);
         }
-        meta.sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + newName;
+        assetDb.updateSourceRelPath(
+                meta.id(),
+                StudioFs.DIR_ORIG_IMAGES + "/" + newName
+        );
 
         int width = imageLayer.imageWidth() > 0 ? imageLayer.imageWidth() : imageSize.width();
         int height = imageLayer.imageHeight() > 0 ? imageLayer.imageHeight() : imageSize.height();
-        return new ImportedImageAsset(meta.id, width, height);
+        return new ImportedImageAsset(meta.id(), width, height);
     }
 
     private void populateImportedWorld(World world,
@@ -550,8 +553,8 @@ public final class TmxSceneImportService {
         for (Integer assetId : importedAssetIds) {
             if (assetId == null || assetId <= 0) continue;
             AssetMeta meta = assetDb.findById(assetId);
-            if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) continue;
-            requiredPaths.add(meta.sourceRelPath);
+            if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) continue;
+            requiredPaths.add(meta.sourceRelPath());
         }
         sceneAtlasInputService.syncSceneAtlasInput(cfg, sceneTag, projectDir, requiredPaths);
     }

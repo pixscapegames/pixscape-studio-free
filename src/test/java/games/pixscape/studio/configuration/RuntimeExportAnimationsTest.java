@@ -61,7 +61,7 @@ public class RuntimeExportAnimationsTest {
 
         JsonValue root = new JsonReader().parse(out);
         JsonValue exported = root.get("animations").get(0);
-        assertEquals(animation.id, exported.getInt("assetId"));
+        assertEquals(animation.id(), exported.getInt("assetId"));
         assertEquals("hero", exported.getString("name"));
         assertEquals(10f, exported.getFloat("fps"), 0.0001f);
         assertEquals("run", exported.getString("currentClip"));
@@ -151,9 +151,9 @@ public class RuntimeExportAnimationsTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
-        scene.runtimeAvailability.tiledTileAssetIds.add(tile.id);
+        scene.runtimeAvailability.tiledTileAssetIds.add(tile.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
@@ -167,7 +167,7 @@ public class RuntimeExportAnimationsTest {
         assertEquals(11, availability.get("animations").get(0).asInt());
         assertEquals("impact.p", availability.get("particles").get(0).asString());
         assertEquals("enemy", availability.get("prefabs").get(0).asString());
-        assertEquals(tile.id, availability.get("tiledTiles").get(0).asInt());
+        assertEquals(tile.id(), availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
     }
 

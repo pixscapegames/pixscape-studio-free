@@ -11,7 +11,7 @@ public final class AnimationAssetMeta extends AssetMeta {
     public ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
 
     public AnimationAssetMeta() {
-        // required for Json
+        super(AssetType.ANIMATION);
     }
 
     public AnimationAssetMeta(int id,

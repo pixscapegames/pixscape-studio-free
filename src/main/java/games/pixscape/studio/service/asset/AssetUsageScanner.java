@@ -87,9 +87,9 @@ public final class AssetUsageScanner {
             return;
         }
 
-        boolean found = switch (assetMeta.type) {
-            case IMAGE, ANIMATION -> scanCurrentWorldByAssetId(assetMeta.id, acc, currentSceneName);
-            case TILE -> scanCurrentWorldTile(assetMeta.id, acc, currentSceneName);
+        boolean found = switch (assetMeta.type()) {
+            case IMAGE, ANIMATION -> scanCurrentWorldByAssetId(assetMeta.id(), acc, currentSceneName);
+            case TILE -> scanCurrentWorldTile(assetMeta.id(), acc, currentSceneName);
             case PARTICLE -> scanCurrentWorldParticle(assetMeta, acc, currentSceneName);
             case TILESET -> false;
         };
@@ -133,9 +133,9 @@ public final class AssetUsageScanner {
                 continue;
             }
 
-            switch (assetMeta.type) {
-                case IMAGE, ANIMATION -> scanSceneFileByAssetId(sceneFile, sceneName, assetMeta.id, acc);
-                case TILE -> scanSceneFileTile(sceneFile, sceneName, assetMeta.id, acc);
+            switch (assetMeta.type()) {
+                case IMAGE, ANIMATION -> scanSceneFileByAssetId(sceneFile, sceneName, assetMeta.id(), acc);
+                case TILE -> scanSceneFileTile(sceneFile, sceneName, assetMeta.id(), acc);
                 case PARTICLE -> scanSceneFileParticle(sceneFile, sceneName, assetMeta, acc);
                 case TILESET -> {
                     // no-op
@@ -200,7 +200,7 @@ public final class AssetUsageScanner {
     private boolean scanCurrentWorldParticle(AssetMeta assetMeta,
                                              UsageAccumulator acc,
                                              String sceneName) {
-        if (assetMeta.sourceRelPath == null || assetMeta.sourceRelPath.isBlank()) {
+        if (assetMeta.sourceRelPath() == null || assetMeta.sourceRelPath().isBlank()) {
             return false;
         }
 
@@ -323,7 +323,7 @@ public final class AssetUsageScanner {
                                        String sceneName,
                                        AssetMeta assetMeta,
                                        UsageAccumulator acc) {
-        if (assetMeta.sourceRelPath == null || assetMeta.sourceRelPath.isBlank()) {
+        if (assetMeta.sourceRelPath() == null || assetMeta.sourceRelPath().isBlank()) {
             return;
         }
 
@@ -403,10 +403,11 @@ public final class AssetUsageScanner {
     private IntSet collectTileAssetIdsForTileset(int tilesetId) {
         IntSet ids = new IntSet();
 
-        for (AssetMeta meta : assetMetaDatabase.assets) {
+        for (int i = 0; i < assetMetaDatabase.size(); i++) {
+            AssetMeta meta = assetMetaDatabase.assetAt(i);
             if (!(meta instanceof TileAssetMeta tileMeta)) continue;
             if (tileMeta.tilesetId != tilesetId) continue;
-            ids.add(tileMeta.id);
+            ids.add(tileMeta.id());
         }
 
         return ids;
@@ -433,11 +434,11 @@ public final class AssetUsageScanner {
     }
 
     private static boolean matchesParticleEffectPath(AssetMeta assetMeta, String effectPath) {
-        if (assetMeta == null || assetMeta.sourceRelPath == null || effectPath == null) {
+        if (assetMeta == null || assetMeta.sourceRelPath() == null || effectPath == null) {
             return false;
         }
 
-        String source = normalizePath(assetMeta.sourceRelPath);
+        String source = normalizePath(assetMeta.sourceRelPath());
         String effect = normalizePath(effectPath);
         if (source.equals(effect)) {
             return true;

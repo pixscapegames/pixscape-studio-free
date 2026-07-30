@@ -64,7 +64,7 @@ public class StudioTiledProfilePlacementTest {
     public void ghostResolverAndStudioAtlasRegistryProduceSameQuad() {
         Fixture fixture = fixture(TilesetAnchor.BOTTOM_CENTER, 9, -7);
         RuntimeTilesetProfiles atlasProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(fixture.db);
-        RuntimeTilesetProfile atlasProfile = atlasProfiles.profileForTileAsset(fixture.tile.id);
+        RuntimeTilesetProfile atlasProfile = atlasProfiles.profileForTileAsset(fixture.tile.id());
 
         assertQuad(
                 buildQuad(fixture.map, fixture.profile, TileTransformFlags.NONE),
@@ -115,14 +115,14 @@ public class StudioTiledProfilePlacementTest {
                 "orig/tiles/iso/0.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
 
         StudioTilesetProfileResolver resolver = new StudioTilesetProfileResolver(db::findById);
         return new Fixture(
                 db,
                 tile,
                 new TiledMapLayerData(1, 1, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO),
-                resolver.resolve(tile.id)
+                resolver.resolve(tile.id())
         );
     }
 

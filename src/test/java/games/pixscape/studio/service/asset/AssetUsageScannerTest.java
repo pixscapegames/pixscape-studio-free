@@ -34,11 +34,11 @@ public class AssetUsageScannerTest {
                 AssetMeta.AssetScope.USER
         );
 
-        writeSceneWithAssetRef(cfg.getSceneMeta("Other"), cfg, animation.id);
+        writeSceneWithAssetRef(cfg.getSceneMeta("Other"), cfg, animation.id());
 
         AssetUsageScanner.AssetUsageReport report =
                 new AssetUsageScanner(new World(new WorldConfiguration()), cfg, db)
-                        .scanAsset(animation.id);
+                        .scanAsset(animation.id());
 
         assertTrue(report.used());
         assertEquals(1, report.occurrenceCount());
@@ -60,7 +60,7 @@ public class AssetUsageScannerTest {
 
         AssetUsageScanner.AssetUsageReport report =
                 new AssetUsageScanner(new World(new WorldConfiguration()), cfg, db)
-                        .scanAsset(particle.id);
+                        .scanAsset(particle.id());
 
         assertTrue(report.used());
         assertEquals(1, report.occurrenceCount());
@@ -86,12 +86,12 @@ public class AssetUsageScannerTest {
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
         tiled.data = new TiledMapLayerData(4, 4, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
-        tiled.data.setTile(1, 1, tile.id);
-        tiled.tileAssetIds.add(tile.id);
+        tiled.data.setTile(1, 1, tile.id());
+        tiled.tileAssetIds.add(tile.id());
         world.process();
 
         AssetUsageScanner.AssetUsageReport report =
-                new AssetUsageScanner(world, cfg, db).scanAsset(tile.id);
+                new AssetUsageScanner(world, cfg, db).scanAsset(tile.id());
 
         assertTrue(report.used());
         assertTrue(report.occurrenceCount() >= 1);

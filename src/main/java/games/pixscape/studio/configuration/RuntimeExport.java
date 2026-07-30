@@ -322,17 +322,16 @@ public final class RuntimeExport {
         JsonValue root = new JsonValue(JsonValue.ValueType.object);
         JsonValue animations = new JsonValue(JsonValue.ValueType.array);
 
-        if (assetDb.assets != null) {
-            for (AssetMeta meta : assetDb.assets) {
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta meta = assetDb.assetAt(i);
                 if (!(meta instanceof AnimationAssetMeta animation)) {
                     continue;
                 }
-                if (animation.id <= 0) {
+                if (animation.id() <= 0) {
                     continue;
                 }
 
                 animations.addChild(animationJson(animation));
-            }
         }
 
         root.addChild("animations", animations);
@@ -368,19 +367,20 @@ public final class RuntimeExport {
         root.addChild("version", new JsonValue(1));
 
         JsonValue tilesets = new JsonValue(JsonValue.ValueType.array);
-        if (assetDb.assets != null && tileIdsByTilesetId.size > 0) {
+        if (tileIdsByTilesetId.size > 0) {
             Array<TilesetAssetMeta> exportableTilesets = new Array<>();
-            for (AssetMeta meta : assetDb.assets) {
+            for (int i = 0; i < assetDb.size(); i++) {
+                AssetMeta meta = assetDb.assetAt(i);
                 if (meta instanceof TilesetAssetMeta tileset
-                        && tileset.id > 0
-                        && tileIdsByTilesetId.containsKey(tileset.id)) {
+                        && tileset.id() > 0
+                        && tileIdsByTilesetId.containsKey(tileset.id())) {
                     exportableTilesets.add(tileset);
                 }
             }
             exportableTilesets.sort(RuntimeExport::compareTilesets);
 
             for (TilesetAssetMeta tileset : exportableTilesets) {
-                IntArray tileIds = tileIdsByTilesetId.get(tileset.id);
+                IntArray tileIds = tileIdsByTilesetId.get(tileset.id());
                 if (tileIds == null || tileIds.size == 0) {
                     continue;
                 }
@@ -531,7 +531,7 @@ public final class RuntimeExport {
     private static IntMap<IntArray> collectRuntimeTileIdsByTileset(AssetMetaDatabase assetDb,
                                                                    IntSet runtimeTileAssetIds) {
         IntMap<IntArray> out = new IntMap<>();
-        if (assetDb == null || assetDb.assets == null || runtimeTileAssetIds == null || runtimeTileAssetIds.size == 0) {
+        if (assetDb == null || runtimeTileAssetIds == null || runtimeTileAssetIds.size == 0) {
             return out;
         }
 
@@ -557,8 +557,8 @@ public final class RuntimeExport {
                 tileIds = new IntArray();
                 out.put(tile.tilesetId, tileIds);
             }
-            if (!tileIds.contains(tile.id)) {
-                tileIds.add(tile.id);
+            if (!tileIds.contains(tile.id())) {
+                tileIds.add(tile.id());
             }
         }
 
@@ -569,8 +569,8 @@ public final class RuntimeExport {
         tileset.normalizeProfileDefaults();
 
         JsonValue node = new JsonValue(JsonValue.ValueType.object);
-        node.addChild("tilesetId", new JsonValue(tileset.id));
-        node.addChild("logicalPath", new JsonValue(tileset.logicalPath));
+        node.addChild("tilesetId", new JsonValue(tileset.id()));
+        node.addChild("logicalPath", new JsonValue(tileset.logicalPath()));
         node.addChild("tileWidth", new JsonValue(tileset.tileWidth));
         node.addChild("tileHeight", new JsonValue(tileset.tileHeight));
         node.addChild("referenceCellWidth", new JsonValue(tileset.referenceCellWidth));
@@ -590,14 +590,14 @@ public final class RuntimeExport {
     }
 
     private static int compareTilesets(TilesetAssetMeta left, TilesetAssetMeta right) {
-        String leftPath = left != null && left.logicalPath != null ? left.logicalPath : "";
-        String rightPath = right != null && right.logicalPath != null ? right.logicalPath : "";
+        String leftPath = left != null && left.logicalPath() != null ? left.logicalPath() : "";
+        String rightPath = right != null && right.logicalPath() != null ? right.logicalPath() : "";
         int byPath = leftPath.compareTo(rightPath);
         if (byPath != 0) {
             return byPath;
         }
-        int leftId = left != null ? left.id : 0;
-        int rightId = right != null ? right.id : 0;
+        int leftId = left != null ? left.id() : 0;
+        int rightId = right != null ? right.id() : 0;
         return Integer.compare(leftId, rightId);
     }
 
@@ -610,7 +610,7 @@ public final class RuntimeExport {
         JsonValue node = new JsonValue(JsonValue.ValueType.object);
         int frameCount = normalizedFrameCount(animation);
 
-        node.addChild("assetId", new JsonValue(animation.id));
+        node.addChild("assetId", new JsonValue(animation.id()));
         node.addChild("name", new JsonValue(animationRuntimeName(animation)));
         node.addChild("fps", new JsonValue(animation.fps > 0f ? animation.fps : 12f));
         node.addChild("currentClip", new JsonValue(normalizedCurrentClip(animation)));
@@ -695,9 +695,9 @@ public final class RuntimeExport {
     }
 
     private static String animationRuntimeName(AnimationAssetMeta animation) {
-        String logical = animation.logicalPath != null ? animation.logicalPath : "";
+        String logical = animation.logicalPath() != null ? animation.logicalPath() : "";
         String name = RuntimeFs.baseName(logical);
-        return name != null && !name.isBlank() ? name : "animation_" + animation.id;
+        return name != null && !name.isBlank() ? name : "animation_" + animation.id();
     }
 
     public static void saveProject(RuntimeConfig cfg, FileHandle projectDir) {

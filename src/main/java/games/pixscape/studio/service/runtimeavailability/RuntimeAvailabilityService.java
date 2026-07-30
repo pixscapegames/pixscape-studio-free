@@ -114,7 +114,7 @@ public final class RuntimeAvailabilityService {
     }
 
     public boolean removeDeletedAsset(ProjectConfig cfg, AssetMeta meta) {
-        if (cfg == null || meta == null || meta.type == null) {
+        if (cfg == null || meta == null || meta.type() == null) {
             return false;
         }
 
@@ -122,11 +122,11 @@ public final class RuntimeAvailabilityService {
         for (com.badlogic.gdx.utils.ObjectMap.Entry<String, SceneMeta> entry : cfg.getScenesMap()) {
             if (entry == null || entry.value == null) continue;
 
-            changed |= switch (meta.type) {
-                case IMAGE -> removeSprite(entry.value, meta.id);
-                case ANIMATION -> removeAnimation(entry.value, meta.id);
-                case PARTICLE -> removeDeletedParticle(entry.value, meta.sourceRelPath);
-                case TILE -> removeTiledTile(entry.value, meta.id);
+            changed |= switch (meta.type()) {
+                case IMAGE -> removeSprite(entry.value, meta.id());
+                case ANIMATION -> removeAnimation(entry.value, meta.id());
+                case PARTICLE -> removeDeletedParticle(entry.value, meta.sourceRelPath());
+                case TILE -> removeTiledTile(entry.value, meta.id());
                 case TILESET -> false;
             };
         }
@@ -139,7 +139,8 @@ public final class RuntimeAvailabilityService {
         }
 
         boolean changed = false;
-        for (AssetMeta meta : assetDb.assets) {
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta meta = assetDb.assetAt(i);
             if (!(meta instanceof TileAssetMeta tileMeta)) continue;
             if (tileMeta.tilesetId != tilesetId) continue;
             changed |= removeDeletedAsset(cfg, tileMeta);

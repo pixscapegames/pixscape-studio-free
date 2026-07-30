@@ -53,7 +53,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
                 "orig/tiles/terrain/terrain_2_1__a13.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
         tile.sheetIndex = 10;
         tile.cellX = 2;
         tile.cellY = 1;
@@ -67,7 +67,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TileAssetMeta\""));
         assertTrue(assetsJson.contains("\"type\": \"TILESET\""));
         assertTrue(assetsJson.contains("\"type\": \"TILE\""));
-        assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id));
+        assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id()));
         assertTrue(assetsJson.contains("\"sheetIndex\": 10"));
         assertTrue(assetsJson.contains("\"cellX\": 2"));
         assertTrue(assetsJson.contains("\"cellY\": 1"));
@@ -111,7 +111,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertEquals(5, loadedTileset.offsetY);
         assertSame(TilesetRenderSize.NATIVE, loadedTileset.renderSize);
 
-        assertEquals(tileset.id, loadedTile.tilesetId);
+        assertEquals(tileset.id(), loadedTile.tilesetId);
         assertEquals(10, loadedTile.sheetIndex);
         assertEquals(2, loadedTile.cellX);
         assertEquals(1, loadedTile.cellY);

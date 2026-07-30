@@ -8,14 +8,14 @@ public abstract class AssetMeta {
         GENERATED   // generated automatically
     }
 
-    public int id;
-    public AssetType type;
-    public String logicalPath;
-    public String sourceRelPath;
+    private final int id;
+    private final AssetType type;
+    private String logicalPath;
+    private String sourceRelPath;
     public AssetScope scope;
 
-    public AssetMeta() {
-        // required for Json
+    protected AssetMeta(AssetType type) {
+        this(0, type, null, null, AssetScope.USER);
     }
 
     protected AssetMeta(int id,
@@ -28,6 +28,27 @@ public abstract class AssetMeta {
         this.logicalPath = logicalPath;
         this.sourceRelPath = sourceRelPath;
         this.scope = scope;
+    }
+
+    public int id() {
+        return id;
+    }
+
+    public AssetType type() {
+        return type;
+    }
+
+    public String logicalPath() {
+        return logicalPath;
+    }
+
+    public String sourceRelPath() {
+        return sourceRelPath;
+    }
+
+    void replaceIdentityPaths(String logicalPath, String sourceRelPath) {
+        this.logicalPath = logicalPath;
+        this.sourceRelPath = sourceRelPath;
     }
 
     public boolean isUserVisible() {

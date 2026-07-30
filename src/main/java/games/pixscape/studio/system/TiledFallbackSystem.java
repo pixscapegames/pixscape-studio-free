@@ -148,14 +148,14 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     }
 
                     AssetMeta meta = resolveAssetMeta(visualAssetId);
-                    if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+                    if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
                         continue;
                     }
-                    if (meta.type != AssetType.TILE) {
+                    if (meta.type() != AssetType.TILE) {
                         continue;
                     }
 
-                    Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
+                    Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
                     if (tex == null) continue;
 
                     RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);

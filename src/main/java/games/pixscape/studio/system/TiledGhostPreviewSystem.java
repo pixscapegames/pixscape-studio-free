@@ -254,14 +254,14 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         }
 
         AssetMeta meta = assetMetaLookup.apply(assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
             return null;
         }
-        if (meta.type != AssetType.TILE) {
+        if (meta.type() != AssetType.TILE) {
             return null;
         }
 
-        Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
+        Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
         if (tex == null) {
             return null;
         }

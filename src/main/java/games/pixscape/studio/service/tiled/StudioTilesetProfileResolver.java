@@ -45,13 +45,13 @@ public final class StudioTilesetProfileResolver {
         }
 
         long fingerprint = fingerprint(tilesetMeta);
-        CacheEntry cached = profileCache.get(tilesetMeta.id);
+        CacheEntry cached = profileCache.get(tilesetMeta.id());
         if (cached != null && cached.fingerprint == fingerprint) {
             return cached.profile;
         }
 
         RuntimeTilesetProfile profile = toRuntimeProfile(tilesetMeta);
-        profileCache.put(tilesetMeta.id, new CacheEntry(fingerprint, profile));
+        profileCache.put(tilesetMeta.id(), new CacheEntry(fingerprint, profile));
         return profile;
     }
 
@@ -74,13 +74,14 @@ public final class StudioTilesetProfileResolver {
     }
 
     private static void appendRuntimeProfiles(RuntimeTilesetProfiles profiles, AssetMetaDatabase assetDb) {
-        if (profiles == null || assetDb == null || assetDb.assets == null) {
+        if (profiles == null || assetDb == null) {
             return;
         }
 
         IntMap<IntArray> tileIdsByTilesetId = new IntMap<>();
-        for (AssetMeta meta : assetDb.assets) {
-            if (!(meta instanceof TileAssetMeta tile) || tile.id <= 0 || tile.tilesetId <= 0) {
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta meta = assetDb.assetAt(i);
+            if (!(meta instanceof TileAssetMeta tile) || tile.id() <= 0 || tile.tilesetId <= 0) {
                 continue;
             }
 
@@ -89,17 +90,18 @@ public final class StudioTilesetProfileResolver {
                 tileIds = new IntArray();
                 tileIdsByTilesetId.put(tile.tilesetId, tileIds);
             }
-            if (!tileIds.contains(tile.id)) {
-                tileIds.add(tile.id);
+            if (!tileIds.contains(tile.id())) {
+                tileIds.add(tile.id());
             }
         }
 
-        for (AssetMeta meta : assetDb.assets) {
-            if (!(meta instanceof TilesetAssetMeta tileset) || tileset.id <= 0) {
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta meta = assetDb.assetAt(i);
+            if (!(meta instanceof TilesetAssetMeta tileset) || tileset.id() <= 0) {
                 continue;
             }
 
-            IntArray tileIds = tileIdsByTilesetId.get(tileset.id);
+            IntArray tileIds = tileIdsByTilesetId.get(tileset.id());
             if (tileIds == null || tileIds.size == 0) {
                 continue;
             }
@@ -115,8 +117,8 @@ public final class StudioTilesetProfileResolver {
         if (tilesetMeta == null) return null;
 
         RuntimeTilesetProfile profile = new RuntimeTilesetProfile();
-        profile.tilesetId = tilesetMeta.id;
-        profile.logicalPath = tilesetMeta.logicalPath;
+        profile.tilesetId = tilesetMeta.id();
+        profile.logicalPath = tilesetMeta.logicalPath();
         profile.tileWidth = tilesetMeta.tileWidth;
         profile.tileHeight = tilesetMeta.tileHeight;
         profile.referenceCellWidth = tilesetMeta.referenceCellWidth > 0
@@ -145,8 +147,8 @@ public final class StudioTilesetProfileResolver {
 
     private static long fingerprint(TilesetAssetMeta meta) {
         return Objects.hash(
-                meta.id,
-                meta.logicalPath,
+                meta.id(),
+                meta.logicalPath(),
                 meta.tileWidth,
                 meta.tileHeight,
                 meta.referenceCellWidth,

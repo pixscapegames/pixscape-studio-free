@@ -31,9 +31,9 @@ public class TiledStandalonePreviewContractTest {
                 StandardCharsets.UTF_8
         );
 
-        assertTrue(source.contains("if (meta.type != AssetType.TILE)"));
-        assertTrue(source.indexOf("if (meta.type != AssetType.TILE)")
-                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath)"));
+        assertTrue(source.contains("if (meta.type() != AssetType.TILE)"));
+        assertTrue(source.indexOf("if (meta.type() != AssetType.TILE)")
+                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath())"));
     }
 
     @Test
@@ -43,9 +43,9 @@ public class TiledStandalonePreviewContractTest {
                 StandardCharsets.UTF_8
         );
 
-        assertTrue(source.contains("if (meta.type != AssetType.TILE)"));
-        assertTrue(source.indexOf("if (meta.type != AssetType.TILE)")
-                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath)"));
+        assertTrue(source.contains("if (meta.type() != AssetType.TILE)"));
+        assertTrue(source.indexOf("if (meta.type() != AssetType.TILE)")
+                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath())"));
     }
 
     @Test

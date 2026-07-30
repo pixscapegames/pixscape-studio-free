@@ -148,8 +148,8 @@ public final class PrefabPreviewWriter {
         }
         if (!visual.hasAssetRef || visual.assetRefAssetId <= 0) return null;
         AssetMeta meta = db.findById(visual.assetRefAssetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) return null;
-        return StudioFs.requireStudioProjectDir(cfg).child(meta.sourceRelPath);
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) return null;
+        return StudioFs.requireStudioProjectDir(cfg).child(meta.sourceRelPath());
     }
 
     private static void renderToFile(FileHandle outFile, Array<PreviewSprite> sprites) {

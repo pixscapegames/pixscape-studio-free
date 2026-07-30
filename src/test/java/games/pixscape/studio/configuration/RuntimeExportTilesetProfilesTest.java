@@ -43,7 +43,7 @@ public class RuntimeExportTilesetProfilesTest {
         );
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
-        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(notATile.id);
+        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(notATile.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
     }
@@ -85,7 +85,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        grass.tilesetId = terrain.id;
+        grass.tilesetId = terrain.id();
         grass.sheetIndex = 0;
         grass.cellX = 0;
         grass.cellY = 0;
@@ -96,7 +96,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        water.tilesetId = terrain.id;
+        water.tilesetId = terrain.id();
         water.sheetIndex = 1;
         water.cellX = 1;
         water.cellY = 0;
@@ -120,7 +120,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/props/crate.png",
                 AssetMeta.AssetScope.USER
         );
-        crate.tilesetId = props.id;
+        crate.tilesetId = props.id();
         crate.sheetIndex = 0;
         crate.cellX = 0;
         crate.cellY = 0;
@@ -128,9 +128,9 @@ public class RuntimeExportTilesetProfilesTest {
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         SceneMeta scene = cfg.getCurrentSceneMeta();
-        scene.runtimeAvailability.tiledTileAssetIds.add(water.id);
-        scene.runtimeAvailability.tiledTileAssetIds.add(grass.id);
-        scene.runtimeAvailability.tiledTileAssetIds.add(crate.id);
+        scene.runtimeAvailability.tiledTileAssetIds.add(water.id());
+        scene.runtimeAvailability.tiledTileAssetIds.add(grass.id());
+        scene.runtimeAvailability.tiledTileAssetIds.add(crate.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
@@ -150,15 +150,15 @@ public class RuntimeExportTilesetProfilesTest {
         assertEquals(2, tilesets.size);
 
         JsonValue propsJson = tilesets.get(0);
-        assertEquals(props.id, propsJson.getInt("tilesetId"));
+        assertEquals(props.id(), propsJson.getInt("tilesetId"));
         assertEquals("tiles/props", propsJson.getString("logicalPath"));
         assertEquals("orthogonal", propsJson.getString("projection"));
         assertEquals("bottom-left", propsJson.getString("anchor"));
         assertEquals("native", propsJson.getString("renderSize"));
-        assertEquals(crate.id, propsJson.get("tileAssetIds").get(0).asInt());
+        assertEquals(crate.id(), propsJson.get("tileAssetIds").get(0).asInt());
 
         JsonValue terrainJson = tilesets.get(1);
-        assertEquals(terrain.id, terrainJson.getInt("tilesetId"));
+        assertEquals(terrain.id(), terrainJson.getInt("tilesetId"));
         assertEquals("tiles/terrain", terrainJson.getString("logicalPath"));
         assertEquals(64, terrainJson.getInt("tileWidth"));
         assertEquals(96, terrainJson.getInt("tileHeight"));
@@ -169,8 +169,8 @@ public class RuntimeExportTilesetProfilesTest {
         assertEquals(4, terrainJson.getInt("offsetX"));
         assertEquals(-8, terrainJson.getInt("offsetY"));
         assertEquals("native", terrainJson.getString("renderSize"));
-        assertEquals(grass.id, terrainJson.get("tileAssetIds").get(0).asInt());
-        assertEquals(water.id, terrainJson.get("tileAssetIds").get(1).asInt());
+        assertEquals(grass.id(), terrainJson.get("tileAssetIds").get(0).asInt());
+        assertEquals(water.id(), terrainJson.get("tileAssetIds").get(1).asInt());
     }
 
     @Test
@@ -205,7 +205,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        first.tilesetId = tileset.id;
+        first.tilesetId = tileset.id();
 
         TileAssetMeta second = (TileAssetMeta) db.registerIfAbsent(
                 AssetType.TILE,
@@ -213,14 +213,14 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        second.tilesetId = tileset.id;
+        second.tilesetId = tileset.id();
 
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
         Files.writeString(
                 studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"),
-                tiledSceneJson(first.id, 0, second.id),
+                tiledSceneJson(first.id(), 0, second.id()),
                 StandardCharsets.UTF_8
         );
 
@@ -244,8 +244,8 @@ public class RuntimeExportTilesetProfilesTest {
 
         JsonValue tileAssetIds = tilesets.get(0).get("tileAssetIds");
         assertEquals(2, tileAssetIds.size);
-        assertEquals(first.id, tileAssetIds.get(0).asInt());
-        assertEquals(second.id, tileAssetIds.get(1).asInt());
+        assertEquals(first.id(), tileAssetIds.get(0).asInt());
+        assertEquals(second.id(), tileAssetIds.get(1).asInt());
     }
 
     @Test
@@ -280,7 +280,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        firstFrame.tilesetId = tileset.id;
+        firstFrame.tilesetId = tileset.id();
 
         TileAssetMeta secondFrame = (TileAssetMeta) db.registerIfAbsent(
                 AssetType.TILE,
@@ -288,7 +288,7 @@ public class RuntimeExportTilesetProfilesTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        secondFrame.tilesetId = tileset.id;
+        secondFrame.tilesetId = tileset.id();
 
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
@@ -296,7 +296,7 @@ public class RuntimeExportTilesetProfilesTest {
         TileAnimationProjectDefData animation = new TileAnimationProjectDefData();
         animation.id = 9001;
         animation.name = "terrain_anim_0";
-        animation.frameAssetIds = new int[]{firstFrame.id, secondFrame.id};
+        animation.frameAssetIds = new int[]{firstFrame.id(), secondFrame.id()};
         animation.frameDurationsMs = new int[]{100, 150};
         animations.animations.add(animation);
         TileAnimationsIO.save(
@@ -328,8 +328,8 @@ public class RuntimeExportTilesetProfilesTest {
         );
         JsonValue tileAssetIds = root.get("tilesets").get(0).get("tileAssetIds");
         assertEquals(2, tileAssetIds.size);
-        assertEquals(firstFrame.id, tileAssetIds.get(0).asInt());
-        assertEquals(secondFrame.id, tileAssetIds.get(1).asInt());
+        assertEquals(firstFrame.id(), tileAssetIds.get(0).asInt());
+        assertEquals(secondFrame.id(), tileAssetIds.get(1).asInt());
     }
 
     @Test(expected = GdxRuntimeException.class)

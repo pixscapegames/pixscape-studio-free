@@ -55,7 +55,7 @@ public class TiledFallbackSystemAssetMetaLookupTest {
         TiledFallbackSystem system = new TiledFallbackSystem(null, null, staleDb::findById, null);
         system.setAssetMetaLookup(currentDb::findById);
 
-        assertSame(currentMeta, system.resolveAssetMeta(currentMeta.id));
+        assertSame(currentMeta, system.resolveAssetMeta(currentMeta.id()));
     }
 
     @Test
@@ -68,7 +68,7 @@ public class TiledFallbackSystemAssetMetaLookupTest {
                 AssetType.IMAGE, "imported", "images/imported.png", AssetMeta.AssetScope.USER
         );
 
-        assertSame(importedMeta, system.resolveAssetMeta(importedMeta.id));
+        assertSame(importedMeta, system.resolveAssetMeta(importedMeta.id()));
     }
 
     @Test
@@ -80,10 +80,10 @@ public class TiledFallbackSystemAssetMetaLookupTest {
                 "images/bootstrap-tile.png",
                 AssetMeta.AssetScope.USER
         );
-        int assetId = bootstrapMeta.id;
+        int assetId = bootstrapMeta.id();
 
         TiledFallbackSystem system = new TiledFallbackSystem(null, null, bootstrapDb::findById, null);
-        assertEquals("images/bootstrap-tile.png", system.resolveAssetMeta(assetId).sourceRelPath);
+        assertEquals("images/bootstrap-tile.png", system.resolveAssetMeta(assetId).sourceRelPath());
 
         IntFunction<AssetMeta> liveLookup = id -> {
             if (id != assetId) return null;
@@ -99,6 +99,6 @@ public class TiledFallbackSystemAssetMetaLookupTest {
 
         AssetMeta resolved = system.resolveAssetMeta(assetId);
         assertNotNull(resolved);
-        assertEquals("images/live-tile.png", resolved.sourceRelPath);
+        assertEquals("images/live-tile.png", resolved.sourceRelPath());
     }
 }

@@ -208,13 +208,13 @@ public class TmxSceneImportServiceTest {
 
         AssetMeta imageMeta = h.db.findById(assetRef.assetId);
         assertNotNull(imageMeta);
-        assertTrue(imageMeta.sourceRelPath.startsWith(StudioFs.DIR_ORIG_IMAGES + "/"));
-        assertTrue(h.projectDir.child(imageMeta.sourceRelPath).exists());
+        assertTrue(imageMeta.sourceRelPath().startsWith(StudioFs.DIR_ORIG_IMAGES + "/"));
+        assertTrue(h.projectDir.child(imageMeta.sourceRelPath()).exists());
         assertTrue(h.cfg.getSceneMeta("Imported").runtimeAvailability.spriteAssetIds.contains(assetRef.assetId));
         assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
                 .child(StudioFs.DIR_INPUT)
                 .child(result.sceneTag())
-                .child(new FileHandle(imageMeta.sourceRelPath).name())
+                .child(new FileHandle(imageMeta.sourceRelPath()).name())
                 .exists());
     }
 
@@ -396,16 +396,16 @@ public class TmxSceneImportServiceTest {
 
         TileAssetMeta tree = requireTile(h.db.findByLogicalPath("tiles/props/0"));
         TileAssetMeta rock = requireTile(h.db.findByLogicalPath("tiles/props/1"));
-        assertPngSize(h.projectDir.child(tree.sourceRelPath), 16, 32);
-        assertPngSize(h.projectDir.child(rock.sourceRelPath), 16, 16);
+        assertPngSize(h.projectDir.child(tree.sourceRelPath()), 16, 32);
+        assertPngSize(h.projectDir.child(rock.sourceRelPath()), 16, 16);
 
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
-        assertTileAsset(tiled, 0, 0, tree.id);
-        assertTileAsset(tiled, 1, 0, rock.id);
+        assertTileAsset(tiled, 0, 0, tree.id());
+        assertTileAsset(tiled, 1, 0, rock.id());
         assertEquals(TileTransformFlags.FLIP_H, tiled.tileTransformFlags.get(0));
         assertEquals(TileTransformFlags.NONE, tiled.tileTransformFlags.get(1));
-        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(tree.id));
-        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(rock.id));
+        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(tree.id()));
+        assertTrue(h.cfg.getSceneMeta("Props").runtimeAvailability.tiledTileAssetIds.contains(rock.id()));
     }
 
     @Test
@@ -422,15 +422,15 @@ public class TmxSceneImportServiceTest {
         assertEquals(1, animations.animations.size);
         TileAnimationProjectDefData def = animations.animations.get(0);
         assertTrue(def.id > 0);
-        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id, def.frameAssetIds[0]);
-        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id, def.frameAssetIds[1]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id(), def.frameAssetIds[0]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id(), def.frameAssetIds[1]);
         assertEquals(100, def.frameDurationsMs[0]);
         assertEquals(150, def.frameDurationsMs[1]);
         assertTrue(h.cfg.getSceneMeta("Animated").runtimeAvailability.tiledAnimationIds.contains(def.id));
 
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
         assertTileAsset(tiled, 0, 1, def.id);
-        assertTileAsset(tiled, 1, 1, requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id);
+        assertTileAsset(tiled, 1, 1, requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id());
     }
 
     @Test
@@ -466,8 +466,8 @@ public class TmxSceneImportServiceTest {
         TileAnimationsMetaDatabase exported = TileAnimationsIO.load(runtimeAnimations);
         assertEquals(1, exported.animations.size);
         TileAnimationProjectDefData def = exported.animations.get(0);
-        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id, def.frameAssetIds[0]);
-        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id, def.frameAssetIds[1]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id(), def.frameAssetIds[0]);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id(), def.frameAssetIds[1]);
         assertEquals(100, def.frameDurationsMs[0]);
         assertEquals(150, def.frameDurationsMs[1]);
 
@@ -514,10 +514,10 @@ public class TmxSceneImportServiceTest {
         assertEquals(1, tileset.spacing);
         assertEquals(1, tileset.margin);
 
-        int tile0 = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id;
-        int tile1 = requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id;
-        int tile2 = requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id;
-        int tile3 = requireTile(h.db.findByLogicalPath("tiles/terrain/3")).id;
+        int tile0 = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
+        int tile1 = requireTile(h.db.findByLogicalPath("tiles/terrain/1")).id();
+        int tile2 = requireTile(h.db.findByLogicalPath("tiles/terrain/2")).id();
+        int tile3 = requireTile(h.db.findByLogicalPath("tiles/terrain/3")).id();
 
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
         assertTileAsset(tiled, 0, 1, tile0);
@@ -542,7 +542,7 @@ public class TmxSceneImportServiceTest {
 
         assertEquals(TmxSceneImportStatus.PREFLIGHT_FAILED, result.status());
         assertFalse(h.cfg.getScenesMap().containsKey("Missing"));
-        assertEquals(0, h.db.assets.size);
+        assertEquals(0, h.db.size());
     }
 
     @Test
@@ -566,7 +566,7 @@ public class TmxSceneImportServiceTest {
         assertEquals("Main", h.cfg.getCurrentSceneName());
         assertFalse(h.cfg.getScenesMap().containsKey("Broken"));
         assertFalse(h.projectDir.child(StudioFs.DIR_SCENES).child("scene2.json").exists());
-        assertEquals(0, h.db.assets.size);
+        assertEquals(0, h.db.size());
     }
 
     private static TmxSceneImportRequest request(FileHandle tmx, String sceneName) {
