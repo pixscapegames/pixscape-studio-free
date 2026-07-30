@@ -19,6 +19,7 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.service.AtlasAssetBinding;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -138,11 +139,11 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
                     int gx = chunk.chunkX * map.chunkSize + lx;
                     int gy = chunk.chunkY * map.chunkSize + ly;
-                    AtlasRuntimeService.CachedRegion cachedRegion = atlasRuntimeService != null
-                            ? atlasRuntimeService.resolveCached(visualAssetId, tiled.atlasTag)
+                    AtlasAssetBinding binding = atlasRuntimeService != null
+                            ? atlasRuntimeService.resolveBinding(visualAssetId, tiled.atlasTag)
                             : null;
 
-                    if (cachedRegion != null) {
+                    if (binding != null) {
                         continue;
                     }
 

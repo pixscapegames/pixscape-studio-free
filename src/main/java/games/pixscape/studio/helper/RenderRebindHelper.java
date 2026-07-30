@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -67,12 +68,6 @@ public final class RenderRebindHelper {
 
         World world = canvas.getEcsWorld();
 
-        var animationSystem = world.getSystem(games.pixscape.runtime.system.AnimationSystem.class);
-        if (animationSystem != null) {
-            animationSystem.clearBindingCache();
-        }
-        atlasRuntimeService.clearRegionCache();
-
         // 1) Rebuild UV + material handles (single pass)
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
 
@@ -121,12 +116,6 @@ public final class RenderRebindHelper {
             return "skipped";
         }
 
-        var animationSystem = world.getSystem(games.pixscape.runtime.system.AnimationSystem.class);
-        if (animationSystem != null) {
-            animationSystem.clearBindingCache();
-        }
-        atlasRuntimeService.clearRegionCache();
-
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         var mSrc = world.getMapper(AssetRefComponent.class);
         var mTR = world.getMapper(TextureRegionComponent.class);
@@ -143,10 +132,10 @@ public final class RenderRebindHelper {
         return result;
     }
 
-    private static String rebindEntity(
+    static String rebindEntity(
             int e,
             String sceneTag,
-            AtlasStudioService atlasRuntimeService,
+            AtlasRuntimeService atlasRuntimeService,
             AssetMetaDatabase assetMetaDb,
             com.artemis.ComponentMapper<AssetRefComponent> mSrc,
             com.artemis.ComponentMapper<TextureRegionComponent> mTR,
@@ -161,7 +150,9 @@ public final class RenderRebindHelper {
         tr.valid = false;
 
         String atlasTag = (src.atlasTag != null && !src.atlasTag.isEmpty()) ? src.atlasTag : sceneTag;
-        AtlasRuntimeService.CachedRegion ar = atlasRuntimeService.resolveCached(src.assetId, atlasTag);
+        AtlasRegionMetadata ar = src.assetId > 0
+                ? atlasRuntimeService.resolveCached(src.assetId, atlasTag)
+                : null;
         if (ar == null) {
             if (bindStandaloneFallback(src, tr, mat, assetMetaDb, atlasTag)) {
                 if (dirty != null) dirty.material(e);
@@ -173,15 +164,15 @@ public final class RenderRebindHelper {
             return "unbound";
         }
 
-        tr.u1 = ar.u1;
-        tr.v1 = ar.v1;
-        tr.u2 = ar.u2;
-        tr.v2 = ar.v2;
-        tr.pixW = ar.pixW;
-        tr.pixH = ar.pixH;
+        tr.u1 = ar.u1();
+        tr.v1 = ar.v1();
+        tr.u2 = ar.u2();
+        tr.v2 = ar.v2();
+        tr.pixW = ar.pixelWidth();
+        tr.pixH = ar.pixelHeight();
         tr.valid = true;
 
-        mat.textureHandle = ar.textureHandle;
+        mat.textureHandle = ar.textureHandle();
         mat.debugAtlasTag = atlasTag;
         if (dirty != null) dirty.material(e);
         return "atlas";

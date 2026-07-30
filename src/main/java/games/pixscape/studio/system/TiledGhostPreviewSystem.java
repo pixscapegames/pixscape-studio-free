@@ -10,6 +10,7 @@ import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
+import games.pixscape.runtime.service.AtlasRegionMetadata;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -220,33 +221,34 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
     }
 
     private DrawData resolveDrawData(int assetId, String atlasTag) {
-        AtlasRuntimeService.CachedRegion cr =
-                atlasRuntimeService.resolveCached(assetId, atlasTag);
+        AtlasRegionMetadata cr = assetId > 0
+                ? atlasRuntimeService.resolveCached(assetId, atlasTag)
+                : null;
 
         if (cr != null) {
-            Texture texture = textureHandleLookup.apply(cr.textureHandle);
+            Texture texture = textureHandleLookup.apply(cr.textureHandle());
             if (texture == null) {
                 return null;
             }
 
             DrawData dd = new DrawData();
             dd.texture = texture;
-            dd.spriteW = cr.pixW;
-            dd.spriteH = cr.pixH;
+            dd.spriteW = cr.pixelWidth();
+            dd.spriteH = cr.pixelHeight();
 
             // Mapping SpriteBatch vertices:
             // BL, TL, TR, BR
-            dd.uBL = cr.u1;
-            dd.vBL = cr.v2;
+            dd.uBL = cr.u1();
+            dd.vBL = cr.v2();
 
-            dd.uTL = cr.u1;
-            dd.vTL = cr.v1;
+            dd.uTL = cr.u1();
+            dd.vTL = cr.v1();
 
-            dd.uTR = cr.u2;
-            dd.vTR = cr.v1;
+            dd.uTR = cr.u2();
+            dd.vTR = cr.v1();
 
-            dd.uBR = cr.u2;
-            dd.vBR = cr.v2;
+            dd.uBR = cr.u2();
+            dd.vBR = cr.v2();
 
             return dd;
         }

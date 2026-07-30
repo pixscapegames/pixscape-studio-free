@@ -1029,11 +1029,11 @@ public class EditorOpsImpl implements EditorOps {
 
     private boolean hasAtlasBinding(int entityId, String sceneTag) {
         AssetRefComponent src = world.getMapper(AssetRefComponent.class).getSafe(entityId, null);
-        if (src == null) {
+        if (src == null || src.assetId <= 0) {
             return false;
         }
         String atlasTag = (src.atlasTag != null && !src.atlasTag.isBlank()) ? src.atlasTag : sceneTag;
-        return atlasStudioService.resolveCached(src.assetId, atlasTag) != null;
+        return atlasStudioService.resolveBinding(src.assetId, atlasTag) != null;
     }
 
     private String getCurrentSceneTag() {
