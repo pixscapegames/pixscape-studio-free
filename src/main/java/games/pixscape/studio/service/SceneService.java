@@ -131,6 +131,10 @@ public final class SceneService {
         return canvas.getTileAnimationRegistry();
     }
 
+    public void requestTiledFallbackValidation() {
+        canvas.requestTiledFallbackValidation();
+    }
+
     public void setAssetsPanel(AssetsPanel panel) {
         this.assetsPanel = panel;
     }
@@ -763,6 +767,7 @@ public final class SceneService {
                         sceneName,
                         canonicalTag
                 ));
+        canvas.requestTiledFallbackValidation();
         canvas.getIdentityRegistry().rebuild();
         // UI
 
@@ -2370,6 +2375,7 @@ public final class SceneService {
         registry.clear();
 
         if (tileAnimationsMetaDatabase == null || tileAnimationsMetaDatabase.animations == null) {
+            canvas.requestTiledFallbackValidation();
             return;
         }
 
@@ -2385,6 +2391,7 @@ public final class SceneService {
 
             registry.put(runtimeData);
         }
+        canvas.requestTiledFallbackValidation();
     }
 
     private boolean isRuntimeReadyTileAnimation(TileAnimationProjectDefData def) {

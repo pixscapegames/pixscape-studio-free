@@ -54,6 +54,29 @@ public class StudioTiledRefInteractionContractTest {
     }
 
     @Test
+    public void successfulSceneActivationRequestsTiledFallbackValidation()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        ).replace("\r\n", "\n");
+
+        int activation = source.indexOf("sceneActivationPipeline.activate(");
+        int validation = source.indexOf(
+                "canvas.requestTiledFallbackValidation();",
+                activation
+        );
+        int identityRebuild = source.indexOf(
+                "canvas.getIdentityRegistry().rebuild();",
+                activation
+        );
+
+        assertTrue(activation >= 0);
+        assertTrue(validation > activation);
+        assertTrue(identityRebuild > validation);
+    }
+
+    @Test
     public void spatialGizmoConsumesCompiledStructureEnvelopeWithoutPerWallBoxes() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/system/GizmoSystem.java"),

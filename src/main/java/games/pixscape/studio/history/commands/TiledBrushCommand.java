@@ -73,6 +73,9 @@ public final class TiledBrushCommand implements Command {
             }
             if (uniqueAssetIds != null && assetId > 0) uniqueAssetIds.add(assetId);
         }
+        if (sceneService != null) {
+            sceneService.requestTiledFallbackValidation();
+        }
         if (sceneTag != null && sceneService != null) {
             boolean atlasInputChanged = false;
             IntSet.IntSetIterator it = uniqueAssetIds.iterator();

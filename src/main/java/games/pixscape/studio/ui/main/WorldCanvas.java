@@ -519,14 +519,23 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 studioTilesetProfiles,
                 assetMetaDatabase
         );
+        requestTiledFallbackValidation();
+    }
+
+    public void requestTiledFallbackValidation() {
+        if (tiledFallbackSystem != null) {
+            tiledFallbackSystem.requestValidation();
+        }
     }
 
     public void invalidateAssetVisualMetadata() {
         assetVisualResolver.invalidateMetadata();
+        requestTiledFallbackValidation();
     }
 
     public void invalidateStandaloneAssetVisuals() {
         assetVisualResolver.invalidateStandalone();
+        requestTiledFallbackValidation();
     }
 
     private void bindParticleControlChanges() {

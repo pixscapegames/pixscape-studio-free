@@ -214,6 +214,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAtlasTag(tag);
         }
+        requestTiledFallbackValidation();
     }
 
     @Override
@@ -222,6 +223,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAtlasTag(tag);
         }
+        requestTiledFallbackValidation();
     }
 
     @Override
@@ -229,6 +231,13 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         super.unloadAll();
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAll();
+        }
+        requestTiledFallbackValidation();
+    }
+
+    private void requestTiledFallbackValidation() {
+        if (canvas != null) {
+            canvas.requestTiledFallbackValidation();
         }
     }
 
