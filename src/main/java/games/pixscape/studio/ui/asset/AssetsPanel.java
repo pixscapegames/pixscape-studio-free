@@ -1,10 +1,8 @@
 package games.pixscape.studio.ui.asset;
 
-import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
@@ -21,8 +19,6 @@ public final class AssetsPanel extends DockablePanel {
     private final VisTextButton importButton;
     private final TiledPaintService tiledPaintService;
     private final StudioApplicationAdapter app;
-
-    private AssetMetaDatabase assetMetaDatabase;
 
     public AssetsPanel(StudioApplicationAdapter app) {
         super("Assets");
@@ -56,10 +52,6 @@ public final class AssetsPanel extends DockablePanel {
 
         treeView.setTileDroppedOnTiledAnimationListener((tileAnimationId, tilePaths) -> {
             try {
-                if (assetMetaDatabase == null) {
-                    setMetaDatase();
-                }
-
                 if (tilePaths == null || tilePaths.size == 0) {
                     return;
                 }
@@ -145,13 +137,6 @@ public final class AssetsPanel extends DockablePanel {
                 : -1;
     }
 
-    private void setMetaDatase() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        FileHandle metaFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
-        assetMetaDatabase = AssetMetaDatabase.load(metaFile);
-    }
-
     private void buildLayout() {
         AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project Assets", treeView, thumbsView);
         VisSplitPane browserSplit = new VisSplitPane(
@@ -167,7 +152,6 @@ public final class AssetsPanel extends DockablePanel {
     public void reloadFromProject(ProjectConfig cfg) {
         AssetNode selected = treeView.getSelectedFolder();
         importButton.setVisible(cfg != null && cfg.getCurrentSceneName() != null);
-        assetMetaDatabase = null;
 
         AssetPreviewCache.clear();
         thumbsView.clear();

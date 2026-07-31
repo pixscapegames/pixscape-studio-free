@@ -13,9 +13,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAnimationProjectDefData;
 import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
-import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
@@ -120,12 +120,15 @@ public final class FolderTreeView extends VisTable {
                 AssetNode.Root.PARTICLES
         );
 
+        AssetMetaDatabase assetSnapshot = AssetMetaDatabase.load(
+                projectDir.child(StudioFs.FILE_ASSETS_JSON)
+        );
         FolderTreeBuilder.buildFolders(
                 tree,
                 projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS),
                 "Animations",
                 AssetNode.Root.ANIMATIONS,
-                AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON))
+                assetSnapshot
         );
 
         addPrefabsNode();

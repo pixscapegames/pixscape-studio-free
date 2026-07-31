@@ -36,7 +36,7 @@ public final class FolderTreeBuilder {
             FileHandle rootDir,
             String rootLabel,
             AssetNode.Root root,
-            AssetMetaDatabase assetDb
+            AssetMetaDatabase assetSnapshot
     ) {
         if (rootDir == null || !rootDir.exists() || !rootDir.isDirectory()) return null;
 
@@ -44,7 +44,7 @@ public final class FolderTreeBuilder {
         tree.add(rootNode);
         tree.getSelection().add(rootNode);
 
-        buildRecursive(rootDir, rootDir, rootNode, root, assetDb);
+        buildRecursive(rootDir, rootDir, rootNode, root, assetSnapshot);
         return rootNode;
     }
 
@@ -84,7 +84,7 @@ public final class FolderTreeBuilder {
             FileHandle currentDir,
             VisTree.Node parent,
             AssetNode.Root root,
-            AssetMetaDatabase assetDb
+            AssetMetaDatabase assetSnapshot
     ) {
         for (FileHandle child : currentDir.list()) {
 
@@ -94,24 +94,12 @@ public final class FolderTreeBuilder {
                     .substring(rootDir.path().length() + 1)
                     .replace('\\', '/');
 
-            AssetNode data = new AssetNode(
-                    AssetNode.Kind.FOLDER,
+            AssetNode data = createNavigationFolderNode(
                     root,
                     relPath,
                     child.name(),
-                    null
+                    assetSnapshot
             );
-
-            if (root == AssetNode.Root.ANIMATIONS && assetDb != null) {
-                AssetMeta meta = assetDb.findUniqueBySourceRelPath(
-                        StudioFs.DIR_ORIG_ANIMATIONS + "/" + relPath,
-                        AssetType.ANIMATION
-                );
-                if (meta != null && meta.isUserVisible()) {
-                    // This remains a navigation folder, so it deliberately has no Asset ID.
-                    data.name = AssetDisplayInfo.from(meta).displayName();
-                }
-            }
 
             // -------------------------------------------------
             // Tiles : detect tile size
@@ -142,8 +130,39 @@ public final class FolderTreeBuilder {
             label.setUserObject(data);
             parent.add(node);
 
-            buildRecursive(rootDir, child, node, root, assetDb);
+            buildRecursive(rootDir, child, node, root, assetSnapshot);
         }
+    }
+
+    /**
+     * Uses the read-only asset snapshot only to map physical animation directories
+     * to logical display names. The returned folder remains a navigation node and
+     * deliberately receives neither an Asset ID nor asset presentation metadata.
+     */
+    static AssetNode createNavigationFolderNode(AssetNode.Root root,
+                                                String relativePath,
+                                                String filesystemName,
+                                                AssetMetaDatabase assetSnapshot) {
+        AssetNode node = new AssetNode(
+                AssetNode.Kind.FOLDER,
+                root,
+                relativePath,
+                filesystemName,
+                null
+        );
+
+        if (root != AssetNode.Root.ANIMATIONS || assetSnapshot == null) {
+            return node;
+        }
+
+        AssetMeta meta = assetSnapshot.findUniqueBySourceRelPath(
+                StudioFs.DIR_ORIG_ANIMATIONS + "/" + relativePath,
+                AssetType.ANIMATION
+        );
+        if (meta != null && meta.isUserVisible()) {
+            node.name = AssetDisplayInfo.from(meta).displayName();
+        }
+        return node;
     }
 
     private static int[] resolveTileSize(FileHandle dir) {
