@@ -779,7 +779,7 @@ public final class AssetsThumbsView extends VisTable {
             tile.add(contentActor).size(tileSize, tileSize).top().left();
         }
 
-        Tooltip tip = new Tooltip.Builder(node.tooltipText())
+        Tooltip tip = new Tooltip.Builder(node.tooltipText(), Align.left)
                 .target(tile)
                 .build();
         tip.setAppearDelayTime(0f);
