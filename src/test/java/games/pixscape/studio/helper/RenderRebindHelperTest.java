@@ -5,6 +5,7 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.render.DirtyBits;
@@ -57,6 +58,23 @@ public class RenderRebindHelperTest {
         assertEquals(48, fixture.region.pixH);
         assertEquals(TextureRegistry.handleOf(texture), fixture.material.textureHandle);
         assertEquals("main", fixture.material.debugAtlasTag);
+    }
+
+    @Test
+    public void rebindPreservesUserEditedEntityName() {
+        Texture texture = texture(32, 48);
+        VisualResolverTestSupport.TrackingAtlasService atlas =
+                new VisualResolverTestSupport.TrackingAtlasService("main");
+        atlas.publish(new TextureAtlas(), binding(7, "tux__a7", texture));
+        Fixture fixture = fixture(7);
+        PixscapeIdentityComponent identity = fixture.world
+                .getMapper(PixscapeIdentityComponent.class)
+                .create(fixture.entityId);
+        identity.name = "Captain Tux";
+
+        rebind(fixture, resolver(atlas, null, null));
+
+        assertEquals("Captain Tux", identity.name);
     }
 
     @Test

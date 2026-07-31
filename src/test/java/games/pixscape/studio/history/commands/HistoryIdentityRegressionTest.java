@@ -87,6 +87,36 @@ public class HistoryIdentityRegressionTest {
     }
 
     @Test
+    public void createUndoRedoPreservesUserEditedEntityName() {
+        World world = world();
+        HistoryManager history = new HistoryManager(8);
+        int[] currentEntity = {-1};
+        GenericEntityInitializer init = spriteInitializer(world, 290, 91, "tux");
+
+        CreateEntityCommand command = new CreateEntityCommand(
+                world,
+                history.historyIds(),
+                init,
+                entityId -> currentEntity[0] = entityId
+        );
+        history.execute(command);
+        world.process();
+        long historyId = history.historyIds().historyIdOfEntity(currentEntity[0]);
+        world.getMapper(PixscapeIdentityComponent.class).get(currentEntity[0]).name = "Captain Tux";
+
+        history.undo();
+        world.process();
+        history.redo();
+        world.process();
+
+        int restored = history.historyIds().entityOfHistoryId(historyId);
+        Assert.assertEquals(
+                "Captain Tux",
+                world.getMapper(PixscapeIdentityComponent.class).get(restored).name
+        );
+    }
+
+    @Test
     public void deleteUndoRedoCyclesDoNotRestoreDuplicatePersistentIdentities() {
         World world = world();
         HistoryIdRegistry historyIds = new HistoryIdRegistry();

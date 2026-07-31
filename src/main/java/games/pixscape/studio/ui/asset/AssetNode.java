@@ -1,6 +1,8 @@
 package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.studio.asset.AssetDisplayInfo;
+import games.pixscape.studio.asset.AssetMeta;
 
 public final class AssetNode {
 
@@ -43,6 +45,9 @@ public final class AssetNode {
     public int frameIndex = -1;
     public int durationMs = -1;
 
+    /** Present only when this user-visible node is backed by AssetMeta. */
+    public AssetDisplayInfo assetInfo;
+
     public TextureAtlas.AtlasRegion region; // used only for REGION
 
     public AssetNode(Kind kind,
@@ -55,5 +60,27 @@ public final class AssetNode {
         this.path = path;
         this.name = name;
         this.region = region;
+    }
+
+    public static AssetNode fromAssetMeta(Kind kind,
+                                          Root root,
+                                          String operationalPath,
+                                          AssetMeta meta) {
+        AssetDisplayInfo info = AssetDisplayInfo.from(meta);
+        AssetNode node = new AssetNode(kind, root, operationalPath, info.displayName(), null);
+        node.assetInfo = info;
+        node.assetId = info.assetId();
+        return node;
+    }
+
+    public AssetNode applyAssetMeta(AssetMeta meta) {
+        assetInfo = AssetDisplayInfo.from(meta);
+        name = assetInfo.displayName();
+        assetId = assetInfo.assetId();
+        return this;
+    }
+
+    public String tooltipText() {
+        return assetInfo != null ? assetInfo.tooltipText() : name;
     }
 }

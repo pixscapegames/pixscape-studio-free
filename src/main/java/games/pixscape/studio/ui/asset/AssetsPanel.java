@@ -4,11 +4,9 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.tiled.TiledPaintService;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -41,8 +39,6 @@ public final class AssetsPanel extends DockablePanel {
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
 
         thumbsView.setTileSelectionListener(node -> {
-            if (assetMetaDatabase == null) setMetaDatase();
-
             if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
                 tiledPaintService.setActiveTileAssetId(node.tileAnimationId);
                 return;
@@ -52,24 +48,9 @@ public final class AssetsPanel extends DockablePanel {
                 return;
             }
 
-            if (node.root != AssetNode.Root.TILES || node.kind != AssetNode.Kind.IMAGE) {
-                return;
-            }
-
-            String baseName = AssetHelper.extractBaseName(node.path);
-
-            String folder = node.path.contains("/")
-                    ? node.path.substring(0, node.path.lastIndexOf('/'))
-                    : "";
-
-            String logical = node.root.name().toLowerCase()
-                    + "/"
-                    + (folder.isEmpty() ? baseName : folder + "/" + baseName);
-
-            AssetMeta asset = assetMetaDatabase.findByLogicalPath(logical);
-
-            if (asset != null) {
-                tiledPaintService.setActiveTileAssetId(asset.id());
+            int tileAssetId = tileAssetIdForSelection(node);
+            if (tileAssetId > 0) {
+                tiledPaintService.setActiveTileAssetId(tileAssetId);
             }
         });
 
@@ -154,6 +135,14 @@ public final class AssetsPanel extends DockablePanel {
         treeView.setSelectionListener(thumbsView::showForNode);
 
         buildLayout();
+    }
+
+    static int tileAssetIdForSelection(AssetNode node) {
+        return node != null
+                && node.root == AssetNode.Root.TILES
+                && node.kind == AssetNode.Kind.IMAGE
+                ? node.assetId
+                : -1;
     }
 
     private void setMetaDatase() {

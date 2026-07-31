@@ -26,6 +26,8 @@ import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AssetDisplayInfo;
+import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
@@ -138,10 +140,11 @@ public class EditorOpsImpl implements EditorOps {
         ensureHandleBoundToTextureArray();
         int blend = BlendMode.ALPHA.id;
 
-        String resolvedMetaName = (metaName != null && !metaName.isBlank()) ? metaName : regionPath;
         int assetId = AssetHelper.extractAssetIdFromRegionName(regionPath);
         if (assetId < 0)
             throw new IllegalStateException("Cannot resolve assetId for region: " + regionPath);
+        AssetMeta assetMeta = sceneService != null ? sceneService.getAssetMeta(assetId) : null;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(metaName, assetMeta, regionPath);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureSprite(
@@ -203,14 +206,13 @@ public class EditorOpsImpl implements EditorOps {
         int textureHandle = TextureRegistry.handleOf(tex);
         int blend = BlendMode.ALPHA.id;
 
-        String resolvedMetaName =
-                (metaName != null && !metaName.isBlank()) ? metaName : relativePath;
-
         String sceneTag = getCurrentSceneTag();
         String sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
-        int assetId = (sceneService != null)
-                ? sceneService.resolveAssetIdBySourceRelPath(sourceRelPath, AssetType.IMAGE)
-                : -1;
+        AssetMeta assetMeta = sceneService != null
+                ? sceneService.findAssetMetaBySourceRelPath(sourceRelPath, AssetType.IMAGE)
+                : null;
+        int assetId = assetMeta != null ? assetMeta.id() : -1;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(metaName, assetMeta, relativePath);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
@@ -296,6 +298,11 @@ public class EditorOpsImpl implements EditorOps {
                 ? sceneService.findAnimationAssetMetaBySourceRelPath(animationRelPath)
                 : null;
         int animationAssetId = animationMeta != null ? animationMeta.id() : -1;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(
+                metaName,
+                animationMeta,
+                animationRelPath
+        );
         float fps = animationMeta != null && animationMeta.fps > 0f ? animationMeta.fps : 12f;
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
@@ -344,7 +351,7 @@ public class EditorOpsImpl implements EditorOps {
                     worldX, worldY,
                     originX, originY,
                     shaderIdx, blend, textureHandle,
-                    metaName != null ? metaName : animationRelPath,
+                    resolvedMetaName,
                     activeLayerIndex
             );
         } else {
@@ -365,7 +372,7 @@ public class EditorOpsImpl implements EditorOps {
                     worldX, worldY,
                     originX, originY,
                     shaderIdx, blend, textureHandle,
-                    metaName != null ? metaName : animationRelPath,
+                    resolvedMetaName,
                     activeLayerIndex
             );
         }
@@ -438,9 +445,15 @@ public class EditorOpsImpl implements EditorOps {
         }
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
-        String resolvedMetaName = (metaName != null && !metaName.isBlank())
-                ? metaName
-                : "Particle: " + effectPath;
+        String sourceRelPath = StudioFs.DIR_ORIG_EFFECTS + "/" + effectPath;
+        AssetMeta assetMeta = sceneService != null
+                ? sceneService.findAssetMetaBySourceRelPath(sourceRelPath, AssetType.PARTICLE)
+                : null;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(
+                metaName,
+                assetMeta,
+                "Particle: " + effectPath
+        );
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureParticleEmitter(effectPath, sceneTag, worldX, worldY, activeLayerIndex, resolvedMetaName);

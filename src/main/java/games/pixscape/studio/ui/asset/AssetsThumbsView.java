@@ -389,14 +389,12 @@ public final class AssetsThumbsView extends VisTable {
                 continue;
             }
 
-            AssetNode node = new AssetNode(
+            AssetNode node = AssetNode.fromAssetMeta(
                     AssetNode.Kind.TILED_ANIMATION_FRAME,
                     AssetNode.Root.TILES,
                     meta.sourceRelPath(),
-                    meta.logicalPath() != null ? meta.logicalPath() : ("Frame " + i),
-                    null
+                    meta
             );
-            node.assetId = frameAssetId;
             node.tileAnimationId = animationNode.tileAnimationId;
             node.durationMs = durationMs;
             node.frameIndex = i;
@@ -781,7 +779,7 @@ public final class AssetsThumbsView extends VisTable {
             tile.add(contentActor).size(tileSize, tileSize).top().left();
         }
 
-        Tooltip tip = new Tooltip.Builder(node.name)
+        Tooltip tip = new Tooltip.Builder(node.tooltipText())
                 .target(tile)
                 .build();
         tip.setAppearDelayTime(0f);
@@ -1380,18 +1378,16 @@ public final class AssetsThumbsView extends VisTable {
         );
 
         for (AssetNode node : nodes) {
-            String sourceRelPath = buildSourceRelPath(node);
+            String sourceRelPath = node.assetInfo != null
+                    ? node.assetInfo.sourcePath()
+                    : buildSourceRelPath(node);
             if (sourceRelPath == null || sourceRelPath.isBlank()) {
                 continue;
             }
 
-            AssetType type = assetTypeForNode(node);
-            AssetMeta meta = type != null
-                    ? db.findUniqueBySourceRelPath(sourceRelPath, type)
-                    : null;
-            int assetId = meta != null ? meta.id() : -1;
+            int assetId = node.assetId;
 
-            if (assetId < 0) {
+            if (assetId <= 0) {
                 Gdx.app.error("AssetDelete", "Asset id not found for " + sourceRelPath);
                 continue;
             }

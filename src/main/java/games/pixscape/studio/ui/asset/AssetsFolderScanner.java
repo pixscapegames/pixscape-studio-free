@@ -65,12 +65,11 @@ public final class AssetsFolderScanner {
             );
 
             if (isUserVisible(meta)) {
-                out.add(new AssetNode(
+                out.add(AssetNode.fromAssetMeta(
                         AssetNode.Kind.ANIMATION,
                         AssetNode.Root.ANIMATIONS,
                         folder.path,
-                        startDir.name(),
-                        null
+                        meta
                 ));
             }
         }
@@ -128,12 +127,11 @@ public final class AssetsFolderScanner {
                     );
 
                     if (isUserVisible(meta)) {
-                        out.add(new AssetNode(
+                        out.add(AssetNode.fromAssetMeta(
                                 AssetNode.Kind.ANIMATION,
                                 AssetNode.Root.ANIMATIONS,
                                 relDir,
-                                f.name(),
-                                null
+                                meta
                         ));
                     }
                 }
@@ -158,12 +156,11 @@ public final class AssetsFolderScanner {
 
                     if (!isUserVisible(meta)) continue;
 
-                    out.add(new AssetNode(
+                    out.add(AssetNode.fromAssetMeta(
                             AssetNode.Kind.IMAGE,
                             AssetNode.Root.IMAGES,
                             rel,
-                            f.name(),
-                            null
+                            meta
                     ));
                 }
 
@@ -177,12 +174,11 @@ public final class AssetsFolderScanner {
 
                     if (!isUserVisible(meta)) continue;
 
-                    out.add(new AssetNode(
+                    out.add(AssetNode.fromAssetMeta(
                             AssetNode.Kind.IMAGE,
                             AssetNode.Root.TILES,
                             rel,
-                            f.name(),
-                            null
+                            meta
                     ));
                 }
 
@@ -196,12 +192,11 @@ public final class AssetsFolderScanner {
 
                     if (!isUserVisible(meta)) continue;
 
-                    out.add(new AssetNode(
+                    out.add(AssetNode.fromAssetMeta(
                             AssetNode.Kind.PARTICLE,
                             AssetNode.Root.PARTICLES,
                             rel,
-                            f.nameWithoutExtension(),
-                            null
+                            meta
                     ));
                 }
             }

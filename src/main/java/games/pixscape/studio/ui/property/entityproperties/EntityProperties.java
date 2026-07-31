@@ -23,6 +23,10 @@ import java.util.List;
 
 public class EntityProperties extends VisTable {
 
+    static final String ENTITY_ID_LABEL = "ID:";
+    static final String ENTITY_ID_TOOLTIP = "Persistent ID of this entity.\n"
+            + "This is not an Asset ID or an ECS entity ID.";
+
     private final ComponentMapper<VisibilityComponent> mV;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
 
@@ -174,7 +178,12 @@ public class EntityProperties extends VisTable {
                 .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
                 .row();
 
-        header.add(new VisLabel("Internal ID:")).width(CommonLayout.LABEL_WIDTH).left();
+        VisLabel entityIdLabel = new VisLabel(ENTITY_ID_LABEL);
+        Tooltip entityIdTooltip = new Tooltip.Builder(ENTITY_ID_TOOLTIP)
+                .target(entityIdLabel)
+                .build();
+        entityIdTooltip.setAppearDelayTime(0f);
+        header.add(entityIdLabel).width(CommonLayout.LABEL_WIDTH).left();
         header.add(entityIdValueLabel).colspan(2).left().row();
 
         header.add(new VisLabel("Name:")).width(CommonLayout.LABEL_WIDTH).left();
@@ -206,7 +215,7 @@ public class EntityProperties extends VisTable {
         syncScenePhysicsEnabled();
 
         PixscapeIdentityComponent identity = ctx.mIdentity.getSafe(entityId, null);
-        int stableId = (identity != null && identity.stableId > 0) ? identity.stableId : 0;
+        int stableId = displayedPersistentId(identity);
         entityIdValueLabel.setText(String.valueOf(stableId));
         icon.setDrawable(ctx.iconResolver.iconForEntity(entityId));
 
@@ -237,6 +246,10 @@ public class EntityProperties extends VisTable {
 
         updateSectionsVisibility();
         refreshTagsLabel();
+    }
+
+    static int displayedPersistentId(PixscapeIdentityComponent identity) {
+        return identity != null && identity.stableId > 0 ? identity.stableId : 0;
     }
 
     private void updateSectionsVisibility() {

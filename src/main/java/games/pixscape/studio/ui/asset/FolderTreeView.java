@@ -15,6 +15,7 @@ import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.studio.asset.TileAnimationProjectDefData;
 import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
+import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
@@ -123,7 +124,8 @@ public final class FolderTreeView extends VisTable {
                 tree,
                 projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS),
                 "Animations",
-                AssetNode.Root.ANIMATIONS
+                AssetNode.Root.ANIMATIONS,
+                AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON))
         );
 
         addPrefabsNode();

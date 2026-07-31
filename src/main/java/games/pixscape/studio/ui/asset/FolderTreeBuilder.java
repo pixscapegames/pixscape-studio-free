@@ -4,6 +4,11 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTree;
+import games.pixscape.studio.asset.AssetDisplayInfo;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.io.StudioFs;
 
 public final class FolderTreeBuilder {
 
@@ -22,7 +27,24 @@ public final class FolderTreeBuilder {
         tree.add(rootNode);
         tree.getSelection().add(rootNode);
 
-        buildRecursive(rootDir, rootDir, rootNode, root);
+        buildRecursive(rootDir, rootDir, rootNode, root, null);
+        return rootNode;
+    }
+
+    public static VisTree.Node buildFolders(
+            VisTree tree,
+            FileHandle rootDir,
+            String rootLabel,
+            AssetNode.Root root,
+            AssetMetaDatabase assetDb
+    ) {
+        if (rootDir == null || !rootDir.exists() || !rootDir.isDirectory()) return null;
+
+        VisTree.Node rootNode = createRootNode(rootLabel, root);
+        tree.add(rootNode);
+        tree.getSelection().add(rootNode);
+
+        buildRecursive(rootDir, rootDir, rootNode, root, assetDb);
         return rootNode;
     }
 
@@ -37,7 +59,7 @@ public final class FolderTreeBuilder {
         VisTree.Node rootNode = createRootNode(rootLabel, root);
         parent.add(rootNode);
 
-        buildRecursive(rootDir, rootDir, rootNode, root);
+        buildRecursive(rootDir, rootDir, rootNode, root, null);
         return rootNode;
     }
 
@@ -61,7 +83,8 @@ public final class FolderTreeBuilder {
             FileHandle rootDir,
             FileHandle currentDir,
             VisTree.Node parent,
-            AssetNode.Root root
+            AssetNode.Root root,
+            AssetMetaDatabase assetDb
     ) {
         for (FileHandle child : currentDir.list()) {
 
@@ -78,6 +101,17 @@ public final class FolderTreeBuilder {
                     child.name(),
                     null
             );
+
+            if (root == AssetNode.Root.ANIMATIONS && assetDb != null) {
+                AssetMeta meta = assetDb.findUniqueBySourceRelPath(
+                        StudioFs.DIR_ORIG_ANIMATIONS + "/" + relPath,
+                        AssetType.ANIMATION
+                );
+                if (meta != null && meta.isUserVisible()) {
+                    // This remains a navigation folder, so it deliberately has no Asset ID.
+                    data.name = AssetDisplayInfo.from(meta).displayName();
+                }
+            }
 
             // -------------------------------------------------
             // Tiles : detect tile size
@@ -108,7 +142,7 @@ public final class FolderTreeBuilder {
             label.setUserObject(data);
             parent.add(node);
 
-            buildRecursive(rootDir, child, node, root);
+            buildRecursive(rootDir, child, node, root, assetDb);
         }
     }
 

@@ -130,16 +130,16 @@ public final class SceneService {
     }
 
     public AnimationAssetMeta findAnimationAssetMetaBySourceRelPath(String sourceRelPath) {
-        if (sourceRelPath == null || sourceRelPath.isBlank()) return null;
-        ensureAssetMetaDatabaseLoaded();
-
-        AssetMeta meta = assetMetaDatabase != null
-                ? assetMetaDatabase.findUniqueBySourceRelPath(
-                        sourceRelPath,
-                        AssetType.ANIMATION
-                )
-                : null;
+        AssetMeta meta = findAssetMetaBySourceRelPath(sourceRelPath, AssetType.ANIMATION);
         return meta instanceof AnimationAssetMeta animation ? animation : null;
+    }
+
+    public AssetMeta findAssetMetaBySourceRelPath(String sourceRelPath, AssetType type) {
+        if (sourceRelPath == null || sourceRelPath.isBlank() || type == null) return null;
+        ensureAssetMetaDatabaseLoaded();
+        return assetMetaDatabase != null
+                ? assetMetaDatabase.findUniqueBySourceRelPath(sourceRelPath, type)
+                : null;
     }
 
     public void saveAnimationAssetClips(String sourceRelPath,
@@ -515,8 +515,9 @@ public final class SceneService {
     }
 
     public AssetMeta getAssetMeta(int assetId) {
-        if (assetMetaDatabase == null || assetId <= 0) return null;
-        return assetMetaDatabase.findById(assetId);
+        if (assetId <= 0) return null;
+        ensureAssetMetaDatabaseLoaded();
+        return assetMetaDatabase != null ? assetMetaDatabase.findById(assetId) : null;
     }
 
     // ---------------------------------------------------------------------
