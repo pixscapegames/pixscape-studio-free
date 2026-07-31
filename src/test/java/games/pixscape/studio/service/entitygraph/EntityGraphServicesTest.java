@@ -1,19 +1,15 @@
 package games.pixscape.studio.service.entitygraph;
 
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.World;
-import com.artemis.WorldConfiguration;
-import com.artemis.WorldConfigurationBuilder;
+import com.artemis.*;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;

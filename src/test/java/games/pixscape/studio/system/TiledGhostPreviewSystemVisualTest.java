@@ -14,9 +14,7 @@ import org.junit.Test;
 
 import static games.pixscape.studio.service.asset.VisualResolverTestSupport.binding;
 import static games.pixscape.studio.service.asset.VisualResolverTestSupport.texture;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
+import static org.junit.Assert.*;
 
 public class TiledGhostPreviewSystemVisualTest {
 

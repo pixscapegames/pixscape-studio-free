@@ -8,19 +8,9 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetAssetMeta;
-import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.ImageCollectionTileSource;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImageCollectionImportRequest;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.*;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,12 +21,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class TilesetAssetImportServiceTest {
 

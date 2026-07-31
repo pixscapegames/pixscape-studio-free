@@ -1,9 +1,6 @@
 package games.pixscape.studio.ui.layer;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -14,8 +11,6 @@ import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;

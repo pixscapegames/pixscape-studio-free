@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.badlogic.gdx.utils.IntSet;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;

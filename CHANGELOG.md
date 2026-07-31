@@ -22,6 +22,15 @@
 * Spatial Block edits and pixels-per-meter changes now recompile linked collisions at commit or activation boundaries.
 * Deleting a Spatial Block now removes its linked collision atomically; undo restores both with the same physics shape identity.
 
+### Improved
+
+* Indexed Studio asset metadata by asset ID, logical path and source ownership.
+* Migrated Studio atlas resolution paths to the Runtime asset binding index instead of repeatedly scanning atlas regions.
+* Centralized atlas and standalone visual resolution for sprites, animations, tiled fallback rendering, tiled ghost previews and render rebinds.
+* Cached particle atlas readiness so each particle effect is probed once per atlas publication instead of once per emitter and per frame.
+* Tiled fallback rendering now runs only while standalone tile visuals are required, then disables itself until a relevant scene, asset, animation or atlas change requests revalidation.
+* Reduced repeated asset metadata loading and duplicated atlas/standalone resolution during repacks, scene changes and undo/redo operations.
+
 ### Fixed
 
 * Prevented failed physics and Spatial operations from publishing partial state or incorrectly advancing history.
@@ -29,10 +38,14 @@
 * Fixed linked collision activation and scene loading when a tiled layer initially has no transform.
 * Fixed prefab and clipboard instantiation so physics shapes receive fresh identities and joint references remain valid.
 * Prevented asynchronous save failures from leaving the save-progress dialog open indefinitely.
+* Fixed editor camera stutters caused by particle fallback effects being repeatedly loaded and disposed during rendering.
+* Fixed asset metadata replacement sharing mutable state between databases and producing inconsistent source-owner ordering.
 
 ### Tests
 
 * Expanded regression coverage for physics authoring, persistence, history, prefabs, joints and linked Spatial collisions.
+* Added regression coverage for indexed asset metadata, Runtime atlas bindings, centralized visual resolution, particle fallback readiness and tiled fallback gating.
+* Revalidated the Studio against the Runtime asset index changes with forced GWT compilation.
 
 
 ## 0.2.1 - TMX Import and Spatial V3

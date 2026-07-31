@@ -7,7 +7,6 @@ import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
-import games.pixscape.runtime.service.PhysicsService;
 import org.junit.Assert;
 import org.junit.Test;
 

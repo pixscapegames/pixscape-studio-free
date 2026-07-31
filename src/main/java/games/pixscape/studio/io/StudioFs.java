@@ -4,8 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.configuration.ProjectConfig;
 
-import java.util.Locale;
 import java.nio.file.Paths;
+import java.util.Locale;
 
 public final class StudioFs {
 

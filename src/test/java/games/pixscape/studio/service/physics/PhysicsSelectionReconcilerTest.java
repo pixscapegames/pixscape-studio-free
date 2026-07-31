@@ -8,10 +8,8 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
-import games.pixscape.runtime.physics.PhysicsBodyCompiler;
-import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
-import games.pixscape.runtime.service.PhysicsCompiledFixtureCachePublisher;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.event.EventFlow;
 import org.junit.Assert;
 import org.junit.Test;

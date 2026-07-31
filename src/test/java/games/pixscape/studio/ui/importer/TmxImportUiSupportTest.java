@@ -1,11 +1,7 @@
 package games.pixscape.studio.ui.importer;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.studio.importer.tmx.TmxDiagnostic;
-import games.pixscape.studio.importer.tmx.TmxDiagnosticSeverity;
-import games.pixscape.studio.importer.tmx.TmxImportPlanStatus;
-import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
-import games.pixscape.studio.importer.tmx.TmxSceneImportStatus;
+import games.pixscape.studio.importer.tmx.*;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
 
@@ -15,10 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class TmxImportUiSupportTest {
 

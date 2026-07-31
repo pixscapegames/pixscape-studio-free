@@ -1,10 +1,6 @@
 package games.pixscape.studio.service.physics;
 
-import games.pixscape.runtime.physics.PolygonBuildResult;
-import games.pixscape.runtime.physics.PolygonDecomposer;
-import games.pixscape.runtime.physics.PolygonPartData;
-import games.pixscape.runtime.physics.PolygonValidationResult;
-import games.pixscape.runtime.physics.PolygonValidator;
+import games.pixscape.runtime.physics.*;
 import org.junit.Assert;
 import org.junit.Test;
 

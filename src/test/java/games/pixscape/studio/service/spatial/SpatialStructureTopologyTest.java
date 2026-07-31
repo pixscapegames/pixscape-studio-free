@@ -3,7 +3,6 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.history.commands.SpatialBlockCommandSupport;
 import org.junit.Assert;
 import org.junit.Test;
 

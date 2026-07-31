@@ -2,10 +2,10 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.LayerService;
 import org.junit.Assert;
 import org.junit.Test;
 

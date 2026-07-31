@@ -1,13 +1,6 @@
 package games.pixscape.studio.system;
 
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
-
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.World;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -26,17 +19,17 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PolygonBuildResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.physics.PolygonBuildResult;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -50,16 +43,7 @@ import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.*;
-import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
-import games.pixscape.studio.service.spatial.SpatialBlockPicking;
-import games.pixscape.studio.service.spatial.SpatialBlockProjection;
-import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
-import games.pixscape.studio.service.spatial.SpatialCellPicker;
-import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
-import games.pixscape.studio.service.spatial.SpatialWallCreationService;
-import games.pixscape.studio.service.spatial.SpatialStructureTopology;
-import games.pixscape.studio.service.spatial.SpatialWallEditSession;
-import games.pixscape.studio.service.spatial.SpatialPointerInteraction;
+import games.pixscape.studio.service.spatial.*;
 
 import java.util.Objects;
 

@@ -11,13 +11,7 @@ import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetAssetMeta;
-import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
 import org.junit.After;
@@ -25,9 +19,7 @@ import org.junit.Test;
 
 import static games.pixscape.studio.service.asset.VisualResolverTestSupport.binding;
 import static games.pixscape.studio.service.asset.VisualResolverTestSupport.texture;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TiledFallbackSystemGateTest {
 

@@ -1,8 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.SelectionService;

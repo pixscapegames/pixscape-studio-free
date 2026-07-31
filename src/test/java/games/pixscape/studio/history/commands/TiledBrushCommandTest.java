@@ -1,17 +1,17 @@
 package games.pixscape.studio.history.commands;
 
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;

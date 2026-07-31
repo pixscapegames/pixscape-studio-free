@@ -1,6 +1,5 @@
 package games.pixscape.studio.history.commands;
 
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -8,6 +7,7 @@ import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;

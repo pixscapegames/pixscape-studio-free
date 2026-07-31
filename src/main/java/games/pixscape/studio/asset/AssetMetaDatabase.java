@@ -1,12 +1,7 @@
 package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.Json;
-import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.JsonWriter;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.io.StudioIO;

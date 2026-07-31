@@ -1,20 +1,12 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /** Deterministic authored-wall connectivity, merge, split, and validation service. */
 public final class SpatialStructureTopology {

@@ -1,6 +1,5 @@
 package games.pixscape.studio.history.initializer;
 
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
@@ -9,6 +8,7 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

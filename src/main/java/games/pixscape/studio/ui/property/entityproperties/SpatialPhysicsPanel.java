@@ -1,12 +1,12 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditSpatialHeightCommand;

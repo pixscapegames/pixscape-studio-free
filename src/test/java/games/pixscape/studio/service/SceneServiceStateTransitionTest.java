@@ -1,12 +1,12 @@
 package games.pixscape.studio.service;
 
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import com.badlogic.gdx.files.FileHandle;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.spatial.SpatialBlockData;
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Test;

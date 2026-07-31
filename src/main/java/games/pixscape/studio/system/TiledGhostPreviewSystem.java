@@ -19,8 +19,8 @@ import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.service.asset.StudioAssetVisual;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
-import games.pixscape.studio.service.tiled.TiledPreviewService;
 import games.pixscape.studio.service.tiled.TiledBrushSession;
+import games.pixscape.studio.service.tiled.TiledPreviewService;
 
 import java.util.Objects;
 import java.util.function.IntFunction;

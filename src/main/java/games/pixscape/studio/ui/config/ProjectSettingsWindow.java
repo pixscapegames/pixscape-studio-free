@@ -14,9 +14,9 @@ import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.ProjectRenameService;
 import games.pixscape.studio.configuration.RuntimeExportPaths;
+import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.RecentProjectsService;
 import games.pixscape.studio.service.SceneService;
-import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 
 import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;

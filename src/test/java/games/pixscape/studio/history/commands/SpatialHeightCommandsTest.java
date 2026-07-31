@@ -1,8 +1,8 @@
 package games.pixscape.studio.history.commands;
 
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
 import org.junit.Test;

@@ -14,10 +14,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.CreateLayerCommand;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class LayerServiceLightParallaxTest {
 
