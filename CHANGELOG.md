@@ -7,6 +7,7 @@
 * Replaced the legacy Studio physics authoring model with persistent Runtime physics shapes.
 * Existing physics scenes and prefabs using the previous schema must be recreated or re-exported.
 * Pixscape Studio Free 0.2.2 requires Pixscape Runtime 0.1.9.
+* Particle emitters now use `Transform.x/y` directly as their position. Legacy particle local-space and transform-origin behavior is no longer preserved.
 
 ### Added
 
@@ -21,6 +22,10 @@
 * Linked fixture geometry is read-only, while material, sensor, filter and enabled properties remain editable.
 * Spatial Block edits and pixels-per-meter changes now recompile linked collisions at commit or activation boundaries.
 * Deleting a Spatial Block now removes its linked collision atomically; undo restores both with the same physics shape identity.
+* Particle entities now use a dedicated fixed-size viewport marker instead of rectangular dimensions, bounds, resize handles and rotation handles.
+* Particle Transform properties now expose only X and Y, which directly represent the emitter position.
+* Polygon authoring vertices are now displayed as circular handles while resize and Spatial handles remain square.
+* Asset labels, tooltips and default entity names now use logical asset names and distinguish Asset IDs from entity stable IDs.
 
 ### Improved
 
@@ -40,12 +45,18 @@
 * Prevented asynchronous save failures from leaving the save-progress dialog open indefinitely.
 * Fixed editor camera stutters caused by particle fallback effects being repeatedly loaded and disposed during rendering.
 * Fixed asset metadata replacement sharing mutable state between databases and producing inconsistent source-owner ordering.
+* Fixed particle selection, hover, dragging and lasso behavior so they consistently use the emitter position instead of synthetic rectangular bounds.
+* Scene switching now prompts to Save, Don't Save or Cancel when the current scene has unsaved changes.
+* Scene changes now wait for a successful visible save before loading the target scene, and restore the selector after cancellation or failure.
+* Removed the silent automatic scene save previously performed when selecting another scene.
 
 ### Tests
 
 * Expanded regression coverage for physics authoring, persistence, history, prefabs, joints and linked Spatial collisions.
 * Added regression coverage for indexed asset metadata, Runtime atlas bindings, centralized visual resolution, particle fallback readiness and tiled fallback gating.
 * Revalidated the Studio against the Runtime asset index changes with forced GWT compilation.
+* Added regression coverage for asset identity presentation, particle composition, marker picking, transform editing, drag history, lasso behavior and polygon handles.
+* Added regression coverage for the shared unsaved-scene decision flow and scene-switch Save, Don't Save, Cancel and failure handling.
 
 
 ## 0.2.1 - TMX Import and Spatial V3
