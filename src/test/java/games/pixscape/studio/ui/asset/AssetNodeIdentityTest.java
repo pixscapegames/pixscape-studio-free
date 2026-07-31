@@ -54,7 +54,7 @@ public class AssetNodeIdentityTest {
     }
 
     @Test
-    public void metadataTooltipContainsOnlyTheThreeIdentityFields() {
+    public void metadataTooltipContainsOnlyNameAndId() {
         AssetNode node = synthetic(AssetNode.Kind.IMAGE, AssetNode.Root.IMAGES, "physical.png")
                 .applyAssetMeta(new ImageAssetMeta(
                         290,
@@ -64,9 +64,10 @@ public class AssetNodeIdentityTest {
                 ));
 
         assertEquals(
-                "Asset name: tux\nAsset ID: 290\nSource: orig/images/tux__a290.png",
+                "Name: tux\nID: 290",
                 node.tooltipText()
         );
+        assertFalse(node.tooltipText().contains("Source"));
         assertFalse(node.tooltipText().contains("Type"));
     }
 
