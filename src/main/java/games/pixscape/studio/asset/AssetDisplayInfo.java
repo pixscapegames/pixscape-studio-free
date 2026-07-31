@@ -25,9 +25,8 @@ public record AssetDisplayInfo(String displayName, int assetId, String sourcePat
     }
 
     public String tooltipText() {
-        return "Asset name: " + displayName
-                + "\nAsset ID: " + assetId
-                + "\nSource: " + sourcePath;
+        return "Name: " + displayName
+                + "\nID: " + assetId;
     }
 
     public static String defaultEntityName(String requestedName,
