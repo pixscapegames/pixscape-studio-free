@@ -33,6 +33,7 @@ import games.pixscape.studio.helper.*;
 import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
@@ -42,7 +43,7 @@ import games.pixscape.studio.service.tiled.TiledVisualCoverage;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
-@All({TransformComponent.class, DimensionsComponent.class})
+@All({TransformComponent.class})
 public final class GizmoSystem extends BaseSystem {
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
 
@@ -65,6 +66,7 @@ public final class GizmoSystem extends BaseSystem {
     private int spatialHandleRevision = -1;
     private final TiledPreviewService tiledPreviewService;
     private final PhysicsShapeData tmpAuthoringFixture = new PhysicsShapeData();
+    private final ParticleOverlayVisual particleOverlayVisual = new ParticleOverlayVisual();
 
     private boolean lassoVisible = false;
     private float lassoX0, lassoY0, lassoX1, lassoY1;
@@ -107,6 +109,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<PhysicsGearJointComponent> mGear;
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
+    private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
 
@@ -256,6 +259,12 @@ public final class GizmoSystem extends BaseSystem {
             if (entityGizmoEnabled && !physicsEditMode) {
                 for (int e : selected) {
                     if (mJoint.has(e)) continue;
+                    if (isParticleEntity(e)) {
+                        if (!isEntityVisibleForGizmo(e)) continue;
+                        TransformComponent transform = mT.getSafe(e, null);
+                        if (transform != null) particleOverlayVisual.draw(ctx, transform, false);
+                        continue;
+                    }
 
                     if (mOBB.has(e)) {
                         if (isLightEntity(e)) continue;
@@ -287,7 +296,7 @@ public final class GizmoSystem extends BaseSystem {
         if (isSelectedEntity(hoveredEntityId)) return false;
         if (mJoint.has(hoveredEntityId)) return false;
         if (isLightEntity(hoveredEntityId)) return false;
-        if (!mOBB.has(hoveredEntityId)) return false;
+        if (!isParticleEntity(hoveredEntityId) && !mOBB.has(hoveredEntityId)) return false;
 
         return isEntityVisibleForGizmo(hoveredEntityId);
     }
@@ -1042,6 +1051,7 @@ public final class GizmoSystem extends BaseSystem {
             boolean firstPoint = (i == 0);
             boolean closable = firstPoint && polygonDrawSession.canClose();
 
+            Color pointColor;
             if (closable) {
                 float closeRadiusWorld = HandleHelper.pxToWorld(
                         ctx.cam,
@@ -1053,15 +1063,15 @@ public final class GizmoSystem extends BaseSystem {
                 boolean nearClose = dx * dx + dy * dy <= closeRadiusWorld * closeRadiusWorld;
 
                 if (nearClose) {
-                    ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
+                    pointColor = EditorOverlayPalette.PHYSICS_SELECTED_COLOR;
                 } else {
-                    ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
+                    pointColor = EditorOverlayPalette.PHYSICS_HOVER_COLOR;
                 }
             } else {
-                ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_HOVER_COLOR);
+                pointColor = EditorOverlayPalette.PHYSICS_HOVER_COLOR;
             }
 
-            GizmoDrawHelper.drawShapeVertexHandle(ctx, p.x, p.y);
+            GizmoDrawHelper.drawPolygonVertexHandle(ctx, p.x, p.y, pointColor);
         }
     }
 
@@ -1186,7 +1196,7 @@ public final class GizmoSystem extends BaseSystem {
 
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
 
-        GizmoDrawHelper.drawShapeVertices(ctx, tmpFixtureVerts, vertexCount);
+        GizmoDrawHelper.drawPolygonVertices(ctx, tmpFixtureVerts, vertexCount);
     }
 
     private boolean jointTouchesBody(PhysicsJointComponent base, int bodyEid) {
@@ -1646,6 +1656,12 @@ public final class GizmoSystem extends BaseSystem {
         if (isSelectedEntity(hoveredEntityId)) return;
         if (mJoint.has(hoveredEntityId)) return;
         if (isLightEntity(hoveredEntityId)) return;
+        if (isParticleEntity(hoveredEntityId)) {
+            if (!isEntityVisibleForGizmo(hoveredEntityId)) return;
+            TransformComponent transform = mT.getSafe(hoveredEntityId, null);
+            if (transform != null) particleOverlayVisual.draw(ctx, transform, true);
+            return;
+        }
         if (!mOBB.has(hoveredEntityId)) return;
         if (!isEntityVisibleForGizmo(hoveredEntityId)) return;
 
@@ -1815,6 +1831,10 @@ public final class GizmoSystem extends BaseSystem {
     private boolean isLightEntity(int e) {
         return (mPointLight != null && mPointLight.has(e))
                 || (mConeLight != null && mConeLight.has(e));
+    }
+
+    private boolean isParticleEntity(int e) {
+        return mParticle != null && mParticle.has(e);
     }
 
     private SceneMeta currentSceneMeta() {

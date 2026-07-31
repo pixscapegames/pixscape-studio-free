@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import org.junit.Test;
@@ -15,6 +16,26 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 public class StudioParticleFallbackReadinessTest {
+
+    @Test
+    public void fallbackPositionsAtTransformIgnoringOriginAndFollowsChanges() {
+        CapturingParticleEffect effect = new CapturingParticleEffect();
+        TransformComponent transform = new TransformComponent();
+        transform.x = 7f;
+        transform.y = 9f;
+        transform.originX = 100f;
+        transform.originY = 200f;
+
+        StudioParticleFallbackSystem.positionEffect(effect, transform);
+        assertEquals(7f, effect.x, 0f);
+        assertEquals(9f, effect.y, 0f);
+
+        transform.x = -2f;
+        transform.y = 3f;
+        StudioParticleFallbackSystem.positionEffect(effect, transform);
+        assertEquals(-2f, effect.x, 0f);
+        assertEquals(3f, effect.y, 0f);
+    }
 
     @Test
     public void changingEffectsRootInvalidatesReadiness() {
@@ -139,6 +160,17 @@ public class StudioParticleFallbackReadinessTest {
         @Override
         public TextureAtlas getAtlas(String tag) {
             return atlas;
+        }
+    }
+
+    private static final class CapturingParticleEffect extends ParticleEffect {
+        float x;
+        float y;
+
+        @Override
+        public void setPosition(float x, float y) {
+            this.x = x;
+            this.y = y;
         }
     }
 }

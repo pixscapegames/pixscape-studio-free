@@ -41,6 +41,7 @@ import games.pixscape.studio.input.InputManipulationContext;
 import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.*;
 import games.pixscape.studio.service.spatial.*;
@@ -68,6 +69,8 @@ public final class PickingSystem extends BaseSystem {
     private final PolygonDrawSession polygonDrawSession;
     private PhysicsPolygonAuthoringService polygonAuthoringService;
     private PhysicsFixturePickingService fixturePickingService;
+    private EntitySubscription selectableObbSubscription;
+    private EntitySubscription particleSubscription;
 
     private ComponentMapper<OrientedBoundsComponent> mOBB;
     private ComponentMapper<VisibilityComponent> mVis;
@@ -81,6 +84,7 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<PhysicsGearJointComponent> mGear;
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
+    private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
 
@@ -95,6 +99,7 @@ public final class PickingSystem extends BaseSystem {
     private static final float JOINT_PICK_TOL_PX = 6f;
     private static final float LIGHT_ICON_SIZE_PX = 24f;
     private static final float LIGHT_PICK_TOL_PX = 4f;
+    static final float PARTICLE_PICK_TOL_PX = 3f;
 
     private boolean translatingActive = false;
     private final Vector2 oldDrag = new Vector2();
@@ -264,6 +269,19 @@ public final class PickingSystem extends BaseSystem {
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
         this.fixturePickingService = new PhysicsFixturePickingService(physicsService);
+    }
+
+    @Override
+    protected void initialize() {
+        selectableObbSubscription = world.getAspectSubscriptionManager().get(
+                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
+                        .exclude(PointLightComponent.class, ConeLightComponent.class,
+                                ParticleEmitterComponent.class)
+        );
+        particleSubscription = world.getAspectSubscriptionManager().get(
+                Aspect.all(ParticleEmitterComponent.class, TransformComponent.class,
+                        VisibilityComponent.class)
+        );
     }
 
     @Override
@@ -2372,12 +2390,7 @@ public final class PickingSystem extends BaseSystem {
 
         IntArray hits = new IntArray();
 
-        EntitySubscription sub = world.getAspectSubscriptionManager().get(
-                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
-                        .exclude(PointLightComponent.class, ConeLightComponent.class)
-        );
-
-        IntBag bag = sub.getEntities();
+        IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
         for (int i = 0, n = bag.size(); i < n; i++) {
@@ -2392,6 +2405,18 @@ public final class PickingSystem extends BaseSystem {
             float cy = (obb[1] + obb[5]) * 0.5f;
 
             if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
+                hits.add(e);
+            }
+        }
+
+        IntBag particleBag = particleSubscription.getEntities();
+        int[] particleData = particleBag.getData();
+        for (int i = 0, n = particleBag.size(); i < n; i++) {
+            int e = particleData[i];
+            if (!isSelectableInViewport(e)) continue;
+            TransformComponent transform = mT.getSafe(e, null);
+            if (transform != null && isPointInsideLasso(
+                    transform.x, transform.y, minX, minY, maxX, maxY)) {
                 hits.add(e);
             }
         }
@@ -2789,11 +2814,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private Integer findTopmostObbHit(float mouseX, float mouseY) {
-        EntitySubscription sub = world.getAspectSubscriptionManager().get(
-                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
-                        .exclude(PointLightComponent.class, ConeLightComponent.class)
-        );
-        IntBag bag = sub.getEntities();
+        IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
         float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
@@ -2825,7 +2846,55 @@ public final class PickingSystem extends BaseSystem {
             }
         }
 
+        IntBag particleBag = particleSubscription.getEntities();
+        int[] particleData = particleBag.getData();
+        float particleRadius = particleMarkerHitRadiusWorld(worldCam);
+        float particleRadius2 = particleRadius * particleRadius;
+        for (int i = 0, n = particleBag.size(); i < n; i++) {
+            int e = particleData[i];
+            if (!isSelectableInViewport(e)) continue;
+            TransformComponent transform = mT.getSafe(e, null);
+            if (transform == null || !isParticleMarkerHit(
+                    mouseX, mouseY, transform.x, transform.y, particleRadius2)) continue;
+
+            int layerIndex = mEntityIndex != null && mEntityIndex.has(e)
+                    ? mEntityIndex.get(e).getLayerIndex() : 0;
+            int z = mEntityIndex != null && mEntityIndex.has(e)
+                    ? mEntityIndex.get(e).getZIndex() : 0;
+            if (isBetterHit(bestEntity, bestLayerIndex, bestZIndex, e, layerIndex, z)) {
+                bestEntity = e;
+                bestLayerIndex = layerIndex;
+                bestZIndex = z;
+            }
+        }
+
         return bestEntity;
+    }
+
+    static float particleMarkerHitRadiusWorld(OrthographicCamera camera) {
+        return particleMarkerHitRadiusWorld(HandleHelper.worldUnitsPerPixel(camera));
+    }
+
+    static float particleMarkerHitRadiusWorld(float worldUnitsPerPixel) {
+        return (ParticleOverlayVisual.MARKER_SIZE_PX * 0.5f + PARTICLE_PICK_TOL_PX)
+                * worldUnitsPerPixel;
+    }
+
+    static boolean isParticleMarkerHit(float mouseX,
+                                       float mouseY,
+                                       float emitterX,
+                                       float emitterY,
+                                       float radiusSquared) {
+        return dst2(mouseX, mouseY, emitterX, emitterY) <= radiusSquared;
+    }
+
+    static boolean isPointInsideLasso(float x,
+                                      float y,
+                                      float minX,
+                                      float minY,
+                                      float maxX,
+                                      float maxY) {
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
     }
 
     private Integer findTopmostJointHit(float mouseX, float mouseY) {
@@ -3063,7 +3132,9 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private InputManipulationContext.Handle detectHandleHover(int entityId, float mx, float my) {
-        if (isLightEntity(entityId)) return InputManipulationContext.Handle.NONE;
+        if (isLightEntity(entityId) || isParticleEntity(entityId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
         float[] obb = computeOBBWorldCorners(entityId);
         if (obb == null) return InputManipulationContext.Handle.NONE;
 
@@ -3197,6 +3268,10 @@ public final class PickingSystem extends BaseSystem {
     private boolean isLightEntity(int entityId) {
         return (mPointLight != null && mPointLight.has(entityId))
                 || (mConeLight != null && mConeLight.has(entityId));
+    }
+
+    private boolean isParticleEntity(int entityId) {
+        return mParticle != null && mParticle.has(entityId);
     }
 
     private float[] computeOBBWorldCorners(int e) {

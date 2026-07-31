@@ -4,6 +4,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.ui.main.WorldCanvas;
@@ -92,6 +93,22 @@ public class AlignServiceTest {
         assertEquals(0f, mt.get(a).y, 0.0001f);
         assertEquals(4f, mt.get(b).y, 0.0001f);
         assertEquals(7f, mt.get(c).y, 0.0001f);
+    }
+
+    @Test
+    public void legacyProxyBearingParticleRemainsIneligibleForAlignment() throws Exception {
+        World world = new World(new WorldConfiguration());
+        SelectionService selection = new SelectionService(world, null);
+        HistoryManager history = new HistoryManager(32);
+        int reference = createRect(world, 10f, 0f, 20f, 10f);
+        int particle = createRect(world, 40f, 0f, 8f, 8f);
+        world.getMapper(ParticleEmitterComponent.class).create(particle);
+        selection.selectOnly(reference);
+        selection.selectAdd(particle);
+
+        new AlignService(buildCanvas(world, selection, history)).alignLeft();
+
+        assertEquals(40f, world.getMapper(TransformComponent.class).get(particle).x, 0f);
     }
 
     private static int createRect(World world, float x, float y, float w, float h) {

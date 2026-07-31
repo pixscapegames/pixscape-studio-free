@@ -12,7 +12,6 @@ import java.util.List;
 public final class ChangeParticleFlagsCommand implements Command, HistoryManager.SupportsNoop {
 
     public static final class Snapshot {
-        public boolean localSpace;
         public boolean autoStart;
         public boolean looping;
         public boolean paused;
@@ -21,7 +20,6 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
 
         public static Snapshot of(ParticleEmitterComponent c) {
             Snapshot s = new Snapshot();
-            s.localSpace = c.localSpace;
             s.autoStart = c.autoStart;
             s.looping = c.looping;
             s.paused = c.paused;
@@ -32,8 +30,7 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
 
         public boolean equalsState(Snapshot o) {
             if (o == null) return false;
-            return localSpace == o.localSpace
-                    && autoStart == o.autoStart
+            return autoStart == o.autoStart
                     && looping == o.looping
                     && paused == o.paused
                     && playRequested == o.playRequested
@@ -90,7 +87,6 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
             if (emitter == null) continue;
 
             Snapshot s = toBefore ? entry.before : entry.after;
-            emitter.localSpace = s.localSpace;
             emitter.autoStart = s.autoStart;
             emitter.looping = s.looping;
             emitter.paused = s.paused;

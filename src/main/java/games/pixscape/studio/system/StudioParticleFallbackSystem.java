@@ -206,9 +206,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 if (comp.autoStart) fx.start();
             }
 
-            if (comp.localSpace) {
-                fx.setPosition(t.x + t.originX, t.y + t.originY);
-            }
+            positionEffect(fx, t);
 
             if (comp.restartRequested) {
                 fx.reset(true, true);
@@ -238,6 +236,10 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                     ov
             );
         }
+    }
+
+    static void positionEffect(ParticleEffect effect, TransformComponent transform) {
+        effect.setPosition(transform.x, transform.y);
     }
 
     private boolean isReadyInAtlas(ParticleEmitterComponent emitter) {

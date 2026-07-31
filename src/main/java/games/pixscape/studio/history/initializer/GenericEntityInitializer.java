@@ -71,7 +71,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected boolean hasParticleEmitter;
     protected String particleEffectPath;
     protected String particleAtlasTag;
-    protected boolean particleLocalSpace;
     protected boolean particleAutoStart;
     protected boolean particleLooping;
 
@@ -279,14 +278,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             hasParticleEmitter = true;
             particleEffectPath = p.effectPath;
             particleAtlasTag = p.atlasTag;
-            particleLocalSpace = p.localSpace;
             particleAutoStart = p.autoStart;
             particleLooping = p.looping;
         } else {
             hasParticleEmitter = false;
             particleEffectPath = null;
             particleAtlasTag = null;
-            particleLocalSpace = true;
             particleAutoStart = true;
             particleLooping = true;
         }
@@ -604,7 +601,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                     mPE.has(e) ? mPE.get(e) : mPE.create(e);
             p.effectPath = particleEffectPath;
             p.atlasTag = particleAtlasTag;
-            p.localSpace = particleLocalSpace;
             p.autoStart = particleAutoStart;
             p.looping = particleLooping;
         }
@@ -1331,7 +1327,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     /**
      * Configures a particle emitter entity based on a .p file.
-     * No TextureRegion / Dimensions / RenderMaterial here: ParticleEffect handles everything.
+     * The entity contains common identity/index/history state, Transform,
+     * Visibility and ParticleEmitter only. Particle effects use Transform.x/y
+     * directly and have no rectangular render or interaction proxy.
      */
     public GenericEntityInitializer configureParticleEmitter(
             String effectPath,
@@ -1341,7 +1339,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             int layerIndex,
             String identityName
     ) {
-        // Transform de base
         this.hasTransform = true;
         this.trX = worldX;
         this.trY = worldY;
@@ -1351,12 +1348,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.trOriginX = 0f;
         this.trOriginY = 0f;
 
-        this.hasDimensions = true;
-        this.dimHeight = 50f;
-        this.dimWidth = 50f;
-
-        this.hasAabb = true;
-        this.hasObb = true;
+        this.hasDimensions = false;
+        this.hasAabb = false;
+        this.hasObb = false;
+        this.hasAssetRef = false;
+        this.hasTextureRegion = false;
+        this.hasRenderMaterial = false;
 
         // EntityIndex + meta
         this.hasEntityIndex = true;
@@ -1378,7 +1375,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.hasParticleEmitter = true;
         this.particleEffectPath = effectPath;
         this.particleAtlasTag = atlasTag;
-        this.particleLocalSpace = true;
         this.particleAutoStart = true;
         this.particleLooping = true;
 
@@ -1608,7 +1604,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasParticleEmitter = this.hasParticleEmitter;
         copy.particleEffectPath = this.particleEffectPath;
         copy.particleAtlasTag = this.particleAtlasTag;
-        copy.particleLocalSpace = this.particleLocalSpace;
         copy.particleAutoStart = this.particleAutoStart;
         copy.particleLooping = this.particleLooping;
 
@@ -1775,8 +1770,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasVisibility = this.hasVisibility;
         copy.visible = this.visible;
 
-        copy.hasAabb = this.hasAabb;
-        copy.hasObb = this.hasObb;
+        copy.hasAabb = this.hasParticleEmitter ? false : this.hasAabb;
+        copy.hasObb = this.hasParticleEmitter ? false : this.hasObb;
+        if (this.hasParticleEmitter) {
+            copy.hasDimensions = false;
+            copy.hasAssetRef = false;
+            copy.hasTextureRegion = false;
+            copy.hasRenderMaterial = false;
+        }
 
         return copy;
     }
