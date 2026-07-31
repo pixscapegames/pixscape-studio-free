@@ -78,7 +78,7 @@ public final class SceneService {
     private final ResolvedSceneActivationPipeline sceneActivationPipeline;
     private AssetMetaDatabase assetMetaDatabase;
     private TileAnimationsMetaDatabase tileAnimationsMetaDatabase;
-    private boolean previewSaveRequired = false;
+    private boolean currentSceneSaveRequired = false;
 
     /**
      * Single panel for the global library (orig/images).
@@ -189,7 +189,7 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(assetsFile);
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
         refreshAssetsPanel();
     }
 
@@ -207,13 +207,16 @@ public final class SceneService {
     // PREVIEW
     // ---------------------------------------------------------------------
 
-    public void markPreviewSaveRequired() {
-        previewSaveRequired = true;
+    public void markCurrentSceneSaveRequired() {
+        currentSceneSaveRequired = true;
+    }
+
+    public boolean requiresSaveBeforeLeavingCurrentScene() {
+        return historyManager.isDirty() || currentSceneSaveRequired;
     }
 
     public boolean requiresSaveBeforePreview() {
-        return historyManager.isDirty()
-                || previewSaveRequired
+        return requiresSaveBeforeLeavingCurrentScene()
                 || isRuntimeExportMissingOrUnusableForPreview(ProjectConfig.getInstance());
     }
 
@@ -484,8 +487,8 @@ public final class SceneService {
         }
     }
 
-    private void clearPreviewSaveRequired() {
-        previewSaveRequired = false;
+    private void clearCurrentSceneSaveRequired() {
+        currentSceneSaveRequired = false;
     }
 
     // ---------------------------------------------------------------------
@@ -716,7 +719,7 @@ public final class SceneService {
         refreshAssetsPanel();
         sceneMetaBridge.pushCurrentSceneMetaToUI();
         app.getBottomBar().refreshSelectBox();
-        clearPreviewSaveRequired();
+        clearCurrentSceneSaveRequired();
         canvas.refreshProjectBoundServices();
         Gdx.graphics.setTitle(STUDIO_TITLE);
     }
@@ -965,14 +968,14 @@ public final class SceneService {
         Gdx.app.log("SceneManager", log);
         EventFlow.i().publish(new EventFlow.LogMessage(log));
         historyManager.markSaved();
-        clearPreviewSaveRequired();
+        clearCurrentSceneSaveRequired();
     }
 
     private void finishSaveWithScene(ProjectConfig cfg) {
         Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + ")");
         historyManager.markSaved();
         StudioLog.info("Project saved successfully");
-        clearPreviewSaveRequired();
+        clearCurrentSceneSaveRequired();
     }
 
     private void saveCurrentSceneOnly(ProjectConfig cfg) {
@@ -1400,7 +1403,7 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(assetsFile);
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
         StandaloneTextureCache.clear(true);
         canvas.invalidateStandaloneAssetVisuals();
 
@@ -1475,7 +1478,7 @@ public final class SceneService {
             return;
         }
 
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
         saveProjectFile(cfg);
 
         String canonicalTag = cfg.canonicalSceneTagCurrent();
@@ -1893,25 +1896,20 @@ public final class SceneService {
     // CHANGE / CREATE / DELETE SCENE
     // ---------------------------------------------------------------------
 
-    public void changeScene(String sceneName) {
+    public void changeSceneNow(String sceneName) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return;
-        if (sceneName == null || sceneName.isEmpty()) return;
+        if (sceneName == null || sceneName.isBlank()) return;
 
         String current = cfg.getCurrentSceneName();
         if (sceneName.equals(current)) return;
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         try {
-            if (current != null && !current.isEmpty() && historyManager.isDirty()) {
-                saveCurrentSceneOnly(cfg);
-            }
-
             cfg.setCurrentSceneByName(sceneName);
             saveProjectFile(cfg);
             loadScene(cfg, sceneName, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
-            markPreviewSaveRequired();
             StudioLog.info("Scene opened: " + sceneName);
         } catch (RuntimeException ex) {
             throw failAfterRollback(
@@ -2435,7 +2433,7 @@ public final class SceneService {
         TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
 
         reloadTileAnimationRegistryFromProjectData();
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
 
         return def.id;
     }
@@ -2471,7 +2469,7 @@ public final class SceneService {
         TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
         reloadTileAnimationRegistryFromProjectData();
         markTileAnimationUsersDirty(tileAnimationId);
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
     }
 
     public void deleteTileAnimation(int tileAnimationId) {
@@ -2514,7 +2512,7 @@ public final class SceneService {
 
         reloadTileAnimationRegistryFromProjectData();
         boolean runtimeAvailabilityChanged = removeRuntimeAvailabilityTiledAnimationReferences(cfg, tileAnimationId);
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
 
         if (canvas.getTiledPaintService().getActiveTileAssetId() == tileAnimationId) {
             canvas.getTiledPaintService().setActiveTileAssetId(-1);
@@ -2620,7 +2618,7 @@ public final class SceneService {
 
         TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
         reloadTileAnimationRegistryFromProjectData();
-        markPreviewSaveRequired();
+        markCurrentSceneSaveRequired();
         markTileAnimationUsersDirty(tileAnimationId);
     }
 
@@ -3390,7 +3388,7 @@ public final class SceneService {
         // Reset historique
         historyManager.clear();
         historyManager.historyIds().clear();
-        clearPreviewSaveRequired();
+        clearCurrentSceneSaveRequired();
     }
 
     private void bindSceneIdentityAuthorities(SceneMeta meta) {

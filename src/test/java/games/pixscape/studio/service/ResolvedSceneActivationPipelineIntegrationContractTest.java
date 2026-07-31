@@ -17,12 +17,28 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
                 StandardCharsets.UTF_8
         );
         String openBody = methodBody(source, "private void openProjectStrict(");
-        String switchBody = methodBody(source, "public void changeScene(");
+        String switchBody = methodBody(source, "public void changeSceneNow(");
         String loadBody = methodBody(source, "void loadScene(");
 
         assertTrue(openBody.contains("loadScene(cfg, sceneName, projectDir);"));
         assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
         assertTrue(loadBody.contains("sceneActivationPipeline.activate("));
+    }
+
+    @Test
+    public void sceneSwitchNowPersistsSelectionAndLoadsWithoutSavingOrDirtyChecks() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String switchBody = methodBody(source, "public void changeSceneNow(");
+
+        assertTrue(switchBody.contains("cfg.setCurrentSceneByName(sceneName);"));
+        assertTrue(switchBody.contains("saveProjectFile(cfg);"));
+        assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
+        assertFalse(switchBody.contains("saveCurrentSceneOnly("));
+        assertFalse(switchBody.contains("historyManager.isDirty()"));
+        assertFalse(switchBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
     }
 
     @Test

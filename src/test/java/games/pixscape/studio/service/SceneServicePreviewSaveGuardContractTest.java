@@ -14,18 +14,20 @@ import static org.junit.Assert.assertTrue;
 public class SceneServicePreviewSaveGuardContractTest {
 
     @Test
-    public void previewSaveGuard_methodsMaintainPersistentDirtyGuardContract() throws Exception {
+    public void sceneAndPreviewSavePredicatesKeepAuthoredAndExportStateSeparate() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
                 StandardCharsets.UTF_8
         );
 
-        String markBody = methodBody(source, "public void markPreviewSaveRequired()");
+        String markBody = methodBody(source, "public void markCurrentSceneSaveRequired()");
+        String leavingBody = methodBody(source, "public boolean requiresSaveBeforeLeavingCurrentScene()");
         String requiresBody = methodBody(source, "public boolean requiresSaveBeforePreview()");
 
-        assertTrue(markBody.contains("previewSaveRequired = true;"));
-        assertTrue(requiresBody.contains("historyManager.isDirty()"));
-        assertTrue(requiresBody.contains("previewSaveRequired"));
+        assertTrue(markBody.contains("currentSceneSaveRequired = true;"));
+        assertTrue(leavingBody.contains("historyManager.isDirty() || currentSceneSaveRequired"));
+        assertFalse(leavingBody.contains("isRuntimeExportMissingOrUnusableForPreview"));
+        assertTrue(requiresBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
         assertTrue(requiresBody.contains("isRuntimeExportMissingOrUnusableForPreview(ProjectConfig.getInstance())"));
     }
 

@@ -92,7 +92,7 @@ public final class RepeatablePanel extends CollapsibleWidget {
                 eid,
                 before,
                 after,
-                ctx.markPreviewSaveRequired
+                ctx.markCurrentSceneSaveRequired
         );
         if (!command.isNoop()) {
             ctx.history.execute(command);

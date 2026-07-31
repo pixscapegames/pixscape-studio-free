@@ -64,22 +64,22 @@ public class LayerProperties extends VisTable {
     private boolean internalParallaxRefresh = false;
     private boolean internalCollisionsRefresh = false;
     private boolean internalSpatialRefresh = false;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
 
     public LayerProperties(
             World world, HistoryManager history, PhysicsService physicsService,
-            Runnable markPreviewSaveRequired) {
+            Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.physicsService = physicsService;
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
         this.mParallax = world.getMapper(LayerParallaxComponent.class);
         this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
+        this.tiledMapProperties = new TiledMapProperties(world, markCurrentSceneSaveRequired);
 
         UiFieldFactory factory = new UiFieldFactory(world);
 
@@ -321,8 +321,8 @@ public class LayerProperties extends VisTable {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 

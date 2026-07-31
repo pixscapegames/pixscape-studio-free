@@ -41,6 +41,7 @@ import games.pixscape.studio.ui.tree.ItemTreePanel;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.Optional;
+import java.util.function.Consumer;
 
 
 public class StudioApplicationAdapter extends ApplicationAdapter {
@@ -270,40 +271,62 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public boolean closeRequested() {
         dumpLiveNonDaemonThreads("closeRequested");
-        if (sceneService != null && sceneService.requiresSaveBeforePreview()) {
-            Dialogs.showOptionDialog(
-                    uiStage,
-                    "Unsaved Project",
-                    "Do you want to save before quitting ?",
-                    Dialogs.OptionDialogType.YES_NO_CANCEL,
-                    new OptionDialogListener() {
-                        @Override
-                        public void yes() {
-                            sceneService.saveProjectAndCurrentSceneWithProgress(
-                                    uiStage,
-                                    Gdx.app::exit,
-                                    throwable -> Dialogs.showOKDialog(
-                                            uiStage,
-                                            "Save failed",
-                                            PreviewLaunchSupport.userMessageFor(throwable)
-                                    )
-                            );
-                        }
-
-                        @Override
-                        public void no() {
-                            Gdx.app.exit();
-                        }
-
-                        @Override
-                        public void cancel() {
-                        }
-                    }
-            );
-            return true;
-        }
-        Gdx.app.exit();
+        runAfterCurrentSceneSaveDecision(
+                "Unsaved Project",
+                "Do you want to save before quitting?",
+                Gdx.app::exit,
+                null,
+                throwable -> Dialogs.showOKDialog(
+                        uiStage,
+                        "Save failed",
+                        PreviewLaunchSupport.userMessageFor(throwable)
+                )
+        );
         return true;
+    }
+
+    public void runAfterCurrentSceneSaveDecision(String title,
+                                                 String message,
+                                                 Runnable continuation,
+                                                 Runnable onCancel,
+                                                 Consumer<Throwable> onSaveFailure) {
+        boolean saveRequired = sceneService != null
+                && sceneService.requiresSaveBeforeLeavingCurrentScene();
+        CurrentSceneSaveDecisionGuard.request(
+                saveRequired,
+                title,
+                message,
+                continuation,
+                onCancel,
+                onSaveFailure,
+                (dialogTitle, dialogMessage, save, dontSave, cancel) -> Dialogs.showOptionDialog(
+                        uiStage,
+                        dialogTitle,
+                        dialogMessage,
+                        Dialogs.OptionDialogType.YES_NO_CANCEL,
+                        new OptionDialogListener() {
+                            @Override
+                            public void yes() {
+                                save.run();
+                            }
+
+                            @Override
+                            public void no() {
+                                dontSave.run();
+                            }
+
+                            @Override
+                            public void cancel() {
+                                cancel.run();
+                            }
+                        }
+                ),
+                (onSuccess, onFailure) -> sceneService.saveProjectAndCurrentSceneWithProgress(
+                        uiStage,
+                        onSuccess,
+                        onFailure
+                )
+        );
     }
 
     public WorldCanvas getCanvas() {

@@ -18,7 +18,7 @@ public final class TiledMapProperties extends VisTable {
 
     private final World world;
     private final ComponentMapper<TiledLayerComponent> mTiled;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
 
     private final VisLabel tiledWidthValue = new VisLabel();
     private final VisLabel tiledHeightValue = new VisLabel();
@@ -35,10 +35,10 @@ public final class TiledMapProperties extends VisTable {
     private final UiBinders.IntSpinnerBinder tiledOriginXBinder;
     private final UiBinders.IntSpinnerBinder tiledOriginYBinder;
 
-    public TiledMapProperties(World world, Runnable markPreviewSaveRequired) {
+    public TiledMapProperties(World world, Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mTiled = world.getMapper(TiledLayerComponent.class);
 
         top().left();
@@ -147,8 +147,8 @@ public final class TiledMapProperties extends VisTable {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 

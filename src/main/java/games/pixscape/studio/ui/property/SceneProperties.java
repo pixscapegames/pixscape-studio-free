@@ -79,7 +79,7 @@ public class SceneProperties extends VisTable {
     private final HistoryManager historyManager;
     private final PhysicsService physicsService;
     private final PhysicsSelectionReconciler physicsSelectionReconciler;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
     private final Runnable teardownBox2dAfterPurge;
     private SceneMeta pendingPhysicsPurge;
 
@@ -90,7 +90,7 @@ public class SceneProperties extends VisTable {
                            LayerService layerService,
                            PhysicsSelectionReconciler physicsSelectionReconciler,
                            Runnable teardownBox2dAfterPurge,
-                           Runnable markPreviewSaveRequired) {
+                           Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.historyManager = historyManager;
@@ -99,7 +99,7 @@ public class SceneProperties extends VisTable {
         this.layerService = layerService;
         this.physicsSelectionReconciler = physicsSelectionReconciler;
         this.teardownBox2dAfterPurge = teardownBox2dAfterPurge;
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         top().left();
 
@@ -364,8 +364,8 @@ public class SceneProperties extends VisTable {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 

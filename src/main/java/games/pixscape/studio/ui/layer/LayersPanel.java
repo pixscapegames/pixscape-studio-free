@@ -38,7 +38,7 @@ public class LayersPanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
     private final World world;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
 
     private final VisTable listTable;
     private final VisScrollPane scroller;
@@ -65,7 +65,7 @@ public class LayersPanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
         this.world = canvas.getEcsWorld();
-        this.markPreviewSaveRequired = app.getSceneService()::markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
 
@@ -330,8 +330,8 @@ public class LayersPanel extends DockablePanel {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 

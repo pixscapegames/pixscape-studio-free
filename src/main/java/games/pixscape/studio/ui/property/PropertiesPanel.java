@@ -118,7 +118,7 @@ public class PropertiesPanel extends DockablePanel {
                 selectionService,
                 canvas.getIdentityRegistry(),
                 new IconResolver(world),
-                app.getSceneService()::markPreviewSaveRequired,
+                app.getSceneService()::markCurrentSceneSaveRequired,
                 MY_TAG
         );
 
@@ -133,20 +133,20 @@ public class PropertiesPanel extends DockablePanel {
                 canvas.getHistoryManager(),
                 canvas.getSpatialBlockSelectionService(),
                 canvas.getPhysicsService(),
-                app.getSceneService()::markPreviewSaveRequired
+                app.getSceneService()::markCurrentSceneSaveRequired
         );
 
-        Runnable markPreviewSaveRequired = app.getSceneService()::markPreviewSaveRequired;
+        Runnable markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         layerProperties = new LayerProperties(
                 world, canvas.getHistoryManager(), canvas.getPhysicsService(),
-                markPreviewSaveRequired);
+                markCurrentSceneSaveRequired);
         sceneProperties = new SceneProperties(
                 world, canvas.getHistoryManager(), canvas.getPhysicsService(),
                 selectionService, layerService,
                 canvas.getPhysicsSelectionReconciler(),
                 canvas::disposeBox2dAfterPhysicsPurge,
-                markPreviewSaveRequired);
-        tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
+                markCurrentSceneSaveRequired);
+        tiledMapProperties = new TiledMapProperties(world, markCurrentSceneSaveRequired);
 
         contentHolder = new VisTable(true);
         contentHolder.top().left().pad(8);

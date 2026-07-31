@@ -38,6 +38,7 @@ public class BottomMenuBar extends VisTable {
     private final VisCheckBox landScapeChekBox;
     private final VisCheckBox rulersVisibilityCheckBox;
     private final Button btnDeleteScene;
+    private final SceneSwitchWorkflow sceneSwitchWorkflow;
     private String lastValue = null;
 
     public static final float HEIGHT = 32;
@@ -114,6 +115,26 @@ public class BottomMenuBar extends VisTable {
         });
 
         sceneSelectBox.setMaxListCount(10);
+        sceneSwitchWorkflow = new SceneSwitchWorkflow(
+                (targetScene, continuation, onCancel, onSaveFailure) ->
+                        app.runAfterCurrentSceneSaveDecision(
+                                "Unsaved Project",
+                                "Do you want to save before switching scenes?",
+                                continuation,
+                                onCancel,
+                                onSaveFailure
+                        ),
+                targetScene -> app.getSceneService().changeSceneNow(targetScene),
+                this::refreshSelectBox,
+                targetScene -> lastValue = targetScene,
+                throwable -> Dialogs.showOKDialog(
+                        getStage(),
+                        "Save failed",
+                        PreviewLaunchSupport.userMessageFor(throwable)
+                ),
+                ex -> Dialogs.showOKDialog(getStage(), "Scene switch failed", ex.getMessage()),
+                sceneSelectBox::setDisabled
+        );
         sceneSelectBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -121,22 +142,16 @@ public class BottomMenuBar extends VisTable {
 
                 String cur = sceneSelectBox.getSelected();
                 if (cur == null || cur.equals(lastValue)) return;
-                lastValue = cur;
 
                 if ("New...".equals(cur)) {
+                    lastValue = cur;
                     // Open the scene creation window
                     newSceneWindow.resetSceneName();
                     app.getUiStage().addActor(newSceneWindow.fadeIn());
                     return;
                 }
 
-                // Change scene through SceneManager
-                try {
-                    app.getSceneService().changeScene(cur);
-                } catch (RuntimeException ex) {
-                    Dialogs.showOKDialog(getStage(), "Scene switch failed", ex.getMessage());
-                    refreshSelectBox();
-                }
+                sceneSwitchWorkflow.request(cur);
             }
         });
 
@@ -614,7 +629,7 @@ public class BottomMenuBar extends VisTable {
             Gdx.app.log("PreviewSettings", "Saved preview target=" + cfg.previewTarget);
 
             applyPreviewSettingsFromConfig();
-            app.getSceneService().markPreviewSaveRequired();
+            app.getSceneService().markCurrentSceneSaveRequired();
         }
     }
 }

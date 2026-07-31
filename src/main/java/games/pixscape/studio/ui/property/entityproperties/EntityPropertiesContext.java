@@ -32,7 +32,7 @@ public final class EntityPropertiesContext {
     public final PhysicsService physicsService;
     public final PhysicsPolygonAuthoringService physicsPolygonAuthoringService;
     public final IconResolver iconResolver;
-    public final Runnable markPreviewSaveRequired;
+    public final Runnable markCurrentSceneSaveRequired;
     public final int sourceTag;
 
     public final ComponentMapper<DimensionsComponent> mDimensions;
@@ -65,7 +65,7 @@ public final class EntityPropertiesContext {
                                    SelectionService selectionService,
                                    IdentityRegistry identityRegistry,
                                    IconResolver iconResolver,
-                                   Runnable markPreviewSaveRequired,
+                                   Runnable markCurrentSceneSaveRequired,
                                    int sourceTag) {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
@@ -76,7 +76,7 @@ public final class EntityPropertiesContext {
         this.atlasStudioService = Objects.requireNonNull(atlasStudioService, "atlasStudioService");
         this.selectionService = Objects.requireNonNull(selectionService, "selectionService");
         this.iconResolver = Objects.requireNonNull(iconResolver, "iconResolver");
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.sourceTag = sourceTag;
 
         this.mDimensions = world.getMapper(DimensionsComponent.class);

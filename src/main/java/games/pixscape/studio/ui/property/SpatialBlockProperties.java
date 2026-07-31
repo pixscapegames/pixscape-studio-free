@@ -33,7 +33,7 @@ public final class SpatialBlockProperties extends VisTable {
     private final HistoryManager history;
     private final SpatialBlockSelectionService selection;
     private final PhysicsService physicsService;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
     private final ComponentMapper<SpatialBlocksComponent> mBlocks;
 
     private final SimpleTextField nameField = new SimpleTextField();
@@ -58,13 +58,13 @@ public final class SpatialBlockProperties extends VisTable {
                                   HistoryManager history,
                                   SpatialBlockSelectionService selection,
                                   PhysicsService physicsService,
-                                  Runnable markPreviewSaveRequired) {
+                                  Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.selection = selection;
         this.physicsService = physicsService;
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mBlocks = world.getMapper(SpatialBlocksComponent.class);
 
         buildUi();
@@ -228,7 +228,7 @@ public final class SpatialBlockProperties extends VisTable {
         );
         if (!command.isNoop()) {
             history.execute(command);
-            if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+            if (markCurrentSceneSaveRequired != null) markCurrentSceneSaveRequired.run();
         }
         refreshFromModel();
     }
@@ -257,8 +257,8 @@ public final class SpatialBlockProperties extends VisTable {
                         enabled);
         int cursorBefore = history.getCursor();
         if (!command.isNoop()) history.execute(command);
-        if (history.getCursor() != cursorBefore && markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (history.getCursor() != cursorBefore && markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
         refreshFromModel();
     }
@@ -297,7 +297,7 @@ public final class SpatialBlockProperties extends VisTable {
                 world, history.historyIds(), selection, layerEntityId, blockId, current, after);
         if (!command.isNoop()) {
             history.execute(command);
-            if (markPreviewSaveRequired != null) markPreviewSaveRequired.run();
+            if (markCurrentSceneSaveRequired != null) markCurrentSceneSaveRequired.run();
         }
         refreshFromModel();
     }

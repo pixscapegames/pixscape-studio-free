@@ -138,8 +138,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             return;
         }
         ctx.history.execute(command);
-        if (ctx.markPreviewSaveRequired != null) {
-            ctx.markPreviewSaveRequired.run();
+        if (ctx.markCurrentSceneSaveRequired != null) {
+            ctx.markCurrentSceneSaveRequired.run();
         }
     }
 }
