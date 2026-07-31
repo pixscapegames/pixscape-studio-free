@@ -6,10 +6,6 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -17,6 +13,7 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.ProjectFileCleanupService;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
 public final class AtlasStudioService extends AtlasRuntimeService {
@@ -28,11 +25,15 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private static final String TAG = "AtlasStudioService";
 
-    private final ObjectMap<String, IntSet> packedIdsBySceneTag = new ObjectMap<>();
+    private StudioAssetVisualResolver assetVisualResolver;
 
     public AtlasStudioService(WorldCanvas canvas) {
         this.canvas = canvas;
         this.repackCoordinator = new AsyncAtlasRepackCoordinator(this::packAsyncToTemp);
+    }
+
+    public void setAssetVisualResolver(StudioAssetVisualResolver assetVisualResolver) {
+        this.assetVisualResolver = assetVisualResolver;
     }
 
     public void requestAsyncPack(String sceneTag) {
@@ -152,7 +153,12 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
             load(tag, finalAtlasFile);
 
-            RenderRebindHelper.rebindAfterAtlasChange(canvas, tag, this, "atlas-pack-applied");
+            RenderRebindHelper.rebindAfterAtlasChange(
+                    canvas,
+                    tag,
+                    assetVisualResolver,
+                    "atlas-pack-applied"
+            );
             rebindTiles();
 
             RenderParticleSyncSystem particleSystem =
@@ -202,66 +208,28 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         }
     }
 
-    public Array<TextureAtlas.AtlasRegion> list(String tag, String regionName) {
-        TextureAtlas a = atlases.get(tag);
-        return a == null ? new Array<>() : a.findRegions(regionName);
-    }
-
-
-    private void rebuildPackedIds(String sceneTag) {
-        if (sceneTag == null || sceneTag.isBlank()) return;
-
-        TextureAtlas atlas = getAtlas(sceneTag);
-        if (atlas == null) {
-            packedIdsBySceneTag.remove(sceneTag);
-            return;
-        }
-
-        IntSet packedIds = new IntSet();
-        for (TextureAtlas.AtlasRegion region : atlas.getRegions()) {
-            if (region == null || region.name == null) continue;
-            int pos = region.name.lastIndexOf("__a");
-            if (pos < 0) continue;
-            String idPart = region.name.substring(pos +
-                    3);
-            try {
-                packedIds.add(Integer.parseInt(idPart));
-            } catch (NumberFormatException ignored) {
-                // non asset-suffixed regions are ignored
-            }
-        }
-
-        packedIdsBySceneTag.put(sceneTag, packedIds);
-    }
-
-    public boolean isPacked(int assetId, String sceneTag) {
-        if (assetId < 0 || sceneTag == null || sceneTag.isBlank()) return false;
-
-        IntSet packedIds = packedIdsBySceneTag.get(sceneTag);
-        if (packedIds == null) {
-            rebuildPackedIds(sceneTag);
-            packedIds = packedIdsBySceneTag.get(sceneTag);
-        }
-
-        return packedIds != null && packedIds.contains(assetId);
-    }
-
     @Override
     public void load(String tag, FileHandle atlasFile) {
         super.load(tag, atlasFile);
-        rebuildPackedIds(tag);
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAtlasTag(tag);
+        }
     }
 
     @Override
     public void unload(String tag) {
         super.unload(tag);
-        packedIdsBySceneTag.remove(tag);
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAtlasTag(tag);
+        }
     }
 
     @Override
     public void unloadAll() {
         super.unloadAll();
-        packedIdsBySceneTag.clear();
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAll();
+        }
     }
 
     public synchronized void disposeAsyncPack() {

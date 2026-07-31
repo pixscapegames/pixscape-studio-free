@@ -5,7 +5,6 @@ import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.LayerComponent;
@@ -19,9 +18,6 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.service.AtlasAssetBinding;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -29,8 +25,8 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.service.StandaloneTextureCache;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 
 import java.util.Objects;
@@ -43,7 +39,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private final TiledMapRenderState tiledState;
-    private final AtlasRuntimeService atlasRuntimeService;
+    private final StudioAssetVisualResolver visualResolver;
     private final float[] tmpQuad = new float[8];
     private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
 
@@ -54,19 +50,19 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private boolean profiling;
     private long profileStartNs;
 
-    public TiledFallbackSystem(AtlasRuntimeService atlasRuntimeService,
+    public TiledFallbackSystem(StudioAssetVisualResolver visualResolver,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
-        this(null, atlasRuntimeService, assetMetaLookup, tileAnimationLookup);
+        this(null, visualResolver, assetMetaLookup, tileAnimationLookup);
     }
 
     public TiledFallbackSystem(TiledMapRenderState tiledState,
-                               AtlasRuntimeService atlasRuntimeService,
+                               StudioAssetVisualResolver visualResolver,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
 
         this.tiledState = tiledState;
-        this.atlasRuntimeService = atlasRuntimeService;
+        this.visualResolver = visualResolver;
         this.assetMetaLookup = (assetMetaLookup != null) ? assetMetaLookup : id -> null;
         this.tilesetProfileResolver = new StudioTilesetProfileResolver(this.assetMetaLookup);
         this.tileAnimationLookup = (tileAnimationLookup != null) ? tileAnimationLookup : id -> null;
@@ -79,11 +75,6 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
     public void setTileAnimationLookup(TileAnimationLookup tileAnimationLookup) {
         this.tileAnimationLookup = (tileAnimationLookup != null) ? tileAnimationLookup : id -> null;
-    }
-
-    AssetMeta resolveAssetMeta(int assetId) {
-        if (assetId <= 0) return null;
-        return assetMetaLookup.apply(assetId);
     }
 
     RuntimeTilesetProfile resolveTilesetProfile(int tileAssetId) {
@@ -139,24 +130,13 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
                     int gx = chunk.chunkX * map.chunkSize + lx;
                     int gy = chunk.chunkY * map.chunkSize + ly;
-                    AtlasAssetBinding binding = atlasRuntimeService != null
-                            ? atlasRuntimeService.resolveBinding(visualAssetId, tiled.atlasTag)
+                    StudioAssetVisual visual = visualResolver != null
+                            ? visualResolver.resolveFirst(visualAssetId, tiled.atlasTag)
                             : null;
-
-                    if (binding != null) {
+                    if (visual == null
+                            || visual.source() == StudioAssetVisual.Source.ATLAS) {
                         continue;
                     }
-
-                    AssetMeta meta = resolveAssetMeta(visualAssetId);
-                    if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
-                        continue;
-                    }
-                    if (meta.type() != AssetType.TILE) {
-                        continue;
-                    }
-
-                    Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
-                    if (tex == null) continue;
 
                     RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);
                     if (profile == null) {
@@ -170,15 +150,15 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                             tiledRenderRef,
                             gx,
                             gy,
-                            tex.getWidth(),
-                            tex.getHeight(),
+                            visual.pixelWidth(),
+                            visual.pixelHeight(),
                             profile,
                             transformFlags,
-                            TextureRegistry.handleOf(tex),
-                            0f,
-                            0f,
-                            1f,
-                            1f
+                            visual.textureHandle(),
+                            visual.u1(),
+                            visual.v1(),
+                            visual.u2(),
+                            visual.v2()
                     );
                 }
             }

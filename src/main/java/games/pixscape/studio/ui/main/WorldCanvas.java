@@ -66,6 +66,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.ops.EditorOpsImpl;
 import games.pixscape.studio.service.*;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
@@ -124,6 +125,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final AtlasStudioService atlasStudioService;
+    private final StudioAssetVisualResolver assetVisualResolver;
     private final ShaderService shaderService;
     private AlignService alignService;
     private ClipboardService clipboardService;
@@ -213,6 +215,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 ? PreviewRuntimeProfiler.fromSystemProperties(frameProfiler)
                 : null;
         atlasStudioService = new AtlasStudioService(this);
+        assetVisualResolver = new StudioAssetVisualResolver(
+                atlasStudioService,
+                id -> null,
+                StudioAssetVisualResolver.projectStandaloneAccess()
+        );
+        atlasStudioService.setAssetVisualResolver(assetVisualResolver);
         physicsSelectionService = new PhysicsSelectionService();
         physicsSelectionReconciler = new PhysicsSelectionReconciler(physicsSelectionService);
         spatialBlockSelectionService = new SpatialBlockSelectionService();
@@ -298,6 +306,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         FileHandle particleImagesRoot = resolveImagesRoot(cfg);
 
         final AssetMetaDatabase assetMetaDatabaseForFallback = loadAssetMetaDatabaseIfAvailable(cfg);
+        assetVisualResolver.setAssetMetaLookup(assetMetaDatabaseForFallback::findById);
         studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);
 
         WorldBootstrapResult bootstrap =
@@ -331,10 +340,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
-                                    profiled(new AnimationFallbackSystem(dynamicEntityState, atlasStudioService)),
+                                    profiled(new AnimationFallbackSystem(
+                                            dynamicEntityState,
+                                            assetVisualResolver
+                                    )),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
                                             tiledState,
-                                            atlasStudioService,
+                                            assetVisualResolver,
                                             assetMetaDatabaseForFallback::findById,
                                             tileAnimationRegistry
                                     )),
@@ -353,10 +365,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         post_render -> post_render.with(
                                 profiled(tiledGhostPreviewSystem = new TiledGhostPreviewSystem(
                                         worldDrawCtx,
-                                        atlasStudioService,
+                                        assetVisualResolver,
                                         tiledPreviewService,
                                         assetMetaDatabaseForFallback::findById,
-                                        TextureRegistry::getByHandle,
                                         tileAnimationRegistry
                                 )),
                                 profiled(new UiRefreshDispatchSystem()),
@@ -484,6 +495,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void bindAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
+        if (assetMetaLookup != null) {
+            assetVisualResolver.setAssetMetaLookup(assetMetaLookup);
+        }
         if (tiledFallbackSystem != null && assetMetaLookup != null) {
             tiledFallbackSystem.setAssetMetaLookup(assetMetaLookup);
         }
@@ -505,6 +519,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 studioTilesetProfiles,
                 assetMetaDatabase
         );
+    }
+
+    public void invalidateAssetVisualMetadata() {
+        assetVisualResolver.invalidateMetadata();
+    }
+
+    public void invalidateStandaloneAssetVisuals() {
+        assetVisualResolver.invalidateStandalone();
     }
 
     private void bindParticleControlChanges() {
@@ -1676,7 +1698,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     this,
                     sceneTag,
-                    atlasStudioService,
+                    assetVisualResolver,
                     result.createdIds(),
                     "prefab-render-assets-rebound"
             );
@@ -2039,6 +2061,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public AtlasStudioService getAtlasService() {
         return atlasStudioService;
+    }
+
+    public StudioAssetVisualResolver getAssetVisualResolver() {
+        return assetVisualResolver;
     }
 
     public SelectionService getSelectionService() {

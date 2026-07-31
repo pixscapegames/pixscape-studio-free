@@ -1215,7 +1215,7 @@ public final class SceneService {
     public boolean ensureSceneAtlasInputHasAsset(String sceneTag, int assetId) {
         if (sceneTag == null || sceneTag.isBlank()) return false;
         if (assetId <= 0 || assetMetaDatabase == null) return false;
-        if (atlasStudioService.isPacked(assetId, sceneTag)) return false;
+        if (atlasStudioService.resolveBinding(assetId, sceneTag) != null) return false;
 
         AssetMeta meta = assetMetaDatabase.findById(assetId);
         if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
@@ -1410,6 +1410,7 @@ public final class SceneService {
         assetMetaDatabase.save(assetsFile);
         markPreviewSaveRequired();
         StandaloneTextureCache.clear(true);
+        canvas.invalidateStandaloneAssetVisuals();
 
         persistRuntimeAvailabilityChange(cfg, runtimeAvailabilityChanged);
         refreshAssetsPanel();
@@ -3390,6 +3391,7 @@ public final class SceneService {
 
         // Nettoyage caches
         StandaloneTextureCache.clear(true);
+        canvas.invalidateStandaloneAssetVisuals();
 
         // Reset historique
         historyManager.clear();
@@ -3435,6 +3437,7 @@ public final class SceneService {
     }
 
     private void refreshAssetsPanel() {
+        canvas.invalidateAssetVisualMetadata();
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return;
 

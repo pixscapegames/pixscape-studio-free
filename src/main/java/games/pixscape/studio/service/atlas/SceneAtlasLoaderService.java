@@ -113,7 +113,12 @@ public final class SceneAtlasLoaderService {
         atlasRuntimeService.load(canonicalTag, atlasFile);
 
         // 3) Rebind after atlas is ready
-        RenderRebindHelper.rebindAfterAtlasChange(canvas, canonicalTag, atlasRuntimeService, "scene-atlas-loaded");
+        RenderRebindHelper.rebindAfterAtlasChange(
+                canvas,
+                canonicalTag,
+                canvas.getAssetVisualResolver(),
+                "scene-atlas-loaded"
+        );
     }
 
 }

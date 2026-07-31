@@ -250,7 +250,8 @@ public class EditorOpsImpl implements EditorOps {
         // --- Async atlas workflow ---
         String fullRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
         boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);
-        boolean alreadyPacked = assetId >= 0 && atlasStudioService.isPacked(assetId, sceneTag);
+        boolean alreadyPacked = assetId > 0
+                && atlasStudioService.resolveBinding(assetId, sceneTag) != null;
         boolean packAlreadyQueuedOrRunning = atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);
 
         if (!packAlreadyQueuedOrRunning && (inputChanged || !alreadyPacked)) {
@@ -301,6 +302,7 @@ public class EditorOpsImpl implements EditorOps {
         AnimationAssetMeta animationMeta = sceneService != null
                 ? sceneService.findAnimationAssetMetaBySourceRelPath(animationRelPath)
                 : null;
+        int animationAssetId = animationMeta != null ? animationMeta.id() : -1;
         float fps = animationMeta != null && animationMeta.fps > 0f ? animationMeta.fps : 12f;
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
@@ -314,11 +316,12 @@ public class EditorOpsImpl implements EditorOps {
         String firstFrameRelPath = animationRelPath + "/" + firstFrame.name();
 
         String sceneTag = getCurrentSceneTag();
-        Array<TextureAtlas.AtlasRegion> packedFrames =
-                (sceneTag != null && !sceneTag.isBlank())
-                        ? atlasStudioService.list(sceneTag, animationsRelPath)
-                        : new Array<>();
-        boolean alreadyPacked = packedFrames.size >= frameCount;
+        AtlasAssetBinding animationBinding =
+                animationAssetId > 0 && sceneTag != null && !sceneTag.isBlank()
+                        ? atlasStudioService.resolveBinding(animationAssetId, sceneTag)
+                        : null;
+        boolean alreadyPacked = animationBinding != null
+                && animationBinding.regionCount() >= frameCount;
 
         ObjectMap<String, AnimationComponent.Clip> clipsMap = copyAnimationAssetClips(animationMeta);
         String currentClip = animationMeta != null ? animationMeta.currentClip : null;
@@ -333,11 +336,10 @@ public class EditorOpsImpl implements EditorOps {
 
         GenericEntityInitializer init = new GenericEntityInitializer(world);
         if (alreadyPacked) {
-            TextureAtlas.AtlasRegion firstPackedFrame = packedFrames.first();
+            TextureAtlas.AtlasRegion firstPackedFrame = animationBinding.firstRegion();
             int textureHandle = TextureRegistry.handleOf(firstPackedFrame.getTexture());
-            int assetId = AssetHelper.extractAssetIdFromRegionName(firstPackedFrame.name);
             init.configureSprite(
-                    assetId,
+                    animationAssetId,
                     sceneTag,
                     firstPackedFrame.name,
                     firstPackedFrame.getU(),
@@ -357,15 +359,14 @@ public class EditorOpsImpl implements EditorOps {
             if (tex == null) return -1;
             int textureHandle = TextureRegistry.handleOf(tex);
 
-            int assetId = -1;
-            if (sceneService != null) {
-                assetId = sceneService.resolveAssetIdBySourceRelPath(
+            if (animationAssetId <= 0 && sceneService != null) {
+                animationAssetId = sceneService.resolveAssetIdBySourceRelPath(
                         animationRelPath,
                         AssetType.ANIMATION
                 );
             }
             init.configureStandaloneSprite(
-                    assetId,
+                    animationAssetId,
                     sceneTag,
                     frameW, frameH,
                     worldX, worldY,
@@ -999,42 +1000,12 @@ public class EditorOpsImpl implements EditorOps {
 
     private void rebindHistoryEntityRenderAssets(int entityId) {
         String sceneTag = getCurrentSceneTag();
-        RenderBindingState before = RenderBindingState.capture(world, entityId);
-
-        if (before.isAnimationBacked() && !hasAtlasBinding(entityId, sceneTag)) {
-            if (AnimationFallbackSystem.bindFirstFrameFallback(
-                    world,
-                    entityId,
-                    canvas.getDynamicEntityState(),
-                    before.effectiveAtlasTag(sceneTag))) {
-                ensureHandleBoundToTextureArray();
-            } else if (before.isRenderable()) {
-                ensureHandleBoundToTextureArray();
-            } else {
-                RenderRebindHelper.rebindHistoryEntityRenderAssets(
-                        canvas,
-                        sceneTag,
-                        atlasStudioService,
-                        entityId
-                );
-            }
-        } else {
-            RenderRebindHelper.rebindHistoryEntityRenderAssets(
-                    canvas,
-                    sceneTag,
-                    atlasStudioService,
-                    entityId
-            );
-        }
-    }
-
-    private boolean hasAtlasBinding(int entityId, String sceneTag) {
-        AssetRefComponent src = world.getMapper(AssetRefComponent.class).getSafe(entityId, null);
-        if (src == null || src.assetId <= 0) {
-            return false;
-        }
-        String atlasTag = (src.atlasTag != null && !src.atlasTag.isBlank()) ? src.atlasTag : sceneTag;
-        return atlasStudioService.resolveBinding(src.assetId, atlasTag) != null;
+        RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                canvas,
+                sceneTag,
+                canvas.getAssetVisualResolver(),
+                entityId
+        );
     }
 
     private String getCurrentSceneTag() {
@@ -1185,49 +1156,4 @@ public class EditorOpsImpl implements EditorOps {
         }
     }
 
-    private static final class RenderBindingState {
-        final String atlasTag;
-        final int textureHandle;
-        final boolean textureRegionValid;
-        final boolean animationBacked;
-
-        private RenderBindingState(String atlasTag,
-                                   int textureHandle,
-                                   boolean textureRegionValid,
-                                   boolean animationBacked) {
-            this.atlasTag = atlasTag;
-            this.textureHandle = textureHandle;
-            this.textureRegionValid = textureRegionValid;
-            this.animationBacked = animationBacked;
-        }
-
-        static RenderBindingState capture(World world, int entityId) {
-            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).getSafe(entityId, null);
-            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).getSafe(entityId, null);
-            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).getSafe(entityId, null);
-            AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(entityId, null);
-
-            return new RenderBindingState(
-                    assetRef != null ? String.valueOf(assetRef.atlasTag) : "<none>",
-                    mat != null ? mat.textureHandle : 0,
-                    tr != null && tr.valid,
-                    animation != null
-            );
-        }
-
-        boolean isRenderable() {
-            return textureHandle != 0 && textureRegionValid;
-        }
-
-        boolean isAnimationBacked() {
-            return animationBacked;
-        }
-
-        String effectiveAtlasTag(String sceneTag) {
-            if (atlasTag != null && !atlasTag.isBlank() && !"<none>".equals(atlasTag)) {
-                return atlasTag;
-            }
-            return sceneTag;
-        }
-    }
 }
