@@ -57,8 +57,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private static final float CODE_ROWS = 12f;
     private static final float CODE_AREA_HEIGHT = 220f;
-    private static final float FORM_LABEL_WIDTH = 120f;
-    private static final float FORM_CONTROL_WIDTH = 420f;
+    private static final float FORM_LABEL_WIDTH = 100f;
+    private static final float FORM_CONTROL_WIDTH = 120;
 
     private boolean creatingNew = false;
     private ShaderVariant selectedVariant = ShaderVariant.DESKTOP_GL30;
@@ -98,8 +98,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         mainContent.add(formTable).left().row();
 
         targetTabs = new TabbedPane("shader-tabs");
-        addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop GL30");
-        addTargetTab(ShaderVariant.ES3_WEBGL2, "Android ES3 / HTML WebGL2");
+        addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop");
+        addTargetTab(ShaderVariant.ES3_WEBGL2, "Android / HTML");
 
         targetTabs.addListener(new TabbedPaneListener() {
             @Override
