@@ -2,10 +2,12 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
+import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
@@ -26,14 +28,15 @@ public class ShaderParamsDialog extends StudioModalWindow {
     private final ComponentMapper<ShaderParamsComponent> mParams;
 
     private final VisTable paramsTable;
-    private final VisTextButton addButton;
+    private final VisScrollPane scroll;
+    private final Button addButton;
     private final VisTextButton okButton;
     private final VisTextButton cancelButton;
 
     private static final class Row {
         VisValidatableTextField nameField;
         VisValidatableTextField valueField;
-        VisTextButton removeButton;
+        Button removeButton;
     }
 
     private final Array<Row> rows = new Array<>();
@@ -60,26 +63,20 @@ public class ShaderParamsDialog extends StudioModalWindow {
         paramsTable = new VisTable(true);
         paramsTable.top();
 
-        paramsTable.add(new VisLabel("Name")).width(NAME_COL_WIDTH).left();
-        paramsTable.add(new VisLabel("Value")).width(VALUE_COL_WIDTH).left();
-        paramsTable.add().width(30f);
-        paramsTable.row();
-
-        ScrollPane scroll = new VisScrollPane(paramsTable);
+        scroll = new VisScrollPane(paramsTable);
         scroll.setFadeScrollBars(false);
         scroll.setScrollingDisabled(true, false);
 
         root.add(scroll).growX().height(180f).width(300f).colspan(2).row();
 
-        addButton = new VisTextButton("Add parameter");
-        addButton.setColor(CommonLayout.BUTTON_COLOR);
+        addButton = new Button(VisUI.getSkin(), "add");
+        installTooltip(addButton, "Add parameter");
         okButton = new VisTextButton("OK");
         okButton.setColor(CommonLayout.BUTTON_COLOR);
         cancelButton = new VisTextButton("Cancel");
         cancelButton.setColor(CommonLayout.BUTTON_COLOR);
 
         VisTable buttons = new VisTable(true);
-        buttons.add(addButton);
         buttons.add(okButton);
         buttons.add(cancelButton);
 
@@ -119,6 +116,7 @@ public class ShaderParamsDialog extends StudioModalWindow {
 
             addRow(param.name, Float.toString(param.value));
         }
+        refreshParamsTable();
     }
 
     private static void copyShaderFloats(Array<ShaderFloatParam> source,
@@ -134,12 +132,12 @@ public class ShaderParamsDialog extends StudioModalWindow {
         }
     }
 
-    private void addRow(String uniformName, String valueStr) {
+    private Row addRow(String uniformName, String valueStr) {
         Row row = new Row();
         row.nameField = new VisValidatableTextField(uniformName != null ? uniformName : "");
         row.valueField = new VisValidatableTextField(valueStr != null ? valueStr : "0.0");
-        row.removeButton = new VisTextButton("X");
-        row.removeButton.setColor(CommonLayout.BUTTON_COLOR);
+        row.removeButton = new Button(VisUI.getSkin(), "delete");
+        installTooltip(row.removeButton, "Delete parameter");
 
         row.nameField.setMessageText("u_param");
         row.valueField.setMessageText("0.0");
@@ -150,11 +148,6 @@ public class ShaderParamsDialog extends StudioModalWindow {
         ValidationHooks.installEnterAndFocusLostValidation(row.nameField, () -> validateRow(row));
         ValidationHooks.installEnterAndFocusLostValidation(row.valueField, () -> validateRow(row));
 
-        paramsTable.row();
-        paramsTable.add(row.nameField).width(NAME_COL_WIDTH).left();
-        paramsTable.add(row.valueField).width(VALUE_COL_WIDTH).left();
-        paramsTable.add(row.removeButton).width(30f).left();
-
         rows.add(row);
 
         row.removeButton.addListener(new ChangeListener() {
@@ -163,30 +156,39 @@ public class ShaderParamsDialog extends StudioModalWindow {
                 removeRow(row);
             }
         });
+        return row;
     }
 
     private void removeRow(Row row) {
         rows.removeValue(row, true);
+        refreshParamsTable();
+    }
+
+    private void refreshParamsTable() {
         paramsTable.clearChildren();
 
         paramsTable.add(new VisLabel("Name")).width(NAME_COL_WIDTH).left();
         paramsTable.add(new VisLabel("Value")).width(VALUE_COL_WIDTH).left();
-        paramsTable.add().width(30f);
-        paramsTable.row();
+        paramsTable.add().row();
 
         for (Row r : rows) {
-            paramsTable.row();
             paramsTable.add(r.nameField).width(NAME_COL_WIDTH).left();
             paramsTable.add(r.valueField).width(VALUE_COL_WIDTH).left();
-            paramsTable.add(r.removeButton).width(30f).left();
+            paramsTable.add(r.removeButton).right().row();
         }
+
+        paramsTable.add().colspan(2).expandX();
+        paramsTable.add(addButton).right().row();
+        paramsTable.invalidateHierarchy();
     }
 
     private void hookListeners() {
         addButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                addRow("", "0.0");
+                Row row = addRow("", "0.0");
+                refreshParamsTable();
+                focusAndRevealRow(row);
             }
         });
 
@@ -203,6 +205,26 @@ public class ShaderParamsDialog extends StudioModalWindow {
                 fadeOut();
             }
         });
+    }
+
+    private void focusAndRevealRow(Row row) {
+        Runnable reveal = () -> {
+            paramsTable.validate();
+            scroll.validate();
+            scroll.setScrollPercentY(1f);
+            scroll.updateVisualScroll();
+            if (getStage() != null) getStage().setKeyboardFocus(row.nameField);
+        };
+        if (Gdx.app == null) {
+            reveal.run();
+        } else {
+            Gdx.app.postRunnable(reveal);
+        }
+    }
+
+    private static void installTooltip(Actor target, String text) {
+        Tooltip tooltip = new Tooltip.Builder(text).target(target).build();
+        tooltip.setAppearDelayTime(0f);
     }
 
     private void applyAndClose() {

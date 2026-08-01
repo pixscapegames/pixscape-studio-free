@@ -1,15 +1,18 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.util.TableUtils;
+import com.kotcrab.vis.ui.widget.Tooltip;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.HashSet;
@@ -22,6 +25,7 @@ public final class AnimationClipsDialog extends StudioDialog {
 
     private final VisTable listTable = new VisTable(true);
     private final VisScrollPane scroll;
+    private final Button addButton;
 
     private final Runnable onApplied;
 
@@ -52,6 +56,17 @@ public final class AnimationClipsDialog extends StudioDialog {
         scroll = new VisScrollPane(listTable);
         scroll.setFadeScrollBars(false);
 
+        addButton = new Button(VisUI.getSkin(), "add");
+        installTooltip(addButton, "Add clip");
+        addButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                Row row = addRow("clip" + (rows.size + 1), 0, frameMax);
+                refreshList();
+                focusAndRevealRow(row);
+            }
+        });
+
         buildUi();
         loadFromComponent();
 
@@ -67,18 +82,6 @@ public final class AnimationClipsDialog extends StudioDialog {
 
         // Header
         root.add(new VisLabel("Frame range: 0 .. " + frameMax)).left().row();
-
-        // Add button
-        VisTextButton addBtn = new VisTextButton("Add clip");
-        addBtn.setColor(CommonLayout.BUTTON_COLOR);
-        addBtn.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                addRow("clip" + (rows.size + 1), 0, frameMax);
-                refreshList();
-            }
-        });
-        root.add(addBtn).left().row();
 
         // List
         root.add(scroll).grow().minHeight(220).row();
@@ -102,12 +105,22 @@ public final class AnimationClipsDialog extends StudioDialog {
         refreshList();
     }
 
-    private void addRow(String name, int start, int end) {
+    private Row addRow(String name, int start, int end) {
         Row r = new Row(frameMax);
         r.nameField.setText(name != null ? name : "");
         r.startModel.setValue(clamp(start));
         r.endModel.setValue(clamp(end));
+        installTooltip(r.removeButton, "Delete clip");
+        r.removeButton.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                rows.removeValue(r, true);
+                if (rows.size == 0) addRow("default", 0, frameMax);
+                refreshList();
+            }
+        });
         rows.add(r);
+        return r;
     }
 
     private void refreshList() {
@@ -119,30 +132,37 @@ public final class AnimationClipsDialog extends StudioDialog {
         listTable.add(new VisLabel("End")).left().pad(2);
         listTable.add(new VisLabel("")).right().pad(2).row();
 
-        for (int i = 0; i < rows.size; i++) {
-            final int idx = i;
-            Row r = rows.get(i);
-
-            VisTextButton removeBtn = new VisTextButton("X");
-            removeBtn.setColor(CommonLayout.BUTTON_COLOR);
-            removeBtn.addListener(new ChangeListener() {
-                @Override
-                public void changed(ChangeEvent event, Actor actor) {
-                    if (idx >= 0 && idx < rows.size) {
-                        rows.removeIndex(idx);
-                        if (rows.size == 0) addRow("default", 0, frameMax);
-                        refreshList();
-                    }
-                }
-            });
-
+        for (Row r : rows) {
             listTable.add(r.nameField).growX().pad(2);
             listTable.add(r.startSpinner).width(110).pad(2);
             listTable.add(r.endSpinner).width(110).pad(2);
-            listTable.add(removeBtn).right().pad(2).row();
+            listTable.add(r.removeButton).right().pad(2).row();
         }
 
+        listTable.add().colspan(3).expandX();
+        listTable.add(addButton).right().pad(2).row();
+
         listTable.invalidateHierarchy();
+    }
+
+    private void focusAndRevealRow(Row row) {
+        Runnable reveal = () -> {
+            listTable.validate();
+            scroll.validate();
+            scroll.setScrollPercentY(1f);
+            scroll.updateVisualScroll();
+            if (getStage() != null) getStage().setKeyboardFocus(row.nameField);
+        };
+        if (Gdx.app == null) {
+            reveal.run();
+        } else {
+            Gdx.app.postRunnable(reveal);
+        }
+    }
+
+    private static void installTooltip(Actor target, String text) {
+        Tooltip tooltip = new Tooltip.Builder(text).target(target).build();
+        tooltip.setAppearDelayTime(0f);
     }
 
     @Override
@@ -220,6 +240,7 @@ public final class AnimationClipsDialog extends StudioDialog {
 
         final Spinner startSpinner;
         final Spinner endSpinner;
+        final Button removeButton;
 
         Row(int frameMax) {
             nameField.setMessageText("clip");
@@ -229,6 +250,7 @@ public final class AnimationClipsDialog extends StudioDialog {
 
             startSpinner = new Spinner("", startModel);
             endSpinner = new Spinner("", endModel);
+            removeButton = new Button(VisUI.getSkin(), "delete");
         }
     }
 }
