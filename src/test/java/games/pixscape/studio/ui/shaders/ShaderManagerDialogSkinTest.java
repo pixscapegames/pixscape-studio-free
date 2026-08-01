@@ -159,6 +159,32 @@ public class ShaderManagerDialogSkinTest {
     }
 
     @Test
+    public void shaderEditorsUseMatchingFlatHeadersWithoutIntermediateSpacing()
+            throws ReflectiveOperationException {
+        ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+        Actor vertexLabel = findLabel(dialog, "Vertex shader");
+        Actor fragmentLabel = findLabel(dialog, "Fragment shader");
+        Assert.assertNotNull(vertexLabel);
+        Assert.assertNotNull(fragmentLabel);
+
+        Table vertexHeader = (Table) vertexLabel.getParent();
+        Table fragmentHeader = (Table) fragmentLabel.getParent();
+        Assert.assertSame(VisUI.getSkin().getDrawable("shader-section-header"), vertexHeader.getBackground());
+        Assert.assertSame(vertexHeader.getBackground(), fragmentHeader.getBackground());
+        Assert.assertSame(((com.badlogic.gdx.scenes.scene2d.ui.Label) vertexLabel).getStyle(),
+                ((com.badlogic.gdx.scenes.scene2d.ui.Label) fragmentLabel).getStyle());
+
+        Table editorTable = (Table) vertexHeader.getParent();
+        int vertexHeaderIndex = editorTable.getChildren().indexOf(vertexHeader, true);
+        Actor vertexEditor = editorTable.getChildren().get(vertexHeaderIndex + 1);
+        Assert.assertTrue(vertexEditor instanceof ScrollableCodeEditor);
+        dialog.validate();
+        editorTable.validate();
+        Assert.assertEquals(vertexEditor.getY(), fragmentHeader.getY() + fragmentHeader.getHeight(), 0.01f);
+        Assert.assertEquals(vertexHeader.getHeight(), fragmentHeader.getHeight(), 0.01f);
+    }
+
+    @Test
     public void usesGlobalScrollAndFourIndependentlyScrollableCodeEditors()
             throws ReflectiveOperationException {
         ShaderManagerDialog dialog = new ShaderManagerDialog(null);
@@ -469,6 +495,20 @@ public class ShaderManagerDialogSkinTest {
             }
         }
         return count;
+    }
+
+    private static Actor findLabel(Actor actor, String text) {
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Label
+                && text.contentEquals(((com.badlogic.gdx.scenes.scene2d.ui.Label) actor).getText())) {
+            return actor;
+        }
+        if (actor instanceof Group) {
+            for (Actor child : ((Group) actor).getChildren()) {
+                Actor match = findLabel(child, text);
+                if (match != null) return match;
+            }
+        }
+        return null;
     }
 
     private static Object defaultValue(Class<?> returnType) {

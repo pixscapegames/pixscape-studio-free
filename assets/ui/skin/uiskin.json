@@ -127,6 +127,15 @@
 			"a": 1
 		}
 	},
+	"shader-section-header": {
+		"name": "white",
+		"color": {
+			"r": 0.08,
+			"g": 0.42,
+			"b": 0.60,
+			"a": 1
+		}
+	},
 	"canvas-mode-border": {
 		"name": "white",
 		"color": {

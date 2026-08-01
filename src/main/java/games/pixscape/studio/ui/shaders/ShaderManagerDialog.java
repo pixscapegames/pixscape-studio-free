@@ -202,7 +202,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private VisTable buildVariantEditorTable(ShaderVariant variant) {
-        VisTable table = new VisTable(true);
+        VisTable table = new VisTable();
         table.defaults().left().growX();
 
         ScrollableCodeEditor vertEditor = vertEditors.get(variant);
@@ -217,13 +217,20 @@ public class ShaderManagerDialog extends StudioModalWindow {
             fragEditors.put(variant, fragEditor);
         }
 
-        table.add(new VisLabel("Vertex shader")).row();
+        table.add(buildShaderSectionHeader("Vertex shader")).growX().row();
         table.add(vertEditor).growX().height(CODE_AREA_HEIGHT).row();
 
-        table.add(new VisLabel("Fragment shader")).padTop(8).row();
+        table.add(buildShaderSectionHeader("Fragment shader")).growX().row();
         table.add(fragEditor).growX().height(CODE_AREA_HEIGHT).row();
 
         return table;
+    }
+
+    private VisTable buildShaderSectionHeader(String title) {
+        VisTable header = new VisTable();
+        header.setBackground(VisUI.getSkin().getDrawable("shader-section-header"));
+        header.add(new VisLabel(title)).left().pad(4f, 6f, 4f, 6f);
+        return header;
     }
 
     private void showTargetContent(VariantTab tab) {
