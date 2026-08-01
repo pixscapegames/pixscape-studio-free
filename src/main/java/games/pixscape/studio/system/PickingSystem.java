@@ -3300,6 +3300,14 @@ public final class PickingSystem extends BaseSystem {
             gizmoSystem.clearCursor();
         }
 
+        if (movingPolygonVertexActive) {
+            if (!osCursorHidden) {
+                setCursor(Cursor.SystemCursor.None);
+                osCursorHidden = true;
+            }
+            return;
+        }
+
         float objectRotationRad = 0f;
         IntArray sel = selectionService.getSelectionSnapshot();
         if (sel.size == 1 && mT.has(sel.get(0))) {
@@ -3331,7 +3339,7 @@ public final class PickingSystem extends BaseSystem {
         if (hoveredPolygonVertexIndex >= 0) {
             if (gizmoSystem != null) {
                 gizmoSystem.setCursor(
-                        CursorKind.RESIZE,
+                        CursorKind.MOVE,
                         0f,
                         tmpMouseWorld
                 );
