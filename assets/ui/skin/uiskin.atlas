@@ -4,6 +4,24 @@ size: 512, 512
 format: RGBA8888
 filter: Linear, Linear
 repeat: none
+scroll-horizontal
+  rotate: false
+  xy: 294, 259
+  size: 6, 17
+  split: 2, 2, 0, 17
+  pad: -1, -1, 2, 2
+  orig: 6, 17
+  offset: 0, 0
+  index: -1
+scroll-knob-horizontal
+  rotate: false
+  xy: 413, 373
+  size: 6, 17
+  split: 2, 2, 0, 17
+  pad: -1, -1, 6, 6
+  orig: 6, 17
+  offset: 0, 0
+  index: -1
 add
   rotate: false
   xy: 56, 92
@@ -723,49 +741,49 @@ vis-blue
   index: -1
 move
   rotate: false
-  xy: 346, 400
+  xy: 61, 131
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-horizontally
   rotate: false
-  xy: 346, 374
+  xy: 346, 400
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-horizontally-disabled
   rotate: false
-  xy: 377, 460
+  xy: 346, 374
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-horizontally-down
   rotate: false
-  xy: 377, 434
+  xy: 377, 460
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-vertically
   rotate: false
-  xy: 403, 460
+  xy: 377, 434
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-vertically-disabled
   rotate: false
-  xy: 403, 434
+  xy: 403, 460
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 pack-vertically-down
   rotate: false
-  xy: 429, 460
+  xy: 403, 434
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
@@ -864,77 +882,77 @@ rectangle_down
   index: -1
 reset
   rotate: false
-  xy: 429, 434
+  xy: 429, 460
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 reset-disabled
   rotate: false
-  xy: 455, 460
+  xy: 429, 434
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 reset-down
   rotate: false
-  xy: 455, 434
+  xy: 455, 460
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 resize
   rotate: false
-  xy: 35, 131
+  xy: 61, 157
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate
   rotate: false
-  xy: 30, 105
+  xy: 455, 434
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-left
   rotate: false
-  xy: 30, 79
+  xy: 35, 131
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-left-disabled
   rotate: false
-  xy: 30, 53
+  xy: 30, 105
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-left-down
   rotate: false
-  xy: 27, 27
+  xy: 30, 79
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-right
   rotate: false
-  xy: 27, 1
+  xy: 30, 53
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-right-disabled
   rotate: false
-  xy: 61, 157
+  xy: 27, 27
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
   index: -1
 rotate-right-down
   rotate: false
-  xy: 61, 131
+  xy: 27, 1
   size: 24, 24
   orig: 24, 24
   offset: 0, 0
@@ -1255,23 +1273,5 @@ window-resizable
   split: 5, 12, 3, 12
   pad: 5, 5, 25, 3
   orig: 27, 43
-  offset: 0, 0
-  index: -1
-scroll-horizontal
-  rotate: false
-  xy: 294, 259
-  size: 6, 17
-  split: 2, 2, 0, 17
-  pad: -1, -1, 2, 2
-  orig: 6, 17
-  offset: 0, 0
-  index: -1
-scroll-knob-horizontal
-  rotate: false
-  xy: 413, 373
-  size: 6, 17
-  split: 2, 2, 0, 17
-  pad: -1, -1, 6, 6
-  orig: 6, 17
   offset: 0, 0
   index: -1

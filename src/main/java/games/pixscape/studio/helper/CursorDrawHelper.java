@@ -1,5 +1,6 @@
 package games.pixscape.studio.helper;
 
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
@@ -32,11 +33,12 @@ public final class CursorDrawHelper {
     // Draw (WORLD SPACE)
     // --------------------------------------------------------------------
 
-    public static void draw(StudioDrawContext ctx,
-                            Vector2 mouseWorld,
-                            CursorKind kind,
-                            float rotationRad) {
-
+    public static void draw(
+            StudioDrawContext ctx,
+            Vector2 mouseWorld,
+            CursorKind kind,
+            float rotationRad
+    ) {
         if (kind == CursorKind.NONE) return;
 
         Drawable d = switch (kind) {
@@ -47,32 +49,36 @@ public final class CursorDrawHelper {
         };
         if (d == null) return;
 
-        // pixel -> world conversion (constant on-screen size)
         float sizeWorld = HandleHelper.pxToWorld(ctx.cam, SIZE_PX);
-        float halfWidthorld = sizeWorld * 0.5f;
+        float halfWidthWorld = sizeWorld * 0.5f;
 
-        float x = mouseWorld.x - halfWidthorld;
-        float y = mouseWorld.y - halfWidthorld;
+        float x = mouseWorld.x - halfWidthWorld;
+        float y = mouseWorld.y - halfWidthWorld;
 
-        // no rotation -> standard drawable
-        if (rotationRad == 0f) {
-            d.draw(ctx.batch, x, y, sizeWorld, sizeWorld);
-            return;
+        float previousPackedColor = ctx.batch.getPackedColor();
+        ctx.batch.setColor(Color.WHITE);
+
+        try {
+            if (rotationRad == 0f) {
+                d.draw(ctx.batch, x, y, sizeWorld, sizeWorld);
+                return;
+            }
+
+            if (!(d instanceof TextureRegionDrawable trd)) {
+                d.draw(ctx.batch, x, y, sizeWorld, sizeWorld);
+                return;
+            }
+
+            ctx.batch.draw(
+                    trd.getRegion(),
+                    x, y,
+                    halfWidthWorld, halfWidthWorld,
+                    sizeWorld, sizeWorld,
+                    1f, 1f,
+                    rotationRad * MathUtils.radiansToDegrees
+            );
+        } finally {
+            ctx.batch.setPackedColor(previousPackedColor);
         }
-
-        // rotation -> TextureRegionDrawable requis
-        if (!(d instanceof TextureRegionDrawable trd)) {
-            d.draw(ctx.batch, x, y, sizeWorld, sizeWorld);
-            return;
-        }
-
-        ctx.batch.draw(
-                trd.getRegion(),
-                x, y,
-                halfWidthorld, halfWidthorld,
-                sizeWorld, sizeWorld,
-                1f, 1f,
-                rotationRad * MathUtils.radiansToDegrees
-        );
     }
 }
