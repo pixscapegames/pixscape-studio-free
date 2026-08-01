@@ -37,8 +37,8 @@ public final class Dialogs {
     }
 
     private static <T extends com.kotcrab.vis.ui.widget.VisWindow> T apply(T dialog) {
-        StudioModalChrome.installBackgroundTitleBar(dialog);
         StudioModalChrome.apply(dialog);
+        StudioModalChrome.installBackgroundTitleBar(dialog);
         dialog.pack();
         dialog.centerWindow();
         return dialog;

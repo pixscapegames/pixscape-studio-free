@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.shaders;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
@@ -8,7 +9,6 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -25,10 +25,12 @@ import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane.TabbedPaneStyle;
 import games.pixscape.studio.ui.modal.StudioModalChrome;
 import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
+import games.pixscape.runtime.render.ShaderVariant;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -74,6 +76,9 @@ public class ShaderManagerDialogSkinTest {
 
         StudioModalChrome.apply(dialog);
         VisImageButtonStyle closeStyle = skin.get("modal-close", VisImageButtonStyle.class);
+        Assert.assertSame(skin.getDrawable("modal-close-icon"), closeStyle.imageUp);
+        Assert.assertSame(closeStyle.imageUp, closeStyle.imageDown);
+        Assert.assertSame(closeStyle.imageUp, closeStyle.imageOver);
         int matchingCloseButtons = 0;
         for (Actor child : dialog.getTitleTable().getChildren()) {
             if (child instanceof VisImageButton
@@ -85,29 +90,19 @@ public class ShaderManagerDialogSkinTest {
     }
 
     @Test
-    public void drawsModalTitleBarsAcrossTheWindowWidthAfterResize() {
-        ShaderManagerDialog window = new ShaderManagerDialog(null);
-        window.validate();
-        RecordingDrawable drawable = new RecordingDrawable();
+    public void modalWindowsInstallTheBackgroundStripeWithoutCustomBackgroundDrawing() {
         Skin skin = VisUI.getSkin();
-        skin.add("modal-titlebar-light", drawable, com.badlogic.gdx.scenes.scene2d.utils.Drawable.class);
-        Batch batch = batchProxy();
-
-        StudioModalChrome.drawTitleBarBackground(window, batch, 1f, 12f, 24f);
-        Assert.assertEquals(12f, drawable.x, 0.01f);
-        Assert.assertEquals(window.getWidth(), drawable.width, 0.01f);
-        Assert.assertEquals(window.getPadTop(), drawable.height, 0.01f);
-
-        window.setWidth(1080f);
-        window.validate();
-        StudioModalChrome.drawTitleBarBackground(window, batch, 1f, 0f, 0f);
-        Assert.assertEquals(1080f, drawable.width, 0.01f);
-
+        StudioModalWindow window = new StudioModalWindow("Shader Manager");
         StudioDialog dialog = new StudioDialog("Confirmation");
-        dialog.setSize(420f, 240f);
-        dialog.validate();
-        StudioModalChrome.drawTitleBarBackground(dialog, batch, 1f, 0f, 0f);
-        Assert.assertEquals(420f, drawable.width, 0.01f);
+
+        Assert.assertEquals("FullWidthTitleBackground", window.getStyle().background.getClass().getSimpleName());
+        Assert.assertEquals("FullWidthTitleBackground", dialog.getStyle().background.getClass().getSimpleName());
+        Assert.assertSame(skin.get("modal-title", LabelStyle.class), window.getTitleLabel().getStyle());
+        Assert.assertSame(skin.get("modal-title", LabelStyle.class), dialog.getTitleLabel().getStyle());
+        Assert.assertSame(window.getTitleTable(), window.getTitleLabel().getParent());
+        Assert.assertSame(dialog.getTitleTable(), dialog.getTitleLabel().getParent());
+        assertNoDeclaredMethod(StudioModalWindow.class, "drawBackground");
+        assertNoDeclaredMethod(StudioDialog.class, "drawBackground");
     }
 
     @Test
@@ -271,6 +266,114 @@ public class ShaderManagerDialogSkinTest {
         }
     }
 
+    @Test
+    public void duplicatedAssetUsesUnsavedEditorSourcesAndPreservesIncludes() throws Exception {
+        ProjectConfig previous = ProjectConfig.getInstance();
+        File projectDir = temporaryFolder.newFolder("duplicate-shader-project");
+        ProjectConfig config = new ProjectConfig();
+        config.projectFileName = "duplicate-shader-project";
+        config.projectDirectoryPath = projectDir.getAbsolutePath();
+        ProjectConfig.setInstance(config);
+
+        try {
+            ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+            VisSelectBox<?> typeBox = field(dialog, "typeBox", VisSelectBox.class);
+            Object material = typeBox.getItems().first();
+            Method create = privateMethod("createNewShaderAsset", String.class, material.getClass());
+            Method select = privateMethod("selectShader", material.getClass(), String.class);
+            create.invoke(dialog, "source_shader", material);
+            select.invoke(dialog, material, "source_shader");
+
+            FileHandle sourceDir = new FileHandle(
+                    new File(projectDir, "orig/shaders/custom/material/source_shader"));
+            sourceDir.child("desktop-gl30.vert").writeString("old disk vertex", false, "UTF-8");
+            sourceDir.child("includes/common/nested.glsl").writeString("nested include", false, "UTF-8");
+            sourceDir.child("includes/root.glsl").writeString("root include", false, "UTF-8");
+
+            @SuppressWarnings("unchecked")
+            ObjectMap<ShaderVariant, ScrollableCodeEditor> vertices =
+                    (ObjectMap<ShaderVariant, ScrollableCodeEditor>) field(dialog, "vertEditors", ObjectMap.class);
+            @SuppressWarnings("unchecked")
+            ObjectMap<ShaderVariant, ScrollableCodeEditor> fragments =
+                    (ObjectMap<ShaderVariant, ScrollableCodeEditor>) field(dialog, "fragEditors", ObjectMap.class);
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                vertices.get(variant).setText("unsaved vertex " + variant);
+                fragments.get(variant).setText("unsaved fragment " + variant);
+            }
+
+            Method snapshot = privateMethod("snapshotCurrentEditorSources");
+            Object sources = snapshot.invoke(dialog);
+            Method validateSources = privateMethod("validateShaderSources", sources.getClass());
+            validateSources.invoke(dialog, sources);
+            Method writeDuplicate = privateMethod(
+                    "writeDuplicatedShaderAsset",
+                    FileHandle.class,
+                    FileHandle.class,
+                    String.class,
+                    material.getClass(),
+                    sources.getClass()
+            );
+
+            FileHandle targetDir = new FileHandle(
+                    new File(projectDir, "orig/shaders/custom/material/editor_copy"));
+            writeDuplicate.invoke(dialog, sourceDir, targetDir, "editor_copy", material, sources);
+
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                String prefix = invokeVariantPrefix(dialog, variant);
+                Assert.assertEquals("unsaved vertex " + variant,
+                        targetDir.child(prefix + ".vert").readString("UTF-8"));
+                Assert.assertEquals("unsaved fragment " + variant,
+                        targetDir.child(prefix + ".frag").readString("UTF-8"));
+            }
+            Assert.assertFalse(targetDir.child("source_shader").exists());
+            Assert.assertFalse(targetDir.child("includes/includes").exists());
+            Assert.assertEquals("nested include",
+                    targetDir.child("includes/common/nested.glsl").readString("UTF-8"));
+            Assert.assertEquals("root include", targetDir.child("includes/root.glsl").readString("UTF-8"));
+            String json = targetDir.child("shader.json").readString("UTF-8");
+            Assert.assertTrue(json.contains("\"name\": \"editor_copy\""));
+            Assert.assertTrue(json.contains("\"kind\": \"material\""));
+
+            FileHandle sourceWithoutIncludes = new FileHandle(new File(projectDir, "source-without-includes"));
+            sourceWithoutIncludes.mkdirs();
+            FileHandle emptyIncludesTarget = new FileHandle(
+                    new File(projectDir, "orig/shaders/custom/material/no_includes_copy"));
+            writeDuplicate.invoke(
+                    dialog, sourceWithoutIncludes, emptyIncludesTarget, "no_includes_copy", material, sources);
+            Assert.assertTrue(emptyIncludesTarget.child("includes").isDirectory());
+            Assert.assertEquals(0, emptyIncludesTarget.child("includes").list().length);
+
+            vertices.get(ShaderVariant.DESKTOP_GL30).setText("   ");
+            Object invalidSources = snapshot.invoke(dialog);
+            try {
+                validateSources.invoke(dialog, invalidSources);
+                Assert.fail("An empty editor source must be rejected.");
+            } catch (InvocationTargetException expected) {
+                Assert.assertTrue(expected.getCause().getMessage().contains("Missing vertex shader for DESKTOP_GL30"));
+            }
+            Assert.assertFalse(new File(projectDir, "orig/shaders/custom/material/rejected_copy").exists());
+
+            FileHandle rollbackTarget = new FileHandle(
+                    new File(projectDir, "orig/shaders/custom/material/rollback_copy"));
+            rollbackTarget.child("desktop-gl30.vert").mkdirs();
+            try {
+                writeDuplicate.invoke(dialog, sourceDir, rollbackTarget, "rollback_copy", material, sources);
+                Assert.fail("A failed duplicate write must throw.");
+            } catch (InvocationTargetException expected) {
+                Assert.assertTrue(expected.getCause() instanceof RuntimeException);
+            }
+            Assert.assertFalse(rollbackTarget.exists());
+
+            Method validateDirectory = privateMethod("validateStructuredShaderDirectory", FileHandle.class);
+            targetDir.child("desktop-gl30.vert").delete();
+            assertDirectoryValidationFails(validateDirectory, dialog, targetDir, "desktop-gl30.vert");
+            targetDir.child("desktop-gl30.vert").writeString("", false, "UTF-8");
+            assertDirectoryValidationFails(validateDirectory, dialog, targetDir, "empty");
+        } finally {
+            ProjectConfig.setInstance(previous);
+        }
+    }
+
     private static void assertShaderAsset(
             File projectDir, String category, String name, String jsonKind, String sourceMarker) {
         File shaderDir = new File(projectDir, "orig/shaders/custom/" + category + "/" + name);
@@ -291,6 +394,27 @@ public class ShaderManagerDialogSkinTest {
         Method method = ShaderManagerDialog.class.getDeclaredMethod(name, types);
         method.setAccessible(true);
         return method;
+    }
+
+    private static String invokeVariantPrefix(ShaderManagerDialog dialog, ShaderVariant variant) throws Exception {
+        Method method = privateMethod("variantFilePrefix", ShaderVariant.class);
+        return (String) method.invoke(dialog, variant);
+    }
+
+    private static void assertDirectoryValidationFails(
+            Method validation, ShaderManagerDialog dialog, FileHandle directory, String messageFragment) throws Exception {
+        try {
+            validation.invoke(dialog, directory);
+            Assert.fail("Invalid shader directory must be rejected.");
+        } catch (InvocationTargetException expected) {
+            Assert.assertTrue(expected.getCause().getMessage().contains(messageFragment));
+        }
+    }
+
+    private static void assertNoDeclaredMethod(Class<?> type, String methodName) {
+        for (Method method : type.getDeclaredMethods()) {
+            Assert.assertNotEquals(methodName, method.getName());
+        }
     }
 
     private static String invokeString(Object owner, String methodName, String value) throws Exception {
@@ -324,19 +448,6 @@ public class ShaderManagerDialogSkinTest {
                 new Class[]{Batch.class},
                 (proxy, method, args) -> defaultValue(method.getReturnType())
         );
-    }
-
-    private static final class RecordingDrawable extends BaseDrawable {
-        float x;
-        float width;
-        float height;
-
-        @Override
-        public void draw(Batch batch, float x, float y, float width, float height) {
-            this.x = x;
-            this.width = width;
-            this.height = height;
-        }
     }
 
     private static int countActors(Actor actor, Class<?> type) {

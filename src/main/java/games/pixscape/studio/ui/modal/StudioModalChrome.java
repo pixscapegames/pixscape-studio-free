@@ -23,14 +23,18 @@ public final class StudioModalChrome {
 
     public static <T extends VisWindow> T apply(T window) {
         Skin skin = VisUI.getSkin();
-        window.getTitleLabel().setStyle(skin.get("modal-title", LabelStyle.class));
-        window.getTitleLabel().setAlignment(Align.center);
-        window.getTitleTable().setBackground((Drawable) null);
-
         VisImageButton closeButton = findCloseButton(window, skin);
         if (closeButton == null) {
             window.addCloseButton();
             closeButton = findCloseButton(window, skin);
+        }
+
+        window.getTitleLabel().setStyle(skin.get("modal-title", LabelStyle.class));
+        window.getTitleLabel().setAlignment(Align.center);
+        window.getTitleTable().setBackground((Drawable) null);
+
+        if (closeButton == null) {
+            throw new IllegalStateException("Modal close button could not be created");
         }
 
         closeButton.setStyle(skin.get("modal-close", VisImageButtonStyle.class));
@@ -38,36 +42,18 @@ public final class StudioModalChrome {
         return window;
     }
 
-    public static void drawTitleBarBackground(
-            VisWindow window,
-            Batch batch,
-            float parentAlpha,
-            float x,
-            float y) {
-        Table titleTable = window.getTitleTable();
-        float titleHeight = titleTable.getHeight();
-        if (titleHeight <= 0f) {
-            titleHeight = window.getPadTop();
-        }
-        if (titleHeight <= 0f) return;
-
-        float titleY = y + titleTable.getY();
-        VisUI.getSkin().getDrawable("modal-titlebar-light")
-                .draw(batch, x, titleY, window.getWidth(), titleHeight);
-
-        // Window draws its title table inside super.drawBackground. The full-width stripe
-        // is deliberately painted afterwards, so restore the title and close button on top.
-        titleTable.draw(batch, parentAlpha);
-    }
-
     /** Adds the same background-level title stripe to third-party modal window subclasses. */
     public static void installBackgroundTitleBar(VisWindow window) {
         WindowStyle current = window.getStyle();
         if (current.background instanceof FullWidthTitleBackground) return;
 
+        LabelStyle titleStyle = window.getTitleLabel().getStyle();
+        int titleAlignment = window.getTitleLabel().getLabelAlign();
         WindowStyle style = new WindowStyle(current);
         style.background = new FullWidthTitleBackground(window, current.background);
         window.setStyle(style);
+        window.getTitleLabel().setStyle(titleStyle);
+        window.getTitleLabel().setAlignment(titleAlignment);
     }
 
     private static VisImageButton findCloseButton(VisWindow window, Skin skin) {

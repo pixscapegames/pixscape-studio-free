@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.shaders;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -35,7 +36,12 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private interface NameAction {
-        void run(String value);
+        boolean run(String value);
+    }
+
+    private static final class ShaderSources {
+        final ObjectMap<ShaderVariant, String> vertices = new ObjectMap<>();
+        final ObjectMap<ShaderVariant, String> fragments = new ObjectMap<>();
     }
 
     private final StudioApplicationAdapter app;
@@ -679,28 +685,158 @@ public class ShaderManagerDialog extends StudioModalWindow {
             String newName = sanitizeName(entered);
             if (newName.isBlank()) {
                 Dialogs.showErrorDialog(getStage(), "Shader name is required.");
-                return;
+                return false;
             }
             if (sourceName.equals(newName)) {
                 Dialogs.showErrorDialog(getStage(), "New shader name must be different.");
-                return;
+                return false;
             }
 
             FileHandle sourceDir = getProjectShaderDir(kind, sourceName);
             FileHandle targetDir = getProjectShaderDir(kind, newName);
 
+            if (sourceDir == null || !sourceDir.exists() || !sourceDir.isDirectory()) {
+                Dialogs.showErrorDialog(getStage(), "Shader source directory could not be found.");
+                return false;
+            }
+            if (targetDir == null) {
+                Dialogs.showErrorDialog(getStage(), "The project shader directory is unavailable.");
+                return false;
+            }
             if (targetDir.exists()) {
                 Dialogs.showErrorDialog(getStage(), "A shader with that name already exists.");
-                return;
+                return false;
             }
 
-            sourceDir.copyTo(targetDir);
-            targetDir.child("shader.json").writeString(buildShaderJson(newName, kind), false, "UTF-8");
-            targetDir.child("includes").mkdirs();
-
-            reloadRegistryAndNotify();
-            selectShader(kind, newName);
+            ShaderSources sources = snapshotCurrentEditorSources();
+            try {
+                validateShaderSources(sources);
+                writeDuplicatedShaderAsset(sourceDir, targetDir, newName, kind, sources);
+                reloadRegistryAndNotify();
+                selectShader(kind, newName);
+                return true;
+            } catch (Exception ex) {
+                rollbackDuplicatedShader(targetDir, ex);
+                Dialogs.showErrorDialog(
+                        getStage(),
+                        "Error while duplicating shader",
+                        ex.getMessage() != null ? ex.getMessage() : ex.toString()
+                );
+                return false;
+            }
         });
+    }
+
+    private ShaderSources snapshotCurrentEditorSources() {
+        ShaderSources sources = new ShaderSources();
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String vertex = vertEditors.get(variant).getText();
+            String fragment = fragEditors.get(variant).getText();
+            sources.vertices.put(variant, vertex == null ? null : new String(vertex));
+            sources.fragments.put(variant, fragment == null ? null : new String(fragment));
+        }
+        return sources;
+    }
+
+    private void validateShaderSources(ShaderSources sources) {
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String vertex = sources.vertices.get(variant);
+            if (vertex == null || vertex.trim().isEmpty()) {
+                throw new IllegalArgumentException("Missing vertex shader for " + variant + ".");
+            }
+            String fragment = sources.fragments.get(variant);
+            if (fragment == null || fragment.trim().isEmpty()) {
+                throw new IllegalArgumentException("Missing fragment shader for " + variant + ".");
+            }
+        }
+    }
+
+    private void writeDuplicatedShaderAsset(
+            FileHandle sourceDir,
+            FileHandle targetDir,
+            String newName,
+            ShaderKind kind,
+            ShaderSources sources) {
+        try {
+            targetDir.mkdirs();
+            if (!targetDir.exists() || !targetDir.isDirectory()) {
+                throw new IllegalStateException("The duplicated shader directory could not be created.");
+            }
+
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                String prefix = variantFilePrefix(variant);
+                targetDir.child(prefix + ".vert")
+                        .writeString(sources.vertices.get(variant), false, "UTF-8");
+                targetDir.child(prefix + ".frag")
+                        .writeString(sources.fragments.get(variant), false, "UTF-8");
+            }
+
+            targetDir.child("shader.json").writeString(buildShaderJson(newName, kind), false, "UTF-8");
+            FileHandle targetIncludes = targetDir.child("includes");
+            targetIncludes.mkdirs();
+            copyDirectoryContents(sourceDir.child("includes"), targetIncludes);
+            validateStructuredShaderDirectory(targetDir);
+        } catch (RuntimeException ex) {
+            rollbackDuplicatedShader(targetDir, ex);
+            throw ex;
+        }
+    }
+
+    private void copyDirectoryContents(FileHandle sourceDir, FileHandle targetDir) {
+        if (!sourceDir.exists()) return;
+        if (!sourceDir.isDirectory()) {
+            throw new IllegalStateException("Shader includes path is not a directory: " + sourceDir.path());
+        }
+
+        for (FileHandle sourceChild : sourceDir.list()) {
+            FileHandle targetChild = targetDir.child(sourceChild.name());
+            if (sourceChild.isDirectory()) {
+                targetChild.mkdirs();
+                if (!targetChild.exists() || !targetChild.isDirectory()) {
+                    throw new IllegalStateException("Could not create includes directory: " + targetChild.path());
+                }
+                copyDirectoryContents(sourceChild, targetChild);
+            } else {
+                targetChild.writeBytes(sourceChild.readBytes(), false);
+                if (!targetChild.exists() || targetChild.isDirectory()) {
+                    throw new IllegalStateException("Could not copy include file: " + sourceChild.path());
+                }
+            }
+        }
+    }
+
+    private void validateStructuredShaderDirectory(FileHandle shaderDir) {
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String prefix = variantFilePrefix(variant);
+            validateNonEmptyFile(shaderDir.child(prefix + ".vert"));
+            validateNonEmptyFile(shaderDir.child(prefix + ".frag"));
+        }
+        validateNonEmptyFile(shaderDir.child("shader.json"));
+
+        FileHandle includesDir = shaderDir.child("includes");
+        if (!includesDir.exists() || !includesDir.isDirectory()) {
+            throw new IllegalStateException("Missing shader includes directory: " + includesDir.path());
+        }
+    }
+
+    private void validateNonEmptyFile(FileHandle file) {
+        if (!file.exists() || file.isDirectory()) {
+            throw new IllegalStateException("Missing shader file: " + file.name());
+        }
+        if (file.length() <= 0L) {
+            throw new IllegalStateException("Shader file is empty: " + file.name());
+        }
+    }
+
+    private void rollbackDuplicatedShader(FileHandle targetDir, Exception originalFailure) {
+        if (targetDir == null || !targetDir.exists()) return;
+        if (!targetDir.deleteDirectory() && Gdx.app != null) {
+            Gdx.app.error(
+                    "ShaderManagerDialog",
+                    "Could not roll back duplicated shader directory: " + targetDir.path(),
+                    originalFailure
+            );
+        }
     }
 
     private void doRenameShader() {
@@ -716,11 +852,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
             String targetName = sanitizeName(entered);
             if (targetName.isBlank()) {
                 Dialogs.showErrorDialog(getStage(), "Shader name is required.");
-                return;
+                return false;
             }
             if (sourceName.equals(targetName)) {
                 Dialogs.showErrorDialog(getStage(), "New shader name must be different.");
-                return;
+                return false;
             }
 
             FileHandle sourceDir = getProjectShaderDir(kind, sourceName);
@@ -728,19 +864,29 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
             if (targetDir.exists()) {
                 Dialogs.showErrorDialog(getStage(), "A shader with that name already exists.");
-                return;
+                return false;
             }
 
-            sourceDir.moveTo(targetDir);
-            if (!targetDir.exists()) {
-                Dialogs.showErrorDialog(getStage(), "Shader directory rename failed.");
-                return;
+            try {
+                sourceDir.moveTo(targetDir);
+                if (!targetDir.exists()) {
+                    Dialogs.showErrorDialog(getStage(), "Shader directory rename failed.");
+                    return false;
+                }
+
+                targetDir.child("shader.json").writeString(buildShaderJson(targetName, kind), false, "UTF-8");
+
+                reloadRegistryAndNotify();
+                selectShader(kind, targetName);
+                return true;
+            } catch (Exception ex) {
+                Dialogs.showErrorDialog(
+                        getStage(),
+                        "Error while renaming shader",
+                        ex.getMessage() != null ? ex.getMessage() : ex.toString()
+                );
+                return false;
             }
-
-            targetDir.child("shader.json").writeString(buildShaderJson(targetName, kind), false, "UTF-8");
-
-            reloadRegistryAndNotify();
-            selectShader(kind, targetName);
         });
     }
 
@@ -777,8 +923,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 String value = input.getText();
-                dialog.remove();
-                action.run(value == null ? "" : value);
+                if (action.run(value == null ? "" : value)) {
+                    dialog.remove();
+                }
             }
         });
 
