@@ -42,6 +42,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private final TabbedPane targetTabs;
     private final VisTable targetContent = new VisTable(true);
+    private final VisScrollPane mainScrollPane;
 
     private final ObjectMap<ShaderVariant, VisTextArea> vertAreas = new ObjectMap<>();
     private final ObjectMap<ShaderVariant, VisTextArea> fragAreas = new ObjectMap<>();
@@ -73,9 +74,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
         closeOnEscape();
 
-        VisTable root = new VisTable(true);
-        root.pad(8);
-        root.defaults().left();
+        VisTable mainContent = new VisTable(true);
+        mainContent.pad(8);
+        mainContent.defaults().left();
 
         VisTable formTable = new VisTable();
         formTable.defaults().left().padBottom(4f);
@@ -94,7 +95,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
         formTable.add(new VisLabel("Name:")).width(FORM_LABEL_WIDTH).padRight(10f).padBottom(0f);
         formTable.add(nameField).width(FORM_CONTROL_WIDTH).padBottom(0f).row();
 
-        root.add(formTable).left().row();
+        mainContent.add(formTable).left().row();
 
         targetTabs = new TabbedPane("shader-tabs");
         addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop GL30");
@@ -115,21 +116,28 @@ public class ShaderManagerDialog extends StudioModalWindow {
             }
         });
 
-        VisScrollPane scrollPane = new VisScrollPane(targetContent);
-        scrollPane.setFadeScrollBars(false);
-        scrollPane.setCancelTouchFocus(false);
-        scrollPane.setFlickScroll(false);
-
         VisTable contentFrame = new VisTable();
         contentFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
         contentFrame.pad(2f);
-        contentFrame.add(scrollPane).grow();
+        contentFrame.add(targetContent).growX();
 
         VisTable targetArea = new VisTable();
         targetArea.add(targetTabs.getTabsPane()).left().growX().row();
-        targetArea.add(contentFrame).grow().padTop(-1f).row();
-        root.add(targetArea).grow().row();
+        targetArea.add(contentFrame).growX().padTop(-1f).row();
+        mainContent.add(targetArea).growX().row();
+
+        VisLabel includeHintLabel = new VisLabel(
+                "Material shaders can use #include \"pixscape_common.glsl\"."
+        );
+        mainContent.add(includeHintLabel).left().padTop(4f).row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
+
+        mainScrollPane = new VisScrollPane(mainContent);
+        mainScrollPane.setScrollingDisabled(true, false);
+        mainScrollPane.setForceScroll(false, false);
+        mainScrollPane.setFadeScrollBars(false);
+        mainScrollPane.setFlickScroll(false);
+        mainScrollPane.setCancelTouchFocus(false);
 
         testButton = new VisTextButton("Test current target");
         saveButton = new VisTextButton("Save");
@@ -163,9 +171,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
         buttons.add(leftButtons).left().expandX();
         buttons.add(rightButtons).right();
 
-        root.add(buttons).growX().padTop(6);
+        VisTable shell = new VisTable();
+        shell.add(mainScrollPane).grow().row();
+        shell.add(buttons).growX().padTop(6f);
 
-        add(root).grow();
+        add(shell).grow();
 
         hookListeners();
         refreshShaderList();
@@ -204,12 +214,10 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
 
         table.add(new VisLabel("Vertex shader")).row();
-        table.add(createCodeScrollPane(vertArea)).growX().height(CODE_AREA_HEIGHT).row();
+        table.add(vertArea).growX().height(CODE_AREA_HEIGHT).row();
 
         table.add(new VisLabel("Fragment shader")).padTop(8).row();
-        table.add(createCodeScrollPane(fragArea)).growX().height(CODE_AREA_HEIGHT).row();
-
-        table.add(new VisLabel("Material shaders can use #include \"pixscape_common.glsl\".")).padTop(8).row();
+        table.add(fragArea).growX().height(CODE_AREA_HEIGHT).row();
 
         return table;
     }
@@ -220,15 +228,6 @@ public class ShaderManagerDialog extends StudioModalWindow {
         selectedVariant = tab.getVariant();
         targetContent.clear();
         targetContent.add(tab.getContentTable()).grow();
-    }
-
-    private VisScrollPane createCodeScrollPane(VisTextArea area) {
-        VisScrollPane scrollPane = new VisScrollPane(area);
-        scrollPane.setFadeScrollBars(false);
-        scrollPane.setCancelTouchFocus(false);
-        scrollPane.setFlickScroll(false);
-        scrollPane.setScrollingDisabled(false, false);
-        return scrollPane;
     }
 
     private void hookListeners() {

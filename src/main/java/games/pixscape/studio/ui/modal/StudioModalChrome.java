@@ -34,6 +34,11 @@ public final class StudioModalChrome {
         return window;
     }
 
+    public static void layoutTitleBarEdgeToEdge(VisWindow window) {
+        Table titleTable = window.getTitleTable();
+        titleTable.setBounds(0f, titleTable.getY(), window.getWidth(), titleTable.getHeight());
+    }
+
     private static VisImageButton findCloseButton(VisWindow window, Skin skin) {
         VisImageButtonStyle standardStyle = skin.get("close-window", VisImageButtonStyle.class);
         VisImageButtonStyle modalStyle = skin.get("modal-close", VisImageButtonStyle.class);

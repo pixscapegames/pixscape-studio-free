@@ -3,21 +3,27 @@ package games.pixscape.studio.ui.shaders;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
+import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisImageButton;
 import com.kotcrab.vis.ui.widget.VisImageButton.VisImageButtonStyle;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
+import com.kotcrab.vis.ui.widget.VisScrollPane;
+import com.kotcrab.vis.ui.widget.VisTextArea;
+import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane.TabbedPaneStyle;
 import games.pixscape.studio.ui.modal.StudioModalChrome;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
@@ -50,7 +56,7 @@ public class ShaderManagerDialogSkinTest {
         LabelStyle titleStyle = skin.get("modal-title", LabelStyle.class);
 
         Assert.assertSame(titleStyle, dialog.getTitleLabel().getStyle());
-        Assert.assertSame(skin.getFont("regular-font"), titleStyle.font);
+        Assert.assertSame(skin.getFont("default-font"), titleStyle.font);
         Assert.assertEquals(skin.getColor("black"), titleStyle.fontColor);
         Assert.assertEquals(Align.center, dialog.getTitleLabel().getLabelAlign());
         Assert.assertSame(skin.getDrawable("modal-titlebar-light"), dialog.getTitleTable().getBackground());
@@ -65,6 +71,25 @@ public class ShaderManagerDialogSkinTest {
             }
         }
         Assert.assertEquals(1, matchingCloseButtons);
+    }
+
+    @Test
+    public void laysOutModalTitleBarsEdgeToEdgeAfterResize() {
+        ShaderManagerDialog window = new ShaderManagerDialog(null);
+        window.validate();
+        Assert.assertEquals(0f, window.getTitleTable().getX(), 0.01f);
+        Assert.assertEquals(window.getWidth(), window.getTitleTable().getWidth(), 0.01f);
+
+        window.setWidth(1080f);
+        window.validate();
+        Assert.assertEquals(0f, window.getTitleTable().getX(), 0.01f);
+        Assert.assertEquals(1080f, window.getTitleTable().getWidth(), 0.01f);
+
+        StudioDialog dialog = new StudioDialog("Confirmation");
+        dialog.setSize(420f, 240f);
+        dialog.validate();
+        Assert.assertEquals(0f, dialog.getTitleTable().getX(), 0.01f);
+        Assert.assertEquals(420f, dialog.getTitleTable().getWidth(), 0.01f);
     }
 
     @Test
@@ -124,10 +149,69 @@ public class ShaderManagerDialogSkinTest {
         Assert.assertNotSame(tabStyle.buttonStyle.checked, tabStyle.buttonStyle.up);
     }
 
+    @Test
+    public void usesOneGlobalScrollPaneAndKeepsEditorsAndButtonsOutsideNestedScrolls()
+            throws ReflectiveOperationException {
+        ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+        VisScrollPane mainScrollPane = field(dialog, "mainScrollPane", VisScrollPane.class);
+        VisTextButton testButton = field(dialog, "testButton", VisTextButton.class);
+        VisTextButton saveButton = field(dialog, "saveButton", VisTextButton.class);
+
+        Assert.assertEquals(1, countActors(dialog, VisScrollPane.class));
+        Assert.assertFalse(testButton.isDescendantOf(mainScrollPane));
+        Assert.assertFalse(saveButton.isDescendantOf(mainScrollPane));
+        dialog.validate();
+        mainScrollPane.validate();
+        Assert.assertTrue(mainScrollPane.isScrollingDisabledX());
+        Assert.assertFalse(mainScrollPane.isScrollingDisabledY());
+        Assert.assertFalse(mainScrollPane.isForceScrollX());
+        Assert.assertFalse(mainScrollPane.isForceScrollY());
+        Assert.assertFalse(mainScrollPane.getFadeScrollBars());
+        Assert.assertFalse(mainScrollPane.isScrollY());
+
+        dialog.setHeight(500f);
+        dialog.validate();
+        mainScrollPane.validate();
+        Assert.assertTrue(mainScrollPane.isScrollY());
+        assertTextAreasHaveDirectTableParents(field(dialog, "vertAreas", ObjectMap.class));
+        assertTextAreasHaveDirectTableParents(field(dialog, "fragAreas", ObjectMap.class));
+        Assert.assertEquals(1, countLabels(dialog,
+                "Material shaders can use #include \"pixscape_common.glsl\"."));
+    }
+
     private static <T> T field(Object owner, String name, Class<T> type) throws ReflectiveOperationException {
         Field field = owner.getClass().getDeclaredField(name);
         field.setAccessible(true);
         return type.cast(field.get(owner));
+    }
+
+    private static void assertTextAreasHaveDirectTableParents(ObjectMap<?, ?> areas) {
+        for (Object value : areas.values()) {
+            VisTextArea area = (VisTextArea) value;
+            Assert.assertTrue(area.getParent() instanceof Table);
+            Assert.assertFalse(area.getParent() instanceof VisScrollPane);
+        }
+    }
+
+    private static int countActors(Actor actor, Class<?> type) {
+        int count = type.isInstance(actor) ? 1 : 0;
+        if (actor instanceof Group) {
+            for (Actor child : ((Group) actor).getChildren()) {
+                count += countActors(child, type);
+            }
+        }
+        return count;
+    }
+
+    private static int countLabels(Actor actor, String text) {
+        int count = actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Label
+                && text.contentEquals(((com.badlogic.gdx.scenes.scene2d.ui.Label) actor).getText()) ? 1 : 0;
+        if (actor instanceof Group) {
+            for (Actor child : ((Group) actor).getChildren()) {
+                count += countLabels(child, text);
+            }
+        }
+        return count;
     }
 
     private static Object defaultValue(Class<?> returnType) {

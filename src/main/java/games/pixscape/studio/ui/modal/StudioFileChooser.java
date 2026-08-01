@@ -14,4 +14,10 @@ public class StudioFileChooser extends FileChooser {
         super(directory, mode);
         StudioModalChrome.apply(this);
     }
+
+    @Override
+    public void layout() {
+        super.layout();
+        StudioModalChrome.layoutTitleBarEdgeToEdge(this);
+    }
 }

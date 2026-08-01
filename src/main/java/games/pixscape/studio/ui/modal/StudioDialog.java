@@ -8,4 +8,10 @@ public class StudioDialog extends VisDialog {
         super(title);
         StudioModalChrome.apply(this);
     }
+
+    @Override
+    public void layout() {
+        super.layout();
+        StudioModalChrome.layoutTitleBarEdgeToEdge(this);
+    }
 }

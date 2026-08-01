@@ -40,6 +40,8 @@ public final class Dialogs {
         StudioModalChrome.apply(dialog);
         dialog.pack();
         dialog.centerWindow();
+        dialog.validate();
+        StudioModalChrome.layoutTitleBarEdgeToEdge(dialog);
         return dialog;
     }
 

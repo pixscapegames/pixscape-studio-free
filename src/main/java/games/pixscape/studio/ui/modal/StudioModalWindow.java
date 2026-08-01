@@ -9,4 +9,10 @@ public class StudioModalWindow extends VisWindow {
         setModal(true);
         StudioModalChrome.apply(this);
     }
+
+    @Override
+    public void layout() {
+        super.layout();
+        StudioModalChrome.layoutTitleBarEdgeToEdge(this);
+    }
 }

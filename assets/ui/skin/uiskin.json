@@ -862,7 +862,7 @@
 		"fontColor": "white"
 	},
 	"modal-title": {
-		"font": "regular-font",
+		"font": "default-font",
 		"fontColor": "black"
 	},
 	"link-label": {
