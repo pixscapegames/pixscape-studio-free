@@ -147,7 +147,7 @@ public final class EditTagsDialog extends StudioDialog {
         }
         if (!valid) return null;
 
-        Array<String> result = new Array<>(rows.size);
+        Array<String> result = new Array<>(true, rows.size, String.class);
         HashSet<String> seen = new HashSet<>();
         for (int i = 0; i < rows.size; i++) {
             Row row = rows.get(i);

@@ -123,6 +123,8 @@ public class EditTagsDialogTest {
 
         Assert.assertNotNull(applied.get());
         Assert.assertEquals(List.of("firsttag", "second"), asList(applied.get()));
+        String[] runtimeCompatibleArray = applied.get().toArray();
+        Assert.assertArrayEquals(new String[]{"firsttag", "second"}, runtimeCompatibleArray);
 
         AtomicReference<Array<String>> cancelled = new AtomicReference<>();
         EditTagsDialog cancel = new EditTagsDialog("Edit Tags", List.of("kept"), cancelled::set);
