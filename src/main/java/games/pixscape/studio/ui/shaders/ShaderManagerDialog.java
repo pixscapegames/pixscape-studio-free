@@ -2,11 +2,15 @@ package games.pixscape.studio.ui.shaders;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.util.dialog.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
+import com.kotcrab.vis.ui.widget.VisImageButton.VisImageButtonStyle;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneListener;
@@ -54,6 +58,8 @@ public class ShaderManagerDialog extends VisWindow {
 
     private static final float CODE_ROWS = 12f;
     private static final float CODE_AREA_HEIGHT = 220f;
+    private static final float FORM_LABEL_WIDTH = 110f;
+    private static final float FORM_CONTROL_MIN_WIDTH = 280f;
 
     private boolean creatingNew = false;
     private ShaderVariant selectedVariant = ShaderVariant.DESKTOP_GL30;
@@ -66,26 +72,38 @@ public class ShaderManagerDialog extends VisWindow {
         setModal(true);
         setMovable(true);
         setResizable(true);
+
+        getTitleLabel().setStyle(VisUI.getSkin().get("shader-dialog-title", LabelStyle.class));
+        getTitleLabel().setAlignment(Align.center);
+        getTitleTable().setBackground(VisUI.getSkin().getDrawable("modal-titlebar-light"));
         addCloseButton();
+        VisImageButton closeButton = (VisImageButton) getTitleTable().getChildren().peek();
+        closeButton.setStyle(VisUI.getSkin().get("shader-dialog-close", VisImageButtonStyle.class));
+        getTitleTable().getCell(closeButton).size(22f);
         closeOnEscape();
 
         VisTable root = new VisTable(true);
         root.pad(8);
         root.defaults().left().growX();
 
-        root.add(new VisLabel("Shader kind")).row();
+        VisTable formTable = new VisTable();
+        formTable.defaults().left().padBottom(4f);
+
         typeBox = new VisSelectBox<>();
         typeBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
         typeBox.setSelected(ShaderKind.MATERIAL);
-        root.add(typeBox).width(280).row();
+        formTable.add(new VisLabel("Shader kind:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(typeBox).growX().minWidth(FORM_CONTROL_MIN_WIDTH).row();
 
-        root.add(new VisLabel("Project shader")).row();
         shaderBox = new VisSelectBox<>();
-        root.add(shaderBox).width(280).row();
+        formTable.add(new VisLabel("Project shader:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(shaderBox).growX().minWidth(FORM_CONTROL_MIN_WIDTH).row();
 
-        root.add(new VisLabel("Name")).row();
         nameField = new VisTextField();
-        root.add(nameField).width(280).row();
+        formTable.add(new VisLabel("Name:")).width(FORM_LABEL_WIDTH).padRight(10f).padBottom(0f);
+        formTable.add(nameField).growX().minWidth(FORM_CONTROL_MIN_WIDTH).padBottom(0f).row();
+
+        root.add(formTable).growX().row();
 
         targetTabs = new TabbedPane();
         addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop GL30");
@@ -106,13 +124,17 @@ public class ShaderManagerDialog extends VisWindow {
             }
         });
 
-        root.add(targetTabs.getTabsPane()).growX().row();
-
         VisScrollPane scrollPane = new VisScrollPane(targetContent);
         scrollPane.setFadeScrollBars(false);
         scrollPane.setCancelTouchFocus(false);
         scrollPane.setFlickScroll(false);
-        root.add(scrollPane).grow().row();
+
+        VisTable targetFrame = new VisTable();
+        targetFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
+        targetFrame.pad(2f);
+        targetFrame.add(targetTabs.getTabsPane()).growX().row();
+        targetFrame.add(scrollPane).grow().row();
+        root.add(targetFrame).grow().row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
 
         testButton = new VisTextButton("Test current target");

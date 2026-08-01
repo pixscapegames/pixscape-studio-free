@@ -99,6 +99,33 @@
 			"b": 1,
 			"a": 1
 		}
+	},
+	"modal-titlebar-light": {
+		"name": "white",
+		"color": {
+			"r": 0.9,
+			"g": 0.92,
+			"b": 0.94,
+			"a": 1
+		}
+	},
+	"shader-dialog-close-icon": {
+		"name": "icon-close",
+		"color": {
+			"r": 0.08,
+			"g": 0.08,
+			"b": 0.08,
+			"a": 1
+		}
+	},
+	"tabbed-pane-frame": {
+		"name": "border",
+		"color": {
+			"r": 1,
+			"g": 1,
+			"b": 1,
+			"a": 1
+		}
 	}
 },
 "com.kotcrab.vis.ui.Sizes": {
@@ -263,6 +290,12 @@
 		"up": "button",
 		"over": "button-over",
 		"disabled": "button"
+	},
+	"shader-dialog-close": {
+		"imageUp": "shader-dialog-close-icon",
+		"imageDown": "shader-dialog-close-icon",
+		"imageOver": "shader-dialog-close-icon",
+		"imageDisabled": "shader-dialog-close-icon"
 	}
 },
 "com.kotcrab.vis.ui.widget.VisImageTextButton$VisImageTextButtonStyle": {
@@ -814,6 +847,10 @@
 	"title": {
 		"font": "regular-font",
 		"fontColor": "white"
+	},
+	"shader-dialog-title": {
+		"font": "regular-font",
+		"fontColor": "black"
 	},
 	"link-label": {
 		"font": "default-font",
