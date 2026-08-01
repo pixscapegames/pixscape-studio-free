@@ -126,6 +126,33 @@
 			"b": 1,
 			"a": 1
 		}
+	},
+	"canvas-mode-border": {
+		"name": "white",
+		"color": {
+			"r": 0.105,
+			"g": 0.631,
+			"b": 0.886,
+			"a": 1
+		}
+	},
+	"canvas-mode-background": {
+		"name": "white",
+		"color": {
+			"r": 0.075,
+			"g": 0.14,
+			"b": 0.2,
+			"a": 0.96
+		}
+	},
+	"canvas-mode-background-normal": {
+		"name": "white",
+		"color": {
+			"r": 0.12,
+			"g": 0.14,
+			"b": 0.16,
+			"a": 0.94
+		}
 	}
 },
 "com.kotcrab.vis.ui.Sizes": {
@@ -868,6 +895,10 @@
 	"link-label": {
 		"font": "default-font",
 		"fontColor": "link-label"
+	},
+	"canvas-mode-label": {
+		"font": "regular-font",
+		"fontColor": "white"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.List$ListStyle": {

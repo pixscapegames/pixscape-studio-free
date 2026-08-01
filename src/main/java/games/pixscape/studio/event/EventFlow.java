@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.tiled.TiledToolService;
 
 /**
@@ -274,6 +275,12 @@ public final class EventFlow {
 
     public record EditorModeChanged(
             EditorMode mode,
+            int sourceTag
+    ) {
+    }
+
+    public record StudioEditingModeChanged(
+            StudioEditingMode mode,
             int sourceTag
     ) {
     }

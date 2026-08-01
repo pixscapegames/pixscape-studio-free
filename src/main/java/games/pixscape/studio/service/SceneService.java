@@ -3357,6 +3357,7 @@ public final class SceneService {
 
         if (canvas == null) return;
 
+        canvas.resetEditingContexts();
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
         World world = canvas.getEcsWorld();
 

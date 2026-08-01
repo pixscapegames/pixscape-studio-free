@@ -1,5 +1,9 @@
 package games.pixscape.studio.service.physics;
 
+import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.StudioEditingMode;
+import games.pixscape.studio.service.StudioEditingModeService;
+
 /** Central editor selection for physics sources and their compiled parts. */
 public final class PhysicsSelectionService {
     public static final int NO_SHAPE = -1;
@@ -17,6 +21,16 @@ public final class PhysicsSelectionService {
     private int selectedPhysicsShapeId = NO_SHAPE;
     private int selectedPartIndex = NO_PART;
     private int selectedJointEid = NO_JOINT;
+    private final StudioEditingModeService studioEditingModeService;
+    private final int eventTag = EventFlow.tag(this);
+
+    public PhysicsSelectionService() {
+        this(null);
+    }
+
+    public PhysicsSelectionService(StudioEditingModeService studioEditingModeService) {
+        this.studioEditingModeService = studioEditingModeService;
+    }
 
     public int getFocusedBodyEid() {
         return focusedBodyEid;
@@ -87,6 +101,9 @@ public final class PhysicsSelectionService {
             return;
         }
         focusedBodyEid = bodyEid;
+        if (studioEditingModeService != null) {
+            studioEditingModeService.setModeActive(StudioEditingMode.PHYSICS, bodyEid >= 0, eventTag);
+        }
         clearSelectionOnly();
     }
 
@@ -193,8 +210,12 @@ public final class PhysicsSelectionService {
     }
 
     public void clear() {
+        boolean wasEditing = focusedBodyEid != NO_BODY;
         focusedBodyEid = NO_BODY;
         clearSelectionOnly();
+        if (wasEditing && studioEditingModeService != null) {
+            studioEditingModeService.setModeActive(StudioEditingMode.PHYSICS, false, eventTag);
+        }
     }
 
     public boolean isPhysicsEditingActive() {

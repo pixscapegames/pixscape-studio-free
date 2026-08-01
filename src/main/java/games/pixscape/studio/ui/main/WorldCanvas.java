@@ -118,6 +118,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private LayerService layerService;
     private PhysicsService physicsService;
     private final PhysicsSelectionService physicsSelectionService;
+    private final StudioEditingModeService studioEditingModeService;
     private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
@@ -218,9 +219,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 StudioAssetVisualResolver.projectStandaloneAccess()
         );
         atlasStudioService.setAssetVisualResolver(assetVisualResolver);
-        physicsSelectionService = new PhysicsSelectionService();
+        studioEditingModeService = new StudioEditingModeService();
+        physicsSelectionService = new PhysicsSelectionService(studioEditingModeService);
         physicsSelectionReconciler = new PhysicsSelectionReconciler(physicsSelectionService);
-        spatialBlockSelectionService = new SpatialBlockSelectionService();
+        spatialBlockSelectionService = new SpatialBlockSelectionService(studioEditingModeService);
         spatialTileSelectionService = new SpatialTileSelectionService();
         shaderService = new ShaderService(app);
         polygonDrawSession = new PolygonDrawSession();
@@ -399,7 +401,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         layerService = new LayerService(
                 world, tiledAllocatorService, historyManager.historyIds(), identityRegistry);
-        selectionService = new SelectionService(world, layerService);
+        selectionService = new SelectionService(world, layerService, studioEditingModeService);
         keyboardNudgeService = new KeyboardNudgeService(world, historyManager, selectionService);
         gizmoSystem.setSelectionService(selectionService);
         physicsService = new PhysicsService(world, box2dWorldService);
@@ -2095,6 +2097,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public PhysicsSelectionService getPhysicsSelectionService() {
         return physicsSelectionService;
+    }
+
+    public StudioEditingModeService getStudioEditingModeService() {
+        return studioEditingModeService;
+    }
+
+    public void resetEditingContexts() {
+        studioEditingModeService.reset(EventFlow.tag(this));
+        physicsSelectionService.clear();
+        spatialBlockSelectionService.clear();
     }
 
     public PhysicsSelectionReconciler getPhysicsSelectionReconciler() {

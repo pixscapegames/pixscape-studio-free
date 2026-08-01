@@ -1,6 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.service.StudioEditingMode;
+import games.pixscape.studio.service.StudioEditingModeService;
 
 public final class SpatialBlockSelectionService {
     public static final int NO_LAYER = -1;
@@ -17,8 +19,14 @@ public final class SpatialBlockSelectionService {
     private final SpatialWallEditSession wallEditSession = new SpatialWallEditSession();
 
     private final int eventTag = EventFlow.tag(this);
+    private final StudioEditingModeService studioEditingModeService;
 
     public SpatialBlockSelectionService() {
+        this(null);
+    }
+
+    public SpatialBlockSelectionService(StudioEditingModeService studioEditingModeService) {
+        this.studioEditingModeService = studioEditingModeService;
         EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, evt -> {
             if (evt.layerEntityId() != editingLayerEntityId) {
                 clear();
@@ -76,6 +84,7 @@ public final class SpatialBlockSelectionService {
     public void enterLayer(int layerEntityId) {
         if (editingLayerEntityId == layerEntityId && selectedBlockId == NO_BLOCK) return;
         editingLayerEntityId = layerEntityId;
+        setSpatialModeActive(layerEntityId >= 0);
         selectedBlockId = NO_BLOCK;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
@@ -91,6 +100,7 @@ public final class SpatialBlockSelectionService {
             return;
         }
         editingLayerEntityId = layerEntityId;
+        setSpatialModeActive(true);
         selectedBlockId = blockId;
         hoveredBlockId = blockId;
         clearHoveredHandle();
@@ -143,12 +153,19 @@ public final class SpatialBlockSelectionService {
     public void clear() {
         if (editingLayerEntityId == NO_LAYER && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         editingLayerEntityId = NO_LAYER;
+        setSpatialModeActive(false);
         selectedBlockId = NO_BLOCK;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
         clearEditPreview();
         publishSelectionChanged();
+    }
+
+    private void setSpatialModeActive(boolean active) {
+        if (studioEditingModeService != null) {
+            studioEditingModeService.setModeActive(StudioEditingMode.SPATIAL, active, eventTag);
+        }
     }
 
     private void publishSelectionChanged() {

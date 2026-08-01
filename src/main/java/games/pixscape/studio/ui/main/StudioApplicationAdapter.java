@@ -386,7 +386,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         dumpLiveNonDaemonThreads("dispose:start");
         HtmlPreviewLauncher.stop();
         if (dockManager != null) {
-            dockManager.closeAllFloatingWindows();
+            dockManager.dispose();
         }
         if (canvas != null) {
             canvas.dispose();
