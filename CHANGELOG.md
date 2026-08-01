@@ -14,6 +14,7 @@
 * Added stable physics shape identities across editing, persistence, duplication and prefab instantiation.
 * Added `Physics collision` to Spatial Blocks, deriving a static polygon fixture from the block footprint.
 * Added a read-only `Linked to Spatial Block #...` indicator for linked fixtures.
+* Added a persistent canvas indicator showing the active editing mode, including Normal, Physics, Spatial, Tiled and Lights contexts.
 
 ### Changed
 
@@ -26,6 +27,7 @@
 * Particle Transform properties now expose only X and Y, which directly represent the emitter position.
 * Polygon authoring vertices are now displayed as circular handles while resize and Spatial handles remain square.
 * Asset labels, tooltips and default entity names now use logical asset names and distinguish Asset IDs from entity stable IDs.
+* Refreshed the Studio interface with a more compact and consistent layout, clearer panel hierarchy, harmonized dialogs and unified icon-based list controls.
 
 ### Improved
 
