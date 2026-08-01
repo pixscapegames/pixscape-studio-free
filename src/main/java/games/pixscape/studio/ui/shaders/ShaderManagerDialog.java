@@ -84,7 +84,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
         typeBox = new VisSelectBox<>();
         typeBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
         typeBox.setSelected(ShaderKind.MATERIAL);
-        formTable.add(new VisLabel("Shader kind:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(new VisLabel("Shader type:")).width(FORM_LABEL_WIDTH).padRight(10f);
         formTable.add(typeBox).width(FORM_CONTROL_WIDTH).row();
 
         shaderBox = new VisSelectBox<>();
