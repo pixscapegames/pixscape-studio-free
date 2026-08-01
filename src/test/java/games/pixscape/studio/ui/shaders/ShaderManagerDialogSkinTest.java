@@ -8,6 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -25,16 +26,26 @@ import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane.TabbedPaneStyle;
 import games.pixscape.studio.ui.modal.StudioModalChrome;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.Rule;
+import org.junit.rules.TemporaryFolder;
 
+import java.io.File;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 public class ShaderManagerDialogSkinTest {
+
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @BeforeClass
     public static void loadStudioSkin() {
@@ -59,7 +70,7 @@ public class ShaderManagerDialogSkinTest {
         Assert.assertSame(skin.getFont("default-font"), titleStyle.font);
         Assert.assertEquals(skin.getColor("black"), titleStyle.fontColor);
         Assert.assertEquals(Align.center, dialog.getTitleLabel().getLabelAlign());
-        Assert.assertSame(skin.getDrawable("modal-titlebar-light"), dialog.getTitleTable().getBackground());
+        Assert.assertNull(dialog.getTitleTable().getBackground());
 
         StudioModalChrome.apply(dialog);
         VisImageButtonStyle closeStyle = skin.get("modal-close", VisImageButtonStyle.class);
@@ -74,39 +85,41 @@ public class ShaderManagerDialogSkinTest {
     }
 
     @Test
-    public void laysOutModalTitleBarsEdgeToEdgeAfterResize() {
+    public void drawsModalTitleBarsAcrossTheWindowWidthAfterResize() {
         ShaderManagerDialog window = new ShaderManagerDialog(null);
         window.validate();
-        Assert.assertEquals(0f, window.getTitleTable().getX(), 0.01f);
-        Assert.assertEquals(window.getWidth(), window.getTitleTable().getWidth(), 0.01f);
+        RecordingDrawable drawable = new RecordingDrawable();
+        Skin skin = VisUI.getSkin();
+        skin.add("modal-titlebar-light", drawable, com.badlogic.gdx.scenes.scene2d.utils.Drawable.class);
+        Batch batch = batchProxy();
+
+        StudioModalChrome.drawTitleBarBackground(window, batch, 1f, 12f, 24f);
+        Assert.assertEquals(12f, drawable.x, 0.01f);
+        Assert.assertEquals(window.getWidth(), drawable.width, 0.01f);
+        Assert.assertEquals(window.getPadTop(), drawable.height, 0.01f);
 
         window.setWidth(1080f);
         window.validate();
-        Assert.assertEquals(0f, window.getTitleTable().getX(), 0.01f);
-        Assert.assertEquals(1080f, window.getTitleTable().getWidth(), 0.01f);
+        StudioModalChrome.drawTitleBarBackground(window, batch, 1f, 0f, 0f);
+        Assert.assertEquals(1080f, drawable.width, 0.01f);
 
         StudioDialog dialog = new StudioDialog("Confirmation");
         dialog.setSize(420f, 240f);
         dialog.validate();
-        Assert.assertEquals(0f, dialog.getTitleTable().getX(), 0.01f);
-        Assert.assertEquals(420f, dialog.getTitleTable().getWidth(), 0.01f);
+        StudioModalChrome.drawTitleBarBackground(dialog, batch, 1f, 0f, 0f);
+        Assert.assertEquals(420f, drawable.width, 0.01f);
     }
 
     @Test
     public void staticOkDialogsReceiveSharedModalChrome() {
-        Batch batch = (Batch) Proxy.newProxyInstance(
-                Batch.class.getClassLoader(),
-                new Class[]{Batch.class},
-                (proxy, method, args) -> defaultValue(method.getReturnType())
-        );
+        Batch batch = batchProxy();
         Stage stage = new Stage(new ScreenViewport(), batch);
 
         VisDialog dialog = Dialogs.showOKDialog(stage, "Confirmation", "Done");
 
         Assert.assertTrue(dialog.isModal());
         Assert.assertSame(VisUI.getSkin().get("modal-title", LabelStyle.class), dialog.getTitleLabel().getStyle());
-        Assert.assertSame(VisUI.getSkin().getDrawable("modal-titlebar-light"),
-                dialog.getTitleTable().getBackground());
+        Assert.assertNull(dialog.getTitleTable().getBackground());
         stage.dispose();
     }
 
@@ -115,18 +128,19 @@ public class ShaderManagerDialogSkinTest {
         ShaderManagerDialog dialog = new ShaderManagerDialog(null);
         VisSelectBox<?> typeBox = field(dialog, "typeBox", VisSelectBox.class);
         VisSelectBox<?> shaderBox = field(dialog, "shaderBox", VisSelectBox.class);
-        VisTextField nameField = field(dialog, "nameField", VisTextField.class);
 
         dialog.validate();
-        Assert.assertEquals(420f, typeBox.getWidth(), 0.01f);
+        Assert.assertEquals(120f, typeBox.getWidth(), 0.01f);
         Assert.assertEquals(typeBox.getWidth(), shaderBox.getWidth(), 0.01f);
-        Assert.assertEquals(typeBox.getWidth(), nameField.getWidth(), 0.01f);
 
         dialog.setWidth(1100f);
         dialog.validate();
-        Assert.assertEquals(420f, typeBox.getWidth(), 0.01f);
-        Assert.assertEquals(420f, shaderBox.getWidth(), 0.01f);
-        Assert.assertEquals(420f, nameField.getWidth(), 0.01f);
+        Assert.assertEquals(120f, typeBox.getWidth(), 0.01f);
+        Assert.assertEquals(120f, shaderBox.getWidth(), 0.01f);
+        Assert.assertEquals(1, countLabels(dialog, "Shader type:"));
+        Assert.assertEquals(1, countLabels(dialog, "Shader name:"));
+        Assert.assertEquals(0, countLabels(dialog, "Project shader:"));
+        Assert.assertEquals(0, countLabels(dialog, "Name:"));
     }
 
     @Test
@@ -150,14 +164,14 @@ public class ShaderManagerDialogSkinTest {
     }
 
     @Test
-    public void usesOneGlobalScrollPaneAndKeepsEditorsAndButtonsOutsideNestedScrolls()
+    public void usesGlobalScrollAndFourIndependentlyScrollableCodeEditors()
             throws ReflectiveOperationException {
         ShaderManagerDialog dialog = new ShaderManagerDialog(null);
         VisScrollPane mainScrollPane = field(dialog, "mainScrollPane", VisScrollPane.class);
         VisTextButton testButton = field(dialog, "testButton", VisTextButton.class);
         VisTextButton saveButton = field(dialog, "saveButton", VisTextButton.class);
 
-        Assert.assertEquals(1, countActors(dialog, VisScrollPane.class));
+        Assert.assertEquals(3, countActors(dialog, VisScrollPane.class));
         Assert.assertFalse(testButton.isDescendantOf(mainScrollPane));
         Assert.assertFalse(saveButton.isDescendantOf(mainScrollPane));
         dialog.validate();
@@ -173,10 +187,115 @@ public class ShaderManagerDialogSkinTest {
         dialog.validate();
         mainScrollPane.validate();
         Assert.assertTrue(mainScrollPane.isScrollY());
-        assertTextAreasHaveDirectTableParents(field(dialog, "vertAreas", ObjectMap.class));
-        assertTextAreasHaveDirectTableParents(field(dialog, "fragAreas", ObjectMap.class));
+        assertCodeEditors(field(dialog, "vertEditors", ObjectMap.class));
+        assertCodeEditors(field(dialog, "fragEditors", ObjectMap.class));
         Assert.assertEquals(1, countLabels(dialog,
                 "Material shaders can use #include \"pixscape_common.glsl\"."));
+    }
+
+    @Test
+    public void createsMaterialAndFxAssetsAndSelectsTheRequestedShader() throws Exception {
+        ProjectConfig previous = ProjectConfig.getInstance();
+        File projectDir = temporaryFolder.newFolder("shader-project");
+        ProjectConfig config = new ProjectConfig();
+        config.projectFileName = "shader-project";
+        config.projectDirectoryPath = projectDir.getAbsolutePath();
+        ProjectConfig.setInstance(config);
+
+        try {
+            ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+            VisSelectBox<?> typeBox = field(dialog, "typeBox", VisSelectBox.class);
+            Object material = typeBox.getItems().get(0);
+            Object fx = typeBox.getItems().get(1);
+            Method create = privateMethod("createNewShaderAsset", String.class, material.getClass());
+            Method select = privateMethod("selectShader", material.getClass(), String.class);
+
+            create.invoke(dialog, "soft_light", material);
+            assertShaderAsset(projectDir, "material", "soft_light", "material", "pixscapeApplyMaterial");
+
+            create.invoke(dialog, "screen_pulse", fx);
+            assertShaderAsset(projectDir, "fx", "screen_pulse", "fx", "u_intensity");
+
+            try {
+                create.invoke(dialog, "screen_pulse", fx);
+                Assert.fail("A duplicate shader must be rejected.");
+            } catch (InvocationTargetException expected) {
+                Assert.assertTrue(expected.getCause() instanceof IllegalStateException);
+            }
+
+            File rollbackDir = new File(projectDir, "orig/shaders/custom/fx/rollback_me");
+            Assert.assertTrue(new File(rollbackDir, "desktop-gl30.vert").mkdirs());
+            Method write = privateMethod(
+                    "writeNewShaderAsset",
+                    com.badlogic.gdx.files.FileHandle.class,
+                    String.class,
+                    material.getClass()
+            );
+            try {
+                write.invoke(dialog, new com.badlogic.gdx.files.FileHandle(rollbackDir), "rollback_me", fx);
+                Assert.fail("A failed asset write must throw.");
+            } catch (InvocationTargetException expected) {
+                Assert.assertTrue(expected.getCause() instanceof RuntimeException);
+            }
+            Assert.assertFalse(rollbackDir.exists());
+
+            select.invoke(dialog, fx, "screen_pulse");
+            Assert.assertSame(fx, typeBox.getSelected());
+            Assert.assertEquals("screen_pulse", field(dialog, "shaderBox", VisSelectBox.class).getSelected());
+            ObjectMap<?, ?> vertEditors = field(dialog, "vertEditors", ObjectMap.class);
+            for (Object value : vertEditors.values()) {
+                Assert.assertTrue(((ScrollableCodeEditor) value).getText().contains("u_projTrans"));
+            }
+        } finally {
+            ProjectConfig.setInstance(previous);
+        }
+    }
+
+    @Test
+    public void emptyProjectSelectionClearsEditorsAndDisablesDependentActions() throws Exception {
+        ProjectConfig previous = ProjectConfig.getInstance();
+        ProjectConfig empty = new ProjectConfig();
+        ProjectConfig.setInstance(empty);
+        try {
+            ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+            Assert.assertFalse(field(dialog, "newButton", VisTextButton.class).isDisabled());
+            Assert.assertTrue(field(dialog, "saveButton", VisTextButton.class).isDisabled());
+            Assert.assertTrue(field(dialog, "testButton", VisTextButton.class).isDisabled());
+            Assert.assertTrue(field(dialog, "duplicateButton", VisTextButton.class).isDisabled());
+            Assert.assertTrue(field(dialog, "renameButton", VisTextButton.class).isDisabled());
+            Assert.assertTrue(field(dialog, "deleteButton", VisTextButton.class).isDisabled());
+            Assert.assertEquals("", invokeString(dialog, "sanitizeName", " _ / \\ "));
+            Assert.assertEquals("my_shader", invokeString(dialog, "sanitizeName", " My / Shader "));
+        } finally {
+            ProjectConfig.setInstance(previous);
+        }
+    }
+
+    private static void assertShaderAsset(
+            File projectDir, String category, String name, String jsonKind, String sourceMarker) {
+        File shaderDir = new File(projectDir, "orig/shaders/custom/" + category + "/" + name);
+        Assert.assertTrue(new File(shaderDir, "desktop-gl30.vert").isFile());
+        Assert.assertTrue(new File(shaderDir, "desktop-gl30.frag").isFile());
+        Assert.assertTrue(new File(shaderDir, "es3-webgl2.vert").isFile());
+        Assert.assertTrue(new File(shaderDir, "es3-webgl2.frag").isFile());
+        Assert.assertTrue(new File(shaderDir, "includes").isDirectory());
+        String json = new com.badlogic.gdx.files.FileHandle(new File(shaderDir, "shader.json")).readString("UTF-8");
+        Assert.assertTrue(json.contains("\"name\": \"" + name + "\""));
+        Assert.assertTrue(json.contains("\"kind\": \"" + jsonKind + "\""));
+        String fragment = new com.badlogic.gdx.files.FileHandle(new File(shaderDir, "desktop-gl30.frag"))
+                .readString("UTF-8");
+        Assert.assertTrue(fragment.contains(sourceMarker));
+    }
+
+    private static Method privateMethod(String name, Class<?>... types) throws NoSuchMethodException {
+        Method method = ShaderManagerDialog.class.getDeclaredMethod(name, types);
+        method.setAccessible(true);
+        return method;
+    }
+
+    private static String invokeString(Object owner, String methodName, String value) throws Exception {
+        Method method = privateMethod(methodName, String.class);
+        return (String) method.invoke(owner, value);
     }
 
     private static <T> T field(Object owner, String name, Class<T> type) throws ReflectiveOperationException {
@@ -185,11 +304,38 @@ public class ShaderManagerDialogSkinTest {
         return type.cast(field.get(owner));
     }
 
-    private static void assertTextAreasHaveDirectTableParents(ObjectMap<?, ?> areas) {
-        for (Object value : areas.values()) {
-            VisTextArea area = (VisTextArea) value;
-            Assert.assertTrue(area.getParent() instanceof Table);
-            Assert.assertFalse(area.getParent() instanceof VisScrollPane);
+    private static void assertCodeEditors(ObjectMap<?, ?> editors) {
+        for (Object value : editors.values()) {
+            ScrollableCodeEditor editor = (ScrollableCodeEditor) value;
+            VisScrollPane pane = editor.getScrollPane();
+            VisTextArea area = editor.getTextArea();
+            Assert.assertSame(pane, area.getParent());
+            Assert.assertFalse(pane.isScrollingDisabledX());
+            Assert.assertFalse(pane.isScrollingDisabledY());
+            Assert.assertFalse(pane.isForceScrollX());
+            Assert.assertFalse(pane.isForceScrollY());
+            Assert.assertFalse(pane.getFadeScrollBars());
+        }
+    }
+
+    private static Batch batchProxy() {
+        return (Batch) Proxy.newProxyInstance(
+                Batch.class.getClassLoader(),
+                new Class[]{Batch.class},
+                (proxy, method, args) -> defaultValue(method.getReturnType())
+        );
+    }
+
+    private static final class RecordingDrawable extends BaseDrawable {
+        float x;
+        float width;
+        float height;
+
+        @Override
+        public void draw(Batch batch, float x, float y, float width, float height) {
+            this.x = x;
+            this.width = width;
+            this.height = height;
         }
     }
 
