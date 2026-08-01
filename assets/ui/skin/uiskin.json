@@ -788,6 +788,13 @@
 		"fontColorSelected": "white",
 		"fontColorUnselected": "white",
 		"selection": "padded-list-selection"
+	},
+	"select-box-list": {
+		"font": "default-font",
+		"fontColorSelected": "white",
+		"fontColorUnselected": "white",
+		"selection": "padded-list-selection",
+		"background": "select-box-list-bg"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.ProgressBar$ProgressBarStyle": {
@@ -828,11 +835,7 @@
 	"default": {
 		"background": "default-select",
 		"scrollStyle": "default",
-		"listStyle": {
-			"font": "default-font",
-			"selection": "padded-list-selection",
-			"background": "select-box-list-bg"
-		},
+		"listStyle": "select-box-list",
 		"font": "default-font",
 		"fontColor": "white",
 		"disabledFontColor": "grey"
