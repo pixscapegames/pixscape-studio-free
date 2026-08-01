@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.property;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -554,7 +556,7 @@ public class LayerProperties extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Warning") {
+        VisDialog dialog = new StudioDialog("Warning") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {
@@ -583,7 +585,7 @@ public class LayerProperties extends VisTable {
     }
 
     private void showDisableSpatialDialog(int layerEntityId) {
-        VisDialog dialog = new VisDialog("Warning") {
+        VisDialog dialog = new StudioDialog("Warning") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {

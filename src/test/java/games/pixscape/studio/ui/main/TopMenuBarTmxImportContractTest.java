@@ -28,7 +28,7 @@ public class TopMenuBarTmxImportContractTest {
         String source = topMenuBarSource();
 
         String chooserBody = methodBody(source, "private void openTmxImportChooser()");
-        assertTrue(chooserBody.contains("new FileChooser(studioProjectDirectoryOrDefault(), FileChooser.Mode.OPEN)"));
+        assertTrue(chooserBody.contains("new StudioFileChooser(studioProjectDirectoryOrDefault(), FileChooser.Mode.OPEN)"));
         assertTrue(chooserBody.contains("FileChooser.SelectionMode.FILES"));
         assertTrue(chooserBody.contains("typeFilter.addRule(\"Tiled map (*.tmx)\", \"tmx\");"));
         assertTrue(chooserBody.contains("prepareTmxImport(file);"));

@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -1322,7 +1324,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showSimpleErrorDialog(String message) {
-        VisDialog dialog = new VisDialog("Edit clips");
+        VisDialog dialog = new StudioDialog("Edit clips");
         dialog.text(message != null ? message : "Unable to edit clips.");
         dialog.button("OK");
         dialog.show(getStage());
@@ -1338,7 +1340,7 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Delete Asset") {
+        VisDialog dialog = new StudioDialog("Delete Asset") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
@@ -1439,7 +1441,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showAssetInUseDialog(AssetNode node, AssetUsageScanner.AssetUsageReport report) {
-        VisDialog dialog = new VisDialog("Asset In Use");
+        VisDialog dialog = new StudioDialog("Asset In Use");
 
         StringBuilder message = new StringBuilder();
         message.append("Cannot delete \"")
@@ -1494,7 +1496,7 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Delete prefab") {
+        VisDialog dialog = new StudioDialog("Delete prefab") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;

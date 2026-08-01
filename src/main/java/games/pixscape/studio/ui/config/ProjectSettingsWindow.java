@@ -4,9 +4,8 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
@@ -18,10 +17,12 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.RecentProjectsService;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioFileChooser;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 
 import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;
 
-public final class ProjectSettingsWindow extends VisWindow {
+public final class ProjectSettingsWindow extends StudioModalWindow {
 
     private final ProjectConfig cfg;
 
@@ -37,7 +38,6 @@ public final class ProjectSettingsWindow extends VisWindow {
 
     public ProjectSettingsWindow(StudioApplicationAdapter app) {
         super("Project Settings");
-        getTitleLabel().setAlignment(Align.center);
         this.app = app;
         this.cfg = ProjectConfig.getInstance();
 
@@ -64,7 +64,7 @@ public final class ProjectSettingsWindow extends VisWindow {
         btnBrowseProjectDirectory.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+                FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
                 chooser.setSelectionMode(FileChooser.SelectionMode.DIRECTORIES);
                 chooser.setSize(800, 600);
 
@@ -92,7 +92,7 @@ public final class ProjectSettingsWindow extends VisWindow {
         btnBrowseRoot.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+                FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
                 chooser.setSelectionMode(FileChooser.SelectionMode.DIRECTORIES);
                 chooser.setSize(800, 600);
 

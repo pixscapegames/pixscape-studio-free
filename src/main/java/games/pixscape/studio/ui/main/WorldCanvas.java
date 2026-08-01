@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.main;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -1411,7 +1413,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     void showTiledSpatialRejection(int layerEntityId, TiledSpatialMutationRejection rejection) {
         if (rejection == null) return;
-        VisDialog dialog = new VisDialog("Spatial authoring conflict") {
+        VisDialog dialog = new StudioDialog("Spatial authoring conflict") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object) && rejection.firstBlockId() > 0) {
@@ -2170,7 +2172,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     @Override
     public void onSpatialInvariantFailure(RuntimeException failure) {
-        VisDialog dialog = new VisDialog("Spatial V3 invariant failure");
+        VisDialog dialog = new StudioDialog("Spatial V3 invariant failure");
         dialog.setModal(true);
         dialog.setMovable(false);
         dialog.text(failure.getMessage() + "\n\nThe scene preview has stopped. Reload or correct the scene before continuing.");

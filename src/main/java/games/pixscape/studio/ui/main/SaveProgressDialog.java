@@ -1,10 +1,10 @@
 package games.pixscape.studio.ui.main;
 
-import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisProgressBar;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
-public final class SaveProgressDialog extends VisDialog {
+public final class SaveProgressDialog extends StudioDialog {
 
     private final VisLabel messageLabel = new VisLabel("Preparing...");
     private final VisProgressBar progressBar =

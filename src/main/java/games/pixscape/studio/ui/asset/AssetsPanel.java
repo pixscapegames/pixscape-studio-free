@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
@@ -190,7 +192,7 @@ public final class AssetsPanel extends DockablePanel {
         VisTextField nameField = new VisTextField();
         nameField.setMessageText("Animation name");
 
-        VisDialog dialog = new VisDialog("New tiled animation") {
+        VisDialog dialog = new StudioDialog("New tiled animation") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {
@@ -238,7 +240,7 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     private void showSimpleErrorDialog(String message) {
-        VisDialog dialog = new VisDialog("Assets");
+        VisDialog dialog = new StudioDialog("Assets");
         dialog.text(message != null && !message.isBlank()
                 ? message
                 : "The requested asset operation could not be completed.");
@@ -253,7 +255,7 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     private void showDeleteTiledAnimationDialog(int tileAnimationId, String name) {
-        VisDialog dialog = new VisDialog("Delete tiled animation") {
+        VisDialog dialog = new StudioDialog("Delete tiled animation") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {

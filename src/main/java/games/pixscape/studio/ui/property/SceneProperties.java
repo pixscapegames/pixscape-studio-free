@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.property;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
@@ -649,7 +651,7 @@ public class SceneProperties extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Warning") {
+        VisDialog dialog = new StudioDialog("Warning") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {

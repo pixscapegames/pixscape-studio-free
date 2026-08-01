@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -493,7 +495,7 @@ public final class FolderTreeView extends VisTable {
     private void showDeleteTilesetConfirmation(StudioApplicationAdapter app, AssetNode assetNode) {
         if (assetNode == null || app == null) return;
 
-        VisDialog dialog = new VisDialog("Delete tileset") {
+        VisDialog dialog = new StudioDialog("Delete tileset") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {
@@ -529,7 +531,7 @@ public final class FolderTreeView extends VisTable {
     }
 
     private void showTilesetDeleteError(String message) {
-        VisDialog dialog = new VisDialog("Cannot delete tileset");
+        VisDialog dialog = new StudioDialog("Cannot delete tileset");
         dialog.text(message != null && !message.isBlank()
                 ? message
                 : "The tileset could not be deleted.");

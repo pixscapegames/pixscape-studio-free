@@ -9,11 +9,12 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.util.TableUtils;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.List;
 import java.util.function.Consumer;
 
-public final class EditTagsDialog extends VisDialog {
+public final class EditTagsDialog extends StudioDialog {
 
     private static final int MAX_TAGS = 16;
     private static final int MAX_LEN = 32;
@@ -42,7 +43,6 @@ public final class EditTagsDialog extends VisDialog {
         refreshList();
         refreshAddEnabled();
 
-        addCloseButton();
         button("OK", true);
         button("Cancel", false);
 

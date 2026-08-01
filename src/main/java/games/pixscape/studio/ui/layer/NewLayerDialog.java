@@ -11,10 +11,11 @@ import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.function.Consumer;
 
-public final class NewLayerDialog extends VisDialog {
+public final class NewLayerDialog extends StudioDialog {
 
     private final VisTextField nameField = new VisTextField();
     private final VisSelectBox<String> typeBox = new VisSelectBox<>();
@@ -37,7 +38,6 @@ public final class NewLayerDialog extends VisDialog {
         TableUtils.setSpacingDefaults(this);
         setModal(true);
         setResizable(false);
-        addCloseButton();
         closeOnEscape();
 
         buildUi();

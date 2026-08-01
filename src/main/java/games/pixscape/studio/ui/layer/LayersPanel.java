@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.layer;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.World;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
@@ -195,7 +197,7 @@ public class LayersPanel extends DockablePanel {
                 // ---------------------------------------------------
                 if (type == LayerComponent.TYPE_TILED) {
 
-                    VisDialog dialog = new VisDialog("Warning") {
+                    VisDialog dialog = new StudioDialog("Warning") {
                         @Override
                         protected void result(Object object) {
                             if (!Boolean.TRUE.equals(object)) return;

@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.main;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -12,7 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
@@ -201,14 +203,14 @@ public class BottomMenuBar extends VisTable {
         if (cfg == null || sceneName == null || sceneName.isBlank()) return;
 
         if (cfg.getSceneNames().size <= 1) {
-            VisDialog error = new VisDialog("Cannot delete scene");
+            VisDialog error = new StudioDialog("Cannot delete scene");
             error.text("You cannot delete the last remaining scene.");
             error.button("OK");
             error.show(getStage());
             return;
         }
 
-        VisDialog dialog = new VisDialog("Delete Scene") {
+        VisDialog dialog = new StudioDialog("Delete Scene") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
@@ -487,7 +489,7 @@ public class BottomMenuBar extends VisTable {
         return resolutions;
     }
 
-    private final class PreviewSettingsDialog extends VisDialog {
+    private final class PreviewSettingsDialog extends StudioDialog {
         private static final String TARGET_DESKTOP = "Desktop GL30";
         private static final String TARGET_HTML = "HTML WebGL2";
 
@@ -503,8 +505,6 @@ public class BottomMenuBar extends VisTable {
 
         private PreviewSettingsDialog() {
             super("Preview Settings");
-            getTitleLabel().setAlignment(Align.center);
-            addCloseButton();
 
             ProjectConfig cfg = ProjectConfig.getInstance();
 

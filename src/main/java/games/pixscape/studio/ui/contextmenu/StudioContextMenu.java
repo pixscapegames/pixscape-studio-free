@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.contextmenu;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -12,7 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -619,7 +621,7 @@ public final class StudioContextMenu extends InputListener {
     }
 
     private void showCreatePrefabDialog() {
-        VisDialog dialog = new VisDialog("Create Prefab") {
+        VisDialog dialog = new StudioDialog("Create Prefab") {
             private final VisTextField nameField = new VisTextField();
 
             {

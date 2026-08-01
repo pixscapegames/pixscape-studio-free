@@ -11,9 +11,10 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ValidationHooks;
 
-public class ShaderParamsDialog extends VisWindow {
+public class ShaderParamsDialog extends StudioModalWindow {
 
     private static final float NAME_COL_WIDTH = 140f;
     private static final float VALUE_COL_WIDTH = 80f;
@@ -49,7 +50,6 @@ public class ShaderParamsDialog extends VisWindow {
         setModal(true);
         setMovable(true);
         setResizable(true);
-        addCloseButton();
         closeOnEscape();
 
         VisTable root = new VisTable(true);

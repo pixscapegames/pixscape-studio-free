@@ -4,16 +4,16 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.studio.importer.tmx.TmxScenePlan;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.SimpleTextField;
 
 import java.util.function.Consumer;
 
-public final class TmxImportDialog extends VisDialog {
+public final class TmxImportDialog extends StudioDialog {
 
     private final TmxImportUiSupport.TmxImportPreparation preparation;
     private final Consumer<String> onImport;

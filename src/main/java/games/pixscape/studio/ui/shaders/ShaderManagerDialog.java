@@ -2,15 +2,11 @@ package games.pixscape.studio.ui.shaders;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.VisUI;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
-import com.kotcrab.vis.ui.widget.VisImageButton.VisImageButtonStyle;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneListener;
@@ -24,8 +20,10 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
+import games.pixscape.studio.ui.modal.Dialogs;
 
-public class ShaderManagerDialog extends VisWindow {
+public class ShaderManagerDialog extends StudioModalWindow {
 
     private enum ShaderKind {
         MATERIAL,
@@ -58,8 +56,8 @@ public class ShaderManagerDialog extends VisWindow {
 
     private static final float CODE_ROWS = 12f;
     private static final float CODE_AREA_HEIGHT = 220f;
-    private static final float FORM_LABEL_WIDTH = 110f;
-    private static final float FORM_CONTROL_MIN_WIDTH = 280f;
+    private static final float FORM_LABEL_WIDTH = 120f;
+    private static final float FORM_CONTROL_WIDTH = 420f;
 
     private boolean creatingNew = false;
     private ShaderVariant selectedVariant = ShaderVariant.DESKTOP_GL30;
@@ -73,18 +71,11 @@ public class ShaderManagerDialog extends VisWindow {
         setMovable(true);
         setResizable(true);
 
-        getTitleLabel().setStyle(VisUI.getSkin().get("shader-dialog-title", LabelStyle.class));
-        getTitleLabel().setAlignment(Align.center);
-        getTitleTable().setBackground(VisUI.getSkin().getDrawable("modal-titlebar-light"));
-        addCloseButton();
-        VisImageButton closeButton = (VisImageButton) getTitleTable().getChildren().peek();
-        closeButton.setStyle(VisUI.getSkin().get("shader-dialog-close", VisImageButtonStyle.class));
-        getTitleTable().getCell(closeButton).size(22f);
         closeOnEscape();
 
         VisTable root = new VisTable(true);
         root.pad(8);
-        root.defaults().left().growX();
+        root.defaults().left();
 
         VisTable formTable = new VisTable();
         formTable.defaults().left().padBottom(4f);
@@ -93,19 +84,19 @@ public class ShaderManagerDialog extends VisWindow {
         typeBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
         typeBox.setSelected(ShaderKind.MATERIAL);
         formTable.add(new VisLabel("Shader kind:")).width(FORM_LABEL_WIDTH).padRight(10f);
-        formTable.add(typeBox).growX().minWidth(FORM_CONTROL_MIN_WIDTH).row();
+        formTable.add(typeBox).width(FORM_CONTROL_WIDTH).row();
 
         shaderBox = new VisSelectBox<>();
         formTable.add(new VisLabel("Project shader:")).width(FORM_LABEL_WIDTH).padRight(10f);
-        formTable.add(shaderBox).growX().minWidth(FORM_CONTROL_MIN_WIDTH).row();
+        formTable.add(shaderBox).width(FORM_CONTROL_WIDTH).row();
 
         nameField = new VisTextField();
         formTable.add(new VisLabel("Name:")).width(FORM_LABEL_WIDTH).padRight(10f).padBottom(0f);
-        formTable.add(nameField).growX().minWidth(FORM_CONTROL_MIN_WIDTH).padBottom(0f).row();
+        formTable.add(nameField).width(FORM_CONTROL_WIDTH).padBottom(0f).row();
 
-        root.add(formTable).growX().row();
+        root.add(formTable).left().row();
 
-        targetTabs = new TabbedPane();
+        targetTabs = new TabbedPane("shader-tabs");
         addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop GL30");
         addTargetTab(ShaderVariant.ES3_WEBGL2, "Android ES3 / HTML WebGL2");
 
@@ -129,12 +120,15 @@ public class ShaderManagerDialog extends VisWindow {
         scrollPane.setCancelTouchFocus(false);
         scrollPane.setFlickScroll(false);
 
-        VisTable targetFrame = new VisTable();
-        targetFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
-        targetFrame.pad(2f);
-        targetFrame.add(targetTabs.getTabsPane()).growX().row();
-        targetFrame.add(scrollPane).grow().row();
-        root.add(targetFrame).grow().row();
+        VisTable contentFrame = new VisTable();
+        contentFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
+        contentFrame.pad(2f);
+        contentFrame.add(scrollPane).grow();
+
+        VisTable targetArea = new VisTable();
+        targetArea.add(targetTabs.getTabsPane()).left().growX().row();
+        targetArea.add(contentFrame).grow().padTop(-1f).row();
+        root.add(targetArea).grow().row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
 
         testButton = new VisTextButton("Test current target");
@@ -626,10 +620,8 @@ public class ShaderManagerDialog extends VisWindow {
     private void promptForShaderName(String title, String initialValue, String label, NameAction action) {
         if (getStage() == null) return;
 
-        final VisWindow dialog = new VisWindow(title);
-        dialog.setModal(true);
+        final StudioModalWindow dialog = new StudioModalWindow(title);
         dialog.setMovable(true);
-        dialog.addCloseButton();
 
         final VisTextField input = new VisTextField(initialValue == null ? "" : initialValue);
 

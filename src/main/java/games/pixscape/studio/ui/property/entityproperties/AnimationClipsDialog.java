@@ -10,11 +10,12 @@ import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.HashSet;
 import java.util.Objects;
 
-public final class AnimationClipsDialog extends VisDialog {
+public final class AnimationClipsDialog extends StudioDialog {
 
     private final AnimationComponent anim;
     private final int frameMax;
@@ -54,7 +55,6 @@ public final class AnimationClipsDialog extends VisDialog {
         buildUi();
         loadFromComponent();
 
-        addCloseButton();
         button("OK", true);
         button("Cancel", false);
 
