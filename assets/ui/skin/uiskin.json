@@ -530,7 +530,7 @@
 		"buttonStyle": {
 			"down": "window-border-bg",
 			"up": "button",
-			"checked": "window-border-bg",
+			"checked": "shader-section-header",
 			"over": "button-over",
 			"disabled": "button",
 			"font": "default-font",

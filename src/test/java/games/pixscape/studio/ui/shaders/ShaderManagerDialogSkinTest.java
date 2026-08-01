@@ -154,7 +154,7 @@ public class ShaderManagerDialogSkinTest {
         Assert.assertNotNull(contentFrame);
         Assert.assertNotSame(tabs.getTabsPane(), contentFrame);
         TabbedPaneStyle tabStyle = VisUI.getSkin().get("shader-tabs", TabbedPaneStyle.class);
-        Assert.assertSame(VisUI.getSkin().getDrawable("window-border-bg"), tabStyle.buttonStyle.checked);
+        Assert.assertSame(VisUI.getSkin().getDrawable("shader-section-header"), tabStyle.buttonStyle.checked);
         Assert.assertNotSame(tabStyle.buttonStyle.checked, tabStyle.buttonStyle.up);
     }
 
