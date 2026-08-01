@@ -117,7 +117,7 @@ public final class AssetsThumbsView extends VisTable {
         grid.top().left();
 
         scroll = new VisScrollPane(content);
-        scroll.setForceScroll(true, true);
+        scroll.setForceScroll(false, false);
         scroll.setFadeScrollBars(false);
         scroll.addListener(new GetScrollListener(scroll));
         scroll.addListener(new LoseScroolListener());

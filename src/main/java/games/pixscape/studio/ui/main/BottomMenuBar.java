@@ -364,7 +364,7 @@ public class BottomMenuBar extends VisTable {
 
 
     public void setZoom(float zoom) {
-        zoomValue.setText(String.format("%.1f", zoom));
+        zoomValue.setText(String.format("%.2f", zoom));
     }
 
     public void setPan(float x, float y) {

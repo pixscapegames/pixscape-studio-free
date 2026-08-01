@@ -55,7 +55,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         grid.top().left();
 
         scroll = new VisScrollPane(content);
-        scroll.setForceScroll(true, true);
+        scroll.setForceScroll(false, false);
         scroll.setFadeScrollBars(false);
 
         buildHeader();

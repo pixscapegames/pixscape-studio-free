@@ -11,6 +11,12 @@
 		"scaledSize": -1,
 		"markupEnabled": false,
 		"flip": false
+	},
+	"regular-font": {
+		"file": "default.fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
 	}
 },
 "com.badlogic.gdx.graphics.Color": {
@@ -83,6 +89,15 @@
 			"g": 0,
 			"b": 0,
 			"a": 0.45
+		}
+	},
+	"panel-header": {
+		"name": "textfield",
+		"color": {
+			"r": 1,
+			"g": 1,
+			"b": 1,
+			"a": 1
 		}
 	}
 },
@@ -794,6 +809,10 @@
 	},
 	"small": {
 		"font": "small-font",
+		"fontColor": "white"
+	},
+	"title": {
+		"font": "regular-font",
 		"fontColor": "white"
 	},
 	"link-label": {

@@ -37,8 +37,8 @@ public abstract class DockablePanel extends VisTable {
 
         this.setBackground(skin.getDrawable("default-pane"));
         header = new VisTable(true);
-        header.setBackground(VisUI.getSkin().getDrawable("textfield"));
-        titleLabel = new VisLabel(title);
+        header.setBackground(skin.getDrawable("panel-header"));
+        titleLabel = new VisLabel(title, "title");
 
 
         Drawable undockDrawable = skin.getDrawable("select-up");

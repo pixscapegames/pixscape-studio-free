@@ -92,6 +92,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private World world;
     private final Stage gridStage;
     private final OrthographicCamera camera;
+    private static final float MIN_CAMERA_ZOOM = 0.1f;
+    private static final float MAX_CAMERA_ZOOM = 20f;
     private final OrthographicCamera box2dCamera;
     // Render state
     private DynamicEntityRenderState dynamicEntityState;
@@ -1130,8 +1132,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
                 float factor = (amountY > 0 ? 1.1f : 0.9f);
-                camera.zoom = Math.max(0.1f,
-                        Math.min(5f, camera.zoom * factor));
+                camera.zoom = Math.max(MIN_CAMERA_ZOOM,
+                        Math.min(MAX_CAMERA_ZOOM, camera.zoom * factor));
 
                 coordSpaces.screenToWorld(
                         Gdx.input.getX(),

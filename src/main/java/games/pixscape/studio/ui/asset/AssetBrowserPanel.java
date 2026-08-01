@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisSplitPane;
 import com.kotcrab.vis.ui.widget.VisTable;
@@ -31,7 +32,19 @@ public final class AssetBrowserPanel extends VisTable {
         VisTable treeColumn = new VisTable();
         treeColumn.top().left();
         if (title != null && !title.isBlank()) {
-            treeColumn.add(new VisLabel(title)).left().padLeft(4f).padBottom(3f).row();
+            VisTable titleBar = new VisTable();
+            titleBar.setBackground(
+                    VisUI.getSkin().getDrawable("panel-header")
+            );
+
+            titleBar.add(new VisLabel(title, "title"))
+                    .center()
+                    .padLeft(4f)
+                    .expandX();
+
+            treeColumn.add(titleBar)
+                    .growX()
+                    .row();
         }
         treeColumn.add(treeView).grow();
 
