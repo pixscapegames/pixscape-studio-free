@@ -5,17 +5,25 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.util.TableUtils;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 
 public final class NewLayerDialog extends StudioDialog {
+
+    private static final float CONTENT_WIDTH = 300f;
+    private static final float LABEL_WIDTH = 80f;
+    private static final float FIELD_WIDTH = 100f;
 
     private final VisTextField nameField = new VisTextField();
     private final VisSelectBox<String> typeBox = new VisSelectBox<>();
@@ -23,16 +31,19 @@ public final class NewLayerDialog extends StudioDialog {
 
     private final VisTextField tiledWidthField = new VisTextField("256");
     private final VisTextField tiledHeightField = new VisTextField("256");
-    private final VisLabel tiledWidthLabel = new VisLabel("Width (cells)");
-    private final VisLabel tiledHeightLabel = new VisLabel("Height (cells)");
+    private final VisLabel tiledWidthLabel = new VisLabel("Width (cells):");
+    private final VisLabel tiledHeightLabel = new VisLabel("Height (cells):");
+    private final CollapsibleVisTable tiledOptions = new CollapsibleVisTable(true, true);
 
     private final String fallbackName;
+    private final LayerService layerService;
     private final Consumer<NewLayerRequest> onCreate;
 
-    public NewLayerDialog(Consumer<NewLayerRequest> onCreate) {
+    public NewLayerDialog(LayerService layerService, Consumer<NewLayerRequest> onCreate) {
         super("New layer");
 
         this.fallbackName = "New Layer";
+        this.layerService = Objects.requireNonNull(layerService, "layerService");
         this.onCreate = onCreate;
 
         TableUtils.setSpacingDefaults(this);
@@ -42,7 +53,6 @@ public final class NewLayerDialog extends StudioDialog {
 
         buildUi();
         rebuildLayerTypes();
-        updateInfoLabel();
 
         button("Create", true);
         button("Cancel", false);
@@ -63,7 +73,8 @@ public final class NewLayerDialog extends StudioDialog {
         int height = parseIntSafe(tiledHeightField.getText(), 256);
 
         if (onCreate != null) {
-            onCreate.accept(new NewLayerRequest(name, type, width, height));
+            onCreate.accept(new NewLayerRequest(
+                    name, type, isSpatialSelection(typeBox.getSelected()), width, height));
         }
     }
 
@@ -81,19 +92,8 @@ public final class NewLayerDialog extends StudioDialog {
     private void rebuildLayerTypes() {
 
         SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        if (meta == null) return;
-
-        Array<String> types = new Array<>();
-        types.add("Classic");
-        types.add("Light"); // always allowed
-
-        if (meta.physicsEnabled) {
-            types.add("Physics");
-        }
-
-        if (meta.tiledEnabled) {
-            types.add("Tiled");
-        }
+        boolean hasSpatialActorLayer = layerService.hasSpatialActorLayer();
+        Array<String> types = availableLayerTypes(meta, hasSpatialActorLayer);
 
         String previous = typeBox.getSelected();
         typeBox.setItems(types);
@@ -105,14 +105,15 @@ public final class NewLayerDialog extends StudioDialog {
             typeBox.setSelected("Classic");
         }
 
-        updateInfoLabel();
+        updateSelectedTypeLayout(false);
     }
 
     private void buildUi() {
 
         VisTable root = new VisTable(true);
+        VisTable form = new VisTable(true);
 
-        VisLabel nameLabel = new VisLabel("Name");
+        VisLabel nameLabel = new VisLabel("Name:");
         nameField.setText(fallbackName);
         nameField.addListener(new InputListener() {
             @Override
@@ -122,33 +123,44 @@ public final class NewLayerDialog extends StudioDialog {
             }
         });
 
-        VisLabel typeLabel = new VisLabel("Layer Type");
+        VisLabel typeLabel = new VisLabel("Layer Type:");
         typeBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                updateTiledVisibility();
-                updateInfoLabel();
+                updateSelectedTypeLayout(true);
             }
         });
 
-        root.add(nameLabel).left();
-        root.add(nameField).growX().row();
+        form.add(nameLabel).width(LABEL_WIDTH).left();
+        form.add(nameField).width(FIELD_WIDTH).left().row();
 
-        root.add(typeLabel).left();
-        root.add(typeBox).growX().row();
+        form.add(typeLabel).width(LABEL_WIDTH).left();
+        form.add(typeBox).width(FIELD_WIDTH).left().row();
 
-        root.add(tiledWidthLabel).left();
-        root.add(tiledWidthField).growX().row();
+        VisTable tiledContent = tiledOptions.content();
+        tiledContent.add(tiledWidthLabel).width(LABEL_WIDTH).left();
+        tiledContent.add(tiledWidthField).width(FIELD_WIDTH).left().row();
 
-        root.add(tiledHeightLabel).left();
-        root.add(tiledHeightField).growX().row();
+        tiledContent.add(tiledHeightLabel).width(LABEL_WIDTH).left();
+        tiledContent.add(tiledHeightField).width(FIELD_WIDTH).left().row();
 
-        root.add(infoLabel).center().colspan(2).padTop(4f).row();
+        form.add(tiledOptions).colspan(2).fillX().row();
 
-        getContentTable().add(root).growX();
+        root.add(form).left().row();
+
+        infoLabel.setWrap(true);
+        infoLabel.setAlignment(Align.center);
+        root.add(infoLabel).center().width(CONTENT_WIDTH).fillX().padTop(4f).row();
+
+        getContentTable().add(root).width(CONTENT_WIDTH).growX();
     }
 
     private void updateInfoLabel() {
+
+        if (isSpatialSelection(typeBox.getSelected())) {
+            infoLabel.setText("Single actor layer with Spatial depth ordering");
+            return;
+        }
 
         int type = resolveLayerType(typeBox.getSelected());
 
@@ -165,18 +177,32 @@ public final class NewLayerDialog extends StudioDialog {
         infoLabel.setText(info);
     }
 
-    private void updateTiledVisibility() {
+    private void updateSelectedTypeLayout(boolean recenterIfSizeChanged) {
+        float previousWidth = getWidth();
+        float previousHeight = getHeight();
         boolean isTiled = "Tiled".equals(typeBox.getSelected());
 
-        tiledWidthLabel.setVisible(isTiled);
-        tiledWidthField.setVisible(isTiled);
-        tiledHeightLabel.setVisible(isTiled);
-        tiledHeightField.setVisible(isTiled);
+        tiledOptions.show(isTiled, false);
+        updateInfoLabel();
+
+        getContentTable().invalidateHierarchy();
+        invalidateHierarchy();
+        pack();
+        validate();
+
+        boolean sizeChanged = previousWidth != getWidth() || previousHeight != getHeight();
+        if (recenterIfSizeChanged && sizeChanged && getStage() != null) {
+            centerWindow();
+        }
     }
 
     private int resolveLayerType(String selected) {
 
         if ("Physics".equals(selected)) {
+            return LayerComponent.TYPE_PHYSICS;
+        }
+
+        if (isSpatialSelection(selected)) {
             return LayerComponent.TYPE_PHYSICS;
         }
 
@@ -189,6 +215,26 @@ public final class NewLayerDialog extends StudioDialog {
         }
 
         return LayerComponent.TYPE_CLASSIC;
+    }
+
+    static Array<String> availableLayerTypes(SceneMeta meta, boolean hasSpatialActorLayer) {
+        Array<String> types = new Array<>();
+        types.add("Classic");
+        types.add("Light");
+        if (meta != null && meta.physicsEnabled) {
+            types.add("Physics");
+            if (!hasSpatialActorLayer) {
+                types.add("Spatial");
+            }
+        }
+        if (meta != null && meta.tiledEnabled) {
+            types.add("Tiled");
+        }
+        return types;
+    }
+
+    private static boolean isSpatialSelection(String selected) {
+        return "Spatial".equals(selected);
     }
 
     private String normalizeName(String raw) {

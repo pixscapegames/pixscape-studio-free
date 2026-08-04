@@ -22,12 +22,11 @@ public class LayerPropertiesCollisionVisibilityContractTest {
     }
 
     @Test
-    public void spatialSectionIsLayerLocalAndSupportsPhysicsAndTiled() throws Exception {
+    public void spatialSectionIsOnlyAvailableForTiledLayers() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean spatialSupported = lic.type == LayerComponent.TYPE_PHYSICS ||\n" +
-                "                lic.type == LayerComponent.TYPE_TILED;"));
+        assertTrue(refresh.contains("boolean spatialSupported = isTiled;"));
         assertTrue(refresh.contains("boolean spatialActive = isLayerSpatialEnabled(layerEntityId);"));
         assertTrue(refresh.contains("spatialSection.show(spatialSupported);"));
         assertTrue(refresh.contains("spatialBlock.show(isTiled && spatialActive);"));

@@ -140,6 +140,7 @@ public class LayersPanel extends DockablePanel {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 NewLayerDialog dialog = new NewLayerDialog(
+                        layerService,
                         request -> {
 
                             if (request.type() == LayerComponent.TYPE_TILED) {
@@ -159,17 +160,23 @@ public class LayersPanel extends DockablePanel {
 
                             } else {
 
-                                historyManager.execute(new CreateLayerCommand(
+                                CreateLayerCommand command = new CreateLayerCommand(
                                         layerService,
                                         layerService.count(),
                                         request.name(),
                                         request.type(),
+                                        request.spatialActorLayer(),
                                         layerId -> {
                                             if (selectionService != null) {
                                                 selectionService.setActivelayerId(layerId);
                                             }
                                         }
-                                ));
+                                );
+                                historyManager.execute(command);
+                                if (command.wasRejected()) {
+                                    showSpatialLayerUnavailableMessage();
+                                    return;
+                                }
                             }
 
                             markDirty();
@@ -384,7 +391,7 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    buildLayerTypeSuffix(ui.type()),
+                    buildLayerTypeSuffix(ui.type(), ui.spatialEnabled()),
                     ui.visible(),
                     ui.locked()
             );
@@ -437,9 +444,9 @@ public class LayersPanel extends DockablePanel {
         }
     }
 
-    private String buildLayerTypeSuffix(int type) {
+    private String buildLayerTypeSuffix(int type, boolean spatialEnabled) {
         if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeSuffixLabel(type);
+            return LayerService.typeSuffixLabel(type, spatialEnabled);
         }
 
         return switch (currentTiledProjection()) {
@@ -447,6 +454,18 @@ public class LayersPanel extends DockablePanel {
             case ORTHO -> "(Tiled orthogonal)";
             case null -> "(Tiled)";
         };
+    }
+
+    private void showSpatialLayerUnavailableMessage() {
+        VisDialog dialog = new StudioDialog("Spatial layer unavailable");
+        dialog.text("This scene already has its single actor Spatial layer.");
+        dialog.button("OK");
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        if (getStage() != null) {
+            dialog.show(getStage());
+        }
     }
 
     private games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection currentTiledProjection() {

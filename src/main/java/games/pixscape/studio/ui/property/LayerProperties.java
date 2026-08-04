@@ -347,14 +347,13 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        typeValueLabel.setText(buildLayerTypeLabel(lic.type));
+        typeValueLabel.setText(buildLayerTypeLabel(lic.type, lic.spatialEnabled));
 
         boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
         boolean collisionsSupported = isTiled && scenePhysicsEnabled;
         boolean collisionsActive = collisionsSupported && mPhysBody.has(layerEntityId);
-        boolean spatialSupported = lic.type == LayerComponent.TYPE_PHYSICS ||
-                lic.type == LayerComponent.TYPE_TILED;
+        boolean spatialSupported = isTiled;
         boolean spatialActive = isLayerSpatialEnabled(layerEntityId);
         boolean supportsParallax = supportsEditableParallax(layerEntityId, lic);
         boolean hasParallax = mParallax.has(layerEntityId);
@@ -407,9 +406,9 @@ public class LayerProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    private String buildLayerTypeLabel(int type) {
+    private String buildLayerTypeLabel(int type, boolean spatialEnabled) {
         if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeDisplayName(type);
+            return LayerService.typeDisplayName(type, spatialEnabled);
         }
         return buildTiledTypeLabel(currentSceneMeta());
     }
