@@ -173,22 +173,50 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         TransformComponent transform = ctx.mTransform.getSafe(eid, null);
         SceneMeta scene = ProjectConfig.getInstance() != null
                 ? ProjectConfig.getInstance().getCurrentSceneMeta() : null;
-        if (dimensions == null || transform == null || scene == null
-                || !finitePositive(scene.pixelsPerMeter)) return null;
+        return dimensions != null && transform != null && scene != null
+                ? createDefaultFootprint(dimensions, transform, scene.pixelsPerMeter)
+                : null;
+    }
 
-        float widthPx = Math.abs(dimensions.width * transform.scaleX);
-        if (!finitePositive(widthPx)) return null;
-        float radiusPx = widthPx * 0.5f;
-        float centerXPx = widthPx * 0.5f - transform.originX;
-        float centerYPx = -transform.originY + radiusPx;
-        float ppm = scene.pixelsPerMeter;
+    static PhysicsShapeData createDefaultFootprint(
+            DimensionsComponent dimensions,
+            TransformComponent transform,
+            float pixelsPerMeter) {
+        if (dimensions == null || transform == null || !finitePositive(pixelsPerMeter)
+                || !finite(dimensions.width) || !finite(dimensions.height)
+                || !finite(transform.originX) || !finite(transform.originY)
+                || !finite(transform.scaleX) || !finite(transform.scaleY)) {
+            return null;
+        }
+
+        float x0 = -transform.originX * transform.scaleX;
+        float x1 = (dimensions.width - transform.originX) * transform.scaleX;
+        float y0 = -transform.originY * transform.scaleY;
+        float y1 = (dimensions.height - transform.originY) * transform.scaleY;
+        if (!finite(x0) || !finite(x1) || !finite(y0) || !finite(y1)) return null;
+
+        float minX = Math.min(x0, x1);
+        float maxX = Math.max(x0, x1);
+        float minY = Math.min(y0, y1);
+        float visualWidthPx = maxX - minX;
+        float diameterPx = visualWidthPx * 0.5f;
+        float radiusPx = diameterPx * 0.5f;
+        if (!finitePositive(visualWidthPx) || !finitePositive(radiusPx)) return null;
+        float centerXPx = (minX + maxX) * 0.5f;
+        float centerYPx = minY + radiusPx;
+        if (!finite(centerXPx) || !finite(centerYPx)) return null;
+
+        float radiusM = radiusPx / pixelsPerMeter;
+        float centerXM = centerXPx / pixelsPerMeter;
+        float centerYM = centerYPx / pixelsPerMeter;
+        if (!finite(radiusM) || !finite(centerXM) || !finite(centerYM)) return null;
 
         PhysicsShapeData shape = new PhysicsShapeData();
         shape.geometry = new PhysicsGeometryData();
         shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
-        shape.geometry.radius = radiusPx / ppm;
-        shape.geometry.offsetX = centerXPx / ppm;
-        shape.geometry.offsetY = centerYPx / ppm;
+        shape.geometry.radius = radiusM;
+        shape.geometry.offsetX = centerXM;
+        shape.geometry.offsetY = centerYM;
         shape.enabled = true;
         shape.sensor = false;
         shape.spatialFootprint = true;
@@ -196,7 +224,11 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     }
 
     private static boolean finitePositive(float value) {
-        return !Float.isNaN(value) && !Float.isInfinite(value) && value > 0f;
+        return finite(value) && value > 0f;
+    }
+
+    private static boolean finite(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value);
     }
 
     private void submitSpatialEdit(

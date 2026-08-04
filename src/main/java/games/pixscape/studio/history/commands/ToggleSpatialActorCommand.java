@@ -141,20 +141,25 @@ public final class ToggleSpatialActorCommand
         }
 
         ComponentMapper<PhysicsBodyComponent> bodies = world.getMapper(PhysicsBodyComponent.class);
-        if (applyingAfter && !bodyExisted && !bodies.has(entityId)) {
-            PhysicsBodyComponent body = bodies.create(entityId);
-            PhysicsService.initDefaultBody(body);
-        }
-        if (!applyingAfter && !bodyExisted) {
-            physicsService.removePhysics(entityId);
-        } else {
-            PhysicsBodyComponent body = bodies.has(entityId) ? bodies.get(entityId) : bodies.create(entityId);
+        boolean targetBodyPresent = applyingAfter ? (enable || bodyExisted) : bodyExisted;
+        if (targetBodyPresent) {
+            if (!bodies.has(entityId)) {
+                PhysicsBodyComponent body = bodies.create(entityId);
+                PhysicsService.initDefaultBody(body);
+            }
+            PhysicsBodyComponent body = bodies.get(entityId);
             if (applyingAfter && enable) {
                 if (bodyExisted) bodyBefore.apply(body);
                 body.gravityScale = 0f;
+                body.fixedRotation = true;
             } else if (bodyBefore != null) {
                 bodyBefore.apply(body);
             }
+            publish(entityId, prepared);
+        } else if (targetShapes.size == 0) {
+            physicsService.removePhysics(entityId);
+        } else {
+            if (bodies.has(entityId)) bodies.remove(entityId);
             publish(entityId, prepared);
         }
 

@@ -32,6 +32,7 @@ public class ToggleSpatialActorCommandTest {
         PhysicsShapeData created = marked(harness.world, entityId);
         Assert.assertEquals(PhysicsBodyComponent.DYNAMIC, body.type);
         Assert.assertEquals(0f, body.gravityScale, 0f);
+        Assert.assertTrue(body.fixedRotation);
         Assert.assertNotNull(created);
         Assert.assertEquals(0.5f, created.geometry.radius, 0f);
         Assert.assertTrue(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
@@ -55,7 +56,13 @@ public class ToggleSpatialActorCommandTest {
         PhysicsBodyComponent body = harness.world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
         body.type = PhysicsBodyComponent.KINEMATIC;
+        body.fixedRotation = false;
+        body.bullet = true;
+        body.allowSleep = false;
+        body.awake = false;
         body.gravityScale = 2f;
+        body.linearDamping = 0.75f;
+        body.angularDamping = 1.5f;
 
         PhysicsShapesComponent shapes = harness.world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsShapeData ordinary = footprint(0.25f, 0f, 0f);
@@ -79,7 +86,13 @@ public class ToggleSpatialActorCommandTest {
         Assert.assertEquals(1, shapes.shapes.size);
         Assert.assertEquals(ordinary.physicsShapeId, shapes.shapes.first().physicsShapeId);
         Assert.assertEquals(PhysicsBodyComponent.KINEMATIC, body.type);
+        Assert.assertFalse(body.fixedRotation);
+        Assert.assertTrue(body.bullet);
+        Assert.assertFalse(body.allowSleep);
+        Assert.assertFalse(body.awake);
         Assert.assertEquals(2f, body.gravityScale, 0f);
+        Assert.assertEquals(0.75f, body.linearDamping, 0f);
+        Assert.assertEquals(1.5f, body.angularDamping, 0f);
         Assert.assertFalse(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
 
         harness.history.undo();
@@ -88,6 +101,41 @@ public class ToggleSpatialActorCommandTest {
         height = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
         Assert.assertEquals(3f, height.altitude, 0f);
         Assert.assertEquals(4f, height.height, 0f);
+    }
+
+    @Test
+    public void disableSpatialHeightOnlyStateDoesNotCreatePhysicsBody() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        harness.world.getMapper(SpatialHeightComponent.class).create(entityId);
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                false, false, null));
+
+        Assert.assertFalse(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+    }
+
+    @Test
+    public void disableMarkedFootprintWithoutBodyRemovesItWithoutCreatingBody() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        PhysicsShapesComponent shapes = harness.world.getMapper(PhysicsShapesComponent.class).create(entityId);
+        PhysicsShapeData spatial = footprint(0.5f, 0f, 0f);
+        spatial.physicsShapeId = harness.physics.allocateNewPhysicsShapeId();
+        shapes.shapes.add(spatial);
+        harness.world.getMapper(SpatialHeightComponent.class).create(entityId);
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                false, false, null));
+
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class).has(entityId));
     }
 
     @Test

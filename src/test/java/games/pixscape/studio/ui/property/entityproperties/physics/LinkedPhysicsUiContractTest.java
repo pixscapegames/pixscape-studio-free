@@ -4,6 +4,8 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisTextButton;
+import com.kotcrab.vis.ui.widget.VisValidatableTextField;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -120,6 +122,33 @@ public class LinkedPhysicsUiContractTest {
                 "selectedFixture.geometry != null"));
     }
 
+    @Test
+    public void spatialFootprintHidesFixtureActionsButKeepsItsFieldsEditable()
+            throws Exception {
+        try (Harness harness = new Harness()) {
+            VisTextButton duplicate = button(harness.panel, "duplicateFixtureBtn");
+            VisTextButton delete = button(harness.panel, "deleteFixtureBtn");
+
+            harness.select(4);
+            Assert.assertFalse(duplicate.isVisible());
+            Assert.assertFalse(delete.isVisible());
+            Assert.assertEquals("Delete", delete.getText().toString());
+            Assert.assertFalse(fieldDisabled(harness.panel, "diameterWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "offsetXWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "offsetYWUField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "densityField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "frictionField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "restitutionField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "categoryBitsField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "maskBitsField"));
+            Assert.assertFalse(fieldDisabled(harness.panel, "groupIndexField"));
+
+            harness.select(3);
+            Assert.assertTrue(duplicate.isVisible());
+            Assert.assertTrue(delete.isVisible());
+        }
+    }
+
     private static String source(String path) throws Exception {
         return Files.readString(Path.of(path), StandardCharsets.UTF_8);
     }
@@ -131,6 +160,18 @@ public class LinkedPhysicsUiContractTest {
         }
         Assert.assertNotNull(current);
         return (CollapsibleVisTable) current;
+    }
+
+    private static VisTextButton button(FixturesPanel panel, String name) throws Exception {
+        java.lang.reflect.Field field = FixturesPanel.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (VisTextButton) field.get(panel);
+    }
+
+    private static boolean fieldDisabled(FixturesPanel panel, String name) throws Exception {
+        java.lang.reflect.Field field = FixturesPanel.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return ((VisValidatableTextField) field.get(panel)).isDisabled();
     }
 
     private static final class Harness implements AutoCloseable {
@@ -168,6 +209,7 @@ public class LinkedPhysicsUiContractTest {
             shapes.shapes.add(linked(1, 7));
             shapes.shapes.add(linked(2, 19));
             shapes.shapes.add(PhysicsService.createDefaultShape(3));
+            shapes.shapes.add(spatialFootprint(4));
             selection.focusBody(body);
             panel = new FixturesPanel(context);
             panel.setEntityId(body);
@@ -189,6 +231,13 @@ public class LinkedPhysicsUiContractTest {
             PhysicsShapeData shape = new PhysicsShapeData();
             shape.physicsShapeId = physicsShapeId;
             shape.spatialBlockId = spatialBlockId;
+            return shape;
+        }
+
+        private static PhysicsShapeData spatialFootprint(int physicsShapeId) {
+            PhysicsShapeData shape = PhysicsService.createDefaultShape(physicsShapeId);
+            shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+            shape.spatialFootprint = true;
             return shape;
         }
     }

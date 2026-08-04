@@ -514,12 +514,12 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private void updateActionButtons(boolean hasActive) {
         PhysicsShapeData fixture = activeFixture(entityId);
-        deleteFixtureBtn.setText(fixture != null && fixture.spatialFootprint
-                ? "Disable Spatial Actor first" : "Delete");
+        boolean spatialFootprint = fixture != null && fixture.spatialFootprint;
+        deleteFixtureBtn.setText("Delete");
         duplicateFixtureBtn.setDisabled(!canDuplicateActiveFixture(entityId));
         deleteFixtureBtn.setDisabled(!canDeleteActiveFixture(entityId));
-        duplicateFixtureBtn.setVisible(hasActive);
-        deleteFixtureBtn.setVisible(hasActive);
+        duplicateFixtureBtn.setVisible(hasActive && !spatialFootprint);
+        deleteFixtureBtn.setVisible(hasActive && !spatialFootprint);
     }
 
     private boolean canDuplicateActiveFixture(int eid) {
@@ -529,7 +529,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private boolean canDeleteActiveFixture(int eid) {
         PhysicsShapeData fixture = activeFixture(eid);
-        return fixture != null && !isLinked(fixture);
+        return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;
     }
 
     private int countFixtures(int eid) {
