@@ -6,21 +6,31 @@ import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
+import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditSpatialHeightCommand;
-import games.pixscape.studio.history.commands.ToggleSpatialHeightCommand;
+import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
+import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
 
 public final class SpatialPhysicsPanel extends CollapsibleWidget {
-    private static final float DEFAULT_ACTOR_SPATIAL_HEIGHT = 1f;
-
     private final EntityPropertiesContext ctx;
     private final VisTable root = new VisTable(true);
-    private final VisCheckBox enabledBox = new VisCheckBox("Enable Spatial");
+    private final VisCheckBox enabledBox = new VisCheckBox("Spatial Actor");
+    private final VisLabel validationLabel = new VisLabel("");
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true, true);
     private final FloatField altitudeField;
     private final FloatField heightField;
@@ -54,14 +64,25 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             public void changed(ChangeEvent event, Actor actor) {
                 if (internalRefresh || entityId < 0) return;
 
-                ToggleSpatialHeightCommand command = new ToggleSpatialHeightCommand(
+                boolean enable = enabledBox.isChecked();
+                ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
                         ctx.world,
                         ctx.history.historyIds(),
+                        ctx.physicsService,
                         entityId,
-                        enabledBox.isChecked(),
-                        0f,
-                        DEFAULT_ACTOR_SPATIAL_HEIGHT
+                        enable,
+                        isEligibleForActivation(entityId),
+                        enable ? createDefaultFootprint(entityId) : null
                 );
+                if (command.isNoop()) {
+                    validationLabel.setText(enable
+                            ? "Spatial Actor requires valid visual bounds and one valid footprint."
+                            : "Spatial Actor state contains conflicting footprints.");
+                    validationLabel.setVisible(true);
+                } else {
+                    validationLabel.setText("");
+                    validationLabel.setVisible(false);
+                }
                 executeCommand(command);
                 refreshFromModel(entityId);
                 event.handle();
@@ -83,8 +104,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
 
         root.add(enabledBox).left().row();
+        root.add(validationLabel).left().row();
         root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
         detailsBlock.show(false);
+        validationLabel.setVisible(false);
     }
 
     public void setEntityId(int entityId) {
@@ -97,9 +120,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     public void refreshFromModel(int eid) {
         internalRefresh = true;
         try {
-            boolean has = hasSpatialHeight(eid);
-            enabledBox.setChecked(has);
-            detailsBlock.show(has);
+            boolean actor = isSpatialActor(eid);
+            enabledBox.setChecked(actor);
+            enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
+            detailsBlock.show(actor);
             altitudeField.setEntityId(eid);
             heightField.setEntityId(eid);
             altitudeField.refreshFromModel();
@@ -112,6 +136,67 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
 
     private boolean hasSpatialHeight(int eid) {
         return eid >= 0 && ctx.mSpatialHeight.has(eid);
+    }
+
+    private boolean isSpatialActor(int eid) {
+        return hasSpatialHeight(eid) || hasMarkedFootprint(eid);
+    }
+
+    private boolean hasMarkedFootprint(int eid) {
+        if (eid < 0 || !ctx.mPhysFixtures.has(eid)) return false;
+        PhysicsShapesComponent shapes = ctx.mPhysFixtures.get(eid);
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialFootprint) return true;
+        }
+        return false;
+    }
+
+    private boolean isEligibleForActivation(int eid) {
+        if (eid < 0 || ctx.layerService == null) return false;
+        EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
+        EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
+        if (kind != EntityKind.SPRITE && kind != EntityKind.ANIMATION) return false;
+        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
+        if (index == null) return false;
+        int layerIndex = index.getLayerIndex();
+        if (ctx.layerService.getLayerTypeByIndex(layerIndex) != LayerComponent.TYPE_PHYSICS) return false;
+        int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
+        LayerComponent layer = layerEntityId >= 0
+                ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
+                : null;
+        return layer != null && layer.spatialEnabled;
+    }
+
+    private PhysicsShapeData createDefaultFootprint(int eid) {
+        DimensionsComponent dimensions = ctx.mDimensions.getSafe(eid, null);
+        TransformComponent transform = ctx.mTransform.getSafe(eid, null);
+        SceneMeta scene = ProjectConfig.getInstance() != null
+                ? ProjectConfig.getInstance().getCurrentSceneMeta() : null;
+        if (dimensions == null || transform == null || scene == null
+                || !finitePositive(scene.pixelsPerMeter)) return null;
+
+        float widthPx = Math.abs(dimensions.width * transform.scaleX);
+        if (!finitePositive(widthPx)) return null;
+        float radiusPx = widthPx * 0.5f;
+        float centerXPx = widthPx * 0.5f - transform.originX;
+        float centerYPx = -transform.originY + radiusPx;
+        float ppm = scene.pixelsPerMeter;
+
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.geometry.radius = radiusPx / ppm;
+        shape.geometry.offsetX = centerXPx / ppm;
+        shape.geometry.offsetY = centerYPx / ppm;
+        shape.enabled = true;
+        shape.sensor = false;
+        shape.spatialFootprint = true;
+        return shape;
+    }
+
+    private static boolean finitePositive(float value) {
+        return !Float.isNaN(value) && !Float.isInfinite(value) && value > 0f;
     }
 
     private void submitSpatialEdit(

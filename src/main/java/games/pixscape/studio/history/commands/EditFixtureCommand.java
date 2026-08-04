@@ -86,13 +86,34 @@ public final class EditFixtureCommand
         this.dirtyMask = (dirtyMask != 0) ? dirtyMask : PhysicsDirtyBits.FIXTURE;
         this.publishStructureChanged = publishStructureChanged;
 
+        PhysicsShapeData beforeData = before != null ? before.copyData() : null;
+        PhysicsShapeData afterData = after != null ? after.copyData() : null;
+        boolean preservesSpatialFootprint = isSpatialFootprint(beforeData)
+                ? isValidSpatialFootprint(afterData)
+                : !isSpatialFootprint(afterData);
+
         this.noop = world == null
                 || historyIds == null
                 || bodyHistoryId <= 0L
                 || physicsShapeId <= 0L
                 || before == null
                 || after == null
-                || before.sameAs(after);
+                || before.sameAs(after)
+                || !preservesSpatialFootprint;
+    }
+
+    private static boolean isSpatialFootprint(PhysicsShapeData fixture) {
+        return fixture != null && fixture.spatialFootprint;
+    }
+
+    private static boolean isValidSpatialFootprint(PhysicsShapeData fixture) {
+        if (!isSpatialFootprint(fixture)) return false;
+        try {
+            fixture.validateStructure();
+            return true;
+        } catch (IllegalArgumentException invalid) {
+            return false;
+        }
     }
 
     @Override

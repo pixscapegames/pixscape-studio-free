@@ -451,7 +451,9 @@ public final class FixturesPanel extends CollapsibleWidget {
             }
 
             boolean linked = isLinked(f);
-            shapeBox.setDisabled(linked);
+            boolean spatialFootprint = f.spatialFootprint;
+            shapeBox.setDisabled(linked || spatialFootprint);
+            sensorBox.setDisabled(linked || spatialFootprint);
 
             if (linked) {
                 boxSizeBlock.show(false);
@@ -502,13 +504,18 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private void updateLinkedSpatialBlockIndicator(PhysicsShapeData fixture) {
         boolean linked = isLinked(fixture);
+        boolean spatialFootprint = fixture != null && fixture.spatialFootprint;
         linkedSpatialBlockLabel.setText(
-                linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
-        linkedSpatialBlockLabel.setVisible(linked);
-        linkedSpatialBlockBlock.show(linked);
+                spatialFootprint ? "Spatial footprint"
+                        : linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
+        linkedSpatialBlockLabel.setVisible(linked || spatialFootprint);
+        linkedSpatialBlockBlock.show(linked || spatialFootprint);
     }
 
     private void updateActionButtons(boolean hasActive) {
+        PhysicsShapeData fixture = activeFixture(entityId);
+        deleteFixtureBtn.setText(fixture != null && fixture.spatialFootprint
+                ? "Disable Spatial Actor first" : "Delete");
         duplicateFixtureBtn.setDisabled(!canDuplicateActiveFixture(entityId));
         deleteFixtureBtn.setDisabled(!canDeleteActiveFixture(entityId));
         duplicateFixtureBtn.setVisible(hasActive);
@@ -517,7 +524,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
     private boolean canDuplicateActiveFixture(int eid) {
         PhysicsShapeData fixture = activeFixture(eid);
-        return fixture != null && !isLinked(fixture);
+        return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;
     }
 
     private boolean canDeleteActiveFixture(int eid) {
@@ -536,6 +543,7 @@ public final class FixturesPanel extends CollapsibleWidget {
 
         int result = Long.hashCode(fixture.physicsShapeId);
         result = 31 * result + fixture.spatialBlockId;
+        result = 31 * result + (fixture.spatialFootprint ? 1 : 0);
         PhysicsGeometryData geometry = fixture.geometry;
         result = 31 * result + effectiveShapeType(fixture);
         if (geometry != null) {

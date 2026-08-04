@@ -31,8 +31,10 @@ public class WorldCanvasPhysicsPpmWiringTest {
         PhysicsCompiledFixturesComponent compiled =
                 world.getMapper(PhysicsCompiledFixturesComponent.class).create(entityId);
         CompiledFixtureData circle = new CompiledFixtureData();
+        circle.physicsShapeId = 1;
         circle.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         circle.radius = 0.5f;
+        circle.spatialFootprint = true;
         compiled.fixtures.add(circle);
         compiled.generation = 1;
         compiled.valid = true;

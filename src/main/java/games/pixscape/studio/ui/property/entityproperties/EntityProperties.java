@@ -276,7 +276,7 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return (isSprite || isAnim) && isEntityInSpatialLayer();
+        return ((isSprite || isAnim) && isEntityInSpatialLayer()) || hasSpatialActorState();
     }
 
     private boolean isPhysicsApplicable() {
@@ -366,7 +366,7 @@ public class EntityProperties extends VisTable {
         }
         int layerIndex = entityIndex.getLayerIndex();
         int layerType = ctx.layerService.getLayerTypeByIndex(layerIndex);
-        if (layerType != LayerComponent.TYPE_PHYSICS && layerType != LayerComponent.TYPE_TILED) {
+        if (layerType != LayerComponent.TYPE_PHYSICS) {
             return false;
         }
 
@@ -380,8 +380,20 @@ public class EntityProperties extends VisTable {
             return true;
         }
 
-        TiledLayerComponent tiled = ctx.world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
+        return false;
+    }
+
+    private boolean hasSpatialActorState() {
+        if (currentEntityId < 0) return false;
+        if (ctx.mSpatialHeight.has(currentEntityId)) return true;
+        games.pixscape.runtime.component.physics.PhysicsShapesComponent shapes =
+                ctx.mPhysFixtures.getSafe(currentEntityId, null);
+        if (shapes == null) return false;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            games.pixscape.runtime.physics.PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialFootprint) return true;
+        }
+        return false;
     }
 
 }

@@ -96,14 +96,14 @@ public class LinkedPhysicsUiContractTest {
                 "src/main/java/games/pixscape/studio/ui/contextmenu/"
                         + "StudioContextMenu.java");
 
-        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked);"));
+        Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked || spatialFootprint);"));
         Assert.assertTrue(fixtures.contains("offsetsBlock.show(false);"));
         Assert.assertTrue(fixtures.contains(
-                "return fixture != null && !isLinked(fixture);"));
+                "return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;"));
         Assert.assertTrue(fixtures.contains(
                 "current == null || current.geometry == null"));
         Assert.assertTrue(fixtures.contains(
-                "linkedSpatialBlockBlock.show(linked);"));
+                "linkedSpatialBlockBlock.show(linked || spatialFootprint);"));
         Assert.assertFalse(fixtures.contains(
                 "densityField.setDisabled(linked)"));
         Assert.assertFalse(fixtures.contains(
