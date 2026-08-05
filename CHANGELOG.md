@@ -15,6 +15,8 @@
 * Added `Physics collision` to Spatial Blocks, deriving a static polygon fixture from the block footprint.
 * Added a read-only `Linked to Spatial Block #...` indicator for linked fixtures.
 * Added a persistent canvas indicator showing the active editing mode, including Normal, Physics, Spatial, Tiled and Lights contexts.
+* Added a dedicated Spatial actor layer with automatic physics body and footprint setup.
+* Added visible progress feedback during Tiled map imports.
 
 ### Changed
 
@@ -37,6 +39,7 @@
 * Cached particle atlas readiness so each particle effect is probed once per atlas publication instead of once per emitter and per frame.
 * Tiled fallback rendering now runs only while standalone tile visuals are required, then disables itself until a relevant scene, asset, animation or atlas change requests revalidation.
 * Reduced repeated asset metadata loading and duplicated atlas/standalone resolution during repacks, scene changes and undo/redo operations.
+* Greatly reduced undo/redo overhead for particle effects and other non-render entities.
 
 ### Fixed
 
@@ -51,6 +54,7 @@
 * Scene switching now prompts to Save, Don't Save or Cancel when the current scene has unsaved changes.
 * Scene changes now wait for a successful visible save before loading the target scene, and restore the selector after cancellation or failure.
 * Removed the silent automatic scene save previously performed when selecting another scene.
+* Fixed undo/redo identity handling after entity deletion and restoration, preventing duplicate stable identities.
 
 ### Tests
 
