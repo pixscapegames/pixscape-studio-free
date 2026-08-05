@@ -37,6 +37,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
 import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
+import games.pixscape.studio.importer.tmx.TmxSceneImportSession;
 import games.pixscape.studio.importer.tmx.TmxSceneImportService;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
@@ -1552,12 +1553,6 @@ public final class SceneService {
 
         AtlasInputSyncResult syncResult = syncSceneAtlasInputForSave(plan);
 
-        Gdx.app.log("SceneManager",
-                "Atlas input synced for save: scene=" + canonicalTag
-                        + " changed=" + syncResult.changed()
-                        + " copied=" + syncResult.copiedCount()
-                        + " deleted=" + syncResult.deletedCount());
-
         if (shouldSkipSaveAtlasRepack(plan, syncResult)) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
             logSaveAtlasRepackSkipped(canonicalTag);
@@ -1724,12 +1719,6 @@ public final class SceneService {
                         assetMetaDatabase,
                         tileAnimationsMetaDatabase
                 );
-
-        Gdx.app.log("SceneManager",
-                "Atlas input synced for repack: scene=" + canonicalTag
-                        + " changed=" + syncResult.changed()
-                        + " copied=" + syncResult.copiedCount()
-                        + " deleted=" + syncResult.deletedCount());
 
         ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, canonicalTag);
 
@@ -2003,7 +1992,7 @@ public final class SceneService {
             throw new IllegalStateException("No project is loaded.");
         }
         String previousSceneName = cfg.getCurrentSceneName();
-        if (cfg.getCurrentSceneName() != null) {
+        if (previousSceneName != null && requiresSaveBeforeLeavingCurrentScene()) {
             saveCurrentSceneOnly(cfg);
         }
 
@@ -2028,10 +2017,129 @@ public final class SceneService {
         return result;
     }
 
+    public void importTmxAsNewSceneWithProgress(
+            Stage uiStage,
+            TmxSceneImportRequest request,
+            java.util.function.Consumer<TmxSceneImportResult> onComplete,
+            java.util.function.Consumer<Throwable> onError) {
+        if (uiStage == null) {
+            try {
+                TmxSceneImportResult result = importTmxAsNewScene(request);
+                if (onComplete != null) onComplete.accept(result);
+            } catch (Throwable failure) {
+                if (onError != null) onError.accept(failure);
+            }
+            return;
+        }
+
+        TmxImportProgressContext context = new TmxImportProgressContext();
+        context.cfg = ProjectConfig.getInstance();
+        if (context.cfg == null) {
+            if (onError != null) onError.accept(new IllegalStateException("No project is loaded."));
+            return;
+        }
+        context.previousSceneName = context.cfg.getCurrentSceneName();
+        boolean saveCurrentScene = context.previousSceneName != null
+                && requiresSaveBeforeLeavingCurrentScene();
+
+        SaveProgressRunner runner = new SaveProgressRunner(
+                uiStage,
+                "Importing Tiled map",
+                "Preparing import..."
+        );
+        Array<SaveProgressRunner.Step> steps = new Array<>();
+        steps.add(SaveProgressRunner.Step.sync(0.00f, "Preparing import...", () -> {
+            ensureAssetMetaDatabaseLoaded();
+            context.projectDir = StudioFs.requireStudioProjectDir(context.cfg);
+            TmxSceneImportService importService = new TmxSceneImportService(
+                    context.cfg, context.projectDir, assetMetaDatabase
+            );
+            context.session = importService.beginImport(request);
+        }));
+        if (saveCurrentScene) {
+            steps.add(SaveProgressRunner.Step.sync(
+                    0.05f,
+                    "Saving current scene and repacking atlas...",
+                    () -> saveCurrentSceneOnly(context.cfg)
+            ));
+        }
+        steps.add(tmxImportStep(0.08f, "Reading and validating Tiled map...", context,
+                () -> context.session.prepare()));
+        steps.add(tmxImportStep(0.18f, "Creating imported scene...", context,
+                () -> context.session.createScene()));
+        steps.add(tmxImportStep(0.30f, "Importing tilesets and images...", context,
+                () -> context.session.importAssets()));
+        steps.add(tmxImportStep(0.62f, "Creating layers and tiles...", context,
+                () -> context.session.materializeAndSaveScene()));
+        steps.add(tmxImportStep(0.82f, "Updating scene atlas...", context,
+                () -> context.session.updateAtlas()));
+        steps.add(tmxImportStep(0.94f, "Saving project metadata...", context,
+                () -> context.result = context.session.persistAndFinish()));
+        steps.add(SaveProgressRunner.Step.sync(0.98f, "Opening imported scene...", () -> {
+            try {
+                activateImportedTmxScene(context.cfg, context.projectDir, context.result);
+            } catch (RuntimeException activationFailure) {
+                throw recoverTmxImportActivationFailure(
+                        context.result,
+                        context.previousSceneName,
+                        activationFailure,
+                        () -> restorePreviousSceneAfterTmxActivationFailure(
+                                context.cfg, context.previousSceneName, context.projectDir
+                        )
+                );
+            }
+        }));
+        steps.add(SaveProgressRunner.Step.sync(1.00f, "Import complete", () -> {
+        }));
+
+        runner.run(
+                steps,
+                () -> {
+                    if (onComplete != null) onComplete.accept(context.result);
+                },
+                onError,
+                () -> context.terminal
+        );
+    }
+
+    private SaveProgressRunner.Step tmxImportStep(float progress,
+                                                  String message,
+                                                  TmxImportProgressContext context,
+                                                  Runnable action) {
+        return SaveProgressRunner.Step.async(progress, message, (ignoredProgress, next, fail) -> {
+            try {
+                action.run();
+                if (context.session.finished() && context.result == null) {
+                    context.result = context.session.result();
+                    context.terminal = true;
+                }
+                next.run();
+            } catch (RuntimeException failure) {
+                if (context.session != null && context.session.mutationStarted()) {
+                    context.result = context.session.rollback(failure);
+                    context.terminal = true;
+                    next.run();
+                } else {
+                    fail.accept(failure);
+                }
+            }
+        });
+    }
+
+    private static final class TmxImportProgressContext {
+        private ProjectConfig cfg;
+        private String previousSceneName;
+        private FileHandle projectDir;
+        private TmxSceneImportSession session;
+        private TmxSceneImportResult result;
+        private boolean terminal;
+    }
+
     private void activateImportedTmxScene(ProjectConfig cfg,
                                           FileHandle projectDir,
                                           TmxSceneImportResult result) {
         loadScene(cfg, result.sceneName(), projectDir);
+        canvas.centerCamera();
         assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
         sceneMetaBridge.pushCurrentSceneMetaToUI();
         app.getBottomBar().refreshSelectBox();

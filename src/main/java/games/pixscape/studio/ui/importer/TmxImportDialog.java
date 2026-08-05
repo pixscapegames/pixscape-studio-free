@@ -99,9 +99,9 @@ public final class TmxImportDialog extends StudioDialog {
             return;
         }
 
+        hide();
         if (onImport != null) {
             onImport.accept(sceneName);
         }
-        fadeOut();
     }
 }

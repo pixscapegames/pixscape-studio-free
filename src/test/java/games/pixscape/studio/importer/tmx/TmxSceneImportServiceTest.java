@@ -550,6 +550,81 @@ public class TmxSceneImportServiceTest {
         assertEquals(0, h.db.size());
     }
 
+    @Test
+    public void sessionExecutesPhasesInOrderAndProducesEquivalentSuccess() throws Exception {
+        Harness h = harness("tmx-import-session-success");
+        FileHandle tmx = simpleTmx(h, "session.tmx", "1,2,3,4");
+        TmxSceneImportSession session = h.importer().beginImport(request(tmx, "Session"));
+
+        session.prepare();
+        session.createScene();
+        session.importAssets();
+        session.materializeAndSaveScene();
+        session.updateAtlas();
+        TmxSceneImportResult result = session.persistAndFinish();
+
+        assertTrue(result.imported());
+        assertEquals("Session", result.sceneName());
+        assertEquals(1, result.importedTilesetCount());
+        assertEquals(4, result.importedTileCount());
+        assertFalse(session.hasTemporaryWorld());
+    }
+
+    @Test
+    public void sessionRejectsDuplicateAndOutOfOrderPhases() throws Exception {
+        Harness h = harness("tmx-import-session-order");
+        TmxSceneImportSession session = h.importer().beginImport(
+                request(simpleTmx(h, "order.tmx", "1,0,0,0"), "Order")
+        );
+
+        assertIllegalState(session::importAssets);
+        session.prepare();
+        assertIllegalState(session::prepare);
+        session.createScene();
+        assertIllegalState(session::persistAndFinish);
+
+        TmxSceneImportResult rollback = session.rollback(new RuntimeException("stop after order checks"));
+        assertEquals(TmxSceneImportStatus.FAILED_ROLLED_BACK, rollback.status());
+    }
+
+    @Test
+    public void sessionMaterializeFailureDisposesWorldAndRollsBackExactlyOnce() throws Exception {
+        Harness h = harness("tmx-import-session-dispose");
+        TmxSceneImportSession session = h.importer().beginImport(
+                request(simpleTmx(h, "dispose.tmx", "1,0,0,0"), "Dispose")
+        );
+        session.prepare();
+        session.createScene();
+        session.importAssets();
+        FileHandle scenesPath = h.projectDir.child(StudioFs.DIR_SCENES);
+        scenesPath.deleteDirectory();
+        scenesPath.writeString("not a directory", false, "UTF-8");
+
+        RuntimeException materializeFailure = null;
+        try {
+            session.materializeAndSaveScene();
+        } catch (RuntimeException failure) {
+            materializeFailure = failure;
+        }
+
+        assertNotNull(materializeFailure);
+        assertFalse(session.hasTemporaryWorld());
+        TmxSceneImportResult firstRollback = session.rollback(materializeFailure);
+        TmxSceneImportResult secondRollback = session.rollback(new RuntimeException("must be ignored"));
+        assertSame(firstRollback, secondRollback);
+        assertTrue(firstRollback.rollbackSucceeded());
+        assertNull(h.cfg.getSceneMeta("Dispose"));
+    }
+
+    private static void assertIllegalState(Runnable action) {
+        try {
+            action.run();
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException expected) {
+            // expected
+        }
+    }
+
     private static TmxSceneImportRequest request(FileHandle tmx, String sceneName) {
         return new TmxSceneImportRequest(tmx, sceneName, false);
     }

@@ -74,6 +74,22 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
     }
 
     @Test
+    public void tmxActivationCentersCameraAfterImportedSceneLoads() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String activationBody = methodBody(source, "private void activateImportedTmxScene(");
+
+        assertOrdered(
+                activationBody,
+                "loadScene(cfg, result.sceneName(), projectDir);",
+                "canvas.centerCamera();",
+                "assertCurrentSceneMetadataIntegrity("
+        );
+    }
+
+    @Test
     public void activationCompilesLinkedPhysicsAfterTiledAndSpatialResolution()
             throws Exception {
         String source = Files.readString(

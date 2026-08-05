@@ -40,6 +40,19 @@ public class RegressionContracts013Test {
     }
 
     @Test
+    public void atlasOperationsLogSummariesInsteadOfEveryInputOrAlias() throws Exception {
+        String inputSource = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
+        String loaderSource = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasLoaderService.java");
+
+        assertTrue(inputSource.contains("\"Atlas input synced: scene=\""));
+        assertFalse(inputSource.contains("\"Copied atlas input: \""));
+        assertFalse(inputSource.contains("\"Deleted unused atlas input file: \""));
+        assertFalse(inputSource.contains("\"Copied animation frame to atlas input: \""));
+        assertTrue(loaderSource.contains("settings.silent = true;"));
+        assertTrue(loaderSource.contains("\"Scene atlas packed: scene=\""));
+    }
+
+    @Test
     public void sceneAtlasInput_cleanup_onlyRemovesUnreferencedAssets_notPrefabSourceOwnership() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
         String collectBody = methodBody(source, "private Set<String> collectRequiredAtlasInputPathsForCurrentScene(");

@@ -42,10 +42,16 @@ public class TopMenuBarTmxImportContractTest {
         assertTrue(prepareBody.contains("sceneName -> importTmxAsNewScene(file, sceneName)"));
 
         String importBody = methodBody(source, "private void importTmxAsNewScene(FileHandle file, String sceneName)");
-        assertTrue(importBody.contains("sceneService.importTmxAsNewScene(new TmxSceneImportRequest(file, sceneName))"));
-        assertTrue(importBody.contains("TmxImportUiSupport.formatSuccessMessage(result)"));
-        assertTrue(importBody.contains("TmxImportUiSupport.formatFailureMessage(result)"));
-        assertTrue(importBody.contains("TmxImportMessageDialog.show("));
+        assertTrue(importBody.contains("sceneService.importTmxAsNewSceneWithProgress("));
+        assertTrue(importBody.contains("new TmxSceneImportRequest(file, sceneName)"));
+        assertTrue(importBody.contains("result -> showTmxImportResult(result)"));
+        assertTrue(importBody.contains("failure -> showTmxImportFailure(file, failure)"));
+        assertFalse(importBody.contains("sceneService.importTmxAsNewScene("));
+
+        String resultBody = methodBody(source, "private void showTmxImportResult(TmxSceneImportResult result)");
+        assertTrue(resultBody.contains("TmxImportUiSupport.formatSuccessMessage(result)"));
+        assertTrue(resultBody.contains("TmxImportUiSupport.formatFailureMessage(result)"));
+        assertTrue(resultBody.contains("TmxImportMessageDialog.show("));
         assertFalse(source.contains("new TmxSceneImportService("));
     }
 
@@ -65,6 +71,7 @@ public class TopMenuBarTmxImportContractTest {
         assertTrue(source.contains("sceneNameField.setText(preparation.proposedSceneName());"));
         assertTrue(source.contains("TmxImportUiSupport.resolveSceneName("));
         assertTrue(source.contains("onImport.accept(sceneName);"));
+        assertTrue(source.indexOf("hide();") < source.indexOf("onImport.accept(sceneName);"));
     }
 
     @Test

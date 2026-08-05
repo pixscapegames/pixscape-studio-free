@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.studio.ui.main.SaveProgressDialog;
 
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 
 public final class SaveProgressRunner {
 
@@ -35,14 +36,33 @@ public final class SaveProgressRunner {
     }
 
     private final Stage uiStage;
-    private final games.pixscape.studio.ui.main.SaveProgressDialog dialog = new SaveProgressDialog();
+    private final SaveProgressDialog dialog;
+    private final String initialMessage;
     private boolean finished;
 
     public SaveProgressRunner(Stage uiStage) {
+        this(uiStage, new SaveProgressDialog(), "Preparing save...");
+    }
+
+    public SaveProgressRunner(Stage uiStage, String dialogTitle, String initialMessage) {
+        this(uiStage, new SaveProgressDialog(dialogTitle, initialMessage), initialMessage);
+        dialog.preventUserClose();
+    }
+
+    private SaveProgressRunner(Stage uiStage, SaveProgressDialog dialog, String initialMessage) {
         this.uiStage = uiStage;
+        this.dialog = dialog;
+        this.initialMessage = initialMessage;
     }
 
     public void run(Array<Step> steps, Runnable onSuccess, java.util.function.Consumer<Throwable> onError) {
+        run(steps, onSuccess, onError, () -> false);
+    }
+
+    public void run(Array<Step> steps,
+                    Runnable onSuccess,
+                    java.util.function.Consumer<Throwable> onError,
+                    BooleanSupplier finishAfterCurrentStep) {
         finished = false;
         if (steps == null || steps.size == 0) {
             finished = true;
@@ -52,16 +72,19 @@ public final class SaveProgressRunner {
             return;
         }
 
-        dialog.updateProgress(0f, "Preparing save...");
+        dialog.updateProgress(0f, initialMessage);
         dialog.show(uiStage);
 
-        runStep(steps, 0, onSuccess, onError);
+        Gdx.app.postRunnable(() -> runStep(
+                steps, 0, onSuccess, onError, finishAfterCurrentStep
+        ));
     }
 
     private void runStep(Array<Step> steps,
                          int index,
                          Runnable onSuccess,
-                         java.util.function.Consumer<Throwable> onError) {
+                         java.util.function.Consumer<Throwable> onError,
+                         BooleanSupplier finishAfterCurrentStep) {
 
         if (finished) return;
 
@@ -77,7 +100,13 @@ public final class SaveProgressRunner {
         Gdx.app.postRunnable(() -> {
             try {
                 step.action().run(dialog::updateProgress, () ->
-                                Gdx.app.postRunnable(() -> runStep(steps, index + 1, onSuccess, onError)),
+                                Gdx.app.postRunnable(() -> {
+                                    if (finishAfterCurrentStep.getAsBoolean()) {
+                                        finishSuccessfully(onSuccess);
+                                    } else {
+                                        runStep(steps, index + 1, onSuccess, onError, finishAfterCurrentStep);
+                                    }
+                                }),
                         failure -> Gdx.app.postRunnable(() -> finishWithError(failure, onError)));
             } catch (Throwable t) {
                 finishWithError(t, onError);

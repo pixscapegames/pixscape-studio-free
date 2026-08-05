@@ -717,28 +717,40 @@ public class TopMenuBar extends MenuBar {
 
     private void importTmxAsNewScene(FileHandle file, String sceneName) {
         try {
-            TmxSceneImportResult result = sceneService.importTmxAsNewScene(new TmxSceneImportRequest(file, sceneName));
-            if (result.imported()) {
-                Dialogs.showOKDialog(
-                        app.getUiStage(),
-                        "Tiled map imported",
-                        TmxImportUiSupport.formatSuccessMessage(result)
-                );
-            } else {
-                TmxImportMessageDialog.show(
-                        app.getUiStage(),
-                        "Tiled map import failed",
-                        TmxImportUiSupport.formatFailureMessage(result)
-                );
-            }
+            sceneService.importTmxAsNewSceneWithProgress(
+                    app.getUiStage(),
+                    new TmxSceneImportRequest(file, sceneName),
+                    result -> showTmxImportResult(result),
+                    failure -> showTmxImportFailure(file, failure)
+            );
         } catch (RuntimeException ex) {
-            Gdx.app.error("TopMenuBar", "TMX import failed: " + file.path(), ex);
+            showTmxImportFailure(file, ex);
+        }
+    }
+
+    private void showTmxImportResult(TmxSceneImportResult result) {
+        if (result.imported()) {
             Dialogs.showOKDialog(
                     app.getUiStage(),
+                    "Tiled map imported",
+                    TmxImportUiSupport.formatSuccessMessage(result)
+            );
+        } else {
+            TmxImportMessageDialog.show(
+                    app.getUiStage(),
                     "Tiled map import failed",
-                    PreviewLaunchSupport.userMessageFor(ex)
+                    TmxImportUiSupport.formatFailureMessage(result)
             );
         }
+    }
+
+    private void showTmxImportFailure(FileHandle file, Throwable failure) {
+        Gdx.app.error("TopMenuBar", "TMX import failed: " + file.path(), failure);
+        Dialogs.showOKDialog(
+                app.getUiStage(),
+                "Tiled map import failed",
+                PreviewLaunchSupport.userMessageFor(failure)
+        );
     }
 
     private void openRecentProject(String path) {

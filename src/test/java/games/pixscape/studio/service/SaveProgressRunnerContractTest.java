@@ -27,6 +27,41 @@ public class SaveProgressRunnerContractTest {
         assertTrue(failureBody.contains("onError.accept(failure);"));
     }
 
+    @Test
+    public void customProgressDialogAndEarlyTerminalResultsStillCloseTheDialog() throws Exception {
+        String runnerSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SaveProgressRunner.java"),
+                StandardCharsets.UTF_8
+        );
+        String dialogSource = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/SaveProgressDialog.java"),
+                StandardCharsets.UTF_8
+        );
+
+        assertTrue(runnerSource.contains("SaveProgressRunner(Stage uiStage, String dialogTitle, String initialMessage)"));
+        assertTrue(runnerSource.contains("new SaveProgressDialog(dialogTitle, initialMessage)"));
+        assertTrue(runnerSource.contains("finishAfterCurrentStep.getAsBoolean()"));
+        assertTrue(methodBody(runnerSource, "private void finishSuccessfully(").contains("dialog.hide();"));
+        assertTrue(methodBody(runnerSource, "private void finishWithError(").contains("dialog.hide();"));
+        assertTrue(dialogSource.contains("SaveProgressDialog(String title, String initialMessage)"));
+        assertTrue(dialogSource.contains("button.setDisabled(true);"));
+    }
+
+    @Test
+    public void firstStepWaitsUntilAfterProgressDialogHasAFrameToRender() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SaveProgressRunner.java"),
+                StandardCharsets.UTF_8
+        );
+        String runBody = methodBody(source, "BooleanSupplier finishAfterCurrentStep) {");
+
+        int showIndex = runBody.indexOf("dialog.show(uiStage);");
+        int scheduleIndex = runBody.indexOf("Gdx.app.postRunnable(() -> runStep(");
+        assertTrue(showIndex >= 0);
+        assertTrue(scheduleIndex > showIndex);
+        assertTrue(runBody.substring(showIndex, scheduleIndex).contains("dialog.show(uiStage);"));
+    }
+
     private static String methodBody(String source, String signaturePrefix) {
         int signatureIndex = source.indexOf(signaturePrefix);
         if (signatureIndex < 0) throw new AssertionError("Method signature not found: " + signaturePrefix);

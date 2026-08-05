@@ -68,15 +68,20 @@ public final class SceneAtlasInputService {
 
             if (copyIfDifferent(source, dest)) {
                 copied++;
-                Gdx.app.log(TAG, "Copied atlas input: " + dest.path());
             }
         }
 
-        return new AtlasInputSyncResult(
+        AtlasInputSyncResult result = new AtlasInputSyncResult(
                 deleted > 0 || copied > 0,
                 copied,
                 deleted
         );
+        Gdx.app.log(TAG,
+                "Atlas input synced: scene=" + sceneTag
+                        + " changed=" + result.changed()
+                        + " copied=" + result.copiedCount()
+                        + " deleted=" + result.deletedCount());
+        return result;
     }
 
     public AtlasInputSyncResult syncSceneAtlasInputForSave(ProjectConfig cfg,
@@ -370,7 +375,7 @@ public final class SceneAtlasInputService {
         inputDir.mkdirs();
         ensureInternalWhitePixel(inputDir);
 
-        boolean changed = false;
+        int copied = 0;
 
         for (FileHandle child : animDir.list()) {
             if (child == null || child.isDirectory()) continue;
@@ -378,12 +383,13 @@ public final class SceneAtlasInputService {
 
             FileHandle dest = inputDir.child(child.name());
             if (copyIfDifferent(child, dest)) {
-                changed = true;
-                Gdx.app.log(TAG, "Copied animation frame to atlas input: " + dest.path());
+                copied++;
             }
         }
 
-        return changed;
+        Gdx.app.log(TAG,
+                "Animation atlas input synced: scene=" + sceneTag + " copied=" + copied);
+        return copied > 0;
     }
 
     public boolean ensureAssetInInput(ProjectConfig cfg,
@@ -440,7 +446,6 @@ public final class SceneAtlasInputService {
 
                 child.deleteDirectory();
                 deleted++;
-                Gdx.app.log(TAG, "Deleted unused atlas input dir: " + child.path());
                 continue;
             }
 
@@ -451,7 +456,6 @@ public final class SceneAtlasInputService {
             if (!requiredInputFileNames.contains(child.name())) {
                 child.delete();
                 deleted++;
-                Gdx.app.log(TAG, "Deleted unused atlas input file: " + child.path());
             }
         }
 

@@ -65,6 +65,7 @@ public final class SceneAtlasLoaderService {
             settings.duplicatePadding = true;
             settings.edgePadding = true;
             settings.combineSubdirectories = true;
+            settings.silent = true;
 
             TexturePacker.process(
                     settings,
@@ -72,6 +73,7 @@ public final class SceneAtlasLoaderService {
                     outputDir.path(),
                     canonicalTag
             );
+            Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
         }
     }
 
