@@ -42,6 +42,18 @@ public final class CreateEntityCommand implements Command {
 
     @Override
     public void redo() {
+        if (historyId > 0L) {
+            int currentEntityId = historyIds.entityOfHistoryId(historyId);
+            if (currentEntityId >= 0
+                    && world.getEntityManager().isActive(currentEntityId)) {
+                throw new IllegalStateException(
+                        "Cannot redo CreateEntityCommand for historyId " + historyId
+                                + ": current incarnation entity " + currentEntityId
+                                + " is still active."
+                );
+            }
+        }
+
         lastEntityId = world.create();
         createdEntityId = lastEntityId;
         try {
@@ -70,13 +82,25 @@ public final class CreateEntityCommand implements Command {
 
     @Override
     public void undo() {
-        if (lastEntityId >= 0 && world.getEntityManager().isActive(lastEntityId)) {
-            // Capture CURRENT state before deletion (modified name, rotation, etc.)
-            initializer.syncFrom(lastEntityId);
+        int entityId = historyId > 0L
+                ? historyIds.entityOfHistoryId(historyId)
+                : -1;
 
-            IdentityRegistry.unindexEntityImmediately(world, lastEntityId);
-            world.delete(lastEntityId);
-            historyIds.unbindEntity(lastEntityId);
+        if (entityId < 0
+                && lastEntityId >= 0
+                && world.getEntityManager().isActive(lastEntityId)) {
+            entityId = lastEntityId;
+        }
+
+        if (entityId >= 0 && world.getEntityManager().isActive(entityId)) {
+            // Capture CURRENT state before deletion (modified name, rotation, etc.)
+            initializer.syncFrom(entityId);
+
+            IdentityRegistry.unindexEntityImmediately(world, entityId);
+            world.delete(entityId);
+            historyIds.unbindEntity(entityId);
+
+            lastEntityId = entityId;
         }
     }
 
