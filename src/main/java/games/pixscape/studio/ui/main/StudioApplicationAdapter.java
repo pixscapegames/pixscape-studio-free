@@ -23,6 +23,7 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.CursorDrawHelper;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.helper.StudioHomeBootstrap;
@@ -429,10 +430,25 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (this.previewActive == active) return;
         this.previewActive = active;
 
+        if (!active) {
+            restoreStudioShadersAfterPreview();
+        }
+
         // Optional but convenient: update the button
         if (bottomMenuBar != null) {
             bottomMenuBar.setPreviewRunning(active);
         }
+    }
+
+    private void restoreStudioShadersAfterPreview() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        FileHandle projectDir = cfg != null
+                && cfg.projectFileName != null
+                && !cfg.projectFileName.isBlank()
+                ? StudioFs.requireStudioProjectDir(cfg)
+                : null;
+        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 
     public boolean isPreviewActive() {

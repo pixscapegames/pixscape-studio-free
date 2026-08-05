@@ -151,6 +151,50 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     }
 
     @Test
+    public void sensorSpatialFootprintSurvivesStudioSaveAndLoad() {
+        meta.nextPhysicsShapeId = 2;
+        World source = serializationWorld();
+        int entity = source.create();
+        source.getMapper(PixscapeIdentityComponent.class)
+                .create(entity).stableId = 1;
+        source.getMapper(TransformComponent.class).create(entity);
+        PhysicsBodyComponent body = source.getMapper(
+                PhysicsBodyComponent.class).create(entity);
+        PhysicsService.initDefaultBody(body);
+        PhysicsShapesComponent shapes = source.getMapper(
+                PhysicsShapesComponent.class).create(entity);
+        PhysicsShapeData footprint = new PhysicsShapeData();
+        footprint.physicsShapeId = 1;
+        footprint.geometry = new PhysicsGeometryData();
+        footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        footprint.geometry.radius = 0.5f;
+        footprint.spatialFootprint = true;
+        footprint.sensor = true;
+        shapes.shapes.add(footprint);
+        source.process();
+        FileHandle sceneFile = tempSceneFile("sensor-spatial-footprint-roundtrip.json");
+        SceneService.saveScene(source, sceneFile, false);
+
+        World loaded = serializationWorld();
+        try {
+            SceneLoader.loadScene(loaded, sceneFile, false, meta);
+            loaded.process();
+
+            IntBag owners = loaded.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsShapesComponent.class))
+                    .getEntities();
+            Assert.assertEquals(1, owners.size());
+            PhysicsShapeData restored = loaded.getMapper(PhysicsShapesComponent.class)
+                    .get(owners.get(0)).shapes.first();
+            Assert.assertTrue(restored.spatialFootprint);
+            Assert.assertTrue(restored.sensor);
+        } finally {
+            loaded.dispose();
+            source.dispose();
+        }
+    }
+
+    @Test
     public void activationCreatesIdentityTransformForAuthoredTiledPhysics() {
         World world = serializationWorld();
         int layer = world.create();
@@ -217,10 +261,14 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     }
 
     private static FileHandle tempSceneFile() {
+        return tempSceneFile("spatial-block-collision-roundtrip.json");
+    }
+
+    private static FileHandle tempSceneFile(String fileName) {
         File dir = new File(System.getProperty("java.io.tmpdir"),
                 "pixscape-studio-tests");
         Assert.assertTrue(dir.exists() || dir.mkdirs());
-        File file = new File(dir, "spatial-block-collision-roundtrip.json");
+        File file = new File(dir, fileName);
         if (file.exists()) Assert.assertTrue(file.delete());
         return new FileHandle(file);
     }

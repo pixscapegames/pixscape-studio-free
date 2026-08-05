@@ -64,6 +64,36 @@ public class EditFixtureCommandTest {
     }
 
     @Test
+    public void toggleSpatialFootprintSensorUndoRedoPreservesOwnership() {
+        FixtureHarness harness = FixtureHarness.create();
+        harness.fixture().geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        harness.fixture().geometry.radius = 0.5f;
+        harness.fixture().spatialFootprint = true;
+        PhysicsShapeData original = harness.fixture().copy();
+        games.pixscape.runtime.service.PhysicsService.publishPreparedCandidate(
+                harness.world.getMapper(PhysicsShapesComponent.class).get(harness.bodyEid),
+                harness.compiled(),
+                games.pixscape.runtime.service.PhysicsService.prepareBodyCandidate(
+                        harness.world.getMapper(PhysicsShapesComponent.class)
+                                .get(harness.bodyEid).shapes));
+
+        EditFixtureCommand command = harness.newEdit(cmd -> cmd.sensor = true, false);
+
+        Assert.assertFalse(command.isNoop());
+        command.redo();
+        Assert.assertTrue(harness.fixture().spatialFootprint);
+        Assert.assertTrue(harness.fixture().sensor);
+
+        command.undo();
+        Assert.assertTrue(harness.fixture().contentEquals(original));
+
+        command.redo();
+        Assert.assertTrue(harness.fixture().spatialFootprint);
+        Assert.assertTrue(harness.fixture().sensor);
+        Assert.assertTrue(harness.compiled().fixtures.first().sensor);
+    }
+
+    @Test
     public void toggleEnabledRebuildsEmptyCacheAndUndoRedoKeepsShapeIdentity() {
         FixtureHarness harness = FixtureHarness.create();
         int physicsShapeId = harness.fixture().physicsShapeId;

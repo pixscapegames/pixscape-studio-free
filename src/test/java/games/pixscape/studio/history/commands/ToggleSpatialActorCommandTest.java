@@ -35,6 +35,7 @@ public class ToggleSpatialActorCommandTest {
         Assert.assertTrue(body.fixedRotation);
         Assert.assertNotNull(created);
         Assert.assertEquals(0.5f, created.geometry.radius, 0f);
+        Assert.assertFalse(created.sensor);
         Assert.assertTrue(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
         int shapeId = created.physicsShapeId;
         int highWater = harness.meta.nextPhysicsShapeId;

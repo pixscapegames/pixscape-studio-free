@@ -453,7 +453,7 @@ public final class FixturesPanel extends CollapsibleWidget {
             boolean linked = isLinked(f);
             boolean spatialFootprint = f.spatialFootprint;
             shapeBox.setDisabled(linked || spatialFootprint);
-            sensorBox.setDisabled(linked || spatialFootprint);
+            sensorBox.setDisabled(linked);
 
             if (linked) {
                 boxSizeBlock.show(false);

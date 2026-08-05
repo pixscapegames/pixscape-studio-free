@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisValidatableTextField;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -99,6 +100,7 @@ public class LinkedPhysicsUiContractTest {
                         + "StudioContextMenu.java");
 
         Assert.assertTrue(fixtures.contains("shapeBox.setDisabled(linked || spatialFootprint);"));
+        Assert.assertTrue(fixtures.contains("sensorBox.setDisabled(linked);"));
         Assert.assertTrue(fixtures.contains("offsetsBlock.show(false);"));
         Assert.assertTrue(fixtures.contains(
                 "return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;"));
@@ -128,6 +130,7 @@ public class LinkedPhysicsUiContractTest {
         try (Harness harness = new Harness()) {
             VisTextButton duplicate = button(harness.panel, "duplicateFixtureBtn");
             VisTextButton delete = button(harness.panel, "deleteFixtureBtn");
+            VisCheckBox sensor = checkBox(harness.panel, "sensorBox");
 
             harness.select(4);
             Assert.assertFalse(duplicate.isVisible());
@@ -142,10 +145,15 @@ public class LinkedPhysicsUiContractTest {
             Assert.assertFalse(fieldDisabled(harness.panel, "categoryBitsField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "maskBitsField"));
             Assert.assertFalse(fieldDisabled(harness.panel, "groupIndexField"));
+            Assert.assertFalse(sensor.isDisabled());
+
+            harness.select(1);
+            Assert.assertTrue(sensor.isDisabled());
 
             harness.select(3);
             Assert.assertTrue(duplicate.isVisible());
             Assert.assertTrue(delete.isVisible());
+            Assert.assertFalse(sensor.isDisabled());
         }
     }
 
@@ -166,6 +174,12 @@ public class LinkedPhysicsUiContractTest {
         java.lang.reflect.Field field = FixturesPanel.class.getDeclaredField(name);
         field.setAccessible(true);
         return (VisTextButton) field.get(panel);
+    }
+
+    private static VisCheckBox checkBox(FixturesPanel panel, String name) throws Exception {
+        java.lang.reflect.Field field = FixturesPanel.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return (VisCheckBox) field.get(panel);
     }
 
     private static boolean fieldDisabled(FixturesPanel panel, String name) throws Exception {
