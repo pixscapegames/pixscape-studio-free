@@ -5,14 +5,18 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.OrientedBoundsComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.ImageAssetMeta;
+import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
@@ -192,6 +196,7 @@ public class RenderRebindHelperTest {
             throws Exception {
         World world = worldWithDirtyTracker();
         Fixture requested = fixture(world, 7);
+        makeEligibleForFullRenderDirty(requested);
         Fixture untouched = fixture(world, 8);
         Texture firstTexture = texture(32, 33);
         Texture secondTexture = texture(42, 43);
@@ -222,12 +227,87 @@ public class RenderRebindHelperTest {
         assertEquals(0, untouched.material.textureHandle);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         assertTrue(dirty.isDirty(requested.entityId, DirtyBits.MATERIAL));
+        assertTrue(dirty.isDirty(requested.entityId, DirtyBits.ORDER));
         assertFalse(dirty.isDirty(untouched.entityId, DirtyBits.MATERIAL));
         assertTrue(hasSnapshotDirtyReason(
                 snapshots,
                 "main",
                 "history-entity-render-rebind"
         ));
+    }
+
+    @Test
+    public void historyRebindSkipsNonRenderEntityWithoutGlobalDirty()
+            throws Exception {
+        World world = worldWithDirtyTracker();
+        int skippedEntity = world.create();
+        Fixture sentinel = fixture(world, 8);
+        makeEligibleForFullRenderDirty(sentinel);
+        StudioAssetVisualResolver resolver = resolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                null,
+                null
+        );
+        GpuSnapshotManager snapshots =
+                new GpuSnapshotManager(new AtlasStudioService(null), null);
+
+        String result = RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                canvas(world, snapshots),
+                "main",
+                resolver,
+                skippedEntity
+        );
+
+        assertEquals("skipped", result);
+        assertFalse(hasSnapshotDirtyReason(
+                snapshots,
+                "main",
+                "history-entity-render-rebind"
+        ));
+        assertFalse(world.getSystem(DirtyTrackerSystem.class)
+                .isDirty(sentinel.entityId, DirtyBits.ORDER));
+    }
+
+    @Test
+    public void particleInitializerHistoryRebindSkipsWithoutGlobalDirty()
+            throws Exception {
+        World world = worldWithDirtyTracker();
+        int particle = world.create();
+        new GenericEntityInitializer(world)
+                .configureParticleEmitter(
+                        "effects/fire.p",
+                        "main",
+                        12f,
+                        -8f,
+                        3,
+                        "Fire"
+                )
+                .init(particle);
+        Fixture sentinel = fixture(world, 8);
+        makeEligibleForFullRenderDirty(sentinel);
+        StudioAssetVisualResolver resolver = resolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                null,
+                null
+        );
+        GpuSnapshotManager snapshots =
+                new GpuSnapshotManager(new AtlasStudioService(null), null);
+
+        String result = RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                canvas(world, snapshots),
+                "main",
+                resolver,
+                particle
+        );
+
+        assertEquals("skipped", result);
+        assertFalse(hasSnapshotDirtyReason(
+                snapshots,
+                "main",
+                "history-entity-render-rebind"
+        ));
+        assertFalse(world.getSystem(DirtyTrackerSystem.class)
+                .isDirty(sentinel.entityId, DirtyBits.ORDER));
     }
 
     private static StudioAssetVisualResolver resolver(
@@ -282,6 +362,15 @@ public class RenderRebindHelperTest {
         RenderMaterialComponent material =
                 world.getMapper(RenderMaterialComponent.class).create(entityId);
         return new Fixture(world, entityId, region, material);
+    }
+
+    private static void makeEligibleForFullRenderDirty(Fixture fixture) {
+        fixture.world.getMapper(OrientedBoundsComponent.class)
+                .create(fixture.entityId);
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .create(fixture.entityId);
+        fixture.world.getMapper(VisibilityComponent.class)
+                .create(fixture.entityId);
     }
 
     private static World worldWithDirtyTracker() {

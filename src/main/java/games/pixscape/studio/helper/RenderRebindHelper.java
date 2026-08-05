@@ -157,6 +157,10 @@ public final class RenderRebindHelper {
                 dirty
         );
 
+        if ("skipped".equals(result)) {
+            return result;
+        }
+
         GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
         if (snapshotManager != null) {
             snapshotManager.markDirty(sceneTag, "history-entity-render-rebind");
