@@ -17,6 +17,7 @@ import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 
 
 /**
@@ -1564,6 +1565,52 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             }
         }
         return this;
+    }
+
+    /**
+     * Removes authored physics state that the destination clipboard layer cannot support.
+     * This initializer must be a private duplicate prepared for one instantiation.
+     */
+    public GenericEntityInitializer normalizeClipboardPhysics(
+            boolean targetPhysicsEnabled, boolean targetSpatialEnabled) {
+        if (!targetPhysicsEnabled) {
+            hasSpatialHeight = false;
+            hasPhysicsBody = false;
+            hasPhysicsShapes = false;
+            physicsShapes.clear();
+            clearPhysicsJointData();
+            preparedPhysicsCandidate = null;
+            return this;
+        }
+
+        if (!targetSpatialEnabled) {
+            hasSpatialHeight = false;
+            boolean hadFootprint =
+                    SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
+            if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
+                throw new IllegalArgumentException(
+                        "Clipboard source contains multiple Spatial Actor footprints.");
+            }
+            hasPhysicsShapes = physicsShapes.size > 0;
+            if (hadFootprint && !hasPhysicsShapes) {
+                hasPhysicsBody = false;
+            }
+            preparedPhysicsCandidate = null;
+        }
+        return this;
+    }
+
+    private void clearPhysicsJointData() {
+        hasPhysicsJoint = false;
+        hasDistanceJoint = false;
+        hasRevoluteJoint = false;
+        hasPrismaticJoint = false;
+        hasWheelJoint = false;
+        hasFrictionJoint = false;
+        hasMotorJoint = false;
+        hasWeldJoint = false;
+        hasPulleyJoint = false;
+        hasGearJoint = false;
     }
 
     public GenericEntityInitializer duplicate() {

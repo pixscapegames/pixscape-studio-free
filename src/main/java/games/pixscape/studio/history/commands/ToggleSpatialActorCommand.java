@@ -13,6 +13,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 
 /** Atomically enables or disables the authored Spatial Actor state for one entity. */
 public final class ToggleSpatialActorCommand
@@ -64,8 +65,9 @@ public final class ToggleSpatialActorCommand
 
         boolean prepared = valid && entityHistoryId > 0L;
         if (prepared && enable) {
-            int markedIndex = findMarked(shapesAfter, 0);
-            if (markedIndex >= 0 && findMarked(shapesAfter, markedIndex + 1) >= 0) {
+            int markedIndex = SpatialActorShapeSupport.findFootprint(shapesAfter, 0);
+            if (markedIndex >= 0
+                    && SpatialActorShapeSupport.findFootprint(shapesAfter, markedIndex + 1) >= 0) {
                 prepared = false;
             } else if (markedIndex >= 0) {
                 prepared = structurallyValidMarked(shapesAfter.get(markedIndex));
@@ -79,14 +81,7 @@ public final class ToggleSpatialActorCommand
                 if (prepared) shapesAfter.add(created);
             }
         } else if (prepared) {
-            int markedIndex = findMarked(shapesAfter, 0);
-            if (markedIndex >= 0) {
-                if (findMarked(shapesAfter, markedIndex + 1) >= 0) {
-                    prepared = false;
-                } else {
-                    shapesAfter.removeIndex(markedIndex);
-                }
-            }
+            prepared = SpatialActorShapeSupport.removeFootprint(shapesAfter);
         }
         this.noop = !prepared || sameTargetState();
     }
@@ -229,14 +224,6 @@ public final class ToggleSpatialActorCommand
         } catch (IllegalArgumentException invalid) {
             return false;
         }
-    }
-
-    private static int findMarked(Array<PhysicsShapeData> shapes, int start) {
-        for (int i = start; i < shapes.size; i++) {
-            PhysicsShapeData shape = shapes.get(i);
-            if (shape != null && shape.spatialFootprint) return i;
-        }
-        return -1;
     }
 
     private static Array<PhysicsShapeData> copy(Array<PhysicsShapeData> source) {

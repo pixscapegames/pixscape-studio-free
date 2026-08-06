@@ -2,6 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -89,12 +90,21 @@ public final class ClipboardService {
             return false;
         }
 
-        int activeLayerIndex = selectionService.getActiveLayerIndex();
+        ResolvedClipboardDestination destination = resolveClipboardDestination();
+        if (destination == null) {
+            return false;
+        }
         float dx = (pasteCount + 1) * PASTE_STEP_X;
         float dy = (pasteCount + 1) * PASTE_STEP_Y;
 
         EntityGraphInstantiationResult result =
-                graphInstantiationService.instantiate(graph, activeLayerIndex, dx, dy, "Paste");
+                graphInstantiationService.instantiateForClipboard(
+                        graph,
+                        destination.layerIndex(),
+                        dx,
+                        dy,
+                        "Paste",
+                        destination.targetLayer());
         if (result.createdIds().size == 0) {
             return false;
         }
@@ -107,5 +117,43 @@ public final class ClipboardService {
         }
 
         return true;
+    }
+
+    private ResolvedClipboardDestination resolveClipboardDestination() {
+        LayerService layers = canvas.getLayerService();
+        if (layers == null) return null;
+
+        int layerIndex = selectionService.getActiveLayerIndex();
+        int layerEntityId = layers.getLayerEntity(layerIndex);
+        if (layerEntityId < 0
+                || layerEntityId != selectionService.getActivelayerId()
+                || !world.getEntityManager().isActive(layerEntityId)) {
+            return null;
+        }
+
+        LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
+        if (layer == null || layer.layerIndex != layerIndex || !isKnownLayerType(layer.type)) {
+            return null;
+        }
+
+        EntityGraphInstantiationService.ClipboardTargetLayer targetLayer =
+                layer.type != LayerComponent.TYPE_PHYSICS
+                        ? EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS
+                        : LayerService.isSpatialActorLayer(layer)
+                                ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_PHYSICS
+                                : EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS;
+        return new ResolvedClipboardDestination(layerIndex, targetLayer);
+    }
+
+    private static boolean isKnownLayerType(int type) {
+        return type == LayerComponent.TYPE_CLASSIC
+                || type == LayerComponent.TYPE_PHYSICS
+                || type == LayerComponent.TYPE_LIGHT
+                || type == LayerComponent.TYPE_TILED;
+    }
+
+    private record ResolvedClipboardDestination(
+            int layerIndex,
+            EntityGraphInstantiationService.ClipboardTargetLayer targetLayer) {
     }
 }

@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -21,6 +22,20 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class EntityGraphInstantiationService {
+    public enum ClipboardTargetLayer {
+        NON_PHYSICS(false, false),
+        PHYSICS(true, false),
+        SPATIAL_PHYSICS(true, true);
+
+        final boolean spatialEnabled;
+        final boolean physicsEnabled;
+
+        ClipboardTargetLayer(boolean physicsEnabled, boolean spatialEnabled) {
+            this.physicsEnabled = physicsEnabled;
+            this.spatialEnabled = spatialEnabled;
+        }
+    }
+
     private final World world;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
@@ -42,6 +57,29 @@ public final class EntityGraphInstantiationService {
                                                       float dx,
                                                       float dy,
                                                       String commandName) {
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null);
+    }
+
+    public EntityGraphInstantiationResult instantiateForClipboard(
+            EntityGraph graph,
+            int activeLayerIndex,
+            float dx,
+            float dy,
+            String commandName,
+            ClipboardTargetLayer targetLayer) {
+        if (targetLayer == null) {
+            throw new IllegalArgumentException("targetLayer must not be null.");
+        }
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
+    }
+
+    private EntityGraphInstantiationResult instantiate(
+            EntityGraph graph,
+            int activeLayerIndex,
+            float dx,
+            float dy,
+            String commandName,
+            ClipboardTargetLayer clipboardTargetLayer) {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
@@ -50,9 +88,17 @@ public final class EntityGraphInstantiationService {
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
-                graph, activeLayerIndex, dx, dy, snapshots);
+                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer);
+        if (clipboardTargetLayer == ClipboardTargetLayer.PHYSICS) {
+            pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
+        }
+        prepareJointRemaps(snapshots);
+        finalizePreparedEntities(preparedEntities, snapshots);
         List<PreparedJointRemap> preparedJointRemaps =
                 prepareJointRemaps(snapshots);
+        for (PreparedEntity prepared : preparedEntities) {
+            prepared.initializer.setIdentityStableId(identityRegistry.allocateStableId());
+        }
         List<Command> commands = new ArrayList<>();
         for (PreparedEntity prepared : preparedEntities) {
             CreateEntityCommand cmd = new CreateEntityCommand(
@@ -81,7 +127,8 @@ public final class EntityGraphInstantiationService {
             int activeLayerIndex,
             float dx,
             float dy,
-            IntMap<GenericEntitySnapshotData> snapshots) {
+            IntMap<GenericEntitySnapshotData> snapshots,
+            ClipboardTargetLayer clipboardTargetLayer) {
         List<PreparedEntity> prepared = new ArrayList<>();
         for (EntityGraphEntry entry : graph.entries()) {
             int sourceEntityId = entry.sourceEntityId();
@@ -91,18 +138,92 @@ public final class EntityGraphInstantiationService {
                                 + sourceEntityId + ".");
             }
             GenericEntityInitializer initializer = entry.initializer().duplicate();
-            initializer.allocateFreshPhysicsShapeIds(physicsService);
-            initializer.overrideLayerIndex(activeLayerIndex);
-            initializer.translate(dx, dy);
-            initializer.setIdentityStableId(identityRegistry.allocateStableId());
             GenericEntitySnapshotData snapshot =
                     initializer.toSnapshotData(sourceEntityId);
-            validatePreparedPhysics(snapshot, sourceEntityId);
-            initializer.preparePhysicsCandidate();
+            if (clipboardTargetLayer == ClipboardTargetLayer.NON_PHYSICS
+                    && snapshot.hasJoint) {
+                continue;
+            }
+            if (clipboardTargetLayer != null) {
+                initializer.normalizeClipboardPhysics(
+                        clipboardTargetLayer.physicsEnabled,
+                        clipboardTargetLayer.spatialEnabled);
+            }
+            initializer.overrideLayerIndex(activeLayerIndex);
+            initializer.translate(dx, dy);
+            snapshot = initializer.toSnapshotData(sourceEntityId);
             snapshots.put(sourceEntityId, snapshot);
             prepared.add(new PreparedEntity(sourceEntityId, initializer));
         }
         return prepared;
+    }
+
+    private void finalizePreparedEntities(
+            List<PreparedEntity> prepared,
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        snapshots.clear();
+        for (PreparedEntity entity : prepared) {
+            entity.initializer.allocateFreshPhysicsShapeIds(physicsService);
+            GenericEntitySnapshotData snapshot =
+                    entity.initializer.toSnapshotData(entity.sourceEntityId);
+            validatePreparedPhysics(snapshot, entity.sourceEntityId);
+            entity.initializer.preparePhysicsCandidate();
+            snapshots.put(entity.sourceEntityId, snapshot);
+        }
+    }
+
+    private static void pruneJointsWithNormalizedEndpoints(
+            List<PreparedEntity> prepared,
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        IntSet removed = new IntSet();
+        for (IntMap.Entry<GenericEntitySnapshotData> entry : snapshots) {
+            GenericEntitySnapshotData snapshot = entry.value;
+            if (!snapshot.hasJoint || snapshot.jointType == PhysicsJointComponent.TYPE_GEAR) {
+                continue;
+            }
+            if (hasNormalizedInvalidEndpoint(snapshots, snapshot.jointAEid)
+                    || hasNormalizedInvalidEndpoint(snapshots, snapshot.jointBEid)) {
+                removed.add(entry.key);
+            }
+        }
+
+        boolean changed;
+        do {
+            changed = false;
+            for (IntMap.Entry<GenericEntitySnapshotData> entry : snapshots) {
+                GenericEntitySnapshotData snapshot = entry.value;
+                if (!snapshot.hasJoint
+                        || snapshot.jointType != PhysicsJointComponent.TYPE_GEAR
+                        || removed.contains(entry.key)) {
+                    continue;
+                }
+                if (hasNormalizedInvalidEndpoint(snapshots, snapshot.jointAEid)
+                        || hasNormalizedInvalidEndpoint(snapshots, snapshot.jointBEid)
+                        || removed.contains(snapshot.gearJoint1Eid)
+                        || removed.contains(snapshot.gearJoint2Eid)) {
+                    removed.add(entry.key);
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        if (removed.size == 0) return;
+        for (int i = prepared.size() - 1; i >= 0; i--) {
+            PreparedEntity entity = prepared.get(i);
+            if (removed.contains(entity.sourceEntityId)) {
+                snapshots.remove(entity.sourceEntityId);
+                prepared.remove(i);
+            }
+        }
+    }
+
+    private static boolean hasNormalizedInvalidEndpoint(
+            IntMap<GenericEntitySnapshotData> snapshots, int sourceEntityId) {
+        GenericEntitySnapshotData endpoint = snapshots.get(sourceEntityId);
+        return endpoint != null
+                && (!endpoint.hasPhysicsBody
+                || endpoint.shapes == null
+                || endpoint.shapes.size == 0);
     }
 
     private static List<PreparedJointRemap> prepareJointRemaps(
