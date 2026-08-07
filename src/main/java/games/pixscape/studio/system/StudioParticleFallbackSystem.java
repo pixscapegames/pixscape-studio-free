@@ -14,6 +14,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
@@ -203,17 +204,20 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 effects.put(e, fx);
                 entityPoolKeys.put(e, poolKey);
 
+                applyLooping(fx, comp.looping);
                 if (comp.autoStart) fx.start();
             }
 
             positionEffect(fx, t);
 
             if (comp.restartRequested) {
+                applyLooping(fx, comp.looping);
                 fx.reset(true, true);
                 comp.restartRequested = false;
             }
 
             if (comp.playRequested) {
+                applyLooping(fx, comp.looping);
                 fx.start();
                 comp.playRequested = false;
             }
@@ -294,6 +298,18 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         return fx;
     }
 
+    static void applyLooping(ParticleEffect effect, boolean looping) {
+        if (effect == null) return;
+
+        Array<ParticleEmitter> emitters = effect.getEmitters();
+        for (int i = 0, n = emitters.size; i < n; i++) {
+            ParticleEmitter emitter = emitters.get(i);
+            if (emitter != null) {
+                emitter.setContinuous(looping);
+            }
+        }
+    }
+
     private void collectEffect(ParticleEffect fx,
                                int layerIndex,
                                int zIndex,
@@ -303,9 +319,14 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
 
-            int blendId = emitter.isAdditive()
-                    ? BlendMode.ADDITIVE_ALPHA.id
-                    : BlendMode.ALPHA.id;
+            int blendId;
+            if (emitter.isPremultipliedAlpha()) {
+                blendId = BlendMode.PREMULT_ALPHA.id;
+            } else if (emitter.isAdditive()) {
+                blendId = BlendMode.ADDITIVE_ALPHA.id;
+            } else {
+                blendId = BlendMode.ALPHA.id;
+            }
 
             ParticleEmitter.Particle[] particles = emitter.particles;
             boolean[] active = emitter.getActiveArray();

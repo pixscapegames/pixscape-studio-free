@@ -2,16 +2,21 @@ package games.pixscape.studio.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.IntMap;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
+import games.pixscape.runtime.component.ParticleOverridesComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 import static org.junit.Assert.*;
 
@@ -116,6 +121,45 @@ public class StudioParticleFallbackReadinessTest {
         } finally {
             world.dispose();
         }
+    }
+
+    @Test
+    public void fallbackExtractionPreservesParticleBlendModes() throws Exception {
+        Fixture fixture = new Fixture(false);
+
+        assertExtractedBlend(fixture, false, false, BlendMode.ALPHA);
+        assertExtractedBlend(fixture, true, false, BlendMode.ADDITIVE_ALPHA);
+        assertExtractedBlend(fixture, false, true, BlendMode.PREMULT_ALPHA);
+        assertExtractedBlend(fixture, true, true, BlendMode.PREMULT_ALPHA);
+    }
+
+    private static void assertExtractedBlend(Fixture fixture,
+                                             boolean additive,
+                                             boolean premultipliedAlpha,
+                                             BlendMode expected) throws Exception {
+        ParticleEmitter emitter = new ParticleEmitter();
+        emitter.setAdditive(additive);
+        emitter.setPremultipliedAlpha(premultipliedAlpha);
+        emitter.setMaxParticleCount(1);
+        emitter.particles[0] = new ParticleEmitter.Particle(new Sprite());
+        emitter.getActiveArray()[0] = true;
+
+        ParticleEffect effect = new ParticleEffect();
+        effect.getEmitters().add(emitter);
+
+        Method collectEffect = StudioParticleFallbackSystem.class.getDeclaredMethod(
+                "collectEffect",
+                ParticleEffect.class,
+                int.class,
+                int.class,
+                ParticleOverridesComponent.class);
+        collectEffect.setAccessible(true);
+
+        fixture.vfxState.clearFrame();
+        collectEffect.invoke(fixture.system, effect, 0, 0, null);
+
+        assertEquals(1, fixture.vfxState.activeCount);
+        assertEquals(expected.id, fixture.vfxState.blend[0]);
     }
 
     @SuppressWarnings("unchecked")
