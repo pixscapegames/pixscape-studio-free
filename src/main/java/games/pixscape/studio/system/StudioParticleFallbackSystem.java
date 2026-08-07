@@ -18,6 +18,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
@@ -56,7 +57,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     private EntitySubscription subscription;
 
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
-    private final ObjectMap<String, ParticleEffectPool> pools = new ObjectMap<>();
+    private final ObjectMap<String, FallbackPoolEntry> pools = new ObjectMap<>();
     private final IntMap<String> entityPoolKeys = new IntMap<>();
 
     private final IntSet loggedFailures = new IntSet();
@@ -120,6 +121,10 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         }
 
         effects.clear();
+        for (ObjectMap.Values<FallbackPoolEntry> it = pools.values(); it.hasNext(); ) {
+            FallbackPoolEntry entry = it.next();
+            if (entry != null) entry.dispose();
+        }
         pools.clear();
         entityPoolKeys.clear();
         loggedFailures.clear();
@@ -271,14 +276,18 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         }
 
         String key = poolKey(emitter);
-        ParticleEffectPool pool = pools.get(key);
+        FallbackPoolEntry poolEntry = pools.get(key);
 
-        if (pool == null) {
-            ParticleEffect template = new ParticleEffect();
+        if (poolEntry == null) {
+            FallbackTemplate template = new FallbackTemplate();
 
             try {
                 template.load(effectFile, imagesRoot);
                 template.setEmittersCleanUpBlendFunction(false);
+                poolEntry = new FallbackPoolEntry(
+                        template,
+                        new ParticleEffectPool(template, 1, 16)
+                );
             } catch (RuntimeException ex) {
                 template.dispose();
                 logFailureOnce(entityId,
@@ -289,11 +298,10 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 return null;
             }
 
-            pool = new ParticleEffectPool(template, 1, 16);
-            pools.put(key, pool);
+            pools.put(key, poolEntry);
         }
 
-        ParticleEffectPool.PooledEffect fx = pool.obtain();
+        ParticleEffectPool.PooledEffect fx = poolEntry.pool.obtain();
         fx.setEmittersCleanUpBlendFunction(false);
         return fx;
     }
@@ -508,6 +516,57 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         if (v < 0f) return 0f;
         if (v > 1f) return 1f;
         return v;
+    }
+
+    static final class FallbackPoolEntry {
+        final ParticleEffect template;
+        final ParticleEffectPool pool;
+        private boolean disposed;
+
+        FallbackPoolEntry(ParticleEffect template, ParticleEffectPool pool) {
+            if (template == null) throw new IllegalArgumentException("Fallback template must not be null.");
+            if (pool == null) throw new IllegalArgumentException("Fallback pool must not be null.");
+            this.template = template;
+            this.pool = pool;
+        }
+
+        void dispose() {
+            if (disposed) return;
+            disposed = true;
+            pool.clear();
+            template.dispose();
+        }
+    }
+
+    static class FallbackTemplate extends ParticleEffect {
+        private final ObjectSet<Texture> ownedTextures = new ObjectSet<>();
+        private boolean disposed;
+
+        @Override
+        public Texture loadTexture(FileHandle file) {
+            Texture texture = super.loadTexture(file);
+            trackOwnedTexture(texture);
+            return texture;
+        }
+
+        void trackOwnedTexture(Texture texture) {
+            if (texture != null) ownedTextures.add(texture);
+        }
+
+        void disposeOwnedTexture(Texture texture) {
+            texture.dispose();
+        }
+
+        @Override
+        public void dispose() {
+            if (disposed) return;
+            disposed = true;
+            for (Texture texture : ownedTextures) {
+                disposeOwnedTexture(texture);
+            }
+            ownedTextures.clear();
+            ownsTexture = false;
+        }
     }
 
     @Override

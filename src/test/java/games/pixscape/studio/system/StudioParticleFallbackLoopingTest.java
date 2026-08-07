@@ -125,11 +125,11 @@ public class StudioParticleFallbackLoopingTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static ObjectMap<String, ParticleEffectPool> pools(
+    private static ObjectMap<String, StudioParticleFallbackSystem.FallbackPoolEntry> pools(
             StudioParticleFallbackSystem system) throws Exception {
         Field field = StudioParticleFallbackSystem.class.getDeclaredField("pools");
         field.setAccessible(true);
-        return (ObjectMap<String, ParticleEffectPool>) field.get(system);
+        return (ObjectMap<String, StudioParticleFallbackSystem.FallbackPoolEntry>) field.get(system);
     }
 
     @SuppressWarnings("unchecked")
@@ -158,7 +158,14 @@ public class StudioParticleFallbackLoopingTest {
                     0,
                     new ParticleAtlasReadinessCache()
             );
-            pools(system).put(EFFECT_PATH, new ParticleEffectPool(newTemplate(), 1, 16));
+            ParticleEffect template = newTemplate();
+            pools(system).put(
+                    EFFECT_PATH,
+                    new StudioParticleFallbackSystem.FallbackPoolEntry(
+                            template,
+                            new ParticleEffectPool(template, 1, 16)
+                    )
+            );
             world = new World(new WorldConfiguration().setSystem(system));
         }
 
