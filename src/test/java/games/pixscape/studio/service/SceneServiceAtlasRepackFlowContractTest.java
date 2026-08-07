@@ -38,11 +38,11 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void atlasInputChange_refreshesAssetsWithoutMutatingPublishedAtlasState() throws Exception {
+    public void atlasInputChange_doesNotRefreshAssetsOrMutatePublishedAtlasState() throws Exception {
         String source = readSceneServiceSource();
         String callbackBody = methodBody(source, "private void onSceneAtlasInputsChanged(String sceneTag)");
 
-        assertTrue(callbackBody.contains("refreshAssetsPanel();"));
+        assertFalse(callbackBody.contains("refreshAssetsPanel();"));
         assertFalse(callbackBody.contains("reloadAtlasAndRebind("));
         assertFalse(callbackBody.contains("RenderRebindHelper"));
         assertFalse(callbackBody.contains("markDirty("));
@@ -64,6 +64,18 @@ public class SceneServiceAtlasRepackFlowContractTest {
         assertFalse(createBody.contains("reloadAtlasAndRebind("));
         assertFalse(createBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
         assertFalse(createBody.contains("snapshotManager.markDirty("));
+    }
+
+    @Test
+    public void authoredAssetImport_stillRefreshesAssetsPanel() throws Exception {
+        String source = readSceneServiceSource();
+        String importBody = methodBody(
+                source,
+                "public void importAssets(Array<ImportDialog.ImportItem> items)"
+        );
+
+        assertTrue(importBody.contains("assetMetaDatabase.save("));
+        assertTrue(importBody.contains("refreshAssetsPanel();"));
     }
 
     @Test

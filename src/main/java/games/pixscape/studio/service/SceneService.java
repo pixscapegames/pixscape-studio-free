@@ -3523,7 +3523,6 @@ public final class SceneService {
         if (sceneTag == null || sceneTag.isBlank()) return;
 
         Gdx.app.log("SceneManager", "onSceneAtlasInputsChanged: " + sceneTag);
-        refreshAssetsPanel();
     }
 
     private void refreshAssetsPanel() {
