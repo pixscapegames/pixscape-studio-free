@@ -40,6 +40,21 @@ public final class RenderRebindHelper {
         );
     }
 
+    /** Rebinds after a prepared GPU snapshot has already been atomically published. */
+    public static void rebindAfterPreparedSnapshot(
+            WorldCanvas canvas,
+            String sceneTag,
+            StudioAssetVisualResolver visualResolver
+    ) {
+        rebindEntitiesAfterAtlasChange(
+                canvas,
+                sceneTag,
+                visualResolver,
+                null,
+                null
+        );
+    }
+
     public static void rebindAfterAtlasChange(
             WorldCanvas canvas,
             String sceneTag,
@@ -119,7 +134,7 @@ public final class RenderRebindHelper {
 
         // 2) snapshot rebind (safe point) via manager
         GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
-        if (snapshotManager != null) {
+        if (snapshotManager != null && snapshotDirtyReason != null) {
             snapshotManager.markDirty(sceneTag, snapshotDirtyReason);
         }
 

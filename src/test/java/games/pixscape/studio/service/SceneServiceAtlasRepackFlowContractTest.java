@@ -87,10 +87,12 @@ public class SceneServiceAtlasRepackFlowContractTest {
         String applyBody = methodBody(source, "public void applyIfPackReady()");
 
         assertTrue(applyBody.contains("load(tag, finalAtlasFile);"));
-        assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
+        assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
+        assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
         assertTrue(applyBody.contains("particleSystem.invalidateAllEffects();"));
         assertTrue(applyBody.contains("canvas.invalidateStudioParticleFallbacks();"));
-        assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterAtlasChange(") == 1);
+        assertFalse(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
+        assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterPreparedSnapshot(") == 1);
     }
 
     @Test
@@ -107,7 +109,8 @@ public class SceneServiceAtlasRepackFlowContractTest {
 
         assertTrue(launchBody.contains("if (disposed || generation != requestedGeneration)"));
         assertFalse(failureBody.contains("readyArtifact ="));
-        assertTrue(pollBody.contains("if (artifact.generation != requestedGeneration)"));
+        assertTrue(pollBody.contains("if (artifact.generation() != requestedGeneration)"));
+        assertTrue(pollBody.contains("artifact.discard();"));
         assertTrue(pollBody.contains("return null;"));
     }
 

@@ -6,6 +6,9 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
@@ -13,6 +16,8 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.ProjectFileCleanupService;
+import games.pixscape.studio.service.GpuSnapshotManager;
+import games.pixscape.studio.service.PreparedGpuSnapshot;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -83,25 +88,34 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         }
         outputDir.mkdirs();
 
-        SceneAtlasLoaderService.packSceneAtlasToDirectory(
-                cfg,
-                sceneTag,
-                projectDir,
-                outputDir
-        );
+        PreparedGpuSnapshot preparedSnapshot = null;
+        try {
+            SceneAtlasLoaderService.packSceneAtlasToDirectory(
+                    cfg,
+                    sceneTag,
+                    projectDir,
+                    outputDir
+            );
 
-        FileHandle atlasFile = outputDir.child(sceneTag + ".atlas");
-        FileHandle pngFile = outputDir.child(sceneTag + ".png");
+            FileHandle atlasFile = outputDir.child(sceneTag + ".atlas");
+            FileHandle pngFile = outputDir.child(sceneTag + ".png");
 
-        waitForAtlasFiles(atlasFile, pngFile);
+            waitForAtlasFiles(atlasFile, pngFile);
+            preparedSnapshot = PreparedGpuSnapshot.prepare(sceneTag, generation, atlasFile);
 
-        return new AsyncAtlasRepackCoordinator.RepackArtifact(
-                sceneTag,
-                generation,
-                outputDir,
-                atlasFile,
-                pngFile
-        );
+            return new AsyncAtlasRepackCoordinator.RepackArtifact(
+                    sceneTag,
+                    generation,
+                    outputDir,
+                    atlasFile,
+                    pngFile,
+                    preparedSnapshot
+            );
+        } catch (RuntimeException failure) {
+            if (preparedSnapshot != null) preparedSnapshot.close();
+            outputDir.deleteDirectory();
+            throw failure;
+        }
     }
 
     private static void waitForAtlasFiles(FileHandle atlasFile, FileHandle pngFile) {
@@ -138,8 +152,9 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         if (artifact == null) return;
 
         final String tag = artifact.sceneTag();
+        final long generation = artifact.generation();
 
-        Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + artifact.generation());
+        Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + generation);
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
@@ -147,17 +162,57 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
         FileHandle finalAtlasFile = atlasesDir.child(tag + ".atlas");
 
+        PreparedGpuSnapshot.Uploaded uploaded = null;
+        long applyStarted = System.nanoTime();
+        long deleteAndCopyNs = 0L;
+        long atlasLoadNs = 0L;
+        long publishNs = 0L;
         try {
+            GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
+            if (snapshotManager == null) {
+                throw new IllegalStateException("GPU snapshot manager is unavailable.");
+            }
+
+            PreparedGpuSnapshot preparedSnapshot = artifact.takePreparedSnapshot();
+            if (preparedSnapshot == null) {
+                throw new IllegalStateException("Atlas artifact has no prepared GPU snapshot.");
+            }
+            long currentGeneration = repackCoordinator.currentGeneration();
+            if (!snapshotManager.acceptPreparedSnapshot(preparedSnapshot, currentGeneration)) return;
+
+            uploaded = snapshotManager.uploadPreparedSnapshot(tag, generation, currentGeneration);
+            if (uploaded == null) return;
+            if (generation != repackCoordinator.currentGeneration()) return;
+
+            long phaseStarted = System.nanoTime();
             ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, tag);
             copyAtlasArtifactToFinalDir(artifact, atlasesDir);
+            deleteAndCopyNs = System.nanoTime() - phaseStarted;
 
+            phaseStarted = System.nanoTime();
             load(tag, finalAtlasFile);
+            atlasLoadNs = System.nanoTime() - phaseStarted;
 
-            RenderRebindHelper.rebindAfterAtlasChange(
+            TextureAtlas atlas = getAtlas(tag);
+            Array<Texture> pageTextures = AtlasRuntimeService.getPageTextures(atlas);
+            phaseStarted = System.nanoTime();
+            boolean published = snapshotManager.publishPreparedSnapshot(
+                    tag,
+                    generation,
+                    repackCoordinator.currentGeneration(),
+                    uploaded,
+                    pageTextures
+            );
+            publishNs = System.nanoTime() - phaseStarted;
+            uploaded = null;
+            if (!published) {
+                throw new IllegalStateException("Prepared GPU snapshot became stale during publication.");
+            }
+
+            RenderRebindHelper.rebindAfterPreparedSnapshot(
                     canvas,
                     tag,
-                    assetVisualResolver,
-                    "atlas-pack-applied"
+                    assetVisualResolver
             );
             rebindTiles();
 
@@ -168,8 +223,22 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             }
             canvas.invalidateStudioParticleFallbacks();
         } finally {
-            artifact.outputDir().deleteDirectory();
+            if (uploaded != null) uploaded.close();
+            artifact.discard();
+            if (Boolean.getBoolean(GpuSnapshotManager.PROPERTY_DIAGNOSTICS)) {
+                Gdx.app.log(TAG,
+                        "PREPARED_ATLAS_APPLY scene=" + tag
+                                + " generation=" + generation
+                                + " fileReplaceMs=" + ms(deleteAndCopyNs)
+                                + " pageTextureLoadUploadMs=" + ms(atlasLoadNs)
+                                + " preparedPublishMs=" + ms(publishNs)
+                                + " totalMs=" + ms(System.nanoTime() - applyStarted));
+            }
         }
+    }
+
+    private static float ms(long ns) {
+        return ns / 1_000_000f;
     }
 
     private static void copyAtlasArtifactToFinalDir(AsyncAtlasRepackCoordinator.RepackArtifact artifact,
