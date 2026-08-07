@@ -37,6 +37,68 @@ public class SceneServiceAtlasRepackFlowContractTest {
         assertTrue(hasSingleRepackInsideAutoRepackGuard(saveCurrentBody, "repackSceneAtlas(cfg, sceneName, projectDir);"));
     }
 
+    @Test
+    public void atlasInputChange_refreshesAssetsWithoutMutatingPublishedAtlasState() throws Exception {
+        String source = readSceneServiceSource();
+        String callbackBody = methodBody(source, "private void onSceneAtlasInputsChanged(String sceneTag)");
+
+        assertTrue(callbackBody.contains("refreshAssetsPanel();"));
+        assertFalse(callbackBody.contains("reloadAtlasAndRebind("));
+        assertFalse(callbackBody.contains("RenderRebindHelper"));
+        assertFalse(callbackBody.contains("markDirty("));
+    }
+
+    @Test
+    public void particleAtlasInputChange_schedulesPackWithoutPublishedAtlasInvalidation() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ops/EditorOpsImpl.java"),
+                StandardCharsets.UTF_8
+        );
+        String createBody = methodBody(
+                source,
+                "public int createParticleEffect(String effectPath, float worldX, float worldY, String metaName)"
+        );
+
+        assertTrue(createBody.contains("atlasInputsChangedListener.onSceneAtlasInputsChanged(sceneTag);"));
+        assertTrue(createBody.contains("atlasStudioService.requestAsyncPack(sceneTag);"));
+        assertFalse(createBody.contains("reloadAtlasAndRebind("));
+        assertFalse(createBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
+        assertFalse(createBody.contains("snapshotManager.markDirty("));
+    }
+
+    @Test
+    public void completedGenerationPublication_stillLoadsRebindsAndInvalidatesOnce() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java"),
+                StandardCharsets.UTF_8
+        );
+        String applyBody = methodBody(source, "public void applyIfPackReady()");
+
+        assertTrue(applyBody.contains("load(tag, finalAtlasFile);"));
+        assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
+        assertTrue(applyBody.contains("particleSystem.invalidateAllEffects();"));
+        assertTrue(applyBody.contains("canvas.invalidateStudioParticleFallbacks();"));
+        assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterAtlasChange(") == 1);
+    }
+
+    @Test
+    public void failedOrSupersededGeneration_cannotReachPublishedAtlasApply() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/AsyncAtlasRepackCoordinator.java"),
+                StandardCharsets.UTF_8
+        );
+        String launchBody = methodBody(source, "private void launchAsyncPack()");
+        String pollBody = methodBody(source, "public synchronized RepackArtifact pollReadyAsyncPack()");
+        int catchStart = launchBody.indexOf("catch (Exception ex)");
+        int finallyStart = launchBody.indexOf("finally", catchStart);
+        String failureBody = launchBody.substring(catchStart, finallyStart);
+
+        assertTrue(launchBody.contains("if (disposed || generation != requestedGeneration)"));
+        assertFalse(failureBody.contains("readyArtifact ="));
+        assertTrue(pollBody.contains("if (artifact.generation != requestedGeneration)"));
+        assertTrue(pollBody.contains("return null;"));
+    }
+
     private static String readSceneServiceSource() throws Exception {
         Path sceneServicePath = Path.of("src/main/java/games/pixscape/studio/service/SceneService.java");
         return Files.readString(sceneServicePath, StandardCharsets.UTF_8);

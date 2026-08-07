@@ -3516,24 +3516,13 @@ public final class SceneService {
 
     private void registerEditorOpsCallbacks() {
         if (canvas == null) return;
-        canvas.setAssetsChangedListener(this::onSceneAtlasChanged);
+        canvas.setAtlasInputsChangedListener(this::onSceneAtlasInputsChanged);
     }
 
-    private void onSceneAtlasChanged(String sceneTag) {
+    private void onSceneAtlasInputsChanged(String sceneTag) {
         if (sceneTag == null || sceneTag.isBlank()) return;
 
-        Gdx.app.log("SceneManager", "onSceneAtlasChanged: " + sceneTag);
-
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return;
-
-        String canonicalTag = cfg.canonicalSceneTag(sceneTag);
-        if (canonicalTag == null || canonicalTag.isBlank()) {
-            canonicalTag = sceneTag;
-        }
-
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        reloadAtlasAndRebind(cfg, canonicalTag, projectDir);
+        Gdx.app.log("SceneManager", "onSceneAtlasInputsChanged: " + sceneTag);
         refreshAssetsPanel();
     }
 

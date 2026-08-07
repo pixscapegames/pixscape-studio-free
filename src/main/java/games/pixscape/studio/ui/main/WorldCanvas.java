@@ -158,7 +158,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     // Operations
     private EditorOps editorOps;
-    private EditorOps.AssetsChangedListener assetsChangedListener;
+    private EditorOps.AtlasInputsChangedListener atlasInputsChangedListener;
 
     // Mouse handling
     private StudioContextMenu contextMenu;
@@ -435,8 +435,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         contextMenu = new StudioContextMenu(this, app.getUiStage());
         app.getUiStage().getRoot().addListener(contextMenu);
 
-        if (assetsChangedListener != null) {
-            editorOps.setAssetsChangedListener(assetsChangedListener);
+        if (atlasInputsChangedListener != null) {
+            editorOps.setAtlasInputsChangedListener(atlasInputsChangedListener);
         }
 
         if (sceneMeta != null && sceneMeta.physicsEnabled) {
@@ -657,10 +657,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gizmoSystem.disableTiledOverlay();
     }
 
-    public void setAssetsChangedListener(EditorOps.AssetsChangedListener listener) {
-        this.assetsChangedListener = listener;
+    public void setAtlasInputsChangedListener(EditorOps.AtlasInputsChangedListener listener) {
+        this.atlasInputsChangedListener = listener;
         if (editorOps != null) {
-            editorOps.setAssetsChangedListener(listener);
+            editorOps.setAtlasInputsChangedListener(listener);
         }
     }
 

@@ -70,7 +70,7 @@ public class EditorOpsImpl implements EditorOps {
     private SceneService sceneService;
     private final GpuSnapshotManager snapshotManager;
     private final String defaultShaderName;
-    private AssetsChangedListener assetsChangedListener;
+    private AtlasInputsChangedListener atlasInputsChangedListener;
     private final Vector2 tmpLocal = new Vector2();
 
     public EditorOpsImpl(
@@ -440,8 +440,8 @@ public class EditorOpsImpl implements EditorOps {
         if (sceneTag == null || sceneTag.isBlank()) return -1;
 
         boolean changed = ensureParticleEffectImagesInAtlasInput(effectPath);
-        if (changed && assetsChangedListener != null) {
-            assetsChangedListener.onSceneAtlasChanged(sceneTag);
+        if (changed && atlasInputsChangedListener != null) {
+            atlasInputsChangedListener.onSceneAtlasInputsChanged(sceneTag);
         }
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
@@ -484,8 +484,8 @@ public class EditorOpsImpl implements EditorOps {
 
 
     @Override
-    public void setAssetsChangedListener(AssetsChangedListener listener) {
-        this.assetsChangedListener = listener;
+    public void setAtlasInputsChangedListener(AtlasInputsChangedListener listener) {
+        this.atlasInputsChangedListener = listener;
     }
 
     @Override
