@@ -2,7 +2,7 @@ package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.studio.service.PreparedGpuSnapshot;
+import games.pixscape.studio.service.PreparedAtlasPublication;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,20 +26,20 @@ public final class AsyncAtlasRepackCoordinator {
         private final FileHandle outputDir;
         private final FileHandle atlasFile;
         private final FileHandle pngFile;
-        private PreparedGpuSnapshot preparedSnapshot;
+        private PreparedAtlasPublication preparedPublication;
 
         public RepackArtifact(String sceneTag,
                               long generation,
                               FileHandle outputDir,
                               FileHandle atlasFile,
                               FileHandle pngFile,
-                              PreparedGpuSnapshot preparedSnapshot) {
+                              PreparedAtlasPublication preparedPublication) {
             this.sceneTag = sceneTag;
             this.generation = generation;
             this.outputDir = outputDir;
             this.atlasFile = atlasFile;
             this.pngFile = pngFile;
-            this.preparedSnapshot = preparedSnapshot;
+            this.preparedPublication = preparedPublication;
         }
 
         public String sceneTag() {
@@ -62,16 +62,16 @@ public final class AsyncAtlasRepackCoordinator {
             return pngFile;
         }
 
-        public PreparedGpuSnapshot takePreparedSnapshot() {
-            PreparedGpuSnapshot taken = preparedSnapshot;
-            preparedSnapshot = null;
+        public PreparedAtlasPublication takePreparedPublication() {
+            PreparedAtlasPublication taken = preparedPublication;
+            preparedPublication = null;
             return taken;
         }
 
         public void discard() {
-            if (preparedSnapshot != null) {
-                preparedSnapshot.close();
-                preparedSnapshot = null;
+            if (preparedPublication != null) {
+                preparedPublication.close();
+                preparedPublication = null;
             }
             deleteQuietly(outputDir);
         }

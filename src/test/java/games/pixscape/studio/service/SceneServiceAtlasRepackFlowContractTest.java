@@ -79,14 +79,15 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void completedGenerationPublication_stillLoadsRebindsAndInvalidatesOnce() throws Exception {
+    public void completedGenerationPublication_usesPreparedAtlasRebindsAndInvalidatesOnce() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java"),
                 StandardCharsets.UTF_8
         );
         String applyBody = methodBody(source, "public void applyIfPackReady()");
 
-        assertTrue(applyBody.contains("load(tag, finalAtlasFile);"));
+        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas());"));
+        assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
         assertTrue(applyBody.contains("particleSystem.invalidateAllEffects();"));

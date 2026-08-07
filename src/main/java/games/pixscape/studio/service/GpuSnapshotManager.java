@@ -1,7 +1,7 @@
 package games.pixscape.studio.service;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.TextureArray;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
@@ -26,7 +26,7 @@ public final class GpuSnapshotManager {
     private final LogSink logSink;
 
     private final ObjectMap<String, AtlasRuntimeService.TextureArrayBundle> activeSnapshots = new ObjectMap<>();
-    private final ObjectMap<String, PreparedGpuSnapshot> preparedSnapshots = new ObjectMap<>();
+    private final ObjectMap<String, PreparedAtlasPublication> preparedPublications = new ObjectMap<>();
     private final ObjectSet<String> dirtyTags = new ObjectSet<>();
     private final ObjectMap<String, DirtyInfo> dirtyInfos = new ObjectMap<>();
     private final Array<AtlasRuntimeService.TextureArrayBundle> deferredDisposals = new Array<>();
@@ -81,46 +81,53 @@ public final class GpuSnapshotManager {
         info.reasons.add(normalizeReason(reason));
     }
 
-    public boolean acceptPreparedSnapshot(PreparedGpuSnapshot candidate, long currentGeneration) {
+    public boolean acceptPreparedPublication(PreparedAtlasPublication candidate, long currentGeneration) {
         if (candidate == null) return false;
         verifyTag(candidate.sceneTag());
         if (candidate.generation() != currentGeneration) {
             candidate.close();
             return false;
         }
-        PreparedGpuSnapshot previous = preparedSnapshots.put(candidate.sceneTag(), candidate);
+        PreparedAtlasPublication previous = preparedPublications.put(candidate.sceneTag(), candidate);
         if (previous != null && previous != candidate) previous.close();
         return true;
     }
 
-    public PreparedGpuSnapshot.Uploaded uploadPreparedSnapshot(String sceneTag,
-                                                               long generation,
-                                                               long currentGeneration) {
-        return uploadPreparedSnapshot(
+    public PreparedAtlasPublication.Uploaded uploadPreparedPublication(String sceneTag,
+                                                                       long generation,
+                                                                       long currentGeneration,
+                                                                       FileHandle publishedImagesDir) {
+        return uploadPreparedPublication(
                 sceneTag,
                 generation,
                 currentGeneration,
+                publishedImagesDir,
+                null,
                 null
         );
     }
 
-    PreparedGpuSnapshot.Uploaded uploadPreparedSnapshot(
+    PreparedAtlasPublication.Uploaded uploadPreparedPublication(
             String sceneTag,
             long generation,
             long currentGeneration,
-            PreparedGpuSnapshot.TextureArrayUploader uploader) {
+            FileHandle publishedImagesDir,
+            PreparedAtlasPublication.PageTextureUploader pageUploader,
+            PreparedAtlasPublication.TextureArrayUploader arrayUploader) {
         verifyTag(sceneTag);
-        PreparedGpuSnapshot candidate = preparedSnapshots.get(sceneTag);
+        PreparedAtlasPublication candidate = preparedPublications.get(sceneTag);
         if (candidate == null) return null;
         if (candidate.generation() != generation || generation != currentGeneration) {
-            preparedSnapshots.remove(sceneTag);
+            preparedPublications.remove(sceneTag);
             candidate.close();
             return null;
         }
 
-        preparedSnapshots.remove(sceneTag);
+        preparedPublications.remove(sceneTag);
         try {
-            return uploader != null ? candidate.upload(uploader) : candidate.upload();
+            return pageUploader != null || arrayUploader != null
+                    ? candidate.upload(publishedImagesDir, pageUploader, arrayUploader)
+                    : candidate.upload(publishedImagesDir);
         } finally {
             candidate.close();
         }
@@ -129,8 +136,7 @@ public final class GpuSnapshotManager {
     public boolean publishPreparedSnapshot(String sceneTag,
                                            long generation,
                                            long currentGeneration,
-                                           PreparedGpuSnapshot.Uploaded uploaded,
-                                           Array<Texture> pageTextures) {
+                                           PreparedAtlasPublication.Uploaded uploaded) {
         verifyTag(sceneTag);
         if (uploaded == null) return false;
         if (!sceneTag.equals(uploaded.sceneTag())
@@ -142,7 +148,7 @@ public final class GpuSnapshotManager {
 
         AtlasRuntimeService.TextureArrayBundle next = null;
         try {
-            next = uploaded.buildBundle(pageTextures);
+            next = uploaded.buildBundle();
             if (metricsBatch != null) metricsBatch.setTextureArrayBundle(next);
             ReplacementResult replacement = replaceActiveSnapshot(sceneTag, next, diagnosticsEnabled);
             next = null;
@@ -152,7 +158,7 @@ public final class GpuSnapshotManager {
             rebuildCount++;
             rebuildCountByScene.put(sceneTag, rebuildCountByScene.get(sceneTag, 0) + 1);
             if (diagnosticsEnabled) {
-                logPreparedDiagnostic(sceneTag, uploaded, replacement, pageTextures.size);
+                logPreparedDiagnostic(sceneTag, uploaded, replacement);
             }
             return true;
         } finally {
@@ -275,10 +281,10 @@ public final class GpuSnapshotManager {
     }
 
     public void disposeAll() {
-        for (PreparedGpuSnapshot candidate : preparedSnapshots.values()) {
+        for (PreparedAtlasPublication candidate : preparedPublications.values()) {
             if (candidate != null) candidate.close();
         }
-        preparedSnapshots.clear();
+        preparedPublications.clear();
         for (AtlasRuntimeService.TextureArrayBundle bundle : activeSnapshots.values()) {
             if (bundle != null && !deferredDisposalSet.contains(bundle) && bundle.textureArray != null) {
                 bundle.textureArray.dispose();
@@ -296,8 +302,8 @@ public final class GpuSnapshotManager {
         return activeSnapshots.size;
     }
 
-    int preparedSnapshotCount() {
-        return preparedSnapshots.size;
+    int preparedPublicationCount() {
+        return preparedPublications.size;
     }
 
     AtlasRuntimeService.TextureArrayBundle activeSnapshot(String sceneTag) {
@@ -407,19 +413,33 @@ public final class GpuSnapshotManager {
     }
 
     private void logPreparedDiagnostic(String sceneTag,
-                                       PreparedGpuSnapshot.Uploaded uploaded,
-                                       ReplacementResult replacement,
-                                       int pageCount) {
+                                       PreparedAtlasPublication.Uploaded uploaded,
+                                       ReplacementResult replacement) {
         report.setLength(0);
         report.append("GPU SNAPSHOT PREPARED PUBLISH scene=").append(sceneTag);
         report.append(" generation=").append(uploaded.generation());
-        report.append('\n').append("  pages: ").append(pageCount);
+        report.append('\n').append("  pages: ").append(uploaded.pageCount());
         report.append('\n').append("  cpuCandidate: ").append(uploaded.cpuByteSize()).append(" bytes");
         report.append('\n').append("  backgroundCpuPrepare: ");
         appendMs(report, uploaded.preparationNs());
         report.append("ms");
-        report.append('\n').append("  renderThreadGlUpload: ");
-        appendMs(report, uploaded.uploadNs());
+        report.append('\n').append("    metadataParse: ");
+        appendMs(report, uploaded.metadataPreparationNs());
+        report.append("ms");
+        report.append('\n').append("    pageFileRead: ");
+        appendMs(report, uploaded.pageFileReadNs());
+        report.append("ms");
+        report.append('\n').append("    pageDecodeNormalize: ");
+        appendMs(report, uploaded.pageDecodeNormalizeNs());
+        report.append("ms");
+        report.append('\n').append("  pageTextureGlUpload: ");
+        appendMs(report, uploaded.pageTextureUploadNs());
+        report.append("ms");
+        report.append('\n').append("  textureArrayGlUpload: ");
+        appendMs(report, uploaded.textureArrayUploadNs());
+        report.append("ms");
+        report.append('\n').append("  atlasRegionAssembly: ");
+        appendMs(report, uploaded.atlasAssemblyNs());
         report.append("ms");
         report.append('\n').append("  swap: ");
         appendMs(report, replacement.swapNs);
