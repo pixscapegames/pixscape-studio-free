@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 
@@ -18,6 +19,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
     private PixscapeEngine engine;
     private Box2dWorldService box2d;
     private PhysicsMouseDragSystem dragSystem;
+    private SceneLoadHandle sceneLoad;
     private boolean sceneLoaded;
 
     private Stage uiStage;
@@ -67,7 +69,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         engine.setPlatformTarget(PlatformTarget.HTML_WEBGL2);
         engine.loadProject(projectJson.parent().parent());
         dragSystem.setLayerState(engine.getLayerState());
-        engine.internalBeginSceneLoad(null);
+        sceneLoad = engine.beginLoadScene(null);
 
         uiBatch = new SpriteBatch();
         uiStage = new Stage(new ScreenViewport(), uiBatch);
@@ -83,7 +85,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
     @Override
     public void render() {
-        updateFileAvailability();
+        updateSceneLoad();
         handleBenchToggle();
 
         long nowNs = System.currentTimeMillis() * 1_000_000L;
@@ -117,7 +119,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        if (engine != null) {
+        if (engine != null && sceneLoaded) {
             engine.update(dt);
             engine.render();
         }
@@ -167,10 +169,15 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
     }
 
-    private void updateFileAvailability() {
-        if (sceneLoaded || !engine.internalUpdateSceneAvailability()) return;
+    private void updateSceneLoad() {
+        if (sceneLoaded || sceneLoad == null) return;
+        sceneLoad.update();
+        if (sceneLoad.isFailed()) {
+            throw new GdxRuntimeException("HTML preview scene loading failed.",
+                    sceneLoad.failure());
+        }
+        if (!sceneLoad.isReady()) return;
 
-        engine.internalCompleteSceneLoad();
         dragSystem.setLayerState(engine.getLayerState());
         box2d = engine.getBox2dWorldService();
         sceneLoaded = true;
