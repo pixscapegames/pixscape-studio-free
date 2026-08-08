@@ -31,7 +31,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final VisTable root = new VisTable(true);
     private final VisCheckBox enabledBox = new VisCheckBox("Spatial Actor");
     private final VisLabel validationLabel = new VisLabel("");
-    private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true, true);
+    private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
+    private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
     private final FloatField altitudeField;
     private final FloatField heightField;
 
@@ -78,10 +79,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                     validationLabel.setText(enable
                             ? "Spatial Actor requires valid visual bounds and one valid footprint."
                             : "Spatial Actor state contains conflicting footprints.");
-                    validationLabel.setVisible(true);
+                    validationBlock.show(true);
                 } else {
                     validationLabel.setText("");
-                    validationLabel.setVisible(false);
+                    validationBlock.show(false);
                 }
                 executeCommand(command);
                 refreshFromModel(entityId);
@@ -94,7 +95,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         root.defaults().left().top().pad(1);
 
         VisTable details = detailsBlock.content();
-        details.left().top().padTop(5);
+        details.left().top();
         details.defaults().left().top().pad(1);
 
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
@@ -103,11 +104,11 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
 
+        validationBlock.content().add(validationLabel).left().row();
         root.add(enabledBox).left().row();
-        root.add(validationLabel).left().row();
+        root.add(validationBlock).growX().left().row();
         root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
         detailsBlock.show(false);
-        validationLabel.setVisible(false);
     }
 
     public void setEntityId(int entityId) {

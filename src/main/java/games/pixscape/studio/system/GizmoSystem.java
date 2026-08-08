@@ -262,7 +262,7 @@ public final class GizmoSystem extends BaseSystem {
                     if (isParticleEntity(e)) {
                         if (!isEntityVisibleForGizmo(e)) continue;
                         TransformComponent transform = mT.getSafe(e, null);
-                        if (transform != null) particleOverlayVisual.draw(ctx, transform, false);
+                        if (transform != null) particleOverlayVisual.draw(ctx, transform);
                         continue;
                     }
 
@@ -1659,7 +1659,7 @@ public final class GizmoSystem extends BaseSystem {
         if (isParticleEntity(hoveredEntityId)) {
             if (!isEntityVisibleForGizmo(hoveredEntityId)) return;
             TransformComponent transform = mT.getSafe(hoveredEntityId, null);
-            if (transform != null) particleOverlayVisual.draw(ctx, transform, true);
+            if (transform != null) particleOverlayVisual.draw(ctx, transform);
             return;
         }
         if (!mOBB.has(hoveredEntityId)) return;

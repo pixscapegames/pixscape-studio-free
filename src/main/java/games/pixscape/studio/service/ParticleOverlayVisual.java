@@ -20,7 +20,7 @@ public final class ParticleOverlayVisual {
         return MARKER_SIZE_PX;
     }
 
-    public void draw(StudioDrawContext ctx, TransformComponent transform, boolean hovered) {
+    public void draw(StudioDrawContext ctx, TransformComponent transform) {
         Drawable marker = resolveDrawable();
         float size = ctx.pxToWorld(MARKER_SIZE_PX);
         float half = size * 0.5f;
@@ -29,11 +29,7 @@ public final class ParticleOverlayVisual {
         float oldG = color.g;
         float oldB = color.b;
         float oldA = color.a;
-        if (hovered) {
-            ctx.batch.setColor(0.45f, 0.9f, 1f, 1f);
-        } else {
-            ctx.batch.setColor(Color.WHITE);
-        }
+        ctx.batch.setColor(0.45f, 0.9f, 1f, 1f);
         marker.draw(ctx.batch, transform.x - half, transform.y - half, size, size);
         ctx.batch.setColor(oldR, oldG, oldB, oldA);
     }

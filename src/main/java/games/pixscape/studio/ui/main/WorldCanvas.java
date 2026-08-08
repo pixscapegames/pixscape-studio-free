@@ -1053,6 +1053,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return false;
                 }
 
+                if (handleTiledOutsideMapClick()) {
+                    return true;
+                }
+
                 if (handleRectDown()) {
                     return true;
                 }
@@ -1165,6 +1169,27 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
         panning = true;
         return true;
+    }
+
+    private boolean handleTiledOutsideMapClick() {
+        int layerEntityId = selectionService.getActivelayerId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null) return false;
+
+        computeTileUnderMouse(tiled, tmpWorldPos);
+        if (tiledMapContainsWorldPoint(tiled.data, tmpWorldPos.x, tmpWorldPos.y)) return false;
+
+        spatialTileSelectionService.clear();
+        selectionService.clearSelection();
+        tiledPreviewService.clear();
+        return true;
+    }
+
+    static boolean tiledMapContainsWorldPoint(TiledMapLayerData map, float worldX, float worldY) {
+        if (map == null) return false;
+        int gx = map.worldToTileX(worldX, worldY);
+        int gy = map.worldToTileY(worldX, worldY);
+        return map.isInside(gx, gy);
     }
 
     private boolean handleBrushDown() {

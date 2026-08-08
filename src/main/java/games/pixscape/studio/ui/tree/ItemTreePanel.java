@@ -145,9 +145,11 @@ public class ItemTreePanel extends DockablePanel {
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
-            // Any real external entity selection exits explicit tiled-map mode.
-            if (evt.ids() != null && evt.ids().size > 0) {
+            if (evt.source() != SelectionService.SelectionSource.TREE) {
                 explicitTiledMapLayerEid = -1;
+                if (propertiesPanel != null) {
+                    propertiesPanel.clearTiledMapMode();
+                }
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
