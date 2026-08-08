@@ -4,18 +4,15 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.TextureArray;
-import com.badlogic.gdx.graphics.TextureArrayData;
-import com.badlogic.gdx.graphics.TextureData;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.graphics.glutils.FileTextureArrayData;
 import com.badlogic.gdx.graphics.glutils.FileTextureData;
-import com.badlogic.gdx.graphics.glutils.PixmapTextureData;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.StudioTextureArrayUploadBridge;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /** CPU-only, generation-scoped atlas and texture-array publication input. */
@@ -435,24 +432,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
     }
 
     private static TextureArray uploadTextureArray(Array<Pixmap> layers) {
-        TextureData[] textureData = new TextureData[layers.size];
-        for (int i = 0; i < layers.size; i++) {
-            textureData[i] = new PixmapTextureData(
-                    layers.get(i),
-                    Pixmap.Format.RGBA8888,
-                    false,
-                    false
-            );
-        }
-        TextureArrayData arrayData = new FileTextureArrayData(
-                Pixmap.Format.RGBA8888,
-                false,
-                textureData
-        );
-        TextureArray textureArray = new TextureArray(arrayData);
-        textureArray.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
-        textureArray.setWrap(Texture.TextureWrap.ClampToEdge, Texture.TextureWrap.ClampToEdge);
-        return textureArray;
+        return StudioTextureArrayUploadBridge.uploadBorrowed(layers);
     }
 
     private static void disposePages(Array<PreparedPage> pages) {

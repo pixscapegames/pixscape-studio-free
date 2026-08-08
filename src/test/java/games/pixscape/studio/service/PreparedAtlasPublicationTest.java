@@ -5,6 +5,8 @@ import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.GL30;
 import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.TextureArray;
@@ -14,11 +16,13 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.StudioTextureArrayUploadBridge;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -267,6 +271,77 @@ public class PreparedAtlasPublicationTest {
     }
 
     @Test
+    public void oneShotArrayUploadBorrowsPreparedLayersForSubsequentPageUpload() throws Exception {
+        Path dir = Files.createTempDirectory("prepared-atlas-one-shot-array");
+        PreparedAtlasPublication candidate = prepare(
+                "scene",
+                9L,
+                new FileHandle[]{writeSolidPage(dir.resolve("scene.png"), 0xff0000ff)},
+                new String[]{"scene.png"}
+        );
+        Pixmap white = candidate.layer(0);
+        Pixmap red = candidate.layer(1);
+        CountingTexture pageTexture = fakeTexture(2, 2);
+        GL20 previousGl = com.badlogic.gdx.Gdx.gl;
+        GL20 previousGl20 = com.badlogic.gdx.Gdx.gl20;
+        GL30 previousGl30 = com.badlogic.gdx.Gdx.gl30;
+        int[] nextTexture = {1};
+        GL30 gl = (GL30) Proxy.newProxyInstance(
+                GL30.class.getClassLoader(),
+                new Class<?>[]{GL30.class},
+                (proxy, method, args) -> {
+                    if ("glGenTexture".equals(method.getName())) return nextTexture[0]++;
+                    return defaultValue(method.getReturnType());
+                }
+        );
+        com.badlogic.gdx.Gdx.gl = gl;
+        com.badlogic.gdx.Gdx.gl20 = gl;
+        com.badlogic.gdx.Gdx.gl30 = gl;
+
+        PreparedAtlasPublication.Uploaded uploaded = null;
+        TextureAtlas atlas = null;
+        AtlasRuntimeService.TextureArrayBundle bundle = null;
+        try {
+            uploaded = candidate.upload(
+                    new FileHandle(dir.toFile()),
+                    (publishedFile, pixels, page) -> {
+                        assertFalse(white.isDisposed());
+                        assertFalse(red.isDisposed());
+                        assertEquals(0xff0000ff, pixels.getPixel(0, 0));
+                        return pageTexture;
+                    },
+                    StudioTextureArrayUploadBridge::uploadBorrowed
+            );
+
+            assertFalse(white.isDisposed());
+            assertFalse(red.isDisposed());
+            bundle = uploaded.buildBundle();
+            atlas = uploaded.takeAtlas();
+            candidate.close();
+
+            assertTrue(white.isDisposed());
+            assertTrue(red.isDisposed());
+            assertEquals(2, bundle.textureArray.getWidth());
+            assertEquals(2, bundle.textureArray.getHeight());
+            assertEquals(2, bundle.textureArray.getDepth());
+            assertFalse(bundle.textureArray.isManaged());
+            assertEquals(0, bundle.handle2layer.get(
+                    games.pixscape.runtime.render.InternalTextures.whiteHandle(), -1));
+            assertEquals(1, bundle.handle2layer.get(
+                    games.pixscape.runtime.service.TextureRegistry.handleOf(pageTexture), -1));
+        } finally {
+            if (atlas != null) atlas.dispose();
+            if (bundle != null) bundle.textureArray.dispose();
+            if (uploaded != null) uploaded.close();
+            candidate.close();
+            com.badlogic.gdx.Gdx.gl = previousGl;
+            com.badlogic.gdx.Gdx.gl20 = previousGl20;
+            com.badlogic.gdx.Gdx.gl30 = previousGl30;
+        }
+        assertEquals(1, pageTexture.disposeCalls);
+    }
+
+    @Test
     public void staleUploadedGenerationIsDisposedWithoutReplacingOldSnapshot() throws Exception {
         Path dir = Files.createTempDirectory("prepared-atlas-stale-upload");
         GpuSnapshotManager manager = new GpuSnapshotManager(null, null);
@@ -384,6 +459,19 @@ public class PreparedAtlasPublicationTest {
         Field field = Unsafe.class.getDeclaredField("theUnsafe");
         field.setAccessible(true);
         return (Unsafe) field.get(null);
+    }
+
+    private static Object defaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0f;
+        if (type == double.class) return 0d;
+        if (type == char.class) return '\0';
+        return null;
     }
 
     private static final class CountingTexture extends Texture {
