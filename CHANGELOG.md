@@ -30,6 +30,8 @@
 * Polygon authoring vertices are now displayed as circular handles while resize and Spatial handles remain square.
 * Asset labels, tooltips and default entity names now use logical asset names and distinguish Asset IDs from entity stable IDs.
 * Refreshed the Studio interface with a more compact and consistent layout, clearer panel hierarchy, harmonized dialogs and unified icon-based list controls.
+* HTML Preview now uses progressive Runtime scene loading and enters the scene only after runtime-ready completion.
+* HTML bootstrap now defers scene files, atlases and pages, particle effects and other selected-scene resources to Runtime availability loading.
 
 ### Improved
 
@@ -40,6 +42,9 @@
 * Tiled fallback rendering now runs only while standalone tile visuals are required, then disables itself until a relevant scene, asset, animation or atlas change requests revalidation.
 * Reduced repeated asset metadata loading and duplicated atlas/standalone resolution during repacks, scene changes and undo/redo operations.
 * Greatly reduced undo/redo overhead for particle effects and other non-render entities.
+* Atlas page decoding and GPU snapshot preparation now run off the render thread before publication.
+* Prepared atlas pages are reused for both normal textures and texture-array publication.
+* Particle file drops no longer trigger unnecessary atlas rebinds or full asset refreshes, reducing Preview and editor stalls.
 
 ### Fixed
 
@@ -55,6 +60,9 @@
 * Scene changes now wait for a successful visible save before loading the target scene, and restore the selector after cancellation or failure.
 * Removed the silent automatic scene save previously performed when selecting another scene.
 * Fixed undo/redo identity handling after entity deletion and restoration, preventing duplicate stable identities.
+* Fixed particle fallback looping and premultiplied-alpha behavior to match Runtime playback.
+* Fixed fallback texture ownership so shared atlas textures are not disposed by particle fallback cleanup.
+* Fixed copied and pasted entities retaining the source layer instead of adapting to the destination layer.
 
 ### Tests
 
@@ -63,6 +71,7 @@
 * Revalidated the Studio against the Runtime asset index changes with forced GWT compilation.
 * Added regression coverage for asset identity presentation, particle composition, marker picking, transform editing, drag history, lasso behavior and polygon handles.
 * Added regression coverage for the shared unsaved-scene decision flow and scene-switch Save, Don't Save, Cancel and failure handling.
+* Added grouped coverage for off-thread atlas and fallback publication, deferred preload classification and progressive HTML loading through forced GWT compilation.
 
 
 ## 0.2.1 - TMX Import and Spatial V3
