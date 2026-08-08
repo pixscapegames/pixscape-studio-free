@@ -228,14 +228,22 @@ public final class HtmlPreviewLauncher {
      */
     private static boolean preloadAtBootstrap(String path) {
         String normalized = path.replace('\\', '/');
-        if (normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/project.json")
-                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/animations.json")
-                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/tiled-animations.json")
-                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/tileset-profiles.json")) {
+        String runtimePrefix = PixscapeEngine.RUNTIME_DIR_NAME + "/";
+
+        // The template's assets/** tree belongs to the HTML player. Those resources
+        // may be read synchronously during ApplicationListener.create() or normal UI
+        // startup, so Runtime-project deferral must never apply to them.
+        if (!normalized.startsWith(runtimePrefix)) return true;
+
+        String runtimePath = normalized.substring(runtimePrefix.length());
+        if (runtimePath.equals("project.json")
+                || runtimePath.equals("animations.json")
+                || runtimePath.equals("tiled-animations.json")
+                || runtimePath.equals("tileset-profiles.json")) {
             return true;
         }
 
-        return normalized.startsWith(PixscapeEngine.RUNTIME_DIR_NAME + "/shaders/");
+        return runtimePath.startsWith("shaders/");
     }
 
     public static synchronized void stop() {
