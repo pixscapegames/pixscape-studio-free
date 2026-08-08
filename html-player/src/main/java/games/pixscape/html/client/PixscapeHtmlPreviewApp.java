@@ -5,11 +5,16 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.configuration.PlatformTarget;
+import games.pixscape.runtime.configuration.RuntimeConfig;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.loading.FileAvailabilityService;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 
@@ -17,6 +22,11 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
     private PixscapeEngine engine;
     private Box2dWorldService box2d;
+    private PhysicsMouseDragSystem dragSystem;
+    private FileAvailabilityService fileAvailability;
+    private String pendingSceneName;
+    private String pendingAtlasPath;
+    private boolean sceneLoaded;
 
     private Stage uiStage;
     private SpriteBatch uiBatch;
@@ -51,7 +61,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
         OrthographicCamera worldCamera = new OrthographicCamera();
 
-        PhysicsMouseDragSystem dragSystem = new PhysicsMouseDragSystem(worldCamera);
+        dragSystem = new PhysicsMouseDragSystem(worldCamera);
         dragSystem.setMaxForce(2000f);
         dragSystem.setFrequencyHz(5f);
         dragSystem.setDampingRatio(0.7f);
@@ -64,10 +74,8 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
         engine.setPlatformTarget(PlatformTarget.HTML_WEBGL2);
         engine.loadProject(projectJson.parent().parent());
-        engine.loadScene(null);
         dragSystem.setLayerState(engine.getLayerState());
-
-        box2d = engine.getBox2dWorldService();
+        requestInitialSceneFiles();
 
         uiBatch = new SpriteBatch();
         uiStage = new Stage(new ScreenViewport(), uiBatch);
@@ -83,6 +91,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
 
     @Override
     public void render() {
+        updateFileAvailability();
         handleBenchToggle();
 
         long nowNs = System.currentTimeMillis() * 1_000_000L;
@@ -163,6 +172,44 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
             engine.dispose();
             engine = null;
         }
+
+        if (fileAvailability != null) {
+            fileAvailability.dispose();
+            fileAvailability = null;
+        }
+    }
+
+    private void requestInitialSceneFiles() {
+        RuntimeConfig config = engine.config();
+        SceneMetaRuntime sceneMeta = config.getCurrentSceneMeta();
+        if (sceneMeta == null) {
+            throw new GdxRuntimeException("Runtime project has no current scene metadata.");
+        }
+
+        pendingSceneName = config.currentSceneName;
+        String sceneTag = RuntimeConfig.sceneDirName(sceneMeta);
+        String scenePath = engine.runtimeProjectDir()
+                .child(config.scenesDir)
+                .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_JSON))
+                .path();
+        pendingAtlasPath = engine.runtimeProjectDir()
+                .child(config.atlasesDir)
+                .child(RuntimeFs.withExt(sceneTag, RuntimeFs.EXT_ATLAS))
+                .path();
+
+        fileAvailability = new FileAvailabilityService();
+        fileAvailability.requestFile(scenePath);
+        fileAvailability.request(pendingAtlasPath, TextureAtlas.class);
+    }
+
+    private void updateFileAvailability() {
+        if (sceneLoaded || fileAvailability == null || !fileAvailability.update()) return;
+
+        TextureAtlas atlas = fileAvailability.get(pendingAtlasPath, TextureAtlas.class);
+        engine.loadScene(pendingSceneName, atlas);
+        dragSystem.setLayerState(engine.getLayerState());
+        box2d = engine.getBox2dWorldService();
+        sceneLoaded = true;
     }
 
     private void handleCameraControls(float dt) {

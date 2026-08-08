@@ -192,7 +192,7 @@ public final class HtmlPreviewLauncher {
         return null;
     }
 
-    private static void writeAssetsManifest(Path assetsRoot) throws IOException {
+    static void writeAssetsManifest(Path assetsRoot) throws IOException {
         Path manifest = assetsRoot.resolve("assets.txt");
 
         try (Stream<Path> stream = Files.walk(assetsRoot)) {
@@ -208,7 +208,8 @@ public final class HtmlPreviewLauncher {
                             }
 
                             return assetType(rel) + ":" + rel + ":" + rel + ":"
-                                    + Files.size(path) + ":" + mimeType(rel) + ":1";
+                                    + Files.size(path) + ":" + mimeType(rel) + ":"
+                                    + (preloadAtBootstrap(rel) ? "1" : "0");
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
@@ -219,6 +220,22 @@ public final class HtmlPreviewLauncher {
 
             Files.writeString(manifest, body, StandardCharsets.UTF_8);
         }
+    }
+
+    /**
+     * Keeps the current synchronous project bootstrap readable while deferring
+     * scene/runtime payloads to LibGDX lazy loading after ApplicationListener.create().
+     */
+    private static boolean preloadAtBootstrap(String path) {
+        String normalized = path.replace('\\', '/');
+        if (normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/project.json")
+                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/animations.json")
+                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/tiled-animations.json")
+                || normalized.equals(PixscapeEngine.RUNTIME_DIR_NAME + "/tileset-profiles.json")) {
+            return true;
+        }
+
+        return normalized.startsWith(PixscapeEngine.RUNTIME_DIR_NAME + "/shaders/");
     }
 
     public static synchronized void stop() {
