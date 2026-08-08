@@ -49,6 +49,7 @@ public class AtlasStudioServiceStateTest {
         assertTrue(service.hasAsyncPackQueuedOrRunningFor("main"));
         assertFalse(service.hasAsyncPackQueuedOrRunningFor("other"));
         assertTrue(service.hasAsyncPackQueuedOrRunningFor(null));
+        assertTrue(service.isPublicationPending("main"));
     }
 
     @Test

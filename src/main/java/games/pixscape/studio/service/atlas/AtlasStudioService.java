@@ -47,6 +47,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     public void requestAsyncPack(String sceneTag, AsyncAtlasRepackCoordinator.RepackReason reason) {
         if (disposed) return;
         repackCoordinator.requestAsyncPack(sceneTag, reason);
+        markPublicationPending(sceneTag);
     }
 
     public void markDirty(String sceneTag) {

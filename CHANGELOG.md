@@ -48,6 +48,7 @@
 
 ### Fixed
 
+* Prevented transient missing-region particle errors while an asynchronous replacement atlas is pending publication.
 * Prevented failed physics and Spatial operations from publishing partial state or incorrectly advancing history.
 * Fixed stale physics selection and picking after fixture or body changes, undo/redo and scene activation.
 * Fixed linked collision activation and scene loading when a tiled layer initially has no transform.
