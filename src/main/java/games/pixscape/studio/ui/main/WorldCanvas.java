@@ -499,8 +499,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 declaredEffectPaths.add(effectPath);
             }
         }
+        String sceneTag = cfg.canonicalSceneTagFor(sceneMeta);
         runtimeParticleSystem.prepareRuntimeAvailability(
-                sceneMeta.getName(), declaredEffectPaths);
+                sceneTag, declaredEffectPaths);
     }
 
     private AssetMetaDatabase loadAssetMetaDatabaseIfAvailable(ProjectConfig cfg) {
