@@ -143,6 +143,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private TiledAllocatorService tiledAllocatorService;
     private TiledFallbackSystem tiledFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
+    private final ParticleRuntimeAvailabilityRefreshRequest particleAvailabilityRefresh =
+            new ParticleRuntimeAvailabilityRefreshRequest();
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
     private TiledPreviewService tiledPreviewService;
     private TiledMutationController tiledMutationController;
@@ -382,6 +384,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        if (studioParticleFallbackSystem != null) {
+            studioParticleFallbackSystem.setRuntimeParticleSystem(
+                    world.getSystem(RenderParticleSyncSystem.class));
+        }
         physicsSelectionReconciler.bindWorld(world);
         tiledMutationController = new TiledMutationController(
                 world, historyManager, () -> app != null ? app.getSceneService() : null);
@@ -419,7 +425,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 world,
                 historyManager,
                 identityRegistry,
-                physicsService
+                physicsService,
+                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
         );
 
         // Wiring
@@ -506,6 +513,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         String sceneTag = cfg.canonicalSceneTagFor(sceneMeta);
         runtimeParticleSystem.prepareRuntimeAvailability(
                 sceneTag, declaredEffectPaths);
+    }
+
+    /** Queues an authoring-only Runtime particle availability rebuild after the next ECS step. */
+    public void requestParticleRuntimeAvailabilityRefresh() {
+        particleAvailabilityRefresh.request();
+    }
+
+    /** Queues a rebuild when a generic create/restore operation produced a particle entity. */
+    public void requestParticleRuntimeAvailabilityRefreshIfParticleEntity(int entityId) {
+        if (world == null || entityId < 0) return;
+        if (world.getMapper(ParticleEmitterComponent.class).has(entityId)) {
+            requestParticleRuntimeAvailabilityRefresh();
+        }
     }
 
     private AssetMetaDatabase loadAssetMetaDatabaseIfAvailable(ProjectConfig cfg) {
@@ -2258,6 +2278,25 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     @Override
     public void processFrame() {
         world.process();
+        particleAvailabilityRefresh.consume(this::refreshParticleRuntimeAvailability);
+    }
+
+    static final class ParticleRuntimeAvailabilityRefreshRequest {
+        private boolean pending;
+
+        void request() {
+            pending = true;
+        }
+
+        void consume(Runnable refresh) {
+            if (!pending) return;
+            pending = false;
+            refresh.run();
+        }
+
+        boolean isPending() {
+            return pending;
+        }
     }
 
     @Override

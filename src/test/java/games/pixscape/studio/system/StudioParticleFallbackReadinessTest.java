@@ -2,6 +2,7 @@ package games.pixscape.studio.system;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.IntMap;
@@ -9,18 +10,26 @@ import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.ParticleOverridesComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.particle.ParticleEffect;
+import games.pixscape.runtime.particle.ParticleEffectPool;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.StringWriter;
 
 import static org.junit.Assert.*;
 
 public class StudioParticleFallbackReadinessTest {
+
+    @Rule
+    public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     @Test
     public void fallbackPositionsAtTransformIgnoringOriginAndFollowsChanges() {
@@ -95,7 +104,7 @@ public class StudioParticleFallbackReadinessTest {
     }
 
     @Test
-    public void atlasPublicationReleasesTrackedStandaloneBeforeNextFrame() throws Exception {
+    public void atlasPublicationInvalidationReleasesTrackedStandaloneBeforeNextFrame() throws Exception {
         Fixture fixture = new Fixture(false);
         World world = new World(new WorldConfiguration().setSystem(fixture.system));
         try {
@@ -113,11 +122,53 @@ public class StudioParticleFallbackReadinessTest {
             fixture.probe.result = true;
             fixture.atlasService.atlas = new TextureAtlas();
             fixture.system.invalidateAll();
-            world.process();
 
             assertFalse(trackedPoolKeys.containsKey(entityId));
             assertEquals(0, fixture.vfxState.activeCount);
-            assertEquals(2, fixture.probe.calls);
+            assertEquals(1, fixture.probe.calls);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void atlasReadyButRuntimeUnpreparedKeepsFallbackUntilRuntimeIsPrepared()
+            throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("handoff-effects"));
+        writeEffect(effectsRoot.child("fire.p"));
+        MutableAtlasRuntimeService atlasService = new MutableAtlasRuntimeService();
+        com.badlogic.gdx.graphics.OrthographicCamera camera =
+                new com.badlogic.gdx.graphics.OrthographicCamera();
+        RenderParticleSyncSystem runtimeSystem = new RenderParticleSyncSystem(
+                new VfxRenderState(), camera, 0, atlasService, effectsRoot);
+        ParticleAtlasReadinessCacheTest.CountingProbe probe =
+                new ParticleAtlasReadinessCacheTest.CountingProbe(true);
+        StudioParticleFallbackSystem fallbackSystem = new StudioParticleFallbackSystem(
+                new VfxRenderState(), camera, atlasService, effectsRoot, effectsRoot, 0,
+                new ParticleAtlasReadinessCache(probe));
+        fallbackSystem.setRuntimeParticleSystem(runtimeSystem);
+        World world = new World(new WorldConfiguration()
+                .setSystem(runtimeSystem)
+                .setSystem(fallbackSystem));
+        try {
+            int entityId = world.create();
+            ParticleEmitterComponent emitter =
+                    world.getMapper(ParticleEmitterComponent.class).create(entityId);
+            emitter.atlasTag = "main";
+            emitter.effectPath = "fire.p";
+            world.getMapper(TransformComponent.class).create(entityId);
+
+            world.process();
+
+            ParticleEffectPool.PooledEffect standalone = effects(fallbackSystem).get(entityId);
+            assertNotNull(standalone);
+            assertFalse(runtimeSystem.isPrepared("main", "fire.p"));
+
+            runtimeSystem.prepareRuntimeAvailability("main", new com.badlogic.gdx.utils.Array<>());
+            world.process();
+
+            assertTrue(runtimeSystem.isPrepared("main", "fire.p"));
+            assertNull(effects(fallbackSystem).get(entityId));
         } finally {
             world.dispose();
         }
@@ -168,6 +219,22 @@ public class StudioParticleFallbackReadinessTest {
         Field field = StudioParticleFallbackSystem.class.getDeclaredField("entityPoolKeys");
         field.setAccessible(true);
         return (IntMap<String>) field.get(system);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static IntMap<ParticleEffectPool.PooledEffect> effects(
+            StudioParticleFallbackSystem system) throws Exception {
+        Field field = StudioParticleFallbackSystem.class.getDeclaredField("effects");
+        field.setAccessible(true);
+        return (IntMap<ParticleEffectPool.PooledEffect>) field.get(system);
+    }
+
+    private static void writeEffect(com.badlogic.gdx.files.FileHandle file) throws Exception {
+        ParticleEffect source = new ParticleEffect();
+        source.getEmitters().add(new ParticleEmitter());
+        StringWriter writer = new StringWriter();
+        source.save(writer);
+        file.writeString(writer.toString(), false, "UTF-8");
     }
 
     private static final class Fixture {

@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -33,6 +34,7 @@ import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 
 public final class StudioParticleFallbackSystem extends BaseSystem implements ProfiledSystem {
@@ -44,6 +46,8 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     private final AtlasRuntimeService atlasStudioService;
     private final ParticleAtlasReadinessCache atlasReadiness;
     private final int defaultShaderIdx;
+    @SkipWire
+    private RenderParticleSyncSystem runtimeParticleSystem;
 
     private FileHandle effectsRoot;
     private FileHandle imagesRoot;
@@ -100,6 +104,11 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
             throw new IllegalArgumentException("Particle atlas readiness cache must not be null.");
         }
         this.atlasReadiness = atlasReadiness;
+    }
+
+    /** Binds the Runtime system used only for its INTERNAL prepared-state query. */
+    public void setRuntimeParticleSystem(RenderParticleSyncSystem runtimeParticleSystem) {
+        this.runtimeParticleSystem = runtimeParticleSystem;
     }
 
     public void setEffectsRoot(FileHandle effectsRoot) {
@@ -192,7 +201,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 continue;
             }
 
-            if (isReadyInAtlas(comp)) {
+            if (isReadyInAtlas(comp) && isPreparedInRuntime(comp)) {
                 removeEffect(e);
                 continue;
             }
@@ -263,6 +272,11 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 atlas,
                 effectsRoot
         );
+    }
+
+    private boolean isPreparedInRuntime(ParticleEmitterComponent emitter) {
+        return runtimeParticleSystem != null
+                && runtimeParticleSystem.isPrepared(emitter.atlasTag, emitter.effectPath);
     }
 
     private ParticleEffectPool.PooledEffect createStandaloneEffect(int entityId,

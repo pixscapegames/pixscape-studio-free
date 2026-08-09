@@ -90,10 +90,10 @@ public class SceneServiceAtlasRepackFlowContractTest {
         assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
-        assertTrue(applyBody.contains("canvas.refreshParticleRuntimeAvailability();"));
+        assertTrue(applyBody.contains("canvas.requestParticleRuntimeAvailabilityRefresh();"));
         assertFalse(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
         assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterPreparedSnapshot(") == 1);
-        assertTrue(occurrences(applyBody, "canvas.refreshParticleRuntimeAvailability();") == 1);
+        assertTrue(occurrences(applyBody, "canvas.requestParticleRuntimeAvailabilityRefresh();") == 1);
     }
 
     @Test
@@ -114,6 +114,40 @@ public class SceneServiceAtlasRepackFlowContractTest {
         assertTrue(refreshBody.contains("cfg.getCurrentSceneMeta()"));
         assertTrue(refreshBody.contains("sceneMeta.runtimeAvailability.particleEffectPaths"));
         assertTrue(refreshBody.contains("studioParticleFallbackSystem.invalidateAll();"));
+    }
+
+    @Test
+    public void particleCreationRequestsAvailabilityRefreshIndependentlyOfAtlasInputChange()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ops/EditorOpsImpl.java"),
+                StandardCharsets.UTF_8
+        );
+        String createBody = methodBody(
+                source,
+                "public int createParticleEffect(String effectPath, float worldX, float worldY, String metaName)"
+        );
+
+        int execute = createBody.indexOf("historyManager.execute(cmd);");
+        int request = createBody.indexOf("canvas.requestParticleRuntimeAvailabilityRefresh();");
+        int changedGuard = createBody.indexOf("if (changed)", execute);
+        assertTrue(execute >= 0);
+        assertTrue(request > execute);
+        assertTrue(changedGuard > request);
+    }
+
+    @Test
+    public void worldCanvasConsumesRequestedAvailabilityRefreshAfterWorldProcess() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"),
+                StandardCharsets.UTF_8
+        );
+        String processBody = methodBody(source, "public void processFrame()");
+
+        int process = processBody.indexOf("world.process();");
+        int consume = processBody.indexOf("particleAvailabilityRefresh.consume(");
+        assertTrue(process >= 0);
+        assertTrue(consume > process);
     }
 
     @Test

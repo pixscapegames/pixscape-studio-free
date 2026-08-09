@@ -474,6 +474,8 @@ public class EditorOpsImpl implements EditorOps {
 
         historyManager.execute(cmd);
 
+        canvas.requestParticleRuntimeAvailabilityRefresh();
+
         // --- Async atlas workflow ---
         if (changed) {
             atlasStudioService.requestAsyncPack(sceneTag);
@@ -1005,6 +1007,7 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private void rebindHistoryEntityRenderAssets(int entityId) {
+        canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(entityId);
         String sceneTag = getCurrentSceneTag();
         RenderRebindHelper.rebindHistoryEntityRenderAssets(
                 canvas,

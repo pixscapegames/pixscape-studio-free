@@ -226,7 +226,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             );
             rebindTiles();
 
-            canvas.refreshParticleRuntimeAvailability();
+            canvas.requestParticleRuntimeAvailabilityRefresh();
         } finally {
             if (uploaded != null) uploaded.close();
             artifact.discard();

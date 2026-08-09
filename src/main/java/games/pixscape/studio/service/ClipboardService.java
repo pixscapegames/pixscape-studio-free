@@ -41,7 +41,8 @@ public final class ClipboardService {
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
         this.graphInstantiationService = new EntityGraphInstantiationService(
-                world, historyManager, identityRegistry, canvas.getPhysicsService());
+                world, historyManager, identityRegistry, canvas.getPhysicsService(),
+                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity);
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
     }
@@ -78,7 +79,8 @@ public final class ClipboardService {
         historyManager.execute(new DeleteEntitiesCommand(
                 world,
                 historyManager.historyIds(),
-                supported
+                supported,
+                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
         ));
         selectionService.clearSelection();
         pasteCount = 0;
