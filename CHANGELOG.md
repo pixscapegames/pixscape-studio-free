@@ -68,6 +68,7 @@
 * Fixed fallback texture ownership so shared atlas textures are not disposed by particle fallback cleanup.
 * Fixed copied and pasted entities retaining the source layer instead of adapting to the destination layer.
 * Fixed Runtime Availability particle preparation after Studio atlas publication so authored and declared effects are rebuilt against the canonical scene atlas, including renamed scenes.
+* Particle effect replacement is failure-atomic and keeps the previous valid effect when replacement fails.
 
 ### Tests
 
