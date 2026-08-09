@@ -177,6 +177,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final Vector2 tmpUiStageCoords = new Vector2();
     private Cursor currentCursor;
     private boolean currentCursorForbidden;
+    private boolean tiledCursorValid;
+    private int tiledCursorGX;
+    private int tiledCursorGY;
+    private final TiledCursorResolver.Result tiledCursorResult = new TiledCursorResolver.Result();
 
 
     // Box2D (lazy init + enable/disable system)
@@ -2015,6 +2019,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void updateTiledPreview() {
+        updateTiledCursor();
         if (world == null || selectionService == null || tiledToolService == null || tiledPaintService == null) {
             return;
         }
@@ -2059,21 +2064,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        coordSpaces.screenToWorldLogical(
-                Gdx.input.getX(),
-                Gdx.input.getY(),
-                selectionService.getActiveLayerIndex(),
-                layerService,
-                tmpWorldPos
-        );
-
-        int gx = tiled.data.worldToTileX(tmpWorldPos.x, tmpWorldPos.y);
-        int gy = tiled.data.worldToTileY(tmpWorldPos.x, tmpWorldPos.y);
-
-        if (!tiled.data.isInside(gx, gy)) {
+        if (!tiledCursorValid) {
             tiledPreviewService.clear();
             return;
         }
+        int gx = tiledCursorGX;
+        int gy = tiledCursorGY;
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
             int assetId = tiled.data.getTile(gx, gy);
@@ -2109,6 +2105,35 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 tiledPaintService.getActiveTileAssetId(),
                 tiledToolService.getActiveTransformFlags()
         );
+    }
+
+    private void updateTiledCursor() {
+        if (world == null || selectionService == null || layerService == null
+                || studioEditingModeService.getCurrentMode() != StudioEditingMode.TILED) {
+            publishTiledCursor(false, 0, 0);
+            return;
+        }
+
+        int layerEntityId = selectionService.getActivelayerId();
+        TiledLayerComponent tiled = layerEntityId < 0
+                ? null
+                : world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null) {
+            publishTiledCursor(false, 0, 0);
+            return;
+        }
+
+        computeTileUnderMouse(tiled, tmpWorldPos);
+        TiledCursorResolver.resolve(tiled.data, tmpWorldPos.x, tmpWorldPos.y, tiledCursorResult);
+        publishTiledCursor(tiledCursorResult.valid, tiledCursorResult.gx, tiledCursorResult.gy);
+    }
+
+    private void publishTiledCursor(boolean valid, int gx, int gy) {
+        if (tiledCursorValid == valid && (!valid || tiledCursorGX == gx && tiledCursorGY == gy)) return;
+        tiledCursorValid = valid;
+        tiledCursorGX = gx;
+        tiledCursorGY = gy;
+        EventFlow.i().publish(new EventFlow.TiledCursorChanged(valid, gx, gy, EventFlow.tag(this)));
     }
 
     private boolean isTiledToolInputEnabled() {

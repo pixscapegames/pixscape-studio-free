@@ -285,6 +285,14 @@ public final class EventFlow {
     ) {
     }
 
+    public record TiledCursorChanged(
+            boolean valid,
+            int gx,
+            int gy,
+            int sourceTag
+    ) {
+    }
+
     public enum EditorMode {
         ENTITY,
         TILE
