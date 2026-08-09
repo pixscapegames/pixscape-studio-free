@@ -17,6 +17,7 @@
 * Added a persistent canvas indicator showing the active editing mode, including Normal, Physics, Spatial, Tiled and Lights contexts.
 * Added a dedicated Spatial actor layer with automatic physics body and footprint setup.
 * Added visible progress feedback during Tiled map imports.
+* Tiled editing mode now displays the logical grid coordinates under the cursor directly in the canvas mode indicator.
 
 ### Changed
 
@@ -30,8 +31,8 @@
 * Polygon authoring vertices are now displayed as circular handles while resize and Spatial handles remain square.
 * Asset labels, tooltips and default entity names now use logical asset names and distinguish Asset IDs from entity stable IDs.
 * Refreshed the Studio interface with a more compact and consistent layout, clearer panel hierarchy, harmonized dialogs and unified icon-based list controls.
-* HTML Preview now uses progressive Runtime scene loading and enters the scene only after runtime-ready completion.
-* HTML bootstrap now defers scene files, atlases and pages, particle effects and other selected-scene resources to Runtime availability loading.
+* Desktop and HTML Preview now use render-driven progressive scene loading with a simple progress bar and enter normal preview state only after Runtime READY.
+* HTML bootstrap now defers scene files, atlases and pages, particle effects, prefab fragments and other selected-scene resources to Runtime availability loading.
 
 ### Improved
 
@@ -45,6 +46,8 @@
 * Atlas page decoding and GPU snapshot preparation now run off the render thread before publication.
 * Prepared atlas pages are reused for both normal textures and texture-array publication.
 * Particle file drops no longer trigger unnecessary atlas rebinds or full asset refreshes, reducing Preview and editor stalls.
+* Simplified HTML Preview startup by serving the fixed player and current Runtime export directly instead of copying the complete player template and exported project for every launch.
+* Reduced the packaged HTML Preview player to production GWT assets, removing development-only deployment output.
 
 ### Fixed
 
@@ -64,6 +67,7 @@
 * Fixed particle fallback looping and premultiplied-alpha behavior to match Runtime playback.
 * Fixed fallback texture ownership so shared atlas textures are not disposed by particle fallback cleanup.
 * Fixed copied and pasted entities retaining the source layer instead of adapting to the destination layer.
+* Fixed Runtime Availability particle preparation after Studio atlas publication so authored and declared effects are rebuilt against the canonical scene atlas, including renamed scenes.
 
 ### Tests
 
