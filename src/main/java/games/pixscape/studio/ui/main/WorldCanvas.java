@@ -18,6 +18,7 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -462,18 +463,44 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (runtimeParticleSystem != null) {
             runtimeParticleSystem.setEffectsRoot(effectsRoot);
-            runtimeParticleSystem.invalidateAllEffects();
         }
 
         if (studioParticleFallbackSystem != null) {
             studioParticleFallbackSystem.setEffectsRoot(effectsRoot);
             studioParticleFallbackSystem.setImagesRoot(imagesRoot);
-            studioParticleFallbackSystem.invalidateAll();
         }
+
+        refreshParticleRuntimeAvailability();
 
         if (gpuSnapshotManager != null) {
             markSnapshotDirtyIfSceneLoaded("project-bound-services-refreshed");
         }
+    }
+
+    /** Rebuilds authored and declared particle resources at an authoring publication boundary. */
+    public void refreshParticleRuntimeAvailability() {
+        RenderParticleSyncSystem runtimeParticleSystem =
+                world.getSystem(RenderParticleSyncSystem.class);
+        if (runtimeParticleSystem == null) return;
+
+        runtimeParticleSystem.invalidateAllEffects();
+        if (studioParticleFallbackSystem != null) {
+            studioParticleFallbackSystem.invalidateAll();
+        }
+
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        if (sceneMeta == null) return;
+
+        Array<String> declaredEffectPaths = new Array<>();
+        if (sceneMeta.runtimeAvailability != null
+                && sceneMeta.runtimeAvailability.particleEffectPaths != null) {
+            for (String effectPath : sceneMeta.runtimeAvailability.particleEffectPaths) {
+                declaredEffectPaths.add(effectPath);
+            }
+        }
+        runtimeParticleSystem.prepareRuntimeAvailability(
+                sceneMeta.getName(), declaredEffectPaths);
     }
 
     private AssetMetaDatabase loadAssetMetaDatabaseIfAvailable(ProjectConfig cfg) {

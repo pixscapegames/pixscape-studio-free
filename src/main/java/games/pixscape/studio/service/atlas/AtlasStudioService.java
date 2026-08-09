@@ -10,7 +10,6 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.StudioAtlasPublicationBridge;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
@@ -228,12 +227,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             );
             rebindTiles();
 
-            RenderParticleSyncSystem particleSystem =
-                    canvas.getEcsWorld().getSystem(RenderParticleSyncSystem.class);
-            if (particleSystem != null) {
-                particleSystem.invalidateAllEffects();
-            }
-            canvas.invalidateStudioParticleFallbacks();
+            canvas.refreshParticleRuntimeAvailability();
         } finally {
             if (uploaded != null) uploaded.close();
             artifact.discard();

@@ -79,7 +79,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void completedGenerationPublication_usesPreparedAtlasRebindsAndInvalidatesOnce() throws Exception {
+    public void completedGenerationPublication_rebuildsParticleAvailabilityOnce() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java"),
                 StandardCharsets.UTF_8
@@ -90,10 +90,30 @@ public class SceneServiceAtlasRepackFlowContractTest {
         assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
-        assertTrue(applyBody.contains("particleSystem.invalidateAllEffects();"));
-        assertTrue(applyBody.contains("canvas.invalidateStudioParticleFallbacks();"));
+        assertTrue(applyBody.contains("canvas.refreshParticleRuntimeAvailability();"));
         assertFalse(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
         assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterPreparedSnapshot(") == 1);
+        assertTrue(occurrences(applyBody, "canvas.refreshParticleRuntimeAvailability();") == 1);
+    }
+
+    @Test
+    public void particleAvailabilityRefresh_invalidatesThenPreparesAuthoredAndDeclaredResources()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"),
+                StandardCharsets.UTF_8
+        );
+        String refreshBody = methodBody(
+                source, "public void refreshParticleRuntimeAvailability()"
+        );
+
+        int invalidate = refreshBody.indexOf("runtimeParticleSystem.invalidateAllEffects();");
+        int prepare = refreshBody.indexOf("runtimeParticleSystem.prepareRuntimeAvailability(");
+        assertTrue(invalidate >= 0);
+        assertTrue(prepare > invalidate);
+        assertTrue(refreshBody.contains("cfg.getCurrentSceneMeta()"));
+        assertTrue(refreshBody.contains("sceneMeta.runtimeAvailability.particleEffectPaths"));
+        assertTrue(refreshBody.contains("studioParticleFallbackSystem.invalidateAll();"));
     }
 
     @Test

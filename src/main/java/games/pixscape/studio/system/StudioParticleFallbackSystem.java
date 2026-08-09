@@ -565,7 +565,6 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 disposeOwnedTexture(texture);
             }
             ownedTextures.clear();
-            ownsTexture = false;
         }
     }
 
