@@ -100,17 +100,23 @@ tasks.register('copyGwtDistToTemplate', Copy) {
 
   doFirst {
     // The checked-in template assets/** tree is the authoritative static-player
-    // asset set. Refresh only generated GWT output and preserve those assets.
+    // asset set. Refresh only production GWT output and preserve those assets.
     delete(
             new File(templateDir, 'htmlplayer'),
-            new File(templateDir, 'WEB-INF/deploy/htmlplayer')
+            new File(templateDir, 'WEB-INF')
     )
     templateDir.mkdirs()
   }
 
   from(layout.buildDirectory.dir('gwt-dist')) {
-    include 'htmlplayer/**'
-    include 'WEB-INF/deploy/htmlplayer/**'
+    include 'htmlplayer/*.nocache.js'
+    include 'htmlplayer/*.cache.js'
+    include 'htmlplayer/clear.cache.gif'
+    include 'htmlplayer/gwt/chrome/chrome.css'
+    include 'htmlplayer/gwt/chrome/images/corner.png'
+    include 'htmlplayer/gwt/chrome/images/hborder.png'
+    include 'htmlplayer/gwt/chrome/images/vborder.png'
+    include 'htmlplayer/gwt/chrome/images/splitPanelThumb.png'
   }
 
   from('src/main/webapp') {

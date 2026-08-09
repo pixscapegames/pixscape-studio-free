@@ -13,6 +13,7 @@ import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
@@ -22,6 +23,17 @@ import games.pixscape.studio.logging.StudioLogLevel;
 
 public final class PreviewWindow extends ApplicationAdapter {
 
+    private static final float PROJECT_PROGRESS = 0.15f;
+
+    private enum StartupState {
+        FIRST_FRAME,
+        PROJECT,
+        SCENE,
+        READY,
+        RUNNING,
+        FAILED
+    }
+
     private final FileHandle userRootDir;
     private PixscapeEngine engine;
     private StudioFrameProfiler frameProfiler;
@@ -29,6 +41,12 @@ public final class PreviewWindow extends ApplicationAdapter {
     private Stage uiStage;
     private SpriteBatch uiBatch;
     private RenderStatsOverlay statsOverlay;
+    private PreviewLoadingUi loadingUi;
+    private SceneLoadHandle sceneLoad;
+    private StartupState startupState;
+    private float loadingProgress;
+    private OrthographicCamera worldCamera;
+    private PhysicsMouseDragSystem dragSystem;
     private boolean benchMode = false;
     private final FrameTimePercentiles frameTimes = new FrameTimePercentiles(600);
     private static final long FRAME_STATS_REFRESH_NS = 250_000_000L; // 250ms
@@ -54,12 +72,17 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void create() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        OrthographicCamera worldCamera = new OrthographicCamera();
+        loadingUi = new PreviewLoadingUi();
+        startupState = StartupState.FIRST_FRAME;
+        loadingProgress = 0f;
+    }
+
+    private void initializeProject() {
+        worldCamera = new OrthographicCamera();
         frameProfiler = StudioFrameProfiler.fromSystemProperties();
         systemProfiler = frameProfiler.createSystemProfiler();
 
-        PhysicsMouseDragSystem dragSystem = new PhysicsMouseDragSystem(worldCamera);
+        dragSystem = new PhysicsMouseDragSystem(worldCamera);
         dragSystem.setMaxForce(2000f);
         dragSystem.setFrequencyHz(5f);
         dragSystem.setDampingRatio(0.7f);
@@ -73,7 +96,12 @@ public final class PreviewWindow extends ApplicationAdapter {
         StudioLogLevel.setActivePreviewEngine(engine);
         engine.setPlatformTarget(PlatformTarget.DESKTOP_GL30);
         engine.loadProject(userRootDir);
-        engine.loadScene(cfg.getCurrentSceneName());
+        engine.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        loadingProgress = PROJECT_PROGRESS;
+        sceneLoad = engine.beginLoadScene(ProjectConfig.getInstance().getCurrentSceneName());
+    }
+
+    private void initializePreview() {
         dragSystem.setLayerState(engine.getLayerState());
 
         applyPreviewNearestFiltering();
@@ -92,6 +120,12 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void render() {
+        float dt = Gdx.graphics.getDeltaTime();
+        if (startupState != StartupState.RUNNING) {
+            renderStartup(dt);
+            return;
+        }
+
         handleBenchToggle();
 
         long nowNs = System.nanoTime();
@@ -112,7 +146,6 @@ public final class PreviewWindow extends ApplicationAdapter {
             }
         }
 
-        float dt = Gdx.graphics.getDeltaTime();
         handleCameraControls(dt);
 
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
@@ -131,6 +164,56 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     }
 
+    private void renderStartup(float dt) {
+        try {
+            switch (startupState) {
+                case FIRST_FRAME:
+                    loadingUi.render(dt, loadingProgress);
+                    startupState = StartupState.PROJECT;
+                    return;
+                case PROJECT:
+                    initializeProject();
+                    startupState = StartupState.SCENE;
+                    loadingUi.render(dt, loadingProgress);
+                    return;
+                case SCENE:
+                    sceneLoad.update();
+                    loadingProgress = sceneProgress(sceneLoad.progress());
+                    if (sceneLoad.isFailed()) {
+                        startupState = StartupState.FAILED;
+                        throw new GdxRuntimeException("Desktop preview scene loading failed.",
+                                sceneLoad.failure());
+                    }
+                    if (sceneLoad.isReady()) {
+                        loadingProgress = 1f;
+                        startupState = StartupState.READY;
+                    }
+                    loadingUi.render(dt, loadingProgress);
+                    return;
+                case READY:
+                    initializePreview();
+                    sceneLoad = null;
+                    loadingUi.dispose();
+                    loadingUi = null;
+                    startupState = StartupState.RUNNING;
+                    return;
+                case FAILED:
+                    return;
+                default:
+                    throw new IllegalStateException("Unknown preview startup state: " + startupState);
+            }
+        } catch (Throwable failure) {
+            startupState = StartupState.FAILED;
+            Gdx.app.error("PreviewWindow", "Preview startup failed.", failure);
+            if (failure instanceof GdxRuntimeException runtimeFailure) throw runtimeFailure;
+            throw new GdxRuntimeException("Preview startup failed.", failure);
+        }
+    }
+
+    static float sceneProgress(float sceneProgress) {
+        return PROJECT_PROGRESS + (1f - PROJECT_PROGRESS) * sceneProgress;
+    }
+
     @Override
     public void pause() {
 
@@ -143,12 +226,18 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
+        if (loadingUi != null) loadingUi.resize(width, height);
         if (engine != null) engine.resize(width, height);
         if (uiStage != null) uiStage.getViewport().update(width, height, true);
     }
 
     @Override
     public void dispose() {
+        sceneLoad = null;
+        if (loadingUi != null) {
+            loadingUi.dispose();
+            loadingUi = null;
+        }
         if (statsOverlay != null) {
             statsOverlay.dispose();
             statsOverlay = null;
