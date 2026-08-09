@@ -12,7 +12,7 @@ import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.StudioTextureArrayUploadBridge;
+import games.pixscape.runtime.service.TextureArrayUploads;
 import games.pixscape.runtime.service.TextureRegistry;
 
 /** CPU-only, generation-scoped atlas and texture-array publication input. */
@@ -432,7 +432,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
     }
 
     private static TextureArray uploadTextureArray(Array<Pixmap> layers) {
-        return StudioTextureArrayUploadBridge.uploadBorrowed(layers);
+        return TextureArrayUploads.uploadBorrowed(layers);
     }
 
     private static void disposePages(Array<PreparedPage> pages) {

@@ -9,7 +9,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.StudioAtlasPublicationBridge;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
@@ -250,7 +249,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     }
 
     private void publishPreparedAtlas(String tag, TextureAtlas atlas) {
-        StudioAtlasPublicationBridge.publish(this, tag, atlas);
+        publishOwnedAtlas(tag, atlas);
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAtlasTag(tag);
         }

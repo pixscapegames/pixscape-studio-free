@@ -16,7 +16,7 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.StudioTextureArrayUploadBridge;
+import games.pixscape.runtime.service.TextureArrayUploads;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import sun.misc.Unsafe;
@@ -310,7 +310,7 @@ public class PreparedAtlasPublicationTest {
                         assertEquals(0xff0000ff, pixels.getPixel(0, 0));
                         return pageTexture;
                     },
-                    StudioTextureArrayUploadBridge::uploadBorrowed
+                    TextureArrayUploads::uploadBorrowed
             );
 
             assertFalse(white.isDisposed());
