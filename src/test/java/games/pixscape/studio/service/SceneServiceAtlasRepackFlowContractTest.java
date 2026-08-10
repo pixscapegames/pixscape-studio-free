@@ -117,23 +117,21 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void particleCreationRequestsAvailabilityRefreshIndependentlyOfAtlasInputChange()
+    public void particleRefreshConsumptionUsesCurrentSceneAtlasStabilityGate()
             throws Exception {
         String source = Files.readString(
-                Path.of("src/main/java/games/pixscape/studio/ops/EditorOpsImpl.java"),
+                Path.of("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"),
                 StandardCharsets.UTF_8
         );
-        String createBody = methodBody(
-                source,
-                "public int createParticleEffect(String effectPath, float worldX, float worldY, String metaName)"
-        );
+        String processBody = methodBody(source, "public void processFrame()");
+        String gateBody = methodBody(
+                source, "private boolean canConsumeParticleAvailabilityRefresh()");
 
-        int execute = createBody.indexOf("historyManager.execute(cmd);");
-        int request = createBody.indexOf("canvas.requestParticleRuntimeAvailabilityRefresh();");
-        int changedGuard = createBody.indexOf("if (changed)", execute);
-        assertTrue(execute >= 0);
-        assertTrue(request > execute);
-        assertTrue(changedGuard > request);
+        assertTrue(processBody.contains("particleAvailabilityRefresh.consumeIf("));
+        assertTrue(processBody.contains("canConsumeParticleAvailabilityRefresh()"));
+        assertTrue(gateBody.contains("currentSceneTag()"));
+        assertTrue(gateBody.contains(
+                "atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag)"));
     }
 
     @Test
@@ -145,7 +143,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         String processBody = methodBody(source, "public void processFrame()");
 
         int process = processBody.indexOf("world.process();");
-        int consume = processBody.indexOf("particleAvailabilityRefresh.consume(");
+        int consume = processBody.indexOf("particleAvailabilityRefresh.consumeIf(");
         assertTrue(process >= 0);
         assertTrue(consume > process);
     }

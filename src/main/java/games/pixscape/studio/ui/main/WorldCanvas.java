@@ -2321,7 +2321,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     @Override
     public void processFrame() {
         world.process();
-        particleAvailabilityRefresh.consume(this::refreshParticleRuntimeAvailability);
+        particleAvailabilityRefresh.consumeIf(
+                canConsumeParticleAvailabilityRefresh(),
+                this::refreshParticleRuntimeAvailability);
+    }
+
+    private boolean canConsumeParticleAvailabilityRefresh() {
+        String sceneTag = currentSceneTag();
+        if (sceneTag == null || sceneTag.isBlank()) return true;
+        return !atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);
     }
 
     static final class ParticleRuntimeAvailabilityRefreshRequest {
@@ -2332,9 +2340,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         void consume(Runnable refresh) {
-            if (!pending) return;
+            consumeIf(true, refresh);
+        }
+
+        boolean consumeIf(boolean canConsume, Runnable refresh) {
+            if (!pending || !canConsume) return false;
             pending = false;
             refresh.run();
+            return true;
         }
 
         boolean isPending() {

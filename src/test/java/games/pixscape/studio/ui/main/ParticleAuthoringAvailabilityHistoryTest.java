@@ -73,6 +73,44 @@ public class ParticleAuthoringAvailabilityHistoryTest {
         }
     }
 
+    @Test
+    public void redoWhileAtlasPublicationIsPendingKeepsOneRefreshUntilPublication()
+            throws Exception {
+        FileHandle effectsRoot = new FileHandle(temporaryFolder.newFolder("redo-effects"));
+        writeEffect(effectsRoot.child("flame.p"));
+        AtlasRuntimeService atlasService = new AtlasRuntimeService();
+        atlasService.loadBorrowed("scene", new TextureAtlas());
+        RenderParticleSyncSystem runtimeSystem = new RenderParticleSyncSystem(
+                new VfxRenderState(8), new OrthographicCamera(), 0,
+                atlasService, effectsRoot);
+        World world = new World(new WorldConfigurationBuilder().with(runtimeSystem).build());
+        HistoryManager history = new HistoryManager(16);
+        WorldCanvas.ParticleRuntimeAvailabilityRefreshRequest request =
+                new WorldCanvas.ParticleRuntimeAvailabilityRefreshRequest();
+        try {
+            history.execute(createParticle(world, history, request, 1, "flame.p"));
+            world.process();
+            assertFalse(request.consumeIf(false, () ->
+                    runtimeSystem.prepareRuntimeAvailability("scene", new Array<>())));
+            assertTrue(request.isPending());
+
+            history.undo();
+            history.redo();
+            world.process();
+            assertTrue(request.isPending());
+            assertFalse(request.consumeIf(false, () ->
+                    runtimeSystem.prepareRuntimeAvailability("scene", new Array<>())));
+            assertFalse(runtimeSystem.isPrepared("scene", "flame.p"));
+
+            assertTrue(request.consumeIf(true, () ->
+                    runtimeSystem.prepareRuntimeAvailability("scene", new Array<>())));
+            assertFalse(request.isPending());
+            assertTrue(runtimeSystem.isPrepared("scene", "flame.p"));
+        } finally {
+            world.dispose();
+        }
+    }
+
     private static CreateEntityCommand createParticle(
             World world,
             HistoryManager history,
