@@ -2,6 +2,7 @@ package games.pixscape.studio.service.asset;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDefData;
@@ -70,6 +71,30 @@ public final class StudioAnimationAssets {
             data.clips.add(clipData);
         }
         return data;
+    }
+
+    public static void validate(AnimationAssetMeta animation) {
+        new AnimationDef(toRuntimeData(animation));
+    }
+
+    public static AnimationAssetMeta copyOf(AnimationAssetMeta source) {
+        if (source == null) throw new IllegalArgumentException("source must not be null");
+        AnimationAssetMeta copy = new AnimationAssetMeta(
+                source.id(),
+                source.logicalPath(),
+                source.sourceRelPath(),
+                source.scope
+        );
+        copy.frameCount = source.frameCount;
+        copy.fps = source.fps;
+        copy.currentClip = source.currentClip;
+        copy.clips = new ObjectMap<>();
+        if (source.clips != null) {
+            for (ObjectMap.Entry<String, AnimationClipMeta> entry : source.clips) {
+                copy.clips.put(entry.key, entry.value != null ? entry.value.copy() : null);
+            }
+        }
+        return copy;
     }
 
     public static String initialClip(AnimationAssetMeta animation) {

@@ -32,6 +32,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
+import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.prefab.PrefabAssetItem;
 import games.pixscape.studio.service.prefab.PrefabBrowserService;
 import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
@@ -1248,11 +1249,12 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        ensureAnimationAssetClips(meta, frameMax);
-        AnimationClipsDialog dialog = new AnimationClipsDialog(meta, () -> {
+        AnimationAssetMeta edited = StudioAnimationAssets.copyOf(meta);
+        ensureAnimationAssetClips(edited, frameMax);
+        AnimationClipsDialog dialog = new AnimationClipsDialog(edited, () -> {
             app.getSceneService().saveAnimationAssetClips(
                     sourceRelPath,
-                    meta,
+                    edited,
                     frameCount
             );
         }, frameMax);

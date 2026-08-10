@@ -43,17 +43,52 @@ public class StudioWorldConfigSpatialSystemTest {
 
         assertTrue(source.contains("studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);"));
         assertTrue(source.contains("tileAnimationRegistry,\n                        animationRegistry,\n                        studioTilesetProfiles,\n                        systemProfiler,"));
-        assertTrue(source.contains("public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase)"));
+        assertTrue(source.contains("public void publishAssetMetaDatabase(AssetMetaDatabase assetMetaDatabase)"));
     }
 
     @Test
     public void assetImportsRefreshStudioTilesetProfileRegistryFromLiveDatabase() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
         String refreshAfterSave = "assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));\n"
-                + "        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);\n"
+                + "        canvas.publishAssetMetaDatabase(assetMetaDatabase);\n"
                 + "        refreshAssetsPanel();";
 
         assertTrue(countOccurrences(source, refreshAfterSave) >= 2);
+    }
+
+    @Test
+    public void authoritativeAssetMetadataPublicationRebindsAllConsumersAndRegistries() throws Exception {
+        String canvas = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        String publish = methodBody(canvas, "public void publishAssetMetaDatabase(");
+        String bind = methodBody(canvas, "public void bindAssetMetaLookup(");
+        String derived = methodBody(canvas, "private void reloadDerivedAssetMetadata(");
+
+        assertTrue(publish.contains("bindAssetMetaLookup(published::findById);"));
+        assertTrue(publish.contains("reloadDerivedAssetMetadata(published);"));
+        assertTrue(bind.contains("assetVisualResolver.setAssetMetaLookup(assetMetaLookup);"));
+        assertTrue(bind.contains("animationPreviewRefresher.setAssetMetaLookup(assetMetaLookup);"));
+        assertTrue(bind.contains("animationFallbackSystem.setAssetMetaLookup(assetMetaLookup);"));
+        assertTrue(bind.contains("tiledFallbackSystem.setAssetMetaLookup(assetMetaLookup);"));
+        assertTrue(bind.contains("tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);"));
+        assertTrue(derived.contains("reloadAnimationRegistry(assetMetaDatabase);"));
+        assertTrue(derived.contains("StudioTilesetProfileResolver.reloadRuntimeProfiles("));
+    }
+
+    @Test
+    public void animationClipSavePublishesBeforeEntityReconciliation() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
+        String save = methodBody(source, "public void saveAnimationAssetClips(");
+
+        int validate = save.indexOf("StudioAnimationAssets.validate(animation);");
+        int persist = save.indexOf("reloadedDatabase.save(assetsFile);");
+        int install = save.indexOf("assetMetaDatabase = reloadedDatabase;");
+        int publish = save.indexOf("canvas.publishAssetMetaDatabase(assetMetaDatabase);");
+        int reconcile = save.indexOf("AnimationAssetEntityReconciler.reconcile(");
+        assertTrue(validate >= 0);
+        assertTrue(validate < persist);
+        assertTrue(persist < install);
+        assertTrue(install < publish);
+        assertTrue(publish < reconcile);
     }
 
     @Test
@@ -61,7 +96,7 @@ public class StudioWorldConfigSpatialSystemTest {
         String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
         String method = methodBody(source, "private void rebuildRenderRuntimeForScene(");
 
-        int refresh = method.indexOf("refreshStudioTilesetProfileRegistry(projectDir);");
+        int refresh = method.indexOf("publishStudioAssetMetadata(projectDir);");
         int loadAtlas = method.indexOf("SceneAtlasLoaderService.loadSceneAtlas(");
         int rebind = method.indexOf("rebindTiles();");
 

@@ -160,9 +160,9 @@ public final class SceneService {
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
-        assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+        AssetMetaDatabase reloadedDatabase = AssetMetaDatabase.load(assetsFile);
 
-        AssetMeta meta = assetMetaDatabase.findUniqueBySourceRelPath(
+        AssetMeta meta = reloadedDatabase.findUniqueBySourceRelPath(
                 sourceRelPath,
                 AssetType.ANIMATION
         );
@@ -171,22 +171,35 @@ public final class SceneService {
         }
 
         animation.frameCount = Math.max(animation.frameCount, Math.max(0, frameCount));
-        animation.fps = edited.fps > 0f ? edited.fps : (animation.fps > 0f ? animation.fps : 12f);
+        animation.fps = edited.fps;
         animation.currentClip = edited.currentClip;
         animation.clips.clear();
 
         if (edited.clips != null) {
             for (ObjectMap.Entry<String, AnimationClipMeta> entry : edited.clips) {
-                if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
-                    continue;
+                if (entry == null
+                        || entry.key == null
+                        || entry.key.isBlank()
+                        || entry.value == null) {
+                    throw new IllegalArgumentException(
+                            "Animation asset contains an invalid authored clip.");
                 }
-
                 animation.clips.put(entry.key, entry.value.copy());
             }
         }
 
-        assetMetaDatabase.save(assetsFile);
-        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
+        StudioAnimationAssets.validate(animation);
+        reloadedDatabase.save(assetsFile);
+        assetMetaDatabase = reloadedDatabase;
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        AnimationAssetEntityReconciler.reconcile(
+                canvas.getEcsWorld(),
+                animation.id(),
+                animation,
+                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
+                entityId -> EventFlow.i().publish(
+                        new EventFlow.AnimationChanged(entityId, MY_TAG))
+        );
         markCurrentSceneSaveRequired();
         refreshAssetsPanel();
     }
@@ -1809,7 +1822,7 @@ public final class SceneService {
                                               FileHandle projectDir) {
         if (canonicalTag == null || canonicalTag.isBlank()) return;
 
-        refreshStudioTilesetProfileRegistry(projectDir);
+        publishStudioAssetMetadata(projectDir);
 
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
 
@@ -1818,14 +1831,14 @@ public final class SceneService {
         canvas.refreshProjectBoundServices();
     }
 
-    private void refreshStudioTilesetProfileRegistry(FileHandle projectDir) {
+    private void publishStudioAssetMetadata(FileHandle projectDir) {
         if (assetMetaDatabase == null && projectDir != null) {
             FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
             if (assetsFile.exists()) {
                 assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
             }
         }
-        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
     }
 
     private void rebindTiles() {
@@ -2893,7 +2906,7 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
-        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
         refreshAssetsPanel();
         StudioLog.info("Assets imported: " + importedCount);
     }
@@ -3065,7 +3078,7 @@ public final class SceneService {
         int imported = importTilesetFolderAsset(ctx, directory, profileSettings);
 
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
-        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
         refreshAssetsPanel();
 
         if (imported > 0) {

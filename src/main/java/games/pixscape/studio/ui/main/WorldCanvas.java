@@ -85,6 +85,7 @@ import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
 import games.pixscape.studio.ui.widget.TextInputWidget;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
+import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
@@ -576,14 +577,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (tiledGhostPreviewSystem != null && assetMetaLookup != null) {
             tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);
         }
-        refreshTilesetProfileRegistry();
     }
 
-    public void refreshTilesetProfileRegistry() {
-        refreshTilesetProfileRegistry(loadAssetMetaDatabaseIfAvailable(ProjectConfig.getInstance()));
+    /** Publishes one authoritative metadata database to every Studio consumer. */
+    public void publishAssetMetaDatabase(AssetMetaDatabase assetMetaDatabase) {
+        AssetMetaDatabase published = Objects.requireNonNull(
+                assetMetaDatabase, "assetMetaDatabase");
+        bindAssetMetaLookup(published::findById);
+        reloadDerivedAssetMetadata(published);
     }
 
-    public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase) {
+    private void reloadDerivedAssetMetadata(AssetMetaDatabase assetMetaDatabase) {
         if (studioTilesetProfiles == null) {
             studioTilesetProfiles = RuntimeTilesetProfiles.empty();
         }
@@ -1883,8 +1887,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         for (EntityGraphEntry entry : graph.entries()) {
             if (entry == null || entry.initializer() == null) continue;
             GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-            if (snapshot == null || !snapshot.hasAssetRef || snapshot.assetRefAssetId <= 0) continue;
-            assetIds.add(snapshot.assetRefAssetId);
+            if (snapshot == null) continue;
+            if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
+                assetIds.add(snapshot.assetRefAssetId);
+            }
+            if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
+                for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
+                    int animationAssetId = snapshot.animationAssetIds.get(i);
+                    if (animationAssetId > 0) assetIds.add(animationAssetId);
+                }
+            }
         }
 
         for (IntSet.IntSetIterator it = assetIds.iterator(); it.hasNext; ) {

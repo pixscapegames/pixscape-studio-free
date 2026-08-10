@@ -132,6 +132,45 @@ public class AnimationFallbackSystemVisualResolverTest {
         }
     }
 
+    @Test
+    public void metadataRebindingMovesPreviewResolutionToPublishedDefinition() {
+        Texture first = texture(10, 11);
+        Texture second = texture(20, 21);
+        AnimationAssetMeta previous = animationMeta();
+        AnimationAssetMeta published = animationMeta();
+        published.currentClip = "second";
+        published.clips.put("second", new AnimationClipMeta(1, 1));
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                id -> previous,
+                new TrackingStandaloneAccess(first, second)
+        );
+        World world = new World(new WorldConfiguration());
+        try {
+            int entityId = createAnimationEntity(world, previous.id());
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entityId);
+            animation.currentClip = "second";
+            animation.playing = false;
+            animation.frame = -1;
+            StudioAnimationPreviewRefresher refresher = new StudioAnimationPreviewRefresher(
+                    new DynamicEntityRenderState(), resolver, id -> previous);
+            refresher.bindWorld(world);
+
+            refresher.refreshSelectedFrame(entityId);
+            assertEquals(-1, animation.frame);
+
+            resolver.setAssetMetaLookup(id -> published);
+            refresher.setAssetMetaLookup(id -> published);
+            refresher.refreshSelectedFrame(entityId);
+
+            assertEquals(1, animation.frame);
+            assertEquals(TextureRegistry.handleOf(second),
+                    world.getMapper(RenderMaterialComponent.class).get(entityId).textureHandle);
+        } finally {
+            world.dispose();
+        }
+    }
+
     private static int createAnimationEntity(World world, int assetId) {
         int entityId = world.create();
         AssetRefComponent assetRef =

@@ -42,13 +42,13 @@ public class TiledFallbackValidationLifecycleTest {
         system.setEnabled(false);
         WorldCanvas canvas = canvas(system, new TileAnimationRegistry());
 
-        canvas.refreshTilesetProfileRegistry(new AssetMetaDatabase());
+        canvas.publishAssetMetaDatabase(new AssetMetaDatabase());
 
         assertTrue(system.isEnabled());
     }
 
     @Test
-    public void assetMetadataLookupReplacementRequestsValidation()
+    public void lookupBindingAloneDefersValidationToMetadataPublication()
             throws Exception {
         TiledFallbackSystem system = fallbackSystem();
         system.setEnabled(false);
@@ -56,7 +56,7 @@ public class TiledFallbackValidationLifecycleTest {
 
         canvas.bindAssetMetaLookup(id -> null);
 
-        assertTrue(system.isEnabled());
+        assertFalse(system.isEnabled());
     }
 
     @Test
