@@ -3,7 +3,7 @@ package games.pixscape.studio.history.initializer;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -77,14 +77,13 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     // --- Animation ---
     protected boolean hasAnimation;
-    protected String animAnimation = "";
+    protected final IntArray animationAssetIds = new IntArray();
     protected float animFps = 12f;
     protected boolean animPlaying = true;
     protected boolean animLoop = true;
     protected float animStateTime = 0f;
     protected int animFrame = -1;
     protected String animCurrentClip = "";
-    protected ObjectMap<String, AnimationComponent.Clip> animClips = new ObjectMap<>();
 
     // --- Shader Params ---
     protected boolean hasShaderParams;
@@ -294,7 +293,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             AnimationComponent ac = mAnim.get(e);
             hasAnimation = true;
 
-            animAnimation = ac.animation;
+            animationAssetIds.clear();
+            animationAssetIds.addAll(ac.animationAssetIds);
             animFps = ac.fps;
             animPlaying = ac.playing;
             animLoop = ac.loop;
@@ -302,18 +302,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             animFrame = ac.frame;
             animCurrentClip = ac.currentClip;
 
-            animClips.clear();
-            if (ac.clips != null) {
-                for (ObjectMap.Entry<String, AnimationComponent.Clip> it : ac.clips) {
-                    AnimationComponent.Clip c = it.value;
-                    if (it.key != null && c != null) {
-                        animClips.put(it.key, copyAnimationClip(c));
-                    }
-                }
-            }
         } else {
             hasAnimation = false;
-            animClips.clear();
+            animationAssetIds.clear();
         }
 
         // --- Spatial height ---
@@ -610,7 +601,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         if (hasAnimation) {
             AnimationComponent ac = mAnim.has(e) ? mAnim.get(e) : mAnim.create(e);
 
-            ac.animation = (animAnimation != null) ? animAnimation : "";
+            ac.animationAssetIds.clear();
+            ac.animationAssetIds.addAll(animationAssetIds);
             ac.fps = animFps;
             ac.playing = animPlaying;
             ac.loop = animLoop;
@@ -618,13 +610,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             ac.frame = animFrame;
             ac.currentClip = (animCurrentClip != null) ? animCurrentClip : "";
 
-            ac.clips.clear();
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : animClips) {
-                AnimationComponent.Clip c = it.value;
-                if (it.key != null && c != null) {
-                    ac.clips.put(it.key, copyAnimationClip(c));
-                }
-            }
         }
 
         // --- Spatial height ---
@@ -809,12 +794,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return out;
     }
 
-    private static AnimationComponent.Clip copyAnimationClip(AnimationComponent.Clip source) {
-        AnimationComponent.Clip copy = new AnimationComponent.Clip(source.start, source.end);
-        copy.flipX = source.flipX;
-        return copy;
-    }
-
     @Override
     public String label() {
         return "GenericEntity";
@@ -871,20 +850,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasTint = hasTint;
         out.tintRgba = tintRgba;
         out.hasAnimation = hasAnimation;
-        out.animationName = animAnimation;
+        out.animationAssetIds.clear();
+        out.animationAssetIds.addAll(animationAssetIds);
         out.animationFps = animFps;
         out.animationPlaying = animPlaying;
         out.animationLoop = animLoop;
         out.animationStateTime = animStateTime;
         out.animationFrame = animFrame;
         out.animationCurrentClip = animCurrentClip;
-        out.animationClips.clear();
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> it : animClips) {
-            AnimationComponent.Clip c = it.value;
-            if (it.key != null && c != null) {
-                out.animationClips.put(it.key, copyAnimationClip(c));
-            }
-        }
         out.hasShaderParams = hasShaderParams;
         out.shaderFloats.clear();
 
@@ -1021,22 +994,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasTint = in.hasTint;
         tintRgba = in.tintRgba;
         hasAnimation = in.hasAnimation;
-        animAnimation = in.animationName;
+        animationAssetIds.clear();
+        if (in.animationAssetIds != null) animationAssetIds.addAll(in.animationAssetIds);
         animFps = in.animationFps;
         animPlaying = in.animationPlaying;
         animLoop = in.animationLoop;
         animStateTime = in.animationStateTime;
         animFrame = in.animationFrame;
         animCurrentClip = in.animationCurrentClip;
-        animClips.clear();
-        if (in.animationClips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : in.animationClips) {
-                AnimationComponent.Clip c = it.value;
-                if (it.key != null && c != null) {
-                    animClips.put(it.key, copyAnimationClip(c));
-                }
-            }
-        }
         hasShaderParams = in.hasShaderParams;
         shaderFloats.clear();
         for (int i = 0; i < in.shaderFloats.size; i++) {
@@ -1297,30 +1262,21 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer configureAnimation(
-            String animation,
+            int animationAssetId,
             String currentClip,
             float fps,
-            boolean loop,
-            ObjectMap<String, AnimationComponent.Clip> clips
+            boolean loop
     ) {
         this.hasAnimation = true;
         this.metaKind = EntityKind.ANIMATION;
-        this.animAnimation = (animation != null) ? animation : "";
+        this.animationAssetIds.clear();
+        this.animationAssetIds.add(animationAssetId);
         this.animFps = (fps > 0f) ? fps : 12f;
         this.animLoop = loop;
         this.animPlaying = true;
         this.animStateTime = 0f;
         this.animFrame = -1;
         this.animCurrentClip = (currentClip != null) ? currentClip : "";
-
-        this.animClips.clear();
-        if (clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : clips) {
-                if (it.key != null && it.value != null) {
-                    this.animClips.put(it.key, copyAnimationClip(it.value));
-                }
-            }
-        }
 
         return this;
     }
@@ -1656,19 +1612,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         // --- Animation ---
         copy.hasAnimation = this.hasAnimation;
-        copy.animAnimation = this.animAnimation;
+        copy.animationAssetIds.clear();
+        copy.animationAssetIds.addAll(this.animationAssetIds);
         copy.animFps = this.animFps;
         copy.animPlaying = this.animPlaying;
         copy.animLoop = this.animLoop;
         copy.animStateTime = this.animStateTime;
         copy.animFrame = this.animFrame;
         copy.animCurrentClip = this.animCurrentClip;
-        copy.animClips.clear();
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> it : this.animClips) {
-            if (it.key != null && it.value != null) {
-                copy.animClips.put(it.key, copyAnimationClip(it.value));
-            }
-        }
 
         // --- Shader params ---
         copy.hasShaderParams = this.hasShaderParams;
@@ -1847,7 +1798,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         data.hasAssetRef = this.hasAssetRef;
         data.assetRefAssetId = this.assetRefAssetId;
         data.hasAnimation = this.hasAnimation;
-        data.animationName = this.animAnimation;
         data.hasPointLight = this.hasPointLight;
         data.hasConeLight = this.hasConeLight;
         data.hasPhysicsBody = this.hasPhysicsBody;
@@ -1866,7 +1816,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         public boolean hasAssetRef;
         public int assetRefAssetId;
         public boolean hasAnimation;
-        public String animationName;
         public boolean hasPointLight, hasConeLight;
         public boolean hasPhysicsBody, hasPhysicsShapes, hasPhysicsJoint;
     }

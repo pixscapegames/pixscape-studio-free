@@ -297,13 +297,14 @@ public class EditorOpsImpl implements EditorOps {
         AnimationAssetMeta animationMeta = sceneService != null
                 ? sceneService.findAnimationAssetMetaBySourceRelPath(animationRelPath)
                 : null;
-        int animationAssetId = animationMeta != null ? animationMeta.id() : -1;
+        if (animationMeta == null || animationMeta.id() <= 0) return -1;
+        int animationAssetId = animationMeta.id();
         String resolvedMetaName = AssetDisplayInfo.defaultEntityName(
                 metaName,
                 animationMeta,
                 animationRelPath
         );
-        float fps = animationMeta != null && animationMeta.fps > 0f ? animationMeta.fps : 12f;
+        float fps = animationMeta.fps > 0f ? animationMeta.fps : 12f;
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
@@ -323,16 +324,9 @@ public class EditorOpsImpl implements EditorOps {
         boolean alreadyPacked = animationBinding != null
                 && animationBinding.regionCount() >= frameCount;
 
-        ObjectMap<String, AnimationComponent.Clip> clipsMap = copyAnimationAssetClips(animationMeta);
-        String currentClip = animationMeta != null ? animationMeta.currentClip : null;
+        String currentClip = resolveInitialClip(animationMeta);
+        if (currentClip == null) return -1;
         boolean loop = true;
-
-        if (clipsMap.size == 0) {
-            clipsMap.put("default", new AnimationComponent.Clip(0, frameCount - 1));
-        }
-        if (currentClip == null || currentClip.isBlank() || !clipsMap.containsKey(currentClip)) {
-            currentClip = "default";
-        }
 
         GenericEntityInitializer init = new GenericEntityInitializer(world);
         if (alreadyPacked) {
@@ -359,12 +353,6 @@ public class EditorOpsImpl implements EditorOps {
             if (tex == null) return -1;
             int textureHandle = TextureRegistry.handleOf(tex);
 
-            if (animationAssetId <= 0 && sceneService != null) {
-                animationAssetId = sceneService.resolveAssetIdBySourceRelPath(
-                        animationRelPath,
-                        AssetType.ANIMATION
-                );
-            }
             init.configureStandaloneSprite(
                     animationAssetId,
                     sceneTag,
@@ -379,7 +367,7 @@ public class EditorOpsImpl implements EditorOps {
 
         init.setIdentityStableId(allocateStableId());
 
-        init.configureAnimation(animationsRelPath, currentClip, fps, loop, clipsMap);
+        init.configureAnimation(animationAssetId, currentClip, fps, loop);
 
         CreateEntityCommand cmd = new CreateEntityCommand(
                 world,
@@ -407,23 +395,20 @@ public class EditorOpsImpl implements EditorOps {
         return createdEntityId;
     }
 
-    private ObjectMap<String, AnimationComponent.Clip> copyAnimationAssetClips(AnimationAssetMeta meta) {
-        ObjectMap<String, AnimationComponent.Clip> out = new ObjectMap<>();
-        if (meta == null || meta.clips == null) {
-            return out;
+    private static String resolveInitialClip(AnimationAssetMeta meta) {
+        if (meta == null || meta.clips == null || meta.clips.size == 0) return null;
+        if (meta.currentClip != null
+                && !meta.currentClip.isBlank()
+                && meta.clips.containsKey(meta.currentClip)) {
+            return meta.currentClip;
         }
-
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : meta.clips) {
-            if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
-                continue;
-            }
-
-            AnimationComponent.Clip src = entry.value;
-            AnimationComponent.Clip copy = new AnimationComponent.Clip(src.start, src.end);
-            copy.flipX = src.flipX;
-            out.put(entry.key, copy);
+        Array<String> names = new Array<>();
+        for (String name : meta.clips.keys()) {
+            if (name != null && !name.isBlank() && meta.clips.get(name) != null) names.add(name);
         }
-        return out;
+        if (names.size == 0) return null;
+        names.sort();
+        return names.first();
     }
 
     @Override

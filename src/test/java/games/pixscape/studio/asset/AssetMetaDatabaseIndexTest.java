@@ -331,7 +331,7 @@ public class AssetMetaDatabaseIndexTest {
         restoredImage.scope = AssetMeta.AssetScope.INTERNAL;
         restoredAnimation.frameCount = 99;
         restoredAnimation.clips.get("run").end = 99;
-        restoredAnimation.clips.put("extra", new AnimationComponent.Clip(7, 8));
+        restoredAnimation.clips.put("extra", new AnimationClipMeta(7, 8));
         restoredTileset.tileWidth = 999;
         restoredTile.sheetIndex = 999;
 
@@ -544,10 +544,10 @@ public class AssetMetaDatabaseIndexTest {
         animation.fps = 12f;
         animation.currentClip = "run";
         animation.clips = new ObjectMap<>();
-        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 5);
+        AnimationClipMeta run = new AnimationClipMeta(2, 5);
         run.flipX = true;
         animation.clips.put("run", run);
-        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
+        animation.clips.put("idle", new AnimationClipMeta(0, 1));
 
         TilesetAssetMeta tileset = (TilesetAssetMeta) db.registerIfAbsent(
                 AssetType.TILESET,

@@ -144,14 +144,13 @@ public final class SceneService {
     }
 
     public void saveAnimationAssetClips(String sourceRelPath,
-                                        AnimationComponent component,
-                                        int frameCount,
-                                        float fps) {
+                                        AnimationAssetMeta edited,
+                                        int frameCount) {
         if (sourceRelPath == null || sourceRelPath.isBlank()) {
             throw new IllegalArgumentException("Animation source path is empty.");
         }
-        if (component == null) {
-            throw new IllegalArgumentException("Animation component is null.");
+        if (edited == null) {
+            throw new IllegalArgumentException("Animation metadata is null.");
         }
 
         ProjectConfig cfg = ProjectConfig.getInstance();
@@ -172,24 +171,22 @@ public final class SceneService {
         }
 
         animation.frameCount = Math.max(animation.frameCount, Math.max(0, frameCount));
-        animation.fps = fps > 0f ? fps : (animation.fps > 0f ? animation.fps : 12f);
-        animation.currentClip = component.currentClip;
+        animation.fps = edited.fps > 0f ? edited.fps : (animation.fps > 0f ? animation.fps : 12f);
+        animation.currentClip = edited.currentClip;
         animation.clips.clear();
 
-        if (component.clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : component.clips) {
+        if (edited.clips != null) {
+            for (ObjectMap.Entry<String, AnimationClipMeta> entry : edited.clips) {
                 if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
                     continue;
                 }
 
-                AnimationComponent.Clip src = entry.value;
-                AnimationComponent.Clip copy = new AnimationComponent.Clip(src.start, src.end);
-                copy.flipX = src.flipX;
-                animation.clips.put(entry.key, copy);
+                animation.clips.put(entry.key, entry.value.copy());
             }
         }
 
         assetMetaDatabase.save(assetsFile);
+        canvas.refreshTilesetProfileRegistry(assetMetaDatabase);
         markCurrentSceneSaveRequired();
         refreshAssetsPanel();
     }
@@ -2017,6 +2014,22 @@ public final class SceneService {
         return result;
     }
 
+    public Array<AnimationAssetMeta> getAnimationAssetMetas() {
+        ensureAssetMetaDatabaseLoaded();
+        Array<AnimationAssetMeta> animations = new Array<>();
+        if (assetMetaDatabase == null) return animations;
+        for (int i = 0; i < assetMetaDatabase.size(); i++) {
+            AssetMeta meta = assetMetaDatabase.assetAt(i);
+            if (meta instanceof AnimationAssetMeta animation) animations.add(animation);
+        }
+        animations.sort((left, right) -> {
+            int byName = AssetDisplayInfo.from(left).displayName()
+                    .compareToIgnoreCase(AssetDisplayInfo.from(right).displayName());
+            return byName != 0 ? byName : Integer.compare(left.id(), right.id());
+        });
+        return animations;
+    }
+
     public void importTmxAsNewSceneWithProgress(
             Stage uiStage,
             TmxSceneImportRequest request,
@@ -3176,6 +3189,11 @@ public final class SceneService {
         );
         meta.frameCount = columns * rows;
         meta.fps = meta.fps > 0f ? meta.fps : 12f;
+        if (meta.clips == null) meta.clips = new ObjectMap<>();
+        if (meta.clips.size == 0) {
+            meta.currentClip = "default";
+            meta.clips.put("default", new AnimationClipMeta(0, meta.frameCount - 1));
+        }
         return 1;
     }
 

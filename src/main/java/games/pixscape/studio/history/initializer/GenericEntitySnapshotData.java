@@ -1,8 +1,7 @@
 package games.pixscape.studio.history.initializer;
 
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
@@ -35,13 +34,12 @@ public final class GenericEntitySnapshotData {
     public boolean hasTint;
     public int tintRgba = 0xFFFFFFFF;
     public boolean hasAnimation;
-    public String animationName = "";
+    public IntArray animationAssetIds = new IntArray();
     public float animationFps = 12f;
     public boolean animationPlaying = true, animationLoop = true;
     public float animationStateTime = 0f;
     public int animationFrame = -1;
     public String animationCurrentClip = "";
-    public ObjectMap<String, AnimationComponent.Clip> animationClips = new ObjectMap<>();
     public boolean hasShaderParams;
     public final Array<ShaderFloatParam> shaderFloats = new Array<>();
     public boolean hasSpatialHeight;

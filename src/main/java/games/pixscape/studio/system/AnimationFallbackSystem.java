@@ -2,24 +2,27 @@ package games.pixscape.studio.system;
 
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
-import com.artemis.World;
 import com.artemis.systems.IteratingSystem;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.service.asset.StudioAssetVisual;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
+import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AnimationClipMeta;
+import games.pixscape.studio.asset.AssetMeta;
+
+import java.util.function.IntFunction;
 
 public final class AnimationFallbackSystem extends IteratingSystem implements ProfiledSystem {
 
     private final DynamicEntityRenderState state;
     private final StudioAssetVisualResolver visualResolver;
+    private IntFunction<AssetMeta> assetMetaLookup;
 
     private ComponentMapper<AnimationComponent> mAnim;
     private ComponentMapper<TextureRegionComponent> mTR;
@@ -31,7 +34,8 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
     private long profileStartNs;
 
     public AnimationFallbackSystem(DynamicEntityRenderState state,
-                                   StudioAssetVisualResolver visualResolver) {
+                                   StudioAssetVisualResolver visualResolver,
+                                   IntFunction<AssetMeta> assetMetaLookup) {
         super(Aspect.all(
                 AnimationComponent.class,
                 TextureRegionComponent.class,
@@ -40,6 +44,11 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         ));
         this.state = state;
         this.visualResolver = visualResolver;
+        this.assetMetaLookup = assetMetaLookup;
+    }
+
+    public void setAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
+        if (assetMetaLookup != null) this.assetMetaLookup = assetMetaLookup;
     }
 
     @Override
@@ -63,7 +72,11 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         AnimationComponent a = mAnim.get(e);
         if (a == null || !a.playing || a.fps <= 0f) return;
 
-        AnimationComponent.Clip clip = a.getClip();
+        AssetMeta rawMeta = assetMetaLookup.apply(src.assetId);
+        if (!(rawMeta instanceof AnimationAssetMeta animationMeta)) return;
+        AnimationClipMeta clip = animationMeta.clips != null
+                ? animationMeta.clips.get(a.currentClip)
+                : null;
         if (clip == null) return;
 
         int start = Math.max(0, clip.start);
@@ -93,87 +106,8 @@ public final class AnimationFallbackSystem extends IteratingSystem implements Pr
         if (visual.frameIndex() == a.frame && bindingValid) return;
 
         a.frame = visual.frameIndex();
-        applyFrame(world, e, clip, visual, state, src.atlasTag);
-    }
-
-    private static void applyFrame(World world,
-                                   int e,
-                                   AnimationComponent.Clip clip,
-                                   StudioAssetVisual visual,
-                                   DynamicEntityRenderState state,
-                                   String atlasTag) {
-        ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
-        ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
-        TextureRegionComponent tr = mTR.getSafe(e, null);
-        RenderMaterialComponent mat = mMat.getSafe(e, null);
-        if (tr == null || mat == null) return;
-
-        float u1 = visual.u1();
-        float v1 = visual.v1();
-        float u2 = visual.u2();
-        float v2 = visual.v2();
-
-        if (clip != null && clip.flipX) {
-            float tmp = u1;
-            u1 = u2;
-            u2 = tmp;
-        }
-
-        tr.u1 = u1;
-        tr.v1 = v1;
-        tr.u2 = u2;
-        tr.v2 = v2;
-        tr.pixW = visual.pixelWidth();
-        tr.pixH = visual.pixelHeight();
-        tr.valid = true;
-
-        int textureHandle = visual.textureHandle();
-        mat.textureHandle = textureHandle;
-        mat.debugAtlasTag = atlasTag;
-
-        applyFrameToDynamicState(world, state, e, mat, textureHandle, u1, v1, u2, v2);
-
-        DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-        if (dirty != null) {
-            dirty.mark(e, DirtyBits.MATERIAL);
-        }
-    }
-
-    private static void applyFrameToDynamicState(World world,
-                                                 DynamicEntityRenderState state,
-                                                 int e,
-                                                 RenderMaterialComponent mat,
-                                                 int textureHandle,
-                                                 float u1,
-                                                 float v1,
-                                                 float u2,
-                                                 float v2) {
-        if (state == null || e < 0) return;
-
-        int renderSlot = state.renderSlotForEntity(e);
-        if (renderSlot == DynamicEntityRenderState.NO_SLOT) return;
-
-        state.textureHandle[renderSlot] = textureHandle;
-        state.u1[renderSlot] = u1;
-        state.v1[renderSlot] = v1;
-        state.u2[renderSlot] = u2;
-        state.v2[renderSlot] = v2;
-
-        ComponentMapper<EntityIndexComponent> mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        EntityIndexComponent index = mEntityIndex != null ? mEntityIndex.getSafe(e, null) : null;
-
-        int layerIndex = index != null ? index.getLayerIndex() : state.layerIndex[renderSlot];
-        int z = index != null ? index.getZIndex() : state.z[renderSlot];
-        int runtimeOrder = state.runtimeOrder[renderSlot];
-
-        state.sortKey[renderSlot] = SortKey64.packForBlend(
-                mat.getShaderIdx(),
-                mat.getBlendModeId(),
-                textureHandle,
-                layerIndex,
-                z,
-            runtimeOrder
-        );
+        StudioAnimationPreviewRefresher.applyFrame(
+                world, e, clip, visual, state, src.atlasTag);
     }
 
     @Override

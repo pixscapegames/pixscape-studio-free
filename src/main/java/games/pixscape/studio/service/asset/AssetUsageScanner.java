@@ -10,6 +10,7 @@ import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -30,6 +31,7 @@ public final class AssetUsageScanner {
     private final AssetMetaDatabase assetMetaDatabase;
 
     private final ComponentMapper<AssetRefComponent> mAssetRef;
+    private final ComponentMapper<AnimationComponent> mAnimation;
     private final ComponentMapper<ParticleEmitterComponent> mParticle;
     private final ComponentMapper<TiledLayerComponent> mTiled;
 
@@ -41,6 +43,7 @@ public final class AssetUsageScanner {
         this.assetMetaDatabase = Objects.requireNonNull(assetMetaDatabase, "assetMetaDatabase");
 
         this.mAssetRef = world.getMapper(AssetRefComponent.class);
+        this.mAnimation = world.getMapper(AnimationComponent.class);
         this.mParticle = world.getMapper(ParticleEmitterComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
     }
@@ -88,7 +91,8 @@ public final class AssetUsageScanner {
         }
 
         boolean found = switch (assetMeta.type()) {
-            case IMAGE, ANIMATION -> scanCurrentWorldByAssetId(assetMeta.id(), acc, currentSceneName);
+            case IMAGE -> scanCurrentWorldByAssetId(assetMeta.id(), acc, currentSceneName);
+            case ANIMATION -> scanCurrentWorldAnimationAssetId(assetMeta.id(), acc, currentSceneName);
             case TILE -> scanCurrentWorldTile(assetMeta.id(), acc, currentSceneName);
             case PARTICLE -> scanCurrentWorldParticle(assetMeta, acc, currentSceneName);
             case TILESET -> false;
@@ -134,7 +138,8 @@ public final class AssetUsageScanner {
             }
 
             switch (assetMeta.type()) {
-                case IMAGE, ANIMATION -> scanSceneFileByAssetId(sceneFile, sceneName, assetMeta.id(), acc);
+                case IMAGE -> scanSceneFileByAssetId(sceneFile, sceneName, assetMeta.id(), acc);
+                case ANIMATION -> scanSceneFileAnimationAssetId(sceneFile, sceneName, assetMeta.id(), acc);
                 case TILE -> scanSceneFileTile(sceneFile, sceneName, assetMeta.id(), acc);
                 case PARTICLE -> scanSceneFileParticle(sceneFile, sceneName, assetMeta, acc);
                 case TILESET -> {
@@ -194,6 +199,26 @@ public final class AssetUsageScanner {
             acc.addScene(sceneName);
         }
 
+        return found;
+    }
+
+    private boolean scanCurrentWorldAnimationAssetId(int assetId,
+                                                     UsageAccumulator acc,
+                                                     String sceneName) {
+        boolean found = false;
+        IntBag bag = world.getAspectSubscriptionManager()
+                .get(Aspect.all(AnimationComponent.class)).getEntities();
+        int[] data = bag.getData();
+        for (int i = 0; i < bag.size(); i++) {
+            AnimationComponent animation = mAnimation.getSafe(data[i], null);
+            if (animation == null || animation.animationAssetIds == null
+                    || !animation.animationAssetIds.contains(assetId)) {
+                continue;
+            }
+            acc.occurrenceCount++;
+            found = true;
+        }
+        if (found) acc.addScene(sceneName);
         return found;
     }
 
@@ -317,6 +342,33 @@ public final class AssetUsageScanner {
         if (found) {
             acc.addScene(sceneName);
         }
+    }
+
+    private void scanSceneFileAnimationAssetId(FileHandle sceneFile,
+                                               String sceneName,
+                                               int assetId,
+                                               UsageAccumulator acc) {
+        JsonValue root = parseScene(sceneFile);
+        if (root == null) return;
+        JsonValue entities = root.get("entities");
+        if (entities == null || !entities.isObject()) return;
+
+        boolean found = false;
+        for (JsonValue ent = entities.child; ent != null; ent = ent.next) {
+            JsonValue components = ent.get("components");
+            if (components == null || !components.isObject()) continue;
+            JsonValue animation = components.get("AnimationComponent");
+            if (animation == null || !animation.isObject()) continue;
+            JsonValue ids = animation.get("animationAssetIds");
+            if (ids == null || !ids.isArray()) continue;
+            for (JsonValue id = ids.child; id != null; id = id.next) {
+                if (id.asInt() != assetId) continue;
+                acc.occurrenceCount++;
+                found = true;
+                break;
+            }
+        }
+        if (found) acc.addScene(sceneName);
     }
 
     private void scanSceneFileParticle(FileHandle sceneFile,

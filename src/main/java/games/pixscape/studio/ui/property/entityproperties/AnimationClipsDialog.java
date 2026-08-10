@@ -12,37 +12,43 @@ import com.kotcrab.vis.ui.widget.Tooltip;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.widget.SimpleFloatField;
 
 import java.util.HashSet;
 import java.util.Objects;
 
 public final class AnimationClipsDialog extends StudioDialog {
 
-    private final AnimationComponent anim;
+    private final AnimationAssetMeta animation;
     private final int frameMax;
 
     private final VisTable listTable = new VisTable(true);
     private final VisScrollPane scroll;
     private final Button addButton;
+    private final SimpleFloatField fpsField = new SimpleFloatField();
+    private float editedFps;
 
     private final Runnable onApplied;
 
     private final Array<Row> rows = new Array<>();
 
-    public AnimationClipsDialog(AnimationComponent anim, Runnable onApplied) {
-        this(anim, onApplied, -1);
+    public AnimationClipsDialog(AnimationAssetMeta animation, Runnable onApplied) {
+        this(animation, onApplied, -1);
     }
 
-    public AnimationClipsDialog(AnimationComponent anim, Runnable onApplied, int frameMaxOverride) {
+    public AnimationClipsDialog(AnimationAssetMeta animation, Runnable onApplied, int frameMaxOverride) {
         super("Edit Animation Clips");
-        this.anim = Objects.requireNonNull(anim, "anim");
+        this.animation = Objects.requireNonNull(animation, "animation");
         this.onApplied = onApplied;
+        this.editedFps = animation.fps > 0f ? animation.fps : 12f;
+        fpsField.bind(() -> editedFps, value -> editedFps = Math.max(0.1f, value));
 
         int max = 0;
-        if (anim.clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> e : anim.clips) {
+        if (animation.clips != null) {
+            for (ObjectMap.Entry<String, AnimationClipMeta> e : animation.clips) {
                 if (e == null || e.value == null) continue;
                 max = Math.max(max, Math.max(e.value.start, e.value.end));
             }
@@ -61,14 +67,14 @@ public final class AnimationClipsDialog extends StudioDialog {
         addButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                Row row = addRow("clip" + (rows.size + 1), 0, frameMax);
+                Row row = addRow("clip" + (rows.size + 1), 0, frameMax, false);
                 refreshList();
                 focusAndRevealRow(row);
             }
         });
 
         buildUi();
-        loadFromComponent();
+        loadFromAsset();
 
         button("OK", true);
         button("Cancel", false);
@@ -82,6 +88,10 @@ public final class AnimationClipsDialog extends StudioDialog {
 
         // Header
         root.add(new VisLabel("Frame range: 0 .. " + frameMax)).left().row();
+        VisTable fpsRow = new VisTable(true);
+        fpsRow.add(new VisLabel("FPS:"));
+        fpsRow.add(fpsField).width(100f);
+        root.add(fpsRow).left().row();
 
         // List
         root.add(scroll).grow().minHeight(220).row();
@@ -89,33 +99,34 @@ public final class AnimationClipsDialog extends StudioDialog {
         getContentTable().add(root).grow();
     }
 
-    private void loadFromComponent() {
+    private void loadFromAsset() {
         rows.clear();
-        if (anim.clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> e : anim.clips) {
+        if (animation.clips != null) {
+            for (ObjectMap.Entry<String, AnimationClipMeta> e : animation.clips) {
                 String name = e.key;
-                AnimationComponent.Clip c = e.value;
+                AnimationClipMeta c = e.value;
                 if (name == null || name.isBlank() || c == null) continue;
-                addRow(name, c.start, c.end);
+                addRow(name, c.start, c.end, c.flipX);
             }
         }
         if (rows.size == 0) {
-            addRow("default", 0, frameMax);
+            addRow("default", 0, frameMax, false);
         }
         refreshList();
     }
 
-    private Row addRow(String name, int start, int end) {
+    private Row addRow(String name, int start, int end, boolean flipX) {
         Row r = new Row(frameMax);
         r.nameField.setText(name != null ? name : "");
         r.startModel.setValue(clamp(start));
         r.endModel.setValue(clamp(end));
+        r.flipBox.setChecked(flipX);
         installTooltip(r.removeButton, "Delete clip");
         r.removeButton.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 rows.removeValue(r, true);
-                if (rows.size == 0) addRow("default", 0, frameMax);
+                if (rows.size == 0) addRow("default", 0, frameMax, false);
                 refreshList();
             }
         });
@@ -130,16 +141,18 @@ public final class AnimationClipsDialog extends StudioDialog {
         listTable.add(new VisLabel("Name")).left().pad(2);
         listTable.add(new VisLabel("Start")).left().pad(2);
         listTable.add(new VisLabel("End")).left().pad(2);
+        listTable.add(new VisLabel("Flip")).left().pad(2);
         listTable.add(new VisLabel("")).right().pad(2).row();
 
         for (Row r : rows) {
             listTable.add(r.nameField).growX().pad(2);
             listTable.add(r.startSpinner).width(110).pad(2);
             listTable.add(r.endSpinner).width(110).pad(2);
+            listTable.add(r.flipBox).center().pad(2);
             listTable.add(r.removeButton).right().pad(2).row();
         }
 
-        listTable.add().colspan(3).expandX();
+        listTable.add().colspan(4).expandX();
         listTable.add(addButton).right().pad(2).row();
 
         listTable.invalidateHierarchy();
@@ -169,15 +182,17 @@ public final class AnimationClipsDialog extends StudioDialog {
     protected void result(Object object) {
         boolean ok = Boolean.TRUE.equals(object);
         if (ok) {
-            applyToComponent();
+            fpsField.commit();
+            applyToAsset();
             if (onApplied != null) onApplied.run();
         }
         super.result(object);
     }
 
-    private void applyToComponent() {
-        if (anim.clips == null) anim.clips = new ObjectMap<>();
-        anim.clips.clear();
+    private void applyToAsset() {
+        animation.fps = editedFps;
+        if (animation.clips == null) animation.clips = new ObjectMap<>();
+        animation.clips.clear();
 
         HashSet<String> used = new HashSet<>();
 
@@ -195,26 +210,25 @@ public final class AnimationClipsDialog extends StudioDialog {
             int start = clamp(r.startModel.getValue());
             int end = clamp(r.endModel.getValue());
 
-            AnimationComponent.Clip clip = new AnimationComponent.Clip(start, end);
-            anim.clips.put(name, clip);
+            AnimationClipMeta clip = new AnimationClipMeta(start, end);
+            clip.flipX = r.flipBox.isChecked();
+            animation.clips.put(name, clip);
         }
 
         // Guarantee at least one clip
-        if (anim.clips.size == 0) {
-            anim.clips.put("default", new AnimationComponent.Clip(0, frameMax));
-            anim.currentClip = "default";
+        if (animation.clips.size == 0) {
+            animation.clips.put("default", new AnimationClipMeta(0, frameMax));
+            animation.currentClip = "default";
         } else {
             // currentClip must exist
-            if (anim.currentClip == null || anim.currentClip.isBlank() || !anim.clips.containsKey(anim.currentClip)) {
-                // pick first key
-                String first = anim.clips.keys().next();
-                anim.currentClip = first != null ? first : "";
+            if (animation.currentClip == null || animation.currentClip.isBlank()
+                    || !animation.clips.containsKey(animation.currentClip)) {
+                Array<String> names = new Array<>();
+                for (String name : animation.clips.keys()) names.add(name);
+                names.sort();
+                animation.currentClip = names.first();
             }
         }
-
-        // Force refresh next tick
-        anim.stateTime = 0f;
-        anim.frame = -1;
     }
 
     private int clamp(int v) {
@@ -240,6 +254,7 @@ public final class AnimationClipsDialog extends StudioDialog {
 
         final Spinner startSpinner;
         final Spinner endSpinner;
+        final VisCheckBox flipBox;
         final Button removeButton;
 
         Row(int frameMax) {
@@ -250,6 +265,7 @@ public final class AnimationClipsDialog extends StudioDialog {
 
             startSpinner = new Spinner("", startModel);
             endSpinner = new Spinner("", endModel);
+            flipBox = new VisCheckBox("");
             removeButton = new Button(VisUI.getSkin(), "delete");
         }
     }

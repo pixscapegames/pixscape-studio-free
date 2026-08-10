@@ -279,6 +279,12 @@ public final class EventFlow {
     ) {
     }
 
+    public record AnimationChanged(
+            int entityId,
+            int sourceTag
+    ) {
+    }
+
     public record StudioEditingModeChanged(
             StudioEditingMode mode,
             int sourceTag

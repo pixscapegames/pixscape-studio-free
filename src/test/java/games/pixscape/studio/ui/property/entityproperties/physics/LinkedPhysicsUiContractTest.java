@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.property.entityproperties.physics;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisTextButton;
@@ -215,6 +216,10 @@ public class LinkedPhysicsUiContractTest {
                     new IconResolver(world),
                     () -> {
                     },
+                    id -> null,
+                    id -> {
+                    },
+                    Array::new,
                     0);
             PhysicsService.initDefaultBody(
                     world.getMapper(PhysicsBodyComponent.class).create(body));

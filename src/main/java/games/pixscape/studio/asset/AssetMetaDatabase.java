@@ -2,7 +2,6 @@ package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.io.StudioIO;
 
@@ -341,20 +340,17 @@ public final class AssetMetaDatabase implements Json.Serializable {
         return copy;
     }
 
-    private static ObjectMap<String, AnimationComponent.Clip> copyClips(
-            ObjectMap<String, AnimationComponent.Clip> source) {
-        ObjectMap<String, AnimationComponent.Clip> copy = new ObjectMap<>();
+    private static ObjectMap<String, AnimationClipMeta> copyClips(
+            ObjectMap<String, AnimationClipMeta> source) {
+        ObjectMap<String, AnimationClipMeta> copy = new ObjectMap<>();
         if (source == null) return copy;
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : source) {
-            AnimationComponent.Clip sourceClip = entry.value;
+        for (ObjectMap.Entry<String, AnimationClipMeta> entry : source) {
+            AnimationClipMeta sourceClip = entry.value;
             if (sourceClip == null) {
                 copy.put(entry.key, null);
                 continue;
             }
-            AnimationComponent.Clip copyClip =
-                    new AnimationComponent.Clip(sourceClip.start, sourceClip.end);
-            copyClip.flipX = sourceClip.flipX;
-            copy.put(entry.key, copyClip);
+            copy.put(entry.key, sourceClip.copy());
         }
         return copy;
     }
@@ -986,16 +982,16 @@ public final class AssetMetaDatabase implements Json.Serializable {
 
         private static void writeAnimationClips(
                 Json json,
-                ObjectMap<String, AnimationComponent.Clip> clips) {
+                ObjectMap<String, AnimationClipMeta> clips) {
             json.writeObjectStart("clips");
             if (clips != null) {
-                for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : clips) {
+                for (ObjectMap.Entry<String, AnimationClipMeta> entry : clips) {
                     if (entry == null
                             || isBlank(entry.key)
                             || entry.value == null) {
                         continue;
                     }
-                    AnimationComponent.Clip clip = entry.value;
+                    AnimationClipMeta clip = entry.value;
                     json.writeObjectStart(entry.key);
                     json.writeValue("start", clip.start);
                     json.writeValue("end", clip.end);
@@ -1006,9 +1002,9 @@ public final class AssetMetaDatabase implements Json.Serializable {
             json.writeObjectEnd();
         }
 
-        private static ObjectMap<String, AnimationComponent.Clip> readAnimationClips(
+        private static ObjectMap<String, AnimationClipMeta> readAnimationClips(
                 JsonValue clipsJson) {
-            ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
+            ObjectMap<String, AnimationClipMeta> clips = new ObjectMap<>();
             if (clipsJson == null || !clipsJson.isObject()) {
                 return clips;
             }
@@ -1018,7 +1014,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 String name = child.name;
                 if (isBlank(name)) continue;
 
-                AnimationComponent.Clip clip = new AnimationComponent.Clip(
+                AnimationClipMeta clip = new AnimationClipMeta(
                         child.getInt("start", 0),
                         child.getInt("end", 0)
                 );

@@ -3,7 +3,7 @@ package games.pixscape.studio.configuration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.io.StudioFs;
@@ -42,8 +42,8 @@ public class RuntimeExportAnimationsTest {
         animation.frameCount = 8;
         animation.fps = 10f;
         animation.currentClip = "run";
-        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
-        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 7);
+        animation.clips.put("idle", new AnimationClipMeta(0, 1));
+        AnimationClipMeta run = new AnimationClipMeta(2, 7);
         run.flipX = true;
         animation.clips.put("run", run);
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
@@ -74,8 +74,8 @@ public class RuntimeExportAnimationsTest {
         assertTrue(clips.get(1).getBoolean("flipX"));
     }
 
-    @Test
-    public void exportRuntimeWritesDefaultClipWhenAnimationHasNoClips() throws Exception {
+    @Test(expected = IllegalArgumentException.class)
+    public void exportRuntimeRejectsAnimationWithoutAuthoredClips() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-animation-default-studio");
         Path userDir = Files.createTempDirectory("pixscape-studio-export-animation-default-user");
 
@@ -99,16 +99,6 @@ public class RuntimeExportAnimationsTest {
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
-
-        FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("animations.json").toFile());
-        JsonValue exported = new JsonReader().parse(out).get("animations").get(0);
-        JsonValue clip = exported.get("clips").get(0);
-
-        assertEquals("slime", exported.getString("name"));
-        assertEquals("default", exported.getString("currentClip"));
-        assertEquals("default", clip.getString("name"));
-        assertEquals(0, clip.getInt("start"));
-        assertEquals(2, clip.getInt("end"));
     }
 
     @Test

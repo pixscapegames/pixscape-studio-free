@@ -3,7 +3,6 @@ package games.pixscape.studio.history.initializer;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
@@ -60,9 +59,6 @@ public class GenericEntityInitializerStandaloneUvTest {
         int frameW = 64;
         int frameH = 32;
 
-        ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
-        clips.put("default", new AnimationComponent.Clip(0, 3));
-
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
                         -1,
@@ -79,7 +75,7 @@ public class GenericEntityInitializerStandaloneUvTest {
                         "walk",
                         0
                 )
-                .configureAnimation("walk", "default", 12f, true, clips);
+                .configureAnimation(17, "default", 12f, true);
         init.init(e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
@@ -88,7 +84,8 @@ public class GenericEntityInitializerStandaloneUvTest {
         TextureRegionComponent tr = mTR.get(e);
         AnimationComponent anim = mAnim.get(e);
 
-        assertEquals("walk", anim.animation);
+        assertEquals(1, anim.animationAssetIds.size);
+        assertEquals(17, anim.animationAssetIds.first());
         assertEquals(-1, anim.frame);
         assertEquals(0f, tr.u1, 0.0001f);
         assertEquals(1f, tr.u2, 0.0001f);
@@ -103,9 +100,6 @@ public class GenericEntityInitializerStandaloneUvTest {
         int e = world.create();
         int frameW = 80;
         int frameH = 40;
-
-        ObjectMap<String, AnimationComponent.Clip> clips = new ObjectMap<>();
-        clips.put("default", new AnimationComponent.Clip(0, 1));
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
@@ -123,7 +117,7 @@ public class GenericEntityInitializerStandaloneUvTest {
                         "run",
                         0
                 )
-                .configureAnimation("run", "default", 24f, true, clips);
+                .configureAnimation(31, "default", 24f, true);
         init.init(e);
 
         ComponentMapper<AnimationComponent> mAnim = world.getMapper(AnimationComponent.class);
@@ -137,7 +131,7 @@ public class GenericEntityInitializerStandaloneUvTest {
         DimensionsComponent dimensions = mDimensions.get(e);
 
         assertEquals(24f, anim.fps, 0.0001f);
-        assertEquals("run", anim.animation);
+        assertEquals(31, anim.animationAssetIds.first());
         assertEquals(0f, tr.u1, 0.0001f);
         assertEquals(0f, tr.v1, 0.0001f);
         assertEquals(1f, transform.scaleX, 0.0001f);

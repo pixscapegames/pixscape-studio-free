@@ -3,6 +3,9 @@ package games.pixscape.studio.configuration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.configuration.RuntimeConfig;
+import games.pixscape.runtime.animation.AnimationDef;
+import games.pixscape.runtime.animation.AnimationDefData;
+import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
@@ -12,6 +15,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.ProjectFileCleanupService;
+import games.pixscape.studio.service.asset.StudioAnimationAssets;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -607,97 +611,30 @@ public final class RuntimeExport {
     }
 
     private static JsonValue animationJson(AnimationAssetMeta animation) {
+        AnimationDefData definition = StudioAnimationAssets.toRuntimeData(animation);
+        new AnimationDef(definition);
         JsonValue node = new JsonValue(JsonValue.ValueType.object);
-        int frameCount = normalizedFrameCount(animation);
-
-        node.addChild("assetId", new JsonValue(animation.id()));
-        node.addChild("name", new JsonValue(animationRuntimeName(animation)));
-        node.addChild("fps", new JsonValue(animation.fps > 0f ? animation.fps : 12f));
-        node.addChild("currentClip", new JsonValue(normalizedCurrentClip(animation)));
-        node.addChild("frameCount", new JsonValue(frameCount));
+        node.addChild("assetId", new JsonValue(definition.assetId));
+        node.addChild("name", new JsonValue(definition.name));
+        node.addChild("fps", new JsonValue(definition.fps));
+        node.addChild("currentClip", new JsonValue(definition.currentClip));
+        node.addChild("frameCount", new JsonValue(definition.frameCount));
 
         JsonValue clips = new JsonValue(JsonValue.ValueType.array);
-        if (animation.clips != null && animation.clips.size > 0) {
-            Array<String> names = new Array<>();
-            for (ObjectMap.Entry<String, games.pixscape.runtime.component.AnimationComponent.Clip> entry : animation.clips) {
-                if (entry != null && entry.key != null && !entry.key.isBlank() && entry.value != null) {
-                    names.add(entry.key);
-                }
-            }
-            names.sort(String::compareTo);
-
-            for (String clipName : names) {
-                games.pixscape.runtime.component.AnimationComponent.Clip clip = animation.clips.get(clipName);
-                if (clip == null) continue;
-                clips.addChild(animationClipJson(clipName, clip, frameCount));
-            }
+        for (AnimationClipDefData clip : definition.clips) {
+            clips.addChild(animationClipJson(clip));
         }
-
-        if (clips.size == 0) {
-            games.pixscape.runtime.component.AnimationComponent.Clip fallback =
-                    new games.pixscape.runtime.component.AnimationComponent.Clip(0, Math.max(0, frameCount - 1));
-            clips.addChild(animationClipJson("default", fallback, frameCount));
-        }
-
         node.addChild("clips", clips);
         return node;
     }
 
-    private static JsonValue animationClipJson(String name,
-                                               games.pixscape.runtime.component.AnimationComponent.Clip clip,
-                                               int frameCount) {
-        int start = Math.max(0, clip.start);
-        int end = Math.max(start, clip.end);
-        if (frameCount > 0) {
-            end = Math.min(end, frameCount - 1);
-        }
-
+    private static JsonValue animationClipJson(AnimationClipDefData clip) {
         JsonValue node = new JsonValue(JsonValue.ValueType.object);
-        node.addChild("name", new JsonValue(name));
-        node.addChild("start", new JsonValue(start));
-        node.addChild("end", new JsonValue(end));
+        node.addChild("name", new JsonValue(clip.name));
+        node.addChild("start", new JsonValue(clip.start));
+        node.addChild("end", new JsonValue(clip.end));
         node.addChild("flipX", new JsonValue(clip.flipX));
         return node;
-    }
-
-    private static int normalizedFrameCount(AnimationAssetMeta animation) {
-        int frameCount = Math.max(0, animation.frameCount);
-        if (frameCount > 0) {
-            return frameCount;
-        }
-        if (animation.clips != null) {
-            for (ObjectMap.Entry<String, games.pixscape.runtime.component.AnimationComponent.Clip> entry : animation.clips) {
-                if (entry != null && entry.value != null) {
-                    frameCount = Math.max(frameCount, entry.value.end + 1);
-                }
-            }
-        }
-        return Math.max(1, frameCount);
-    }
-
-    private static String normalizedCurrentClip(AnimationAssetMeta animation) {
-        if (animation.currentClip != null && !animation.currentClip.isBlank()) {
-            return animation.currentClip;
-        }
-        if (animation.clips != null && animation.clips.size > 0) {
-            Array<String> names = new Array<>();
-            for (ObjectMap.Entry<String, games.pixscape.runtime.component.AnimationComponent.Clip> entry : animation.clips) {
-                if (entry != null && entry.key != null && !entry.key.isBlank() && entry.value != null) {
-                    names.add(entry.key);
-                }
-            }
-            if (names.size > 0) {
-                names.sort(String::compareTo);
-                return names.first();
-            }
-        }
-        return "default";
-    }
-
-    private static String animationRuntimeName(AnimationAssetMeta animation) {
-        String logical = animation.logicalPath() != null ? animation.logicalPath() : "";
-        String name = RuntimeFs.baseName(logical);
-        return name != null && !name.isBlank() ? name : "animation_" + animation.id();
     }
 
     public static void saveProject(RuntimeConfig cfg, FileHandle projectDir) {

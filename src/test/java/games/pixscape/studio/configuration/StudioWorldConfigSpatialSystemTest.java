@@ -42,7 +42,7 @@ public class StudioWorldConfigSpatialSystemTest {
         String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
 
         assertTrue(source.contains("studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);"));
-        assertTrue(source.contains("tileAnimationRegistry,\n                        studioTilesetProfiles,\n                        systemProfiler,"));
+        assertTrue(source.contains("tileAnimationRegistry,\n                        animationRegistry,\n                        studioTilesetProfiles,\n                        systemProfiler,"));
         assertTrue(source.contains("public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase)"));
     }
 

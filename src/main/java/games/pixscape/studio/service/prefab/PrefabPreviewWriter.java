@@ -138,8 +138,10 @@ public final class PrefabPreviewWriter {
     }
 
     private static FileHandle resolveImageFile(ProjectConfig cfg, AssetMetaDatabase db, GenericEntityInitializer.PreviewVisualData visual) {
-        if (visual.hasAnimation && visual.animationName != null && !visual.animationName.isBlank()) {
-            FileHandle dir = StudioFs.requireOrigAnimationsDir(cfg).child(visual.animationName);
+        if (visual.hasAnimation && visual.hasAssetRef && visual.assetRefAssetId > 0) {
+            AssetMeta meta = db.findById(visual.assetRefAssetId);
+            if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) return null;
+            FileHandle dir = StudioFs.requireStudioProjectDir(cfg).child(meta.sourceRelPath());
             if (!dir.exists() || !dir.isDirectory()) return null;
             FileHandle[] files = dir.list((d, name) -> StudioFs.isImageFile(name));
             if (files == null || files.length == 0) return null;
@@ -245,7 +247,6 @@ public final class PrefabPreviewWriter {
         String attempted = attemptedFile == null ? "<none>" : attemptedFile.path();
         Gdx.app.log("PrefabPreviewWriter", "Skip preview entry: " + reason
                 + " assetRefAssetId=" + visual.assetRefAssetId
-                + " animationName=" + visual.animationName
                 + " attemptedPath=" + attempted);
     }
 

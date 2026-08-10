@@ -5,6 +5,8 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
@@ -24,6 +26,32 @@ import static org.junit.Assert.assertTrue;
 public class AssetUsageScannerTest {
 
     @Test
+    public void scanAssetFindsNonActiveAnimationInCurrentScene() throws Exception {
+        ProjectConfig cfg = projectConfig();
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        AssetMeta active = db.registerIfAbsent(
+                AssetType.ANIMATION, "animations/idle", "orig/animations/idle",
+                AssetMeta.AssetScope.USER);
+        AssetMeta nonActive = db.registerIfAbsent(
+                AssetType.ANIMATION, "animations/run", "orig/animations/run",
+                AssetMeta.AssetScope.USER);
+        World world = new World(new WorldConfiguration());
+        int entityId = world.create();
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
+        animation.animationAssetIds.add(active.id());
+        animation.animationAssetIds.add(nonActive.id());
+        AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).create(entityId);
+        assetRef.assetId = active.id();
+
+        AssetUsageScanner.AssetUsageReport report =
+                new AssetUsageScanner(world, cfg, db).scanAsset(nonActive.id());
+
+        assertTrue(report.used());
+        assertEquals(1, report.occurrenceCount());
+        assertTrue(report.referencedInCurrentLoadedScene());
+    }
+
+    @Test
     public void scanAssetFindsAnimationUsageInInactiveSceneFile() throws Exception {
         ProjectConfig cfg = projectConfig();
         AssetMetaDatabase db = new AssetMetaDatabase();
@@ -34,7 +62,7 @@ public class AssetUsageScannerTest {
                 AssetMeta.AssetScope.USER
         );
 
-        writeSceneWithAssetRef(cfg.getSceneMeta("Other"), cfg, animation.id());
+        writeSceneWithAnimationAssetIds(cfg.getSceneMeta("Other"), cfg, animation.id());
 
         AssetUsageScanner.AssetUsageReport report =
                 new AssetUsageScanner(new World(new WorldConfiguration()), cfg, db)
@@ -125,6 +153,31 @@ public class AssetUsageScannerTest {
                               "components": {
                                 "AssetRefComponent": {
                                   "assetId": %d
+                                }
+                              }
+                            }
+                          }
+                        }
+                        """.formatted(assetId),
+                false,
+                "UTF-8"
+        );
+    }
+
+    private static void writeSceneWithAnimationAssetIds(SceneMeta scene,
+                                                        ProjectConfig cfg,
+                                                        int assetId) {
+        FileHandle sceneFile = new FileHandle(Path.of(cfg.projectDirectoryPath).toFile())
+                .child(StudioFs.DIR_SCENES)
+                .child(scene.getFile());
+        sceneFile.writeString(
+                """
+                        {
+                          "entities": {
+                            "1": {
+                              "components": {
+                                "AnimationComponent": {
+                                  "animationAssetIds": [%d]
                                 }
                               }
                             }

@@ -336,12 +336,11 @@ public class HistoryIdentityRegressionTest {
         EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).get(entityId);
         meta.kind = EntityKind.ANIMATION;
         AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
-        animation.animation = "walk";
+        animation.animationAssetIds.add(assetId);
         animation.currentClip = "default";
         animation.fps = 12f;
         animation.playing = true;
         animation.loop = true;
-        animation.clips.put("default", new AnimationComponent.Clip(0, 3));
         return entityId;
     }
 

@@ -2,6 +2,7 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsRuntimeBodyComponent;
@@ -12,6 +13,8 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
@@ -21,6 +24,9 @@ import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
 import java.util.Objects;
+import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
+import java.util.function.Supplier;
 
 public final class EntityPropertiesContext {
     public final World world;
@@ -33,6 +39,9 @@ public final class EntityPropertiesContext {
     public final PhysicsPolygonAuthoringService physicsPolygonAuthoringService;
     public final IconResolver iconResolver;
     public final Runnable markCurrentSceneSaveRequired;
+    public final IntFunction<AssetMeta> assetMetaLookup;
+    public final IntConsumer refreshAnimationPreview;
+    public final Supplier<Array<AnimationAssetMeta>> animationAssets;
     public final int sourceTag;
 
     public final ComponentMapper<DimensionsComponent> mDimensions;
@@ -66,6 +75,9 @@ public final class EntityPropertiesContext {
                                    IdentityRegistry identityRegistry,
                                    IconResolver iconResolver,
                                    Runnable markCurrentSceneSaveRequired,
+                                   IntFunction<AssetMeta> assetMetaLookup,
+                                   IntConsumer refreshAnimationPreview,
+                                   Supplier<Array<AnimationAssetMeta>> animationAssets,
                                    int sourceTag) {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
@@ -77,6 +89,10 @@ public final class EntityPropertiesContext {
         this.selectionService = Objects.requireNonNull(selectionService, "selectionService");
         this.iconResolver = Objects.requireNonNull(iconResolver, "iconResolver");
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
+        this.assetMetaLookup = Objects.requireNonNull(assetMetaLookup, "assetMetaLookup");
+        this.refreshAnimationPreview = Objects.requireNonNull(
+                refreshAnimationPreview, "refreshAnimationPreview");
+        this.animationAssets = Objects.requireNonNull(animationAssets, "animationAssets");
         this.sourceTag = sourceTag;
 
         this.mDimensions = world.getMapper(DimensionsComponent.class);

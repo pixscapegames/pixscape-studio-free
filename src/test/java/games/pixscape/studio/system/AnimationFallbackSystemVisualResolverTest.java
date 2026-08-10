@@ -4,15 +4,17 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
 import org.junit.After;
 import org.junit.Test;
@@ -42,7 +44,7 @@ public class AnimationFallbackSystemVisualResolverTest {
                 standalone
         );
         AnimationFallbackSystem system =
-                new AnimationFallbackSystem(null, resolver);
+                new AnimationFallbackSystem(null, resolver, id -> meta);
         World world = new World(new WorldConfiguration().setSystem(system));
         try {
             int entityId = createAnimationEntity(world, meta.id());
@@ -81,7 +83,7 @@ public class AnimationFallbackSystemVisualResolverTest {
         StudioAssetVisualResolver resolver =
                 new StudioAssetVisualResolver(atlas, id -> meta, standalone);
         World world = new World(new WorldConfiguration().setSystem(
-                new AnimationFallbackSystem(null, resolver)
+                new AnimationFallbackSystem(null, resolver, id -> meta)
         ));
         try {
             int entityId = createAnimationEntity(world, meta.id());
@@ -98,6 +100,38 @@ public class AnimationFallbackSystemVisualResolverTest {
         }
     }
 
+    @Test
+    public void pausedAnimationRefreshesSelectedClipImmediately() {
+        Texture first = texture(10, 11);
+        Texture second = texture(20, 21);
+        AnimationAssetMeta meta = animationMeta();
+        meta.clips.put("second", new AnimationClipMeta(1, 1));
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                id -> meta,
+                new TrackingStandaloneAccess(first, second)
+        );
+        World world = new World(new WorldConfiguration());
+        try {
+            int entityId = createAnimationEntity(world, meta.id());
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entityId);
+            animation.currentClip = "second";
+            animation.playing = false;
+            animation.frame = -1;
+            StudioAnimationPreviewRefresher refresher = new StudioAnimationPreviewRefresher(
+                    new DynamicEntityRenderState(), resolver, id -> meta);
+            refresher.bindWorld(world);
+
+            refresher.refreshSelectedFrame(entityId);
+
+            assertEquals(1, animation.frame);
+            assertEquals(TextureRegistry.handleOf(second),
+                    world.getMapper(RenderMaterialComponent.class).get(entityId).textureHandle);
+        } finally {
+            world.dispose();
+        }
+    }
+
     private static int createAnimationEntity(World world, int assetId) {
         int entityId = world.create();
         AssetRefComponent assetRef =
@@ -108,23 +142,26 @@ public class AnimationFallbackSystemVisualResolverTest {
         world.getMapper(RenderMaterialComponent.class).create(entityId);
         AnimationComponent animation =
                 world.getMapper(AnimationComponent.class).create(entityId);
-        animation.animation = "run";
+        animation.animationAssetIds.add(assetId);
         animation.fps = 10f;
         animation.playing = true;
         animation.loop = true;
         animation.currentClip = "default";
-        animation.clips = new ObjectMap<>();
-        animation.clips.put("default", new AnimationComponent.Clip(0, 1));
         return entityId;
     }
 
     private static AnimationAssetMeta animationMeta() {
-        return new AnimationAssetMeta(
+        AnimationAssetMeta meta = new AnimationAssetMeta(
                 7,
                 "animations/run",
                 "orig/animations/run",
                 AssetMeta.AssetScope.USER
         );
+        meta.frameCount = 2;
+        meta.fps = 10f;
+        meta.currentClip = "default";
+        meta.clips.put("default", new AnimationClipMeta(0, 1));
+        return meta;
     }
 
     private static final class TrackingStandaloneAccess

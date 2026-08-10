@@ -1,8 +1,6 @@
 package games.pixscape.studio.service.prefab;
 
 import com.artemis.World;
-import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.prefab.PrefabAsset;
@@ -82,22 +80,13 @@ final class PrefabEntityDataMapper {
         }
         if (s.hasAnimation) {
             d.animation = new PrefabAsset.AnimationData();
-            d.animation.name = s.animationName;
+            d.animation.animationAssetIds.addAll(s.animationAssetIds);
             d.animation.fps = s.animationFps;
             d.animation.playing = s.animationPlaying;
             d.animation.loop = s.animationLoop;
             d.animation.stateTime = s.animationStateTime;
             d.animation.frame = s.animationFrame;
             d.animation.currentClip = s.animationCurrentClip;
-            d.animation.clips.clear();
-            if (s.animationClips != null) {
-                for (ObjectMap.Entry<String, AnimationComponent.Clip> it : s.animationClips) {
-                    AnimationComponent.Clip c = it.value;
-                    if (it.key != null && c != null) {
-                        d.animation.clips.put(it.key, new PrefabAsset.AnimationClipData(c.start, c.end));
-                    }
-                }
-            }
         }
         if (s.hasShaderParams) {
             d.shaderParams = new PrefabAsset.ShaderParamsData();
@@ -278,22 +267,16 @@ final class PrefabEntityDataMapper {
         }
         if (d.animation != null) {
             s.hasAnimation = true;
-            s.animationName = d.animation.name;
+            s.animationAssetIds.clear();
+            if (d.animation.animationAssetIds != null) {
+                s.animationAssetIds.addAll(d.animation.animationAssetIds);
+            }
             s.animationFps = d.animation.fps;
             s.animationPlaying = d.animation.playing;
             s.animationLoop = d.animation.loop;
             s.animationStateTime = d.animation.stateTime;
             s.animationFrame = d.animation.frame;
             s.animationCurrentClip = d.animation.currentClip;
-            s.animationClips.clear();
-            if (d.animation.clips != null) {
-                for (ObjectMap.Entry<String, PrefabAsset.AnimationClipData> it : d.animation.clips) {
-                    PrefabAsset.AnimationClipData c = it.value;
-                    if (it.key != null && c != null) {
-                        s.animationClips.put(it.key, new AnimationComponent.Clip(c.start, c.end));
-                    }
-                }
-            }
         }
         if (d.shaderParams != null && d.shaderParams.floats != null) {
             s.hasShaderParams = true;

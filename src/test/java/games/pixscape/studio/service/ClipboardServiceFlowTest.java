@@ -73,26 +73,22 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void cutPasteAnimationPreservesClipFlipX() throws Exception {
+    public void copyPasteAnimationPreservesIndependentAnimationAssetIds() throws Exception {
         Harness h = new Harness();
         int source = createEntity(h.world, 7f, 9f, 0);
         AnimationComponent animation = h.world.getMapper(AnimationComponent.class).create(source);
-        animation.animation = "hero";
+        animation.animationAssetIds.add(17);
+        animation.animationAssetIds.add(31);
         animation.currentClip = "run";
-        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
-        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 5);
-        run.flipX = true;
-        animation.clips.put("run", run);
         h.selection.selectOnly(source);
 
-        Assert.assertTrue(h.clipboard.cutSelection());
-        h.world.process();
+        Assert.assertTrue(h.clipboard.copySelection());
         Assert.assertTrue(h.clipboard.paste());
         AnimationComponent pasted = h.world.getMapper(AnimationComponent.class)
                 .get(h.selection.getSelectionSnapshot().first());
         Assert.assertEquals("run", pasted.currentClip);
-        Assert.assertFalse(pasted.clips.get("idle").flipX);
-        Assert.assertTrue(pasted.clips.get("run").flipX);
+        Assert.assertArrayEquals(new int[]{17, 31}, pasted.animationAssetIds.toArray());
+        Assert.assertNotSame(animation.animationAssetIds, pasted.animationAssetIds);
     }
 
     @Test

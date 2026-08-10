@@ -22,7 +22,6 @@ import com.badlogic.gdx.utils.Scaling;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -1249,55 +1248,32 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        AnimationComponent component = buildAnimationComponentForAsset(node, meta, frameMax);
-        AnimationClipsDialog dialog = new AnimationClipsDialog(component, () -> {
+        ensureAnimationAssetClips(meta, frameMax);
+        AnimationClipsDialog dialog = new AnimationClipsDialog(meta, () -> {
             app.getSceneService().saveAnimationAssetClips(
                     sourceRelPath,
-                    component,
-                    frameCount,
-                    component.fps
+                    meta,
+                    frameCount
             );
         }, frameMax);
         dialog.show(getStage());
     }
 
-    private AnimationComponent buildAnimationComponentForAsset(AssetNode node,
-                                                               AnimationAssetMeta meta,
-                                                               int frameMax) {
-        AnimationComponent component = new AnimationComponent();
-        component.animation = node.path;
-        component.fps = meta.fps > 0f ? meta.fps : 12f;
-        component.loop = true;
-        component.playing = true;
-        component.currentClip = meta.currentClip;
-
-        if (component.clips == null) {
-            component.clips = new ObjectMap<>();
+    private void ensureAnimationAssetClips(AnimationAssetMeta meta, int frameMax) {
+        if (meta.clips == null) meta.clips = new ObjectMap<>();
+        if (meta.clips.size == 0) {
+            meta.currentClip = "default";
+            meta.clips.put("default", new AnimationClipMeta(0, frameMax));
+            return;
         }
-        component.clips.clear();
-        if (meta.clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : meta.clips) {
-                if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
-                    continue;
-                }
-
-                AnimationComponent.Clip src = entry.value;
-                AnimationComponent.Clip copy = new AnimationComponent.Clip(src.start, src.end);
-                copy.flipX = src.flipX;
-                component.clips.put(entry.key, copy);
-            }
+        if (meta.currentClip == null
+                || meta.currentClip.isBlank()
+                || !meta.clips.containsKey(meta.currentClip)) {
+            Array<String> names = new Array<>();
+            for (String name : meta.clips.keys()) names.add(name);
+            names.sort();
+            meta.currentClip = names.first();
         }
-
-        if (component.clips.size == 0) {
-            component.currentClip = "default";
-            component.clips.put("default", new AnimationComponent.Clip(0, frameMax));
-        } else if (component.currentClip == null
-                || component.currentClip.isBlank()
-                || !component.clips.containsKey(component.currentClip)) {
-            component.currentClip = component.clips.keys().next();
-        }
-
-        return component;
     }
 
     private int countAnimationFrames(AssetNode node) {

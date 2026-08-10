@@ -13,7 +13,9 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisTextField;
-import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AnimationClipMeta;
+import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -39,7 +41,11 @@ public class ListActionControlsTest {
 
     @Test
     public void animationClipControlsUseImageStylesAndDeleteTheTargetRow() throws Exception {
-        AnimationClipsDialog dialog = new AnimationClipsDialog(new AnimationComponent(), null, 12);
+        AnimationAssetMeta animation = new AnimationAssetMeta(
+                7, "animations/test", "orig/animations/test", AssetMeta.AssetScope.USER);
+        animation.currentClip = "default";
+        animation.clips.put("default", new AnimationClipMeta(0, 12));
+        AnimationClipsDialog dialog = new AnimationClipsDialog(animation, null, 12);
         Button addButton = field(dialog, "addButton", Button.class);
         Array<?> rows = field(dialog, "rows", Array.class);
 

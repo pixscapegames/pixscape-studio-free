@@ -2,7 +2,6 @@ package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -26,8 +25,8 @@ public class AnimationAssetClipsPersistenceTest {
         animation.fps = 10f;
         animation.currentClip = "run";
         animation.clips = new ObjectMap<>();
-        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
-        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 7);
+        animation.clips.put("idle", new AnimationClipMeta(0, 1));
+        AnimationClipMeta run = new AnimationClipMeta(2, 7);
         run.flipX = true;
         animation.clips.put("run", run);
 

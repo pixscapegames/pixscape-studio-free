@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.ParticleEmitter;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -135,6 +136,17 @@ public final class SceneAtlasInputService {
             AssetRefComponent ref = mAssetRef.getSafe(data[i], null);
             if (ref != null && ref.assetId > 0) addAssetMetaSourcePath(cfg, assetDb, required, ref.assetId);
         }
+        ComponentMapper<AnimationComponent> mAnimation = world.getMapper(AnimationComponent.class);
+        IntBag animations = world.getAspectSubscriptionManager()
+                .get(Aspect.all(AnimationComponent.class)).getEntities();
+        int[] animationData = animations.getData();
+        for (int i = 0; i < animations.size(); i++) {
+            AnimationComponent animation = mAnimation.getSafe(animationData[i], null);
+            if (animation == null || animation.animationAssetIds == null) continue;
+            for (int j = 0; j < animation.animationAssetIds.size; j++) {
+                addAssetMetaSourcePath(cfg, assetDb, required, animation.animationAssetIds.get(j));
+            }
+        }
         IntSet tiledAssetIds = collectUsedTiledRenderableAssetIds(world, tileAnimationsDb);
         IntSet.IntSetIterator it = tiledAssetIds.iterator();
         while (it.hasNext) addAssetMetaSourcePath(cfg, assetDb, required, it.next());
@@ -227,8 +239,15 @@ public final class SceneAtlasInputService {
             for (EntityGraphEntry entry : graph.entries()) {
                 if (entry == null || entry.initializer() == null) continue;
                 GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-                if (snapshot == null || !snapshot.hasAssetRef || snapshot.assetRefAssetId <= 0) continue;
-                addAssetMetaSourcePath(cfg, assetDb, required, snapshot.assetRefAssetId);
+                if (snapshot == null) continue;
+                if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
+                    addAssetMetaSourcePath(cfg, assetDb, required, snapshot.assetRefAssetId);
+                }
+                if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
+                    for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
+                        addAssetMetaSourcePath(cfg, assetDb, required, snapshot.animationAssetIds.get(i));
+                    }
+                }
             }
         }
     }

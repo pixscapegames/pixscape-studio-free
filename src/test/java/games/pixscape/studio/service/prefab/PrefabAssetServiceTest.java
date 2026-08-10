@@ -53,7 +53,7 @@ public class PrefabAssetServiceTest {
         String serialized = file.readString("UTF-8");
         assertPrefabHeader(serialized, "simple");
         Assert.assertEquals(
-                1, new JsonReader().parse(serialized).getInt("version"));
+                2, new JsonReader().parse(serialized).getInt("version"));
         Assert.assertTrue(serialized.contains("\"entities\""));
         Assert.assertFalse(serialized.contains("ownerClass"));
         Assert.assertFalse(serialized.contains("fieldName"));
@@ -94,6 +94,36 @@ public class PrefabAssetServiceTest {
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         Assert.assertTrue(result.createdIds().size > 0);
+    }
+
+    @Test
+    public void saveLoad_preservesAllAnimationAssetIdsAndActiveAsset() {
+        World world = new World(new WorldConfiguration());
+        int entityId = world.create();
+        world.getMapper(TransformComponent.class).create(entityId);
+        world.getMapper(EntityIndexComponent.class).create(entityId);
+        AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).create(entityId);
+        assetRef.assetId = 31;
+        AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
+        animation.animationAssetIds.add(17);
+        animation.animationAssetIds.add(31);
+        animation.currentClip = "run";
+        animation.fps = 24f;
+
+        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entityId));
+        FileHandle file = tmpFile("multi-animation.pixprefab");
+        PrefabAssetService service = new PrefabAssetService(world);
+        service.savePrefab(file, "multi-animation", graph);
+        EntityGraph loaded = service.loadPrefab(file);
+        int restoredId = world.create();
+        loaded.entries().get(0).initializer().init(restoredId);
+
+        AnimationComponent restored = world.getMapper(AnimationComponent.class).get(restoredId);
+        AssetRefComponent restoredRef = world.getMapper(AssetRefComponent.class).get(restoredId);
+        Assert.assertArrayEquals(new int[]{17, 31}, restored.animationAssetIds.toArray());
+        Assert.assertEquals(31, restoredRef.assetId);
+        Assert.assertEquals("run", restored.currentClip);
+        Assert.assertEquals(24f, restored.fps, 0f);
     }
 
     @Test
@@ -429,7 +459,7 @@ public class PrefabAssetServiceTest {
         String serialized = file.readString("UTF-8");
         JsonValue root = new JsonReader().parse(serialized);
         Assert.assertEquals("pixscape-prefab", root.getString("type"));
-        Assert.assertEquals(1, root.getInt("version"));
+        Assert.assertEquals(2, root.getInt("version"));
         Assert.assertEquals("all-joints", root.getString("name"));
         String[] jointBlocks = {
                 "\"joint\"", "\"distanceJoint\"", "\"revoluteJoint\"",
@@ -713,7 +743,7 @@ public class PrefabAssetServiceTest {
         World world = new World(new WorldConfiguration());
         FileHandle file = tmpFile("bad-version.pixprefab");
         file.writeString(
-                "{\"type\":\"pixscape-prefab\",\"version\":2,\"entities\":[]}",
+                "{\"type\":\"pixscape-prefab\",\"version\":1,\"entities\":[]}",
                 false,
                 "UTF-8"
         );
@@ -739,7 +769,7 @@ public class PrefabAssetServiceTest {
         World world = new World(new WorldConfiguration());
         FileHandle file = tmpFile("unknown-field.pixprefab");
         file.writeString(
-                "{\"type\":\"pixscape-prefab\",\"version\":1,"
+                "{\"type\":\"pixscape-prefab\",\"version\":2,"
                         + "\"entities\":[],\"unexpected\":true}",
                 false,
                 "UTF-8"

@@ -63,6 +63,8 @@ import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.ops.EditorOpsImpl;
 import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.StudioAnimationAssets;
+import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
@@ -125,6 +127,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final AtlasStudioService atlasStudioService;
     private final StudioAssetVisualResolver assetVisualResolver;
+    private final AnimationRegistry animationRegistry;
+    private StudioAnimationPreviewRefresher animationPreviewRefresher;
     private final ShaderService shaderService;
     private AlignService alignService;
     private ClipboardService clipboardService;
@@ -142,6 +146,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private TiledToolService tiledToolService;
     private TiledAllocatorService tiledAllocatorService;
     private TiledFallbackSystem tiledFallbackSystem;
+    private AnimationFallbackSystem animationFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
     private final ParticleRuntimeAvailabilityRefreshRequest particleAvailabilityRefresh =
             new ParticleRuntimeAvailabilityRefreshRequest();
@@ -226,6 +231,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 StudioAssetVisualResolver.projectStandaloneAccess()
         );
         atlasStudioService.setAssetVisualResolver(assetVisualResolver);
+        animationRegistry = new AnimationRegistry();
         studioEditingModeService = new StudioEditingModeService();
         physicsSelectionService = new PhysicsSelectionService(studioEditingModeService);
         physicsSelectionReconciler = new PhysicsSelectionReconciler(physicsSelectionService);
@@ -313,6 +319,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         final AssetMetaDatabase assetMetaDatabaseForFallback = loadAssetMetaDatabaseIfAvailable(cfg);
         assetVisualResolver.setAssetMetaLookup(assetMetaDatabaseForFallback::findById);
+        reloadAnimationRegistry(assetMetaDatabaseForFallback);
+        animationPreviewRefresher = new StudioAnimationPreviewRefresher(
+                dynamicEntityState,
+                assetVisualResolver,
+                assetMetaDatabaseForFallback::findById
+        );
         studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);
 
         WorldBootstrapResult bootstrap =
@@ -339,6 +351,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         sceneMeta,
                         0,
                         tileAnimationRegistry,
+                        animationRegistry,
                         studioTilesetProfiles,
                         systemProfiler,
 
@@ -346,9 +359,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
-                                    profiled(new AnimationFallbackSystem(
+                                    profiled(animationFallbackSystem = new AnimationFallbackSystem(
                                             dynamicEntityState,
-                                            assetVisualResolver
+                                            assetVisualResolver,
+                                            assetMetaDatabaseForFallback::findById
                                     )),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
                                             tiledState,
@@ -384,6 +398,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        animationPreviewRefresher.bindWorld(world);
         if (studioParticleFallbackSystem != null) {
             studioParticleFallbackSystem.setRuntimeParticleSystem(
                     world.getSystem(RenderParticleSyncSystem.class));
@@ -548,9 +563,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     public void bindAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
         if (assetMetaLookup != null) {
             assetVisualResolver.setAssetMetaLookup(assetMetaLookup);
+            if (animationPreviewRefresher != null) {
+                animationPreviewRefresher.setAssetMetaLookup(assetMetaLookup);
+            }
         }
         if (tiledFallbackSystem != null && assetMetaLookup != null) {
             tiledFallbackSystem.setAssetMetaLookup(assetMetaLookup);
+        }
+        if (animationFallbackSystem != null && assetMetaLookup != null) {
+            animationFallbackSystem.setAssetMetaLookup(assetMetaLookup);
         }
         if (tiledGhostPreviewSystem != null && assetMetaLookup != null) {
             tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);
@@ -570,7 +591,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 studioTilesetProfiles,
                 assetMetaDatabase
         );
+        reloadAnimationRegistry(assetMetaDatabase);
         requestTiledFallbackValidation();
+    }
+
+    private void reloadAnimationRegistry(AssetMetaDatabase assetMetaDatabase) {
+        if (animationRegistry == null) return;
+        StudioAnimationAssets.reloadRegistry(animationRegistry, assetMetaDatabase);
     }
 
     public void requestTiledFallbackValidation() {
@@ -2171,6 +2198,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public StudioAssetVisualResolver getAssetVisualResolver() {
         return assetVisualResolver;
+    }
+
+    public StudioAnimationPreviewRefresher getAnimationPreviewRefresher() {
+        return animationPreviewRefresher;
     }
 
     public SelectionService getSelectionService() {
