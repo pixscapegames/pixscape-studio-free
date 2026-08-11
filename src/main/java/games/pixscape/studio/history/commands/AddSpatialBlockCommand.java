@@ -2,9 +2,9 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
@@ -19,8 +19,8 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final int blockId;
-    private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
     private final CommandOutcome initialOutcome;
+    private boolean identityAllocated;
 
     public AddSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                   SpatialBlockSelectionService selection, int layerEntityId,
@@ -33,12 +33,14 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         this.before = SpatialBlockCommandSupport.snapshot(component);
         TiledLayerComponent tiled = world != null
                 ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
+        SpatialBlockData prepared = block != null ? block.copy() : null;
+        if (prepared != null) {
+            prepared.id = component != null ? component.peekNextSpatialBlockId() : 1;
+        }
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.add(
-                component, block, tiled != null ? tiled.data : null);
+                component, prepared, tiled != null ? tiled.data : null);
         this.after = plan.walls;
         this.blockId = addedBlockId(before, after);
-        this.physicsBefore = block != null && block.physicsCollision
-                ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
                 : world == null || historyIds == null || layerHistoryId <= 0L || blockId <= 0
                 ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
@@ -66,12 +68,28 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
+        if (!identityAllocated) {
+            SpatialBlocksComponent current = SpatialBlockCommandSupport.get(world, layer);
+            int currentNextSpatialBlockId = current != null ? current.peekNextSpatialBlockId() : 1;
+            if (currentNextSpatialBlockId != blockId) {
+                throw new IllegalStateException(
+                        "Spatial block allocation changed after command preparation: expected "
+                                + blockId + ", current " + currentNextSpatialBlockId + ".");
+            }
+        }
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, after);
         if (outcome != CommandOutcome.APPLIED) return outcome;
-        SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
-        SpatialBlockData added = SpatialBlockCommandSupport.find(component, blockId);
+        if (!identityAllocated) {
+            SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
+            int allocated = component.allocateNextSpatialBlockId();
+            if (allocated != blockId) {
+                throw new IllegalStateException(
+                        "Spatial block allocation changed after prevalidation: expected "
+                                + blockId + ", got " + allocated + ".");
+            }
+            identityAllocated = true;
+        }
         if (selection != null) selection.selectBlock(layer, blockId);
-        if (added != null && added.physicsCollision) SpatialBlockPhysicsSync.sync(world, layer, added, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }
@@ -90,7 +108,6 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
                 world, layer, before);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.enterLayer(layer);
-        if (physicsBefore != null) physicsBefore.restore(world, layer, this);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }

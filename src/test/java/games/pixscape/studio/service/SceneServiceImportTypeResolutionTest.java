@@ -1,16 +1,16 @@
 package games.pixscape.studio.service;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetRenderSize;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.ui.asset.ImportDialog;
 import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

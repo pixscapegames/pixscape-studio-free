@@ -4,25 +4,12 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetAssetMeta;
-import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.log.StudioLog;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public final class TilesetAssetImportService {
 
@@ -72,7 +59,7 @@ public final class TilesetAssetImportService {
         Map<Integer, Integer> tileAssetIds = registerSplitTilesAsTileAssets(base, tilesetDir, grid.columns(), tilesetMeta);
         copyTilesetSourceFile(base, sourceFile, tilesetDir, tilesetMeta);
 
-        return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
+        return new TilesetImportResult(1, tilesetMeta.id(), StudioFs.PREFIX_TILES + base, tileAssetIds);
     }
 
     public TilesetImportResult importDirectory(TilesetDirectoryImportRequest request) {
@@ -109,7 +96,7 @@ public final class TilesetAssetImportService {
                 tilesetMeta
         );
 
-        return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
+        return new TilesetImportResult(1, tilesetMeta.id(), StudioFs.PREFIX_TILES + base, tileAssetIds);
     }
 
     public TilesetImportResult importImageCollection(TilesetImageCollectionImportRequest request) {
@@ -144,7 +131,7 @@ public final class TilesetAssetImportService {
             return TilesetImportResult.skipped();
         }
 
-        return new TilesetImportResult(1, tilesetMeta.id, StudioFs.PREFIX_TILES + base, tileAssetIds);
+        return new TilesetImportResult(1, tilesetMeta.id(), StudioFs.PREFIX_TILES + base, tileAssetIds);
     }
 
     public record TilesetAtlasImportRequest(FileHandle sourceFile,
@@ -278,7 +265,7 @@ public final class TilesetAssetImportService {
 
         tilesetMeta.imageWidth = 0;
         tilesetMeta.imageHeight = 0;
-        tilesetMeta.sourceRelPath = null;
+        assetMetaDatabase.updateSourceRelPath(tilesetMeta.id(), null);
         tilesetMeta.tileWidth = referenceTileWidth;
         tilesetMeta.tileHeight = referenceTileHeight;
         tilesetMeta.columns = Math.max(1, tileCount);
@@ -318,19 +305,22 @@ public final class TilesetAssetImportService {
             );
 
             String ext = src.extension();
-            String newFileName = sheetIndex + "__a" + tileMeta.id + "." + ext;
+            String newFileName = sheetIndex + "__a" + tileMeta.id() + "." + ext;
             FileHandle dst = tilesetDir.child(newFileName);
 
             if (!dst.exists()) {
                 src.copyTo(dst);
             }
 
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
+            assetMetaDatabase.updateSourceRelPath(
+                    tileMeta.id(),
+                    StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
+            );
+            tileMeta.tilesetId = tilesetMeta.id();
             tileMeta.sheetIndex = sheetIndex;
             tileMeta.cellX = sheetIndex;
             tileMeta.cellY = 0;
-            tileAssetIds.put(sheetIndex, tileMeta.id);
+            tileAssetIds.put(sheetIndex, tileMeta.id());
         }
         return tileAssetIds;
     }
@@ -371,20 +361,23 @@ public final class TilesetAssetImportService {
             );
 
             String ext = src.extension();
-            String newFileName = localTileId + "__a" + tileMeta.id
+            String newFileName = localTileId + "__a" + tileMeta.id()
                     + (ext == null || ext.isBlank() ? "" : "." + ext);
             FileHandle dst = tilesetDir.child(newFileName);
             if (!dst.exists()) {
                 src.copyTo(dst);
             }
 
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
+            assetMetaDatabase.updateSourceRelPath(
+                    tileMeta.id(),
+                    StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
+            );
+            tileMeta.tilesetId = tilesetMeta.id();
             tileMeta.sheetIndex = localTileId;
             tileMeta.cellX = localTileId;
             tileMeta.cellY = 0;
-            tileAssetIds.put(localTileId, tileMeta.id);
-            assetIdByCanonicalSource.put(canonicalSource, tileMeta.id);
+            tileAssetIds.put(localTileId, tileMeta.id());
+            assetIdByCanonicalSource.put(canonicalSource, tileMeta.id());
         }
         return tileAssetIds;
     }
@@ -498,19 +491,22 @@ public final class TilesetAssetImportService {
                     )
             );
 
-            String newFileName = sheetIndex + "__a" + tileMeta.id + StudioFs.EXT_PNG;
+            String newFileName = sheetIndex + "__a" + tileMeta.id() + StudioFs.EXT_PNG;
             FileHandle dst = tilesetDir.child(newFileName);
 
             if (!dst.exists()) {
                 f.moveTo(dst);
             }
 
-            tileMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName;
-            tileMeta.tilesetId = tilesetMeta.id;
+            assetMetaDatabase.updateSourceRelPath(
+                    tileMeta.id(),
+                    StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
+            );
+            tileMeta.tilesetId = tilesetMeta.id();
             tileMeta.sheetIndex = sheetIndex;
             tileMeta.cellX = cellX;
             tileMeta.cellY = cellY;
-            tileAssetIds.put(sheetIndex, tileMeta.id);
+            tileAssetIds.put(sheetIndex, tileMeta.id());
         }
         return tileAssetIds;
     }
@@ -519,14 +515,17 @@ public final class TilesetAssetImportService {
                                        FileHandle sourceFile,
                                        FileHandle tilesetDir,
                                        TilesetAssetMeta tilesetMeta) {
-        String sheetFileName = base + "__a" + tilesetMeta.id + "." + sourceFile.extension();
+        String sheetFileName = base + "__a" + tilesetMeta.id() + "." + sourceFile.extension();
         FileHandle sheetDst = tilesetDir.child(sheetFileName);
 
         if (!sheetDst.exists()) {
             sourceFile.copyTo(sheetDst);
         }
 
-        tilesetMeta.sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + sheetFileName;
+        assetMetaDatabase.updateSourceRelPath(
+                tilesetMeta.id(),
+                StudioFs.DIR_ORIG_TILES + "/" + base + "/" + sheetFileName
+        );
     }
 
     public static DirectoryTilesetAnalysis analyzeDirectory(FileHandle directory) {

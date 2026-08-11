@@ -6,9 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ResolvedSceneActivationPipelineIntegrationContractTest {
 
@@ -19,12 +17,28 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
                 StandardCharsets.UTF_8
         );
         String openBody = methodBody(source, "private void openProjectStrict(");
-        String switchBody = methodBody(source, "public void changeScene(");
+        String switchBody = methodBody(source, "public void changeSceneNow(");
         String loadBody = methodBody(source, "void loadScene(");
 
         assertTrue(openBody.contains("loadScene(cfg, sceneName, projectDir);"));
         assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
         assertTrue(loadBody.contains("sceneActivationPipeline.activate("));
+    }
+
+    @Test
+    public void sceneSwitchNowPersistsSelectionAndLoadsWithoutSavingOrDirtyChecks() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String switchBody = methodBody(source, "public void changeSceneNow(");
+
+        assertTrue(switchBody.contains("cfg.setCurrentSceneByName(sceneName);"));
+        assertTrue(switchBody.contains("saveProjectFile(cfg);"));
+        assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
+        assertFalse(switchBody.contains("saveCurrentSceneOnly("));
+        assertFalse(switchBody.contains("historyManager.isDirty()"));
+        assertFalse(switchBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
     }
 
     @Test
@@ -57,6 +71,43 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         assertTrue(activationBody.contains("loadScene(cfg, result.sceneName(), projectDir);"));
         assertFalse(activationBody.contains("clearWorldAndRenderState();"));
         assertEquals(1, countOccurrences(loadBody, "clearWorldAndRenderState();"));
+    }
+
+    @Test
+    public void tmxActivationCentersCameraAfterImportedSceneLoads() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String activationBody = methodBody(source, "private void activateImportedTmxScene(");
+
+        assertOrdered(
+                activationBody,
+                "loadScene(cfg, result.sceneName(), projectDir);",
+                "canvas.centerCamera();",
+                "assertCurrentSceneMetadataIntegrity("
+        );
+    }
+
+    @Test
+    public void activationCompilesLinkedPhysicsAfterTiledAndSpatialResolution()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/"
+                        + "ResolvedSceneActivationPipeline.java"),
+                StandardCharsets.UTF_8
+        );
+        String body = methodBody(source, "void activate(");
+
+        assertOrdered(body,
+                "sceneLoader.load(",
+                "world.process();",
+                "resolveTiledLayersForActivation(",
+                "validateAndCompileSpatialBlocksForActivation(",
+                "PhysicsService.rebuildPreparedBodyCaches(",
+                "target.meta().pixelsPerMeter",
+                "renderRuntimeRebuilder.rebuild("
+        );
     }
 
     private static void assertOrdered(String source, String... fragments) {

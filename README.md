@@ -2,9 +2,9 @@
 
 <h1>Pixscape Studio Free</h1>
 
-[![Changelog](https://img.shields.io/badge/changelog-0.2.1-orange.svg)](CHANGELOG.md)
-[![Maven Central](https://img.shields.io/maven-central/v/games.pixscape/pixscape-runtime.svg)](https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime)[![Platforms](https://img.shields.io/badge/exports-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)
-[![Java](https://img.shields.io/badge/studio-Java%2021-blue.svg)](#)
+[![Changelog](https://img.shields.io/badge/changelog-0.2.2-orange.svg)](CHANGELOG.md)<br>
+[![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
+[![Java version](https://img.shields.io/badge/Java%20version-21-blue.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 **Open-source 2D game studio for LibGDX and Pixscape Runtime.**
@@ -78,6 +78,7 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Spritesheet-based animations
 * Animation clips
 * Asset-level animation definitions
+* Multi-animation entities with switchable Animation assets
 * Runtime animation export
 * Repeatable sprites
 * 2.5D spatial properties for sprites and animations
@@ -149,7 +150,7 @@ Pixscape Runtime is a separate open-source runtime built on **LibGDX** and **Art
 Current runtime dependency:
 
 ```gradle
-games.pixscape:pixscape-runtime:0.1.8
+games.pixscape:pixscape-runtime:0.1.9
 ```
 
 Pixscape Runtime is published on Maven Central:

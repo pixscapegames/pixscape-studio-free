@@ -8,21 +8,22 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.*;
+import games.pixscape.studio.history.commands.AddPhysicsBodyCommand;
+import games.pixscape.studio.history.commands.Command;
+import games.pixscape.studio.history.commands.EditPhysicsBodyCommand;
+import games.pixscape.studio.history.commands.RemovePhysicsBodyCommand;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.widget.UiBinders;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public final class BodyPanel extends CollapsibleWidget {
     private static final Array<String> BODY_TYPES = Array.with("Static", "Kinematic", "Dynamic");
@@ -109,13 +110,12 @@ public final class BodyPanel extends CollapsibleWidget {
             public void changed(ChangeEvent event, Actor actor) {
                 if (!showBodyToggle || internalRefresh || entityId < 0) return;
 
-                boolean enableBody = addPhysicsBox.isChecked();
-                boolean hadPhysicsBeforeToggle = hasPhysics(entityId);
+                boolean addBody = addPhysicsBox.isChecked();
+                boolean hadPhysicsBeforeChange = hasPhysics(entityId);
 
-                executeBodyToggle(enableBody, hadPhysicsBeforeToggle);
+                applyBodyPresenceChange(addBody, hadPhysicsBeforeChange);
                 refreshFromModel(entityId);
 
-                EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(entityId, MY_TAG));
                 event.handle();
             }
         });
@@ -189,7 +189,9 @@ public final class BodyPanel extends CollapsibleWidget {
                 ctx.world,
                 bodyTypeBox,
                 this::hasPhysics,
-                eid -> BODY_TYPES.get(clamp(ctx.mPhysBody.get(eid).type, BODY_TYPES.size - 1)),
+                eid -> BODY_TYPES.get(mTiled.has(eid)
+                        ? PhysicsBodyComponent.STATIC
+                        : clamp(ctx.mPhysBody.get(eid).type, BODY_TYPES.size - 1)),
                 (eid, before, after) -> {
                     int idx = BODY_TYPES.indexOf(after, false);
                     int typeIdx = (idx < 0) ? PhysicsBodyComponent.DYNAMIC : idx;
@@ -247,36 +249,27 @@ public final class BodyPanel extends CollapsibleWidget {
         }
     }
 
-    private void executeBodyToggle(boolean enableBody, boolean hadPhysicsBeforeToggle) {
-        boolean needsDefaultFixture = enableBody
-                && !hadPhysicsBeforeToggle
-                && shouldCreateDefaultFixture(entityId)
-                && countFixtures(entityId) == 0;
-
-        TogglePhysicsBodyCommand toggleCommand = new TogglePhysicsBodyCommand(
-                ctx.world,
-                ctx.history.historyIds(),
-                entityId,
-                enableBody,
-                PhysicsBodyComponent.DYNAMIC,
-                !needsDefaultFixture
-        );
-
-        if (!needsDefaultFixture) {
-            ctx.history.execute(toggleCommand);
-            return;
+    private void applyBodyPresenceChange(boolean addBody, boolean hadPhysicsBeforeChange) {
+        if (addBody) {
+            boolean createDefaultShape = !hadPhysicsBeforeChange
+                    && shouldCreateDefaultFixture(entityId)
+                    && countFixtures(entityId) == 0;
+            ctx.history.execute(new AddPhysicsBodyCommand(
+                    ctx.world,
+                    ctx.history.historyIds(),
+                    ctx.physicsService,
+                    entityId,
+                    PhysicsBodyComponent.DYNAMIC,
+                    createDefaultShape
+            ));
+        } else {
+            ctx.history.execute(new RemovePhysicsBodyCommand(
+                    ctx.world,
+                    ctx.history.historyIds(),
+                    ctx.physicsService,
+                    entityId
+            ));
         }
-
-        List<Command> commands = new ArrayList<>(2);
-        commands.add(toggleCommand);
-        commands.add(new AddFixtureCommand(
-                ctx.world,
-                ctx.history.historyIds(),
-                ctx.physicsSelectionService,
-                entityId
-        ));
-
-        ctx.history.execute(new CompositeCommand("Enable body with default shape", commands));
     }
 
     private void refreshFromModel(int eid) {
@@ -286,11 +279,13 @@ public final class BodyPanel extends CollapsibleWidget {
 
             if (showBodyToggle) {
                 addPhysicsBox.setChecked(has);
+                addPhysicsBox.setDisabled(hasLinkedShape(eid));
             }
 
             detailsBlock.show(has);
 
             bodyTypeBinder.setEntityId(eid);
+            bodyTypeBox.setDisabled(mTiled.has(eid));
             fixedRotationBinder.setEntityId(eid);
             bulletBinder.setEntityId(eid);
             allowSleepBinder.setEntityId(eid);
@@ -329,14 +324,14 @@ public final class BodyPanel extends CollapsibleWidget {
     }
 
     private int countFixtures(int eid) {
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || fixtures.fixtures == null) return 0;
-        return fixtures.fixtures.size;
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null) return 0;
+        return fixtures.shapes.size;
     }
 
     private String buildShapeSummary(int eid) {
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || fixtures.fixtures == null || fixtures.fixtures.size == 0) {
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
             return EMPTY_SHAPE_SUMMARY;
         }
 
@@ -344,15 +339,30 @@ public final class BodyPanel extends CollapsibleWidget {
         int quads = 0;
         int polygons = 0;
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.shapeType == FixtureDefData.SHAPE_CIRCLE) circles++;
-            else if (f.shapeType == FixtureDefData.SHAPE_BOX) quads++;
-            else if (f.shapeType == FixtureDefData.SHAPE_POLYGON) polygons++;
+            int shapeType = f.spatialBlockId > 0
+                    ? PhysicsGeometryData.SHAPE_POLYGON
+                    : f.geometry != null
+                    ? f.geometry.shapeType
+                    : -1;
+            if (shapeType == PhysicsGeometryData.SHAPE_CIRCLE) circles++;
+            else if (shapeType == PhysicsGeometryData.SHAPE_BOX) quads++;
+            else if (shapeType == PhysicsGeometryData.SHAPE_POLYGON) polygons++;
         }
 
         return circles + " circles • " + quads + " quads • " + polygons + " polygons";
+    }
+
+    private boolean hasLinkedShape(int eid) {
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null) return false;
+        for (int i = 0; i < fixtures.shapes.size; i++) {
+            PhysicsShapeData shape = fixtures.shapes.get(i);
+            if (shape != null && shape.spatialBlockId > 0) return true;
+        }
+        return false;
     }
 
     private String buildJointSummary(int eid) {

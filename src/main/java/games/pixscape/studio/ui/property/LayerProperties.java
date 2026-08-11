@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.property;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -16,14 +18,12 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.Command;
-import games.pixscape.studio.history.commands.EditTiledLayerSpatialDefaultsCommand;
-import games.pixscape.studio.history.commands.ToggleLayerSpatialDepthCommand;
-import games.pixscape.studio.history.commands.TogglePhysicsBodyCommand;
+import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.*;
@@ -32,6 +32,7 @@ public class LayerProperties extends VisTable {
 
     private final World world;
     private final HistoryManager history;
+    private final PhysicsService physicsService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
@@ -65,19 +66,22 @@ public class LayerProperties extends VisTable {
     private boolean internalParallaxRefresh = false;
     private boolean internalCollisionsRefresh = false;
     private boolean internalSpatialRefresh = false;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
 
-    public LayerProperties(World world, HistoryManager history, Runnable markPreviewSaveRequired) {
+    public LayerProperties(
+            World world, HistoryManager history, PhysicsService physicsService,
+            Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.physicsService = physicsService;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
         this.mParallax = world.getMapper(LayerParallaxComponent.class);
         this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.tiledMapProperties = new TiledMapProperties(world, markPreviewSaveRequired);
+        this.tiledMapProperties = new TiledMapProperties(world, markCurrentSceneSaveRequired);
 
         UiFieldFactory factory = new UiFieldFactory(world);
 
@@ -218,12 +222,12 @@ public class LayerProperties extends VisTable {
                 }
 
                 if (requestedActive) {
-                    executePhysicsToggle(layerEntityId);
+                    addPhysicsToTiledLayer(layerEntityId);
                     refreshFromModel(layerEntityId);
                     return;
                 }
 
-                showDisableCollisionsDialog(layerEntityId);
+                showRemoveCollisionsDialog(layerEntityId);
             }
         });
 
@@ -319,8 +323,8 @@ public class LayerProperties extends VisTable {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 
@@ -343,14 +347,13 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        typeValueLabel.setText(buildLayerTypeLabel(lic.type));
+        typeValueLabel.setText(buildLayerTypeLabel(lic.type, lic.spatialEnabled));
 
         boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
         boolean collisionsSupported = isTiled && scenePhysicsEnabled;
         boolean collisionsActive = collisionsSupported && mPhysBody.has(layerEntityId);
-        boolean spatialSupported = lic.type == LayerComponent.TYPE_PHYSICS ||
-                lic.type == LayerComponent.TYPE_TILED;
+        boolean spatialSupported = isTiled;
         boolean spatialActive = isLayerSpatialEnabled(layerEntityId);
         boolean supportsParallax = supportsEditableParallax(layerEntityId, lic);
         boolean hasParallax = mParallax.has(layerEntityId);
@@ -403,9 +406,9 @@ public class LayerProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    private String buildLayerTypeLabel(int type) {
+    private String buildLayerTypeLabel(int type, boolean spatialEnabled) {
         if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeDisplayName(type);
+            return LayerService.typeDisplayName(type, spatialEnabled);
         }
         return buildTiledTypeLabel(currentSceneMeta());
     }
@@ -456,23 +459,21 @@ public class LayerProperties extends VisTable {
         return false;
     }
 
-    private void executePhysicsToggle(int layerEntityId) {
+    private void addPhysicsToTiledLayer(int layerEntityId) {
         if (!isScenePhysicsEnabled()) {
             refreshFromModel(layerEntityId);
             return;
         }
 
-        Command command = new TogglePhysicsBodyCommand(
+        Command command = new AddPhysicsBodyCommand(
                 world,
                 history.historyIds(),
+                physicsService,
                 layerEntityId,
-                true,
                 PhysicsBodyComponent.STATIC,
                 false
         );
         history.execute(command);
-
-        EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(layerEntityId, MY_TAG));
     }
 
     private void submitTiledSpatialEdit(
@@ -539,26 +540,22 @@ public class LayerProperties extends VisTable {
     }
 
     private void removePhysicsFromTiledLayer(int layerEntityId) {
-        history.execute(new TogglePhysicsBodyCommand(
+        history.execute(new RemovePhysicsBodyCommand(
                 world,
                 history.historyIds(),
-                layerEntityId,
-                false,
-                PhysicsBodyComponent.STATIC,
-                false
+                physicsService,
+                layerEntityId
         ));
-
-        EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(layerEntityId, MY_TAG));
         flagPreviewSaveRequired();
     }
 
-    private void showDisableCollisionsDialog(int layerEntityId) {
+    private void showRemoveCollisionsDialog(int layerEntityId) {
         if (!mPhysBody.has(layerEntityId)) {
             refreshFromModel(layerEntityId);
             return;
         }
 
-        VisDialog dialog = new VisDialog("Warning") {
+        VisDialog dialog = new StudioDialog("Warning") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {
@@ -570,10 +567,8 @@ public class LayerProperties extends VisTable {
 
         dialog.text(
                 """
-                        Removing collisions will permanently delete the physics on this layer.
-                        This includes its body, fixtures and attached joints.
-                        
-                        Do you want to continue?"""
+                        Removing collisions will delete the physics on this layer.
+                        This action can be undone."""
         );
         dialog.button("Remove", true);
         dialog.button("Cancel", false);
@@ -589,7 +584,7 @@ public class LayerProperties extends VisTable {
     }
 
     private void showDisableSpatialDialog(int layerEntityId) {
-        VisDialog dialog = new VisDialog("Warning") {
+        VisDialog dialog = new StudioDialog("Warning") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {

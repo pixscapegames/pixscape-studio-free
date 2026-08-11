@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.main;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -16,33 +18,28 @@ import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.TextField;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import com.kotcrab.vis.ui.widget.VisTextField;
 import com.kotcrab.vis.ui.widget.VisDialog;
+import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
-import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.runtime.render.DrawList;
-import games.pixscape.runtime.render.FrameRenderQueue;
-import games.pixscape.runtime.render.LayerStateSOA;
-import games.pixscape.runtime.render.RenderContext;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.profiling.FrameSystemProfiler;
+import games.pixscape.runtime.profiling.ProfiledSystem;
+import games.pixscape.runtime.render.*;
 import games.pixscape.runtime.render.batch.GLCaps;
 import games.pixscape.runtime.render.batch.MetricsBatch;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
-import games.pixscape.runtime.profiling.FrameSystemProfiler;
-import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -65,11 +62,15 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.ops.EditorOpsImpl;
 import games.pixscape.studio.service.*;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.StudioAnimationAssets;
+import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
+import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.prefab.PrefabAssetService;
@@ -84,6 +85,7 @@ import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
 import games.pixscape.studio.ui.widget.TextInputWidget;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
+import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.IntPredicate;
 
@@ -96,6 +98,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private World world;
     private final Stage gridStage;
     private final OrthographicCamera camera;
+    private static final float MIN_CAMERA_ZOOM = 0.1f;
+    private static final float MAX_CAMERA_ZOOM = 20f;
     private final OrthographicCamera box2dCamera;
     // Render state
     private DynamicEntityRenderState dynamicEntityState;
@@ -118,9 +122,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private LayerService layerService;
     private PhysicsService physicsService;
     private final PhysicsSelectionService physicsSelectionService;
+    private final StudioEditingModeService studioEditingModeService;
+    private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final AtlasStudioService atlasStudioService;
+    private final StudioAssetVisualResolver assetVisualResolver;
+    private final AnimationRegistry animationRegistry;
+    private StudioAnimationPreviewRefresher animationPreviewRefresher;
     private final ShaderService shaderService;
     private AlignService alignService;
     private ClipboardService clipboardService;
@@ -129,7 +138,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private PrefabAssetService prefabAssetService;
     private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
-    private IdentityRegistry prefabIdentityRegistry;
+    private IdentityRegistry identityRegistry;
     private String cachedPrefabPhysicsPath;
     private boolean cachedPrefabContainsPhysics;
 
@@ -138,7 +147,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private TiledToolService tiledToolService;
     private TiledAllocatorService tiledAllocatorService;
     private TiledFallbackSystem tiledFallbackSystem;
+    private AnimationFallbackSystem animationFallbackSystem;
     private StudioParticleFallbackSystem studioParticleFallbackSystem;
+    private final ParticleRuntimeAvailabilityRefreshRequest particleAvailabilityRefresh =
+            new ParticleRuntimeAvailabilityRefreshRequest();
     private TiledGhostPreviewSystem tiledGhostPreviewSystem;
     private TiledPreviewService tiledPreviewService;
     private TiledMutationController tiledMutationController;
@@ -155,7 +167,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     // Operations
     private EditorOps editorOps;
-    private EditorOps.AssetsChangedListener assetsChangedListener;
+    private EditorOps.AtlasInputsChangedListener atlasInputsChangedListener;
 
     // Mouse handling
     private StudioContextMenu contextMenu;
@@ -173,11 +185,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final Vector2 tmpUiStageCoords = new Vector2();
     private Cursor currentCursor;
     private boolean currentCursorForbidden;
+    private boolean tiledCursorValid;
+    private int tiledCursorGX;
+    private int tiledCursorGY;
+    private final TiledCursorResolver.Result tiledCursorResult = new TiledCursorResolver.Result();
 
 
     // Box2D (lazy init + enable/disable system)
     private Box2dWorldService box2dWorldService;
     private Box2dSyncSystem box2dSyncSystem;
+    private PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
     private GizmoSystem gizmoSystem;
     private final GridActor gridActor;
     private boolean lastPhysicsEnabled = false;
@@ -209,8 +226,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 ? PreviewRuntimeProfiler.fromSystemProperties(frameProfiler)
                 : null;
         atlasStudioService = new AtlasStudioService(this);
-        physicsSelectionService = new PhysicsSelectionService();
-        spatialBlockSelectionService = new SpatialBlockSelectionService();
+        assetVisualResolver = new StudioAssetVisualResolver(
+                atlasStudioService,
+                id -> null,
+                StudioAssetVisualResolver.projectStandaloneAccess()
+        );
+        atlasStudioService.setAssetVisualResolver(assetVisualResolver);
+        animationRegistry = new AnimationRegistry();
+        studioEditingModeService = new StudioEditingModeService();
+        physicsSelectionService = new PhysicsSelectionService(studioEditingModeService);
+        physicsSelectionReconciler = new PhysicsSelectionReconciler(physicsSelectionService);
+        spatialBlockSelectionService = new SpatialBlockSelectionService(studioEditingModeService);
         spatialTileSelectionService = new SpatialTileSelectionService();
         shaderService = new ShaderService(app);
         polygonDrawSession = new PolygonDrawSession();
@@ -283,6 +309,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 app.getUiStage(),
                 tiledState,
                 physicsSelectionService,
+                physicsSelectionReconciler,
                 spatialBlockSelectionService,
                 spatialTileSelectionService,
                 polygonDrawSession
@@ -292,6 +319,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         FileHandle particleImagesRoot = resolveImagesRoot(cfg);
 
         final AssetMetaDatabase assetMetaDatabaseForFallback = loadAssetMetaDatabaseIfAvailable(cfg);
+        assetVisualResolver.setAssetMetaLookup(assetMetaDatabaseForFallback::findById);
+        reloadAnimationRegistry(assetMetaDatabaseForFallback);
+        animationPreviewRefresher = new StudioAnimationPreviewRefresher(
+                dynamicEntityState,
+                assetVisualResolver,
+                assetMetaDatabaseForFallback::findById
+        );
         studioTilesetProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(assetMetaDatabaseForFallback);
 
         WorldBootstrapResult bootstrap =
@@ -318,6 +352,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         sceneMeta,
                         0,
                         tileAnimationRegistry,
+                        animationRegistry,
                         studioTilesetProfiles,
                         systemProfiler,
 
@@ -325,10 +360,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         pre_render -> {
                             assert assetMetaDatabaseForFallback != null;
                             pre_render.with(
-                                    profiled(new AnimationFallbackSystem(dynamicEntityState, atlasStudioService)),
+                                    profiled(animationFallbackSystem = new AnimationFallbackSystem(
+                                            dynamicEntityState,
+                                            assetVisualResolver,
+                                            assetMetaDatabaseForFallback::findById
+                                    )),
                                     profiled(tiledFallbackSystem = new TiledFallbackSystem(
                                             tiledState,
-                                            atlasStudioService,
+                                            assetVisualResolver,
                                             assetMetaDatabaseForFallback::findById,
                                             tileAnimationRegistry
                                     )),
@@ -347,10 +386,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         post_render -> post_render.with(
                                 profiled(tiledGhostPreviewSystem = new TiledGhostPreviewSystem(
                                         worldDrawCtx,
-                                        atlasStudioService,
+                                        assetVisualResolver,
                                         tiledPreviewService,
                                         assetMetaDatabaseForFallback::findById,
-                                        TextureRegistry::getByHandle,
                                         tileAnimationRegistry
                                 )),
                                 profiled(new UiRefreshDispatchSystem()),
@@ -361,6 +399,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        animationPreviewRefresher.bindWorld(world);
+        if (studioParticleFallbackSystem != null) {
+            studioParticleFallbackSystem.setRuntimeParticleSystem(
+                    world.getSystem(RenderParticleSyncSystem.class));
+        }
+        physicsSelectionReconciler.bindWorld(world);
         tiledMutationController = new TiledMutationController(
                 world, historyManager, () -> app != null ? app.getSceneService() : null);
 
@@ -370,29 +414,35 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledToolService = new TiledToolService();
 
         box2dSyncSystem = world.getSystem(Box2dSyncSystem.class);
+        physicsSpatialFootprintSyncSystem =
+                world.getSystem(PhysicsSpatialFootprintSyncSystem.class);
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
             box2dSyncSystem.setStepEnabled(false);
         }
 
         // Services
-        layerService = new LayerService(world, tiledAllocatorService, historyManager.historyIds());
-        selectionService = new SelectionService(world, layerService);
+        identityRegistry = new IdentityRegistry();
+        identityRegistry.bind(world, sceneMeta);
+        identityRegistry.rebuild();
+
+        layerService = new LayerService(
+                world, tiledAllocatorService, historyManager.historyIds(), identityRegistry);
+        selectionService = new SelectionService(world, layerService, studioEditingModeService);
         keyboardNudgeService = new KeyboardNudgeService(world, historyManager, selectionService);
         gizmoSystem.setSelectionService(selectionService);
         physicsService = new PhysicsService(world, box2dWorldService);
         alignService = new AlignService(this);
-        clipboardService = new ClipboardService(this);
 
-        prefabIdentityRegistry = new IdentityRegistry();
-        prefabIdentityRegistry.bind(world);
-        prefabIdentityRegistry.rebuild();
+        clipboardService = new ClipboardService(this, identityRegistry);
 
         prefabAssetService = new PrefabAssetService(world);
         entityGraphInstantiationService = new EntityGraphInstantiationService(
                 world,
                 historyManager,
-                prefabIdentityRegistry
+                identityRegistry,
+                physicsService,
+                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
         );
 
         // Wiring
@@ -408,13 +458,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         zOrderRuntimeService = new ZOrderRuntimeService(world);
 
-        editorOps = new EditorOpsImpl(this);
+        editorOps = new EditorOpsImpl(this, identityRegistry);
 
         contextMenu = new StudioContextMenu(this, app.getUiStage());
         app.getUiStage().getRoot().addListener(contextMenu);
 
-        if (assetsChangedListener != null) {
-            editorOps.setAssetsChangedListener(assetsChangedListener);
+        if (atlasInputsChangedListener != null) {
+            editorOps.setAtlasInputsChangedListener(atlasInputsChangedListener);
         }
 
         if (sceneMeta != null && sceneMeta.physicsEnabled) {
@@ -440,17 +490,57 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (runtimeParticleSystem != null) {
             runtimeParticleSystem.setEffectsRoot(effectsRoot);
-            runtimeParticleSystem.invalidateAllEffects();
         }
 
         if (studioParticleFallbackSystem != null) {
             studioParticleFallbackSystem.setEffectsRoot(effectsRoot);
             studioParticleFallbackSystem.setImagesRoot(imagesRoot);
-            studioParticleFallbackSystem.invalidateAll();
         }
+
+        refreshParticleRuntimeAvailability();
 
         if (gpuSnapshotManager != null) {
             markSnapshotDirtyIfSceneLoaded("project-bound-services-refreshed");
+        }
+    }
+
+    /** Rebuilds authored and declared particle resources at an authoring publication boundary. */
+    public void refreshParticleRuntimeAvailability() {
+        RenderParticleSyncSystem runtimeParticleSystem =
+                world.getSystem(RenderParticleSyncSystem.class);
+        if (runtimeParticleSystem == null) return;
+
+        runtimeParticleSystem.invalidateAllEffects();
+        if (studioParticleFallbackSystem != null) {
+            studioParticleFallbackSystem.invalidateAll();
+        }
+
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        if (sceneMeta == null) return;
+
+        Array<String> declaredEffectPaths = new Array<>();
+        if (sceneMeta.runtimeAvailability != null
+                && sceneMeta.runtimeAvailability.particleEffectPaths != null) {
+            for (String effectPath : sceneMeta.runtimeAvailability.particleEffectPaths) {
+                declaredEffectPaths.add(effectPath);
+            }
+        }
+        String sceneTag = cfg.canonicalSceneTagFor(sceneMeta);
+        runtimeParticleSystem.prepareRuntimeAvailability(
+                sceneTag, declaredEffectPaths);
+    }
+
+    /** Queues an authoring-only Runtime particle availability rebuild after the next ECS step. */
+    public void requestParticleRuntimeAvailabilityRefresh() {
+        particleAvailabilityRefresh.request();
+    }
+
+    /** Queues a rebuild when a generic create/restore operation produced a particle entity. */
+    public void requestParticleRuntimeAvailabilityRefreshIfParticleEntity(int entityId) {
+        if (world == null || entityId < 0) return;
+        if (world.getMapper(ParticleEmitterComponent.class).has(entityId)) {
+            requestParticleRuntimeAvailabilityRefresh();
         }
     }
 
@@ -472,20 +562,32 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void bindAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
+        if (assetMetaLookup != null) {
+            assetVisualResolver.setAssetMetaLookup(assetMetaLookup);
+            if (animationPreviewRefresher != null) {
+                animationPreviewRefresher.setAssetMetaLookup(assetMetaLookup);
+            }
+        }
         if (tiledFallbackSystem != null && assetMetaLookup != null) {
             tiledFallbackSystem.setAssetMetaLookup(assetMetaLookup);
+        }
+        if (animationFallbackSystem != null && assetMetaLookup != null) {
+            animationFallbackSystem.setAssetMetaLookup(assetMetaLookup);
         }
         if (tiledGhostPreviewSystem != null && assetMetaLookup != null) {
             tiledGhostPreviewSystem.setAssetMetaLookup(assetMetaLookup);
         }
-        refreshTilesetProfileRegistry();
     }
 
-    public void refreshTilesetProfileRegistry() {
-        refreshTilesetProfileRegistry(loadAssetMetaDatabaseIfAvailable(ProjectConfig.getInstance()));
+    /** Publishes one authoritative metadata database to every Studio consumer. */
+    public void publishAssetMetaDatabase(AssetMetaDatabase assetMetaDatabase) {
+        AssetMetaDatabase published = Objects.requireNonNull(
+                assetMetaDatabase, "assetMetaDatabase");
+        bindAssetMetaLookup(published::findById);
+        reloadDerivedAssetMetadata(published);
     }
 
-    public void refreshTilesetProfileRegistry(AssetMetaDatabase assetMetaDatabase) {
+    private void reloadDerivedAssetMetadata(AssetMetaDatabase assetMetaDatabase) {
         if (studioTilesetProfiles == null) {
             studioTilesetProfiles = RuntimeTilesetProfiles.empty();
         }
@@ -493,6 +595,29 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 studioTilesetProfiles,
                 assetMetaDatabase
         );
+        reloadAnimationRegistry(assetMetaDatabase);
+        requestTiledFallbackValidation();
+    }
+
+    private void reloadAnimationRegistry(AssetMetaDatabase assetMetaDatabase) {
+        if (animationRegistry == null) return;
+        StudioAnimationAssets.reloadRegistry(animationRegistry, assetMetaDatabase);
+    }
+
+    public void requestTiledFallbackValidation() {
+        if (tiledFallbackSystem != null) {
+            tiledFallbackSystem.requestValidation();
+        }
+    }
+
+    public void invalidateAssetVisualMetadata() {
+        assetVisualResolver.invalidateMetadata();
+        requestTiledFallbackValidation();
+    }
+
+    public void invalidateStandaloneAssetVisuals() {
+        assetVisualResolver.invalidateStandalone();
+        requestTiledFallbackValidation();
     }
 
     private void bindParticleControlChanges() {
@@ -615,10 +740,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gizmoSystem.disableTiledOverlay();
     }
 
-    public void setAssetsChangedListener(EditorOps.AssetsChangedListener listener) {
-        this.assetsChangedListener = listener;
+    public void setAtlasInputsChangedListener(EditorOps.AtlasInputsChangedListener listener) {
+        this.atlasInputsChangedListener = listener;
         if (editorOps != null) {
-            editorOps.setAssetsChangedListener(listener);
+            editorOps.setAtlasInputsChangedListener(listener);
         }
     }
 
@@ -912,7 +1037,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
                         // 2) priority to selected shape
                         int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
-                        long selectedFixtureId = physicsSelectionService.getSelectedFixtureId();
+                        int selectedFixtureId = physicsSelectionService.getSelectedPhysicsShapeId();
                         if (focusedBodyEid >= 0 && selectedFixtureId > 0) {
                             editorOps.deleteFixture(focusedBodyEid, selectedFixtureId);
                             return true;
@@ -1011,6 +1136,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return false;
                 }
 
+                if (handleTiledOutsideMapClick()) {
+                    return true;
+                }
+
                 if (handleRectDown()) {
                     return true;
                 }
@@ -1094,8 +1223,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
                 float factor = (amountY > 0 ? 1.1f : 0.9f);
-                camera.zoom = Math.max(0.1f,
-                        Math.min(5f, camera.zoom * factor));
+                camera.zoom = Math.max(MIN_CAMERA_ZOOM,
+                        Math.min(MAX_CAMERA_ZOOM, camera.zoom * factor));
 
                 coordSpaces.screenToWorld(
                         Gdx.input.getX(),
@@ -1123,6 +1252,27 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
         panning = true;
         return true;
+    }
+
+    private boolean handleTiledOutsideMapClick() {
+        int layerEntityId = selectionService.getActivelayerId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null) return false;
+
+        computeTileUnderMouse(tiled, tmpWorldPos);
+        if (tiledMapContainsWorldPoint(tiled.data, tmpWorldPos.x, tmpWorldPos.y)) return false;
+
+        spatialTileSelectionService.clear();
+        selectionService.clearSelection();
+        tiledPreviewService.clear();
+        return true;
+    }
+
+    static boolean tiledMapContainsWorldPoint(TiledMapLayerData map, float worldX, float worldY) {
+        if (map == null) return false;
+        int gx = map.worldToTileX(worldX, worldY);
+        int gy = map.worldToTileY(worldX, worldY);
+        return map.isInside(gx, gy);
     }
 
     private boolean handleBrushDown() {
@@ -1373,7 +1523,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     void showTiledSpatialRejection(int layerEntityId, TiledSpatialMutationRejection rejection) {
         if (rejection == null) return;
-        VisDialog dialog = new VisDialog("Spatial authoring conflict") {
+        VisDialog dialog = new StudioDialog("Spatial authoring conflict") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object) && rejection.firstBlockId() > 0) {
@@ -1413,6 +1563,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             ensureBox2dFromMeta(meta);
         });
 
+        EventFlow.i().subscribe(EventFlow.ScenePhysicsPixelsPerMeterChanged.class, ev -> {
+            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            if (physicsEnabled) {
+                ensureBox2dFromMeta(meta);
+            }
+        });
+
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, ev -> {
             SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
 
@@ -1429,10 +1586,27 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private void disableBox2dRuntimeSync() {
         if (box2dSyncSystem != null) {
             box2dSyncSystem.setEnabled(false);
+            box2dSyncSystem.setStepEnabled(false);
+            box2dSyncSystem.setBox2d(null);
         }
         if (physicsService != null) {
             physicsService.setBox2d(null);
         }
+        if (box2dWorldService != null) {
+            if (box2dWorldService.world != null
+                    && (box2dWorldService.world.getBodyCount() != 0
+                    || box2dWorldService.world.getJointCount() != 0)) {
+                throw new IllegalStateException(
+                        "Cannot dispose Box2D while native bodies or joints remain.");
+            }
+            box2dWorldService.dispose();
+            box2dWorldService = null;
+        }
+        lastPhysicsEnabled = false;
+    }
+
+    public void disposeBox2dAfterPhysicsPurge() {
+        disableBox2dRuntimeSync();
     }
 
     private void ensureBox2dFromMeta(SceneMeta meta) {
@@ -1441,7 +1615,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         // --- scene settings ---
-        final float ppm = (meta.pixelsPerMeter > 0f) ? meta.pixelsPerMeter : 100f;
+        final float ppm = meta.pixelsPerMeter;
         final float gx = meta.gravityX;
         final float gy = meta.gravityY;
         final boolean doSleep = meta.doSleep;
@@ -1461,6 +1635,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     new Vector2(gx, gy),
                     doSleep
             );
+            applyPixelsPerMeter(
+                    box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
             box2DcameraUpdate();
         }
         // -------------------------------------------------
@@ -1468,7 +1644,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         // -------------------------------------------------
         else {
             if (ppmChanged) {
-                box2dWorldService.setPpm(ppm);
+                PhysicsService.rebuildPreparedBodyCaches(world, ppm);
             }
 
             if (gravChanged) {
@@ -1480,6 +1656,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
 
             if (ppmChanged) {
+                applyPixelsPerMeter(
+                        box2dWorldService, physicsSpatialFootprintSyncSystem, ppm);
                 box2DcameraUpdate();
             }
         }
@@ -1502,6 +1680,23 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         lastGx = gx;
         lastGy = gy;
         lastDoSleep = doSleep;
+    }
+
+    static void applyPixelsPerMeter(
+            Box2dWorldService box2d,
+            PhysicsSpatialFootprintSyncSystem footprintSync,
+            float pixelsPerMeter) {
+        if (box2d == null) {
+            throw new IllegalStateException(
+                    "Box2D service is required to apply pixelsPerMeter.");
+        }
+        if (footprintSync == null) {
+            throw new IllegalStateException(
+                    "Physics spatial footprint sync system is required "
+                            + "to apply pixelsPerMeter.");
+        }
+        box2d.setPpm(pixelsPerMeter);
+        footprintSync.setPixelsPerMeter(pixelsPerMeter);
     }
 
     private void box2DcameraUpdate() {
@@ -1601,10 +1796,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
 
         EntityGraphInstantiationResult result;
-        if (prefabIdentityRegistry != null) {
-            prefabIdentityRegistry.rebuild();
-        }
-
         try {
             result = entityGraphInstantiationService.instantiate(
                     graph,
@@ -1623,7 +1814,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     this,
                     sceneTag,
-                    atlasStudioService,
+                    assetVisualResolver,
                     result.createdIds(),
                     "prefab-render-assets-rebound"
             );
@@ -1646,7 +1837,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     entry.initializer().toSnapshotData(entry.sourceEntityId());
 
             if (snapshot.hasPhysicsBody ||
-                    snapshot.hasPhysicsAuthoring ||
+                    snapshot.shapes.size > 0 ||
                     snapshot.hasJoint ||
                     snapshot.hasDistanceJoint ||
                     snapshot.hasRevoluteJoint ||
@@ -1657,7 +1848,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     snapshot.hasWeldJoint ||
                     snapshot.hasPulleyJoint ||
                     snapshot.hasGearJoint ||
-                    snapshot.fixtures.size > 0) {
+                    snapshot.shapes.size > 0) {
                 return true;
             }
         }
@@ -1696,8 +1887,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         for (EntityGraphEntry entry : graph.entries()) {
             if (entry == null || entry.initializer() == null) continue;
             GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-            if (snapshot == null || !snapshot.hasAssetRef || snapshot.assetRefAssetId <= 0) continue;
-            assetIds.add(snapshot.assetRefAssetId);
+            if (snapshot == null) continue;
+            if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
+                assetIds.add(snapshot.assetRefAssetId);
+            }
+            if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
+                for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
+                    int animationAssetId = snapshot.animationAssetIds.get(i);
+                    if (animationAssetId > 0) assetIds.add(animationAssetId);
+                }
+            }
         }
 
         for (IntSet.IntSetIterator it = assetIds.iterator(); it.hasNext; ) {
@@ -1879,6 +2078,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void updateTiledPreview() {
+        updateTiledCursor();
         if (world == null || selectionService == null || tiledToolService == null || tiledPaintService == null) {
             return;
         }
@@ -1923,21 +2123,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        coordSpaces.screenToWorldLogical(
-                Gdx.input.getX(),
-                Gdx.input.getY(),
-                selectionService.getActiveLayerIndex(),
-                layerService,
-                tmpWorldPos
-        );
-
-        int gx = tiled.data.worldToTileX(tmpWorldPos.x, tmpWorldPos.y);
-        int gy = tiled.data.worldToTileY(tmpWorldPos.x, tmpWorldPos.y);
-
-        if (!tiled.data.isInside(gx, gy)) {
+        if (!tiledCursorValid) {
             tiledPreviewService.clear();
             return;
         }
+        int gx = tiledCursorGX;
+        int gy = tiledCursorGY;
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
             int assetId = tiled.data.getTile(gx, gy);
@@ -1975,6 +2166,35 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         );
     }
 
+    private void updateTiledCursor() {
+        if (world == null || selectionService == null || layerService == null
+                || studioEditingModeService.getCurrentMode() != StudioEditingMode.TILED) {
+            publishTiledCursor(false, 0, 0);
+            return;
+        }
+
+        int layerEntityId = selectionService.getActivelayerId();
+        TiledLayerComponent tiled = layerEntityId < 0
+                ? null
+                : world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        if (tiled == null || tiled.data == null) {
+            publishTiledCursor(false, 0, 0);
+            return;
+        }
+
+        computeTileUnderMouse(tiled, tmpWorldPos);
+        TiledCursorResolver.resolve(tiled.data, tmpWorldPos.x, tmpWorldPos.y, tiledCursorResult);
+        publishTiledCursor(tiledCursorResult.valid, tiledCursorResult.gx, tiledCursorResult.gy);
+    }
+
+    private void publishTiledCursor(boolean valid, int gx, int gy) {
+        if (tiledCursorValid == valid && (!valid || tiledCursorGX == gx && tiledCursorGY == gy)) return;
+        tiledCursorValid = valid;
+        tiledCursorGX = gx;
+        tiledCursorGY = gy;
+        EventFlow.i().publish(new EventFlow.TiledCursorChanged(valid, gx, gy, EventFlow.tag(this)));
+    }
+
     private boolean isTiledToolInputEnabled() {
         return spatialBlockSelectionService == null || !spatialBlockSelectionService.isEditingActive();
     }
@@ -1986,6 +2206,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public AtlasStudioService getAtlasService() {
         return atlasStudioService;
+    }
+
+    public StudioAssetVisualResolver getAssetVisualResolver() {
+        return assetVisualResolver;
+    }
+
+    public StudioAnimationPreviewRefresher getAnimationPreviewRefresher() {
+        return animationPreviewRefresher;
     }
 
     public SelectionService getSelectionService() {
@@ -2010,6 +2238,20 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public PhysicsSelectionService getPhysicsSelectionService() {
         return physicsSelectionService;
+    }
+
+    public StudioEditingModeService getStudioEditingModeService() {
+        return studioEditingModeService;
+    }
+
+    public void resetEditingContexts() {
+        studioEditingModeService.reset(EventFlow.tag(this));
+        physicsSelectionService.clear();
+        spatialBlockSelectionService.clear();
+    }
+
+    public PhysicsSelectionReconciler getPhysicsSelectionReconciler() {
+        return physicsSelectionReconciler;
     }
 
     public SpatialBlockSelectionService getSpatialBlockSelectionService() {
@@ -2052,6 +2294,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return world;
     }
 
+    public IdentityRegistry getIdentityRegistry() {
+        return identityRegistry;
+    }
+
     public Stage getGridStage() {
         return gridStage;
     }
@@ -2075,11 +2321,43 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     @Override
     public void processFrame() {
         world.process();
+        particleAvailabilityRefresh.consumeIf(
+                canConsumeParticleAvailabilityRefresh(),
+                this::refreshParticleRuntimeAvailability);
+    }
+
+    private boolean canConsumeParticleAvailabilityRefresh() {
+        String sceneTag = currentSceneTag();
+        if (sceneTag == null || sceneTag.isBlank()) return true;
+        return !atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);
+    }
+
+    static final class ParticleRuntimeAvailabilityRefreshRequest {
+        private boolean pending;
+
+        void request() {
+            pending = true;
+        }
+
+        void consume(Runnable refresh) {
+            consumeIf(true, refresh);
+        }
+
+        boolean consumeIf(boolean canConsume, Runnable refresh) {
+            if (!pending || !canConsume) return false;
+            pending = false;
+            refresh.run();
+            return true;
+        }
+
+        boolean isPending() {
+            return pending;
+        }
     }
 
     @Override
     public void onSpatialInvariantFailure(RuntimeException failure) {
-        VisDialog dialog = new VisDialog("Spatial V3 invariant failure");
+        VisDialog dialog = new StudioDialog("Spatial V3 invariant failure");
         dialog.setModal(true);
         dialog.setMovable(false);
         dialog.text(failure.getMessage() + "\n\nThe scene preview has stopped. Reload or correct the scene before continuing.");
@@ -2139,6 +2417,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         if (world != null) {
+            physicsSelectionReconciler.bindWorld(null);
+            if (identityRegistry != null) {
+                identityRegistry.bind(null, null);
+            }
             world.dispose();
             world = null;
         }

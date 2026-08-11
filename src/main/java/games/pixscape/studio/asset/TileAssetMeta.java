@@ -8,7 +8,7 @@ public final class TileAssetMeta extends AssetMeta {
     public int cellY = -1;
 
     public TileAssetMeta() {
-        // required for Json
+        super(AssetType.TILE);
     }
 
     public TileAssetMeta(int id,

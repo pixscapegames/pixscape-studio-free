@@ -27,12 +27,14 @@ import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.modal.StudioFileChooser;
 import games.pixscape.studio.ui.widget.SimpleSelectBox;
 
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
+public final class ImportDialog extends StudioDialog implements OsFilesDropTarget {
 
     public enum ImportType {
         IMAGE,
@@ -172,7 +174,6 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
                         Consumer<Array<ImportItem>> onApply,
                         TilesetDirectoryImportHandler onImportTilesetDirectory) {
         super("Import assets");
-        super.getTitleLabel().setAlignment(Align.center);
         this.onApply = onApply;
         this.onImportTilesetDirectory = onImportTilesetDirectory;
         this.app = app;
@@ -184,7 +185,6 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
 
         buildUi();
 
-        addCloseButton();
         buildButtons();
 
         pack();
@@ -276,7 +276,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
     }
 
     private void openFileChooser() {
-        FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+        FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
         chooser.setMultiSelectionEnabled(true);
         chooser.setSize(900, 650);
 
@@ -298,7 +298,7 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
     }
 
     private void openTilesetDirectoryChooser() {
-        FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+        FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
         chooser.setMultiSelectionEnabled(false);
         chooser.setSelectionMode(FileChooser.SelectionMode.DIRECTORIES);
         chooser.setSize(900, 650);
@@ -690,9 +690,8 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
         int defaultCellWidth = Math.max(1, analysis.referenceTileWidth());
         int defaultCellHeight = Math.max(1, analysis.referenceTileHeight());
 
-        VisDialog dialog = new VisDialog("Tileset profile");
+        VisDialog dialog = new StudioDialog("Tileset profile");
         dialog.setModal(true);
-        dialog.getTitleLabel().setAlignment(Align.center);
         TableUtils.setSpacingDefaults(dialog);
 
         IntSpinnerModel referenceCellWidthModel = new IntSpinnerModel(defaultCellWidth, 1, ImportDialogValidation.MAX_IMAGE_SIZE, 1);
@@ -968,9 +967,8 @@ public final class ImportDialog extends VisDialog implements OsFilesDropTarget {
     private void openTilesetProfileDialog(ImportItem item) {
         if (item == null) return;
 
-        VisDialog dialog = new VisDialog("Tileset profile");
+        VisDialog dialog = new StudioDialog("Tileset profile");
         dialog.setModal(true);
-        dialog.getTitleLabel().setAlignment(Align.center);
         TableUtils.setSpacingDefaults(dialog);
 
         int maxTileWidth = item.imageWidth > 0 ? Math.min(item.imageWidth, ImportDialogValidation.MAX_IMAGE_SIZE) : ImportDialogValidation.MAX_IMAGE_SIZE;

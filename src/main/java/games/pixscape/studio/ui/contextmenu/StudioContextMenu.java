@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.contextmenu;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -12,17 +14,18 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
@@ -34,7 +37,6 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.service.prefab.PrefabAssetService;
 import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
@@ -234,17 +236,17 @@ public final class StudioContextMenu extends InputListener {
 
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures =
-                world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
+        PhysicsShapesComponent fixtures =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
 
-        long fixtureId = physicsSelectionService.getSelectedFixtureId();
-        FixtureDefData selectedFixture = null;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        PhysicsShapeData selectedFixture = null;
 
-        if (fixtureId > 0 && fixtures != null && fixtures.fixtures != null) {
-            for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-                FixtureDefData f = fixtures.fixtures.get(i);
+        if (physicsShapeId > 0 && fixtures != null && fixtures.shapes != null) {
+            for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+                PhysicsShapeData f = fixtures.shapes.get(i);
                 if (f == null) continue;
-                if (f.fixtureId == fixtureId) {
+                if (f.physicsShapeId == physicsShapeId) {
                     selectedFixture = f;
                     break;
                 }
@@ -291,8 +293,8 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(addPolygonShape);
 
         if (selectedFixture != null
-                && selectedFixture.shapeType == FixtureDefData.SHAPE_POLYGON
-                && !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) {
+                && selectedFixture.geometry != null
+                && selectedFixture.geometry.shapeType == PhysicsGeometryData.SHAPE_POLYGON) {
             menu.addSeparator();
 
             MenuItem editPolygon = new MenuItem("Edit polygon");
@@ -300,15 +302,15 @@ public final class StudioContextMenu extends InputListener {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
                     physicsSelectionService.focusBody(finalBodyEid);
-                    ops.beginEditPolygonFixture(finalBodyEid, fixtureId);
+                    ops.beginEditPolygonFixture(finalBodyEid, physicsShapeId);
                     event.handle();
                 }
             });
             menu.addItem(editPolygon);
         }
 
-        if (selectedFixture != null) {
-            if (selectedFixture.shapeType != FixtureDefData.SHAPE_POLYGON) {
+        if (selectedFixture != null && selectedFixture.geometry != null) {
+            if (selectedFixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) {
                 menu.addSeparator();
             }
 
@@ -317,7 +319,7 @@ public final class StudioContextMenu extends InputListener {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
                     physicsSelectionService.focusBody(finalBodyEid);
-                    ops.deleteFixture(finalBodyEid, fixtureId);
+                    ops.deleteFixture(finalBodyEid, physicsShapeId);
                     event.handle();
                 }
             });
@@ -619,7 +621,7 @@ public final class StudioContextMenu extends InputListener {
     }
 
     private void showCreatePrefabDialog() {
-        VisDialog dialog = new VisDialog("Create Prefab") {
+        VisDialog dialog = new StudioDialog("Create Prefab") {
             private final VisTextField nameField = new VisTextField();
 
             {

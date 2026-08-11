@@ -26,12 +26,12 @@ public class EditorOpsImplIntegrationContractTest {
     public void deleteJoint_andDeleteFixture_applyInvalidGuards_beforeHistoryMutation() throws Exception {
         String source = readEditorOpsImpl();
         String deleteJoint = methodBody(source, "public void deleteJoint(int jointEntityId)");
-        String deleteFixture = methodBody(source, "public void deleteFixture(int bodyEid, long fixtureId)");
+        String deleteFixture = methodBody(source, "public void deleteFixture(int bodyEid, int physicsShapeId)");
 
         assertTrue(deleteJoint.contains("if (jointEntityId < 0 || !physicsService.isJoint(jointEntityId))"));
         assertTrue(deleteJoint.contains("historyManager.execute(new DeleteJointCommand(world, historyIds, jointEntityId));"));
 
-        assertTrue(deleteFixture.contains("if (bodyEid < 0 || fixtureId <= 0) return;"));
+        assertTrue(deleteFixture.contains("if (bodyEid < 0 || physicsShapeId <= 0) return;"));
         assertTrue(deleteFixture.contains("if (fixtures == null)"));
         assertTrue(deleteFixture.contains("new DeleteFixtureCommand("));
         assertTrue(deleteFixture.contains("physicsSelectionService"));
@@ -43,12 +43,12 @@ public class EditorOpsImplIntegrationContractTest {
         String addBox = methodBody(source, "public void addBoxFixture(int bodyEid, float worldX, float worldY)");
         String addCircle = methodBody(source, "public void addCircleFixture(int bodyEid, float worldX, float worldY)");
 
-        assertTrue(addBox.contains("fixture.offsetX = 0f;"));
-        assertTrue(addBox.contains("fixture.offsetY = 0f;"));
+        assertTrue(addBox.contains("fixture.geometry.offsetX = 0f;"));
+        assertTrue(addBox.contains("fixture.geometry.offsetY = 0f;"));
         assertTrue(addBox.contains("historyManager.execute(new AddFixtureCommand("));
 
-        assertTrue(addCircle.contains("fixture.offsetX = 0f;"));
-        assertTrue(addCircle.contains("fixture.offsetY = 0f;"));
+        assertTrue(addCircle.contains("fixture.geometry.offsetX = 0f;"));
+        assertTrue(addCircle.contains("fixture.geometry.offsetY = 0f;"));
         assertTrue(addCircle.contains("historyManager.execute(new AddFixtureCommand("));
     }
 

@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.widget;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.helper.GeometryHelper;
 import games.pixscape.studio.history.HistoryManager;
@@ -24,12 +25,14 @@ public final class TransformFieldFactory {
     private final HistoryManager history;
     private final ComponentMapper<TransformComponent> mT;
     private final ComponentMapper<AssetRefComponent> mSpriteSource;
+    private final ComponentMapper<ParticleEmitterComponent> mParticle;
 
     public TransformFieldFactory(World world, HistoryManager history) {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
         this.mT = world.getMapper(TransformComponent.class);
         this.mSpriteSource = world.getMapper(AssetRefComponent.class);
+        this.mParticle = world.getMapper(ParticleEmitterComponent.class);
     }
 
     public FloatField posX() {
@@ -209,7 +212,8 @@ public final class TransformFieldFactory {
     }
 
     private boolean shouldUseSpritePosition(int entityId) {
-        return mSpriteSource != null && mSpriteSource.has(entityId);
+        return (mParticle == null || !mParticle.has(entityId))
+                && mSpriteSource != null && mSpriteSource.has(entityId);
     }
 
     private static float beforeOriginX(EditTransformCommand.Snapshot snapshot) {

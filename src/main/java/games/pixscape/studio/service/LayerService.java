@@ -17,6 +17,7 @@ import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Single source of truth for layers.
@@ -35,6 +36,7 @@ public final class LayerService {
     private final DirtyTrackerSystem dirtyTracker;
     private final EntitySubscription layerSub;
     private final HistoryIdRegistry historyIds;
+    private final IdentityRegistry identityRegistry;
     private final TiledAllocatorService tiledAllocatorService;
     private boolean dirty = true;
 
@@ -44,10 +46,12 @@ public final class LayerService {
     private final IntArray layerEntities = new IntArray(true, 8);
     private final int MY_TAG = EventFlow.tag(this);
 
-    public LayerService(World world, TiledAllocatorService tiledAllocatorService, HistoryIdRegistry historyIds) {
+    public LayerService(World world, TiledAllocatorService tiledAllocatorService,
+                        HistoryIdRegistry historyIds, IdentityRegistry identityRegistry) {
         this.world = world;
         this.tiledAllocatorService = tiledAllocatorService;
         this.historyIds = historyIds;
+        this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.mL = world.getMapper(LayerComponent.class);
         this.mMeta = world.getMapper(LayerMetaComponent.class);
         this.mPar = world.getMapper(LayerParallaxComponent.class);
@@ -168,6 +172,27 @@ public final class LayerService {
         return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
     }
 
+    /** Returns whether the scene already contains its single actor Spatial layer. */
+    public boolean hasSpatialActorLayer() {
+        rebuildIfDirty();
+        for (int i = 0; i < layerEntities.size; i++) {
+            int layerEntity = layerEntities.get(i);
+            LayerComponent layer = mL.getSafe(layerEntity, null);
+            if (isSpatialActorLayer(layer)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isSpatialActorLayer(LayerComponent layer) {
+        return layer != null && isSpatialActorLayer(layer.type, layer.spatialEnabled);
+    }
+
+    public static boolean isSpatialActorLayer(int type, boolean spatialEnabled) {
+        return type == LayerComponent.TYPE_PHYSICS && spatialEnabled;
+    }
+
     public LayerMetaComponent meta(int index) {
         rebuildIfDirty();
         int e = layerEntities.get(index);
@@ -226,9 +251,18 @@ public final class LayerService {
         int clampedIndex = Math.max(0, Math.min(index, layerEntities.size));
         int e = world.create();
 
-        historyIds.ensureForEntity(e);
-
-        initializer.init(e);
+        try {
+            historyIds.ensureForEntity(e);
+            initializer.init(e);
+            identityRegistry.ensureStableId(e);
+        } catch (RuntimeException failure) {
+            TiledLayerComponent tiled = mTiled.getSafe(e, null);
+            if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+            IdentityRegistry.unindexEntityImmediately(world, e);
+            historyIds.unbindEntity(e);
+            world.delete(e);
+            throw failure;
+        }
 
         if (clampedIndex < layerEntities.size) {
             shiftItemsForInsert(clampedIndex);
@@ -607,7 +641,8 @@ public final class LayerService {
             boolean visible = visibleC != null && visibleC.isVisible();
             boolean locked = meta != null && meta.locked;
             int type = lc != null ? lc.type : LayerComponent.TYPE_CLASSIC;
-            list.add(new LayerUI(e, name, description, i, type, visible, locked));
+            boolean spatialEnabled = lc != null && lc.spatialEnabled;
+            list.add(new LayerUI(e, name, description, i, type, spatialEnabled, visible, locked));
         }
         return list;
     }
@@ -702,6 +737,13 @@ public final class LayerService {
     }
 
     public static String typeDisplayName(int type) {
+        return typeDisplayName(type, false);
+    }
+
+    public static String typeDisplayName(int type, boolean spatialEnabled) {
+        if (isSpatialActorLayer(type, spatialEnabled)) {
+            return "Spatial";
+        }
         return switch (type) {
             case LayerComponent.TYPE_PHYSICS -> "Physics";
             case LayerComponent.TYPE_LIGHT -> "Light";
@@ -711,14 +753,18 @@ public final class LayerService {
     }
 
     public static String typeSuffixLabel(int type) {
+        return typeSuffixLabel(type, false);
+    }
+
+    public static String typeSuffixLabel(int type, boolean spatialEnabled) {
         if (type == LayerComponent.TYPE_CLASSIC) {
             return "";
         }
-        return "(" + typeDisplayName(type) + ")";
+        return "(" + typeDisplayName(type, spatialEnabled) + ")";
     }
 
-    public record LayerUI(int layerEntityId, String name, String description, int index, int type, boolean visible,
-                          boolean locked) {
+    public record LayerUI(int layerEntityId, String name, String description, int index, int type,
+                          boolean spatialEnabled, boolean visible, boolean locked) {
     }
 
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,

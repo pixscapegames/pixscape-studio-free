@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonWriter;
 import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.ui.preview.PreviewTarget;
@@ -285,9 +286,10 @@ public class ProjectConfig {
             if (file == null) throw new IllegalArgumentException("file is null");
 
             String text = file.readString("UTF-8");
-            validateRawProjectKindOrThrow(text, file.path());
+            com.badlogic.gdx.utils.JsonValue root =
+                    validateRawProjectOrThrow(text, file.path());
 
-            ProjectConfig cfg = json.fromJson(ProjectConfig.class, text);
+            ProjectConfig cfg = json.readValue(ProjectConfig.class, root);
             if (cfg == null) {
                 throw new RuntimeException("Invalid project file (null): " + file.path());
             }
@@ -301,15 +303,14 @@ public class ProjectConfig {
             return cfg;
         }
 
-        private static void validateRawProjectKindOrThrow(String jsonText, String path) {
+        private static com.badlogic.gdx.utils.JsonValue validateRawProjectOrThrow(
+                String jsonText, String path) {
             com.badlogic.gdx.utils.JsonValue root;
-
             try {
                 root = new com.badlogic.gdx.utils.JsonReader().parse(jsonText);
             } catch (Exception ex) {
                 throw new RuntimeException("Invalid project JSON in: " + path, ex);
             }
-
             if (root == null || !root.has("projectKind")) {
                 throw new RuntimeException("Missing project kind in: " + path);
             }
@@ -322,6 +323,28 @@ public class ProjectConfig {
 
             if (!STUDIO_PROJECT_KIND.equals(kind)) {
                 throw new RuntimeException("Unsupported project kind '" + kind + "' in: " + path);
+            }
+
+            com.badlogic.gdx.utils.JsonValue scenes = root.get("scenes");
+            if (scenes == null || !scenes.isObject()) {
+                throw new RuntimeException("Missing scenes map in: " + path);
+            }
+            for (com.badlogic.gdx.utils.JsonValue scene = scenes.child;
+                 scene != null; scene = scene.next) {
+                SceneMetaRuntime.requireCurrentSceneSchemaVersion(
+                        scene, scene.name);
+                requirePositiveRawInt(scene, "nextEntityStableId", path);
+                requirePositiveRawInt(scene, "nextPhysicsShapeId", path);
+            }
+            return root;
+        }
+
+        private static void requirePositiveRawInt(
+                com.badlogic.gdx.utils.JsonValue scene, String field, String path) {
+            com.badlogic.gdx.utils.JsonValue value = scene.get(field);
+            if (value == null || !value.isNumber() || value.asInt() <= 0) {
+                throw new RuntimeException("Scene '" + scene.name + "' requires a positive "
+                        + field + " in: " + path);
             }
         }
 
@@ -348,6 +371,16 @@ public class ProjectConfig {
                 throw new RuntimeException("Missing current scene name in: " + path);
             if (cfg.scenes.size == 0)
                 throw new RuntimeException("Project has no scenes in: " + path);
+            for (ObjectMap.Entries<String, SceneMeta> entries = cfg.scenes.entries(); entries.hasNext(); ) {
+                ObjectMap.Entry<String, SceneMeta> entry = entries.next();
+                SceneMeta scene = entry.value;
+                if (scene == null || scene.nextEntityStableId <= 0
+                        || scene.nextPhysicsShapeId <= 0) {
+                    throw new RuntimeException("Scene '" + entry.key
+                            + "' has invalid identity high-water metadata in: " + path);
+                }
+                SceneMetaRuntime.validateSceneSchemaVersion(scene.sceneSchemaVersion, entry.key);
+            }
 
             SceneMeta currentMeta = cfg.scenes.get(cfg.currentSceneName);
             if (currentMeta == null)

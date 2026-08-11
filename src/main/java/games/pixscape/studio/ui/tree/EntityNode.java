@@ -41,7 +41,7 @@ public class EntityNode extends VisTree.Node {
         this.label = new VisLabel(name);
 
         VisTable row = new VisTable();
-        row.add(label).padLeft(6).left();
+        row.add(label).left();
         row.setUserObject(new NodeRef(entityId, this.kind));
         setActor(row);
 

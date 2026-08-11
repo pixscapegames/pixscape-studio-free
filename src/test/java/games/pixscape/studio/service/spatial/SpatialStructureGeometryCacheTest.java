@@ -1,8 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -236,7 +236,7 @@ public class SpatialStructureGeometryCacheTest {
         cache.synchronize(13, walls, map);
         int initial = cache.compilationCount();
 
-        first.physicsCollision = !first.physicsCollision;
+        first.name = "display-only change";
         walls.revision++;
         Assert.assertFalse(cache.synchronize(13, walls, map).published());
         Assert.assertEquals(initial, cache.compilationCount());

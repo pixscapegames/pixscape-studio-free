@@ -1,11 +1,15 @@
 package games.pixscape.studio.ui.shaders;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
@@ -20,8 +24,11 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
+import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
 
-public class ShaderManagerDialog extends VisWindow {
+public class ShaderManagerDialog extends StudioModalWindow {
 
     private enum ShaderKind {
         MATERIAL,
@@ -29,20 +36,25 @@ public class ShaderManagerDialog extends VisWindow {
     }
 
     private interface NameAction {
-        void run(String value);
+        boolean run(String value);
+    }
+
+    private static final class ShaderSources {
+        final ObjectMap<ShaderVariant, String> vertices = new ObjectMap<>();
+        final ObjectMap<ShaderVariant, String> fragments = new ObjectMap<>();
     }
 
     private final StudioApplicationAdapter app;
 
     private final VisSelectBox<ShaderKind> typeBox;
     private final VisSelectBox<String> shaderBox;
-    private final VisTextField nameField;
 
     private final TabbedPane targetTabs;
     private final VisTable targetContent = new VisTable(true);
+    private final VisScrollPane mainScrollPane;
 
-    private final ObjectMap<ShaderVariant, VisTextArea> vertAreas = new ObjectMap<>();
-    private final ObjectMap<ShaderVariant, VisTextArea> fragAreas = new ObjectMap<>();
+    private final ObjectMap<ShaderVariant, ScrollableCodeEditor> vertEditors = new ObjectMap<>();
+    private final ObjectMap<ShaderVariant, ScrollableCodeEditor> fragEditors = new ObjectMap<>();
 
     private final VisTextButton testButton;
     private final VisTextButton saveButton;
@@ -52,10 +64,13 @@ public class ShaderManagerDialog extends VisWindow {
     private final VisTextButton renameButton;
     private final VisTextButton deleteButton;
 
-    private static final float CODE_ROWS = 12f;
+    private static final int CODE_ROWS = 12;
     private static final float CODE_AREA_HEIGHT = 220f;
+    private static final float FORM_LABEL_WIDTH = 100f;
+    private static final float FORM_CONTROL_WIDTH = 120f;
+    private static final float CODE_CONTENT_MIN_WIDTH = 720f;
 
-    private boolean creatingNew = false;
+    private boolean updatingUi;
     private ShaderVariant selectedVariant = ShaderVariant.DESKTOP_GL30;
 
     public ShaderManagerDialog(StudioApplicationAdapter app) {
@@ -66,30 +81,31 @@ public class ShaderManagerDialog extends VisWindow {
         setModal(true);
         setMovable(true);
         setResizable(true);
-        addCloseButton();
+
         closeOnEscape();
 
-        VisTable root = new VisTable(true);
-        root.pad(8);
-        root.defaults().left().growX();
+        VisTable mainContent = new VisTable(true);
+        mainContent.pad(8);
+        mainContent.defaults().left();
 
-        root.add(new VisLabel("Shader kind")).row();
+        VisTable formTable = new VisTable();
+        formTable.defaults().left().padBottom(4f);
+
         typeBox = new VisSelectBox<>();
         typeBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
         typeBox.setSelected(ShaderKind.MATERIAL);
-        root.add(typeBox).width(280).row();
+        formTable.add(new VisLabel("Shader type:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(typeBox).width(FORM_CONTROL_WIDTH).row();
 
-        root.add(new VisLabel("Project shader")).row();
         shaderBox = new VisSelectBox<>();
-        root.add(shaderBox).width(280).row();
+        formTable.add(new VisLabel("Shader name:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(shaderBox).width(FORM_CONTROL_WIDTH).row();
 
-        root.add(new VisLabel("Name")).row();
-        nameField = new VisTextField();
-        root.add(nameField).width(280).row();
+        mainContent.add(formTable).left().row();
 
-        targetTabs = new TabbedPane();
-        addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop GL30");
-        addTargetTab(ShaderVariant.ES3_WEBGL2, "Android ES3 / HTML WebGL2");
+        targetTabs = new TabbedPane("shader-tabs");
+        addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop");
+        addTargetTab(ShaderVariant.ES3_WEBGL2, "Android / HTML");
 
         targetTabs.addListener(new TabbedPaneListener() {
             @Override
@@ -106,14 +122,28 @@ public class ShaderManagerDialog extends VisWindow {
             }
         });
 
-        root.add(targetTabs.getTabsPane()).growX().row();
+        VisTable contentFrame = new VisTable();
+        contentFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
+        contentFrame.pad(2f);
+        contentFrame.add(targetContent).growX();
 
-        VisScrollPane scrollPane = new VisScrollPane(targetContent);
-        scrollPane.setFadeScrollBars(false);
-        scrollPane.setCancelTouchFocus(false);
-        scrollPane.setFlickScroll(false);
-        root.add(scrollPane).grow().row();
+        VisTable targetArea = new VisTable();
+        targetArea.add(targetTabs.getTabsPane()).left().growX().row();
+        targetArea.add(contentFrame).growX().padTop(-1f).row();
+        mainContent.add(targetArea).growX().row();
+
+        VisLabel includeHintLabel = new VisLabel(
+                "Material shaders can use #include \"pixscape_common.glsl\"."
+        );
+        mainContent.add(includeHintLabel).left().padTop(4f).row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
+
+        mainScrollPane = new VisScrollPane(mainContent);
+        mainScrollPane.setScrollingDisabled(true, false);
+        mainScrollPane.setForceScroll(false, false);
+        mainScrollPane.setFadeScrollBars(false);
+        mainScrollPane.setFlickScroll(false);
+        mainScrollPane.setCancelTouchFocus(false);
 
         testButton = new VisTextButton("Test current target");
         saveButton = new VisTextButton("Save");
@@ -147,9 +177,11 @@ public class ShaderManagerDialog extends VisWindow {
         buttons.add(leftButtons).left().expandX();
         buttons.add(rightButtons).right();
 
-        root.add(buttons).growX().padTop(6);
+        VisTable shell = new VisTable();
+        shell.add(mainScrollPane).grow().row();
+        shell.add(buttons).growX().padTop(6f);
 
-        add(root).grow();
+        add(shell).grow();
 
         hookListeners();
         refreshShaderList();
@@ -170,32 +202,35 @@ public class ShaderManagerDialog extends VisWindow {
     }
 
     private VisTable buildVariantEditorTable(ShaderVariant variant) {
-        VisTable table = new VisTable(true);
+        VisTable table = new VisTable();
         table.defaults().left().growX();
 
-        VisTextArea vertArea = vertAreas.get(variant);
-        if (vertArea == null) {
-            vertArea = new VisTextArea();
-            vertArea.setPrefRows(CODE_ROWS);
-            vertAreas.put(variant, vertArea);
+        ScrollableCodeEditor vertEditor = vertEditors.get(variant);
+        if (vertEditor == null) {
+            vertEditor = new ScrollableCodeEditor(CODE_ROWS, CODE_CONTENT_MIN_WIDTH);
+            vertEditors.put(variant, vertEditor);
         }
 
-        VisTextArea fragArea = fragAreas.get(variant);
-        if (fragArea == null) {
-            fragArea = new VisTextArea();
-            fragArea.setPrefRows(CODE_ROWS);
-            fragAreas.put(variant, fragArea);
+        ScrollableCodeEditor fragEditor = fragEditors.get(variant);
+        if (fragEditor == null) {
+            fragEditor = new ScrollableCodeEditor(CODE_ROWS, CODE_CONTENT_MIN_WIDTH);
+            fragEditors.put(variant, fragEditor);
         }
 
-        table.add(new VisLabel("Vertex shader")).row();
-        table.add(createCodeScrollPane(vertArea)).growX().height(CODE_AREA_HEIGHT).row();
+        table.add(buildShaderSectionHeader("Vertex shader")).growX().row();
+        table.add(vertEditor).growX().height(CODE_AREA_HEIGHT).row();
 
-        table.add(new VisLabel("Fragment shader")).padTop(8).row();
-        table.add(createCodeScrollPane(fragArea)).growX().height(CODE_AREA_HEIGHT).row();
-
-        table.add(new VisLabel("Material shaders can use #include \"pixscape_common.glsl\".")).padTop(8).row();
+        table.add(buildShaderSectionHeader("Fragment shader")).growX().row();
+        table.add(fragEditor).growX().height(CODE_AREA_HEIGHT).row();
 
         return table;
+    }
+
+    private VisTable buildShaderSectionHeader(String title) {
+        VisTable header = new VisTable();
+        header.setBackground(VisUI.getSkin().getDrawable("shader-section-header"));
+        header.add(new VisLabel(title)).left().pad(4f, 6f, 4f, 6f);
+        return header;
     }
 
     private void showTargetContent(VariantTab tab) {
@@ -206,20 +241,11 @@ public class ShaderManagerDialog extends VisWindow {
         targetContent.add(tab.getContentTable()).grow();
     }
 
-    private VisScrollPane createCodeScrollPane(VisTextArea area) {
-        VisScrollPane scrollPane = new VisScrollPane(area);
-        scrollPane.setFadeScrollBars(false);
-        scrollPane.setCancelTouchFocus(false);
-        scrollPane.setFlickScroll(false);
-        scrollPane.setScrollingDisabled(false, false);
-        return scrollPane;
-    }
-
     private void hookListeners() {
         typeBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                creatingNew = false;
+                if (updatingUi) return;
                 refreshShaderList();
                 updateUIFromSelection();
             }
@@ -228,7 +254,7 @@ public class ShaderManagerDialog extends VisWindow {
         shaderBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                creatingNew = false;
+                if (updatingUi) return;
                 updateUIFromSelection();
             }
         });
@@ -286,13 +312,6 @@ public class ShaderManagerDialog extends VisWindow {
     private void refreshShaderList() {
         Array<String> names = listProjectShaders(typeBox.getSelected());
         shaderBox.setItems(names);
-
-        if (names.size > 0) {
-            shaderBox.setSelected(names.first());
-            creatingNew = false;
-        } else {
-            creatingNew = true;
-        }
     }
 
     private Array<String> listProjectShaders(ShaderKind kind) {
@@ -316,23 +335,170 @@ public class ShaderManagerDialog extends VisWindow {
     private void updateUIFromSelection() {
         String shaderName = shaderBox.getSelected();
 
-        if (creatingNew || shaderName == null || shaderName.isBlank()) {
-            nameField.setDisabled(false);
-            nameField.setText("");
-            fillTemplates(typeBox.getSelected());
-            return;
+        if (shaderName == null || shaderName.isBlank()) {
+            clearEditors();
+        } else {
+            loadVariantSources(shaderName, typeBox.getSelected());
         }
-
-        nameField.setDisabled(true);
-        nameField.setText(shaderName);
-        loadVariantSources(shaderName, typeBox.getSelected());
+        updateActionAvailability();
     }
 
     private void startNewShader() {
-        creatingNew = true;
-        nameField.setDisabled(false);
-        nameField.setText("");
-        fillTemplates(typeBox.getSelected());
+        if (getStage() == null) return;
+
+        StudioModalWindow dialog = new StudioModalWindow("New shader");
+        dialog.setMovable(true);
+        dialog.closeOnEscape();
+
+        VisTextField input = new VisTextField();
+        VisSelectBox<ShaderKind> kindBox = new VisSelectBox<>();
+        kindBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
+        kindBox.setSelected(typeBox.getSelected());
+
+        VisTable form = new VisTable(true);
+        form.pad(10f);
+        form.defaults().left();
+        form.add(new VisLabel("Shader name:")).width(FORM_LABEL_WIDTH);
+        form.add(input).width(320f).row();
+        form.add(new VisLabel("Shader type:")).width(FORM_LABEL_WIDTH);
+        form.add(kindBox).width(160f).left().row();
+
+        VisTextButton create = new VisTextButton("Create");
+        VisTextButton cancel = new VisTextButton("Cancel");
+        create.setColor(CommonLayout.BUTTON_COLOR);
+        cancel.setColor(CommonLayout.BUTTON_COLOR);
+        VisTable actions = new VisTable(true);
+        actions.add(create);
+        actions.add(cancel);
+        form.add(actions).colspan(2).right().padTop(8f);
+
+        dialog.add(form).grow();
+        dialog.pack();
+        dialog.centerWindow();
+
+        Runnable createAction = () -> createShaderFromDialog(dialog, input, kindBox);
+        create.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                createAction.run();
+            }
+        });
+        cancel.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                dialog.remove();
+            }
+        });
+        input.addListener(new InputListener() {
+            @Override
+            public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode != Input.Keys.ENTER && keycode != Input.Keys.NUMPAD_ENTER) return false;
+                createAction.run();
+                return true;
+            }
+        });
+
+        getStage().addActor(dialog);
+        getStage().setKeyboardFocus(input);
+    }
+
+    private void createShaderFromDialog(
+            StudioModalWindow dialog,
+            VisTextField input,
+            VisSelectBox<ShaderKind> kindBox) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
+            Dialogs.showErrorDialog(dialog.getStage(), "No project loaded. Custom shaders are stored per project.");
+            return;
+        }
+
+        String name = sanitizeName(input.getText());
+        if (name.isEmpty()) {
+            Dialogs.showErrorDialog(dialog.getStage(), "Shader name is required.");
+            return;
+        }
+
+        ShaderKind kind = kindBox.getSelected();
+        FileHandle shaderDir = getProjectShaderDir(kind, name);
+        if (shaderDir == null) {
+            Dialogs.showErrorDialog(dialog.getStage(), "The project shader directory is unavailable.");
+            return;
+        }
+        if (shaderDir.exists()) {
+            Dialogs.showErrorDialog(dialog.getStage(),
+                    "A " + kind.name() + " shader named '" + name + "' already exists.");
+            return;
+        }
+
+        try {
+            createNewShaderAsset(name, kind);
+            reloadRegistryAndNotify();
+            selectShader(kind, name);
+            dialog.remove();
+        } catch (Exception ex) {
+            Dialogs.showErrorDialog(
+                    dialog.getStage(),
+                    "Error while creating shader",
+                    ex.getMessage() != null ? ex.getMessage() : ex.toString()
+            );
+        }
+    }
+
+    private void createNewShaderAsset(String name, ShaderKind kind) {
+        FileHandle shaderDir = getProjectShaderDir(kind, name);
+        if (shaderDir == null) {
+            throw new IllegalStateException("The project shader directory is unavailable.");
+        }
+        if (shaderDir.exists()) {
+            throw new IllegalStateException("A shader with that name already exists.");
+        }
+
+        writeNewShaderAsset(shaderDir, name, kind);
+    }
+
+    private void writeNewShaderAsset(FileHandle shaderDir, String name, ShaderKind kind) {
+        try {
+            shaderDir.mkdirs();
+            if (!shaderDir.exists()) {
+                throw new IllegalStateException("The shader directory could not be created.");
+            }
+
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                String prefix = variantFilePrefix(variant);
+                String vertex = kind == ShaderKind.FX
+                        ? templateFxVertex(variant)
+                        : templateMaterialVertex(variant);
+                String fragment = kind == ShaderKind.FX
+                        ? templateFxFragment(variant)
+                        : templateMaterialFragment(variant);
+                shaderDir.child(prefix + ".vert").writeString(vertex, false, "UTF-8");
+                shaderDir.child(prefix + ".frag").writeString(fragment, false, "UTF-8");
+            }
+
+            shaderDir.child("shader.json").writeString(buildShaderJson(name, kind), false, "UTF-8");
+            shaderDir.child("includes").mkdirs();
+            if (!shaderDir.child("includes").exists()) {
+                throw new IllegalStateException("The shader includes directory could not be created.");
+            }
+        } catch (RuntimeException ex) {
+            if (shaderDir.exists()) shaderDir.deleteDirectory();
+            throw ex;
+        }
+    }
+
+    private void selectShader(ShaderKind kind, String name) {
+        updatingUi = true;
+        try {
+            typeBox.setSelected(kind);
+            Array<String> names = listProjectShaders(kind);
+            shaderBox.setItems(names);
+            if (name != null && names.contains(name, false)) {
+                shaderBox.setSelected(name);
+            }
+        } finally {
+            updatingUi = false;
+        }
+        updateUIFromSelection();
     }
 
     private void loadVariantSources(String shaderName, ShaderKind kind) {
@@ -344,38 +510,37 @@ public class ShaderManagerDialog extends VisWindow {
             FileHandle vertFile = shaderDir.child(prefix + ".vert");
             FileHandle fragFile = shaderDir.child(prefix + ".frag");
 
-            VisTextArea vertArea = vertAreas.get(variant);
-            VisTextArea fragArea = fragAreas.get(variant);
-
-            vertArea.setText(vertFile.exists() ? vertFile.readString("UTF-8") : "");
-            fragArea.setText(fragFile.exists() ? fragFile.readString("UTF-8") : "");
+            vertEditors.get(variant).setText(vertFile.exists() ? vertFile.readString("UTF-8") : "");
+            fragEditors.get(variant).setText(fragFile.exists() ? fragFile.readString("UTF-8") : "");
         }
     }
 
-    private void fillTemplates(ShaderKind kind) {
+    private void clearEditors() {
         for (ShaderVariant variant : ShaderVariant.values()) {
-            VisTextArea vertArea = vertAreas.get(variant);
-            VisTextArea fragArea = fragAreas.get(variant);
-
-            if (kind == ShaderKind.FX) {
-                vertArea.setText(templateFxVertex(variant));
-                fragArea.setText(templateFxFragment(variant));
-            } else {
-                vertArea.setText(templateMaterialVertex(variant));
-                fragArea.setText(templateMaterialFragment(variant));
-            }
+            vertEditors.get(variant).setText("");
+            fragEditors.get(variant).setText("");
         }
+    }
+
+    private void updateActionAvailability() {
+        String selected = shaderBox.getSelected();
+        boolean hasSelection = selected != null && !selected.isBlank();
+        testButton.setDisabled(!hasSelection);
+        saveButton.setDisabled(!hasSelection);
+        duplicateButton.setDisabled(!hasSelection);
+        renameButton.setDisabled(!hasSelection);
+        deleteButton.setDisabled(!hasSelection);
     }
 
     private void doTestCompile() {
-        String name = nameField.getText().trim();
-        if (name.isEmpty()) {
-            Dialogs.showErrorDialog(getStage(), "Shader name is required.");
+        String name = shaderBox.getSelected();
+        if (name == null || name.isBlank()) {
+            Dialogs.showErrorDialog(getStage(), "No shader selected to test.");
             return;
         }
 
-        String vertSource = vertAreas.get(selectedVariant).getText();
-        String fragSource = fragAreas.get(selectedVariant).getText();
+        String vertSource = vertEditors.get(selectedVariant).getText();
+        String fragSource = fragEditors.get(selectedVariant).getText();
 
         if (vertSource == null || vertSource.trim().isEmpty()) {
             Dialogs.showErrorDialog(getStage(), "Vertex shader code is empty.");
@@ -413,15 +578,15 @@ public class ShaderManagerDialog extends VisWindow {
     private void doSaveAndRegister() {
         ShaderKind kind = typeBox.getSelected();
 
-        String name = sanitizeName(nameField.getText().trim());
-        if (name.isEmpty()) {
-            Dialogs.showErrorDialog(getStage(), "Shader name is required.");
+        String name = shaderBox.getSelected();
+        if (name == null || name.isBlank()) {
+            Dialogs.showErrorDialog(getStage(), "No shader selected to save.");
             return;
         }
 
         for (ShaderVariant variant : ShaderVariant.values()) {
-            String vertSource = vertAreas.get(variant).getText();
-            String fragSource = fragAreas.get(variant).getText();
+            String vertSource = vertEditors.get(variant).getText();
+            String fragSource = fragEditors.get(variant).getText();
 
             if (vertSource == null || vertSource.trim().isEmpty()) {
                 Dialogs.showErrorDialog(getStage(), "Missing vertex shader for " + variant + ".");
@@ -448,10 +613,10 @@ public class ShaderManagerDialog extends VisWindow {
                 String prefix = variantFilePrefix(variant);
 
                 shaderDir.child(prefix + ".vert")
-                        .writeString(vertAreas.get(variant).getText(), false, "UTF-8");
+                        .writeString(vertEditors.get(variant).getText(), false, "UTF-8");
 
                 shaderDir.child(prefix + ".frag")
-                        .writeString(fragAreas.get(variant).getText(), false, "UTF-8");
+                        .writeString(fragEditors.get(variant).getText(), false, "UTF-8");
             }
 
             shaderDir.child("shader.json").writeString(buildShaderJson(name, kind), false, "UTF-8");
@@ -463,10 +628,7 @@ public class ShaderManagerDialog extends VisWindow {
 
             EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
 
-            creatingNew = false;
-            refreshShaderList();
-            shaderBox.setSelected(name);
-            updateUIFromSelection();
+            selectShader(kind, name);
 
         } catch (Exception ex) {
             Dialogs.showErrorDialog(
@@ -530,31 +692,158 @@ public class ShaderManagerDialog extends VisWindow {
             String newName = sanitizeName(entered);
             if (newName.isBlank()) {
                 Dialogs.showErrorDialog(getStage(), "Shader name is required.");
-                return;
+                return false;
             }
             if (sourceName.equals(newName)) {
                 Dialogs.showErrorDialog(getStage(), "New shader name must be different.");
-                return;
+                return false;
             }
 
             FileHandle sourceDir = getProjectShaderDir(kind, sourceName);
             FileHandle targetDir = getProjectShaderDir(kind, newName);
 
+            if (sourceDir == null || !sourceDir.exists() || !sourceDir.isDirectory()) {
+                Dialogs.showErrorDialog(getStage(), "Shader source directory could not be found.");
+                return false;
+            }
+            if (targetDir == null) {
+                Dialogs.showErrorDialog(getStage(), "The project shader directory is unavailable.");
+                return false;
+            }
             if (targetDir.exists()) {
                 Dialogs.showErrorDialog(getStage(), "A shader with that name already exists.");
-                return;
+                return false;
             }
 
-            sourceDir.copyTo(targetDir);
-            targetDir.child("shader.json").writeString(buildShaderJson(newName, kind), false, "UTF-8");
-            targetDir.child("includes").mkdirs();
-
-            reloadRegistryAndNotify();
-            refreshShaderList();
-            shaderBox.setSelected(newName);
-            creatingNew = false;
-            updateUIFromSelection();
+            ShaderSources sources = snapshotCurrentEditorSources();
+            try {
+                validateShaderSources(sources);
+                writeDuplicatedShaderAsset(sourceDir, targetDir, newName, kind, sources);
+                reloadRegistryAndNotify();
+                selectShader(kind, newName);
+                return true;
+            } catch (Exception ex) {
+                rollbackDuplicatedShader(targetDir, ex);
+                Dialogs.showErrorDialog(
+                        getStage(),
+                        "Error while duplicating shader",
+                        ex.getMessage() != null ? ex.getMessage() : ex.toString()
+                );
+                return false;
+            }
         });
+    }
+
+    private ShaderSources snapshotCurrentEditorSources() {
+        ShaderSources sources = new ShaderSources();
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String vertex = vertEditors.get(variant).getText();
+            String fragment = fragEditors.get(variant).getText();
+            sources.vertices.put(variant, vertex == null ? null : new String(vertex));
+            sources.fragments.put(variant, fragment == null ? null : new String(fragment));
+        }
+        return sources;
+    }
+
+    private void validateShaderSources(ShaderSources sources) {
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String vertex = sources.vertices.get(variant);
+            if (vertex == null || vertex.trim().isEmpty()) {
+                throw new IllegalArgumentException("Missing vertex shader for " + variant + ".");
+            }
+            String fragment = sources.fragments.get(variant);
+            if (fragment == null || fragment.trim().isEmpty()) {
+                throw new IllegalArgumentException("Missing fragment shader for " + variant + ".");
+            }
+        }
+    }
+
+    private void writeDuplicatedShaderAsset(
+            FileHandle sourceDir,
+            FileHandle targetDir,
+            String newName,
+            ShaderKind kind,
+            ShaderSources sources) {
+        try {
+            targetDir.mkdirs();
+            if (!targetDir.exists() || !targetDir.isDirectory()) {
+                throw new IllegalStateException("The duplicated shader directory could not be created.");
+            }
+
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                String prefix = variantFilePrefix(variant);
+                targetDir.child(prefix + ".vert")
+                        .writeString(sources.vertices.get(variant), false, "UTF-8");
+                targetDir.child(prefix + ".frag")
+                        .writeString(sources.fragments.get(variant), false, "UTF-8");
+            }
+
+            targetDir.child("shader.json").writeString(buildShaderJson(newName, kind), false, "UTF-8");
+            FileHandle targetIncludes = targetDir.child("includes");
+            targetIncludes.mkdirs();
+            copyDirectoryContents(sourceDir.child("includes"), targetIncludes);
+            validateStructuredShaderDirectory(targetDir);
+        } catch (RuntimeException ex) {
+            rollbackDuplicatedShader(targetDir, ex);
+            throw ex;
+        }
+    }
+
+    private void copyDirectoryContents(FileHandle sourceDir, FileHandle targetDir) {
+        if (!sourceDir.exists()) return;
+        if (!sourceDir.isDirectory()) {
+            throw new IllegalStateException("Shader includes path is not a directory: " + sourceDir.path());
+        }
+
+        for (FileHandle sourceChild : sourceDir.list()) {
+            FileHandle targetChild = targetDir.child(sourceChild.name());
+            if (sourceChild.isDirectory()) {
+                targetChild.mkdirs();
+                if (!targetChild.exists() || !targetChild.isDirectory()) {
+                    throw new IllegalStateException("Could not create includes directory: " + targetChild.path());
+                }
+                copyDirectoryContents(sourceChild, targetChild);
+            } else {
+                targetChild.writeBytes(sourceChild.readBytes(), false);
+                if (!targetChild.exists() || targetChild.isDirectory()) {
+                    throw new IllegalStateException("Could not copy include file: " + sourceChild.path());
+                }
+            }
+        }
+    }
+
+    private void validateStructuredShaderDirectory(FileHandle shaderDir) {
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String prefix = variantFilePrefix(variant);
+            validateNonEmptyFile(shaderDir.child(prefix + ".vert"));
+            validateNonEmptyFile(shaderDir.child(prefix + ".frag"));
+        }
+        validateNonEmptyFile(shaderDir.child("shader.json"));
+
+        FileHandle includesDir = shaderDir.child("includes");
+        if (!includesDir.exists() || !includesDir.isDirectory()) {
+            throw new IllegalStateException("Missing shader includes directory: " + includesDir.path());
+        }
+    }
+
+    private void validateNonEmptyFile(FileHandle file) {
+        if (!file.exists() || file.isDirectory()) {
+            throw new IllegalStateException("Missing shader file: " + file.name());
+        }
+        if (file.length() <= 0L) {
+            throw new IllegalStateException("Shader file is empty: " + file.name());
+        }
+    }
+
+    private void rollbackDuplicatedShader(FileHandle targetDir, Exception originalFailure) {
+        if (targetDir == null || !targetDir.exists()) return;
+        if (!targetDir.deleteDirectory() && Gdx.app != null) {
+            Gdx.app.error(
+                    "ShaderManagerDialog",
+                    "Could not roll back duplicated shader directory: " + targetDir.path(),
+                    originalFailure
+            );
+        }
     }
 
     private void doRenameShader() {
@@ -570,11 +859,11 @@ public class ShaderManagerDialog extends VisWindow {
             String targetName = sanitizeName(entered);
             if (targetName.isBlank()) {
                 Dialogs.showErrorDialog(getStage(), "Shader name is required.");
-                return;
+                return false;
             }
             if (sourceName.equals(targetName)) {
                 Dialogs.showErrorDialog(getStage(), "New shader name must be different.");
-                return;
+                return false;
             }
 
             FileHandle sourceDir = getProjectShaderDir(kind, sourceName);
@@ -582,32 +871,37 @@ public class ShaderManagerDialog extends VisWindow {
 
             if (targetDir.exists()) {
                 Dialogs.showErrorDialog(getStage(), "A shader with that name already exists.");
-                return;
+                return false;
             }
 
-            sourceDir.moveTo(targetDir);
-            if (!targetDir.exists()) {
-                Dialogs.showErrorDialog(getStage(), "Shader directory rename failed.");
-                return;
+            try {
+                sourceDir.moveTo(targetDir);
+                if (!targetDir.exists()) {
+                    Dialogs.showErrorDialog(getStage(), "Shader directory rename failed.");
+                    return false;
+                }
+
+                targetDir.child("shader.json").writeString(buildShaderJson(targetName, kind), false, "UTF-8");
+
+                reloadRegistryAndNotify();
+                selectShader(kind, targetName);
+                return true;
+            } catch (Exception ex) {
+                Dialogs.showErrorDialog(
+                        getStage(),
+                        "Error while renaming shader",
+                        ex.getMessage() != null ? ex.getMessage() : ex.toString()
+                );
+                return false;
             }
-
-            targetDir.child("shader.json").writeString(buildShaderJson(targetName, kind), false, "UTF-8");
-
-            reloadRegistryAndNotify();
-            refreshShaderList();
-            shaderBox.setSelected(targetName);
-            creatingNew = false;
-            updateUIFromSelection();
         });
     }
 
     private void promptForShaderName(String title, String initialValue, String label, NameAction action) {
         if (getStage() == null) return;
 
-        final VisWindow dialog = new VisWindow(title);
-        dialog.setModal(true);
+        final StudioModalWindow dialog = new StudioModalWindow(title);
         dialog.setMovable(true);
-        dialog.addCloseButton();
 
         final VisTextField input = new VisTextField(initialValue == null ? "" : initialValue);
 
@@ -636,8 +930,9 @@ public class ShaderManagerDialog extends VisWindow {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 String value = input.getText();
-                dialog.remove();
-                action.run(value == null ? "" : value);
+                if (action.run(value == null ? "" : value)) {
+                    dialog.remove();
+                }
             }
         });
 

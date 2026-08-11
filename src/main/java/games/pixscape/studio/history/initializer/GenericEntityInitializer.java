@@ -3,20 +3,21 @@ package games.pixscape.studio.history.initializer;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
-import games.pixscape.studio.component.physics.ConvexPolygonPartData;
-import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.SpatialActorShapeSupport;
 
 
 /**
@@ -36,6 +37,7 @@ import games.pixscape.studio.model.EntityKind;
  * - CreateEntityCommand (by initializing fields manually)
  */
 public class GenericEntityInitializer extends AbstractCommonInitializer {
+    private PreparedPhysicsBodyCandidate preparedPhysicsCandidate;
     // --- TextureRegion (runtime) ---
     protected boolean hasTextureRegion;
     protected float u1, v1, u2, v2;
@@ -70,20 +72,18 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected boolean hasParticleEmitter;
     protected String particleEffectPath;
     protected String particleAtlasTag;
-    protected boolean particleLocalSpace;
     protected boolean particleAutoStart;
     protected boolean particleLooping;
 
     // --- Animation ---
     protected boolean hasAnimation;
-    protected String animAnimation = "";
+    protected final IntArray animationAssetIds = new IntArray();
     protected float animFps = 12f;
     protected boolean animPlaying = true;
     protected boolean animLoop = true;
     protected float animStateTime = 0f;
     protected int animFrame = -1;
     protected String animCurrentClip = "";
-    protected ObjectMap<String, AnimationComponent.Clip> animClips = new ObjectMap<>();
 
     // --- Shader Params ---
     protected boolean hasShaderParams;
@@ -125,14 +125,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float physGravityScale = 1f;
     protected float physLinearDamping = 0f;
     protected float physAngularDamping = 0f;
-    protected boolean physEnabled = true;
 
-    protected boolean hasPhysicsFixtures;
-    protected final Array<FixtureDefData> physFixtures = new Array<>();
+    protected boolean hasPhysicsShapes;
+    protected final Array<PhysicsShapeData> physicsShapes = new Array<>();
 
-    // --- Physics authoring, studio-only ---
-    protected boolean hasPhysicsAuthoring;
-    protected final Array<AuthoredPolygonData> physAuthoringPolygons = new Array<>();
     protected boolean hasPhysicsJoint;
     protected int jointType;
     protected int jointAEid;
@@ -182,8 +178,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsFixturesComponent> mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        ComponentMapper<PhysicsAuthoringComponent> mPhysAuthoring = world.getMapper(PhysicsAuthoringComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
         ComponentMapper<PhysicsJointComponent> mJoint = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> mDist = world.getMapper(PhysicsDistanceJointComponent.class);
         ComponentMapper<PhysicsRevoluteJointComponent> mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
@@ -283,14 +278,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             hasParticleEmitter = true;
             particleEffectPath = p.effectPath;
             particleAtlasTag = p.atlasTag;
-            particleLocalSpace = p.localSpace;
             particleAutoStart = p.autoStart;
             particleLooping = p.looping;
         } else {
             hasParticleEmitter = false;
             particleEffectPath = null;
             particleAtlasTag = null;
-            particleLocalSpace = true;
             particleAutoStart = true;
             particleLooping = true;
         }
@@ -300,7 +293,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             AnimationComponent ac = mAnim.get(e);
             hasAnimation = true;
 
-            animAnimation = ac.animation;
+            animationAssetIds.clear();
+            animationAssetIds.addAll(ac.animationAssetIds);
             animFps = ac.fps;
             animPlaying = ac.playing;
             animLoop = ac.loop;
@@ -308,18 +302,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             animFrame = ac.frame;
             animCurrentClip = ac.currentClip;
 
-            animClips.clear();
-            if (ac.clips != null) {
-                for (ObjectMap.Entry<String, AnimationComponent.Clip> it : ac.clips) {
-                    AnimationComponent.Clip c = it.value;
-                    if (it.key != null && c != null) {
-                        animClips.put(it.key, copyAnimationClip(c));
-                    }
-                }
-            }
         } else {
             hasAnimation = false;
-            animClips.clear();
+            animationAssetIds.clear();
         }
 
         // --- Spatial height ---
@@ -384,44 +369,25 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             physGravityScale = body.gravityScale;
             physLinearDamping = body.linearDamping;
             physAngularDamping = body.angularDamping;
-            physEnabled = body.enabled;
         } else {
             hasPhysicsBody = false;
         }
 
         // --- Physics fixtures ---
-        if (mPhysFixtures.has(e) && mPhysFixtures.get(e).hasFixtures()) {
-            PhysicsFixturesComponent fixtures = mPhysFixtures.get(e);
-            hasPhysicsFixtures = true;
-            physFixtures.clear();
-            for (FixtureDefData fixture : fixtures.fixtures) {
-                if (fixture != null) physFixtures.add(fixture.copy());
+        if (mPhysicsShapes.has(e)
+                && mPhysicsShapes.get(e).shapes != null
+                && mPhysicsShapes.get(e).shapes.size > 0) {
+            PhysicsShapesComponent fixtures = mPhysicsShapes.get(e);
+            hasPhysicsShapes = true;
+            physicsShapes.clear();
+            for (PhysicsShapeData fixture : fixtures.shapes) {
+                if (fixture != null) physicsShapes.add(fixture.copy());
             }
         } else {
-            hasPhysicsFixtures = false;
-            physFixtures.clear();
+            hasPhysicsShapes = false;
+            physicsShapes.clear();
         }
 
-        // --- Physics authoring ---
-        physAuthoringPolygons.clear();
-
-        if (mPhysAuthoring.has(e)) {
-            PhysicsAuthoringComponent authoring = mPhysAuthoring.get(e);
-
-            if (authoring != null && authoring.polygons != null && authoring.polygons.size > 0) {
-                hasPhysicsAuthoring = true;
-
-                for (AuthoredPolygonData polygon : authoring.polygons) {
-                    if (polygon != null) {
-                        physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-                    }
-                }
-            } else {
-                hasPhysicsAuthoring = false;
-            }
-        } else {
-            hasPhysicsAuthoring = false;
-        }
         hasPhysicsJoint = false;
         hasDistanceJoint = mDist.has(e);
         hasRevoluteJoint = mRev.has(e);
@@ -521,6 +487,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     @Override
     public void init(int e) {
+        PreparedPhysicsBodyCandidate preparedPhysics = preparedPhysicsCandidate;
+        preparedPhysicsCandidate = null;
+        if (preparedPhysics == null && (hasPhysicsBody || hasPhysicsShapes)) {
+            preparedPhysics = PhysicsService.prepareBodyCandidate(physicsShapes);
+        }
         super.init(e);
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
@@ -535,8 +506,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PointLightComponent> mPL = world.getMapper(PointLightComponent.class);
         ComponentMapper<ConeLightComponent> mCL = world.getMapper(ConeLightComponent.class);
         ComponentMapper<PhysicsBodyComponent> mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<PhysicsFixturesComponent> mPhysFixtures = world.getMapper(PhysicsFixturesComponent.class);
-        ComponentMapper<PhysicsAuthoringComponent> mPhysAuthoring = world.getMapper(PhysicsAuthoringComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<PhysicsCompiledFixturesComponent> mCompiled =
+                world.getMapper(PhysicsCompiledFixturesComponent.class);
         ComponentMapper<PhysicsJointComponent> mJoint = world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsDistanceJointComponent> mDist = world.getMapper(PhysicsDistanceJointComponent.class);
         ComponentMapper<PhysicsRevoluteJointComponent> mRev = world.getMapper(PhysicsRevoluteJointComponent.class);
@@ -621,7 +593,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                     mPE.has(e) ? mPE.get(e) : mPE.create(e);
             p.effectPath = particleEffectPath;
             p.atlasTag = particleAtlasTag;
-            p.localSpace = particleLocalSpace;
             p.autoStart = particleAutoStart;
             p.looping = particleLooping;
         }
@@ -630,7 +601,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         if (hasAnimation) {
             AnimationComponent ac = mAnim.has(e) ? mAnim.get(e) : mAnim.create(e);
 
-            ac.animation = (animAnimation != null) ? animAnimation : "";
+            ac.animationAssetIds.clear();
+            ac.animationAssetIds.addAll(animationAssetIds);
             ac.fps = animFps;
             ac.playing = animPlaying;
             ac.loop = animLoop;
@@ -638,13 +610,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             ac.frame = animFrame;
             ac.currentClip = (animCurrentClip != null) ? animCurrentClip : "";
 
-            ac.clips.clear();
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : animClips) {
-                AnimationComponent.Clip c = it.value;
-                if (it.key != null && c != null) {
-                    ac.clips.put(it.key, copyAnimationClip(c));
-                }
-            }
         }
 
         // --- Spatial height ---
@@ -707,33 +672,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             body.gravityScale = physGravityScale;
             body.linearDamping = physLinearDamping;
             body.angularDamping = physAngularDamping;
-            body.enabled = physEnabled;
         }
 
         // --- Physics fixtures ---
-        if (hasPhysicsFixtures) {
-            PhysicsFixturesComponent fixtures = mPhysFixtures.has(e) ? mPhysFixtures.get(e) : mPhysFixtures.create(e);
-            fixtures.fixtures.clear();
-            for (FixtureDefData fixture : physFixtures) {
-                if (fixture != null) fixtures.fixtures.add(fixture.copy());
-            }
-            if (!fixtures.hasFixtures()) {
-                fixtures.fixtures.add(PhysicsService.createDefaultFixture());
-            }
-        }
-
-        // --- Physics authoring ---
-        if (hasPhysicsAuthoring) {
-            PhysicsAuthoringComponent authoring =
-                    mPhysAuthoring.has(e) ? mPhysAuthoring.get(e) : mPhysAuthoring.create(e);
-
-            authoring.polygons.clear();
-
-            for (AuthoredPolygonData polygon : physAuthoringPolygons) {
-                if (polygon != null) {
-                    authoring.polygons.add(copyAuthoredPolygon(polygon));
-                }
-            }
+        if (preparedPhysics != null) {
+            PhysicsShapesComponent fixtures =
+                    mPhysicsShapes.has(e) ? mPhysicsShapes.get(e) : mPhysicsShapes.create(e);
+            PhysicsCompiledFixturesComponent compiled =
+                    mCompiled.has(e) ? mCompiled.get(e) : mCompiled.create(e);
+            PhysicsService.publishPreparedCandidate(fixtures, compiled, preparedPhysics);
         }
         if (hasPhysicsJoint) {
             PhysicsJointComponent c = mJoint.has(e) ? mJoint.get(e) : mJoint.create(e);
@@ -819,58 +766,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             c.ratio = gearRatio;
         }
 
-        if (dirty != null && (hasPhysicsBody || hasPhysicsFixtures)) {
+        if (dirty != null && (hasPhysicsBody || hasPhysicsShapes)) {
             dirty.physics(e, PhysicsDirtyBits.ALL);
         }
 
 
-    }
-
-    private static AuthoredPolygonData copyAuthoredPolygon(AuthoredPolygonData source) {
-        AuthoredPolygonData out = new AuthoredPolygonData();
-
-        if (source == null) {
-            return out;
-        }
-
-        out.authoringId = source.authoringId;
-
-        out.sourceCount = source.sourceCount;
-        out.sourceVerts = copyFloatArray(source.sourceVerts, source.sourceCount * 2);
-
-        out.decompositionAlgorithmVersion = source.decompositionAlgorithmVersion;
-        out.sourceHash = source.sourceHash;
-
-        out.generatedFixtureIds = copyIntArray(source.generatedFixtureIds);
-
-        out.density = source.density;
-        out.friction = source.friction;
-        out.restitution = source.restitution;
-        out.isSensor = source.isSensor;
-
-        out.categoryBits = source.categoryBits;
-        out.maskBits = source.maskBits;
-        out.groupIndex = source.groupIndex;
-
-        out.offsetX = source.offsetX;
-        out.offsetY = source.offsetY;
-        out.angleDeg = source.angleDeg;
-
-        out.convexParts.clear();
-
-        if (source.convexParts != null) {
-            for (ConvexPolygonPartData part : source.convexParts) {
-                if (part == null) continue;
-
-                ConvexPolygonPartData copy = new ConvexPolygonPartData();
-                copy.count = part.count;
-                copy.verts = copyFloatArray(part.verts, part.count * 2);
-
-                out.convexParts.add(copy);
-            }
-        }
-
-        return out;
     }
 
     private static float[] copyFloatArray(float[] source, int wantedLength) {
@@ -894,15 +794,16 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return out;
     }
 
-    private static AnimationComponent.Clip copyAnimationClip(AnimationComponent.Clip source) {
-        AnimationComponent.Clip copy = new AnimationComponent.Clip(source.start, source.end);
-        copy.flipX = source.flipX;
-        return copy;
-    }
-
     @Override
     public String label() {
         return "GenericEntity";
+    }
+
+    public void preparePhysicsCandidate() {
+        preparedPhysicsCandidate =
+                hasPhysicsBody || hasPhysicsShapes
+                        ? PhysicsService.prepareBodyCandidate(physicsShapes)
+                        : null;
     }
 
     public GenericEntitySnapshotData toSnapshotData(int sourceEntityId) {
@@ -949,20 +850,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasTint = hasTint;
         out.tintRgba = tintRgba;
         out.hasAnimation = hasAnimation;
-        out.animationName = animAnimation;
+        out.animationAssetIds.clear();
+        out.animationAssetIds.addAll(animationAssetIds);
         out.animationFps = animFps;
         out.animationPlaying = animPlaying;
         out.animationLoop = animLoop;
         out.animationStateTime = animStateTime;
         out.animationFrame = animFrame;
         out.animationCurrentClip = animCurrentClip;
-        out.animationClips.clear();
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> it : animClips) {
-            AnimationComponent.Clip c = it.value;
-            if (it.key != null && c != null) {
-                out.animationClips.put(it.key, copyAnimationClip(c));
-            }
-        }
         out.hasShaderParams = hasShaderParams;
         out.shaderFloats.clear();
 
@@ -987,14 +882,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.gravityScale = physGravityScale;
         out.linearDamping = physLinearDamping;
         out.angularDamping = physAngularDamping;
-        out.bodyEnabled = physEnabled;
-        for (FixtureDefData fixture : physFixtures) {
-            if (fixture != null) out.fixtures.add(fixture.copy());
-        }
-        out.hasPhysicsAuthoring = hasPhysicsAuthoring;
-        out.physicsAuthoringPolygons.clear();
-        for (AuthoredPolygonData polygon : physAuthoringPolygons) {
-            if (polygon != null) out.physicsAuthoringPolygons.add(copyAuthoredPolygon(polygon));
+        for (PhysicsShapeData fixture : physicsShapes) {
+            if (fixture != null) out.shapes.add(fixture.copy());
         }
         out.hasJoint = hasPhysicsJoint;
         out.jointType = jointType;
@@ -1105,22 +994,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasTint = in.hasTint;
         tintRgba = in.tintRgba;
         hasAnimation = in.hasAnimation;
-        animAnimation = in.animationName;
+        animationAssetIds.clear();
+        if (in.animationAssetIds != null) animationAssetIds.addAll(in.animationAssetIds);
         animFps = in.animationFps;
         animPlaying = in.animationPlaying;
         animLoop = in.animationLoop;
         animStateTime = in.animationStateTime;
         animFrame = in.animationFrame;
         animCurrentClip = in.animationCurrentClip;
-        animClips.clear();
-        if (in.animationClips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : in.animationClips) {
-                AnimationComponent.Clip c = it.value;
-                if (it.key != null && c != null) {
-                    animClips.put(it.key, copyAnimationClip(c));
-                }
-            }
-        }
         hasShaderParams = in.hasShaderParams;
         shaderFloats.clear();
         for (int i = 0; i < in.shaderFloats.size; i++) {
@@ -1143,21 +1024,13 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         physGravityScale = in.gravityScale;
         physLinearDamping = in.linearDamping;
         physAngularDamping = in.angularDamping;
-        physEnabled = in.bodyEnabled;
-        physFixtures.clear();
-        if (in.fixtures != null) {
-            for (FixtureDefData fixture : in.fixtures) {
-                if (fixture != null) physFixtures.add(fixture.copy());
+        physicsShapes.clear();
+        if (in.shapes != null) {
+            for (PhysicsShapeData fixture : in.shapes) {
+                if (fixture != null) physicsShapes.add(fixture.copy());
             }
         }
-        hasPhysicsFixtures = in.fixtures != null && in.fixtures.size > 0;
-        hasPhysicsAuthoring = in.hasPhysicsAuthoring;
-        physAuthoringPolygons.clear();
-        if (in.physicsAuthoringPolygons != null) {
-            for (AuthoredPolygonData polygon : in.physicsAuthoringPolygons) {
-                if (polygon != null) physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-            }
-        }
+        hasPhysicsShapes = in.shapes != null && in.shapes.size > 0;
         hasPhysicsJoint = in.hasJoint;
         jointType = in.jointType;
         jointAEid = in.jointAEid;
@@ -1389,15 +1262,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer configureAnimation(
-            String animation,
+            int animationAssetId,
             String currentClip,
             float fps,
-            boolean loop,
-            ObjectMap<String, AnimationComponent.Clip> clips
+            boolean loop
     ) {
         this.hasAnimation = true;
         this.metaKind = EntityKind.ANIMATION;
-        this.animAnimation = (animation != null) ? animation : "";
+        this.animationAssetIds.clear();
+        this.animationAssetIds.add(animationAssetId);
         this.animFps = (fps > 0f) ? fps : 12f;
         this.animLoop = loop;
         this.animPlaying = true;
@@ -1405,22 +1278,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.animFrame = -1;
         this.animCurrentClip = (currentClip != null) ? currentClip : "";
 
-        this.animClips.clear();
-        if (clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> it : clips) {
-                if (it.key != null && it.value != null) {
-                    this.animClips.put(it.key, copyAnimationClip(it.value));
-                }
-            }
-        }
-
         return this;
     }
 
 
     /**
      * Configures a particle emitter entity based on a .p file.
-     * No TextureRegion / Dimensions / RenderMaterial here: ParticleEffect handles everything.
+     * The entity contains common identity/index/history state, Transform,
+     * Visibility and ParticleEmitter only. Particle effects use Transform.x/y
+     * directly and have no rectangular render or interaction proxy.
      */
     public GenericEntityInitializer configureParticleEmitter(
             String effectPath,
@@ -1430,7 +1296,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             int layerIndex,
             String identityName
     ) {
-        // Transform de base
         this.hasTransform = true;
         this.trX = worldX;
         this.trY = worldY;
@@ -1440,12 +1305,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.trOriginX = 0f;
         this.trOriginY = 0f;
 
-        this.hasDimensions = true;
-        this.dimHeight = 50f;
-        this.dimWidth = 50f;
-
-        this.hasAabb = true;
-        this.hasObb = true;
+        this.hasDimensions = false;
+        this.hasAabb = false;
+        this.hasObb = false;
+        this.hasAssetRef = false;
+        this.hasTextureRegion = false;
+        this.hasRenderMaterial = false;
 
         // EntityIndex + meta
         this.hasEntityIndex = true;
@@ -1467,7 +1332,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.hasParticleEmitter = true;
         this.particleEffectPath = effectPath;
         this.particleAtlasTag = atlasTag;
-        this.particleLocalSpace = true;
         this.particleAutoStart = true;
         this.particleLooping = true;
 
@@ -1648,6 +1512,63 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
+    public GenericEntityInitializer allocateFreshPhysicsShapeIds(
+            games.pixscape.runtime.service.PhysicsService physicsService) {
+        for (int i = 0; i < physicsShapes.size; i++) {
+            PhysicsShapeData shape = physicsShapes.get(i);
+            if (shape != null) {
+                shape.physicsShapeId = physicsService.allocateNewPhysicsShapeId();
+            }
+        }
+        return this;
+    }
+
+    /**
+     * Removes authored physics state that the destination clipboard layer cannot support.
+     * This initializer must be a private duplicate prepared for one instantiation.
+     */
+    public GenericEntityInitializer normalizeClipboardPhysics(
+            boolean targetPhysicsEnabled, boolean targetSpatialEnabled) {
+        if (!targetPhysicsEnabled) {
+            hasSpatialHeight = false;
+            hasPhysicsBody = false;
+            hasPhysicsShapes = false;
+            physicsShapes.clear();
+            clearPhysicsJointData();
+            preparedPhysicsCandidate = null;
+            return this;
+        }
+
+        if (!targetSpatialEnabled) {
+            hasSpatialHeight = false;
+            boolean hadFootprint =
+                    SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
+            if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
+                throw new IllegalArgumentException(
+                        "Clipboard source contains multiple Spatial Actor footprints.");
+            }
+            hasPhysicsShapes = physicsShapes.size > 0;
+            if (hadFootprint && !hasPhysicsShapes) {
+                hasPhysicsBody = false;
+            }
+            preparedPhysicsCandidate = null;
+        }
+        return this;
+    }
+
+    private void clearPhysicsJointData() {
+        hasPhysicsJoint = false;
+        hasDistanceJoint = false;
+        hasRevoluteJoint = false;
+        hasPrismaticJoint = false;
+        hasWheelJoint = false;
+        hasFrictionJoint = false;
+        hasMotorJoint = false;
+        hasWeldJoint = false;
+        hasPulleyJoint = false;
+        hasGearJoint = false;
+    }
+
     public GenericEntityInitializer duplicate() {
         GenericEntityInitializer copy = new GenericEntityInitializer(world);
 
@@ -1686,25 +1607,19 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasParticleEmitter = this.hasParticleEmitter;
         copy.particleEffectPath = this.particleEffectPath;
         copy.particleAtlasTag = this.particleAtlasTag;
-        copy.particleLocalSpace = this.particleLocalSpace;
         copy.particleAutoStart = this.particleAutoStart;
         copy.particleLooping = this.particleLooping;
 
         // --- Animation ---
         copy.hasAnimation = this.hasAnimation;
-        copy.animAnimation = this.animAnimation;
+        copy.animationAssetIds.clear();
+        copy.animationAssetIds.addAll(this.animationAssetIds);
         copy.animFps = this.animFps;
         copy.animPlaying = this.animPlaying;
         copy.animLoop = this.animLoop;
         copy.animStateTime = this.animStateTime;
         copy.animFrame = this.animFrame;
         copy.animCurrentClip = this.animCurrentClip;
-        copy.animClips.clear();
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> it : this.animClips) {
-            if (it.key != null && it.value != null) {
-                copy.animClips.put(it.key, copyAnimationClip(it.value));
-            }
-        }
 
         // --- Shader params ---
         copy.hasShaderParams = this.hasShaderParams;
@@ -1755,25 +1670,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.physGravityScale = this.physGravityScale;
         copy.physLinearDamping = this.physLinearDamping;
         copy.physAngularDamping = this.physAngularDamping;
-        copy.physEnabled = this.physEnabled;
 
-        copy.hasPhysicsFixtures = this.hasPhysicsFixtures;
-        copy.physFixtures.clear();
-        for (FixtureDefData fixture : this.physFixtures) {
+        copy.hasPhysicsShapes = this.hasPhysicsShapes;
+        copy.physicsShapes.clear();
+        for (PhysicsShapeData fixture : this.physicsShapes) {
             if (fixture != null) {
-                copy.physFixtures.add(fixture.copy());
+                copy.physicsShapes.add(fixture.copy());
             }
         }
 
-        // --- Physics authoring ---
-        copy.hasPhysicsAuthoring = this.hasPhysicsAuthoring;
-        copy.physAuthoringPolygons.clear();
-
-        for (AuthoredPolygonData polygon : this.physAuthoringPolygons) {
-            if (polygon != null) {
-                copy.physAuthoringPolygons.add(copyAuthoredPolygon(polygon));
-            }
-        }
         copy.hasPhysicsJoint = this.hasPhysicsJoint;
         copy.jointType = this.jointType;
         copy.jointAEid = this.jointAEid;
@@ -1863,8 +1768,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasVisibility = this.hasVisibility;
         copy.visible = this.visible;
 
-        copy.hasAabb = this.hasAabb;
-        copy.hasObb = this.hasObb;
+        copy.hasAabb = this.hasParticleEmitter ? false : this.hasAabb;
+        copy.hasObb = this.hasParticleEmitter ? false : this.hasObb;
+        if (this.hasParticleEmitter) {
+            copy.hasDimensions = false;
+            copy.hasAssetRef = false;
+            copy.hasTextureRegion = false;
+            copy.hasRenderMaterial = false;
+        }
 
         return copy;
     }
@@ -1887,11 +1798,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         data.hasAssetRef = this.hasAssetRef;
         data.assetRefAssetId = this.assetRefAssetId;
         data.hasAnimation = this.hasAnimation;
-        data.animationName = this.animAnimation;
         data.hasPointLight = this.hasPointLight;
         data.hasConeLight = this.hasConeLight;
         data.hasPhysicsBody = this.hasPhysicsBody;
-        data.hasPhysicsFixtures = this.hasPhysicsFixtures;
+        data.hasPhysicsShapes = this.hasPhysicsShapes;
         data.hasPhysicsJoint = this.hasPhysicsJoint;
         return data;
     }
@@ -1906,8 +1816,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         public boolean hasAssetRef;
         public int assetRefAssetId;
         public boolean hasAnimation;
-        public String animationName;
         public boolean hasPointLight, hasConeLight;
-        public boolean hasPhysicsBody, hasPhysicsFixtures, hasPhysicsJoint;
+        public boolean hasPhysicsBody, hasPhysicsShapes, hasPhysicsJoint;
     }
 }

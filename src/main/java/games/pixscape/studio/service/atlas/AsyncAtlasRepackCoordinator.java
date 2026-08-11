@@ -2,6 +2,7 @@ package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.service.PreparedAtlasPublication;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,8 +20,61 @@ public final class AsyncAtlasRepackCoordinator {
         RepackArtifact pack(String sceneTag, long generation, RepackReason reason) throws Exception;
     }
 
-    public record RepackArtifact(String sceneTag, long generation, FileHandle outputDir, FileHandle atlasFile,
-                                 FileHandle pngFile) {
+    public static final class RepackArtifact {
+        private final String sceneTag;
+        private final long generation;
+        private final FileHandle outputDir;
+        private final FileHandle atlasFile;
+        private final FileHandle pngFile;
+        private PreparedAtlasPublication preparedPublication;
+
+        public RepackArtifact(String sceneTag,
+                              long generation,
+                              FileHandle outputDir,
+                              FileHandle atlasFile,
+                              FileHandle pngFile,
+                              PreparedAtlasPublication preparedPublication) {
+            this.sceneTag = sceneTag;
+            this.generation = generation;
+            this.outputDir = outputDir;
+            this.atlasFile = atlasFile;
+            this.pngFile = pngFile;
+            this.preparedPublication = preparedPublication;
+        }
+
+        public String sceneTag() {
+            return sceneTag;
+        }
+
+        public long generation() {
+            return generation;
+        }
+
+        public FileHandle outputDir() {
+            return outputDir;
+        }
+
+        public FileHandle atlasFile() {
+            return atlasFile;
+        }
+
+        public FileHandle pngFile() {
+            return pngFile;
+        }
+
+        public PreparedAtlasPublication takePreparedPublication() {
+            PreparedAtlasPublication taken = preparedPublication;
+            preparedPublication = null;
+            return taken;
+        }
+
+        public void discard() {
+            if (preparedPublication != null) {
+                preparedPublication.close();
+                preparedPublication = null;
+            }
+            deleteQuietly(outputDir);
+        }
     }
 
     private static final String TAG = "AtlasRepackCoordinator";
@@ -91,8 +145,8 @@ public final class AsyncAtlasRepackCoordinator {
         asyncPackReady = false;
         readyArtifact = null;
 
-        if (artifact.generation != requestedGeneration) {
-            deleteQuietly(artifact.outputDir);
+        if (artifact.generation() != requestedGeneration) {
+            artifact.discard();
             return null;
         }
 
@@ -106,7 +160,7 @@ public final class AsyncAtlasRepackCoordinator {
 
         return (asyncPackRequested && sceneTag.equals(requestedSceneTag))
                 || (asyncPackRunning && sceneTag.equals(runningSceneTag))
-                || (readyArtifact != null && sceneTag.equals(readyArtifact.sceneTag));
+                || (readyArtifact != null && sceneTag.equals(readyArtifact.sceneTag()));
     }
 
     public synchronized boolean isAsyncPackRequested() {
@@ -117,6 +171,10 @@ public final class AsyncAtlasRepackCoordinator {
         return asyncPackRunning;
     }
 
+    public synchronized long currentGeneration() {
+        return requestedGeneration;
+    }
+
     public synchronized void dispose() {
         if (disposed) return;
         disposed = true;
@@ -125,7 +183,7 @@ public final class AsyncAtlasRepackCoordinator {
         cancelRunning("dispose");
 
         if (readyArtifact != null) {
-            deleteQuietly(readyArtifact.outputDir);
+            readyArtifact.discard();
             readyArtifact = null;
         }
 
@@ -153,13 +211,13 @@ public final class AsyncAtlasRepackCoordinator {
                 artifact = packRunner.pack(sceneTag, generation, reason);
 
                 if (Thread.currentThread().isInterrupted()) {
-                    deleteQuietly(artifact != null ? artifact.outputDir : null);
+                    discardArtifact(artifact);
                     return;
                 }
 
                 synchronized (this) {
                     if (disposed || generation != requestedGeneration) {
-                        deleteQuietly(artifact != null ? artifact.outputDir : null);
+                        discardArtifact(artifact);
                         return;
                     }
 
@@ -170,7 +228,7 @@ public final class AsyncAtlasRepackCoordinator {
                 log("Async pack ready scene=" + sceneTag + " gen=" + generation);
 
             } catch (Exception ex) {
-                deleteQuietly(artifact != null ? artifact.outputDir : null);
+                discardArtifact(artifact);
                 if (!Thread.currentThread().isInterrupted()) {
                     error("Async pack failed scene=" + sceneTag + " gen=" + generation, ex);
                 }
@@ -200,8 +258,8 @@ public final class AsyncAtlasRepackCoordinator {
     }
 
     private void discardReadyIfStale() {
-        if (readyArtifact != null && readyArtifact.generation != requestedGeneration) {
-            deleteQuietly(readyArtifact.outputDir);
+        if (readyArtifact != null && readyArtifact.generation() != requestedGeneration) {
+            readyArtifact.discard();
             readyArtifact = null;
             asyncPackReady = false;
         }
@@ -213,6 +271,10 @@ public final class AsyncAtlasRepackCoordinator {
             if (file.exists()) file.deleteDirectory();
         } catch (Exception ignored) {
         }
+    }
+
+    private static void discardArtifact(RepackArtifact artifact) {
+        if (artifact != null) artifact.discard();
     }
 
     private static void log(String msg) {

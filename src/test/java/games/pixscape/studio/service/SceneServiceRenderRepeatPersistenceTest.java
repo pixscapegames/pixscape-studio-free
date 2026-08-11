@@ -39,7 +39,7 @@ public class SceneServiceRenderRepeatPersistenceTest {
         Assert.assertTrue(json.contains("repeatX"));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
         loaded.process();
 
         IntBag repeated = loaded.getAspectSubscriptionManager()
@@ -83,7 +83,7 @@ public class SceneServiceRenderRepeatPersistenceTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
         loaded.process();
 
         IntBag repeated = loaded.getAspectSubscriptionManager()

@@ -1,26 +1,15 @@
 package games.pixscape.studio.importer.tmx;
 
 import com.artemis.World;
-import com.artemis.WorldConfiguration;
-import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.RenderRepeatComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.render.BlendMode;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -28,25 +17,13 @@ import games.pixscape.studio.helper.TiledSparseStorageHelper;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
-import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.ImageCollectionTileSource;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImageCollectionImportRequest;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImportResult;
-import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
+import games.pixscape.studio.service.asset.TilesetAssetImportService.*;
 import games.pixscape.studio.service.atlas.SceneAtlasInputService;
-import games.pixscape.studio.service.atlas.SceneAtlasLoaderService;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 public final class TmxSceneImportService {
 
@@ -89,102 +66,55 @@ public final class TmxSceneImportService {
     }
 
     public TmxSceneImportResult importScene(TmxSceneImportRequest request) {
-        if (request == null) {
-            throw new IllegalArgumentException("request is null");
-        }
-        if (request.tmxFile() == null) {
-            throw new IllegalArgumentException("request.tmxFile is null");
-        }
-
-        TmxImportPlanResult planResult = planner.plan(new TmxImportPlanRequest(request.tmxFile()));
-        if (!planResult.hasPlan()) {
-            return TmxSceneImportResult.rejected(
-                    TmxSceneImportStatus.PREFLIGHT_FAILED,
-                    planResult,
-                    null
-            );
-        }
-
-        TmxImportPlan plan = planResult.plan();
-        TmxSceneImportResult preMutationRejection = validateBeforeMutation(planResult);
-        if (preMutationRejection != null) {
-            return preMutationRejection;
-        }
-
-        String sceneName = uniqueSceneName(sceneName(request, plan));
-        TmxSceneImportTransaction transaction = new TmxSceneImportTransaction(cfg, projectDir, assetDb);
-        String createdSceneFileName = null;
-        String createdSceneTag = null;
-
+        TmxSceneImportSession session = beginImport(request);
         try {
-            cfg.createSceneMeta(sceneName);
-            SceneMeta meta = cfg.getSceneMeta(sceneName);
-            if (meta == null) {
-                throw new IllegalStateException("Scene metadata was not created: " + sceneName);
-            }
-            createdSceneFileName = meta.getFile();
-            configureSceneMeta(meta, plan.scene());
-            createdSceneTag = cfg.canonicalSceneTagFor(meta);
-
-            ImportAssetsResult importedAssets = importAssets(plan, meta);
-            World world = buildImportedWorld(
-                    plan,
-                    importedAssets.cellLogicalIdsByTileset(),
-                    importedAssets.imageAssetsBySourceLayer(),
-                    createdSceneTag
-            );
-
-            projectDir.child(StudioFs.DIR_SCENES).mkdirs();
-            FileHandle sceneFile = projectDir.child(StudioFs.DIR_SCENES).child(createdSceneFileName);
-            SceneService.saveScene(world, sceneFile, false);
-
-            syncAtlasInputs(createdSceneTag, importedAssets.importedAssetIds());
-            if (request.packSceneAtlas()) {
-                SceneAtlasLoaderService.packSceneAtlas(cfg, createdSceneTag, projectDir);
-            }
-
-            assetDb.save(projectDir.child(StudioFs.FILE_ASSETS_JSON));
-            ProjectConfig.ProjectIO.saveProject(cfg, StudioFs.requireStudioProjectFile(cfg));
-
-            return new TmxSceneImportResult(
-                    TmxSceneImportStatus.IMPORTED,
-                    planResult,
-                    sceneName,
-                    createdSceneFileName,
-                    createdSceneTag,
-                    importedAssets.importedTilesetCount(),
-                    importedAssets.importedTileAssetIds().size(),
-                    plan.layers().size(),
-                    plan.scene().nonEmptyTileCount(),
-                    planResult.preflightReport().diagnostics(),
-                    null,
-                    false,
-                    false,
-                    new TmxSceneImportRollback(transaction, sceneName, createdSceneFileName, createdSceneTag)
-            );
+            session.prepare();
+            if (session.finished()) return session.result();
+            session.createScene();
+            session.importAssets();
+            session.materializeAndSaveScene();
+            session.updateAtlas();
+            return session.persistAndFinish();
         } catch (RuntimeException ex) {
-            try {
-                transaction.rollback(sceneName, createdSceneFileName, createdSceneTag);
-                return failedResult(planResult, sceneName, createdSceneFileName, createdSceneTag, ex, true);
-            } catch (RuntimeException rollbackFailure) {
-                ex.addSuppressed(rollbackFailure);
-                return failedResult(planResult, sceneName, createdSceneFileName, createdSceneTag, ex, false);
-            }
+            if (!session.mutationStarted()) throw ex;
+            return session.rollback(ex);
         }
     }
 
-    private TmxSceneImportResult validateBeforeMutation(TmxImportPlanResult planResult) {
+    public TmxSceneImportSession beginImport(TmxSceneImportRequest request) {
+        if (request == null) throw new IllegalArgumentException("request is null");
+        if (request.tmxFile() == null) throw new IllegalArgumentException("request.tmxFile is null");
+        return new TmxSceneImportSession(this, request);
+    }
+
+    ProjectConfig config() {
+        return cfg;
+    }
+
+    FileHandle projectDir() {
+        return projectDir;
+    }
+
+    AssetMetaDatabase assetDatabase() {
+        return assetDb;
+    }
+
+    TmxImportPlanResult plan(TmxSceneImportRequest request) {
+        return planner.plan(new TmxImportPlanRequest(request.tmxFile()));
+    }
+
+    TmxSceneImportResult validateBeforeMutation(TmxImportPlanResult planResult) {
         return null;
     }
 
-    private String sceneName(TmxSceneImportRequest request, TmxImportPlan plan) {
+    String sceneName(TmxSceneImportRequest request, TmxImportPlan plan) {
         if (request.requestedSceneName() != null && !request.requestedSceneName().isBlank()) {
             return request.requestedSceneName().trim();
         }
         return plan.scene().proposedSceneName();
     }
 
-    private String uniqueSceneName(String desired) {
+    String uniqueSceneName(String desired) {
         String base = desired != null && !desired.isBlank() ? desired.trim() : "Imported TMX";
         if (cfg.getSceneMeta(base) == null) {
             return base;
@@ -196,7 +126,7 @@ public final class TmxSceneImportService {
         return base + " " + suffix;
     }
 
-    private void configureSceneMeta(SceneMeta meta, TmxScenePlan scene) {
+    void configureSceneMeta(SceneMeta meta, TmxScenePlan scene) {
         meta.tiledEnabled = true;
         meta.tileWidth = scene.tileWidth();
         meta.tileHeight = scene.tileHeight();
@@ -207,7 +137,7 @@ public final class TmxSceneImportService {
         runtimeAvailabilityService.data(meta);
     }
 
-    private ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
+    ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
         Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset = new HashMap<>();
         Set<Integer> importedTileAssetIds = new HashSet<>();
         Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer = new HashMap<>();
@@ -313,28 +243,32 @@ public final class TmxSceneImportService {
         );
 
         String extension = source.extension();
-        String newName = base + "__a" + meta.id + (extension == null || extension.isBlank() ? "" : "." + extension);
+        String newName = base + "__a" + meta.id() + (extension == null || extension.isBlank() ? "" : "." + extension);
         FileHandle dst = imagesRoot.child(newName);
         if (!dst.exists()) {
             source.copyTo(dst);
         }
-        meta.sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + newName;
+        assetDb.updateSourceRelPath(
+                meta.id(),
+                StudioFs.DIR_ORIG_IMAGES + "/" + newName
+        );
 
         int width = imageLayer.imageWidth() > 0 ? imageLayer.imageWidth() : imageSize.width();
         int height = imageLayer.imageHeight() > 0 ? imageLayer.imageHeight() : imageSize.height();
-        return new ImportedImageAsset(meta.id, width, height);
+        return new ImportedImageAsset(meta.id(), width, height);
     }
 
-    private World buildImportedWorld(TmxImportPlan plan,
-                                     Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
-                                     Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
-                                     String sceneTag) {
-        World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+    void populateImportedWorld(World world,
+            IdentityRegistry identityRegistry, TmxImportPlan plan,
+            Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
+            Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
+            String sceneTag) {
         int layerIndex = 0;
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
                 createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                identityRegistry.ensureStableId(layerEntity);
                 populateTiles(world, layerEntity, tileLayer, tileAssetIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
@@ -344,12 +278,13 @@ public final class TmxSceneImportService {
                 }
                 int layerEntity = world.create();
                 createClassicLayerComponents(world, layerEntity, layerIndex, imageLayer);
-                createImageLayerSprite(world, layerIndex, plan.scene(), imageLayer, imageAsset, sceneTag);
+                identityRegistry.ensureStableId(layerEntity);
+                createImageLayerSprite(world, identityRegistry, layerIndex,
+                        plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
             }
         }
         world.process();
-        return world;
     }
 
     private void createTileLayerComponents(World world,
@@ -429,6 +364,7 @@ public final class TmxSceneImportService {
     }
 
     private void createImageLayerSprite(World world,
+                                        IdentityRegistry identityRegistry,
                                         int layerIndex,
                                         TmxScenePlan scene,
                                         TmxImageLayerPlan imageLayer,
@@ -455,6 +391,7 @@ public final class TmxSceneImportService {
                 )
                 .setTintRgba(tintForOpacity(imageLayer.opacity()));
         init.init(spriteEntity);
+        identityRegistry.ensureStableId(spriteEntity);
         if (imageLayer.repeatX() || imageLayer.repeatY()) {
             RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).create(spriteEntity);
             repeat.repeatX = imageLayer.repeatX();
@@ -534,18 +471,18 @@ public final class TmxSceneImportService {
         }
     }
 
-    private void syncAtlasInputs(String sceneTag, Set<Integer> importedAssetIds) {
+    void syncAtlasInputs(String sceneTag, Set<Integer> importedAssetIds) {
         Set<String> requiredPaths = new HashSet<>();
         for (Integer assetId : importedAssetIds) {
             if (assetId == null || assetId <= 0) continue;
             AssetMeta meta = assetDb.findById(assetId);
-            if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) continue;
-            requiredPaths.add(meta.sourceRelPath);
+            if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) continue;
+            requiredPaths.add(meta.sourceRelPath());
         }
         sceneAtlasInputService.syncSceneAtlasInput(cfg, sceneTag, projectDir, requiredPaths);
     }
 
-    private TmxSceneImportResult failedResult(TmxImportPlanResult planResult,
+    TmxSceneImportResult failedResult(TmxImportPlanResult planResult,
                                               String sceneName,
                                               String sceneFileName,
                                               String sceneTag,
@@ -591,12 +528,12 @@ public final class TmxSceneImportService {
         return (alpha << 24) | 0x00FFFFFF;
     }
 
-    private record ImportAssetsResult(int importedTilesetCount,
+    record ImportAssetsResult(int importedTilesetCount,
                                       Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
                                       Set<Integer> importedTileAssetIds,
                                       Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                       Set<Integer> importedImageAssetIds) {
-        private Set<Integer> importedAssetIds() {
+        Set<Integer> importedAssetIds() {
             Set<Integer> ids = new HashSet<>(importedTileAssetIds);
             ids.addAll(importedImageAssetIds);
             return ids;

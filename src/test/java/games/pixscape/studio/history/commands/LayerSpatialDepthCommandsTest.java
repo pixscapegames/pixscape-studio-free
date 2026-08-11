@@ -6,9 +6,15 @@ import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
 import games.pixscape.runtime.spatial.SpatialTileOrderCache;
@@ -307,7 +313,7 @@ public class LayerSpatialDepthCommandsTest {
         SceneService.saveScene(world, sceneFile, false);
 
         World loaded = serializableWorld();
-        SceneLoader.loadScene(loaded, sceneFile, false);
+        SceneLoader.loadScene(loaded, sceneFile, false, new games.pixscape.runtime.loading.SceneMetaRuntime());
 
         IntBag entities = loaded.getAspectSubscriptionManager()
                 .get(Aspect.all(LayerComponent.class, TiledLayerComponent.class))

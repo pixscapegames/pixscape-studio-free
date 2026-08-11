@@ -54,6 +54,29 @@ public class StudioTiledRefInteractionContractTest {
     }
 
     @Test
+    public void successfulSceneActivationRequestsTiledFallbackValidation()
+            throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        ).replace("\r\n", "\n");
+
+        int activation = source.indexOf("sceneActivationPipeline.activate(");
+        int validation = source.indexOf(
+                "canvas.requestTiledFallbackValidation();",
+                activation
+        );
+        int identityRebuild = source.indexOf(
+                "canvas.getIdentityRegistry().rebuild();",
+                activation
+        );
+
+        assertTrue(activation >= 0);
+        assertTrue(validation > activation);
+        assertTrue(identityRebuild > validation);
+    }
+
+    @Test
     public void spatialGizmoConsumesCompiledStructureEnvelopeWithoutPerWallBoxes() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/system/GizmoSystem.java"),
@@ -105,6 +128,23 @@ public class StudioTiledRefInteractionContractTest {
         assertTrue(source.contains("spatialBlockSelectionService.clearSelectionOnly();"));
         assertTrue(source.contains("processSpatialEscape()"));
         assertFalse(source.contains("historyManager.execute(new ClearSpatial"));
+    }
+
+    @Test
+    public void tiledOutsideClickClearsMapContextAndPublishesEmptySelection() throws Exception {
+        String canvas = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"),
+                StandardCharsets.UTF_8
+        ).replace("\r\n", "\n");
+        String tree = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/tree/ItemTreePanel.java"),
+                StandardCharsets.UTF_8
+        ).replace("\r\n", "\n");
+
+        assertTrue(canvas.contains("if (handleTiledOutsideMapClick())"));
+        assertTrue(canvas.contains("spatialTileSelectionService.clear();\n        selectionService.clearSelection();"));
+        assertTrue(tree.contains("evt.source() != SelectionService.SelectionSource.TREE"));
+        assertTrue(tree.contains("propertiesPanel.clearTiledMapMode();"));
     }
 
     private static String legacySlotLookupName() {

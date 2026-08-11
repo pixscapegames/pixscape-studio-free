@@ -198,7 +198,7 @@ public class SceneServiceRollbackTest {
         assertNull(cfg.getSceneMeta("Imported"));
         assertFalse(importedSceneFile.exists());
         assertFalse(projectDir.child(StudioFs.DIR_ORIG_TILES).child("terrain").exists());
-        assertEquals(0, db.assets.size);
+        assertEquals(0, db.size());
     }
 
 

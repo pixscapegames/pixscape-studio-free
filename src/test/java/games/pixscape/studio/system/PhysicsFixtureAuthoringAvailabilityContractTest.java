@@ -20,7 +20,8 @@ public class PhysicsFixtureAuthoringAvailabilityContractTest {
         assertFalse(hasFixtureOverlayWork.contains("physicsService.isAvailable()"));
 
         String isDrawableFixtureBody = methodBody(source, "private boolean isDrawableFixtureBody(int bodyEid)");
-        assertTrue(isDrawableFixtureBody.contains("fixtures.hasFixtures()"));
+        assertTrue(isDrawableFixtureBody.contains("compiled.valid"));
+        assertTrue(isDrawableFixtureBody.contains("compiled.fixtures"));
         assertFalse(isDrawableFixtureBody.contains("physicsService.isAvailable()"));
     }
 
@@ -39,12 +40,18 @@ public class PhysicsFixtureAuthoringAvailabilityContractTest {
     }
 
     @Test
-    public void fixturePickingService_usesEcsFixtures_withoutBox2dAvailabilityGate() throws Exception {
+    public void fixturePickingService_usesCompiledCache_withoutBox2dAvailabilityGate() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/physics/PhysicsFixturePickingService.java");
 
-        String pickFixtureId = methodBody(source, "public int pickFixtureId(int bodyEid, float worldX, float worldY, float toleranceWU)");
-        assertTrue(pickFixtureId.contains("!physicsService.hasPhysics(bodyEid)"));
-        assertFalse(pickFixtureId.contains("physicsService.isAvailable()"));
+        String pick = methodBody(source, "public PickResult pick(");
+        assertFalse(pick.contains("hasPhysics("));
+        assertFalse(pick.contains("hasShapes("));
+        assertFalse(pick.contains("PhysicsBodyComponent"));
+        assertFalse(pick.contains("PhysicsShapesComponent"));
+        assertTrue(pick.contains("getCompiledFixturesComponent(bodyEntityId)"));
+        assertTrue(pick.contains("compiled.fixtures.size - 1"));
+        assertFalse(pick.contains("compile("));
+        assertFalse(pick.contains("physicsService.isAvailable()"));
     }
 
     private static String read(String path) throws Exception {

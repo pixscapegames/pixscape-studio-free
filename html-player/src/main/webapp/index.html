@@ -33,7 +33,25 @@
       display: block;
       z-index: 1;
       outline: none;
-}
+    }
+
+    .pixscape-preloader-meter {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: min(52vw, 420px);
+      height: 10px;
+      transform: translate(-50%, -50%);
+      overflow: hidden;
+      background: #141c24;
+    }
+
+    .pixscape-preloader-meter-fill {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: #40d1f0;
+    }
   </style>
 </head>
 

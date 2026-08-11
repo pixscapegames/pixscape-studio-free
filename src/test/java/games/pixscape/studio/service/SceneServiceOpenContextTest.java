@@ -87,8 +87,11 @@ public class SceneServiceOpenContextTest {
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{" +
                 "\"Main\":{" +
+                "\"sceneSchemaVersion\":2," +
                 "\"name\":\"Main\"," +
-                "\"file\":\"" + currentSceneFile + "\"" +
+                "\"file\":\"" + currentSceneFile + "\"," +
+                "\"nextEntityStableId\":1," +
+                "\"nextPhysicsShapeId\":1" +
                 "}" +
                 "}" +
                 "}";

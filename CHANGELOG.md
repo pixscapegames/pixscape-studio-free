@@ -1,5 +1,89 @@
 # Changelog
 
+## 0.2.2 - Physics Authoring and Spatial Collisions
+
+### Breaking changes
+
+* Replaced the legacy Studio physics authoring model with persistent Runtime physics shapes.
+* Existing physics scenes and prefabs using the previous schema must be recreated or re-exported.
+* Pixscape Studio Free 0.2.2 requires Pixscape Runtime 0.1.9.
+* Particle emitters now use `Transform.x/y` directly as their position. Legacy particle local-space and transform-origin behavior is no longer preserved.
+
+### Added
+
+* Added stable physics shape identities across editing, persistence, duplication and prefab instantiation.
+* Added `Physics collision` to Spatial Blocks, deriving a static polygon fixture from the block footprint.
+* Added a read-only `Linked to Spatial Block #...` indicator for linked fixtures.
+* Added a persistent canvas indicator showing the active editing mode, including Normal, Physics, Spatial, Tiled and Lights contexts.
+* Added a dedicated Spatial actor layer with automatic physics body and footprint setup.
+* Added visible progress feedback during Tiled map imports.
+* Tiled editing mode now displays the logical grid coordinates under the cursor directly in the canvas mode indicator.
+* Added multi-animation entities, allowing multiple Animation assets to be attached and the active animation to be switched from the Properties panel.
+
+### Changed
+
+* Unified body, fixture, polygon, joint, clipboard, prefab and scene workflows around the new authored physics model.
+* Tiled layer physics bodies are now always static.
+* Linked fixture geometry is read-only, while material, sensor, filter and enabled properties remain editable.
+* Spatial Block edits and pixels-per-meter changes now recompile linked collisions at commit or activation boundaries.
+* Deleting a Spatial Block now removes its linked collision atomically; undo restores both with the same physics shape identity.
+* Particle entities now use a dedicated fixed-size viewport marker instead of rectangular dimensions, bounds, resize handles and rotation handles.
+* Particle Transform properties now expose only X and Y, which directly represent the emitter position.
+* Polygon authoring vertices are now displayed as circular handles while resize and Spatial handles remain square.
+* Asset labels, tooltips and default entity names now use logical asset names and distinguish Asset IDs from entity stable IDs.
+* Refreshed the Studio interface with a more compact and consistent layout, clearer panel hierarchy, harmonized dialogs and unified icon-based list controls.
+* Desktop and HTML Preview now use render-driven progressive scene loading with a simple progress bar and enter normal preview state only after Runtime READY.
+* HTML bootstrap now defers scene files, atlases and pages, particle effects, prefab fragments and other selected-scene resources to Runtime availability loading.
+* Animation asset clip and FPS metadata is now authoritative and stays synchronized across entity switching, editing, undo/redo and scene reloads.
+
+### Improved
+
+* Indexed Studio asset metadata by asset ID, logical path and source ownership.
+* Migrated Studio atlas resolution paths to the Runtime asset binding index instead of repeatedly scanning atlas regions.
+* Centralized atlas and standalone visual resolution for sprites, animations, tiled fallback rendering, tiled ghost previews and render rebinds.
+* Cached particle atlas readiness so each particle effect is probed once per atlas publication instead of once per emitter and per frame.
+* Tiled fallback rendering now runs only while standalone tile visuals are required, then disables itself until a relevant scene, asset, animation or atlas change requests revalidation.
+* Reduced repeated asset metadata loading and duplicated atlas/standalone resolution during repacks, scene changes and undo/redo operations.
+* Greatly reduced undo/redo overhead for particle effects and other non-render entities.
+* Atlas page decoding and GPU snapshot preparation now run off the render thread before publication.
+* Prepared atlas pages are reused for both normal textures and texture-array publication.
+* Particle file drops no longer trigger unnecessary atlas rebinds or full asset refreshes, reducing Preview and editor stalls.
+* Simplified HTML Preview startup by serving the fixed player and current Runtime export directly instead of copying the complete player template and exported project for every launch.
+* Reduced the packaged HTML Preview player to production GWT assets, removing development-only deployment output.
+
+### Fixed
+
+* Prevented transient missing-region particle errors while an asynchronous replacement atlas is pending publication.
+* Prevented failed physics and Spatial operations from publishing partial state or incorrectly advancing history.
+* Fixed stale physics selection and picking after fixture or body changes, undo/redo and scene activation.
+* Fixed linked collision activation and scene loading when a tiled layer initially has no transform.
+* Fixed prefab and clipboard instantiation so physics shapes receive fresh identities and joint references remain valid.
+* Prevented asynchronous save failures from leaving the save-progress dialog open indefinitely.
+* Fixed editor camera stutters caused by particle fallback effects being repeatedly loaded and disposed during rendering.
+* Fixed asset metadata replacement sharing mutable state between databases and producing inconsistent source-owner ordering.
+* Fixed particle selection, hover, dragging and lasso behavior so they consistently use the emitter position instead of synthetic rectangular bounds.
+* Scene switching now prompts to Save, Don't Save or Cancel when the current scene has unsaved changes.
+* Scene changes now wait for a successful visible save before loading the target scene, and restore the selector after cancellation or failure.
+* Removed the silent automatic scene save previously performed when selecting another scene.
+* Fixed undo/redo identity handling after entity deletion and restoration, preventing duplicate stable identities.
+* Fixed particle fallback looping and premultiplied-alpha behavior to match Runtime playback.
+* Fixed fallback texture ownership so shared atlas textures are not disposed by particle fallback cleanup.
+* Fixed copied and pasted entities retaining the source layer instead of adapting to the destination layer.
+* Fixed Runtime Availability particle preparation after Studio atlas publication so authored and declared effects are rebuilt against the canonical scene atlas, including renamed scenes.
+* Particle effect replacement is failure-atomic and keeps the previous valid effect when replacement fails.
+* Fixed prefab atlas dependency collection for multi-animation entities and animation metadata propagation after asset edits.
+* Fixed HTML Preview/player prefab spawning with the updated Runtime GWT prefab reflection support.
+
+### Tests
+
+* Expanded regression coverage for physics authoring, persistence, history, prefabs, joints and linked Spatial collisions.
+* Added regression coverage for indexed asset metadata, Runtime atlas bindings, centralized visual resolution, particle fallback readiness and tiled fallback gating.
+* Revalidated the Studio against the Runtime asset index changes with forced GWT compilation.
+* Added regression coverage for asset identity presentation, particle composition, marker picking, transform editing, drag history, lasso behavior and polygon handles.
+* Added regression coverage for the shared unsaved-scene decision flow and scene-switch Save, Don't Save, Cancel and failure handling.
+* Added grouped coverage for off-thread atlas and fallback publication, deferred preload classification and progressive HTML loading through forced GWT compilation.
+
+
 ## 0.2.1 - TMX Import and Spatial V3
 
 ### Breaking changes

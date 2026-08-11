@@ -23,6 +23,10 @@ import java.util.List;
 
 public class EntityProperties extends VisTable {
 
+    static final String ENTITY_ID_LABEL = "ID:";
+    static final String ENTITY_ID_TOOLTIP = "Persistent ID of this entity.\n"
+            + "This is not an Asset ID or an ECS entity ID.";
+
     private final ComponentMapper<VisibilityComponent> mV;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
 
@@ -174,7 +178,12 @@ public class EntityProperties extends VisTable {
                 .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
                 .row();
 
-        header.add(new VisLabel("Internal ID:")).width(CommonLayout.LABEL_WIDTH).left();
+        VisLabel entityIdLabel = new VisLabel(ENTITY_ID_LABEL);
+        Tooltip entityIdTooltip = new Tooltip.Builder(ENTITY_ID_TOOLTIP)
+                .target(entityIdLabel)
+                .build();
+        entityIdTooltip.setAppearDelayTime(0f);
+        header.add(entityIdLabel).width(CommonLayout.LABEL_WIDTH).left();
         header.add(entityIdValueLabel).colspan(2).left().row();
 
         header.add(new VisLabel("Name:")).width(CommonLayout.LABEL_WIDTH).left();
@@ -206,7 +215,7 @@ public class EntityProperties extends VisTable {
         syncScenePhysicsEnabled();
 
         PixscapeIdentityComponent identity = ctx.mIdentity.getSafe(entityId, null);
-        long stableId = (identity != null && identity.stableId > 0L) ? identity.stableId : 0L;
+        int stableId = displayedPersistentId(identity);
         entityIdValueLabel.setText(String.valueOf(stableId));
         icon.setDrawable(ctx.iconResolver.iconForEntity(entityId));
 
@@ -239,6 +248,10 @@ public class EntityProperties extends VisTable {
         refreshTagsLabel();
     }
 
+    static int displayedPersistentId(PixscapeIdentityComponent identity) {
+        return identity != null && identity.stableId > 0 ? identity.stableId : 0;
+    }
+
     private void updateSectionsVisibility() {
         if (currentEntityId < 0) return;
 
@@ -263,7 +276,7 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return (isSprite || isAnim) && isEntityInSpatialLayer();
+        return ((isSprite || isAnim) && isEntityInSpatialLayer()) || hasSpatialActorState();
     }
 
     private boolean isPhysicsApplicable() {
@@ -353,7 +366,7 @@ public class EntityProperties extends VisTable {
         }
         int layerIndex = entityIndex.getLayerIndex();
         int layerType = ctx.layerService.getLayerTypeByIndex(layerIndex);
-        if (layerType != LayerComponent.TYPE_PHYSICS && layerType != LayerComponent.TYPE_TILED) {
+        if (layerType != LayerComponent.TYPE_PHYSICS) {
             return false;
         }
 
@@ -367,8 +380,20 @@ public class EntityProperties extends VisTable {
             return true;
         }
 
-        TiledLayerComponent tiled = ctx.world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
-        return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
+        return false;
+    }
+
+    private boolean hasSpatialActorState() {
+        if (currentEntityId < 0) return false;
+        if (ctx.mSpatialHeight.has(currentEntityId)) return true;
+        games.pixscape.runtime.component.physics.PhysicsShapesComponent shapes =
+                ctx.mPhysFixtures.getSafe(currentEntityId, null);
+        if (shapes == null) return false;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            games.pixscape.runtime.physics.PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && shape.spatialFootprint) return true;
+        }
+        return false;
     }
 
 }

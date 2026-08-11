@@ -1,17 +1,24 @@
 package games.pixscape.studio.ui.main;
 
-import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisProgressBar;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
-public final class SaveProgressDialog extends VisDialog {
+public final class SaveProgressDialog extends StudioDialog {
 
-    private final VisLabel messageLabel = new VisLabel("Preparing...");
+    private final VisLabel messageLabel;
     private final VisProgressBar progressBar =
             new VisProgressBar(0f, 1f, 0.01f, false);
 
     public SaveProgressDialog() {
-        super("Saving project");
+        this("Saving project", "Preparing...");
+    }
+
+    public SaveProgressDialog(String title, String initialMessage) {
+        super(title);
+        messageLabel = new VisLabel(initialMessage != null ? initialMessage : "");
         setModal(true);
         setMovable(false);
         setResizable(false);
@@ -26,6 +33,14 @@ public final class SaveProgressDialog extends VisDialog {
         getContentTable().add(progressBar).width(360f).padTop(10f).row();
 
         pack();
+    }
+
+    public void preventUserClose() {
+        for (Actor child : getTitleTable().getChildren()) {
+            if (child instanceof Button button) {
+                button.setDisabled(true);
+            }
+        }
     }
 
     public void updateProgress(float value, String message) {

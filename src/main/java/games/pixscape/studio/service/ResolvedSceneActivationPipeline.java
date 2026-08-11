@@ -6,14 +6,13 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
@@ -53,6 +52,10 @@ final class ResolvedSceneActivationPipeline {
                                     HistoryManager historyManager,
                                     RenderRuntimeRebuilder renderRuntimeRebuilder,
                                     SceneLoadOperation sceneLoader) {
+        if (sceneLoader == null) {
+            throw new IllegalArgumentException(
+                    "Scene load operation is required.");
+        }
         this.world = world;
         this.tileAnimationLookup = tileAnimationLookup;
         this.tiledAllocatorService = tiledAllocatorService;
@@ -62,7 +65,12 @@ final class ResolvedSceneActivationPipeline {
     }
 
     void activate(ResolvedSceneTarget target) {
-        sceneLoader.load(world, target.sceneFile(), false);
+        Box2dSyncSystem box2dSync = world.getSystem(Box2dSyncSystem.class);
+        if (box2dSync != null) {
+            box2dSync.setEnabled(false);
+            box2dSync.setStepEnabled(false);
+        }
+        sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
         resolveTiledLayersForActivation(
@@ -75,6 +83,9 @@ final class ResolvedSceneActivationPipeline {
         );
         validateAndCompileSpatialBlocksForActivation(
                 world, target.projectTitle(), target.sceneName());
+        PhysicsService.rebuildPreparedBodyCaches(
+                world,
+                target.meta().pixelsPerMeter);
         rebuildHistoryIdsFromWorld();
         assertDrawablesHaveEntityIndex("loadScene(" + target.sceneName() + ")");
         renderRuntimeRebuilder.rebuild(
@@ -90,6 +101,12 @@ final class ResolvedSceneActivationPipeline {
                                                 String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
+        ComponentMapper<PhysicsBodyComponent> mBody =
+                world.getMapper(PhysicsBodyComponent.class);
+        ComponentMapper<PhysicsShapesComponent> mShapes =
+                world.getMapper(PhysicsShapesComponent.class);
+        ComponentMapper<TransformComponent> mTransform =
+                world.getMapper(TransformComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -105,6 +122,13 @@ final class ResolvedSceneActivationPipeline {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+            PhysicsBodyComponent body = mBody.getSafe(e, null);
+            if (body != null) body.type = PhysicsBodyComponent.STATIC;
+            PhysicsShapesComponent shapes = mShapes.getSafe(e, null);
+            if (shapes != null && shapes.shapes != null && shapes.shapes.size > 0
+                    && !mTransform.has(e)) {
+                mTransform.create(e);
+            }
 
             if (tiled.mapWidthCells <= 0 || tiled.mapHeightCells <= 0
                     || meta.tileWidth <= 0 || meta.tileHeight <= 0 || meta.chunkSize <= 0
@@ -391,7 +415,7 @@ final class ResolvedSceneActivationPipeline {
 
     @FunctionalInterface
     interface SceneLoadOperation {
-        void load(World world, FileHandle file, boolean editMode);
+        void load(World world, FileHandle file, boolean editMode, SceneMeta meta);
     }
 
 }

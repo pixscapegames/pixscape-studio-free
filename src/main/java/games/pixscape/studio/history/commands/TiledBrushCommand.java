@@ -2,8 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -72,6 +72,9 @@ public final class TiledBrushCommand implements Command {
                 }
             }
             if (uniqueAssetIds != null && assetId > 0) uniqueAssetIds.add(assetId);
+        }
+        if (sceneService != null) {
+            sceneService.requestTiledFallbackValidation();
         }
         if (sceneTag != null && sceneService != null) {
             boolean atlasInputChanged = false;

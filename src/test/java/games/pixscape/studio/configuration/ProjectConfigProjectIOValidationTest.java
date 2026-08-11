@@ -63,12 +63,69 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void validStudioProjectKindLoads() throws Exception {
+    public void sceneSchemaVersionTwoIsAcceptedByStudioProjectIO() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid-kind");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
 
         ProjectConfig cfg = ProjectConfig.ProjectIO.loadProject(projectFile);
         assertEquals(ProjectConfig.STUDIO_PROJECT_KIND, cfg.projectKind);
+        assertEquals(2, cfg.getCurrentSceneMeta().sceneSchemaVersion);
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingSceneSchemaVersionIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":2,", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void sceneSchemaVersionZeroIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-zero-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":2", "\"sceneSchemaVersion\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void sceneSchemaVersionOneIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-future-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":2", "\"sceneSchemaVersion\":1");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingEntityHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-entity-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextEntityStableId\":1,", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void nonPositiveEntityHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-invalid-entity-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextEntityStableId\":1", "\"nextEntityStableId\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void missingPhysicsHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-missing-physics-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace(",\"nextPhysicsShapeId\":1", "");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void nonPositivePhysicsHighWaterIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-invalid-physics-high-water");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"nextPhysicsShapeId\":1", "\"nextPhysicsShapeId\":0");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
     @Test(expected = RuntimeException.class)
@@ -148,7 +205,7 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void saveProject_sceneMetaPhysicsAndScaleFieldsRemainPersistentAfterReload() throws Exception {
+    public void saveProject_sceneMetaSchemaPhysicsAndScaleFieldsRemainPersistentAfterReload() throws Exception {
         Path dir = Files.createTempDirectory("project-config-scene-meta-physics");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
 
@@ -172,10 +229,30 @@ public class ProjectConfigProjectIOValidationTest {
         SceneMeta reloadedMain = reloaded.getCurrentSceneMeta();
 
         assertNotNull(reloadedMain);
+        assertEquals(2, reloadedMain.sceneSchemaVersion);
         assertTrue(reloadedMain.physicsEnabled);
         assertEquals(0.75f, reloadedMain.gravityX, 0.0001f);
         assertEquals(-15.25f, reloadedMain.gravityY, 0.0001f);
         assertEquals(128f, reloadedMain.pixelsPerMeter, 0.0001f);
+    }
+
+    @Test
+    public void saveProject_purgedScenePhysicsRemainsDisabledAfterReload() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-purged-physics");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Purged Physics";
+        cfg.projectFileName = "purged-physics";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.previewTarget = PreviewTarget.DESKTOP;
+        cfg.glSamples = 0;
+        cfg.createSceneMeta("Main");
+        cfg.getCurrentSceneMeta().physicsEnabled = false;
+
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        ProjectConfig restored = ProjectConfig.ProjectIO.loadProject(projectFile);
+
+        assertFalse(restored.getCurrentSceneMeta().physicsEnabled);
     }
 
     @Test
@@ -285,8 +362,11 @@ public class ProjectConfigProjectIOValidationTest {
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{" +
                 "\"Main\":{" +
+                "\"sceneSchemaVersion\":2," +
                 "\"name\":\"Main\"," +
-                "\"file\":\"" + currentSceneFile + "\"" +
+                "\"file\":\"" + currentSceneFile + "\"," +
+                "\"nextEntityStableId\":1," +
+                "\"nextPhysicsShapeId\":1" +
                 "}" +
                 "}" +
                 "}";

@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
@@ -22,6 +23,7 @@ public final class AlignService {
     private final HistoryManager historyManager;
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<DimensionsComponent> mDimensions;
+    private final ComponentMapper<ParticleEmitterComponent> mParticles;
 
     public AlignService(WorldCanvas canvas) {
         this.world = canvas.getEcsWorld();
@@ -29,6 +31,7 @@ public final class AlignService {
         this.historyManager = canvas.getHistoryManager();
         this.mTransform = world.getMapper(TransformComponent.class);
         this.mDimensions = world.getMapper(DimensionsComponent.class);
+        this.mParticles = world.getMapper(ParticleEmitterComponent.class);
     }
 
     public void alignLeft() {
@@ -518,6 +521,7 @@ public final class AlignService {
     }
 
     private Bounds computeBounds(int entityId) {
+        if (mParticles.has(entityId)) return null;
         TransformComponent t = mTransform.getSafe(entityId, null);
         DimensionsComponent d = mDimensions.getSafe(entityId, null);
 

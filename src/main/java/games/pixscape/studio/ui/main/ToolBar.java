@@ -45,8 +45,6 @@ public class ToolBar extends VisTable {
         pad(3f, 6f, 3f, 6f);
         left();
 
-        VisLabel alignLabel = new VisLabel("Align");
-
         alignLeftButton = createToolButton("align-left", "Align left", this::onAlignLeft);
         alignRightButton = createToolButton("align-right", "Align right", this::onAlignRight);
         alignTopButton = createToolButton("align-top", "Align top", this::onAlignTop);

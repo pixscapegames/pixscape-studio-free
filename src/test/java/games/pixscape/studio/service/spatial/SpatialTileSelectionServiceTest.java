@@ -1,7 +1,8 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.component.SpatialBlockData;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.SelectionService;
@@ -98,7 +99,6 @@ public class SpatialTileSelectionServiceTest {
         Assert.assertEquals(155f, block.altitude, 0.0001f);
         Assert.assertEquals(18f, block.height, 0.0001f);
         Assert.assertTrue(block.actorOccluder);
-        Assert.assertFalse(block.physicsCollision);
         Assert.assertTrue(block.linkedTileRefsAuthored);
         Assert.assertEquals(1, block.linkedTileRefs.size);
         Assert.assertEquals(2, block.linkedTileRefs.get(0).gx);
@@ -209,6 +209,27 @@ public class SpatialTileSelectionServiceTest {
 
         Assert.assertNull(selection.validationMessage(map));
         Assert.assertNotNull(selection.toSpatialBlockData(map, 0f, 10f));
+    }
+
+    @Test
+    public void prevalidationUsesSharedNextIdWithoutMutatingExistingWalls() {
+        SpatialTileSelectionService selection = new SpatialTileSelectionService();
+        TiledMapLayerData map = map(8, 8);
+        map.setTile(0, 0, 99);
+        map.setTile(3, 3, 100);
+        map.setTile(6, 6, 101);
+        SpatialBlocksComponent existing = SpatialWallAuthoringValidatorTest.component(
+                SpatialWallAuthoringValidatorTest.wall(1, 1, 0, 0, 1, 1, 0f, 10f),
+                SpatialWallAuthoringValidatorTest.wall(3, 2, 3, 3, 1, 1, 0f, 10f));
+        existing.nextSpatialBlockId = 4;
+        selection.beginDrag(4, 6, 6);
+        selection.finishDrag();
+
+        String failure = selection.validationMessage(map, existing, 0f, 10f);
+
+        Assert.assertNull(failure);
+        Assert.assertEquals(2, existing.blocks.size);
+        Assert.assertEquals(4, existing.peekNextSpatialBlockId());
     }
 
     @Test

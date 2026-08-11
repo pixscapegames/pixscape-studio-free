@@ -5,9 +5,9 @@ import com.artemis.annotations.All;
 import com.artemis.systems.IteratingSystem;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -19,17 +19,16 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.animation.TileAnimationDef;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.service.StandaloneTextureCache;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 
 import java.util.Objects;
@@ -42,9 +41,13 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private final TiledMapRenderState tiledState;
-    private final AtlasRuntimeService atlasRuntimeService;
+    private final StudioAssetVisualResolver visualResolver;
     private final float[] tmpQuad = new float[8];
     private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
+    private final ObjectMap<String, AnimationCertificationPass>
+            animationCertificationByAtlasTag = new ObjectMap<>();
+    private final AnimationCertificationPass animationCertificationWithoutAtlasTag =
+            new AnimationCertificationPass();
 
     private IntFunction<AssetMeta> assetMetaLookup;
     private StudioTilesetProfileResolver tilesetProfileResolver;
@@ -52,20 +55,24 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private boolean profiling;
     private long profileStartNs;
+    private boolean fallbackRequiredThisPass;
+    private int validationPassCount;
+    private long visitedCellCount;
+    private int animationCertificationCount;
 
-    public TiledFallbackSystem(AtlasRuntimeService atlasRuntimeService,
+    public TiledFallbackSystem(StudioAssetVisualResolver visualResolver,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
-        this(null, atlasRuntimeService, assetMetaLookup, tileAnimationLookup);
+        this(null, visualResolver, assetMetaLookup, tileAnimationLookup);
     }
 
     public TiledFallbackSystem(TiledMapRenderState tiledState,
-                               AtlasRuntimeService atlasRuntimeService,
+                               StudioAssetVisualResolver visualResolver,
                                IntFunction<AssetMeta> assetMetaLookup,
                                TileAnimationLookup tileAnimationLookup) {
 
         this.tiledState = tiledState;
-        this.atlasRuntimeService = atlasRuntimeService;
+        this.visualResolver = visualResolver;
         this.assetMetaLookup = (assetMetaLookup != null) ? assetMetaLookup : id -> null;
         this.tilesetProfileResolver = new StudioTilesetProfileResolver(this.assetMetaLookup);
         this.tileAnimationLookup = (tileAnimationLookup != null) ? tileAnimationLookup : id -> null;
@@ -80,9 +87,12 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         this.tileAnimationLookup = (tileAnimationLookup != null) ? tileAnimationLookup : id -> null;
     }
 
-    AssetMeta resolveAssetMeta(int assetId) {
-        if (assetId <= 0) return null;
-        return assetMetaLookup.apply(assetId);
+    /**
+     * Enables one complete validation pass. The system remains enabled only
+     * when that pass finds at least one placed standalone tile representation.
+     */
+    public void requestValidation() {
+        setEnabled(true);
     }
 
     RuntimeTilesetProfile resolveTilesetProfile(int tileAssetId) {
@@ -91,6 +101,13 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
     @Override
     protected void begin() {
+        fallbackRequiredThisPass = false;
+        validationPassCount++;
+        animationCertificationWithoutAtlasTag.clear();
+        for (AnimationCertificationPass pass :
+                animationCertificationByAtlasTag.values()) {
+            pass.clear();
+        }
         profiling = profiler.enabled();
         if (profiling) {
             profileStartNs = profiler.begin(SystemProfilePhases.TILED_FALLBACK);
@@ -116,6 +133,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
             for (int ly = 0; ly < chunk.chunkHeight; ly++) {
                 for (int lx = 0; lx < chunk.chunkWidth; lx++) {
+                    visitedCellCount++;
 
                     int localIndex = ly * chunk.chunkWidth + lx;
                     int tiledRenderRef = chunk.renderRefFor(lx, ly);
@@ -126,6 +144,16 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     if (logicalAssetId <= 0) continue;
 
                     byte transformFlags = chunk.transformFlags[localIndex];
+
+                    TileAnimationDef animation =
+                            tileAnimationLookup.get(logicalAssetId);
+                    if (animation != null
+                            && animationRequiresFallback(
+                            logicalAssetId,
+                            tiled.atlasTag,
+                            animation)) {
+                        fallbackRequiredThisPass = true;
+                    }
 
                     int frameIndex = chunk.getAnimFrameIndex(localIndex);
                     int visualAssetId = TileAnimationResolver.resolveVisualAssetId(
@@ -138,24 +166,17 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
 
                     int gx = chunk.chunkX * map.chunkSize + lx;
                     int gy = chunk.chunkY * map.chunkSize + ly;
-                    AtlasRuntimeService.CachedRegion cachedRegion = atlasRuntimeService != null
-                            ? atlasRuntimeService.resolveCached(visualAssetId, tiled.atlasTag)
+                    StudioAssetVisual visual = visualResolver != null
+                            ? visualResolver.resolveFirst(visualAssetId, tiled.atlasTag)
                             : null;
-
-                    if (cachedRegion != null) {
+                    if (visual != null
+                            && visual.source() == StudioAssetVisual.Source.STANDALONE) {
+                        fallbackRequiredThisPass = true;
+                    }
+                    if (visual == null
+                            || visual.source() == StudioAssetVisual.Source.ATLAS) {
                         continue;
                     }
-
-                    AssetMeta meta = resolveAssetMeta(visualAssetId);
-                    if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
-                        continue;
-                    }
-                    if (meta.type != AssetType.TILE) {
-                        continue;
-                    }
-
-                    Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
-                    if (tex == null) continue;
 
                     RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);
                     if (profile == null) {
@@ -169,19 +190,62 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                             tiledRenderRef,
                             gx,
                             gy,
-                            tex.getWidth(),
-                            tex.getHeight(),
+                            visual.pixelWidth(),
+                            visual.pixelHeight(),
                             profile,
                             transformFlags,
-                            TextureRegistry.handleOf(tex),
-                            0f,
-                            0f,
-                            1f,
-                            1f
+                            visual.textureHandle(),
+                            visual.u1(),
+                            visual.v1(),
+                            visual.u2(),
+                            visual.v2()
                     );
                 }
             }
         }
+    }
+
+    private boolean animationRequiresFallback(int animationAssetId,
+                                              String atlasTag,
+                                              TileAnimationDef animation) {
+        AnimationCertificationPass pass = animationCertificationPass(atlasTag);
+        if (pass.certifiedAnimationIds.contains(animationAssetId)) {
+            return pass.fallbackAnimationIds.contains(animationAssetId);
+        }
+
+        pass.certifiedAnimationIds.add(animationAssetId);
+        animationCertificationCount++;
+
+        boolean requiresFallback = false;
+        for (int i = 0; i < animation.frameCount(); i++) {
+            int frameAssetId = animation.frameAssetId(i);
+            if (frameAssetId <= 0) continue;
+            StudioAssetVisual frameVisual = visualResolver != null
+                    ? visualResolver.resolveFirst(frameAssetId, atlasTag)
+                    : null;
+            if (frameVisual != null
+                    && frameVisual.source() == StudioAssetVisual.Source.STANDALONE) {
+                requiresFallback = true;
+            }
+        }
+        if (requiresFallback) {
+            pass.fallbackAnimationIds.add(animationAssetId);
+        }
+        return requiresFallback;
+    }
+
+    private AnimationCertificationPass animationCertificationPass(
+            String atlasTag) {
+        if (atlasTag == null || atlasTag.isBlank()) {
+            return animationCertificationWithoutAtlasTag;
+        }
+        AnimationCertificationPass pass =
+                animationCertificationByAtlasTag.get(atlasTag);
+        if (pass == null) {
+            pass = new AnimationCertificationPass();
+            animationCertificationByAtlasTag.put(atlasTag, pass);
+        }
+        return pass;
     }
 
     void writeTileSlot(LayerComponent layer,
@@ -311,10 +375,35 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
             profiler.end(SystemProfilePhases.TILED_FALLBACK, profileStartNs);
             profiling = false;
         }
+        if (!fallbackRequiredThisPass) {
+            setEnabled(false);
+        }
     }
 
     @Override
     public void setSystemProfiler(SystemProfiler profiler) {
         this.profiler = SystemProfilers.orDisabled(profiler);
+    }
+
+    int validationPassCount() {
+        return validationPassCount;
+    }
+
+    long visitedCellCount() {
+        return visitedCellCount;
+    }
+
+    int animationCertificationCount() {
+        return animationCertificationCount;
+    }
+
+    private static final class AnimationCertificationPass {
+        final IntSet certifiedAnimationIds = new IntSet();
+        final IntSet fallbackAnimationIds = new IntSet();
+
+        void clear() {
+            certifiedAnimationIds.clear();
+            fallbackAnimationIds.clear();
+        }
     }
 }

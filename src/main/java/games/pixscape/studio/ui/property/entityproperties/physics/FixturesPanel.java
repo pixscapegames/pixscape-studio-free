@@ -1,28 +1,26 @@
 package games.pixscape.studio.ui.property.entityproperties.physics;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.Cell;
-import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.util.InputValidator;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.FixtureIdSequence;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.*;
+import games.pixscape.studio.history.commands.Command;
+import games.pixscape.studio.history.commands.DeleteFixtureCommand;
+import games.pixscape.studio.history.commands.DuplicateFixtureCommand;
+import games.pixscape.studio.history.commands.EditFixtureCommand;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -45,14 +43,8 @@ public final class FixturesPanel extends CollapsibleWidget {
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
 
     private final VisSelectBox<String> shapeBox = new VisSelectBox<>();
+    private final VisLabel linkedSpatialBlockLabel = new VisLabel("");
     private final VisCheckBox sensorBox = new VisCheckBox("Sensor");
-    private final VisLabel spatialManagedLabel = new VisLabel(
-            "This collision shape is managed by a Spatial block. "
-                    + "Disable \"Use for physics collision\" to create and edit a custom shape."
-    );
-    private final Container<VisLabel> spatialManagedNotice = new Container<>();
-    private final Cell<Container<VisLabel>> spatialManagedNoticeCell;
-
     private final FloatField densityField;
     private final FloatField frictionField;
     private final FloatField restitutionField;
@@ -75,13 +67,15 @@ public final class FixturesPanel extends CollapsibleWidget {
     private final CollapsibleVisTable boxSizeBlock = new CollapsibleVisTable(true);
     private final CollapsibleVisTable circleSizeBlock = new CollapsibleVisTable(true);
     private final CollapsibleVisTable offsetsBlock = new CollapsibleVisTable(true);
+    private final CollapsibleVisTable linkedSpatialBlockBlock =
+            new CollapsibleVisTable(true);
 
     private final UiBinders.SelectBoxBinder<String> shapeBinder;
     private final UiBinders.CheckBoxBinder sensorBinder;
 
     private int entityId = -1;
     private boolean internalRefresh = false;
-    private long lastSelectedFixtureId = PhysicsSelectionService.NO_FIXTURE;
+    private long lastSelectedFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int lastFixtureCount = -1;
     private int lastFixtureStateHash = 0;
 
@@ -98,10 +92,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         widthWUField = new FloatField(ctx.world, this::readWidthWU, this::hasActiveFixture).setDisplayDecimals(2);
         widthWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isBoxShape(snapshot.shapeType)) return;
+                if (!isBoxShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float wM = wuToM(Math.abs(v), ppm);
-                snapshot.halfW = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -109,10 +103,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         heightWUField = new FloatField(ctx.world, this::readHeightWU, this::hasActiveFixture).setDisplayDecimals(2);
         heightWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isBoxShape(snapshot.shapeType)) return;
+                if (!isBoxShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float hM = wuToM(Math.abs(v), ppm);
-                snapshot.halfH = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -120,10 +114,10 @@ public final class FixturesPanel extends CollapsibleWidget {
         diameterWUField = new FloatField(ctx.world, this::readDiameterWU, this::hasActiveFixture).setDisplayDecimals(2);
         diameterWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-                if (!isCircleShape(snapshot.shapeType)) return;
+                if (!isCircleShape(snapshot.geometry.shapeType)) return;
                 float ppm = resolvePixelsPerMeter();
                 float dM = wuToM(Math.abs(v), ppm);
-                snapshot.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
             });
             refreshShapeUi(eid);
         });
@@ -132,7 +126,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         offsetXWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
-                snapshot.offsetX = wuToM(v, ppm);
+                snapshot.geometry.offsetX = wuToM(v, ppm);
             });
         });
 
@@ -140,12 +134,12 @@ public final class FixturesPanel extends CollapsibleWidget {
         offsetYWUField.setApplier((eid, v) -> {
             applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
                 float ppm = resolvePixelsPerMeter();
-                snapshot.offsetY = wuToM(v, ppm);
+                snapshot.geometry.offsetY = wuToM(v, ppm);
             });
         });
 
         densityField = new FloatField(ctx.world, (int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? f.density : 0f;
         }, this::hasActiveFixture).setDisplayDecimals(3);
         densityField.setApplier((eid, v) -> {
@@ -153,7 +147,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         frictionField = new FloatField(ctx.world, (int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? f.friction : 0f;
         }, this::hasActiveFixture).setDisplayDecimals(3);
         frictionField.setApplier((eid, v) -> {
@@ -161,7 +155,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         restitutionField = new FloatField(ctx.world, (int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? f.restitution : 0f;
         }, this::hasActiveFixture).setDisplayDecimals(3);
         restitutionField.setApplier((eid, v) -> {
@@ -169,7 +163,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         categoryBitsField = newHexIntField((int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? (((int) f.categoryBits) & 0xFFFF) : 0;
         });
         categoryBitsField.setApplier((eid, v) -> {
@@ -179,7 +173,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         maskBitsField = newHexIntField((int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? (((int) f.maskBits) & 0xFFFF) : 0;
         });
         maskBitsField.setApplier((eid, v) -> {
@@ -189,7 +183,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         });
 
         groupIndexField = new IntField(ctx.world, (int e) -> {
-            FixtureDefData f = activeFixture(e);
+            PhysicsShapeData f = activeFixture(e);
             return (f != null) ? (int) f.groupIndex : 0;
         }, this::hasActiveFixture);
         groupIndexField.setApplier((eid, v) -> {
@@ -214,16 +208,13 @@ public final class FixturesPanel extends CollapsibleWidget {
         shape.add(autoSizeBtn).left();
         d.add(shape).colspan(2).left().row();
 
-        spatialManagedLabel.setWrap(true);
-        spatialManagedLabel.setAlignment(Align.left);
-        spatialManagedNotice.fillX().left();
-        spatialManagedNoticeCell = d.add(spatialManagedNotice)
-                .colspan(PROPERTY_COLUMN_COUNT)
-                .growX()
-                .fillX()
-                .left();
-        d.row();
-        updateOwnershipNotice(false);
+        linkedSpatialBlockLabel.setName("physicsLinkedSpatialBlockLabel");
+        VisTable linkedSpatialBlock = linkedSpatialBlockBlock.content();
+        linkedSpatialBlock.left().top();
+        linkedSpatialBlock.add(linkedSpatialBlockLabel).left().row();
+        d.add(linkedSpatialBlockBlock).colspan(2).left().growX().row();
+        linkedSpatialBlockBlock.show(false);
+        linkedSpatialBlockLabel.setVisible(false);
 
         d.add(sensorBox).left().colspan(2).row();
 
@@ -283,17 +274,18 @@ public final class FixturesPanel extends CollapsibleWidget {
                 shapeBox,
                 this::hasActiveFixture,
                 (int e) -> {
-                    FixtureDefData f = activeFixture(e);
-                    return SHAPES.get(clamp((f != null) ? f.shapeType : FixtureDefData.SHAPE_BOX, SHAPES.size - 1));
+                    PhysicsShapeData f = activeFixture(e);
+                    return SHAPES.get(clamp(
+                            effectiveShapeType(f), SHAPES.size - 1));
                 },
                 (eid, before, after) -> {
                     int idx = SHAPES.indexOf(after, false);
-                    if (idx < 0) idx = FixtureDefData.SHAPE_BOX;
+                    if (idx < 0) idx = PhysicsGeometryData.SHAPE_BOX;
                     final int targetShape = idx;
                     applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, true, snapshot -> {
-                        int prevType = snapshot.shapeType;
-                        snapshot.shapeType = targetShape;
-                        if (targetShape == FixtureDefData.SHAPE_POLYGON) {
+                        int prevType = snapshot.geometry.shapeType;
+                        snapshot.geometry.shapeType = targetShape;
+                        if (targetShape == PhysicsGeometryData.SHAPE_POLYGON) {
                             seedDefaultPolygon(snapshot, prevType);
                         }
                     });
@@ -307,11 +299,11 @@ public final class FixturesPanel extends CollapsibleWidget {
                 sensorBox,
                 this::hasActiveFixture,
                 (int e) -> {
-                    FixtureDefData f = activeFixture(e);
-                    return f != null && f.isSensor;
+                    PhysicsShapeData f = activeFixture(e);
+                    return f != null && f.sensor;
                 },
                 (eid, v) -> {
-                    applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> snapshot.isSensor = v);
+                    applyFixtureEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> snapshot.sensor = v);
                 }
         );
 
@@ -323,8 +315,9 @@ public final class FixturesPanel extends CollapsibleWidget {
                         ctx.world,
                         ctx.history.historyIds(),
                         ctx.physicsSelectionService,
+                        ctx.physicsService,
                         entityId,
-                        ctx.physicsSelectionService.getSelectedFixtureId()
+                        ctx.physicsSelectionService.getSelectedPhysicsShapeId()
                 ));
                 refreshFromModel(entityId);
                 event.handle();
@@ -336,36 +329,15 @@ public final class FixturesPanel extends CollapsibleWidget {
             public void changed(ChangeEvent event, Actor actor) {
                 if (internalRefresh || !canDeleteActiveFixture(entityId)) return;
 
-                long fixtureId = ctx.physicsSelectionService.getSelectedFixtureId();
-                if (fixtureId <= 0L) return;
-
-                AuthoredPolygonData authored =
-                        polygonAuthoringService.findByGeneratedFixtureId(entityId, fixtureId);
-
-                if (authored != null) {
-                    DeleteAuthoredPolygonCommand cmd = new DeleteAuthoredPolygonCommand(
-                            ctx.world,
-                            ctx.history.historyIds(),
-                            ctx.physicsSelectionService,
-                            entityId,
-                            authored.authoringId
-                    );
-
-                    if (!cmd.isNoop()) {
-                        ctx.history.execute(cmd);
-                        refreshFromModel(entityId);
-                    }
-
-                    event.handle();
-                    return;
-                }
+                int physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
+                if (physicsShapeId <= 0L) return;
 
                 executeCommand(new DeleteFixtureCommand(
                         ctx.world,
                         ctx.history.historyIds(),
                         ctx.physicsSelectionService,
                         entityId,
-                        fixtureId
+                        physicsShapeId
                 ));
 
                 refreshFromModel(entityId);
@@ -389,7 +361,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         refreshFromModel(entityId);
     }
 
-    public boolean hasSelectedFixture() {
+    public boolean hasSelectedShape() {
         return activeFixture(entityId) != null;
     }
 
@@ -398,11 +370,11 @@ public final class FixturesPanel extends CollapsibleWidget {
         super.act(delta);
         if (entityId < 0 || internalRefresh) return;
 
-        long fixtureId = resolveSelectedFixtureIdForPanel(entityId);
-        int fixtureCount = countFixtures(entityId);
+        int physicsShapeId = resolveSelectedFixtureIdForPanel(entityId);
+        int shapeCount = countFixtures(entityId);
         int fixtureStateHash = fixtureStateHash(entityId);
-        if (fixtureId != lastSelectedFixtureId
-                || fixtureCount != lastFixtureCount
+        if (physicsShapeId != lastSelectedFixtureId
+                || shapeCount != lastFixtureCount
                 || fixtureStateHash != lastFixtureStateHash) {
             refreshFromModel(entityId);
         }
@@ -419,10 +391,11 @@ public final class FixturesPanel extends CollapsibleWidget {
             sensorBinder.setEntityId(eid);
             rebindFields(eid);
 
-            FixtureDefData active = activeFixture(eid);
+            PhysicsShapeData active = activeFixture(eid);
             boolean hasActive = active != null;
 
             detailsBlock.show(hasActive);
+            updateLinkedSpatialBlockIndicator(active);
 
             lastSelectedFixtureId = resolveSelectedFixtureIdForPanel(eid);
             lastFixtureCount = countFixtures(eid);
@@ -430,7 +403,6 @@ public final class FixturesPanel extends CollapsibleWidget {
             updateActionButtons(hasActive);
 
             if (!hasActive) {
-                updateOwnershipNotice(false);
                 shapeBox.setDisabled(true);
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
@@ -466,9 +438,9 @@ public final class FixturesPanel extends CollapsibleWidget {
     private void refreshShapeUi(int eid) {
         internalRefresh = true;
         try {
-            FixtureDefData f = activeFixture(eid);
+            PhysicsShapeData f = activeFixture(eid);
+            updateLinkedSpatialBlockIndicator(f);
             if (f == null) {
-                updateOwnershipNotice(false);
                 shapeBox.setDisabled(true);
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
@@ -478,24 +450,31 @@ public final class FixturesPanel extends CollapsibleWidget {
                 return;
             }
 
-            boolean spatialOwned = isActiveSpatialOwnedFixture(eid);
-            updateOwnershipNotice(spatialOwned);
-            shapeBox.setDisabled(spatialOwned);
+            boolean linked = isLinked(f);
+            boolean spatialFootprint = f.spatialFootprint;
+            shapeBox.setDisabled(linked || spatialFootprint);
+            sensorBox.setDisabled(linked);
 
-            if (isBox(f)) {
+            if (linked) {
+                boxSizeBlock.show(false);
+                circleSizeBlock.show(false);
+                offsetsBlock.show(false);
+                autoSizeBtn.setVisible(false);
+                autoSizeBtn.setDisabled(true);
+            } else if (isBox(f)) {
                 boxSizeBlock.show(true);
                 circleSizeBlock.show(false);
                 offsetsBlock.show(true);
 
                 autoSizeBtn.setVisible(true);
-                autoSizeBtn.setDisabled(spatialOwned);
+                autoSizeBtn.setDisabled(false);
             } else if (isCircle(f)) {
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(true);
                 offsetsBlock.show(true);
 
                 autoSizeBtn.setVisible(true);
-                autoSizeBtn.setDisabled(spatialOwned);
+                autoSizeBtn.setDisabled(false);
             } else {
                 boxSizeBlock.show(false);
                 circleSizeBlock.show(false);
@@ -512,117 +491,108 @@ public final class FixturesPanel extends CollapsibleWidget {
             offsetXWUField.refreshFromModel();
             offsetYWUField.refreshFromModel();
 
-            widthWUField.setDisabled(spatialOwned);
-            heightWUField.setDisabled(spatialOwned);
-            diameterWUField.setDisabled(spatialOwned);
-            offsetXWUField.setDisabled(spatialOwned);
-            offsetYWUField.setDisabled(spatialOwned);
+            widthWUField.setDisabled(linked);
+            heightWUField.setDisabled(linked);
+            diameterWUField.setDisabled(linked);
+            offsetXWUField.setDisabled(linked);
+            offsetYWUField.setDisabled(linked);
         } finally {
             internalRefresh = false;
         }
         invalidateHierarchy();
     }
 
-    private void updateOwnershipNotice(boolean spatialOwned) {
-        if (spatialOwned) {
-            if (spatialManagedNotice.getActor() != spatialManagedLabel) {
-                spatialManagedNotice.setActor(spatialManagedLabel);
-            }
-            spatialManagedNoticeCell.padTop(2f).padBottom(2f).padLeft(0f).padRight(0f);
-        } else {
-            spatialManagedNotice.setActor(null);
-            spatialManagedNoticeCell.padTop(0f).padBottom(0f).padLeft(0f).padRight(0f);
-        }
-        spatialManagedNotice.invalidateHierarchy();
-        detailsBlock.invalidateHierarchy();
-        invalidateHierarchy();
+    private void updateLinkedSpatialBlockIndicator(PhysicsShapeData fixture) {
+        boolean linked = isLinked(fixture);
+        boolean spatialFootprint = fixture != null && fixture.spatialFootprint;
+        linkedSpatialBlockLabel.setText(
+                spatialFootprint ? "Spatial footprint"
+                        : linked ? "Linked to Spatial Block #" + fixture.spatialBlockId : "");
+        linkedSpatialBlockLabel.setVisible(linked || spatialFootprint);
+        linkedSpatialBlockBlock.show(linked || spatialFootprint);
     }
 
     private void updateActionButtons(boolean hasActive) {
+        PhysicsShapeData fixture = activeFixture(entityId);
+        boolean spatialFootprint = fixture != null && fixture.spatialFootprint;
+        deleteFixtureBtn.setText("Delete");
         duplicateFixtureBtn.setDisabled(!canDuplicateActiveFixture(entityId));
         deleteFixtureBtn.setDisabled(!canDeleteActiveFixture(entityId));
-        duplicateFixtureBtn.setVisible(hasActive);
-        deleteFixtureBtn.setVisible(hasActive);
+        duplicateFixtureBtn.setVisible(hasActive && !spatialFootprint);
+        deleteFixtureBtn.setVisible(hasActive && !spatialFootprint);
     }
 
     private boolean canDuplicateActiveFixture(int eid) {
-        return hasActiveFixture(eid)
-                && !isActiveGeneratedFixture(eid)
-                && !isActiveSpatialOwnedFixture(eid);
+        PhysicsShapeData fixture = activeFixture(eid);
+        return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;
     }
 
     private boolean canDeleteActiveFixture(int eid) {
-        return hasActiveFixture(eid);
+        PhysicsShapeData fixture = activeFixture(eid);
+        return fixture != null && !isLinked(fixture) && !fixture.spatialFootprint;
     }
 
     private int countFixtures(int eid) {
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        return (fixtures != null) ? fixtures.fixtures.size : 0;
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        return (fixtures != null) ? fixtures.shapes.size : 0;
     }
 
     private int fixtureStateHash(int eid) {
-        FixtureDefData fixture = activeFixture(eid);
+        PhysicsShapeData fixture = activeFixture(eid);
         if (fixture == null) return 0;
 
-        int result = Long.hashCode(fixture.fixtureId);
-        result = 31 * result + fixture.shapeType;
-        result = 31 * result + Float.floatToIntBits(fixture.offsetX);
-        result = 31 * result + Float.floatToIntBits(fixture.offsetY);
-        result = 31 * result + Float.floatToIntBits(fixture.halfW);
-        result = 31 * result + Float.floatToIntBits(fixture.halfH);
-        result = 31 * result + Float.floatToIntBits(fixture.radius);
+        int result = Long.hashCode(fixture.physicsShapeId);
+        result = 31 * result + fixture.spatialBlockId;
+        result = 31 * result + (fixture.spatialFootprint ? 1 : 0);
+        PhysicsGeometryData geometry = fixture.geometry;
+        result = 31 * result + effectiveShapeType(fixture);
+        if (geometry != null) {
+            result = 31 * result + Float.floatToIntBits(geometry.offsetX);
+            result = 31 * result + Float.floatToIntBits(geometry.offsetY);
+            result = 31 * result + Float.floatToIntBits(geometry.halfWidth);
+            result = 31 * result + Float.floatToIntBits(geometry.halfHeight);
+            result = 31 * result + Float.floatToIntBits(geometry.radius);
+        }
         result = 31 * result + Float.floatToIntBits(fixture.density);
         result = 31 * result + Float.floatToIntBits(fixture.friction);
         result = 31 * result + Float.floatToIntBits(fixture.restitution);
-        result = 31 * result + (fixture.isSensor ? 1 : 0);
+        result = 31 * result + (fixture.sensor ? 1 : 0);
         result = 31 * result + fixture.categoryBits;
         result = 31 * result + fixture.maskBits;
         result = 31 * result + fixture.groupIndex;
-        result = 31 * result + (SpatialOwnedFixtureSupport.isOwned(
-                ctx.world, eid, fixture.fixtureId) ? 1 : 0);
         return result;
     }
 
-    private boolean hasValidPolygon(FixtureDefData f) {
+    private boolean hasValidPolygon(PhysicsShapeData f) {
         return f != null
-                && f.polyVerts != null
-                && f.polyCount >= 3
-                && f.polyVerts.length >= f.polyCount * 2;
+                && f.geometry != null
+                && f.geometry.polygonVertices != null
+                && f.geometry.polygonVertexCount >= 3
+                && f.geometry.polygonVertices.length >= f.geometry.polygonVertexCount * 2;
     }
 
-    private void seedDefaultPolygon(FixtureDefData f, int previousShapeType) {
+    private void seedDefaultPolygon(PhysicsShapeData f, int previousShapeType) {
         if (f == null || hasValidPolygon(f)) return;
 
         float hx;
         float hy;
 
-        if (previousShapeType == FixtureDefData.SHAPE_CIRCLE) {
-            float r = Math.max(MIN_SHAPE_HALF_M, f.radius);
+        if (previousShapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
+            float r = Math.max(MIN_SHAPE_HALF_M, f.geometry.radius);
             hx = r;
             hy = r;
         } else {
-            hx = Math.max(MIN_SHAPE_HALF_M, f.halfW);
-            hy = Math.max(MIN_SHAPE_HALF_M, f.halfH);
+            hx = Math.max(MIN_SHAPE_HALF_M, f.geometry.halfWidth);
+            hy = Math.max(MIN_SHAPE_HALF_M, f.geometry.halfHeight);
         }
 
-        f.polyCount = 4;
-        f.polyVerts = new float[]{
+        f.geometry.polygonVertexCount = 4;
+        f.geometry.polygonVertices = new float[]{
                 -hx, -hy,
                 hx, -hy,
                 hx, hy,
                 -hx, hy
         };
-    }
-
-    private boolean isActiveGeneratedFixture(int eid) {
-        long fixtureId = ctx.physicsSelectionService.getSelectedFixtureId();
-        return fixtureId > 0L && polygonAuthoringService.isGeneratedFixture(eid, fixtureId);
-    }
-
-    private boolean isActiveSpatialOwnedFixture(int eid) {
-        FixtureDefData fixture = activeFixture(eid);
-        return fixture != null
-                && SpatialOwnedFixtureSupport.isOwned(ctx.world, eid, fixture.fixtureId);
     }
 
     private void executeCommand(Command command) {
@@ -636,11 +606,11 @@ public final class FixturesPanel extends CollapsibleWidget {
     private void applyFixtureEdit(int eid,
                                   int dirtyMask,
                                   boolean publishStructureChanged,
-                                  Consumer<FixtureDefData> edit) {
-        FixtureDefData current = activeFixture(eid);
+                                  Consumer<PhysicsShapeData> edit) {
+        PhysicsShapeData current = activeFixture(eid);
         if (current == null || edit == null) return;
 
-        FixtureDefData afterData = current.copy();
+        PhysicsShapeData afterData = current.copy();
         edit.accept(afterData);
 
         EditFixtureCommand command = new EditFixtureCommand(
@@ -648,7 +618,7 @@ public final class FixturesPanel extends CollapsibleWidget {
                 ctx.history.historyIds(),
                 ctx.physicsSelectionService,
                 eid,
-                current.fixtureId,
+                current.physicsShapeId,
                 EditFixtureCommand.Snapshot.capture(current),
                 EditFixtureCommand.Snapshot.capture(afterData),
                 dirtyMask,
@@ -660,13 +630,9 @@ public final class FixturesPanel extends CollapsibleWidget {
     private void applyGeometryEdit(int eid,
                                    int dirtyMask,
                                    boolean publishStructureChanged,
-                                   Consumer<FixtureDefData> edit) {
-        FixtureDefData current = activeFixture(eid);
-        if (current == null) return;
-        if (SpatialOwnedFixtureSupport.isOwned(ctx.world, eid, current.fixtureId)) {
-            refreshShapeUi(eid);
-            return;
-        }
+                                   Consumer<PhysicsShapeData> edit) {
+        PhysicsShapeData current = activeFixture(eid);
+        if (current == null || current.geometry == null) return;
         applyFixtureEdit(eid, dirtyMask, publishStructureChanged, edit);
     }
 
@@ -679,88 +645,105 @@ public final class FixturesPanel extends CollapsibleWidget {
         return eid >= 0
                 && ctx.mPhysBody.has(eid)
                 && ctx.mPhysFixtures.has(eid)
-                && ctx.mPhysFixtures.get(eid).hasFixtures();
+                && ctx.mPhysFixtures.get(eid).shapes != null
+                && ctx.mPhysFixtures.get(eid).shapes.size > 0;
     }
 
     private boolean hasActiveFixture(int eid) {
         return activeFixture(eid) != null;
     }
 
-    private long resolveSelectedFixtureIdForPanel(int eid) {
-        FixtureDefData active = activeFixture(eid);
-        return active != null ? active.fixtureId : PhysicsSelectionService.NO_FIXTURE;
+    private int resolveSelectedFixtureIdForPanel(int eid) {
+        PhysicsShapeData active = activeFixture(eid);
+        return active != null ? active.physicsShapeId : PhysicsSelectionService.NO_SHAPE;
     }
 
-    private FixtureDefData activeFixture(int eid) {
+    private PhysicsShapeData activeFixture(int eid) {
         if (!hasPhysics(eid)) return null;
 
-        long fixtureId = ctx.physicsSelectionService.getSelectedFixtureId();
-        if (fixtureId <= 0L) return null;
+        int physicsShapeId = ctx.physicsSelectionService.getSelectedPhysicsShapeId();
+        if (physicsShapeId <= 0L) return null;
 
-        PhysicsFixturesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
-        if (fixtures == null || !fixtures.hasFixtures()) return null;
+        PhysicsShapesComponent fixtures = ctx.mPhysFixtures.getSafe(eid, null);
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
+            return null;
+        }
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            FixtureIdSequence.i().ensure(f);
-            if (f.fixtureId == fixtureId) return f;
+            if (f.physicsShapeId == physicsShapeId) return f;
         }
         return null;
     }
 
-    private static boolean isBox(FixtureDefData f) {
-        return f != null && isBoxShape(f.shapeType);
+    private static boolean isBox(PhysicsShapeData f) {
+        return f != null
+                && f.geometry != null
+                && isBoxShape(f.geometry.shapeType);
     }
 
-    private static boolean isCircle(FixtureDefData f) {
-        return f != null && isCircleShape(f.shapeType);
+    private static boolean isCircle(PhysicsShapeData f) {
+        return f != null
+                && f.geometry != null
+                && isCircleShape(f.geometry.shapeType);
+    }
+
+    static boolean isLinked(PhysicsShapeData fixture) {
+        return fixture != null && fixture.spatialBlockId > 0;
+    }
+
+    static int effectiveShapeType(PhysicsShapeData fixture) {
+        if (isLinked(fixture)) return PhysicsGeometryData.SHAPE_POLYGON;
+        return fixture != null && fixture.geometry != null
+                ? fixture.geometry.shapeType
+                : PhysicsGeometryData.SHAPE_BOX;
     }
 
     private static boolean isBoxShape(int shapeType) {
-        return shapeType == FixtureDefData.SHAPE_BOX;
+        return shapeType == PhysicsGeometryData.SHAPE_BOX;
     }
 
     private static boolean isCircleShape(int shapeType) {
-        return shapeType == FixtureDefData.SHAPE_CIRCLE;
+        return shapeType == PhysicsGeometryData.SHAPE_CIRCLE;
     }
 
     private float readWidthWU(int eid) {
-        FixtureDefData f = activeFixture(eid);
+        PhysicsShapeData f = activeFixture(eid);
         if (!isBox(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.halfW), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.halfWidth), ppm);
     }
 
     private float readHeightWU(int eid) {
-        FixtureDefData f = activeFixture(eid);
+        PhysicsShapeData f = activeFixture(eid);
         if (!isBox(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.halfH), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.halfHeight), ppm);
     }
 
     private float readDiameterWU(int eid) {
-        FixtureDefData f = activeFixture(eid);
+        PhysicsShapeData f = activeFixture(eid);
         if (!isCircle(f)) return 0f;
         float ppm = resolvePixelsPerMeter();
-        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.radius), ppm);
+        return mToWu(2f * Math.max(MIN_SHAPE_HALF_M, f.geometry.radius), ppm);
     }
 
     private float readOffsetXWU(int eid) {
-        FixtureDefData f = activeFixture(eid);
-        if (f == null) return 0f;
-        return mToWu(f.offsetX, resolvePixelsPerMeter());
+        PhysicsShapeData f = activeFixture(eid);
+        if (f == null || f.geometry == null) return 0f;
+        return mToWu(f.geometry.offsetX, resolvePixelsPerMeter());
     }
 
     private float readOffsetYWU(int eid) {
-        FixtureDefData f = activeFixture(eid);
-        if (f == null) return 0f;
-        return mToWu(f.offsetY, resolvePixelsPerMeter());
+        PhysicsShapeData f = activeFixture(eid);
+        if (f == null || f.geometry == null) return 0f;
+        return mToWu(f.geometry.offsetY, resolvePixelsPerMeter());
     }
 
     private void autoSizeFromSprite(int eid) {
-        FixtureDefData f = activeFixture(eid);
-        if (f == null) return;
+        PhysicsShapeData f = activeFixture(eid);
+        if (f == null || f.geometry == null) return;
         if (!ctx.mTransform.has(eid) || !ctx.mDimensions.has(eid)) return;
 
         TransformComponent t = ctx.mTransform.get(eid);
@@ -774,12 +757,12 @@ public final class FixturesPanel extends CollapsibleWidget {
         float hM = clampMin(wuToM(worldHwu, ppm), 2f * MIN_SHAPE_HALF_M);
 
         applyGeometryEdit(eid, PhysicsDirtyBits.FIXTURE, false, snapshot -> {
-            if (isBoxShape(snapshot.shapeType)) {
-                snapshot.halfW = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
-                snapshot.halfH = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
-            } else if (isCircleShape(snapshot.shapeType)) {
+            if (isBoxShape(snapshot.geometry.shapeType)) {
+                snapshot.geometry.halfWidth = clampMin(wM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.halfHeight = clampMin(hM * 0.5f, MIN_SHAPE_HALF_M);
+            } else if (isCircleShape(snapshot.geometry.shapeType)) {
                 float dM = Math.max(2f * MIN_SHAPE_HALF_M, Math.min(wM, hM));
-                snapshot.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
+                snapshot.geometry.radius = clampMin(dM * 0.5f, MIN_SHAPE_HALF_M);
             }
         });
     }

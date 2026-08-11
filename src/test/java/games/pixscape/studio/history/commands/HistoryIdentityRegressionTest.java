@@ -8,12 +8,14 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.FixtureDefData;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
@@ -26,6 +28,24 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class HistoryIdentityRegressionTest {
+    @Test
+    public void pruneInactiveRemovesDeletedMappingsAndPreservesLiveMappings() {
+        World world = new World();
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        int live = world.create();
+        int deleted = world.create();
+        long liveHistoryId = historyIds.ensureForEntity(live);
+        long deletedHistoryId = historyIds.ensureForEntity(deleted);
+        world.delete(deleted);
+        world.process();
+
+        historyIds.pruneInactive(world);
+
+        Assert.assertEquals(live, historyIds.entityOfHistoryId(liveHistoryId));
+        Assert.assertEquals(-1, historyIds.entityOfHistoryId(deletedHistoryId));
+        Assert.assertEquals(-1L, historyIds.historyIdOfEntity(deleted));
+    }
+
 
     @Test
     public void createUndoRedoCyclesPreserveHistoryIdentityWithoutDuplicatingStableIdentity() {
@@ -64,6 +84,36 @@ public class HistoryIdentityRegressionTest {
             assertRenderBindingOrFallback(world, restored);
             assertNoDuplicateStableIds(world, identities);
         }
+    }
+
+    @Test
+    public void createUndoRedoPreservesUserEditedEntityName() {
+        World world = world();
+        HistoryManager history = new HistoryManager(8);
+        int[] currentEntity = {-1};
+        GenericEntityInitializer init = spriteInitializer(world, 290, 91, "tux");
+
+        CreateEntityCommand command = new CreateEntityCommand(
+                world,
+                history.historyIds(),
+                init,
+                entityId -> currentEntity[0] = entityId
+        );
+        history.execute(command);
+        world.process();
+        long historyId = history.historyIds().historyIdOfEntity(currentEntity[0]);
+        world.getMapper(PixscapeIdentityComponent.class).get(currentEntity[0]).name = "Captain Tux";
+
+        history.undo();
+        world.process();
+        history.redo();
+        world.process();
+
+        int restored = history.historyIds().entityOfHistoryId(historyId);
+        Assert.assertEquals(
+                "Captain Tux",
+                world.getMapper(PixscapeIdentityComponent.class).get(restored).name
+        );
     }
 
     @Test
@@ -136,6 +186,9 @@ public class HistoryIdentityRegressionTest {
 
     @Test
     public void prefabInstantiationAssignsFreshIdentitiesForEachInstance() {
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Identity regression");
+        ProjectConfig.setInstance(config);
         World world = world();
         HistoryManager history = new HistoryManager(32);
         IdentityRegistry identities = bindIdentities(world);
@@ -146,7 +199,9 @@ public class HistoryIdentityRegressionTest {
         identities.rebuild();
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB, sourceC));
-        EntityGraphInstantiationService service = new EntityGraphInstantiationService(world, history, identities);
+        EntityGraphInstantiationService service = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()));
 
         EntityGraphInstantiationResult first = service.instantiate(graph, 0, 10f, 0f, "Instantiate Prefab");
         world.process();
@@ -172,7 +227,9 @@ public class HistoryIdentityRegressionTest {
         identities.rebuild();
 
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB));
-        EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(world, history, identities)
+        EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiate(graph, 0, 10f, 10f, "Instantiate Prefab");
         world.process();
 
@@ -242,7 +299,10 @@ public class HistoryIdentityRegressionTest {
 
     private static IdentityRegistry bindIdentities(World world) {
         IdentityRegistry registry = new IdentityRegistry();
-        registry.bind(world);
+        games.pixscape.studio.configuration.SceneMeta meta =
+                new games.pixscape.studio.configuration.SceneMeta();
+        meta.nextEntityStableId = 10_000;
+        registry.bind(world, meta);
         registry.rebuild();
         return registry;
     }
@@ -276,12 +336,11 @@ public class HistoryIdentityRegressionTest {
         EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).get(entityId);
         meta.kind = EntityKind.ANIMATION;
         AnimationComponent animation = world.getMapper(AnimationComponent.class).create(entityId);
-        animation.animation = "walk";
+        animation.animationAssetIds.add(assetId);
         animation.currentClip = "default";
         animation.fps = 12f;
         animation.playing = true;
         animation.loop = true;
-        animation.clips.put("default", new AnimationComponent.Clip(0, 3));
         return entityId;
     }
 
@@ -306,10 +365,12 @@ public class HistoryIdentityRegressionTest {
         int entityId = createPlainEntity(world, historyIds, stableId);
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
         PhysicsService.initDefaultBody(body);
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).create(entityId);
-        FixtureDefData fixture = PhysicsService.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
-        fixtures.fixtures.add(fixture);
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).create(entityId);
+        PhysicsShapeData fixture =
+                games.pixscape.runtime.service.PhysicsService.createDefaultShape(entityId + 1);
+        fixture.physicsShapeId = stableId;
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        fixtures.shapes.add(fixture);
         return entityId;
     }
 

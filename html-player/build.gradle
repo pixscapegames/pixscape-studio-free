@@ -12,6 +12,7 @@ java {
 
 configurations {
   gwt
+  gwtSources
 }
 
 def gwtVersion = "2.11.0"
@@ -33,7 +34,12 @@ dependencies {
   gwt "org.gwtproject:gwt-dev:${gwtVersion}"
 
   gwt "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
-  gwt "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}:sources@jar"
+  gwtSources("games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}") {
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.DOCUMENTATION))
+      attribute(DocsType.DOCS_TYPE_ATTRIBUTE, objects.named(DocsType, DocsType.SOURCES))
+    }
+  }
 
   gwt "com.badlogicgames.gdx:gdx:${gdxVersion}:sources@jar"
   gwt "com.badlogicgames.gdx:gdx-backend-gwt:${gdxVersion}:sources@jar"
@@ -58,6 +64,7 @@ tasks.register('compileGwt', JavaExec) {
 
   classpath =
           configurations.gwt +
+                  configurations.gwtSources +
                   sourceSets.main.runtimeClasspath +
                   sourceSets.main.output +
                   files(sourceSets.main.java.srcDirs)
@@ -92,27 +99,34 @@ tasks.register('copyGwtDistToTemplate', Copy) {
   def templateJsFiles = project.fileTree(templateDir) { include '**/*.js' }
 
   doFirst {
-    // assets.font is static Studio template content and must not be deleted by
-    // the generated html-player refresh.
+    // The checked-in template assets/** tree is the authoritative static-player
+    // asset set. Refresh only production GWT output and preserve those assets.
     delete(
             new File(templateDir, 'htmlplayer'),
-            new File(templateDir, 'WEB-INF/deploy/htmlplayer')
+            new File(templateDir, 'WEB-INF')
     )
     templateDir.mkdirs()
   }
 
   from(layout.buildDirectory.dir('gwt-dist')) {
-    include 'htmlplayer/**'
-    include 'WEB-INF/deploy/htmlplayer/**'
+    include 'htmlplayer/*.nocache.js'
+    include 'htmlplayer/*.cache.js'
+    include 'htmlplayer/clear.cache.gif'
+    include 'htmlplayer/gwt/chrome/chrome.css'
+    include 'htmlplayer/gwt/chrome/images/corner.png'
+    include 'htmlplayer/gwt/chrome/images/hborder.png'
+    include 'htmlplayer/gwt/chrome/images/vborder.png'
+    include 'htmlplayer/gwt/chrome/images/splitPanelThumb.png'
   }
 
   from('src/main/webapp') {
     include '**/*'
   }
 
-  from(project.file('assets.font')) {
-    into 'assets.font'
-    include '**/*'
+  // HTML-player-owned LibGDX assets overlay the preserved template assets/** set.
+  from(project.file('assets')) {
+    into 'assets'
+    exclude '**/.keep'
   }
 
   into templateDir

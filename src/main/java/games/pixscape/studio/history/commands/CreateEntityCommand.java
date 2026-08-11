@@ -42,33 +42,65 @@ public final class CreateEntityCommand implements Command {
 
     @Override
     public void redo() {
-        lastEntityId = world.create();
-        createdEntityId = lastEntityId;
-
-        if (historyId <= 0L) {
-            historyId = historyIds.ensureForEntity(lastEntityId);
-        } else {
-            historyIds.bind(lastEntityId, historyId);
+        if (historyId > 0L) {
+            int currentEntityId = historyIds.entityOfHistoryId(historyId);
+            if (currentEntityId >= 0
+                    && world.getEntityManager().isActive(currentEntityId)) {
+                throw new IllegalStateException(
+                        "Cannot redo CreateEntityCommand for historyId " + historyId
+                                + ": current incarnation entity " + currentEntityId
+                                + " is still active."
+                );
+            }
         }
 
-        // Build the entity (Transform/Dimensions/TR/Meta/Visibility...) through the initializer.
-        initializer.init(lastEntityId);
+        lastEntityId = world.create();
+        createdEntityId = lastEntityId;
+        try {
+            if (historyId <= 0L) {
+                historyId = historyIds.ensureForEntity(lastEntityId);
+            } else {
+                historyIds.bind(lastEntityId, historyId);
+            }
 
-        // Notify the UI (selection, focus, etc.)
-        if (onCreated != null) {
-            onCreated.accept(lastEntityId);
+            // Build the entity (Transform/Dimensions/TR/Meta/Visibility...) through the initializer.
+            initializer.init(lastEntityId);
+
+            // Notify the UI (selection, focus, etc.)
+            if (onCreated != null) {
+                onCreated.accept(lastEntityId);
+            }
+        } catch (RuntimeException | Error failure) {
+            IdentityRegistry.unindexEntityImmediately(world, lastEntityId);
+            if (world.getEntityManager().isActive(lastEntityId)) {
+                world.delete(lastEntityId);
+            }
+            historyIds.unbindEntity(lastEntityId);
+            throw failure;
         }
     }
 
     @Override
     public void undo() {
-        if (lastEntityId >= 0 && world.getEntityManager().isActive(lastEntityId)) {
-            // Capture CURRENT state before deletion (modified name, rotation, etc.)
-            initializer.syncFrom(lastEntityId);
+        int entityId = historyId > 0L
+                ? historyIds.entityOfHistoryId(historyId)
+                : -1;
 
-            IdentityRegistry.unindexEntityImmediately(world, lastEntityId);
-            world.delete(lastEntityId);
-            historyIds.unbindEntity(lastEntityId);
+        if (entityId < 0
+                && lastEntityId >= 0
+                && world.getEntityManager().isActive(lastEntityId)) {
+            entityId = lastEntityId;
+        }
+
+        if (entityId >= 0 && world.getEntityManager().isActive(entityId)) {
+            // Capture CURRENT state before deletion (modified name, rotation, etc.)
+            initializer.syncFrom(entityId);
+
+            IdentityRegistry.unindexEntityImmediately(world, entityId);
+            world.delete(entityId);
+            historyIds.unbindEntity(entityId);
+
+            lastEntityId = entityId;
         }
     }
 

@@ -1,12 +1,12 @@
 package games.pixscape.studio.service;
 
-import com.badlogic.gdx.files.FileHandle;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
 import org.junit.Test;
@@ -32,7 +32,9 @@ public class SceneServiceStateTransitionTest {
                 "\"glSamples\":0," +
                 "\"currentSceneName\":\"Ghost\"," +
                 "\"nextSceneIndex\":2," +
-                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\"}}" +
+                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
+                        + "\"sceneSchemaVersion\":2,"
+                        + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}");
 
         Files.createDirectories(dir.resolve("scenes"));

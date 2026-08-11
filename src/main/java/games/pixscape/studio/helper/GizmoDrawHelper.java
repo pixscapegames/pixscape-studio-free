@@ -246,6 +246,29 @@ public final class GizmoDrawHelper {
         ctx.drawer.rectangle(cx - half, cy - half, half * 2f, half * 2f, borderWorld);
     }
 
+    public static void drawPolygonVertices(StudioDrawContext ctx, float[] verts, int vertexCount) {
+        if (verts == null || vertexCount <= 0) return;
+        for (int i = 0; i < vertexCount; i++) {
+            drawPolygonVertexHandle(ctx, verts[i * 2], verts[i * 2 + 1]);
+        }
+    }
+
+    public static void drawPolygonVertexHandle(StudioDrawContext ctx, float cx, float cy) {
+        drawPolygonVertexHandle(ctx, cx, cy, EditorOverlayPalette.HANDLE_COLOR);
+    }
+
+    public static void drawPolygonVertexHandle(StudioDrawContext ctx,
+                                               float cx,
+                                               float cy,
+                                               Color fillColor) {
+        float borderWorld = ctx.wpp();
+        float radius = (SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f) * borderWorld;
+        ctx.drawer.setColor(fillColor != null ? fillColor : EditorOverlayPalette.HANDLE_COLOR);
+        ctx.drawer.filledCircle(cx, cy, radius);
+        ctx.drawer.setColor(0f, 0f, 0f, 1f);
+        ctx.drawer.circle(cx, cy, radius, borderWorld);
+    }
+
     private static float fixtureThicknessWU(StudioDrawContext ctx, boolean hovered, boolean selected) {
         float px = selected ? 2.75f : (hovered ? 2f : 1.25f);
         return px * ctx.wpp();

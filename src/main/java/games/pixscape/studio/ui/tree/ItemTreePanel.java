@@ -14,7 +14,7 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.ZOrderRuntimeService;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -52,7 +52,7 @@ public class ItemTreePanel extends DockablePanel {
     private final ComponentMapper<ParticleEmitterComponent> mEmitter;
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
-    private final ComponentMapper<PhysicsFixturesComponent> mFixtures;
+    private final ComponentMapper<PhysicsShapesComponent> mFixtures;
 
     private final EntitySubscription layersSub;
     private final EntitySubscription layerItemsSub;
@@ -86,7 +86,7 @@ public class ItemTreePanel extends DockablePanel {
         this.mEmitter = world.getMapper(ParticleEmitterComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mFixtures = world.getMapper(PhysicsFixturesComponent.class);
+        this.mFixtures = world.getMapper(PhysicsShapesComponent.class);
 
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -145,9 +145,11 @@ public class ItemTreePanel extends DockablePanel {
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
-            // Any real external entity selection exits explicit tiled-map mode.
-            if (evt.ids() != null && evt.ids().size > 0) {
+            if (evt.source() != SelectionService.SelectionSource.TREE) {
                 explicitTiledMapLayerEid = -1;
+                if (propertiesPanel != null) {
+                    propertiesPanel.clearTiledMapMode();
+                }
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
@@ -787,8 +789,8 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private int countFixtures(int entityId) {
-        PhysicsFixturesComponent fixtures = mFixtures.getSafe(entityId, null);
-        if (fixtures == null || fixtures.fixtures == null) return 0;
-        return fixtures.fixtures.size;
+        PhysicsShapesComponent fixtures = mFixtures.getSafe(entityId, null);
+        if (fixtures == null || fixtures.shapes == null) return 0;
+        return fixtures.shapes.size;
     }
 }

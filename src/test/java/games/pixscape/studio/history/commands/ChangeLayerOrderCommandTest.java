@@ -2,6 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.LayerService;
 import org.junit.Assert;
@@ -123,7 +125,9 @@ public class ChangeLayerOrderCommandTest {
 
         private Fixture(int layerCount) {
             World world = new World(new WorldConfiguration());
-            layerService = new LayerService(world, null, history.historyIds());
+            IdentityRegistry identities = new IdentityRegistry();
+            identities.bind(world, new SceneMetaRuntime());
+            layerService = new LayerService(world, null, history.historyIds(), identities);
             for (int i = 0; i < layerCount; i++) {
                 int index = layerService.addLayerTop("Layer " + i);
                 int layerEntity = layerService.getLayerEntity(index);

@@ -81,8 +81,6 @@ final class TmxSceneImportTransaction {
 
     private void restoreAssetDbFromSnapshot() {
         AssetMetaDatabase restored = AssetMetaDatabase.load(assetsFile);
-        assetDb.version = restored.version;
-        assetDb.nextId = restored.nextId;
-        assetDb.assets = restored.assets;
+        assetDb.replaceStateFrom(restored);
     }
 }

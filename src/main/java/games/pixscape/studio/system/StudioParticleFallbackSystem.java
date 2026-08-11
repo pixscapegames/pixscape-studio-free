@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.EntitySubscription;
+import com.artemis.annotations.SkipWire;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
@@ -14,10 +15,11 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
-import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.ObjectSet;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
@@ -30,7 +32,9 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.RenderRepeatFlags;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.render.VfxRenderState;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 
 public final class StudioParticleFallbackSystem extends BaseSystem implements ProfiledSystem {
@@ -39,8 +43,11 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
 
     private final VfxRenderState vfxState;
     private final OrthographicCamera camera;
-    private final AtlasStudioService atlasStudioService;
+    private final AtlasRuntimeService atlasStudioService;
+    private final ParticleAtlasReadinessCache atlasReadiness;
     private final int defaultShaderIdx;
+    @SkipWire
+    private RenderParticleSyncSystem runtimeParticleSystem;
 
     private FileHandle effectsRoot;
     private FileHandle imagesRoot;
@@ -54,7 +61,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     private EntitySubscription subscription;
 
     private final IntMap<ParticleEffectPool.PooledEffect> effects = new IntMap<>();
-    private final ObjectMap<String, ParticleEffectPool> pools = new ObjectMap<>();
+    private final ObjectMap<String, FallbackPoolEntry> pools = new ObjectMap<>();
     private final IntMap<String> entityPoolKeys = new IntMap<>();
 
     private final IntSet loggedFailures = new IntSet();
@@ -69,12 +76,39 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                                         FileHandle effectsRoot,
                                         FileHandle imagesRoot,
                                         int defaultShaderIdx) {
+        this(
+                vfxState,
+                camera,
+                atlasStudioService,
+                effectsRoot,
+                imagesRoot,
+                defaultShaderIdx,
+                new ParticleAtlasReadinessCache()
+        );
+    }
+
+    StudioParticleFallbackSystem(VfxRenderState vfxState,
+                                 OrthographicCamera camera,
+                                 AtlasRuntimeService atlasStudioService,
+                                 FileHandle effectsRoot,
+                                 FileHandle imagesRoot,
+                                 int defaultShaderIdx,
+                                 ParticleAtlasReadinessCache atlasReadiness) {
         this.vfxState = vfxState;
         this.camera = camera;
         this.atlasStudioService = atlasStudioService;
         this.effectsRoot = effectsRoot;
         this.imagesRoot = imagesRoot;
         this.defaultShaderIdx = defaultShaderIdx;
+        if (atlasReadiness == null) {
+            throw new IllegalArgumentException("Particle atlas readiness cache must not be null.");
+        }
+        this.atlasReadiness = atlasReadiness;
+    }
+
+    /** Binds the Runtime system used only for its INTERNAL prepared-state query. */
+    public void setRuntimeParticleSystem(RenderParticleSyncSystem runtimeParticleSystem) {
+        this.runtimeParticleSystem = runtimeParticleSystem;
     }
 
     public void setEffectsRoot(FileHandle effectsRoot) {
@@ -88,12 +122,18 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     }
 
     public void invalidateAll() {
+        atlasReadiness.clear();
+
         for (IntMap.Entries<ParticleEffectPool.PooledEffect> it = effects.entries(); it.hasNext(); ) {
             ParticleEffectPool.PooledEffect fx = it.next().value;
             if (fx != null) fx.free();
         }
 
         effects.clear();
+        for (ObjectMap.Values<FallbackPoolEntry> it = pools.values(); it.hasNext(); ) {
+            FallbackPoolEntry entry = it.next();
+            if (entry != null) entry.dispose();
+        }
         pools.clear();
         entityPoolKeys.clear();
         loggedFailures.clear();
@@ -161,7 +201,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 continue;
             }
 
-            if (isReadyInAtlas(e, comp)) {
+            if (isReadyInAtlas(comp) && isPreparedInRuntime(comp)) {
                 removeEffect(e);
                 continue;
             }
@@ -178,19 +218,20 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 effects.put(e, fx);
                 entityPoolKeys.put(e, poolKey);
 
+                applyLooping(fx, comp.looping);
                 if (comp.autoStart) fx.start();
             }
 
-            if (comp.localSpace) {
-                fx.setPosition(t.x + t.originX, t.y + t.originY);
-            }
+            positionEffect(fx, t);
 
             if (comp.restartRequested) {
+                applyLooping(fx, comp.looping);
                 fx.reset(true, true);
                 comp.restartRequested = false;
             }
 
             if (comp.playRequested) {
+                applyLooping(fx, comp.looping);
                 fx.start();
                 comp.playRequested = false;
             }
@@ -215,27 +256,27 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         }
     }
 
-    private boolean isReadyInAtlas(int entityId, ParticleEmitterComponent emitter) {
+    static void positionEffect(ParticleEffect effect, TransformComponent transform) {
+        effect.setPosition(transform.x, transform.y);
+    }
+
+    private boolean isReadyInAtlas(ParticleEmitterComponent emitter) {
         if (atlasStudioService == null) return false;
         if (emitter.atlasTag == null || emitter.atlasTag.isBlank()) return false;
         if (emitter.effectPath == null || emitter.effectPath.isBlank()) return false;
-        if (effectsRoot == null) return false;
 
         TextureAtlas atlas = atlasStudioService.getAtlas(emitter.atlasTag);
-        if (atlas == null) return false;
+        return atlasReadiness.isReady(
+                emitter.atlasTag,
+                emitter.effectPath,
+                atlas,
+                effectsRoot
+        );
+    }
 
-        FileHandle effectFile = effectsRoot.child(emitter.effectPath);
-        if (!effectFile.exists()) return false;
-
-        ParticleEffect probe = new ParticleEffect();
-        try {
-            probe.load(effectFile, atlas);
-            return true;
-        } catch (RuntimeException ex) {
-            return false;
-        } finally {
-            probe.dispose();
-        }
+    private boolean isPreparedInRuntime(ParticleEmitterComponent emitter) {
+        return runtimeParticleSystem != null
+                && runtimeParticleSystem.isPrepared(emitter.atlasTag, emitter.effectPath);
     }
 
     private ParticleEffectPool.PooledEffect createStandaloneEffect(int entityId,
@@ -249,14 +290,18 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         }
 
         String key = poolKey(emitter);
-        ParticleEffectPool pool = pools.get(key);
+        FallbackPoolEntry poolEntry = pools.get(key);
 
-        if (pool == null) {
-            ParticleEffect template = new ParticleEffect();
+        if (poolEntry == null) {
+            FallbackTemplate template = new FallbackTemplate();
 
             try {
                 template.load(effectFile, imagesRoot);
                 template.setEmittersCleanUpBlendFunction(false);
+                poolEntry = new FallbackPoolEntry(
+                        template,
+                        new ParticleEffectPool(template, 1, 16)
+                );
             } catch (RuntimeException ex) {
                 template.dispose();
                 logFailureOnce(entityId,
@@ -267,13 +312,24 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 return null;
             }
 
-            pool = new ParticleEffectPool(template, 1, 16);
-            pools.put(key, pool);
+            pools.put(key, poolEntry);
         }
 
-        ParticleEffectPool.PooledEffect fx = pool.obtain();
+        ParticleEffectPool.PooledEffect fx = poolEntry.pool.obtain();
         fx.setEmittersCleanUpBlendFunction(false);
         return fx;
+    }
+
+    static void applyLooping(ParticleEffect effect, boolean looping) {
+        if (effect == null) return;
+
+        Array<ParticleEmitter> emitters = effect.getEmitters();
+        for (int i = 0, n = emitters.size; i < n; i++) {
+            ParticleEmitter emitter = emitters.get(i);
+            if (emitter != null) {
+                emitter.setContinuous(looping);
+            }
+        }
     }
 
     private void collectEffect(ParticleEffect fx,
@@ -285,9 +341,14 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
             ParticleEmitter emitter = emitters.get(ei);
 
-            int blendId = emitter.isAdditive()
-                    ? BlendMode.ADDITIVE_ALPHA.id
-                    : BlendMode.ALPHA.id;
+            int blendId;
+            if (emitter.isPremultipliedAlpha()) {
+                blendId = BlendMode.PREMULT_ALPHA.id;
+            } else if (emitter.isAdditive()) {
+                blendId = BlendMode.ADDITIVE_ALPHA.id;
+            } else {
+                blendId = BlendMode.ALPHA.id;
+            }
 
             ParticleEmitter.Particle[] particles = emitter.particles;
             boolean[] active = emitter.getActiveArray();
@@ -415,13 +476,13 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         BoundingBox box = fx.getBoundingBox();
         if (!box.isValid()) return true;
 
-        float halfW = camera.viewportWidth * 0.5f * camera.zoom;
-        float halfH = camera.viewportHeight * 0.5f * camera.zoom;
+        float halfWidth = camera.viewportWidth * 0.5f * camera.zoom;
+        float halfHeight = camera.viewportHeight * 0.5f * camera.zoom;
 
-        float minX = camera.position.x - halfW;
-        float maxX = camera.position.x + halfW;
-        float minY = camera.position.y - halfH;
-        float maxY = camera.position.y + halfH;
+        float minX = camera.position.x - halfWidth;
+        float maxX = camera.position.x + halfWidth;
+        float minY = camera.position.y - halfHeight;
+        float maxY = camera.position.y + halfHeight;
 
         return box.max.x >= minX
                 && box.min.x <= maxX
@@ -469,6 +530,61 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
         if (v < 0f) return 0f;
         if (v > 1f) return 1f;
         return v;
+    }
+
+    static final class FallbackPoolEntry {
+        final ParticleEffect template;
+        final ParticleEffectPool pool;
+        private boolean disposed;
+
+        FallbackPoolEntry(ParticleEffect template, ParticleEffectPool pool) {
+            if (template == null) throw new IllegalArgumentException("Fallback template must not be null.");
+            if (pool == null) throw new IllegalArgumentException("Fallback pool must not be null.");
+            this.template = template;
+            this.pool = pool;
+        }
+
+        void dispose() {
+            if (disposed) return;
+            disposed = true;
+            pool.clear();
+            template.dispose();
+        }
+    }
+
+    static class FallbackTemplate extends ParticleEffect {
+        private final ObjectSet<Texture> ownedTextures = new ObjectSet<>();
+        private boolean disposed;
+
+        @Override
+        public Texture loadTexture(FileHandle file) {
+            Texture texture = super.loadTexture(file);
+            trackOwnedTexture(texture);
+            return texture;
+        }
+
+        void trackOwnedTexture(Texture texture) {
+            if (texture != null) ownedTextures.add(texture);
+        }
+
+        void disposeOwnedTexture(Texture texture) {
+            texture.dispose();
+        }
+
+        @Override
+        public void dispose() {
+            if (disposed) return;
+            disposed = true;
+            for (Texture texture : ownedTextures) {
+                disposeOwnedTexture(texture);
+            }
+            ownedTextures.clear();
+        }
+    }
+
+    @Override
+    protected void dispose() {
+        invalidateAll();
     }
 
     @Override

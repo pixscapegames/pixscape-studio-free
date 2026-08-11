@@ -30,7 +30,7 @@ public class IconResolver {
                 return VisUI.getSkin().getDrawable("animation_icon16");
             }
             case PARTICLE -> {
-                return VisUI.getSkin().getDrawable("particle_icon16");
+                return ParticleOverlayVisual.resolveDrawable();
             }
             case POINT_LIGHT, AMBIENT_LIGHT, CONE_LIGHT -> {
                 return VisUI.getSkin().getDrawable("light_point");

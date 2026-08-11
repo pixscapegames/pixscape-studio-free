@@ -6,15 +6,17 @@ import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import org.junit.Assert;
@@ -24,10 +26,41 @@ import java.io.File;
 
 public class SpatialBlockScenePersistenceTest {
     @Test
+    public void layerCreatedThroughLayerServiceWithSpatialBlockLoadsSuccessfully() {
+        World world = worldWithSerialization();
+        SceneMetaRuntime meta = sceneMeta();
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        LayerService layers = new LayerService(world, null, new HistoryIdRegistry(), identities);
+        int layerId = layers.getLayerEntity(layers.addLayerTop("Spatial"));
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        blocks.nextSpatialBlockId = 2;
+        SpatialBlockData block = new SpatialBlockData();
+        block.id = 1;
+        block.structureId = 1;
+        block.width = 1f;
+        block.depth = 1f;
+        blocks.blocks.add(block);
+        world.process();
+        FileHandle file = tempSceneFile("layer-service-spatial-roundtrip");
+        SceneService.saveScene(world, file, false);
+
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, meta);
+        } finally {
+            loaded.dispose();
+            world.dispose();
+        }
+    }
+
+    @Test
     public void spatialBlockFootprintSurvivesSceneSaveLoadRoundtripWithoutAnchors() {
         World world = worldWithSerialization();
         int layerId = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(layerId).stableId = 1;
         SpatialBlocksComponent spatialBlocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        spatialBlocks.nextSpatialBlockId = 2;
         SpatialBlockData block = new SpatialBlockData();
         block.id = 1;
         block.name = "Tall wall";
@@ -56,7 +89,7 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("\"orientation\""));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        SceneLoader.loadScene(loaded, file, false, sceneMeta());
         loaded.process();
 
         SpatialBlockData restored = restoredBlock(loaded);
@@ -97,7 +130,9 @@ public class SpatialBlockScenePersistenceTest {
 
         World world = worldWithSerialization();
         int layerId = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(layerId).stableId = 1;
         SpatialBlocksComponent authoredComponent = world.getMapper(SpatialBlocksComponent.class).create(layerId);
+        authoredComponent.nextSpatialBlockId = 2;
         authoredComponent.blocks.add(normalized);
         authoredComponent.revision = 7;
         world.process();
@@ -109,7 +144,7 @@ public class SpatialBlockScenePersistenceTest {
         Assert.assertFalse(json.contains("revision"));
 
         World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
+        SceneLoader.loadScene(loaded, file, false, sceneMeta());
         loaded.process();
         SpatialBlockData restored = restoredBlock(loaded);
         Assert.assertEquals(0, loaded.getMapper(SpatialBlocksComponent.class)
@@ -133,94 +168,6 @@ public class SpatialBlockScenePersistenceTest {
                 compiledSignature(SpatialStructureCompiler.compile(restoredWalls, restored.structureId)));
     }
 
-    @Test
-    public void disabledSpatialCollisionAndDeletedGeneratedFixtureSurviveRoundtrip() {
-        World world = worldWithSerialization();
-        int layerId = world.create();
-        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
-        SpatialBlockData block = new SpatialBlockData();
-        block.id = 21;
-        block.structureId = 21;
-        block.x = 1f;
-        block.y = 1f;
-        block.width = 1f;
-        block.depth = 1f;
-        block.physicsCollision = false;
-        blocks.blocks.add(block);
-        PhysicsFixturesComponent fixtures =
-                world.getMapper(PhysicsFixturesComponent.class).create(layerId);
-        FixtureDefData custom = new FixtureDefData();
-        custom.fixtureId = 77;
-        custom.shapeType = FixtureDefData.SHAPE_CIRCLE;
-        custom.radius = 2.5f;
-        fixtures.fixtures.add(custom);
-        world.process();
-
-        FileHandle file = tempSceneFile("spatial-collision-disabled-roundtrip");
-        SceneService.saveScene(world, file, false);
-
-        World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
-        loaded.process();
-        IntBag entities = loaded.getAspectSubscriptionManager()
-                .get(Aspect.all(SpatialBlocksComponent.class, PhysicsFixturesComponent.class))
-                .getEntities();
-        Assert.assertEquals(1, entities.size());
-        int restoredLayer = entities.get(0);
-        SpatialBlockData restored = loaded.getMapper(SpatialBlocksComponent.class)
-                .get(restoredLayer).blocks.first();
-        PhysicsFixturesComponent restoredFixtures = loaded.getMapper(PhysicsFixturesComponent.class)
-                .get(restoredLayer);
-        Assert.assertFalse(restored.physicsCollision);
-        Assert.assertEquals(1, restoredFixtures.fixtures.size);
-        Assert.assertEquals(77, restoredFixtures.fixtures.first().fixtureId);
-        Assert.assertEquals(2.5f, restoredFixtures.fixtures.first().radius, 0f);
-        Assert.assertNotEquals(1_000_021, restoredFixtures.fixtures.first().fixtureId);
-    }
-
-    @Test
-    public void spatialOwnedFixtureSensorAndMaterialPropertiesSurviveRoundtrip() {
-        World world = worldWithSerialization();
-        int layerId = world.create();
-        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
-        SpatialBlockData block = new SpatialBlockData();
-        block.id = 22;
-        block.structureId = 22;
-        block.physicsCollision = true;
-        blocks.blocks.add(block);
-        PhysicsFixturesComponent fixtures =
-                world.getMapper(PhysicsFixturesComponent.class).create(layerId);
-        FixtureDefData owned = new FixtureDefData();
-        owned.fixtureId = 1_000_022;
-        owned.shapeType = FixtureDefData.SHAPE_BOX;
-        owned.halfW = 0.5f;
-        owned.halfH = 0.75f;
-        owned.isSensor = true;
-        owned.friction = 0.65f;
-        fixtures.fixtures.add(owned);
-        world.process();
-
-        FileHandle file = tempSceneFile("spatial-owned-properties-roundtrip");
-        SceneService.saveScene(world, file, false);
-
-        World loaded = worldWithSerialization();
-        SceneLoader.loadScene(loaded, file, false);
-        loaded.process();
-        IntBag entities = loaded.getAspectSubscriptionManager()
-                .get(Aspect.all(SpatialBlocksComponent.class, PhysicsFixturesComponent.class))
-                .getEntities();
-        Assert.assertEquals(1, entities.size());
-        int restoredLayer = entities.get(0);
-        SpatialBlockData restoredBlock = loaded.getMapper(SpatialBlocksComponent.class)
-                .get(restoredLayer).blocks.first();
-        FixtureDefData restoredFixture = loaded.getMapper(PhysicsFixturesComponent.class)
-                .get(restoredLayer).fixtures.first();
-        Assert.assertTrue(restoredBlock.physicsCollision);
-        Assert.assertEquals(1_000_022, restoredFixture.fixtureId);
-        Assert.assertTrue(restoredFixture.isSensor);
-        Assert.assertEquals(0.65f, restoredFixture.friction, 0f);
-    }
-
     private static String compiledSignature(CompiledSpatialStructure structure) {
         StringBuilder out = new StringBuilder();
         for (int i = 0; i < structure.segmentCount(); i++) {
@@ -236,7 +183,8 @@ public class SpatialBlockScenePersistenceTest {
                 .get(Aspect.all(SpatialBlocksComponent.class))
                 .getEntities();
         Assert.assertEquals(1, entities.size());
-        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).get(entities.get(0));
+        SpatialBlocksComponent component =
+                world.getMapper(SpatialBlocksComponent.class).get(entities.get(0));
         Assert.assertEquals(1, component.blocks.size);
         return component.blocks.first();
     }
@@ -244,6 +192,12 @@ public class SpatialBlockScenePersistenceTest {
     private static World worldWithSerialization() {
         return new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+    }
+
+    private static SceneMetaRuntime sceneMeta() {
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 2;
+        return meta;
     }
 
     private static FileHandle tempSceneFile(String name) {

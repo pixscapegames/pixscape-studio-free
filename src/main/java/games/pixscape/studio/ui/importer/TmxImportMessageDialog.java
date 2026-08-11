@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.importer;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.kotcrab.vis.ui.widget.VisDialog;
@@ -22,7 +24,7 @@ public final class TmxImportMessageDialog {
             return;
         }
 
-        VisDialog dialog = new VisDialog(title != null ? title : "Tiled map import");
+        VisDialog dialog = new StudioDialog(title != null ? title : "Tiled map import");
         dialog.setModal(true);
         dialog.setMovable(true);
         dialog.closeOnEscape();

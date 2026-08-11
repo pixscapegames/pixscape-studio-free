@@ -2,10 +2,10 @@ package games.pixscape.studio.service.spatial;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
@@ -295,6 +295,8 @@ public class SpatialWallCreationServiceTest {
         wall.id = f.walls.blocks.size + 1;
         wall.structureId = rect[4];
         f.walls.blocks.add(wall);
+        f.walls.nextSpatialBlockId =
+                Math.max(f.walls.nextSpatialBlockId, wall.id + 1);
         return wall;
     }
 

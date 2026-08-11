@@ -6,6 +6,7 @@ import com.badlogic.gdx.Graphics;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.kotcrab.vis.ui.VisUI;
 
 import java.lang.reflect.Proxy;
@@ -36,7 +37,7 @@ public final class VisUiTestBootstrap {
         }
 
         if (!VisUI.isLoaded()) {
-            VisUI.load();
+            VisUI.load(new Skin(Gdx.files.internal("assets/ui/skin/uiskin.json")));
         }
     }
 

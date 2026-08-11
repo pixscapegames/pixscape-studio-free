@@ -5,6 +5,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.tiled.TiledToolService;
 
 /**
@@ -156,6 +157,12 @@ public final class EventFlow {
     ) {
     }
 
+    public record ScenePhysicsPixelsPerMeterChanged(
+            float pixelsPerMeter,
+            int sourceTag
+    ) {
+    }
+
     public record PhysicsBodyStructureChanged(
             int entityId,
             int sourceTag
@@ -207,19 +214,24 @@ public final class EventFlow {
 
     public record FixtureSelectionChanged(
             int bodyEntityId,
-            long fixtureId,
+            int physicsShapeId,
             int sourceTag
     ) {
     }
 
     public record FixtureParametersChanged(
             int bodyEntityId,
-            long fixtureId,
+            int physicsShapeId,
             int sourceTag
     ) {
     }
 
     public record FixtureSelectionCleared(
+            int sourceTag
+    ) {
+    }
+
+    public record PhysicsSelectionReconciled(
             int sourceTag
     ) {
     }
@@ -263,6 +275,26 @@ public final class EventFlow {
 
     public record EditorModeChanged(
             EditorMode mode,
+            int sourceTag
+    ) {
+    }
+
+    public record AnimationChanged(
+            int entityId,
+            int sourceTag
+    ) {
+    }
+
+    public record StudioEditingModeChanged(
+            StudioEditingMode mode,
+            int sourceTag
+    ) {
+    }
+
+    public record TiledCursorChanged(
+            boolean valid,
+            int gx,
+            int gy,
             int sourceTag
     ) {
     }

@@ -1,13 +1,19 @@
 {
 "com.badlogic.gdx.graphics.g2d.BitmapFont": {
 	"default-font": {
-		"file": "default.fnt",
+		"file": "font-small.fnt",
 		"scaledSize": -1,
 		"markupEnabled": false,
 		"flip": false
 	},
 	"small-font": {
 		"file": "font-small.fnt",
+		"scaledSize": -1,
+		"markupEnabled": false,
+		"flip": false
+	},
+	"regular-font": {
+		"file": "default.fnt",
 		"scaledSize": -1,
 		"markupEnabled": false,
 		"flip": false
@@ -83,6 +89,78 @@
 			"g": 0,
 			"b": 0,
 			"a": 0.45
+		}
+	},
+	"panel-header": {
+		"name": "textfield",
+		"color": {
+			"r": 1,
+			"g": 1,
+			"b": 1,
+			"a": 1
+		}
+	},
+	"modal-titlebar-light": {
+		"name": "white",
+		"color": {
+			"r": 0.9,
+			"g": 0.92,
+			"b": 0.94,
+			"a": 1
+		}
+	},
+	"modal-close-icon": {
+		"name": "icon-close",
+		"color": {
+			"r": 0.08,
+			"g": 0.08,
+			"b": 0.08,
+			"a": 1
+		}
+	},
+	"tabbed-pane-frame": {
+		"name": "border",
+		"color": {
+			"r": 1,
+			"g": 1,
+			"b": 1,
+			"a": 1
+		}
+	},
+	"shader-section-header": {
+		"name": "white",
+		"color": {
+			"r": 0.08,
+			"g": 0.42,
+			"b": 0.60,
+			"a": 1
+		}
+	},
+	"canvas-mode-border": {
+		"name": "white",
+		"color": {
+			"r": 0.105,
+			"g": 0.631,
+			"b": 0.886,
+			"a": 1
+		}
+	},
+	"canvas-mode-background": {
+		"name": "white",
+		"color": {
+			"r": 0.075,
+			"g": 0.14,
+			"b": 0.2,
+			"a": 0.96
+		}
+	},
+	"canvas-mode-background-normal": {
+		"name": "white",
+		"color": {
+			"r": 0.12,
+			"g": 0.14,
+			"b": 0.16,
+			"a": 0.94
 		}
 	}
 },
@@ -248,6 +326,12 @@
 		"up": "button",
 		"over": "button-over",
 		"disabled": "button"
+	},
+	"modal-close": {
+		"imageUp": "modal-close-icon",
+		"imageDown": "modal-close-icon",
+		"imageOver": "modal-close-icon",
+		"imageDisabled": "modal-close-icon"
 	}
 },
 "com.kotcrab.vis.ui.widget.VisImageTextButton$VisImageTextButtonStyle": {
@@ -441,6 +525,19 @@
 	}
 },
 "com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane$TabbedPaneStyle": {
+	"shader-tabs": {
+		"vertical": false,
+		"buttonStyle": {
+			"down": "window-border-bg",
+			"up": "button",
+			"checked": "shader-section-header",
+			"over": "button-over",
+			"disabled": "button",
+			"font": "default-font",
+			"fontColor": "white",
+			"disabledFontColor": "grey"
+		}
+	},
 	"default": {
 		"background": "menu-bg",
 		"separatorBar": "list-selection",
@@ -572,6 +669,26 @@
 		"selection": "list-selection"
 	}
 },
+"com.badlogic.gdx.scenes.scene2d.ui.ScrollPane$ScrollPaneStyle": {
+	"default": {
+		"background": "border",
+		"corner": "grey",
+		"hScroll": "scroll-horizontal",
+		"hScrollKnob": "scroll-knob-horizontal",
+		"vScroll": "scroll",
+		"vScrollKnob": "scroll-knob-vertical"
+	},
+	"list": {
+		"corner": "grey",
+		"vScroll": "scroll",
+		"vScrollKnob": "scroll-knob-vertical"
+	}
+},
+"com.kotcrab.vis.ui.widget.ListViewStyle": {
+	"default": {
+		"scrollPaneStyle": "list"
+	}
+},
 "com.badlogic.gdx.scenes.scene2d.ui.Button$ButtonStyle": {
 	"default": {
 		"up": "button",
@@ -629,111 +746,110 @@
 		"font": "default-font"
 	}
 },
-	"com.badlogic.gdx.scenes.scene2d.ui.ImageButton$ImageButtonStyle": {
-		"default": {
-			"up": "button",
-			"down": "button-down"
-		},
-		"blue": {
-			"up": "button-blue",
-			"down": "button-blue-down"
-		},
-		"toggle": {
-			"up": "button",
-			"down": "button-down",
-			"checked": "button-down"
-		},
-		"brush": {
-			"imageUp": "brush",
-			"imageDown": "brush_down",
-			"imageDisabled": "brush-disabled",
-			"imageChecked": "brush_down"
-		},
-		"erase": {
-			"imageUp": "erase",
-			"imageDown": "erase_down",
-			"imageDisabled": "erase-disabled",
-			"imageChecked": "erase_down"
-		},
-		"fill": {
-			"imageUp": "fill",
-			"imageDown": "fill_down",
-			"imageDisabled": "fill-disabled",
-			"imageChecked": "fill_down"
-		},
-		"rect": {
-			"imageUp": "rectangle",
-			"imageDown": "rectangle_down",
-			"imageDisabled": "rectangle-disabled",
-			"imageChecked": "rectangle_down"
-		},
-		"align-bottom": {
-			"imageUp": "align-bottom",
-			"imageDown": "align-bottom-down",
-			"imageDisabled": "align-bottom-disabled"
-		},
-		"align-left": {
-			"imageUp": "align-left",
-			"imageDown": "align-left-down",
-			"imageDisabled": "align-left-disabled"
-		},
-		"align-right": {
-			"imageUp": "align-right",
-			"imageDown": "align-right-down",
-			"imageDisabled": "align-right-disabled"
-		},
-		"align-top": {
-			"imageUp": "align-top",
-			"imageDown": "align-top-down",
-			"imageDisabled": "align-top-disabled"
-		},
-		"center-horizontally": {
-			"imageUp": "center-horizontally",
-			"imageDown": "center-horizontally-down",
-			"imageDisabled": "center-horizontally-disabled"
-		},
-		"center-vertically": {
-			"imageUp": "center-vertically",
-			"imageDown": "center-vertically-down",
-			"imageDisabled": "center-vertically-disabled"
-		},
-		"flip-horizontally": {
-			"imageUp": "flip-horizontally",
-			"imageDown": "flip-horizontally-down",
-			"imageDisabled": "flip-horizontally-disabled"
-		},
-		"flip-vertically": {
-			"imageUp": "flip-vertically",
-			"imageDown": "flip-vertically-down",
-			"imageDisabled": "flip-vertically-disabled"
-		},
-		"pack-horizontally": {
-			"imageUp": "pack-horizontally",
-			"imageDown": "pack-horizontally-down",
-			"imageDisabled": "pack-horizontally-disabled"
-		},
-		"pack-vertically": {
-			"imageUp": "pack-vertically",
-			"imageDown": "pack-vertically-down",
-			"imageDisabled": "pack-vertically-disabled"
-		},
-		"reset": {
-			"imageUp": "reset",
-			"imageDown": "reset-down",
-			"imageDisabled": "reset-disabled"
-		},
-		"rotate-left": {
-			"imageUp": "rotate-left",
-			"imageDown": "rotate-left-down",
-			"imageDisabled": "rotate-left-disabled"
-		},
-		"rotate-right": {
-			"imageUp": "rotate-right",
-			"imageDown": "rotate-right-down",
-			"imageDisabled": "rotate-right-disabled"
-		}
+"com.badlogic.gdx.scenes.scene2d.ui.ImageButton$ImageButtonStyle": {
+	"default": {
+		"up": "button",
+		"down": "button-down"
 	},
-
+	"blue": {
+		"up": "button-blue",
+		"down": "button-blue-down"
+	},
+	"toggle": {
+		"up": "button",
+		"down": "button-down",
+		"checked": "button-down"
+	},
+	"brush": {
+		"imageUp": "brush",
+		"imageDown": "brush_down",
+		"imageDisabled": "brush-disabled",
+		"imageChecked": "brush_down"
+	},
+	"erase": {
+		"imageUp": "erase",
+		"imageDown": "erase_down",
+		"imageDisabled": "erase-disabled",
+		"imageChecked": "erase_down"
+	},
+	"fill": {
+		"imageUp": "fill",
+		"imageDown": "fill_down",
+		"imageDisabled": "fill-disabled",
+		"imageChecked": "fill_down"
+	},
+	"rect": {
+		"imageUp": "rectangle",
+		"imageDown": "rectangle_down",
+		"imageDisabled": "rectangle-disabled",
+		"imageChecked": "rectangle_down"
+	},
+	"align-bottom": {
+		"imageUp": "align-bottom",
+		"imageDown": "align-bottom-down",
+		"imageDisabled": "align-bottom-disabled"
+	},
+	"align-left": {
+		"imageUp": "align-left",
+		"imageDown": "align-left-down",
+		"imageDisabled": "align-left-disabled"
+	},
+	"align-right": {
+		"imageUp": "align-right",
+		"imageDown": "align-right-down",
+		"imageDisabled": "align-right-disabled"
+	},
+	"align-top": {
+		"imageUp": "align-top",
+		"imageDown": "align-top-down",
+		"imageDisabled": "align-top-disabled"
+	},
+	"center-horizontally": {
+		"imageUp": "center-horizontally",
+		"imageDown": "center-horizontally-down",
+		"imageDisabled": "center-horizontally-disabled"
+	},
+	"center-vertically": {
+		"imageUp": "center-vertically",
+		"imageDown": "center-vertically-down",
+		"imageDisabled": "center-vertically-disabled"
+	},
+	"flip-horizontally": {
+		"imageUp": "flip-horizontally",
+		"imageDown": "flip-horizontally-down",
+		"imageDisabled": "flip-horizontally-disabled"
+	},
+	"flip-vertically": {
+		"imageUp": "flip-vertically",
+		"imageDown": "flip-vertically-down",
+		"imageDisabled": "flip-vertically-disabled"
+	},
+	"pack-horizontally": {
+		"imageUp": "pack-horizontally",
+		"imageDown": "pack-horizontally-down",
+		"imageDisabled": "pack-horizontally-disabled"
+	},
+	"pack-vertically": {
+		"imageUp": "pack-vertically",
+		"imageDown": "pack-vertically-down",
+		"imageDisabled": "pack-vertically-disabled"
+	},
+	"reset": {
+		"imageUp": "reset",
+		"imageDown": "reset-down",
+		"imageDisabled": "reset-disabled"
+	},
+	"rotate-left": {
+		"imageUp": "rotate-left",
+		"imageDown": "rotate-left-down",
+		"imageDisabled": "rotate-left-disabled"
+	},
+	"rotate-right": {
+		"imageUp": "rotate-right",
+		"imageDown": "rotate-right-down",
+		"imageDisabled": "rotate-right-disabled"
+	}
+},
 "com.badlogic.gdx.scenes.scene2d.ui.ImageTextButton$ImageTextButtonStyle": {
 	"default": {
 		"font": "default-font",
@@ -769,17 +885,29 @@
 		"font": "default-font",
 		"fontColor": "white"
 	},
-	"link-label": {
+	"menuitem-shortcut": {
 		"font": "default-font",
-		"fontColor": "link-label"
+		"fontColor": "menuitem"
 	},
 	"small": {
 		"font": "small-font",
 		"fontColor": "white"
 	},
-	"menuitem-shortcut": {
+	"title": {
+		"font": "regular-font",
+		"fontColor": "white"
+	},
+	"modal-title": {
 		"font": "default-font",
-		"fontColor": "menuitem"
+		"fontColor": "black"
+	},
+	"link-label": {
+		"font": "default-font",
+		"fontColor": "link-label"
+	},
+	"canvas-mode-label": {
+		"font": "regular-font",
+		"fontColor": "white"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.List$ListStyle": {
@@ -788,6 +916,13 @@
 		"fontColorSelected": "white",
 		"fontColorUnselected": "white",
 		"selection": "padded-list-selection"
+	},
+	"select-box-list": {
+		"font": "default-font",
+		"fontColorSelected": "white",
+		"fontColorUnselected": "white",
+		"selection": "padded-list-selection",
+		"background": "select-box-list-bg"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.ProgressBar$ProgressBarStyle": {
@@ -802,40 +937,14 @@
 		"knobBefore": "progressbar-filled-vertical"
 	}
 },
-"com.badlogic.gdx.scenes.scene2d.ui.ScrollPane$ScrollPaneStyle": {
-	"default": {
-		"background": "border",
-		"corner": "grey",
-		"hScroll": "scroll-horizontal",
-		"hScrollKnob": "scroll-knob-horizontal",
-		"vScroll": "scroll",
-		"vScrollKnob": "scroll-knob-vertical"
-	},
-	"list": {
-		"corner": "grey",
-		"hScroll": "scroll-horizontal",
-		"hScrollKnob": "scroll-knob-horizontal",
-		"vScroll": "scroll",
-		"vScrollKnob": "scroll-knob-vertical"
-	}
-},
-"com.kotcrab.vis.ui.widget.ListViewStyle": {
-	"default": {
-		"scrollPaneStyle": "list"
-	}
-},
 "com.badlogic.gdx.scenes.scene2d.ui.SelectBox$SelectBoxStyle": {
 	"default": {
-		"background": "default-select",
-		"scrollStyle": "default",
-		"listStyle": {
-			"font": "default-font",
-			"selection": "padded-list-selection",
-			"background": "select-box-list-bg"
-		},
 		"font": "default-font",
 		"fontColor": "white",
-		"disabledFontColor": "grey"
+		"disabledFontColor": "grey",
+		"background": "default-select",
+		"scrollStyle": "default",
+		"listStyle": "select-box-list"
 	}
 },
 "com.badlogic.gdx.scenes.scene2d.ui.Slider$SliderStyle": {

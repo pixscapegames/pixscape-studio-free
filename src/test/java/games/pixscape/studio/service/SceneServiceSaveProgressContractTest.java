@@ -37,6 +37,17 @@ public class SceneServiceSaveProgressContractTest {
     }
 
     @Test
+    public void asyncAtlasProgress_propagatesDeferredFailuresToRunner() throws Exception {
+        String source = readSceneServiceSource();
+        String saveBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
+        String waitBody = methodBody(source, "private void waitForAsyncPackCompletion(");
+
+        assertTrue(saveBody.contains("(progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)"));
+        assertTrue(waitBody.contains("catch (Throwable t)"));
+        assertTrue(waitBody.contains("onError.accept(t)"));
+    }
+
+    @Test
     public void saveProjectAndCurrentSceneWithProgress_requiresRuntimeExportSuccess() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
@@ -46,6 +57,67 @@ public class SceneServiceSaveProgressContractTest {
         assertFalse(methodBody.contains("exportRuntimeBestEffort(plan.cfg(), plan.studioDir())"));
         assertTrue(fallbackBody.contains("exportRuntime(plan.cfg(), plan.studioDir())"));
         assertFalse(fallbackBody.contains("exportRuntimeBestEffort(plan.cfg(), plan.studioDir())"));
+    }
+
+    @Test
+    public void tmxImportProgress_declaresRealMonotonicPhasesAndActivatesAfterPersistence() throws Exception {
+        String source = readSceneServiceSource();
+        String methodBody = methodBody(source, "public void importTmxAsNewSceneWithProgress(");
+        String[] expectedSteps = {
+                "0.00f, \"Preparing import...\"",
+                "0.08f, \"Reading and validating Tiled map...\"",
+                "0.18f, \"Creating imported scene...\"",
+                "0.30f, \"Importing tilesets and images...\"",
+                "0.62f, \"Creating layers and tiles...\"",
+                "0.82f, \"Updating scene atlas...\"",
+                "0.94f, \"Saving project metadata...\"",
+                "0.98f, \"Opening imported scene...\"",
+                "1.00f, \"Import complete\""
+        };
+
+        int previous = -1;
+        for (String expectedStep : expectedSteps) {
+            int index = methodBody.indexOf(expectedStep);
+            assertTrue("Missing progress step: " + expectedStep, index > previous);
+            previous = index;
+        }
+        assertTrue(methodBody.indexOf("context.session.persistAndFinish()")
+                < methodBody.indexOf("activateImportedTmxScene("));
+        assertTrue(methodBody.indexOf("activateImportedTmxScene(")
+                < methodBody.indexOf("1.00f, \"Import complete\""));
+        assertTrue(methodBody.contains("new SaveProgressRunner("));
+        assertTrue(methodBody.contains("\"Importing Tiled map\""));
+        assertTrue(methodBody.contains("() -> context.terminal"));
+    }
+
+    @Test
+    public void tmxImportProgress_preservesRollbackAndActivationRecoveryBoundaries() throws Exception {
+        String source = readSceneServiceSource();
+        String progressBody = methodBody(source, "public void importTmxAsNewSceneWithProgress(");
+        String phaseBody = methodBody(source, "private SaveProgressRunner.Step tmxImportStep(");
+
+        assertTrue(progressBody.contains("recoverTmxImportActivationFailure("));
+        assertTrue(progressBody.contains("restorePreviousSceneAfterTmxActivationFailure("));
+        assertTrue(phaseBody.contains("context.session.rollback(failure)"));
+        assertTrue(phaseBody.contains("context.terminal = true;"));
+        assertTrue(phaseBody.contains("fail.accept(failure);"));
+    }
+
+    @Test
+    public void tmxImportOnlySavesDirtyCurrentSceneAndReportsTheRepackPhase() throws Exception {
+        String source = readSceneServiceSource();
+        String synchronousBody = methodBody(source, "public TmxSceneImportResult importTmxAsNewScene(");
+        String progressBody = methodBody(source, "public void importTmxAsNewSceneWithProgress(");
+
+        assertTrue(synchronousBody.contains(
+                "previousSceneName != null && requiresSaveBeforeLeavingCurrentScene()"
+        ));
+        assertTrue(progressBody.contains("context.previousSceneName != null"));
+        assertTrue(progressBody.contains("&& requiresSaveBeforeLeavingCurrentScene()"));
+        assertTrue(progressBody.contains("if (saveCurrentScene)"));
+        assertTrue(progressBody.contains("0.05f"));
+        assertTrue(progressBody.contains("\"Saving current scene and repacking atlas...\""));
+        assertTrue(progressBody.contains("() -> saveCurrentSceneOnly(context.cfg)"));
     }
 
     private static String readSceneServiceSource() throws Exception {

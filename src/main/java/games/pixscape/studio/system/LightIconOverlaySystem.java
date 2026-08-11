@@ -203,9 +203,9 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         return 0f;
     }
 
-    private boolean isHoveringIcon(float x, float y, float halfWorld) {
+    private boolean isHoveringIcon(float x, float y, float halfWidthorld) {
         float tolWorld = ctx.pxToWorld(HOVER_TOL_PX);
-        float half = halfWorld + tolWorld;
+        float half = halfWidthorld + tolWorld;
         return Math.abs(tmpMouseWorld.x - x) <= half && Math.abs(tmpMouseWorld.y - y) <= half;
     }
 

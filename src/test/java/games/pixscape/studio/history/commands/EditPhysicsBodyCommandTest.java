@@ -2,15 +2,24 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 public class EditPhysicsBodyCommandTest {
+    @Before
+    public void activateSceneAllocator() {
+        games.pixscape.studio.configuration.ProjectConfig config =
+                new games.pixscape.studio.configuration.ProjectConfig();
+        config.createSceneMeta("Main");
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(config);
+    }
 
     @Test
     public void editGravityScaleUndoRedoRestoresExactValues() {
@@ -116,6 +125,31 @@ public class EditPhysicsBodyCommandTest {
     }
 
     @Test
+    public void tiledLayerRemainsStaticForProgrammaticEditAndUndo() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        int entityId = createBody(world, historyIds);
+        world.getMapper(TiledLayerComponent.class).create(entityId);
+        PhysicsBodyComponent body =
+                world.getMapper(PhysicsBodyComponent.class).get(entityId);
+        body.type = PhysicsBodyComponent.STATIC;
+        EditPhysicsBodyCommand.Snapshot before =
+                EditPhysicsBodyCommand.Snapshot.capture(body);
+
+        EditPhysicsBodyCommand command = new EditPhysicsBodyCommand(
+                world,
+                historyIds,
+                entityId,
+                before,
+                before.withType(PhysicsBodyComponent.DYNAMIC));
+
+        command.redo();
+        Assert.assertEquals(PhysicsBodyComponent.STATIC, body.type);
+        command.undo();
+        Assert.assertEquals(PhysicsBodyComponent.STATIC, body.type);
+    }
+
+    @Test
     public void noopEditDoesNotCreateMeaningfulHistoryMutation() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
@@ -145,11 +179,14 @@ public class EditPhysicsBodyCommandTest {
         historyIds.ensureForEntity(entityId);
         world.getMapper(TransformComponent.class).create(entityId);
 
-        TogglePhysicsBodyCommand enable = new TogglePhysicsBodyCommand(
+        AddPhysicsBodyCommand enable = new AddPhysicsBodyCommand(
                 world,
                 historyIds,
+                new games.pixscape.runtime.service.PhysicsService(
+                        world, null,
+                        games.pixscape.studio.configuration.ProjectConfig.getInstance()
+                                .getCurrentSceneMeta()),
                 entityId,
-                true,
                 PhysicsBodyComponent.DYNAMIC,
                 true
         );
@@ -194,7 +231,7 @@ public class EditPhysicsBodyCommandTest {
 
         history.undo();
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
-        Assert.assertFalse(world.getMapper(PhysicsFixturesComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
 
         history.redo();
         body = world.getMapper(PhysicsBodyComponent.class).get(entityId);
@@ -220,9 +257,8 @@ public class EditPhysicsBodyCommandTest {
         body.gravityScale = 1f;
         body.linearDamping = 0f;
         body.angularDamping = 0f;
-        body.enabled = true;
 
-        world.getMapper(PhysicsFixturesComponent.class).create(entityId);
+        world.getMapper(PhysicsShapesComponent.class).create(entityId);
         return entityId;
     }
 

@@ -3,7 +3,7 @@ package games.pixscape.studio.asset;
 public final class ImageAssetMeta extends AssetMeta {
 
     public ImageAssetMeta() {
-        // required for Json
+        super(AssetType.IMAGE);
     }
 
     public ImageAssetMeta(int id,

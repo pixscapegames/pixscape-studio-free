@@ -1,11 +1,9 @@
 package games.pixscape.studio.history.initializer;
 
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.ShaderFloatParam;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 
 public final class GenericEntitySnapshotData {
     public int sourceEntityId;
@@ -36,13 +34,12 @@ public final class GenericEntitySnapshotData {
     public boolean hasTint;
     public int tintRgba = 0xFFFFFFFF;
     public boolean hasAnimation;
-    public String animationName = "";
+    public IntArray animationAssetIds = new IntArray();
     public float animationFps = 12f;
     public boolean animationPlaying = true, animationLoop = true;
     public float animationStateTime = 0f;
     public int animationFrame = -1;
     public String animationCurrentClip = "";
-    public ObjectMap<String, AnimationComponent.Clip> animationClips = new ObjectMap<>();
     public boolean hasShaderParams;
     public final Array<ShaderFloatParam> shaderFloats = new Array<>();
     public boolean hasSpatialHeight;
@@ -50,11 +47,9 @@ public final class GenericEntitySnapshotData {
     public float spatialHeight;
     public boolean hasPhysicsBody;
     public int bodyType;
-    public boolean fixedRotation, bullet, allowSleep, awake, bodyEnabled;
+    public boolean fixedRotation, bullet, allowSleep, awake;
     public float gravityScale, linearDamping, angularDamping;
-    public Array<FixtureDefData> fixtures = new Array<>();
-    public boolean hasPhysicsAuthoring;
-    public Array<AuthoredPolygonData> physicsAuthoringPolygons = new Array<>();
+    public Array<PhysicsShapeData> shapes = new Array<>();
     public boolean hasJoint;
     public int jointType, jointAEid, jointBEid;
     public boolean jointCollideConnected;

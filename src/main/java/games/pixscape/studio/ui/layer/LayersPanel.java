@@ -1,9 +1,8 @@
 package games.pixscape.studio.ui.layer;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -14,8 +13,6 @@ import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
@@ -43,7 +40,7 @@ public class LayersPanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
     private final World world;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
 
     private final VisTable listTable;
     private final VisScrollPane scroller;
@@ -70,7 +67,7 @@ public class LayersPanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
         this.world = canvas.getEcsWorld();
-        this.markPreviewSaveRequired = app.getSceneService()::markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
 
@@ -143,6 +140,7 @@ public class LayersPanel extends DockablePanel {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 NewLayerDialog dialog = new NewLayerDialog(
+                        layerService,
                         request -> {
 
                             if (request.type() == LayerComponent.TYPE_TILED) {
@@ -162,17 +160,23 @@ public class LayersPanel extends DockablePanel {
 
                             } else {
 
-                                historyManager.execute(new CreateLayerCommand(
+                                CreateLayerCommand command = new CreateLayerCommand(
                                         layerService,
                                         layerService.count(),
                                         request.name(),
                                         request.type(),
+                                        request.spatialActorLayer(),
                                         layerId -> {
                                             if (selectionService != null) {
                                                 selectionService.setActivelayerId(layerId);
                                             }
                                         }
-                                ));
+                                );
+                                historyManager.execute(command);
+                                if (command.wasRejected()) {
+                                    showSpatialLayerUnavailableMessage();
+                                    return;
+                                }
                             }
 
                             markDirty();
@@ -200,7 +204,7 @@ public class LayersPanel extends DockablePanel {
                 // ---------------------------------------------------
                 if (type == LayerComponent.TYPE_TILED) {
 
-                    VisDialog dialog = new VisDialog("Warning") {
+                    VisDialog dialog = new StudioDialog("Warning") {
                         @Override
                         protected void result(Object object) {
                             if (!Boolean.TRUE.equals(object)) return;
@@ -335,8 +339,8 @@ public class LayersPanel extends DockablePanel {
     }
 
     private void flagPreviewSaveRequired() {
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 
@@ -387,7 +391,7 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    buildLayerTypeSuffix(ui.type()),
+                    buildLayerTypeSuffix(ui.type(), ui.spatialEnabled()),
                     ui.visible(),
                     ui.locked()
             );
@@ -440,9 +444,9 @@ public class LayersPanel extends DockablePanel {
         }
     }
 
-    private String buildLayerTypeSuffix(int type) {
+    private String buildLayerTypeSuffix(int type, boolean spatialEnabled) {
         if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeSuffixLabel(type);
+            return LayerService.typeSuffixLabel(type, spatialEnabled);
         }
 
         return switch (currentTiledProjection()) {
@@ -450,6 +454,18 @@ public class LayersPanel extends DockablePanel {
             case ORTHO -> "(Tiled orthogonal)";
             case null -> "(Tiled)";
         };
+    }
+
+    private void showSpatialLayerUnavailableMessage() {
+        VisDialog dialog = new StudioDialog("Spatial layer unavailable");
+        dialog.text("This scene already has its single actor Spatial layer.");
+        dialog.button("OK");
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        if (getStage() != null) {
+            dialog.show(getStage());
+        }
     }
 
     private games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection currentTiledProjection() {

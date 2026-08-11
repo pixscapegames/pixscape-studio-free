@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -11,388 +12,434 @@ import org.junit.Test;
 
 public class DeleteJointCommandAdditionalCoverageTest {
 
+    private static final int[] JOINT_TYPES = {
+            PhysicsJointComponent.TYPE_DISTANCE,
+            PhysicsJointComponent.TYPE_REVOLUTE,
+            PhysicsJointComponent.TYPE_PRISMATIC,
+            PhysicsJointComponent.TYPE_WHEEL,
+            PhysicsJointComponent.TYPE_FRICTION,
+            PhysicsJointComponent.TYPE_MOTOR,
+            PhysicsJointComponent.TYPE_WELD,
+            PhysicsJointComponent.TYPE_PULLEY,
+            PhysicsJointComponent.TYPE_GEAR
+    };
+
     @Test
-    public void deleteMotorJointUndoRedoRestoresComponentAndHistoryBinding() {
+    public void nonJointEntityIsRejectedAndPreserved() {
+        World world = new World(new WorldConfiguration());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+
+        int entityId = world.create();
+        world.getMapper(TransformComponent.class).create(entityId);
+        world.process();
+
+        try {
+            new DeleteJointCommand(world, historyIds, entityId);
+            Assert.fail("A non-joint entity must be rejected.");
+        } catch (IllegalArgumentException expected) {
+            Assert.assertTrue(expected.getMessage().contains(
+                    "Invalid joint entity for deletion"));
+        }
+
+        Assert.assertTrue(world.getEntityManager().isActive(entityId));
+    }
+
+    @Test
+    public void deleteEntitiesRestoresEveryJointTypeThroughInitializerAndRemapsReferences() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(16);
 
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 10f, 8f);
-        int jointEid = createMotorJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
+        int bodyA = createBody(world, historyIds, 1f);
+        int bodyB = createBody(world, historyIds, 2f);
+        long bodyAHistoryId = historyIds.historyIdOfEntity(bodyA);
+        long bodyBHistoryId = historyIds.historyIdOfEntity(bodyB);
 
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
+        int[] joints = new int[JOINT_TYPES.length];
+        long[] jointHistoryIds = new long[JOINT_TYPES.length];
+        for (int i = 0; i < JOINT_TYPES.length - 1; i++) {
+            joints[i] = createJoint(world, historyIds, JOINT_TYPES[i], bodyA, bodyB);
+            jointHistoryIds[i] = historyIds.historyIdOfEntity(joints[i]);
+        }
+        joints[JOINT_TYPES.length - 1] = createGearJoint(
+                world, historyIds, bodyA, bodyB, joints[1], joints[2]);
+        jointHistoryIds[JOINT_TYPES.length - 1] =
+                historyIds.historyIdOfEntity(joints[JOINT_TYPES.length - 1]);
+
+        IntArray deleted = new IntArray(2);
+        deleted.add(bodyA);
+        deleted.add(bodyB);
+        history.execute(new DeleteEntitiesCommand(world, historyIds, deleted));
         world.process();
 
-        Assert.assertFalse(world.getEntityManager().isActive(jointEid));
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
+        for (int cycle = 0; cycle < 2; cycle++) {
+            consumeFreedEntityIds(world, JOINT_TYPES.length + 2);
 
-        history.undo();
-        world.process();
+            history.undo();
+            world.process();
 
-        int restoredJointEid = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(restoredJointEid >= 0);
-        Assert.assertTrue(world.getEntityManager().isActive(restoredJointEid));
+            int restoredBodyA = historyIds.entityOfHistoryId(bodyAHistoryId);
+            int restoredBodyB = historyIds.entityOfHistoryId(bodyBHistoryId);
+            Assert.assertTrue(restoredBodyA >= 0);
+            Assert.assertTrue(restoredBodyB >= 0);
+            Assert.assertNotEquals(bodyA, restoredBodyA);
+            Assert.assertNotEquals(bodyB, restoredBodyB);
 
-        PhysicsMotorJointComponent motor = world.getMapper(PhysicsMotorJointComponent.class).get(restoredJointEid);
-        Assert.assertEquals(1.25f, motor.linearOffsetX, 0f);
-        Assert.assertEquals(-0.75f, motor.linearOffsetY, 0f);
-        Assert.assertEquals(0.42f, motor.angularOffsetRad, 0f);
-        Assert.assertEquals(8f, motor.maxForce, 0f);
-        Assert.assertEquals(6f, motor.maxTorque, 0f);
-        Assert.assertEquals(0.65f, motor.correctionFactor, 0f);
+            for (int i = 0; i < JOINT_TYPES.length; i++) {
+                int restoredJoint = historyIds.entityOfHistoryId(jointHistoryIds[i]);
+                Assert.assertTrue(restoredJoint >= 0);
+                assertJoint(world, restoredJoint, JOINT_TYPES[i], restoredBodyA, restoredBodyB);
+            }
 
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
+            PhysicsGearJointComponent restoredGear = world.getMapper(PhysicsGearJointComponent.class)
+                    .get(historyIds.entityOfHistoryId(jointHistoryIds[JOINT_TYPES.length - 1]));
+            Assert.assertEquals(historyIds.entityOfHistoryId(jointHistoryIds[1]), restoredGear.joint1Eid);
+            Assert.assertEquals(historyIds.entityOfHistoryId(jointHistoryIds[2]), restoredGear.joint2Eid);
+
+            history.redo();
+            world.process();
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(bodyAHistoryId));
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(bodyBHistoryId));
+            for (long jointHistoryId : jointHistoryIds) {
+                Assert.assertEquals(-1, historyIds.entityOfHistoryId(jointHistoryId));
+            }
+        }
     }
 
     @Test
-    public void deletePulleyJointUndoRestoresGroundAnchorsLengthsAndRatio() {
+    public void deleteJointKeepsLabelAndDelegatesStableUndoRedo() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(16);
+        int bodyA = createBody(world, historyIds, 1f);
+        int bodyB = createBody(world, historyIds, 2f);
+        int joint = createJoint(world, historyIds, PhysicsJointComponent.TYPE_DISTANCE, bodyA, bodyB);
+        long jointHistoryId = historyIds.historyIdOfEntity(joint);
 
-        int bodyA = createBody(world, historyIds, 3f, 4f);
-        int bodyB = createBody(world, historyIds, 12f, 6f);
-        int jointEid = createPulleyJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
+        DeleteJointCommand command = new DeleteJointCommand(world, historyIds, joint);
+        Assert.assertEquals("Delete Joint", command.label());
+        history.execute(command);
         world.process();
-        history.undo();
-        world.process();
 
-        int restoredJointEid = historyIds.entityOfHistoryId(historyId);
-        PhysicsPulleyJointComponent pulley = world.getMapper(PhysicsPulleyJointComponent.class).get(restoredJointEid);
-        Assert.assertEquals(2f, pulley.groundAx, 0f);
-        Assert.assertEquals(30f, pulley.groundAy, 0f);
-        Assert.assertEquals(14f, pulley.groundBx, 0f);
-        Assert.assertEquals(30f, pulley.groundBy, 0f);
-        Assert.assertEquals(6.5f, pulley.lengthAM, 0f);
-        Assert.assertEquals(8.5f, pulley.lengthBM, 0f);
-        Assert.assertEquals(1.6f, pulley.ratio, 0f);
+        for (int cycle = 0; cycle < 2; cycle++) {
+            history.undo();
+            world.process();
+            int restoredJoint = historyIds.entityOfHistoryId(jointHistoryId);
+            assertJoint(world, restoredJoint, PhysicsJointComponent.TYPE_DISTANCE, bodyA, bodyB);
+
+            history.redo();
+            world.process();
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(jointHistoryId));
+        }
     }
 
     @Test
-    public void deleteGearJointUndoRestoresJointReferencesAndDerivedBodies() {
+    public void deletingSourceJointAlsoRestoresItsDependentGearAcrossCycles() {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
         HistoryManager history = new HistoryManager(16);
+        int bodyA = createBody(world, historyIds, 1f);
+        int bodyB = createBody(world, historyIds, 2f);
+        int bodyC = createBody(world, historyIds, 3f);
+        int source1 = createJoint(
+                world, historyIds, PhysicsJointComponent.TYPE_REVOLUTE, bodyA, bodyB);
+        int source2 = createJoint(
+                world, historyIds, PhysicsJointComponent.TYPE_PRISMATIC, bodyB, bodyC);
+        int gear = createGearJoint(
+                world, historyIds, bodyA, bodyC, source1, source2);
+        long source1HistoryId = historyIds.historyIdOfEntity(source1);
+        long source2HistoryId = historyIds.historyIdOfEntity(source2);
+        long gearHistoryId = historyIds.historyIdOfEntity(gear);
 
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 1f, 0f);
-        int bodyC = createBody(world, historyIds, 2f, 0f);
-
-        int sourceJoint1 = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_REVOLUTE, bodyA, bodyB);
-        int sourceJoint2 = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_PRISMATIC, bodyB, bodyC);
-
-        int gearJoint = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_GEAR, bodyA, bodyC);
-        PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class).create(gearJoint);
-        gear.joint1Eid = sourceJoint1;
-        gear.joint2Eid = sourceJoint2;
-        gear.ratio = 2.25f;
-
-        long historyId = historyIds.historyIdOfEntity(gearJoint);
-
-        history.execute(new DeleteJointCommand(world, historyIds, gearJoint));
-        world.process();
-        history.undo();
+        history.execute(new DeleteJointCommand(world, historyIds, source1));
         world.process();
 
-        int restoredJointEid = historyIds.entityOfHistoryId(historyId);
-        PhysicsGearJointComponent restoredGear = world.getMapper(PhysicsGearJointComponent.class).get(restoredJointEid);
-        PhysicsJointComponent restoredBase = world.getMapper(PhysicsJointComponent.class).get(restoredJointEid);
+        int previousSource1 = source1;
+        int previousGear = gear;
+        for (int cycle = 0; cycle < 2; cycle++) {
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(source1HistoryId));
+            Assert.assertEquals(-1, historyIds.entityOfHistoryId(gearHistoryId));
+            Assert.assertEquals(source2, historyIds.entityOfHistoryId(source2HistoryId));
+            Assert.assertTrue(world.getEntityManager().isActive(source2));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyA));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyB));
+            Assert.assertTrue(world.getEntityManager().isActive(bodyC));
 
-        Assert.assertEquals(sourceJoint1, restoredGear.joint1Eid);
-        Assert.assertEquals(sourceJoint2, restoredGear.joint2Eid);
-        Assert.assertEquals(2.25f, restoredGear.ratio, 0f);
+            consumeFreedEntityIds(world, 2);
+            history.undo();
+            world.process();
 
-        Assert.assertEquals(bodyB, restoredBase.aEid);
-        Assert.assertEquals(bodyC, restoredBase.bEid);
+            int restoredSource1 = historyIds.entityOfHistoryId(source1HistoryId);
+            int restoredGear = historyIds.entityOfHistoryId(gearHistoryId);
+            Assert.assertTrue(restoredSource1 >= 0);
+            Assert.assertTrue(restoredGear >= 0);
+            Assert.assertNotEquals(previousSource1, restoredSource1);
+            Assert.assertNotEquals(previousGear, restoredGear);
+            Assert.assertEquals(source2, historyIds.entityOfHistoryId(source2HistoryId));
+
+            PhysicsGearJointComponent restoredGearComponent =
+                    world.getMapper(PhysicsGearJointComponent.class).get(restoredGear);
+            PhysicsJointComponent restoredGearBase =
+                    world.getMapper(PhysicsJointComponent.class).get(restoredGear);
+            Assert.assertEquals(restoredSource1, restoredGearComponent.joint1Eid);
+            Assert.assertEquals(source2, restoredGearComponent.joint2Eid);
+            Assert.assertEquals(2.25f, restoredGearComponent.ratio, 0f);
+            Assert.assertEquals(bodyA, restoredGearBase.aEid);
+            Assert.assertEquals(bodyC, restoredGearBase.bEid);
+            assertJointReferencesAreActive(world, restoredSource1);
+            assertJointReferencesAreActive(world, source2);
+            assertJointReferencesAreActive(world, restoredGear);
+
+            previousSource1 = restoredSource1;
+            previousGear = restoredGear;
+            history.redo();
+            world.process();
+        }
     }
 
-
-
-    @Test
-    public void deleteRevoluteJointUndoRedoRestoresSpecificFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 3f, 0f);
-        int jointEid = createRevoluteJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        history.undo();
-        world.process();
-
-        int restored = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(world.getEntityManager().isActive(restored));
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_REVOLUTE, base.type);
-        Assert.assertEquals(bodyA, base.aEid);
-        Assert.assertEquals(bodyB, base.bEid);
-        assertOnlyExpectedJointSpecificComponent(world, restored, PhysicsJointComponent.TYPE_REVOLUTE);
-
-        PhysicsRevoluteJointComponent c = world.getMapper(PhysicsRevoluteJointComponent.class).get(restored);
-        Assert.assertTrue(c.enableMotor);
-        Assert.assertEquals(3.2f, c.motorSpeedRad, 0f);
-        Assert.assertEquals(9f, c.maxMotorTorque, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    @Test
-    public void deletePrismaticJointUndoRedoRestoresSpecificFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 3f, 1f);
-        int jointEid = createPrismaticJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        history.undo();
-        world.process();
-
-        int restored = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(world.getEntityManager().isActive(restored));
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_PRISMATIC, base.type);
-        Assert.assertEquals(bodyA, base.aEid);
-        Assert.assertEquals(bodyB, base.bEid);
-        assertOnlyExpectedJointSpecificComponent(world, restored, PhysicsJointComponent.TYPE_PRISMATIC);
-        PhysicsPrismaticJointComponent c = world.getMapper(PhysicsPrismaticJointComponent.class).get(restored);
-        Assert.assertEquals(0.6f, c.axisX, 0f);
-        Assert.assertEquals(0.8f, c.axisY, 0f);
-        Assert.assertTrue(c.enableMotor);
-        Assert.assertEquals(7f, c.maxMotorForce, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    @Test
-    public void deleteFrictionJointUndoRedoRestoresSpecificFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 2f, 2f);
-        int jointEid = createFrictionJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        history.undo();
-        world.process();
-
-        int restored = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(world.getEntityManager().isActive(restored));
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_FRICTION, base.type);
-        Assert.assertEquals(bodyA, base.aEid);
-        Assert.assertEquals(bodyB, base.bEid);
-        assertOnlyExpectedJointSpecificComponent(world, restored, PhysicsJointComponent.TYPE_FRICTION);
-        PhysicsFrictionJointComponent c = world.getMapper(PhysicsFrictionJointComponent.class).get(restored);
-        Assert.assertEquals(4f, c.maxForce, 0f);
-        Assert.assertEquals(5f, c.maxTorque, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    @Test
-    public void deleteWeldJointUndoRedoRestoresSpecificFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 1f, 1f);
-        int jointEid = createWeldJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        history.undo();
-        world.process();
-
-        int restored = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(world.getEntityManager().isActive(restored));
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_WELD, base.type);
-        Assert.assertEquals(bodyA, base.aEid);
-        Assert.assertEquals(bodyB, base.bEid);
-        assertOnlyExpectedJointSpecificComponent(world, restored, PhysicsJointComponent.TYPE_WELD);
-        PhysicsWeldJointComponent c = world.getMapper(PhysicsWeldJointComponent.class).get(restored);
-        Assert.assertEquals(0.3f, c.referenceAngleRad, 0f);
-        Assert.assertEquals(6f, c.frequencyHz, 0f);
-        Assert.assertEquals(0.4f, c.dampingRatio, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    @Test
-    public void deleteDistanceJointUndoRedoRestoresBaseAndDistanceFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-
-        int bodyA = createBody(world, historyIds, 0f, 0f);
-        int bodyB = createBody(world, historyIds, 5f, 0f);
-        int jointEid = createDistanceJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-
-        history.undo();
-        world.process();
-        int restored = historyIds.entityOfHistoryId(historyId);
-        Assert.assertTrue(world.getEntityManager().isActive(restored));
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        PhysicsDistanceJointComponent dist = world.getMapper(PhysicsDistanceJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, base.type);
-        Assert.assertEquals(3.25f, dist.lengthM, 0f);
-        Assert.assertEquals(2.5f, dist.frequencyHz, 0f);
-        Assert.assertEquals(0.35f, dist.dampingRatio, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    @Test
-    public void deleteWheelJointUndoRedoRestoresWheelFields() {
-        World world = new World(new WorldConfiguration());
-        HistoryIdRegistry historyIds = new HistoryIdRegistry();
-        HistoryManager history = new HistoryManager(16);
-
-        int bodyA = createBody(world, historyIds, 1f, 1f);
-        int bodyB = createBody(world, historyIds, 8f, 1f);
-        int jointEid = createWheelJoint(world, historyIds, bodyA, bodyB);
-        long historyId = historyIds.historyIdOfEntity(jointEid);
-
-        history.execute(new DeleteJointCommand(world, historyIds, jointEid));
-        world.process();
-        history.undo();
-        world.process();
-
-        int restored = historyIds.entityOfHistoryId(historyId);
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(restored);
-        PhysicsWheelJointComponent wheel = world.getMapper(PhysicsWheelJointComponent.class).get(restored);
-        Assert.assertEquals(PhysicsJointComponent.TYPE_WHEEL, base.type);
-        Assert.assertEquals(0.6f, wheel.axisX, 0f);
-        Assert.assertEquals(0.8f, wheel.axisY, 0f);
-        Assert.assertEquals(4.2f, wheel.frequencyHz, 0f);
-        Assert.assertEquals(0.55f, wheel.dampingRatio, 0f);
-        Assert.assertTrue(wheel.enableMotor);
-        Assert.assertEquals(9.5f, wheel.motorSpeedRad, 0f);
-        Assert.assertEquals(12.5f, wheel.maxMotorTorque, 0f);
-
-        history.redo();
-        world.process();
-        Assert.assertEquals(-1, historyIds.entityOfHistoryId(historyId));
-    }
-
-    private static int createDistanceJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) {
-        int jointEid = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_DISTANCE, bodyA, bodyB);
-        PhysicsDistanceJointComponent dist = world.getMapper(PhysicsDistanceJointComponent.class).create(jointEid);
-        dist.lengthM = 3.25f;
-        dist.frequencyHz = 2.5f;
-        dist.dampingRatio = 0.35f;
-        return jointEid;
-    }
-
-    private static int createWheelJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) {
-        int jointEid = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_WHEEL, bodyA, bodyB);
-        PhysicsWheelJointComponent wheel = world.getMapper(PhysicsWheelJointComponent.class).create(jointEid);
-        wheel.axisX = 0.6f;
-        wheel.axisY = 0.8f;
-        wheel.frequencyHz = 4.2f;
-        wheel.dampingRatio = 0.55f;
-        wheel.enableMotor = true;
-        wheel.motorSpeedRad = 9.5f;
-        wheel.maxMotorTorque = 12.5f;
-        return jointEid;
-    }
-    private static int createBody(World world, HistoryIdRegistry historyIds, float x, float y) {
+    private static int createBody(World world, HistoryIdRegistry historyIds, float x) {
         int eid = world.create();
         historyIds.ensureForEntity(eid);
-        TransformComponent transform = world.getMapper(TransformComponent.class).create(eid);
-        transform.x = x;
-        transform.y = y;
+        world.getMapper(TransformComponent.class).create(eid).x = x;
         return eid;
     }
 
-    private static int createBaseJoint(World world, HistoryIdRegistry historyIds, int type, int bodyA, int bodyB) {
-        int jointEid = world.create();
-        historyIds.ensureForEntity(jointEid);
-        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(jointEid);
+    private static int createJoint(World world,
+                                   HistoryIdRegistry historyIds,
+                                   int type,
+                                   int bodyA,
+                                   int bodyB) {
+        int eid = createBaseJoint(world, historyIds, type, bodyA, bodyB);
+        switch (type) {
+            case PhysicsJointComponent.TYPE_DISTANCE:
+                PhysicsDistanceJointComponent distance =
+                        world.getMapper(PhysicsDistanceJointComponent.class).create(eid);
+                distance.lengthM = 3.25f;
+                distance.frequencyHz = 2.5f;
+                distance.dampingRatio = 0.35f;
+                break;
+            case PhysicsJointComponent.TYPE_REVOLUTE:
+                PhysicsRevoluteJointComponent revolute =
+                        world.getMapper(PhysicsRevoluteJointComponent.class).create(eid);
+                revolute.enableLimit = true;
+                revolute.lowerAngleRad = -0.4f;
+                revolute.upperAngleRad = 0.7f;
+                revolute.enableMotor = true;
+                revolute.motorSpeedRad = 3.2f;
+                revolute.maxMotorTorque = 9f;
+                break;
+            case PhysicsJointComponent.TYPE_PRISMATIC:
+                PhysicsPrismaticJointComponent prismatic =
+                        world.getMapper(PhysicsPrismaticJointComponent.class).create(eid);
+                prismatic.axisX = 0.6f;
+                prismatic.axisY = 0.8f;
+                prismatic.enableLimit = true;
+                prismatic.lowerTranslationM = -2f;
+                prismatic.upperTranslationM = 4f;
+                prismatic.enableMotor = true;
+                prismatic.motorSpeedMps = 1.5f;
+                prismatic.maxMotorForce = 7f;
+                break;
+            case PhysicsJointComponent.TYPE_WHEEL:
+                PhysicsWheelJointComponent wheel =
+                        world.getMapper(PhysicsWheelJointComponent.class).create(eid);
+                wheel.axisX = 0.6f;
+                wheel.axisY = 0.8f;
+                wheel.enableMotor = true;
+                wheel.motorSpeedRad = 9.5f;
+                wheel.maxMotorTorque = 12.5f;
+                wheel.frequencyHz = 4.2f;
+                wheel.dampingRatio = 0.55f;
+                break;
+            case PhysicsJointComponent.TYPE_FRICTION:
+                PhysicsFrictionJointComponent friction =
+                        world.getMapper(PhysicsFrictionJointComponent.class).create(eid);
+                friction.maxForce = 4f;
+                friction.maxTorque = 5f;
+                break;
+            case PhysicsJointComponent.TYPE_MOTOR:
+                PhysicsMotorJointComponent motor =
+                        world.getMapper(PhysicsMotorJointComponent.class).create(eid);
+                motor.linearOffsetX = 1.25f;
+                motor.linearOffsetY = -0.75f;
+                motor.angularOffsetRad = 0.42f;
+                motor.maxForce = 8f;
+                motor.maxTorque = 6f;
+                motor.correctionFactor = 0.65f;
+                break;
+            case PhysicsJointComponent.TYPE_WELD:
+                PhysicsWeldJointComponent weld =
+                        world.getMapper(PhysicsWeldJointComponent.class).create(eid);
+                weld.referenceAngleRad = 0.3f;
+                weld.frequencyHz = 6f;
+                weld.dampingRatio = 0.4f;
+                break;
+            case PhysicsJointComponent.TYPE_PULLEY:
+                PhysicsPulleyJointComponent pulley =
+                        world.getMapper(PhysicsPulleyJointComponent.class).create(eid);
+                pulley.groundAx = 2f;
+                pulley.groundAy = 30f;
+                pulley.groundBx = 14f;
+                pulley.groundBy = 31f;
+                pulley.lengthAM = 6.5f;
+                pulley.lengthBM = 8.5f;
+                pulley.ratio = 1.6f;
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported joint type: " + type);
+        }
+        return eid;
+    }
+
+    private static int createGearJoint(World world,
+                                       HistoryIdRegistry historyIds,
+                                       int bodyA,
+                                       int bodyB,
+                                       int joint1,
+                                       int joint2) {
+        int eid = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_GEAR, bodyA, bodyB);
+        PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class).create(eid);
+        gear.joint1Eid = joint1;
+        gear.joint2Eid = joint2;
+        gear.ratio = 2.25f;
+        return eid;
+    }
+
+    private static int createBaseJoint(World world,
+                                       HistoryIdRegistry historyIds,
+                                       int type,
+                                       int bodyA,
+                                       int bodyB) {
+        int eid = world.create();
+        historyIds.ensureForEntity(eid);
+        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(eid);
         base.type = type;
         base.aEid = bodyA;
         base.bEid = bodyB;
-        base.anchorAx = 0.1f;
-        base.anchorAy = 0.2f;
-        base.anchorBx = 0.3f;
-        base.anchorBy = 0.4f;
-        return jointEid;
+        base.collideConnected = true;
+        base.anchorAx = type + 0.1f;
+        base.anchorAy = type + 0.2f;
+        base.anchorBx = type + 0.3f;
+        base.anchorBy = type + 0.4f;
+        return eid;
     }
 
-    private static void assertOnlyExpectedJointSpecificComponent(World world, int eid, int expectedType) {
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_DISTANCE, world.getMapper(PhysicsDistanceJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_REVOLUTE, world.getMapper(PhysicsRevoluteJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_PRISMATIC, world.getMapper(PhysicsPrismaticJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_WHEEL, world.getMapper(PhysicsWheelJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_FRICTION, world.getMapper(PhysicsFrictionJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_MOTOR, world.getMapper(PhysicsMotorJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_WELD, world.getMapper(PhysicsWeldJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_PULLEY, world.getMapper(PhysicsPulleyJointComponent.class).has(eid));
-        Assert.assertEquals(expectedType == PhysicsJointComponent.TYPE_GEAR, world.getMapper(PhysicsGearJointComponent.class).has(eid));
+    private static void assertJoint(World world,
+                                    int eid,
+                                    int type,
+                                    int expectedBodyA,
+                                    int expectedBodyB) {
+        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(eid);
+        Assert.assertEquals(type, base.type);
+        Assert.assertEquals(expectedBodyA, base.aEid);
+        Assert.assertEquals(expectedBodyB, base.bEid);
+        Assert.assertTrue(base.collideConnected);
+        Assert.assertEquals(type + 0.1f, base.anchorAx, 0f);
+        Assert.assertEquals(type + 0.2f, base.anchorAy, 0f);
+        Assert.assertEquals(type + 0.3f, base.anchorBx, 0f);
+        Assert.assertEquals(type + 0.4f, base.anchorBy, 0f);
+
+        switch (type) {
+            case PhysicsJointComponent.TYPE_DISTANCE:
+                PhysicsDistanceJointComponent distance =
+                        world.getMapper(PhysicsDistanceJointComponent.class).get(eid);
+                Assert.assertEquals(3.25f, distance.lengthM, 0f);
+                Assert.assertEquals(2.5f, distance.frequencyHz, 0f);
+                Assert.assertEquals(0.35f, distance.dampingRatio, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_REVOLUTE:
+                PhysicsRevoluteJointComponent revolute =
+                        world.getMapper(PhysicsRevoluteJointComponent.class).get(eid);
+                Assert.assertTrue(revolute.enableLimit);
+                Assert.assertEquals(-0.4f, revolute.lowerAngleRad, 0f);
+                Assert.assertEquals(0.7f, revolute.upperAngleRad, 0f);
+                Assert.assertTrue(revolute.enableMotor);
+                Assert.assertEquals(3.2f, revolute.motorSpeedRad, 0f);
+                Assert.assertEquals(9f, revolute.maxMotorTorque, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_PRISMATIC:
+                PhysicsPrismaticJointComponent prismatic =
+                        world.getMapper(PhysicsPrismaticJointComponent.class).get(eid);
+                Assert.assertEquals(0.6f, prismatic.axisX, 0f);
+                Assert.assertEquals(0.8f, prismatic.axisY, 0f);
+                Assert.assertTrue(prismatic.enableLimit);
+                Assert.assertEquals(-2f, prismatic.lowerTranslationM, 0f);
+                Assert.assertEquals(4f, prismatic.upperTranslationM, 0f);
+                Assert.assertTrue(prismatic.enableMotor);
+                Assert.assertEquals(1.5f, prismatic.motorSpeedMps, 0f);
+                Assert.assertEquals(7f, prismatic.maxMotorForce, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_WHEEL:
+                PhysicsWheelJointComponent wheel =
+                        world.getMapper(PhysicsWheelJointComponent.class).get(eid);
+                Assert.assertEquals(0.6f, wheel.axisX, 0f);
+                Assert.assertEquals(0.8f, wheel.axisY, 0f);
+                Assert.assertTrue(wheel.enableMotor);
+                Assert.assertEquals(9.5f, wheel.motorSpeedRad, 0f);
+                Assert.assertEquals(12.5f, wheel.maxMotorTorque, 0f);
+                Assert.assertEquals(4.2f, wheel.frequencyHz, 0f);
+                Assert.assertEquals(0.55f, wheel.dampingRatio, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_FRICTION:
+                PhysicsFrictionJointComponent friction =
+                        world.getMapper(PhysicsFrictionJointComponent.class).get(eid);
+                Assert.assertEquals(4f, friction.maxForce, 0f);
+                Assert.assertEquals(5f, friction.maxTorque, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_MOTOR:
+                PhysicsMotorJointComponent motor =
+                        world.getMapper(PhysicsMotorJointComponent.class).get(eid);
+                Assert.assertEquals(1.25f, motor.linearOffsetX, 0f);
+                Assert.assertEquals(-0.75f, motor.linearOffsetY, 0f);
+                Assert.assertEquals(0.42f, motor.angularOffsetRad, 0f);
+                Assert.assertEquals(8f, motor.maxForce, 0f);
+                Assert.assertEquals(6f, motor.maxTorque, 0f);
+                Assert.assertEquals(0.65f, motor.correctionFactor, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_WELD:
+                PhysicsWeldJointComponent weld =
+                        world.getMapper(PhysicsWeldJointComponent.class).get(eid);
+                Assert.assertEquals(0.3f, weld.referenceAngleRad, 0f);
+                Assert.assertEquals(6f, weld.frequencyHz, 0f);
+                Assert.assertEquals(0.4f, weld.dampingRatio, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_PULLEY:
+                PhysicsPulleyJointComponent pulley =
+                        world.getMapper(PhysicsPulleyJointComponent.class).get(eid);
+                Assert.assertEquals(2f, pulley.groundAx, 0f);
+                Assert.assertEquals(30f, pulley.groundAy, 0f);
+                Assert.assertEquals(14f, pulley.groundBx, 0f);
+                Assert.assertEquals(31f, pulley.groundBy, 0f);
+                Assert.assertEquals(6.5f, pulley.lengthAM, 0f);
+                Assert.assertEquals(8.5f, pulley.lengthBM, 0f);
+                Assert.assertEquals(1.6f, pulley.ratio, 0f);
+                break;
+            case PhysicsJointComponent.TYPE_GEAR:
+                Assert.assertEquals(2.25f,
+                        world.getMapper(PhysicsGearJointComponent.class).get(eid).ratio, 0f);
+                break;
+            default:
+                throw new AssertionError("Unexpected joint type: " + type);
+        }
     }
 
-
-    private static int createRevoluteJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) { int e = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_REVOLUTE, bodyA, bodyB); PhysicsRevoluteJointComponent c = world.getMapper(PhysicsRevoluteJointComponent.class).create(e); c.enableMotor = true; c.motorSpeedRad = 3.2f; c.maxMotorTorque = 9f; return e; }
-    private static int createPrismaticJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) { int e = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_PRISMATIC, bodyA, bodyB); PhysicsPrismaticJointComponent c = world.getMapper(PhysicsPrismaticJointComponent.class).create(e); c.axisX = 0.6f; c.axisY = 0.8f; c.enableMotor = true; c.maxMotorForce = 7f; return e; }
-    private static int createFrictionJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) { int e = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_FRICTION, bodyA, bodyB); PhysicsFrictionJointComponent c = world.getMapper(PhysicsFrictionJointComponent.class).create(e); c.maxForce = 4f; c.maxTorque = 5f; return e; }
-    private static int createWeldJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) { int e = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_WELD, bodyA, bodyB); PhysicsWeldJointComponent c = world.getMapper(PhysicsWeldJointComponent.class).create(e); c.referenceAngleRad = 0.3f; c.frequencyHz = 6f; c.dampingRatio = 0.4f; return e; }
-
-    private static int createMotorJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) {
-        int jointEid = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_MOTOR, bodyA, bodyB);
-        PhysicsMotorJointComponent motor = world.getMapper(PhysicsMotorJointComponent.class).create(jointEid);
-        motor.linearOffsetX = 1.25f;
-        motor.linearOffsetY = -0.75f;
-        motor.angularOffsetRad = 0.42f;
-        motor.maxForce = 8f;
-        motor.maxTorque = 6f;
-        motor.correctionFactor = 0.65f;
-        return jointEid;
+    private static void consumeFreedEntityIds(World world, int count) {
+        for (int i = 0; i < count; i++) {
+            world.create();
+        }
     }
 
-    private static int createPulleyJoint(World world, HistoryIdRegistry historyIds, int bodyA, int bodyB) {
-        int jointEid = createBaseJoint(world, historyIds, PhysicsJointComponent.TYPE_PULLEY, bodyA, bodyB);
-        PhysicsPulleyJointComponent pulley = world.getMapper(PhysicsPulleyJointComponent.class).create(jointEid);
-        pulley.groundAx = 2f;
-        pulley.groundAy = 30f;
-        pulley.groundBx = 14f;
-        pulley.groundBy = 30f;
-        pulley.lengthAM = 6.5f;
-        pulley.lengthBM = 8.5f;
-        pulley.ratio = 1.6f;
-        return jointEid;
+    private static void assertJointReferencesAreActive(World world, int jointEntityId) {
+        PhysicsJointComponent joint =
+                world.getMapper(PhysicsJointComponent.class).get(jointEntityId);
+        Assert.assertTrue(world.getEntityManager().isActive(joint.aEid));
+        Assert.assertTrue(world.getEntityManager().isActive(joint.bEid));
+        PhysicsGearJointComponent gear =
+                world.getMapper(PhysicsGearJointComponent.class)
+                        .getSafe(jointEntityId, null);
+        if (gear != null) {
+            Assert.assertTrue(world.getEntityManager().isActive(gear.joint1Eid));
+            Assert.assertTrue(world.getEntityManager().isActive(gear.joint2Eid));
+        }
     }
 }

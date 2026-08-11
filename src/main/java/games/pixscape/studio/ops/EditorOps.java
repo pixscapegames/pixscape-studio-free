@@ -4,8 +4,8 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 
 public interface EditorOps {
-    interface AssetsChangedListener {
-        void onSceneAtlasChanged(String sceneName);
+    interface AtlasInputsChangedListener {
+        void onSceneAtlasInputsChanged(String sceneName);
     }
 
     default int createSpriteFromAtlas(String atlasTag, String regionPath, float worldX, float worldY) {
@@ -42,7 +42,7 @@ public interface EditorOps {
 
     void deleteJoint(int jointEntityId);
 
-    void deleteFixture(int bodyEid, long fixtureId);
+    void deleteFixture(int bodyEid, int physicsShapeId);
 
     void addBoxFixture(int bodyEid, float worldX, float worldY);
 
@@ -50,7 +50,7 @@ public interface EditorOps {
 
     void beginAddPolygonFixture(int bodyEid);
 
-    void beginEditPolygonFixture(int bodyEid, long fixtureId);
+    void beginEditPolygonFixture(int bodyEid, int physicsShapeId);
 
     void addSpatialBlock(int layerEntityId, float worldX, float worldY);
 
@@ -62,7 +62,7 @@ public interface EditorOps {
 
     void deleteSelectedSpatialBlock();
 
-    default void setAssetsChangedListener(AssetsChangedListener listener) {
+    default void setAtlasInputsChangedListener(AtlasInputsChangedListener listener) {
     }
 
     void deleteEntities(IntArray entities);

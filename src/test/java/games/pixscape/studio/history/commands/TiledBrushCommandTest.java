@@ -2,17 +2,29 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.graphics.Texture;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.VisualResolverTestSupport;
 import games.pixscape.studio.service.tiled.TiledBrushSession;
 import games.pixscape.studio.service.tiled.TiledMutationPlan;
 import games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner;
+import games.pixscape.studio.system.TiledFallbackSystem;
+import games.pixscape.studio.ui.main.WorldCanvas;
 import org.junit.Assert;
 import org.junit.Test;
+import sun.misc.Unsafe;
+
+import java.lang.reflect.Field;
 
 public class TiledBrushCommandTest {
     @Test
@@ -85,5 +97,108 @@ public class TiledBrushCommandTest {
             Assert.assertEquals(revision, tiled.data.contentRevision());
             Assert.assertTrue(history.canRedo());
         }
+    }
+
+    @Test
+    public void redoUndoRedoAlwaysRequestFallbackValidation() throws Exception {
+        ProjectConfig previousConfig = ProjectConfig.getInstance();
+        ProjectConfig.setInstance(null);
+        try {
+            World world = new World(new WorldConfiguration());
+            int layer = world.create();
+            TiledLayerComponent tiled =
+                    world.getMapper(TiledLayerComponent.class).create(layer);
+            tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
+            TiledBrushSession session = new TiledBrushSession(layer);
+            session.apply(tiled, 1, 1, 8);
+
+            TiledFallbackSystem fallback = fallbackSystem();
+            WorldCanvas canvas = allocate(WorldCanvas.class);
+            setField(canvas, WorldCanvas.class, "tiledFallbackSystem", fallback);
+            setField(
+                    canvas,
+                    WorldCanvas.class,
+                    "tileAnimationRegistry",
+                    new TileAnimationRegistry()
+            );
+            SceneService sceneService = allocate(SceneService.class);
+            setField(sceneService, SceneService.class, "canvas", canvas);
+
+            HistoryManager history = new HistoryManager(16);
+            TiledBrushCommand command = new TiledBrushCommand(
+                    world,
+                    sceneService,
+                    history.historyIds(),
+                    history.historyIds().ensureForEntity(layer),
+                    session.toPlan(),
+                    new TiledSpatialMutationPlanner()
+            );
+
+            fallback.setEnabled(false);
+            history.execute(command);
+            Assert.assertTrue(fallback.isEnabled());
+
+            fallback.setEnabled(false);
+            history.undo();
+            Assert.assertTrue(fallback.isEnabled());
+
+            fallback.setEnabled(false);
+            history.redo();
+            Assert.assertTrue(fallback.isEnabled());
+        } finally {
+            ProjectConfig.setInstance(previousConfig);
+        }
+    }
+
+    private static TiledFallbackSystem fallbackSystem() {
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                id -> null,
+                new StudioAssetVisualResolver.StandaloneAssetAccess() {
+                    @Override
+                    public Texture resolveTexture(String projectRelativePath) {
+                        return null;
+                    }
+
+                    @Override
+                    public String[] listPngFramePaths(
+                            String projectRelativeDirectory) {
+                        return new String[0];
+                    }
+                }
+        );
+        TiledFallbackSystem system = new TiledFallbackSystem(
+                new TiledMapRenderState(1),
+                resolver,
+                id -> null,
+                null
+        );
+        new World(new WorldConfiguration().setSystem(system));
+        return system;
+    }
+
+    private static <T> T allocate(Class<T> type) throws Exception {
+        return type.cast(unsafe().allocateInstance(type));
+    }
+
+    private static void setField(Object target,
+                                 Class<?> declaringType,
+                                 String fieldName,
+                                 Object value)
+            throws Exception {
+        Field field = declaringType.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        Unsafe unsafe = unsafe();
+        unsafe.putObject(
+                target,
+                unsafe.objectFieldOffset(field),
+                value
+        );
+    }
+
+    private static Unsafe unsafe() throws Exception {
+        Field field = Unsafe.class.getDeclaredField("theUnsafe");
+        field.setAccessible(true);
+        return (Unsafe) field.get(null);
     }
 }

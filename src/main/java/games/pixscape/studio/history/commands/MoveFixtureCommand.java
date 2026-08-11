@@ -1,12 +1,12 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
 public final class MoveFixtureCommand
         implements Command, PreExecutionNoopCommand {
@@ -18,7 +18,7 @@ public final class MoveFixtureCommand
     private final PhysicsSelectionService physicsSelectionService;
 
     private final long bodyHistoryId;
-    private final int fixtureId;
+    private final int physicsShapeId;
 
     private final long previousFocusedBodyHistoryId;
     private final int previousSelectedFixtureId;
@@ -34,7 +34,7 @@ public final class MoveFixtureCommand
                               HistoryIdRegistry historyIds,
                               PhysicsSelectionService physicsSelectionService,
                               int bodyEntityId,
-                              int fixtureId,
+                              int physicsShapeId,
                               float beforeOffsetX,
                               float beforeOffsetY,
                               float afterOffsetX,
@@ -44,7 +44,7 @@ public final class MoveFixtureCommand
         this.physicsSelectionService = physicsSelectionService;
 
         this.bodyHistoryId = FixtureCommandSupport.toHistoryId(historyIds, bodyEntityId);
-        this.fixtureId = fixtureId;
+        this.physicsShapeId = physicsShapeId;
 
         int previousFocusedBodyEid =
                 (physicsSelectionService != null)
@@ -56,8 +56,8 @@ public final class MoveFixtureCommand
 
         this.previousSelectedFixtureId =
                 (physicsSelectionService != null)
-                        ? physicsSelectionService.getSelectedFixtureId()
-                        : PhysicsSelectionService.NO_FIXTURE;
+                        ? physicsSelectionService.getSelectedPhysicsShapeId()
+                        : PhysicsSelectionService.NO_SHAPE;
 
         this.beforeOffsetX = beforeOffsetX;
         this.beforeOffsetY = beforeOffsetY;
@@ -72,8 +72,7 @@ public final class MoveFixtureCommand
                 || historyIds == null
                 || physicsSelectionService == null
                 || bodyHistoryId <= 0L
-                || fixtureId <= 0L
-                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
+                || physicsShapeId <= 0L
                 || unchanged);
     }
 
@@ -94,18 +93,21 @@ public final class MoveFixtureCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
-        if (fixture == null) return;
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        fixture.geometry.offsetX = afterOffsetX;
+        fixture.geometry.offsetY = afterOffsetY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
-        fixture.offsetX = afterOffsetX;
-        fixture.offsetY = afterOffsetY;
-
-        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, fixtureId);
+        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
@@ -118,12 +120,15 @@ public final class MoveFixtureCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
-        if (fixture == null) return;
-
-        fixture.offsetX = beforeOffsetX;
-        fixture.offsetY = beforeOffsetY;
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        fixture.geometry.offsetX = beforeOffsetX;
+        fixture.geometry.offsetY = beforeOffsetY;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(
                 world,
@@ -135,14 +140,14 @@ public final class MoveFixtureCommand
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
     }
 
     public long getFixtureId() {
-        return fixtureId;
+        return physicsShapeId;
     }
 
     public float getBeforeOffsetX() {

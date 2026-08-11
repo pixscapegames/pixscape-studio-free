@@ -14,16 +14,21 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.asset.AnimationAssetMeta;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
+import games.pixscape.studio.asset.AssetDisplayInfo;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
@@ -40,13 +45,7 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
-import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
-import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
-import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
-import games.pixscape.studio.service.spatial.SpatialWallCreationService;
-import games.pixscape.studio.service.spatial.SpatialWallThicknessInheritance;
-import games.pixscape.studio.system.AnimationFallbackSystem;
+import games.pixscape.studio.service.spatial.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
 import java.util.HashSet;
@@ -71,11 +70,12 @@ public class EditorOpsImpl implements EditorOps {
     private SceneService sceneService;
     private final GpuSnapshotManager snapshotManager;
     private final String defaultShaderName;
-    private AssetsChangedListener assetsChangedListener;
+    private AtlasInputsChangedListener atlasInputsChangedListener;
     private final Vector2 tmpLocal = new Vector2();
 
     public EditorOpsImpl(
-            WorldCanvas canvas
+            WorldCanvas canvas,
+            IdentityRegistry identityRegistry
     ) {
         this.canvas = canvas;
         this.world = canvas.getEcsWorld();
@@ -86,9 +86,10 @@ public class EditorOpsImpl implements EditorOps {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
         this.spatialTileSelectionService = canvas.getSpatialTileSelectionService();
-        this.identityRegistry = new IdentityRegistry();
-        this.identityRegistry.bind(this.world);
-        this.identityRegistry.rebuild();
+        if (identityRegistry == null) {
+            throw new IllegalArgumentException("identityRegistry must not be null.");
+        }
+        this.identityRegistry = identityRegistry;
         this.atlasStudioService = canvas.getAtlasService();
         this.physicsService = canvas.getPhysicsService();
         this.polygonAuthoringService = new PhysicsPolygonAuthoringService(world);
@@ -139,10 +140,11 @@ public class EditorOpsImpl implements EditorOps {
         ensureHandleBoundToTextureArray();
         int blend = BlendMode.ALPHA.id;
 
-        String resolvedMetaName = (metaName != null && !metaName.isBlank()) ? metaName : regionPath;
         int assetId = AssetHelper.extractAssetIdFromRegionName(regionPath);
         if (assetId < 0)
             throw new IllegalStateException("Cannot resolve assetId for region: " + regionPath);
+        AssetMeta assetMeta = sceneService != null ? sceneService.getAssetMeta(assetId) : null;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(metaName, assetMeta, regionPath);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureSprite(
@@ -204,12 +206,13 @@ public class EditorOpsImpl implements EditorOps {
         int textureHandle = TextureRegistry.handleOf(tex);
         int blend = BlendMode.ALPHA.id;
 
-        String resolvedMetaName =
-                (metaName != null && !metaName.isBlank()) ? metaName : relativePath;
-
         String sceneTag = getCurrentSceneTag();
         String sourceRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
-        int assetId = (sceneService != null) ? sceneService.resolveAssetIdBySourceRelPath(sourceRelPath) : -1;
+        AssetMeta assetMeta = sceneService != null
+                ? sceneService.findAssetMetaBySourceRelPath(sourceRelPath, AssetType.IMAGE)
+                : null;
+        int assetId = assetMeta != null ? assetMeta.id() : -1;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(metaName, assetMeta, relativePath);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureStandaloneSprite(
@@ -242,7 +245,8 @@ public class EditorOpsImpl implements EditorOps {
         // --- Async atlas workflow ---
         String fullRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
         boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);
-        boolean alreadyPacked = assetId >= 0 && atlasStudioService.isPacked(assetId, sceneTag);
+        boolean alreadyPacked = assetId > 0
+                && atlasStudioService.resolveBinding(assetId, sceneTag) != null;
         boolean packAlreadyQueuedOrRunning = atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);
 
         if (!packAlreadyQueuedOrRunning && (inputChanged || !alreadyPacked)) {
@@ -293,7 +297,14 @@ public class EditorOpsImpl implements EditorOps {
         AnimationAssetMeta animationMeta = sceneService != null
                 ? sceneService.findAnimationAssetMetaBySourceRelPath(animationRelPath)
                 : null;
-        float fps = animationMeta != null && animationMeta.fps > 0f ? animationMeta.fps : 12f;
+        if (animationMeta == null || animationMeta.id() <= 0) return -1;
+        int animationAssetId = animationMeta.id();
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(
+                metaName,
+                animationMeta,
+                animationRelPath
+        );
+        float fps = animationMeta.fps > 0f ? animationMeta.fps : 12f;
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
@@ -306,30 +317,23 @@ public class EditorOpsImpl implements EditorOps {
         String firstFrameRelPath = animationRelPath + "/" + firstFrame.name();
 
         String sceneTag = getCurrentSceneTag();
-        Array<TextureAtlas.AtlasRegion> packedFrames =
-                (sceneTag != null && !sceneTag.isBlank())
-                        ? atlasStudioService.list(sceneTag, animationsRelPath)
-                        : new Array<>();
-        boolean alreadyPacked = packedFrames.size >= frameCount;
+        AtlasAssetBinding animationBinding =
+                animationAssetId > 0 && sceneTag != null && !sceneTag.isBlank()
+                        ? atlasStudioService.resolveBinding(animationAssetId, sceneTag)
+                        : null;
+        boolean alreadyPacked = animationBinding != null
+                && animationBinding.regionCount() >= frameCount;
 
-        ObjectMap<String, AnimationComponent.Clip> clipsMap = copyAnimationAssetClips(animationMeta);
-        String currentClip = animationMeta != null ? animationMeta.currentClip : null;
+        String currentClip = resolveInitialClip(animationMeta);
+        if (currentClip == null) return -1;
         boolean loop = true;
-
-        if (clipsMap.size == 0) {
-            clipsMap.put("default", new AnimationComponent.Clip(0, frameCount - 1));
-        }
-        if (currentClip == null || currentClip.isBlank() || !clipsMap.containsKey(currentClip)) {
-            currentClip = "default";
-        }
 
         GenericEntityInitializer init = new GenericEntityInitializer(world);
         if (alreadyPacked) {
-            TextureAtlas.AtlasRegion firstPackedFrame = packedFrames.first();
+            TextureAtlas.AtlasRegion firstPackedFrame = animationBinding.firstRegion();
             int textureHandle = TextureRegistry.handleOf(firstPackedFrame.getTexture());
-            int assetId = AssetHelper.extractAssetIdFromRegionName(firstPackedFrame.name);
             init.configureSprite(
-                    assetId,
+                    animationAssetId,
                     sceneTag,
                     firstPackedFrame.name,
                     firstPackedFrame.getU(),
@@ -341,7 +345,7 @@ public class EditorOpsImpl implements EditorOps {
                     worldX, worldY,
                     originX, originY,
                     shaderIdx, blend, textureHandle,
-                    metaName != null ? metaName : animationRelPath,
+                    resolvedMetaName,
                     activeLayerIndex
             );
         } else {
@@ -349,30 +353,21 @@ public class EditorOpsImpl implements EditorOps {
             if (tex == null) return -1;
             int textureHandle = TextureRegistry.handleOf(tex);
 
-            int assetId = -1;
-            if (sceneService != null) {
-                // Animation assets are directory-based in assets.json (orig/animations/<animDir>),
-                // not frame-based. Keep first-frame lookup as a backward-compatible fallback.
-                assetId = sceneService.resolveAssetIdBySourceRelPath(animationRelPath);
-                if (assetId < 0) {
-                    assetId = sceneService.resolveAssetIdBySourceRelPath(firstFrameRelPath);
-                }
-            }
             init.configureStandaloneSprite(
-                    assetId,
+                    animationAssetId,
                     sceneTag,
                     frameW, frameH,
                     worldX, worldY,
                     originX, originY,
                     shaderIdx, blend, textureHandle,
-                    metaName != null ? metaName : animationRelPath,
+                    resolvedMetaName,
                     activeLayerIndex
             );
         }
 
         init.setIdentityStableId(allocateStableId());
 
-        init.configureAnimation(animationsRelPath, currentClip, fps, loop, clipsMap);
+        init.configureAnimation(animationAssetId, currentClip, fps, loop);
 
         CreateEntityCommand cmd = new CreateEntityCommand(
                 world,
@@ -400,23 +395,20 @@ public class EditorOpsImpl implements EditorOps {
         return createdEntityId;
     }
 
-    private ObjectMap<String, AnimationComponent.Clip> copyAnimationAssetClips(AnimationAssetMeta meta) {
-        ObjectMap<String, AnimationComponent.Clip> out = new ObjectMap<>();
-        if (meta == null || meta.clips == null) {
-            return out;
+    private static String resolveInitialClip(AnimationAssetMeta meta) {
+        if (meta == null || meta.clips == null || meta.clips.size == 0) return null;
+        if (meta.currentClip != null
+                && !meta.currentClip.isBlank()
+                && meta.clips.containsKey(meta.currentClip)) {
+            return meta.currentClip;
         }
-
-        for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : meta.clips) {
-            if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
-                continue;
-            }
-
-            AnimationComponent.Clip src = entry.value;
-            AnimationComponent.Clip copy = new AnimationComponent.Clip(src.start, src.end);
-            copy.flipX = src.flipX;
-            out.put(entry.key, copy);
+        Array<String> names = new Array<>();
+        for (String name : meta.clips.keys()) {
+            if (name != null && !name.isBlank() && meta.clips.get(name) != null) names.add(name);
         }
-        return out;
+        if (names.size == 0) return null;
+        names.sort();
+        return names.first();
     }
 
     @Override
@@ -433,14 +425,20 @@ public class EditorOpsImpl implements EditorOps {
         if (sceneTag == null || sceneTag.isBlank()) return -1;
 
         boolean changed = ensureParticleEffectImagesInAtlasInput(effectPath);
-        if (changed && assetsChangedListener != null) {
-            assetsChangedListener.onSceneAtlasChanged(sceneTag);
+        if (changed && atlasInputsChangedListener != null) {
+            atlasInputsChangedListener.onSceneAtlasInputsChanged(sceneTag);
         }
 
         int activeLayerIndex = selectionService.getActiveLayerIndex();
-        String resolvedMetaName = (metaName != null && !metaName.isBlank())
-                ? metaName
-                : "Particle: " + effectPath;
+        String sourceRelPath = StudioFs.DIR_ORIG_EFFECTS + "/" + effectPath;
+        AssetMeta assetMeta = sceneService != null
+                ? sceneService.findAssetMetaBySourceRelPath(sourceRelPath, AssetType.PARTICLE)
+                : null;
+        String resolvedMetaName = AssetDisplayInfo.defaultEntityName(
+                metaName,
+                assetMeta,
+                "Particle: " + effectPath
+        );
 
         GenericEntityInitializer init = new GenericEntityInitializer(world)
                 .configureParticleEmitter(effectPath, sceneTag, worldX, worldY, activeLayerIndex, resolvedMetaName);
@@ -461,6 +459,8 @@ public class EditorOpsImpl implements EditorOps {
 
         historyManager.execute(cmd);
 
+        canvas.requestParticleRuntimeAvailabilityRefresh();
+
         // --- Async atlas workflow ---
         if (changed) {
             atlasStudioService.requestAsyncPack(sceneTag);
@@ -471,8 +471,8 @@ public class EditorOpsImpl implements EditorOps {
 
 
     @Override
-    public void setAssetsChangedListener(AssetsChangedListener listener) {
-        this.assetsChangedListener = listener;
+    public void setAtlasInputsChangedListener(AtlasInputsChangedListener listener) {
+        this.atlasInputsChangedListener = listener;
     }
 
     @Override
@@ -611,7 +611,7 @@ public class EditorOpsImpl implements EditorOps {
 
         float radius = 250f;
         float intensity = 1f;
-        float angleDeg = 60f;
+        float angleDegrees = 60f;
         float softness = 0.1f;
         float falloff = 1.5f;
         float r = 1f, g = 0.9f, b = 0.2f;
@@ -625,7 +625,7 @@ public class EditorOpsImpl implements EditorOps {
                         shaderIdx, blend, textureHandle,
                         activeLayerIndex,
                         "Cone light",
-                        radius, intensity, angleDeg, softness, falloff,
+                        radius, intensity, angleDegrees, softness, falloff,
                         r, g, b
                 );
         init.setIdentityStableId(allocateStableId());
@@ -720,28 +720,10 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void deleteFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0) return;
+    public void deleteFixture(int bodyEid, int physicsShapeId) {
+        if (bodyEid < 0 || physicsShapeId <= 0) return;
 
-        AuthoredPolygonData authored = polygonAuthoringService.findByGeneratedFixtureId(bodyEid, fixtureId);
-
-        if (authored != null) {
-            DeleteAuthoredPolygonCommand cmd = new DeleteAuthoredPolygonCommand(
-                    world,
-                    historyManager.historyIds(),
-                    physicsSelectionService,
-                    bodyEid,
-                    authored.authoringId
-            );
-
-            if (!cmd.isNoop()) {
-                historyManager.execute(cmd);
-            }
-
-            return;
-        }
-
-        PhysicsFixturesComponent fixtures = world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
+        PhysicsShapesComponent fixtures = world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
 
         if (fixtures == null) {
             return;
@@ -752,7 +734,7 @@ public class EditorOpsImpl implements EditorOps {
                 historyManager.historyIds(),
                 physicsSelectionService,
                 bodyEid,
-                fixtureId
+                physicsShapeId
         ));
     }
 
@@ -760,16 +742,17 @@ public class EditorOpsImpl implements EditorOps {
     public void addBoxFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_BOX;
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
 
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
+        fixture.geometry.offsetX = 0f;
+        fixture.geometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
                 historyManager.historyIds(),
                 physicsSelectionService,
+                physicsService,
                 bodyEid,
                 fixture,
                 -1
@@ -780,17 +763,18 @@ public class EditorOpsImpl implements EditorOps {
     public void addCircleFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
 
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
-        fixture.shapeType = FixtureDefData.SHAPE_CIRCLE;
-        fixture.radius = 0.5f;
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        fixture.geometry.radius = 0.5f;
 
-        fixture.offsetX = 0f;
-        fixture.offsetY = 0f;
+        fixture.geometry.offsetX = 0f;
+        fixture.geometry.offsetY = 0f;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
                 historyManager.historyIds(),
                 physicsSelectionService,
+                physicsService,
                 bodyEid,
                 fixture,
                 -1
@@ -823,26 +807,27 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     @Override
-    public void beginEditPolygonFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0L) return;
-        if (SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId)) return;
+    public void beginEditPolygonFixture(int bodyEid, int physicsShapeId) {
+        if (bodyEid < 0 || physicsShapeId <= 0L) return;
 
-        PhysicsFixturesComponent fixtures =
-                world.getMapper(PhysicsFixturesComponent.class).getSafe(bodyEid, null);
+        PhysicsShapesComponent fixtures =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
         if (fixtures == null) return;
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData f = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.fixtureId != fixtureId) continue;
-            if (f.shapeType != FixtureDefData.SHAPE_POLYGON) return;
-            if (f.polyVerts == null || f.polyCount < 3) return;
+            if (f.physicsShapeId != physicsShapeId) continue;
+            PhysicsGeometryData geometry = f.geometry;
+            if (geometry == null
+                    || geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) return;
+            if (geometry.polygonVertices == null || geometry.polygonVertexCount < 3) return;
 
             polygonDrawSession.beginEdit(
                     bodyEid,
-                    fixtureId,
-                    f.polyVerts,
-                    f.polyCount
+                    physicsShapeId,
+                    geometry.polygonVertices,
+                    geometry.polygonVertexCount
             );
             return;
         }
@@ -1007,43 +992,14 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private void rebindHistoryEntityRenderAssets(int entityId) {
+        canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(entityId);
         String sceneTag = getCurrentSceneTag();
-        RenderBindingState before = RenderBindingState.capture(world, entityId);
-
-        if (before.isAnimationBacked() && !hasAtlasBinding(entityId, sceneTag)) {
-            if (AnimationFallbackSystem.bindFirstFrameFallback(
-                    world,
-                    entityId,
-                    canvas.getDynamicEntityState(),
-                    before.effectiveAtlasTag(sceneTag))) {
-                ensureHandleBoundToTextureArray();
-            } else if (before.isRenderable()) {
-                ensureHandleBoundToTextureArray();
-            } else {
-                RenderRebindHelper.rebindHistoryEntityRenderAssets(
-                        canvas,
-                        sceneTag,
-                        atlasStudioService,
-                        entityId
-                );
-            }
-        } else {
-            RenderRebindHelper.rebindHistoryEntityRenderAssets(
-                    canvas,
-                    sceneTag,
-                    atlasStudioService,
-                    entityId
-            );
-        }
-    }
-
-    private boolean hasAtlasBinding(int entityId, String sceneTag) {
-        AssetRefComponent src = world.getMapper(AssetRefComponent.class).getSafe(entityId, null);
-        if (src == null) {
-            return false;
-        }
-        String atlasTag = (src.atlasTag != null && !src.atlasTag.isBlank()) ? src.atlasTag : sceneTag;
-        return atlasStudioService.resolveCached(src.assetId, atlasTag) != null;
+        RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                canvas,
+                sceneTag,
+                canvas.getAssetVisualResolver(),
+                entityId
+        );
     }
 
     private String getCurrentSceneTag() {
@@ -1194,49 +1150,4 @@ public class EditorOpsImpl implements EditorOps {
         }
     }
 
-    private static final class RenderBindingState {
-        final String atlasTag;
-        final int textureHandle;
-        final boolean textureRegionValid;
-        final boolean animationBacked;
-
-        private RenderBindingState(String atlasTag,
-                                   int textureHandle,
-                                   boolean textureRegionValid,
-                                   boolean animationBacked) {
-            this.atlasTag = atlasTag;
-            this.textureHandle = textureHandle;
-            this.textureRegionValid = textureRegionValid;
-            this.animationBacked = animationBacked;
-        }
-
-        static RenderBindingState capture(World world, int entityId) {
-            AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).getSafe(entityId, null);
-            RenderMaterialComponent mat = world.getMapper(RenderMaterialComponent.class).getSafe(entityId, null);
-            TextureRegionComponent tr = world.getMapper(TextureRegionComponent.class).getSafe(entityId, null);
-            AnimationComponent animation = world.getMapper(AnimationComponent.class).getSafe(entityId, null);
-
-            return new RenderBindingState(
-                    assetRef != null ? String.valueOf(assetRef.atlasTag) : "<none>",
-                    mat != null ? mat.textureHandle : 0,
-                    tr != null && tr.valid,
-                    animation != null
-            );
-        }
-
-        boolean isRenderable() {
-            return textureHandle != 0 && textureRegionValid;
-        }
-
-        boolean isAnimationBacked() {
-            return animationBacked;
-        }
-
-        String effectiveAtlasTag(String sceneTag) {
-            if (atlasTag != null && !atlasTag.isBlank() && !"<none>".equals(atlasTag)) {
-                return atlasTag;
-            }
-            return sceneTag;
-        }
-    }
 }

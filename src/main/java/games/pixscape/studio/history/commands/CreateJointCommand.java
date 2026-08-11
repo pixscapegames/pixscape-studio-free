@@ -4,8 +4,8 @@ import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -114,8 +114,8 @@ public final class CreateJointCommand implements Command {
         int resolvedB = joint == null ? -1 : joint.bEid;
         PhysicsBodyComponent bodyA = resolvedA >= 0 ? world.getMapper(PhysicsBodyComponent.class).getSafe(resolvedA, null) : null;
         PhysicsBodyComponent bodyB = resolvedB >= 0 ? world.getMapper(PhysicsBodyComponent.class).getSafe(resolvedB, null) : null;
-        PhysicsFixturesComponent fixturesA = resolvedA >= 0 ? world.getMapper(PhysicsFixturesComponent.class).getSafe(resolvedA, null) : null;
-        PhysicsFixturesComponent fixturesB = resolvedB >= 0 ? world.getMapper(PhysicsFixturesComponent.class).getSafe(resolvedB, null) : null;
+        PhysicsShapesComponent fixturesA = resolvedA >= 0 ? world.getMapper(PhysicsShapesComponent.class).getSafe(resolvedA, null) : null;
+        PhysicsShapesComponent fixturesB = resolvedB >= 0 ? world.getMapper(PhysicsShapesComponent.class).getSafe(resolvedB, null) : null;
         boolean activeA = resolvedA >= 0 && world.getEntityManager().isActive(resolvedA);
         boolean activeB = resolvedB >= 0 && world.getEntityManager().isActive(resolvedB);
         Gdx.app.log(
@@ -128,7 +128,7 @@ public final class CreateJointCommand implements Command {
                         + " anchorsB=(" + (joint == null ? "null" : joint.anchorBx + "," + joint.anchorBy) + ")"
                         + " active=(" + activeA + "," + activeB + ")"
                         + " hasBody=(" + (bodyA != null) + "," + (bodyB != null) + ")"
-                        + " hasFixtures=(" + (fixturesA != null) + "," + (fixturesB != null) + ")"
+                        + " hasShapes=(" + (fixturesA != null) + "," + (fixturesB != null) + ")"
         );
     }
 

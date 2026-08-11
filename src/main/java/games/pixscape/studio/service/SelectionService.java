@@ -29,6 +29,7 @@ public final class SelectionService {
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
 
     private final LayerService layerService;
+    private final StudioEditingModeService studioEditingModeService;
 
     private final IntSet selection = new IntSet();
     private int firstSelectedEntityId = -1;
@@ -38,6 +39,12 @@ public final class SelectionService {
     private final int MY_TAG = EventFlow.tag(this);
 
     public SelectionService(World world, LayerService layerService) {
+        this(world, layerService, null);
+    }
+
+    public SelectionService(World world,
+                            LayerService layerService,
+                            StudioEditingModeService studioEditingModeService) {
         this.world = world;
         this.mLayer = world.getMapper(LayerComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
@@ -46,6 +53,7 @@ public final class SelectionService {
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
 
         this.layerService = layerService;
+        this.studioEditingModeService = studioEditingModeService;
     }
 
     public int getActivelayerId() {
@@ -91,6 +99,10 @@ public final class SelectionService {
         int layerType = layerService.getLayerTypeByEntity(layer);
 
         boolean isTiled = !forceEntityMode && layerType == LayerComponent.TYPE_TILED;
+
+        if (studioEditingModeService != null) {
+            studioEditingModeService.setModeActive(StudioEditingMode.TILED, isTiled, MY_TAG);
+        }
 
         EventFlow.i().publish(
                 new EventFlow.EditorModeChanged(

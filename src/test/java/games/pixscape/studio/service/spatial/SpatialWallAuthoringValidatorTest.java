@@ -1,7 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -43,7 +43,11 @@ public class SpatialWallAuthoringValidatorTest {
 
     static SpatialBlocksComponent component(SpatialBlockData... walls) {
         SpatialBlocksComponent component = new SpatialBlocksComponent();
-        for (SpatialBlockData wall : walls) component.blocks.add(wall);
+        for (SpatialBlockData wall : walls) {
+            component.blocks.add(wall);
+            component.nextSpatialBlockId =
+                    Math.max(component.nextSpatialBlockId, wall.id + 1);
+        }
         return component;
     }
 

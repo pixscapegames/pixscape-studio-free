@@ -3,26 +3,24 @@ package games.pixscape.studio.system;
 import com.artemis.BaseSystem;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
-import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationResolver;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.helper.StudioDrawContext;
-import games.pixscape.studio.service.StandaloneTextureCache;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
-import games.pixscape.studio.service.tiled.TiledPreviewService;
 import games.pixscape.studio.service.tiled.TiledBrushSession;
+import games.pixscape.studio.service.tiled.TiledPreviewService;
 
 import java.util.Objects;
 import java.util.function.IntFunction;
@@ -30,12 +28,11 @@ import java.util.function.IntFunction;
 public final class TiledGhostPreviewSystem extends BaseSystem implements ProfiledSystem {
 
     private final StudioDrawContext ctx;
-    private final AtlasRuntimeService atlasRuntimeService;
+    private final StudioAssetVisualResolver visualResolver;
     private final TiledPreviewService previewService;
 
     private IntFunction<AssetMeta> assetMetaLookup;
     private StudioTilesetProfileResolver tilesetProfileResolver;
-    private IntFunction<Texture> textureHandleLookup;
     private TileAnimationLookup tileAnimationLookup;
     private final IntSet reportedMissingProfileTileAssetIds = new IntSet();
 
@@ -46,28 +43,23 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
     private SystemProfiler profiler = SystemProfilers.DISABLED;
 
     public TiledGhostPreviewSystem(StudioDrawContext ctx,
-                                   AtlasRuntimeService atlasRuntimeService,
+                                   StudioAssetVisualResolver visualResolver,
                                    TiledPreviewService previewService,
                                    IntFunction<AssetMeta> assetMetaLookup,
-                                   IntFunction<Texture> textureHandleLookup,
                                    TileAnimationLookup tileAnimationLookup) {
 
         this.ctx = Objects.requireNonNull(ctx, "ctx");
-        this.atlasRuntimeService = Objects.requireNonNull(atlasRuntimeService, "atlasRuntimeService");
+        this.visualResolver =
+                Objects.requireNonNull(visualResolver, "visualResolver");
         this.previewService = Objects.requireNonNull(previewService, "previewService");
         this.assetMetaLookup = assetMetaLookup != null ? assetMetaLookup : id -> null;
         this.tilesetProfileResolver = new StudioTilesetProfileResolver(this.assetMetaLookup);
-        this.textureHandleLookup = textureHandleLookup != null ? handle -> textureHandleLookup.apply(handle) : handle -> null;
         this.tileAnimationLookup = tileAnimationLookup != null ? tileAnimationLookup : id -> null;
     }
 
     public void setAssetMetaLookup(IntFunction<AssetMeta> assetMetaLookup) {
         this.assetMetaLookup = Objects.requireNonNull(assetMetaLookup, "assetMetaLookup");
         this.tilesetProfileResolver.setAssetMetaLookup(this.assetMetaLookup);
-    }
-
-    public void setTextureHandleLookup(IntFunction<Texture> textureHandleLookup) {
-        this.textureHandleLookup = Objects.requireNonNull(textureHandleLookup, "textureHandleLookup");
     }
 
     public void setTileAnimationLookup(TileAnimationLookup tileAnimationLookup) {
@@ -124,16 +116,16 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
             return;
         }
 
-        DrawData drawData = resolveDrawData(
+        StudioAssetVisual visual = resolveVisual(
                 previewAssetId,
                 previewService.atlasTag()
         );
 
-        if (drawData == null || drawData.texture == null) {
+        if (visual == null || visual.texture() == null) {
             return;
         }
 
-        previewService.setVisualSize(drawData.spriteW, drawData.spriteH);
+        previewService.setVisualSize(visual.pixelWidth(), visual.pixelHeight());
 
         boolean ghostVisible = previewService.isGhostVisible();
         boolean tintVisible = previewService.isTintVisible();
@@ -151,8 +143,8 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
                 map,
                 gx,
                 gy,
-                drawData.spriteW,
-                drawData.spriteH,
+                visual.pixelWidth(),
+                visual.pixelHeight(),
                 profile,
                 flags,
                 tmpQuad
@@ -161,10 +153,10 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         buildVertices(
                 tmpVerts,
                 tmpQuad,
-                drawData.uBL, drawData.vBL,
-                drawData.uTL, drawData.vTL,
-                drawData.uTR, drawData.vTR,
-                drawData.uBR, drawData.vBR,
+                visual.u1(), visual.v2(),
+                visual.u1(), visual.v1(),
+                visual.u2(), visual.v1(),
+                visual.u2(), visual.v2(),
                 ghostVisible
                         ? Color.toFloatBits(1f, 1f, 1f, alpha)
                         : Color.toFloatBits(
@@ -179,7 +171,7 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         batch.setProjectionMatrix(ctx.cam.combined);
         batch.begin();
         try {
-            batch.draw(drawData.texture, tmpVerts, 0, 20);
+            batch.draw(visual.texture(), tmpVerts, 0, 20);
         } finally {
             batch.end();
         }
@@ -202,90 +194,37 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
                 }
                 if (logicalAssetId <= 0) continue;
                 int visualAssetId = TileAnimationResolver.resolveVisualAssetId(logicalAssetId, 0, tileAnimationLookup);
-                DrawData drawData = resolveDrawData(visualAssetId, atlasTag);
+                StudioAssetVisual visual =
+                        resolveVisual(visualAssetId, atlasTag);
                 RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);
-                if (drawData == null || drawData.texture == null || profile == null) continue;
-                TileQuadTransforms.buildSpriteQuad(map, gx, gy, drawData.spriteW, drawData.spriteH,
+                if (visual == null || visual.texture() == null || profile == null) continue;
+                TileQuadTransforms.buildSpriteQuad(
+                        map,
+                        gx,
+                        gy,
+                        visual.pixelWidth(),
+                        visual.pixelHeight(),
                         profile, flags, tmpQuad);
                 buildVertices(tmpVerts, tmpQuad,
-                        drawData.uBL, drawData.vBL, drawData.uTL, drawData.vTL,
-                        drawData.uTR, drawData.vTR, drawData.uBR, drawData.vBR,
+                        visual.u1(), visual.v2(),
+                        visual.u1(), visual.v1(),
+                        visual.u2(), visual.v1(),
+                        visual.u2(), visual.v2(),
                         erase ? Color.toFloatBits(0.05f, 0.92f, 1f, 0.5f)
                                 : Color.toFloatBits(1f, 1f, 1f, alpha));
-                batch.draw(drawData.texture, tmpVerts, 0, 20);
+                batch.draw(visual.texture(), tmpVerts, 0, 20);
             }
         } finally {
             batch.end();
         }
     }
 
-    private DrawData resolveDrawData(int assetId, String atlasTag) {
-        AtlasRuntimeService.CachedRegion cr =
-                atlasRuntimeService.resolveCached(assetId, atlasTag);
-
-        if (cr != null) {
-            Texture texture = textureHandleLookup.apply(cr.textureHandle);
-            if (texture == null) {
-                return null;
-            }
-
-            DrawData dd = new DrawData();
-            dd.texture = texture;
-            dd.spriteW = cr.pixW;
-            dd.spriteH = cr.pixH;
-
-            // Mapping SpriteBatch vertices:
-            // BL, TL, TR, BR
-            dd.uBL = cr.u1;
-            dd.vBL = cr.v2;
-
-            dd.uTL = cr.u1;
-            dd.vTL = cr.v1;
-
-            dd.uTR = cr.u2;
-            dd.vTR = cr.v1;
-
-            dd.uBR = cr.u2;
-            dd.vBR = cr.v2;
-
-            return dd;
-        }
-
-        AssetMeta meta = assetMetaLookup.apply(assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
-            return null;
-        }
-        if (meta.type != AssetType.TILE) {
-            return null;
-        }
-
-        Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
-        if (tex == null) {
-            return null;
-        }
-
-        DrawData dd = new DrawData();
-        dd.texture = tex;
-        dd.spriteW = tex.getWidth();
-        dd.spriteH = tex.getHeight();
-
-        dd.uBL = 0f;
-        dd.vBL = 1f;
-
-        dd.uTL = 0f;
-        dd.vTL = 0f;
-
-        dd.uTR = 1f;
-        dd.vTR = 0f;
-
-        dd.uBR = 1f;
-        dd.vBR = 1f;
-
-        return dd;
-    }
-
     RuntimeTilesetProfile resolveTilesetProfile(int tileAssetId) {
         return tilesetProfileResolver.resolve(tileAssetId);
+    }
+
+    StudioAssetVisual resolveVisual(int visualAssetId, String atlasTag) {
+        return visualResolver.resolveFirst(visualAssetId, atlasTag);
     }
 
     private void reportMissingProfileOnce(int visualAssetId, int logicalAssetId, String atlasTag) {
@@ -304,13 +243,13 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         }
     }
 
-    private static void buildVertices(float[] out,
-                                      float[] quad,
-                                      float uBL, float vBL,
-                                      float uTL, float vTL,
-                                      float uTR, float vTR,
-                                      float uBR, float vBR,
-                                      float colorPacked) {
+    static void buildVertices(float[] out,
+                              float[] quad,
+                              float uBL, float vBL,
+                              float uTL, float vTL,
+                              float uTR, float vTR,
+                              float uBR, float vBR,
+                              float colorPacked) {
 
         // BL
         out[0] = quad[0];
@@ -339,17 +278,6 @@ public final class TiledGhostPreviewSystem extends BaseSystem implements Profile
         out[17] = colorPacked;
         out[18] = uBR;
         out[19] = vBR;
-    }
-
-    private static final class DrawData {
-        Texture texture;
-        int spriteW;
-        int spriteH;
-
-        float uBL, vBL;
-        float uTL, vTL;
-        float uTR, vTR;
-        float uBR, vBR;
     }
 
     @Override

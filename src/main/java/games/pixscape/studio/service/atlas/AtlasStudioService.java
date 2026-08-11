@@ -7,16 +7,15 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.service.AtlasRuntimeService;
-import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.ProjectFileCleanupService;
+import games.pixscape.studio.service.GpuSnapshotManager;
+import games.pixscape.studio.service.PreparedAtlasPublication;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
 public final class AtlasStudioService extends AtlasRuntimeService {
@@ -28,11 +27,15 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private static final String TAG = "AtlasStudioService";
 
-    private final ObjectMap<String, IntSet> packedIdsBySceneTag = new ObjectMap<>();
+    private StudioAssetVisualResolver assetVisualResolver;
 
     public AtlasStudioService(WorldCanvas canvas) {
         this.canvas = canvas;
         this.repackCoordinator = new AsyncAtlasRepackCoordinator(this::packAsyncToTemp);
+    }
+
+    public void setAssetVisualResolver(StudioAssetVisualResolver assetVisualResolver) {
+        this.assetVisualResolver = assetVisualResolver;
     }
 
     public void requestAsyncPack(String sceneTag) {
@@ -42,6 +45,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     public void requestAsyncPack(String sceneTag, AsyncAtlasRepackCoordinator.RepackReason reason) {
         if (disposed) return;
         repackCoordinator.requestAsyncPack(sceneTag, reason);
+        markPublicationPending(sceneTag);
     }
 
     public void markDirty(String sceneTag) {
@@ -82,25 +86,34 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         }
         outputDir.mkdirs();
 
-        SceneAtlasLoaderService.packSceneAtlasToDirectory(
-                cfg,
-                sceneTag,
-                projectDir,
-                outputDir
-        );
+        PreparedAtlasPublication preparedPublication = null;
+        try {
+            SceneAtlasLoaderService.packSceneAtlasToDirectory(
+                    cfg,
+                    sceneTag,
+                    projectDir,
+                    outputDir
+            );
 
-        FileHandle atlasFile = outputDir.child(sceneTag + ".atlas");
-        FileHandle pngFile = outputDir.child(sceneTag + ".png");
+            FileHandle atlasFile = outputDir.child(sceneTag + ".atlas");
+            FileHandle pngFile = outputDir.child(sceneTag + ".png");
 
-        waitForAtlasFiles(atlasFile, pngFile);
+            waitForAtlasFiles(atlasFile, pngFile);
+            preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile);
 
-        return new AsyncAtlasRepackCoordinator.RepackArtifact(
-                sceneTag,
-                generation,
-                outputDir,
-                atlasFile,
-                pngFile
-        );
+            return new AsyncAtlasRepackCoordinator.RepackArtifact(
+                    sceneTag,
+                    generation,
+                    outputDir,
+                    atlasFile,
+                    pngFile,
+                    preparedPublication
+            );
+        } catch (RuntimeException failure) {
+            if (preparedPublication != null) preparedPublication.close();
+            outputDir.deleteDirectory();
+            throw failure;
+        }
     }
 
     private static void waitForAtlasFiles(FileHandle atlasFile, FileHandle pngFile) {
@@ -137,33 +150,114 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         if (artifact == null) return;
 
         final String tag = artifact.sceneTag();
+        final long generation = artifact.generation();
 
-        Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + artifact.generation());
+        Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + generation);
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
 
         FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
-        FileHandle finalAtlasFile = atlasesDir.child(tag + ".atlas");
-
+        PreparedAtlasPublication.Uploaded uploaded = null;
+        long applyStarted = System.nanoTime();
+        long deleteAndCopyNs = 0L;
+        long atlasPublicationNs = 0L;
+        long publishNs = 0L;
+        long workerPagePreparationNs = 0L;
+        long workerPageFileReadNs = 0L;
+        long workerPageDecodeNormalizeNs = 0L;
+        long pageTextureUploadNs = 0L;
+        long textureArrayUploadNs = 0L;
+        long atlasAssemblyNs = 0L;
         try {
+            GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
+            if (snapshotManager == null) {
+                throw new IllegalStateException("GPU snapshot manager is unavailable.");
+            }
+
+            PreparedAtlasPublication preparedPublication = artifact.takePreparedPublication();
+            if (preparedPublication == null) {
+                throw new IllegalStateException("Atlas artifact has no prepared publication candidate.");
+            }
+            long currentGeneration = repackCoordinator.currentGeneration();
+            if (!snapshotManager.acceptPreparedPublication(preparedPublication, currentGeneration)) return;
+
+            uploaded = snapshotManager.uploadPreparedPublication(
+                    tag,
+                    generation,
+                    currentGeneration,
+                    atlasesDir
+            );
+            if (uploaded == null) return;
+            workerPagePreparationNs = uploaded.pagePixelsPreparationNs();
+            workerPageFileReadNs = uploaded.pageFileReadNs();
+            workerPageDecodeNormalizeNs = uploaded.pageDecodeNormalizeNs();
+            pageTextureUploadNs = uploaded.pageTextureUploadNs();
+            textureArrayUploadNs = uploaded.textureArrayUploadNs();
+            atlasAssemblyNs = uploaded.atlasAssemblyNs();
+            if (generation != repackCoordinator.currentGeneration()) return;
+
+            long phaseStarted = System.nanoTime();
             ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, tag);
             copyAtlasArtifactToFinalDir(artifact, atlasesDir);
+            deleteAndCopyNs = System.nanoTime() - phaseStarted;
 
-            load(tag, finalAtlasFile);
+            phaseStarted = System.nanoTime();
+            publishPreparedAtlas(tag, uploaded.takeAtlas());
+            atlasPublicationNs = System.nanoTime() - phaseStarted;
 
-            RenderRebindHelper.rebindAfterAtlasChange(canvas, tag, this, "atlas-pack-applied");
+            phaseStarted = System.nanoTime();
+            boolean published = snapshotManager.publishPreparedSnapshot(
+                    tag,
+                    generation,
+                    repackCoordinator.currentGeneration(),
+                    uploaded
+            );
+            publishNs = System.nanoTime() - phaseStarted;
+            uploaded = null;
+            if (!published) {
+                throw new IllegalStateException("Prepared GPU snapshot became stale during publication.");
+            }
+
+            RenderRebindHelper.rebindAfterPreparedSnapshot(
+                    canvas,
+                    tag,
+                    assetVisualResolver
+            );
             rebindTiles();
 
-            RenderParticleSyncSystem particleSystem =
-                    canvas.getEcsWorld().getSystem(RenderParticleSyncSystem.class);
-            if (particleSystem != null) {
-                particleSystem.invalidateAllEffects();
-                canvas.invalidateStudioParticleFallbacks();
-            }
+            canvas.requestParticleRuntimeAvailabilityRefresh();
         } finally {
-            artifact.outputDir().deleteDirectory();
+            if (uploaded != null) uploaded.close();
+            artifact.discard();
+            if (Boolean.getBoolean(GpuSnapshotManager.PROPERTY_DIAGNOSTICS)) {
+                Gdx.app.log(TAG,
+                        "PREPARED_ATLAS_APPLY scene=" + tag
+                                + " generation=" + generation
+                                + " fileReplaceMs=" + ms(deleteAndCopyNs)
+                                + " workerPageDecodePrepareMs=" + ms(workerPagePreparationNs)
+                                + " workerPageFileReadMs=" + ms(workerPageFileReadNs)
+                                + " workerPageDecodeNormalizeMs=" + ms(workerPageDecodeNormalizeNs)
+                                + " pageTextureGlUploadMs=" + ms(pageTextureUploadNs)
+                                + " textureArrayGlUploadMs=" + ms(textureArrayUploadNs)
+                                + " atlasRegionAssemblyMs=" + ms(atlasAssemblyNs)
+                                + " runtimeAtlasPublicationMs=" + ms(atlasPublicationNs)
+                                + " preparedPublishMs=" + ms(publishNs)
+                                + " totalMs=" + ms(System.nanoTime() - applyStarted));
+            }
         }
+    }
+
+    private void publishPreparedAtlas(String tag, TextureAtlas atlas) {
+        publishOwnedAtlas(tag, atlas);
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAtlasTag(tag);
+        }
+        requestTiledFallbackValidation();
+    }
+
+    private static float ms(long ns) {
+        return ns / 1_000_000f;
     }
 
     private static void copyAtlasArtifactToFinalDir(AsyncAtlasRepackCoordinator.RepackArtifact artifact,
@@ -202,66 +296,37 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         }
     }
 
-    public Array<TextureAtlas.AtlasRegion> list(String tag, String regionName) {
-        TextureAtlas a = atlases.get(tag);
-        return a == null ? new Array<>() : a.findRegions(regionName);
-    }
-
-
-    private void rebuildPackedIds(String sceneTag) {
-        if (sceneTag == null || sceneTag.isBlank()) return;
-
-        TextureAtlas atlas = getAtlas(sceneTag);
-        if (atlas == null) {
-            packedIdsBySceneTag.remove(sceneTag);
-            return;
-        }
-
-        IntSet packedIds = new IntSet();
-        for (TextureAtlas.AtlasRegion region : atlas.getRegions()) {
-            if (region == null || region.name == null) continue;
-            int pos = region.name.lastIndexOf("__a");
-            if (pos < 0) continue;
-            String idPart = region.name.substring(pos +
-                    3);
-            try {
-                packedIds.add(Integer.parseInt(idPart));
-            } catch (NumberFormatException ignored) {
-                // non asset-suffixed regions are ignored
-            }
-        }
-
-        packedIdsBySceneTag.put(sceneTag, packedIds);
-    }
-
-    public boolean isPacked(int assetId, String sceneTag) {
-        if (assetId < 0 || sceneTag == null || sceneTag.isBlank()) return false;
-
-        IntSet packedIds = packedIdsBySceneTag.get(sceneTag);
-        if (packedIds == null) {
-            rebuildPackedIds(sceneTag);
-            packedIds = packedIdsBySceneTag.get(sceneTag);
-        }
-
-        return packedIds != null && packedIds.contains(assetId);
-    }
-
     @Override
     public void load(String tag, FileHandle atlasFile) {
         super.load(tag, atlasFile);
-        rebuildPackedIds(tag);
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAtlasTag(tag);
+        }
+        requestTiledFallbackValidation();
     }
 
     @Override
     public void unload(String tag) {
         super.unload(tag);
-        packedIdsBySceneTag.remove(tag);
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAtlasTag(tag);
+        }
+        requestTiledFallbackValidation();
     }
 
     @Override
     public void unloadAll() {
         super.unloadAll();
-        packedIdsBySceneTag.clear();
+        if (assetVisualResolver != null) {
+            assetVisualResolver.invalidateAll();
+        }
+        requestTiledFallbackValidation();
+    }
+
+    private void requestTiledFallbackValidation() {
+        if (canvas != null) {
+            canvas.requestTiledFallbackValidation();
+        }
     }
 
     public synchronized void disposeAsyncPack() {

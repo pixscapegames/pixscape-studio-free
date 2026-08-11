@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -13,6 +15,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAnimationProjectDefData;
 import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -119,11 +122,15 @@ public final class FolderTreeView extends VisTable {
                 AssetNode.Root.PARTICLES
         );
 
+        AssetMetaDatabase assetSnapshot = AssetMetaDatabase.load(
+                projectDir.child(StudioFs.FILE_ASSETS_JSON)
+        );
         FolderTreeBuilder.buildFolders(
                 tree,
                 projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS),
                 "Animations",
-                AssetNode.Root.ANIMATIONS
+                AssetNode.Root.ANIMATIONS,
+                assetSnapshot
         );
 
         addPrefabsNode();
@@ -488,7 +495,7 @@ public final class FolderTreeView extends VisTable {
     private void showDeleteTilesetConfirmation(StudioApplicationAdapter app, AssetNode assetNode) {
         if (assetNode == null || app == null) return;
 
-        VisDialog dialog = new VisDialog("Delete tileset") {
+        VisDialog dialog = new StudioDialog("Delete tileset") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {
@@ -524,7 +531,7 @@ public final class FolderTreeView extends VisTable {
     }
 
     private void showTilesetDeleteError(String message) {
-        VisDialog dialog = new VisDialog("Cannot delete tileset");
+        VisDialog dialog = new StudioDialog("Cannot delete tileset");
         dialog.text(message != null && !message.isBlank()
                 ? message
                 : "The tileset could not be deleted.");

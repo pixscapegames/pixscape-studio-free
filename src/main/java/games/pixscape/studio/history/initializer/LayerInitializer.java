@@ -2,9 +2,12 @@ package games.pixscape.studio.history.initializer;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -49,6 +52,10 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     private boolean snapTiledSpatialEnabled;
     private float snapTiledDefaultAltitude;
     private float snapTiledDefaultHeight;
+    private boolean hasSpatialBlocks;
+    private int nextSpatialBlockId = 1;
+    private final Array<SpatialBlockData> snapSpatialBlocks =
+            new Array<>(SpatialBlockData[]::new);
 
     private final TiledAllocatorService tiledAllocatorService;
 
@@ -66,6 +73,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
         ComponentMapper<LayerMetaComponent> mMeta = world.getMapper(LayerMetaComponent.class);
         ComponentMapper<LayerParallaxComponent> mPar = world.getMapper(LayerParallaxComponent.class);
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
+        ComponentMapper<SpatialBlocksComponent> mSpatial = world.getMapper(SpatialBlocksComponent.class);
 
         if (mLayer.has(e)) {
             LayerComponent li = mLayer.get(e);
@@ -115,6 +123,14 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             snapTiledSpatialEnabled = false;
             snapTiledDefaultAltitude = 0f;
             snapTiledDefaultHeight = 0f;
+        }
+        hasSpatialBlocks = mSpatial.has(e);
+        snapSpatialBlocks.clear();
+        if (hasSpatialBlocks) {
+            SpatialBlocksComponent spatial = mSpatial.get(e);
+            nextSpatialBlockId = spatial.nextSpatialBlockId;
+            for (int i = 0; i < spatial.blocks.size; i++)
+                snapSpatialBlocks.add(spatial.blocks.get(i).copy());
         }
     }
 
@@ -208,6 +224,13 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             meta.locked = layerLocked;
         }
 
+        if (hasSpatialBlocks) {
+            SpatialBlocksComponent spatial = world.getMapper(SpatialBlocksComponent.class).create(e);
+            spatial.nextSpatialBlockId = nextSpatialBlockId;
+            for (int i = 0; i < snapSpatialBlocks.size; i++)
+                spatial.blocks.add(snapSpatialBlocks.get(i).copy());
+        }
+
         if (hasParallax) {
             LayerParallaxComponent par = mPar.has(e) ? mPar.get(e) : mPar.create(e);
             par.factorX = parallaxX;
@@ -225,6 +248,10 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     }
 
     public LayerInitializer configureNewLayer(String name, int index, int type) {
+        return configureNewLayer(name, index, type, false);
+    }
+
+    public LayerInitializer configureNewLayer(String name, int index, int type, boolean spatialEnabled) {
         hasLayerIndex = true;
         layerIndex = index;
 
@@ -243,7 +270,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
 
         hasLayerType = true;
         layerType = type;
-        layerSpatialEnabled = false;
+        layerSpatialEnabled = spatialEnabled;
 
         return this;
     }

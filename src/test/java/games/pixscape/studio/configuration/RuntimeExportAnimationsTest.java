@@ -3,13 +3,8 @@ package games.pixscape.studio.configuration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.studio.asset.AnimationAssetMeta;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.studio.asset.AnimationClipMeta;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
@@ -47,8 +42,8 @@ public class RuntimeExportAnimationsTest {
         animation.frameCount = 8;
         animation.fps = 10f;
         animation.currentClip = "run";
-        animation.clips.put("idle", new AnimationComponent.Clip(0, 1));
-        AnimationComponent.Clip run = new AnimationComponent.Clip(2, 7);
+        animation.clips.put("idle", new AnimationClipMeta(0, 1));
+        AnimationClipMeta run = new AnimationClipMeta(2, 7);
         run.flipX = true;
         animation.clips.put("run", run);
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
@@ -60,7 +55,7 @@ public class RuntimeExportAnimationsTest {
 
         JsonValue root = new JsonReader().parse(out);
         JsonValue exported = root.get("animations").get(0);
-        assertEquals(animation.id, exported.getInt("assetId"));
+        assertEquals(animation.id(), exported.getInt("assetId"));
         assertEquals("hero", exported.getString("name"));
         assertEquals(10f, exported.getFloat("fps"), 0.0001f);
         assertEquals("run", exported.getString("currentClip"));
@@ -79,8 +74,8 @@ public class RuntimeExportAnimationsTest {
         assertTrue(clips.get(1).getBoolean("flipX"));
     }
 
-    @Test
-    public void exportRuntimeWritesDefaultClipWhenAnimationHasNoClips() throws Exception {
+    @Test(expected = IllegalArgumentException.class)
+    public void exportRuntimeRejectsAnimationWithoutAuthoredClips() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-animation-default-studio");
         Path userDir = Files.createTempDirectory("pixscape-studio-export-animation-default-user");
 
@@ -104,16 +99,6 @@ public class RuntimeExportAnimationsTest {
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
-
-        FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("animations.json").toFile());
-        JsonValue exported = new JsonReader().parse(out).get("animations").get(0);
-        JsonValue clip = exported.get("clips").get(0);
-
-        assertEquals("slime", exported.getString("name"));
-        assertEquals("default", exported.getString("currentClip"));
-        assertEquals("default", clip.getString("name"));
-        assertEquals(0, clip.getInt("start"));
-        assertEquals(2, clip.getInt("end"));
     }
 
     @Test
@@ -150,9 +135,9 @@ public class RuntimeExportAnimationsTest {
                 "orig/tiles/terrain.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
-        scene.runtimeAvailability.tiledTileAssetIds.add(tile.id);
+        scene.runtimeAvailability.tiledTileAssetIds.add(tile.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
@@ -166,7 +151,7 @@ public class RuntimeExportAnimationsTest {
         assertEquals(11, availability.get("animations").get(0).asInt());
         assertEquals("impact.p", availability.get("particles").get(0).asString());
         assertEquals("enemy", availability.get("prefabs").get(0).asString());
-        assertEquals(tile.id, availability.get("tiledTiles").get(0).asInt());
+        assertEquals(tile.id(), availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
     }
 
@@ -268,7 +253,6 @@ public class RuntimeExportAnimationsTest {
                               "height": 24,
                               "orientation": "TILE_CELL",
                               "actorOccluder": true,
-                              "physicsCollision": false,
                               "lightOccluder": false,
                               "shadowCaster": false,
                               "particleOccluder": false,
@@ -313,7 +297,7 @@ public class RuntimeExportAnimationsTest {
         assertEquals(24f, block.getFloat("height"), 0.0001f);
         assertEquals("TILE_CELL", block.getString("orientation"));
         assertTrue(block.getBoolean("actorOccluder"));
-        assertFalse(block.getBoolean("physicsCollision"));
+        assertNull(block.get("physics" + "Collision"));
         assertTrue(block.getBoolean("linkedTileRefsAuthored"));
         assertEquals(2, block.get("linkedTileRefs").size);
         assertEquals(1, block.get("linkedTileRefs").get(0).getInt("gx"));
@@ -397,16 +381,17 @@ public class RuntimeExportAnimationsTest {
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
         String fragment = "{" +
+                "\"schemaVersion\":2," +
                 "\"metadata\":{\"version\":1}," +
                 "\"componentIdentifiers\":{" +
                 "\"games.pixscape.studio.component.EntityMetaComponent\":\"EntityMetaComponent\"," +
-                "\"games.pixscape.studio.component.physics.PhysicsAuthoringComponent\":\"PhysicsAuthoringComponent\"," +
+                "\"games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent\":\"PhysicsCompiledFixturesComponent\"," +
                 "\"games.pixscape.runtime.component.PixscapeIdentityComponent\":\"PixscapeIdentityComponent\"}," +
                 "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
                 "\"EntityMetaComponent\":{\"kind\":\"SPRITE\"}," +
-                "\"PhysicsAuthoringComponent\":{}," +
+                "\"PhysicsCompiledFixturesComponent\":{}," +
                 "\"PixscapeIdentityComponent\":{\"stableId\":42,\"name\":\"car\"}}}}," +
-                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PhysicsAuthoringComponent\",\"PixscapeIdentityComponent\"]}}";
+                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PhysicsCompiledFixturesComponent\",\"PixscapeIdentityComponent\"]}}";
         Files.writeString(
                 studioDir.resolve(StudioFs.DIR_PREFABS).resolve("car.pixfragment.json"),
                 fragment,
@@ -421,9 +406,10 @@ public class RuntimeExportAnimationsTest {
                 .toFile());
         String exported = out.readString("UTF-8");
 
+        assertTrue(exported.contains("\"schemaVersion\": 2"));
         assertFalse(exported.contains("games.pixscape.studio"));
         assertFalse(exported.contains("EntityMetaComponent"));
-        assertFalse(exported.contains("PhysicsAuthoringComponent"));
+        assertFalse(exported.contains("PhysicsCompiledFixturesComponent"));
         assertFalse(exported.contains("stableId"));
         assertTrue(exported.contains("PixscapeIdentityComponent"));
     }

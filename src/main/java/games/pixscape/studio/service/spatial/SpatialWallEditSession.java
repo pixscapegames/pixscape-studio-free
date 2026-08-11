@@ -2,8 +2,8 @@ package games.pixscape.studio.service.spatial;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
@@ -304,6 +304,7 @@ public final class SpatialWallEditSession {
     private static SpatialBlocksComponent detached(SpatialBlocksComponent source) {
         SpatialBlocksComponent result = new SpatialBlocksComponent();
         result.blocks = SpatialStructureTopology.copyWalls(source);
+        result.nextSpatialBlockId = source != null ? source.nextSpatialBlockId : 1;
         result.revision = source != null ? source.revision : 0;
         return result;
     }

@@ -1,5 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -20,7 +22,6 @@ import com.badlogic.gdx.utils.Scaling;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -31,6 +32,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
+import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.prefab.PrefabAssetItem;
 import games.pixscape.studio.service.prefab.PrefabBrowserService;
 import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
@@ -117,7 +119,7 @@ public final class AssetsThumbsView extends VisTable {
         grid.top().left();
 
         scroll = new VisScrollPane(content);
-        scroll.setForceScroll(true, true);
+        scroll.setForceScroll(false, false);
         scroll.setFadeScrollBars(false);
         scroll.addListener(new GetScrollListener(scroll));
         scroll.addListener(new LoseScroolListener());
@@ -389,14 +391,12 @@ public final class AssetsThumbsView extends VisTable {
                 continue;
             }
 
-            AssetNode node = new AssetNode(
+            AssetNode node = AssetNode.fromAssetMeta(
                     AssetNode.Kind.TILED_ANIMATION_FRAME,
                     AssetNode.Root.TILES,
-                    meta.sourceRelPath,
-                    meta.logicalPath != null ? meta.logicalPath : ("Frame " + i),
-                    null
+                    meta.sourceRelPath(),
+                    meta
             );
-            node.assetId = frameAssetId;
             node.tileAnimationId = animationNode.tileAnimationId;
             node.durationMs = durationMs;
             node.frameIndex = i;
@@ -506,7 +506,7 @@ public final class AssetsThumbsView extends VisTable {
         Array<AssetNode> filteredTiles = new Array<>();
         for (AssetNode node : currentAssets) {
             TileAssetMeta tileMeta = findTileMetaForNode(db, node);
-            if (tileMeta != null && tileMeta.tilesetId == tilesetMeta.id) {
+            if (tileMeta != null && tileMeta.tilesetId == tilesetMeta.id()) {
                 filteredTiles.add(node);
             }
         }
@@ -530,8 +530,8 @@ public final class AssetsThumbsView extends VisTable {
     static boolean shouldPreserveTilesetLayout(TilesetAssetMeta tilesetMeta) {
         return tilesetMeta != null
                 && tilesetMeta.columns > 0
-                && tilesetMeta.sourceRelPath != null
-                && !tilesetMeta.sourceRelPath.isBlank();
+                && tilesetMeta.sourceRelPath() != null
+                && !tilesetMeta.sourceRelPath().isBlank();
     }
 
     private boolean isTilesFolder(AssetNode folder) {
@@ -586,7 +586,10 @@ public final class AssetsThumbsView extends VisTable {
         String sourceRelPath = buildSourceRelPath(node);
         if (sourceRelPath == null || sourceRelPath.isBlank()) return null;
 
-        return db.findBySourceRelPath(sourceRelPath);
+        AssetType type = assetTypeForNode(node);
+        return type != null
+                ? db.findUniqueBySourceRelPath(sourceRelPath, type)
+                : null;
     }
 
     private String buildSourceRelPath(AssetNode node) {
@@ -778,7 +781,7 @@ public final class AssetsThumbsView extends VisTable {
             tile.add(contentActor).size(tileSize, tileSize).top().left();
         }
 
-        Tooltip tip = new Tooltip.Builder(node.name)
+        Tooltip tip = new Tooltip.Builder(node.tooltipText(), Align.left)
                 .target(tile)
                 .build();
         tip.setAppearDelayTime(0f);
@@ -863,11 +866,11 @@ public final class AssetsThumbsView extends VisTable {
 
         for (int frameAssetId : def.frameAssetIds) {
             AssetMeta frameMeta = assetDb.findById(frameAssetId);
-            if (frameMeta == null || frameMeta.sourceRelPath == null || frameMeta.sourceRelPath.isBlank()) {
+            if (frameMeta == null || frameMeta.sourceRelPath() == null || frameMeta.sourceRelPath().isBlank()) {
                 continue;
             }
 
-            Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath);
+            Texture tex = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath());
             if (tex != null) {
                 textures.add(tex);
             }
@@ -925,11 +928,11 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         AssetMeta meta = assetDb.findById(node.assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) {
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
             return new VisImage();
         }
 
-        Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath);
+        Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
         if (texture == null) {
             return new VisImage();
         }
@@ -1246,55 +1249,33 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        AnimationComponent component = buildAnimationComponentForAsset(node, meta, frameMax);
-        AnimationClipsDialog dialog = new AnimationClipsDialog(component, () -> {
+        AnimationAssetMeta edited = StudioAnimationAssets.copyOf(meta);
+        ensureAnimationAssetClips(edited, frameMax);
+        AnimationClipsDialog dialog = new AnimationClipsDialog(edited, () -> {
             app.getSceneService().saveAnimationAssetClips(
                     sourceRelPath,
-                    component,
-                    frameCount,
-                    component.fps
+                    edited,
+                    frameCount
             );
         }, frameMax);
         dialog.show(getStage());
     }
 
-    private AnimationComponent buildAnimationComponentForAsset(AssetNode node,
-                                                               AnimationAssetMeta meta,
-                                                               int frameMax) {
-        AnimationComponent component = new AnimationComponent();
-        component.animation = node.path;
-        component.fps = meta.fps > 0f ? meta.fps : 12f;
-        component.loop = true;
-        component.playing = true;
-        component.currentClip = meta.currentClip;
-
-        if (component.clips == null) {
-            component.clips = new ObjectMap<>();
+    private void ensureAnimationAssetClips(AnimationAssetMeta meta, int frameMax) {
+        if (meta.clips == null) meta.clips = new ObjectMap<>();
+        if (meta.clips.size == 0) {
+            meta.currentClip = "default";
+            meta.clips.put("default", new AnimationClipMeta(0, frameMax));
+            return;
         }
-        component.clips.clear();
-        if (meta.clips != null) {
-            for (ObjectMap.Entry<String, AnimationComponent.Clip> entry : meta.clips) {
-                if (entry == null || entry.key == null || entry.key.isBlank() || entry.value == null) {
-                    continue;
-                }
-
-                AnimationComponent.Clip src = entry.value;
-                AnimationComponent.Clip copy = new AnimationComponent.Clip(src.start, src.end);
-                copy.flipX = src.flipX;
-                component.clips.put(entry.key, copy);
-            }
+        if (meta.currentClip == null
+                || meta.currentClip.isBlank()
+                || !meta.clips.containsKey(meta.currentClip)) {
+            Array<String> names = new Array<>();
+            for (String name : meta.clips.keys()) names.add(name);
+            names.sort();
+            meta.currentClip = names.first();
         }
-
-        if (component.clips.size == 0) {
-            component.currentClip = "default";
-            component.clips.put("default", new AnimationComponent.Clip(0, frameMax));
-        } else if (component.currentClip == null
-                || component.currentClip.isBlank()
-                || !component.clips.containsKey(component.currentClip)) {
-            component.currentClip = component.clips.keys().next();
-        }
-
-        return component;
     }
 
     private int countAnimationFrames(AssetNode node) {
@@ -1321,7 +1302,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showSimpleErrorDialog(String message) {
-        VisDialog dialog = new VisDialog("Edit clips");
+        VisDialog dialog = new StudioDialog("Edit clips");
         dialog.text(message != null ? message : "Unable to edit clips.");
         dialog.button("OK");
         dialog.show(getStage());
@@ -1337,7 +1318,7 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Delete Asset") {
+        VisDialog dialog = new StudioDialog("Delete Asset") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
@@ -1377,14 +1358,16 @@ public final class AssetsThumbsView extends VisTable {
         );
 
         for (AssetNode node : nodes) {
-            String sourceRelPath = buildSourceRelPath(node);
+            String sourceRelPath = node.assetInfo != null
+                    ? node.assetInfo.sourcePath()
+                    : buildSourceRelPath(node);
             if (sourceRelPath == null || sourceRelPath.isBlank()) {
                 continue;
             }
 
-            int assetId = db.getIdBySourceRelPath(sourceRelPath);
+            int assetId = node.assetId;
 
-            if (assetId < 0) {
+            if (assetId <= 0) {
                 Gdx.app.error("AssetDelete", "Asset id not found for " + sourceRelPath);
                 continue;
             }
@@ -1436,7 +1419,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showAssetInUseDialog(AssetNode node, AssetUsageScanner.AssetUsageReport report) {
-        VisDialog dialog = new VisDialog("Asset In Use");
+        VisDialog dialog = new StudioDialog("Asset In Use");
 
         StringBuilder message = new StringBuilder();
         message.append("Cannot delete \"")
@@ -1491,7 +1474,7 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        VisDialog dialog = new VisDialog("Delete prefab") {
+        VisDialog dialog = new StudioDialog("Delete prefab") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
@@ -1719,7 +1702,22 @@ public final class AssetsThumbsView extends VisTable {
         if (sourceRelPath == null) return -1;
 
         AssetMetaDatabase db = loadAssetMetaDatabase();
-        return db != null ? db.getIdBySourceRelPath(sourceRelPath) : -1;
+        AssetType type = assetTypeForNode(data);
+        AssetMeta meta = db != null && type != null
+                ? db.findUniqueBySourceRelPath(sourceRelPath, type)
+                : null;
+        return meta != null ? meta.id() : -1;
+    }
+
+    private static AssetType assetTypeForNode(AssetNode node) {
+        if (node == null) return null;
+        return switch (node.root) {
+            case IMAGES -> AssetType.IMAGE;
+            case ANIMATIONS -> AssetType.ANIMATION;
+            case PARTICLES -> AssetType.PARTICLE;
+            case TILES -> AssetType.TILE;
+            case PREFABS -> null;
+        };
     }
 
     private void buildTiledAnimationGhost(DragPayload p, AssetNode data) {
@@ -1749,7 +1747,7 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         AssetMeta frameMeta = assetDb.findById(def.frameAssetIds[0]);
-        if (frameMeta == null || frameMeta.sourceRelPath == null || frameMeta.sourceRelPath.isBlank()) {
+        if (frameMeta == null || frameMeta.sourceRelPath() == null || frameMeta.sourceRelPath().isBlank()) {
             return null;
         }
 
@@ -1758,7 +1756,7 @@ public final class AssetsThumbsView extends VisTable {
             return null;
         }
 
-        FileHandle frameFile = StudioFs.requireStudioProjectDir(cfg).child(frameMeta.sourceRelPath);
+        FileHandle frameFile = StudioFs.requireStudioProjectDir(cfg).child(frameMeta.sourceRelPath());
         if (!frameFile.exists() || frameFile.isDirectory()) {
             return null;
         }

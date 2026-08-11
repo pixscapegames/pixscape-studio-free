@@ -17,7 +17,6 @@ package games.pixscape.studio;
 
 import com.badlogic.gdx.Version;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3NativesLoader;
-
 import org.lwjgl.system.JNI;
 import org.lwjgl.system.linux.UNISTD;
 import org.lwjgl.system.macosx.LibC;

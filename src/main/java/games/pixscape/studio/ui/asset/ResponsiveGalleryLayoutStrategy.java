@@ -13,7 +13,7 @@ public final class ResponsiveGalleryLayoutStrategy implements ThumbsLayoutStrate
         if (scroll == null) return;
 
         scroll.setScrollingDisabled(true, false);
-        scroll.setForceScroll(false, true);
+        scroll.setForceScroll(false, false);
         scroll.setClamp(true);
         scroll.setFlickScroll(false);
     }

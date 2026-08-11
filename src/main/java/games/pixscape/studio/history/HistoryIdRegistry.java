@@ -1,6 +1,9 @@
 package games.pixscape.studio.history;
 
+import com.artemis.World;
+
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -94,6 +97,18 @@ public final class HistoryIdRegistry {
         entityToHistory.clear();
         historyToEntity.clear();
         seq.set(1L);
+    }
+
+    public void pruneInactive(World world) {
+        if (world == null) return;
+        Iterator<Map.Entry<Integer, Long>> entries =
+                entityToHistory.entrySet().iterator();
+        while (entries.hasNext()) {
+            Map.Entry<Integer, Long> entry = entries.next();
+            if (world.getEntityManager().isActive(entry.getKey())) continue;
+            historyToEntity.remove(entry.getValue());
+            entries.remove();
+        }
     }
 
     public void reseed(long nextMin) {

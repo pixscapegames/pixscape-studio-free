@@ -1,20 +1,12 @@
 package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /** Deterministic authored-wall connectivity, merge, split, and validation service. */
 public final class SpatialStructureTopology {
@@ -40,7 +32,7 @@ public final class SpatialStructureTopology {
         Array<SpatialBlockData> after = copyWalls(current);
         if (candidate == null) return invalid("Authored wall is missing.", after);
         SpatialBlockData added = candidate.copy();
-        if (added.id <= 0) added.id = maxBlockId(after) + 1;
+        if (added.id <= 0) return invalid("Authored wall id must be strictly positive.", after);
         if (find(after, added.id) != null) return invalid("Authored wall id is not unique.", after);
         after.add(added);
         return normalize(before, after, map);
@@ -267,12 +259,6 @@ public final class SpatialStructureTopology {
         int lowest = Integer.MAX_VALUE;
         for (SpatialBlockData wall : walls) lowest = Math.min(lowest, wall.id);
         return lowest;
-    }
-
-    private static int maxBlockId(Array<SpatialBlockData> walls) {
-        int max = 0;
-        for (int i = 0; i < walls.size; i++) max = Math.max(max, walls.get(i).id);
-        return max;
     }
 
     private static int maxStructureId(Array<SpatialBlockData> walls) {

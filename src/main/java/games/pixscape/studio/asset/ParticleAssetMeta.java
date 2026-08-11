@@ -3,7 +3,7 @@ package games.pixscape.studio.asset;
 public final class ParticleAssetMeta extends AssetMeta {
 
     public ParticleAssetMeta() {
-        // required for Json
+        super(AssetType.PARTICLE);
     }
 
     public ParticleAssetMeta(int id,

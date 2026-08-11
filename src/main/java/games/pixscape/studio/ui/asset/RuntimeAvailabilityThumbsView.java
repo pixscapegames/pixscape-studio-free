@@ -55,7 +55,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         grid.top().left();
 
         scroll = new VisScrollPane(content);
-        scroll.setForceScroll(true, true);
+        scroll.setForceScroll(false, false);
         scroll.setFadeScrollBars(false);
 
         buildHeader();
@@ -208,7 +208,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             if (assetId == null || assetId <= 0) continue;
             AssetMeta meta = assetDb.findById(assetId);
             if (meta == null) continue;
-            items.add(RuntimeAvailabilityItem.asset(category, meta.id, assetLabel(category, meta), meta.sourceRelPath));
+            items.add(RuntimeAvailabilityItem.asset(category, meta.id(), assetLabel(category, meta), meta.sourceRelPath()));
         }
     }
 
@@ -300,9 +300,9 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         Array<Texture> textures = new Array<>();
         for (int frameAssetId : def.frameAssetIds) {
             AssetMeta frameMeta = assetDb.findById(frameAssetId);
-            if (frameMeta == null || frameMeta.sourceRelPath == null || frameMeta.sourceRelPath.isBlank()) continue;
+            if (frameMeta == null || frameMeta.sourceRelPath() == null || frameMeta.sourceRelPath().isBlank()) continue;
 
-            Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath);
+            Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(frameMeta.sourceRelPath());
             if (texture != null) {
                 textures.add(texture);
             }
@@ -453,15 +453,15 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
     private String assetLabel(RuntimeAvailabilityCategory category, AssetMeta meta) {
         if (meta == null) return "";
         if (category == RuntimeAvailabilityCategory.TILED_TILES) {
-            return "id:" + meta.id;
+            return "id:" + meta.id();
         }
-        if (meta.logicalPath != null && !meta.logicalPath.isBlank()) {
-            return StudioFs.removeExtension(new FileHandle(meta.logicalPath).name());
+        if (meta.logicalPath() != null && !meta.logicalPath().isBlank()) {
+            return StudioFs.removeExtension(new FileHandle(meta.logicalPath()).name());
         }
-        if (meta.sourceRelPath != null && !meta.sourceRelPath.isBlank()) {
-            return StudioFs.removeExtension(new FileHandle(meta.sourceRelPath).name());
+        if (meta.sourceRelPath() != null && !meta.sourceRelPath().isBlank()) {
+            return StudioFs.removeExtension(new FileHandle(meta.sourceRelPath()).name());
         }
-        return "Asset " + meta.id;
+        return "Asset " + meta.id();
     }
 
     private void disposeOwnedTextures() {

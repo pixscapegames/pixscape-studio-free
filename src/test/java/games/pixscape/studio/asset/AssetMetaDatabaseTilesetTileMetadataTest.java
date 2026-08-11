@@ -7,10 +7,7 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class AssetMetaDatabaseTilesetTileMetadataTest {
 
@@ -53,7 +50,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
                 "orig/tiles/terrain/terrain_2_1__a13.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
         tile.sheetIndex = 10;
         tile.cellX = 2;
         tile.cellY = 1;
@@ -63,11 +60,11 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         db.save(file);
 
         String assetsJson = Files.readString(tmp);
-        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TilesetAssetMeta\""));
-        assertTrue(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.TileAssetMeta\""));
-        assertTrue(assetsJson.contains("\"type\": \"TILESET\""));
-        assertTrue(assetsJson.contains("\"type\": \"TILE\""));
-        assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id));
+        assertFalse(assetsJson.contains("\"class\""));
+        assertFalse(assetsJson.contains("games.pixscape.studio.asset"));
+        assertTrue(assetsJson.contains("\"type\": \"tileset\""));
+        assertTrue(assetsJson.contains("\"type\": \"tile\""));
+        assertTrue(assetsJson.contains("\"tilesetId\": " + tileset.id()));
         assertTrue(assetsJson.contains("\"sheetIndex\": 10"));
         assertTrue(assetsJson.contains("\"cellX\": 2"));
         assertTrue(assetsJson.contains("\"cellY\": 1"));
@@ -86,7 +83,6 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertTrue(assetsJson.contains("\"offsetX\": -3"));
         assertTrue(assetsJson.contains("\"offsetY\": 5"));
         assertTrue(assetsJson.contains("\"renderSize\": \"native\""));
-        assertFalse(assetsJson.contains("\"class\": \"games.pixscape.studio.asset.AssetMeta\""));
 
         AssetMetaDatabase loaded = AssetMetaDatabase.load(file);
         assertTrue(loaded.findByLogicalPath("tiles/terrain") instanceof TilesetAssetMeta);
@@ -111,7 +107,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertEquals(5, loadedTileset.offsetY);
         assertSame(TilesetRenderSize.NATIVE, loadedTileset.renderSize);
 
-        assertEquals(tileset.id, loadedTile.tilesetId);
+        assertEquals(tileset.id(), loadedTile.tilesetId);
         assertEquals(10, loadedTile.sheetIndex);
         assertEquals(2, loadedTile.cellX);
         assertEquals(1, loadedTile.cellY);

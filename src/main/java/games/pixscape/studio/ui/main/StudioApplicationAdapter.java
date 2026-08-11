@@ -16,13 +16,14 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.util.dialog.OptionDialogListener;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.CursorDrawHelper;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.helper.StudioHomeBootstrap;
@@ -31,6 +32,7 @@ import games.pixscape.studio.logging.StudioLogCapture;
 import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
@@ -41,6 +43,7 @@ import games.pixscape.studio.ui.tree.ItemTreePanel;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.Optional;
+import java.util.function.Consumer;
 
 
 public class StudioApplicationAdapter extends ApplicationAdapter {
@@ -52,6 +55,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private BottomMenuBar bottomMenuBar;
     private DockManager dockManager;
     private SceneService sceneService;
+    private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
     private boolean previewActive = false;
 
@@ -115,6 +119,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
         dockManager = new DockManager(this, rulerLeft, rulerTop);
         sceneService = new SceneService(this, canvas);
+        animationAssetAuthoringService = new AnimationAssetAuthoringService(
+                sceneService::getAssetMetaDatabase,
+                () -> StudioFs.requireAssetsFile(ProjectConfig.getInstance()),
+                canvas::publishAssetMetaDatabase);
         canvas.bindAssetMetaLookup(sceneService::getAssetMeta);
         canvas.getEditorOps().setSceneService(sceneService);
 
@@ -270,40 +278,62 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public boolean closeRequested() {
         dumpLiveNonDaemonThreads("closeRequested");
-        if (sceneService != null && sceneService.requiresSaveBeforePreview()) {
-            Dialogs.showOptionDialog(
-                    uiStage,
-                    "Unsaved Project",
-                    "Do you want to save before quitting ?",
-                    Dialogs.OptionDialogType.YES_NO_CANCEL,
-                    new OptionDialogListener() {
-                        @Override
-                        public void yes() {
-                            sceneService.saveProjectAndCurrentSceneWithProgress(
-                                    uiStage,
-                                    Gdx.app::exit,
-                                    throwable -> Dialogs.showOKDialog(
-                                            uiStage,
-                                            "Save failed",
-                                            PreviewLaunchSupport.userMessageFor(throwable)
-                                    )
-                            );
-                        }
-
-                        @Override
-                        public void no() {
-                            Gdx.app.exit();
-                        }
-
-                        @Override
-                        public void cancel() {
-                        }
-                    }
-            );
-            return true;
-        }
-        Gdx.app.exit();
+        runAfterCurrentSceneSaveDecision(
+                "Unsaved Project",
+                "Do you want to save before quitting?",
+                Gdx.app::exit,
+                null,
+                throwable -> Dialogs.showOKDialog(
+                        uiStage,
+                        "Save failed",
+                        PreviewLaunchSupport.userMessageFor(throwable)
+                )
+        );
         return true;
+    }
+
+    public void runAfterCurrentSceneSaveDecision(String title,
+                                                 String message,
+                                                 Runnable continuation,
+                                                 Runnable onCancel,
+                                                 Consumer<Throwable> onSaveFailure) {
+        boolean saveRequired = sceneService != null
+                && sceneService.requiresSaveBeforeLeavingCurrentScene();
+        CurrentSceneSaveDecisionGuard.request(
+                saveRequired,
+                title,
+                message,
+                continuation,
+                onCancel,
+                onSaveFailure,
+                (dialogTitle, dialogMessage, save, dontSave, cancel) -> Dialogs.showOptionDialog(
+                        uiStage,
+                        dialogTitle,
+                        dialogMessage,
+                        Dialogs.OptionDialogType.YES_NO_CANCEL,
+                        new OptionDialogListener() {
+                            @Override
+                            public void yes() {
+                                save.run();
+                            }
+
+                            @Override
+                            public void no() {
+                                dontSave.run();
+                            }
+
+                            @Override
+                            public void cancel() {
+                                cancel.run();
+                            }
+                        }
+                ),
+                (onSuccess, onFailure) -> sceneService.saveProjectAndCurrentSceneWithProgress(
+                        uiStage,
+                        onSuccess,
+                        onFailure
+                )
+        );
     }
 
     public WorldCanvas getCanvas() {
@@ -324,6 +354,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public SceneService getSceneService() {
         return sceneService;
+    }
+
+    public AnimationAssetAuthoringService getAnimationAssetAuthoringService() {
+        return animationAssetAuthoringService;
     }
 
     public ShapeDrawer getDrawer() {
@@ -363,7 +397,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         dumpLiveNonDaemonThreads("dispose:start");
         HtmlPreviewLauncher.stop();
         if (dockManager != null) {
-            dockManager.closeAllFloatingWindows();
+            dockManager.dispose();
         }
         if (canvas != null) {
             canvas.dispose();
@@ -406,10 +440,25 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (this.previewActive == active) return;
         this.previewActive = active;
 
+        if (!active) {
+            restoreStudioShadersAfterPreview();
+        }
+
         // Optional but convenient: update the button
         if (bottomMenuBar != null) {
             bottomMenuBar.setPreviewRunning(active);
         }
+    }
+
+    private void restoreStudioShadersAfterPreview() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        FileHandle projectDir = cfg != null
+                && cfg.projectFileName != null
+                && !cfg.projectFileName.isBlank()
+                ? StudioFs.requireStudioProjectDir(cfg)
+                : null;
+        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 
     public boolean isPreviewActive() {

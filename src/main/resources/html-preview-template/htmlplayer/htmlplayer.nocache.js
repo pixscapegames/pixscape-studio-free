@@ -342,7 +342,7 @@ function htmlplayer(){
     }
     var strongName;
     try {
-      strongName = '011D2E3BDC52A49D067BA69622C7E9A5';
+      strongName = '87B3A2627CF1898524B11F83C559CF82';
       var idx = strongName.indexOf(':');
       if (idx != -1) {
         softPermutationId = parseInt(strongName.substring(idx + 1), 10);

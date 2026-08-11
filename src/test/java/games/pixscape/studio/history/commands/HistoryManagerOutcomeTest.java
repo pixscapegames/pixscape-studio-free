@@ -169,6 +169,31 @@ public class HistoryManagerOutcomeTest {
                 GizmoTransformCommand.class));
     }
 
+    @Test
+    public void irreversibleResetClearsStacksAndRemainsDirtyUntilSaved() {
+        HistoryManager history = new HistoryManager(8);
+        history.execute(new TestCommand("Before purge"));
+        history.undo();
+        Assert.assertTrue(history.canRedo());
+
+        history.resetAfterIrreversibleChange();
+
+        Assert.assertFalse(history.canUndo());
+        Assert.assertFalse(history.canRedo());
+        Assert.assertTrue(history.isDirty());
+
+        history.execute(new TestCommand("After purge"));
+        history.undo();
+        Assert.assertTrue(history.isDirty());
+
+        history.markSaved();
+        Assert.assertFalse(history.isDirty());
+
+        history.execute(new TestCommand("Clear"));
+        history.clear();
+        Assert.assertFalse(history.isDirty());
+    }
+
     private static void assertRedoOnly(HistoryManager history, String label) {
         Assert.assertEquals(0, history.getCursor());
         Assert.assertFalse(history.canUndo());

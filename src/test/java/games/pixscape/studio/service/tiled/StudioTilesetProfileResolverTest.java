@@ -5,19 +5,10 @@ import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetRenderSize;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetAssetMeta;
-import games.pixscape.studio.asset.TilesetRenderSize;
+import games.pixscape.studio.asset.*;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
+import static org.junit.Assert.*;
 
 public class StudioTilesetProfileResolverTest {
 
@@ -35,12 +26,12 @@ public class StudioTilesetProfileResolverTest {
         tileset.offsetY = -8;
         tileset.renderSize = TilesetRenderSize.NATIVE;
 
-        TileAssetMeta tile = tile(db, "tiles/terrain/0", tileset.id);
+        TileAssetMeta tile = tile(db, "tiles/terrain/0", tileset.id());
 
         StudioTilesetProfileResolver resolver = new StudioTilesetProfileResolver(db::findById);
-        RuntimeTilesetProfile profile = resolver.resolve(tile.id);
+        RuntimeTilesetProfile profile = resolver.resolve(tile.id());
 
-        assertEquals(tileset.id, profile.tilesetId);
+        assertEquals(tileset.id(), profile.tilesetId);
         assertEquals("tiles/terrain", profile.logicalPath);
         assertEquals(256, profile.tileWidth);
         assertEquals(512, profile.tileHeight);
@@ -61,7 +52,7 @@ public class StudioTilesetProfileResolverTest {
 
         assertNull(resolver.resolve(-1));
         assertNull(resolver.resolve(9999));
-        assertNull(resolver.resolve(tile.id));
+        assertNull(resolver.resolve(tile.id()));
     }
 
     @Test
@@ -71,13 +62,13 @@ public class StudioTilesetProfileResolverTest {
         tileset.referenceCellWidth = 32;
         tileset.referenceCellHeight = 32;
         tileset.anchor = TilesetAnchor.TOP_CENTER;
-        TileAssetMeta tile = tile(db, "tiles/terrain/0", tileset.id);
+        TileAssetMeta tile = tile(db, "tiles/terrain/0", tileset.id());
 
         StudioTilesetProfileResolver resolver = new StudioTilesetProfileResolver(db::findById);
-        RuntimeTilesetProfile first = resolver.resolve(tile.id);
+        RuntimeTilesetProfile first = resolver.resolve(tile.id());
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.offsetY = -16;
-        RuntimeTilesetProfile second = resolver.resolve(tile.id);
+        RuntimeTilesetProfile second = resolver.resolve(tile.id());
 
         assertSame(RuntimeTilesetAnchor.TOP_CENTER, first.anchor);
         assertSame(RuntimeTilesetAnchor.BOTTOM_CENTER, second.anchor);
@@ -96,18 +87,18 @@ public class StudioTilesetProfileResolverTest {
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.offsetX = 6;
         tileset.offsetY = -10;
-        TileAssetMeta first = tile(db, "tiles/terrain/0", tileset.id);
-        TileAssetMeta second = tile(db, "tiles/terrain/1", tileset.id);
+        TileAssetMeta first = tile(db, "tiles/terrain/0", tileset.id());
+        TileAssetMeta second = tile(db, "tiles/terrain/1", tileset.id());
 
         RuntimeTilesetProfiles profiles = StudioTilesetProfileResolver.buildRuntimeProfiles(db);
-        RuntimeTilesetProfile profile = profiles.profileForTileAsset(first.id);
+        RuntimeTilesetProfile profile = profiles.profileForTileAsset(first.id());
 
         assertNotNull(profile);
-        assertSame(profile, profiles.profileForTileAsset(second.id));
-        assertEquals(tileset.id, profile.tilesetId);
+        assertSame(profile, profiles.profileForTileAsset(second.id()));
+        assertEquals(tileset.id(), profile.tilesetId);
         assertEquals(2, profile.tileAssetIds.length);
-        assertEquals(first.id, profile.tileAssetIds[0]);
-        assertEquals(second.id, profile.tileAssetIds[1]);
+        assertEquals(first.id(), profile.tileAssetIds[0]);
+        assertEquals(second.id(), profile.tileAssetIds[1]);
         assertSame(RuntimeTilesetAnchor.BOTTOM_CENTER, profile.anchor);
         assertEquals(6, profile.offsetX);
         assertEquals(-10, profile.offsetY);
@@ -125,15 +116,15 @@ public class StudioTilesetProfileResolverTest {
         tileset.referenceCellWidth = 64;
         tileset.referenceCellHeight = 32;
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
-        TileAssetMeta tile = tile(afterImport, "tiles/new/0", tileset.id);
+        TileAssetMeta tile = tile(afterImport, "tiles/new/0", tileset.id());
 
-        assertNull(profiles.profileForTileAsset(tile.id));
+        assertNull(profiles.profileForTileAsset(tile.id()));
 
         StudioTilesetProfileResolver.reloadRuntimeProfiles(profiles, afterImport);
 
-        RuntimeTilesetProfile profile = profiles.profileForTileAsset(tile.id);
+        RuntimeTilesetProfile profile = profiles.profileForTileAsset(tile.id());
         assertNotNull(profile);
-        assertEquals(tileset.id, profile.tilesetId);
+        assertEquals(tileset.id(), profile.tilesetId);
         assertEquals(64, profile.referenceCellWidth);
         assertEquals(32, profile.referenceCellHeight);
         assertSame(RuntimeTilesetAnchor.BOTTOM_CENTER, profile.anchor);

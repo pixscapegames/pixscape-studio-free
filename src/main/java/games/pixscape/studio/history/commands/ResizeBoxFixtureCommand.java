@@ -1,12 +1,13 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.physics.FixtureDefData;
-import games.pixscape.runtime.component.physics.PhysicsFixturesComponent;
+import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.physics.SpatialOwnedFixtureSupport;
 
 public final class ResizeBoxFixtureCommand
         implements Command, PreExecutionNoopCommand {
@@ -18,7 +19,7 @@ public final class ResizeBoxFixtureCommand
     private final PhysicsSelectionService physicsSelectionService;
 
     private final long bodyHistoryId;
-    private final int fixtureId;
+    private final int physicsShapeId;
 
     private final long previousFocusedBodyHistoryId;
     private final int previousSelectedFixtureId;
@@ -39,7 +40,7 @@ public final class ResizeBoxFixtureCommand
                                    HistoryIdRegistry historyIds,
                                    PhysicsSelectionService physicsSelectionService,
                                    int bodyEntityId,
-                                   int fixtureId,
+                                   int physicsShapeId,
                                    float beforeOffsetX,
                                    float beforeOffsetY,
                                    float beforeHalfW,
@@ -53,7 +54,7 @@ public final class ResizeBoxFixtureCommand
         this.physicsSelectionService = physicsSelectionService;
 
         this.bodyHistoryId = FixtureCommandSupport.toHistoryId(historyIds, bodyEntityId);
-        this.fixtureId = fixtureId;
+        this.physicsShapeId = physicsShapeId;
 
         int previousFocusedBodyEid =
                 (physicsSelectionService != null)
@@ -65,8 +66,8 @@ public final class ResizeBoxFixtureCommand
 
         this.previousSelectedFixtureId =
                 (physicsSelectionService != null)
-                        ? physicsSelectionService.getSelectedFixtureId()
-                        : PhysicsSelectionService.NO_FIXTURE;
+                        ? physicsSelectionService.getSelectedPhysicsShapeId()
+                        : PhysicsSelectionService.NO_SHAPE;
 
         this.beforeOffsetX = beforeOffsetX;
         this.beforeOffsetY = beforeOffsetY;
@@ -88,8 +89,7 @@ public final class ResizeBoxFixtureCommand
                 || historyIds == null
                 || physicsSelectionService == null
                 || bodyHistoryId <= 0L
-                || fixtureId <= 0L
-                || SpatialOwnedFixtureSupport.isOwned(world, bodyEntityId, fixtureId)
+                || physicsShapeId <= 0L
                 || unchanged);
     }
 
@@ -110,21 +110,27 @@ public final class ResizeBoxFixtureCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
-        if (fixture == null) return;
-        if (fixture.shapeType != FixtureDefData.SHAPE_BOX) return;
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.geometry == null
+                || fixture.geometry.shapeType
+                != PhysicsGeometryData.SHAPE_BOX) return;
 
-        fixture.offsetX = afterOffsetX;
-        fixture.offsetY = afterOffsetY;
-        fixture.halfW = afterHalfW;
-        fixture.halfH = afterHalfH;
+        fixture.geometry.offsetX = afterOffsetX;
+        fixture.geometry.offsetY = afterOffsetY;
+        fixture.geometry.halfWidth = afterHalfW;
+        fixture.geometry.halfHeight = afterHalfH;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
-        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, fixtureId);
+        FixtureCommandSupport.focusAndSelect(physicsSelectionService, bodyEid, physicsShapeId);
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
@@ -137,15 +143,21 @@ public final class ResizeBoxFixtureCommand
         int bodyEid = FixtureCommandSupport.resolveBodyEntityId(world, historyIds, bodyHistoryId);
         if (bodyEid < 0) return;
 
-        PhysicsFixturesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
-        FixtureDefData fixture = FixtureCommandSupport.fixtureById(fixtures, fixtureId);
-        if (fixture == null) return;
-        if (fixture.shapeType != FixtureDefData.SHAPE_BOX) return;
+        PhysicsShapesComponent fixtures = FixtureCommandSupport.getFixtures(world, bodyEid, false);
+        int index = FixtureCommandSupport.indexOfFixture(fixtures, physicsShapeId);
+        if (index < 0) return;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, bodyEid);
+        PhysicsShapeData fixture = candidate.get(index);
+        if (fixture.geometry == null
+                || fixture.geometry.shapeType
+                != PhysicsGeometryData.SHAPE_BOX) return;
 
-        fixture.offsetX = beforeOffsetX;
-        fixture.offsetY = beforeOffsetY;
-        fixture.halfW = beforeHalfW;
-        fixture.halfH = beforeHalfH;
+        fixture.geometry.offsetX = beforeOffsetX;
+        fixture.geometry.offsetY = beforeOffsetY;
+        fixture.geometry.halfWidth = beforeHalfW;
+        fixture.geometry.halfHeight = beforeHalfH;
+        FixtureCommandSupport.prepareAndPublish(world, bodyEid, candidate);
 
         FixtureCommandSupport.restoreSelection(
                 world,
@@ -157,14 +169,14 @@ public final class ResizeBoxFixtureCommand
         FixtureCommandSupport.markDirty(world, bodyEid);
         EventFlow.i().publish(new EventFlow.FixtureParametersChanged(
                 bodyEid,
-                fixtureId,
+                physicsShapeId,
                 EventFlow.tag(this)
         ));
         FixtureCommandSupport.publishStructureChanged(bodyEid, this);
     }
 
     public long getFixtureId() {
-        return fixtureId;
+        return physicsShapeId;
     }
 
     public float getBeforeOffsetX() {

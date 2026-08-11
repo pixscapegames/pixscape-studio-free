@@ -39,7 +39,7 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
     private final Snapshot after;
     private final EditTransformCommand.Snapshot beforeTransform;
     private final EditTransformCommand.Snapshot afterTransform;
-    private final Runnable markPreviewSaveRequired;
+    private final Runnable markCurrentSceneSaveRequired;
     private final boolean noop;
 
     public EditRenderRepeatCommand(World world,
@@ -55,13 +55,13 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
                                    int entityId,
                                    Snapshot before,
                                    Snapshot after,
-                                   Runnable markPreviewSaveRequired) {
+                                   Runnable markCurrentSceneSaveRequired) {
         this.world = world;
         this.historyIds = historyIds;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
         this.before = before != null ? before : Snapshot.disabled();
         this.after = after != null ? after : Snapshot.disabled();
-        this.markPreviewSaveRequired = markPreviewSaveRequired;
+        this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         TransformComponent transform = world != null && entityId >= 0
                 ? world.getMapper(TransformComponent.class).getSafe(entityId, null)
@@ -129,8 +129,8 @@ public final class EditRenderRepeatCommand implements Command, HistoryManager.Su
         if (geometryChanged) {
             EventFlow.i().publish(new EventFlow.EntityChanged(entityId, TransformOp.ROTATE, EventFlow.tag(this)));
         }
-        if (markPreviewSaveRequired != null) {
-            markPreviewSaveRequired.run();
+        if (markCurrentSceneSaveRequired != null) {
+            markCurrentSceneSaveRequired.run();
         }
     }
 

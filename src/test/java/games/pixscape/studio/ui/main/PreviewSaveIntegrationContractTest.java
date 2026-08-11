@@ -38,8 +38,23 @@ public class PreviewSaveIntegrationContractTest {
         assertTrue(runSaveWithProgressBody.contains("sceneService.saveProjectAndCurrentSceneWithProgress("));
     }
 
+    @Test
+    public void quitUsesSharedCurrentSceneSaveDecisionInsteadOfPreviewReadiness() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java"),
+                StandardCharsets.UTF_8
+        );
+        String closeBody = methodBody(source, "public boolean closeRequested()");
+        String guardBody = methodBody(source, "public void runAfterCurrentSceneSaveDecision(");
+
+        assertTrue(closeBody.contains("runAfterCurrentSceneSaveDecision("));
+        assertTrue(closeBody.contains("Gdx.app::exit"));
+        assertTrue(guardBody.contains("sceneService.requiresSaveBeforeLeavingCurrentScene()"));
+        assertTrue(guardBody.contains("sceneService.saveProjectAndCurrentSceneWithProgress("));
+    }
+
     private static String methodBody(String source, String signaturePrefix) {
-        int signatureIndex = source.indexOf(signaturePrefix);
+        int signatureIndex = source.lastIndexOf(signaturePrefix);
         if (signatureIndex < 0) throw new AssertionError("Method signature not found: " + signaturePrefix);
 
         int bodyStart = source.indexOf('{', signatureIndex);

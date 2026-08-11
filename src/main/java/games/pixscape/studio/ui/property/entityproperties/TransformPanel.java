@@ -3,7 +3,10 @@ package games.pixscape.studio.ui.property.entityproperties;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -24,6 +27,20 @@ public class TransformPanel extends CollapsibleWidget {
 
     private final VisLabel widthLabel = new VisLabel();
     private final VisLabel heightLabel = new VisLabel();
+    private final VisTable originXRow;
+    private final VisTable originYRow;
+    private final VisTable rotationRow;
+    private final VisTable scaleXRow;
+    private final VisTable scaleYRow;
+    private final VisTable widthRow;
+    private final VisTable heightRow;
+    private final Cell<VisTable> originXCell;
+    private final Cell<VisTable> originYCell;
+    private final Cell<VisTable> rotationCell;
+    private final Cell<VisTable> scaleXCell;
+    private final Cell<VisTable> scaleYCell;
+    private final Cell<VisTable> widthCell;
+    private final Cell<VisTable> heightCell;
 
     private int entityId = -1;
 
@@ -46,32 +63,22 @@ public class TransformPanel extends CollapsibleWidget {
         scaleyField = factory.scaleY();
         scaleyField.setDisplayDecimals(2);
 
-        root.add(new VisLabel("X:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(xField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Y:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(yField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Origin X:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(originxField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Origin Y:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(originyField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Rotation:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(rotationField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Scale X:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(scalexField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Scale Y:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(scaleyField).width(CommonLayout.FIELD_WIDTH).left().row();
-
-        root.add(new VisLabel("Width:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(widthLabel).left().row();
-
-        root.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
-        root.add(heightLabel).left().row();
+        root.add(row("X:", xField)).left().row();
+        root.add(row("Y:", yField)).left().row();
+        originXRow = row("Origin X:", originxField);
+        originYRow = row("Origin Y:", originyField);
+        rotationRow = row("Rotation:", rotationField);
+        scaleXRow = row("Scale X:", scalexField);
+        scaleYRow = row("Scale Y:", scaleyField);
+        widthRow = row("Width:", widthLabel);
+        heightRow = row("Height:", heightLabel);
+        originXCell = root.add(originXRow).left(); root.row();
+        originYCell = root.add(originYRow).left(); root.row();
+        rotationCell = root.add(rotationRow).left(); root.row();
+        scaleXCell = root.add(scaleXRow).left(); root.row();
+        scaleYCell = root.add(scaleYRow).left(); root.row();
+        widthCell = root.add(widthRow).left(); root.row();
+        heightCell = root.add(heightRow).left(); root.row();
     }
 
     public void setEntityId(int entityId) {
@@ -84,6 +91,17 @@ public class TransformPanel extends CollapsibleWidget {
         rotationField.setEntityId(entityId);
         scalexField.setEntityId(entityId);
         scaleyField.setEntityId(entityId);
+
+        boolean particle = entityId >= 0
+                && ctx.world.getMapper(ParticleEmitterComponent.class).has(entityId);
+        setApplicable(originXCell, originXRow, !particle);
+        setApplicable(originYCell, originYRow, !particle);
+        setApplicable(rotationCell, rotationRow, !particle);
+        setApplicable(scaleXCell, scaleXRow, !particle);
+        setApplicable(scaleYCell, scaleYRow, !particle);
+        setApplicable(widthCell, widthRow, !particle);
+        setApplicable(heightCell, heightRow, !particle);
+        root.invalidateHierarchy();
 
         if (entityId < 0) {
             widthLabel.setText("");
@@ -99,6 +117,18 @@ public class TransformPanel extends CollapsibleWidget {
             widthLabel.setText("");
             heightLabel.setText("");
         }
+    }
+
+    private static VisTable row(String label, Actor value) {
+        VisTable row = new VisTable();
+        row.add(new VisLabel(label)).width(CommonLayout.LABEL_WIDTH).left();
+        row.add(value).width(CommonLayout.FIELD_WIDTH).left();
+        return row;
+    }
+
+    private static void setApplicable(Cell<VisTable> cell, VisTable row, boolean applicable) {
+        cell.setActor(applicable ? row : null);
+        cell.pad(applicable ? 5f : 0f);
     }
 
     public void onFieldsChanged(TransformOp op) {

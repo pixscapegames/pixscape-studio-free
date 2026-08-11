@@ -67,7 +67,9 @@ public class ProjectDirectoryAndWhitePixelContractTest {
                 "\"glSamples\":0," +
                 "\"currentSceneName\":\"Main\"," +
                 "\"nextSceneIndex\":2," +
-                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\"}}" +
+                "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
+                        + "\"sceneSchemaVersion\":2,"
+                        + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}";
         Path projectFile = customDir.resolve("moved-project.json");
         Files.writeString(projectFile, json, StandardCharsets.UTF_8);

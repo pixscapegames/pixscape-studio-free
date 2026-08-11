@@ -1,5 +1,8 @@
 package games.pixscape.studio.ui.main;
 
+import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.modal.StudioFileChooser;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Texture;
@@ -13,10 +16,9 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.VisUI;
-import com.kotcrab.vis.ui.util.dialog.Dialogs;
+import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileTypeFilter;
@@ -296,7 +298,7 @@ public class TopMenuBar extends MenuBar {
         final Texture logoTexture = new Texture(Gdx.files.internal(PixscapeStudioApplication.PIXSCAPE_ICON));
         final Image logo = new Image(new TextureRegionDrawable(new TextureRegion(logoTexture)));
 
-        VisDialog dialog = new VisDialog("About Pixscape Studio") {
+        VisDialog dialog = new StudioDialog("About Pixscape Studio") {
             private boolean disposed;
 
             private void disposeLogoOnce() {
@@ -321,7 +323,6 @@ public class TopMenuBar extends MenuBar {
             }
         };
 
-        dialog.getTitleLabel().setAlignment(Align.center);
         dialog.setResizable(false);
         dialog.setMovable(true);
         dialog.setModal(true);
@@ -373,8 +374,7 @@ public class TopMenuBar extends MenuBar {
     }
 
     private void showOpenSourceDialog(Stage stage) {
-        VisDialog dialog = new VisDialog("Open-source software");
-        dialog.getTitleLabel().setAlignment(Align.center);
+        VisDialog dialog = new StudioDialog("Open-source software");
         dialog.setResizable(false);
         dialog.setMovable(true);
         dialog.setModal(true);
@@ -598,7 +598,7 @@ public class TopMenuBar extends MenuBar {
                 ? currentFile.parent()
                 : StudioFs.defaultUserProjectsRoot();
 
-        FileChooser chooser = new FileChooser(startDir, FileChooser.Mode.SAVE);
+        FileChooser chooser = new StudioFileChooser(startDir, FileChooser.Mode.SAVE);
         chooser.setSelectionMode(FileChooser.SelectionMode.FILES);
         chooser.setMultiSelectionEnabled(false);
         chooser.setFavoriteFolderButtonVisible(true);
@@ -641,7 +641,7 @@ public class TopMenuBar extends MenuBar {
             return;
         }
 
-        FileChooser chooser = new FileChooser(studioProjectDirectoryOrDefault(), FileChooser.Mode.OPEN);
+        FileChooser chooser = new StudioFileChooser(studioProjectDirectoryOrDefault(), FileChooser.Mode.OPEN);
         chooser.setSelectionMode(FileChooser.SelectionMode.FILES);
         chooser.setMultiSelectionEnabled(false);
         chooser.setFavoriteFolderButtonVisible(true);
@@ -717,28 +717,40 @@ public class TopMenuBar extends MenuBar {
 
     private void importTmxAsNewScene(FileHandle file, String sceneName) {
         try {
-            TmxSceneImportResult result = sceneService.importTmxAsNewScene(new TmxSceneImportRequest(file, sceneName));
-            if (result.imported()) {
-                Dialogs.showOKDialog(
-                        app.getUiStage(),
-                        "Tiled map imported",
-                        TmxImportUiSupport.formatSuccessMessage(result)
-                );
-            } else {
-                TmxImportMessageDialog.show(
-                        app.getUiStage(),
-                        "Tiled map import failed",
-                        TmxImportUiSupport.formatFailureMessage(result)
-                );
-            }
+            sceneService.importTmxAsNewSceneWithProgress(
+                    app.getUiStage(),
+                    new TmxSceneImportRequest(file, sceneName),
+                    result -> showTmxImportResult(result),
+                    failure -> showTmxImportFailure(file, failure)
+            );
         } catch (RuntimeException ex) {
-            Gdx.app.error("TopMenuBar", "TMX import failed: " + file.path(), ex);
+            showTmxImportFailure(file, ex);
+        }
+    }
+
+    private void showTmxImportResult(TmxSceneImportResult result) {
+        if (result.imported()) {
             Dialogs.showOKDialog(
                     app.getUiStage(),
+                    "Tiled map imported",
+                    TmxImportUiSupport.formatSuccessMessage(result)
+            );
+        } else {
+            TmxImportMessageDialog.show(
+                    app.getUiStage(),
                     "Tiled map import failed",
-                    PreviewLaunchSupport.userMessageFor(ex)
+                    TmxImportUiSupport.formatFailureMessage(result)
             );
         }
+    }
+
+    private void showTmxImportFailure(FileHandle file, Throwable failure) {
+        Gdx.app.error("TopMenuBar", "TMX import failed: " + file.path(), failure);
+        Dialogs.showOKDialog(
+                app.getUiStage(),
+                "Tiled map import failed",
+                PreviewLaunchSupport.userMessageFor(failure)
+        );
     }
 
     private void openRecentProject(String path) {
@@ -808,7 +820,7 @@ public class TopMenuBar extends MenuBar {
         if (!startDir.exists()) {
             startDir.mkdirs();
         }
-        final FileChooser chooser = new FileChooser(startDir, FileChooser.Mode.OPEN);
+        final FileChooser chooser = new StudioFileChooser(startDir, FileChooser.Mode.OPEN);
         chooser.setSelectionMode(FileChooser.SelectionMode.FILES_AND_DIRECTORIES);
         chooser.setMultiSelectionEnabled(false);
         chooser.setFavoriteFolderButtonVisible(true);

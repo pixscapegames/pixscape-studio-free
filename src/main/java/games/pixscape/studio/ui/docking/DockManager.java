@@ -5,6 +5,7 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowConfiguration;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
+import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.widget.VisSplitPane;
@@ -14,6 +15,7 @@ import games.pixscape.studio.ui.GenericWindow;
 import games.pixscape.studio.ui.GenericWindowListener;
 import games.pixscape.studio.ui.main.RulerActor;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.widget.CanvasModeIndicator;
 
 public final class DockManager {
 
@@ -25,7 +27,10 @@ public final class DockManager {
 
     // zones
     private final VisTable left = new VisTable();
-    private final VisTable center = new VisTable(); // placeholder
+    private final Stack centerStack = new Stack();
+    private final VisTable rulersAndCanvasPlaceholder = new VisTable(true);
+    private final VisTable modeOverlay = new VisTable();
+    private final CanvasModeIndicator modeIndicator;
     private final VisTable bottom = new VisTable();
 
     private final VisTable rightTop = new VisTable();
@@ -43,6 +48,8 @@ public final class DockManager {
 
     private final RulerActor rulerLeft;
     private final RulerActor rulerTop;
+    private boolean rulersVisible = true;
+    private float modeIndicatorTopPadding;
     // misc
     private final Array<DockablePanel> panels = new Array<>();
     private final Array<DockListener> listeners = new Array<>();
@@ -60,10 +67,18 @@ public final class DockManager {
         this.app = app;
         this.rulerLeft = rulerLeft;
         this.rulerTop = rulerTop;
+        this.modeIndicator = new CanvasModeIndicator(app.getCanvas().getStudioEditingModeService());
         root.setTouchable(Touchable.childrenOnly);
 
+        centerStack.setTouchable(Touchable.childrenOnly);
+        rulersAndCanvasPlaceholder.setTouchable(Touchable.childrenOnly);
+        modeOverlay.setTouchable(Touchable.disabled);
+        centerStack.add(rulersAndCanvasPlaceholder);
+        centerStack.add(modeOverlay);
+        rebuildCenterOverlay();
+
         rightSplit = new VisSplitPane(rightTop, rightBottom, true);
-        topSplit = new VisSplitPane(left, center, false);
+        topSplit = new VisSplitPane(left, centerStack, false);
         rootSplit = new VisSplitPane(topSplit, bottom, true);
 
         rightSplit.setTouchable(Touchable.childrenOnly);
@@ -302,6 +317,11 @@ public final class DockManager {
         panelToWindow.clear();
     }
 
+    public void dispose() {
+        closeAllFloatingWindows();
+        modeIndicator.dispose();
+    }
+
     private static GenericWindow genericWindow(Lwjgl3Window window) {
         if (window == null) return null;
         if (window.getListener() instanceof GenericWindow genericWindow) {
@@ -335,14 +355,7 @@ public final class DockManager {
         if (hasLeft) {
             topArea.add(left).width(280f).growY();
         }
-        VisTable rulers = new VisTable(true);
-        rulers.setTouchable(Touchable.childrenOnly);
-        rulers.add(rulerTop).height(RulerActor.TOP_HEIGHT).growX().colspan(2).row();
-        rulers.add(rulerLeft).width(RulerActor.LEFT_WIDTH).left().growY();
-        rulers.add().expand().grow();
-        rulers.toBack();
-
-        topArea.add(rulers).grow(); // topArea.add().expand().grow(); // center (WorldCanvas behind)
+        topArea.add(centerStack).grow();
 
         if (hasRight) {
             topArea.add(rightSplit).width(342f).growY();
@@ -360,7 +373,52 @@ public final class DockManager {
     }
 
     public void setRulersVisible(boolean visible) {
+        rulersVisible = visible;
         rulerLeft.setVisible(visible);
         rulerTop.setVisible(visible);
+        rebuildCenterOverlay();
+        root.invalidateHierarchy();
+    }
+
+    private void rebuildCenterOverlay() {
+        rulersAndCanvasPlaceholder.clearChildren();
+        if (rulersVisible) {
+            rulersAndCanvasPlaceholder.add(rulerTop)
+                    .height(RulerActor.TOP_HEIGHT).growX().colspan(2).row();
+            rulersAndCanvasPlaceholder.add(rulerLeft)
+                    .width(RulerActor.LEFT_WIDTH).left().growY();
+            rulersAndCanvasPlaceholder.add().expand().grow();
+        } else {
+            rulersAndCanvasPlaceholder.add().expand().grow();
+        }
+
+        updateModeIndicatorTopPadding();
+        modeOverlay.clearChildren();
+        modeOverlay.top();
+        if (rulersVisible) {
+            modeOverlay.add().width(RulerActor.LEFT_WIDTH);
+        }
+        modeOverlay.add(modeIndicator)
+                .expandX().top().padTop(modeIndicatorTopPadding);
+    }
+
+    private void updateModeIndicatorTopPadding() {
+        modeIndicatorTopPadding = (rulersVisible ? RulerActor.TOP_HEIGHT : 0f) + 5f;
+    }
+
+    CanvasModeIndicator getModeIndicator() {
+        return modeIndicator;
+    }
+
+    Stack getCenterStack() {
+        return centerStack;
+    }
+
+    float getModeIndicatorTopPadding() {
+        return modeIndicatorTopPadding;
+    }
+
+    boolean isRulersVisible() {
+        return rulersVisible;
     }
 }

@@ -7,12 +7,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.runtime.tiled.profile.TileProfilePlacement;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAnchor;
-import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 import org.junit.Test;
 
@@ -64,7 +59,7 @@ public class StudioTiledProfilePlacementTest {
     public void ghostResolverAndStudioAtlasRegistryProduceSameQuad() {
         Fixture fixture = fixture(TilesetAnchor.BOTTOM_CENTER, 9, -7);
         RuntimeTilesetProfiles atlasProfiles = StudioTilesetProfileResolver.buildRuntimeProfiles(fixture.db);
-        RuntimeTilesetProfile atlasProfile = atlasProfiles.profileForTileAsset(fixture.tile.id);
+        RuntimeTilesetProfile atlasProfile = atlasProfiles.profileForTileAsset(fixture.tile.id());
 
         assertQuad(
                 buildQuad(fixture.map, fixture.profile, TileTransformFlags.NONE),
@@ -115,14 +110,14 @@ public class StudioTiledProfilePlacementTest {
                 "orig/tiles/iso/0.png",
                 AssetMeta.AssetScope.USER
         );
-        tile.tilesetId = tileset.id;
+        tile.tilesetId = tileset.id();
 
         StudioTilesetProfileResolver resolver = new StudioTilesetProfileResolver(db::findById);
         return new Fixture(
                 db,
                 tile,
                 new TiledMapLayerData(1, 1, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO),
-                resolver.resolve(tile.id)
+                resolver.resolve(tile.id())
         );
     }
 

@@ -1,9 +1,9 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -120,9 +120,6 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
             if (block == null) continue;
             if (Math.abs(block.altitude - previousDefaultAltitude) > 0.0001f) continue;
             block.altitude = nextDefaultAltitude;
-            if (block.physicsCollision) {
-                SpatialBlockPhysicsSync.sync(world, layerEntityId, block, this);
-            }
         }
     }
 

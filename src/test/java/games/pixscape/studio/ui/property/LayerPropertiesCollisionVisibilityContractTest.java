@@ -22,12 +22,11 @@ public class LayerPropertiesCollisionVisibilityContractTest {
     }
 
     @Test
-    public void spatialSectionIsLayerLocalAndSupportsPhysicsAndTiled() throws Exception {
+    public void spatialSectionIsOnlyAvailableForTiledLayers() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean spatialSupported = lic.type == LayerComponent.TYPE_PHYSICS ||\n" +
-                "                lic.type == LayerComponent.TYPE_TILED;"));
+        assertTrue(refresh.contains("boolean spatialSupported = isTiled;"));
         assertTrue(refresh.contains("boolean spatialActive = isLayerSpatialEnabled(layerEntityId);"));
         assertTrue(refresh.contains("spatialSection.show(spatialSupported);"));
         assertTrue(refresh.contains("spatialBlock.show(isTiled && spatialActive);"));
@@ -52,20 +51,29 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
         assertTrue(source.contains("boolean isSprite = kind == EntityKind.SPRITE;"));
         assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
-        assertTrue(source.contains("return (isSprite || isAnim) && isEntityInSpatialLayer();"));
+        assertTrue(source.contains("&& isEntityInSpatialLayer()) || hasSpatialActorState();"));
         assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
         assertTrue(source.contains("EventFlow.SpatialHeightChanged.class"));
     }
 
     @Test
-    public void collisionToggleCannotEnableLayerPhysicsWhenScenePhysicsIsOff() throws Exception {
+    public void addingCollisionsCannotAddLayerPhysicsWhenScenePhysicsIsOff() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
-        String toggle = methodBody(source, "private void executePhysicsToggle(int layerEntityId)");
+        String addPhysics = methodBody(source, "private void addPhysicsToTiledLayer(int layerEntityId)");
 
         assertTrue(source.contains("if (!isScenePhysicsEnabled()) {\n" +
                 "                    refreshFromModel(layerEntityId);"));
-        assertTrue(toggle.contains("if (!isScenePhysicsEnabled())"));
-        assertTrue(toggle.contains("return;"));
+        assertTrue(addPhysics.contains("if (!isScenePhysicsEnabled())"));
+        assertTrue(addPhysics.contains("return;"));
+    }
+
+    @Test
+    public void localCollisionRemovalExplainsThatItCanBeUndone() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
+
+        assertTrue(source.contains("Removing collisions will delete the physics on this layer.\n" +
+                "                        This action can be undone."));
+        assertFalse(source.contains("Removing collisions will permanently delete"));
     }
 
     @Test

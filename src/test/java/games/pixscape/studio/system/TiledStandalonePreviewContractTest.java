@@ -1,51 +1,171 @@
 package games.pixscape.studio.system;
 
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.tiled.TileTransformFlags;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.asset.*;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
+import games.pixscape.studio.service.asset.VisualResolverTestSupport;
+import org.junit.After;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static games.pixscape.studio.service.asset.VisualResolverTestSupport.binding;
+import static games.pixscape.studio.service.asset.VisualResolverTestSupport.texture;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TiledStandalonePreviewContractTest {
 
-    @Test
-    public void tiledGhostPreviewRejectsNonTileAssetMetadataBeforeStandaloneLoad() throws Exception {
-        String source = Files.readString(
-                Path.of("src/main/java/games/pixscape/studio/system/TiledGhostPreviewSystem.java"),
-                StandardCharsets.UTF_8
-        );
-
-        assertTrue(source.contains("if (meta.type != AssetType.TILE)"));
-        assertTrue(source.indexOf("if (meta.type != AssetType.TILE)")
-                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath)"));
+    @After
+    public void clearTextureRegistry() {
+        TextureRegistry.clear();
     }
 
     @Test
-    public void tiledFallbackRejectsNonTileAssetMetadataBeforeStandaloneLoad() throws Exception {
-        String source = Files.readString(
-                Path.of("src/main/java/games/pixscape/studio/system/TiledFallbackSystem.java"),
-                StandardCharsets.UTF_8
+    public void tiledFallbackDoesNotPatchAssetPresentInRuntimeIndex() {
+        int assetId = 17;
+        AtomicInteger metadataLookups = new AtomicInteger();
+        VisualResolverTestSupport.TrackingAtlasService atlas =
+                new VisualResolverTestSupport.TrackingAtlasService("main");
+        atlas.publish(
+                new TextureAtlas(),
+                binding(assetId, "tile__a" + assetId, texture(16, 16))
+        );
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                atlas,
+                ignored -> {
+                    metadataLookups.incrementAndGet();
+                    return null;
+                },
+                new EmptyStandaloneAccess()
         );
 
-        assertTrue(source.contains("if (meta.type != AssetType.TILE)"));
-        assertTrue(source.indexOf("if (meta.type != AssetType.TILE)")
-                < source.indexOf("StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath)"));
+        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledFallbackSystem fallback = new TiledFallbackSystem(
+                tiledState,
+                resolver,
+                ignored -> {
+                    metadataLookups.incrementAndGet();
+                    return null;
+                },
+                null
+        );
+        World world = new World(new WorldConfiguration().setSystem(fallback));
+        try {
+            int entityId = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
+            layer.type = LayerComponent.TYPE_TILED;
+
+            TiledLayerComponent tiled =
+                    world.getMapper(TiledLayerComponent.class).create(entityId);
+            tiled.atlasTag = "main";
+            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            tiled.data.setTile(0, 0, assetId);
+
+            world.process();
+
+            assertEquals(1, atlas.resolveCalls);
+            assertEquals(0, metadataLookups.get());
+            assertEquals(0, tiledState.getVisibleRefCount());
+        } finally {
+            world.dispose();
+        }
     }
 
     @Test
-    public void tiledFallbackDoesNotPatchPackedAtlasTiles() throws Exception {
-        String source = Files.readString(
-                Path.of("src/main/java/games/pixscape/studio/system/TiledFallbackSystem.java"),
-                StandardCharsets.UTF_8
+    public void tiledFallbackWritesStandaloneVisualAndPreservesTransformFlags() {
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        TilesetAssetMeta tileset = (TilesetAssetMeta) db.registerIfAbsent(
+                AssetType.TILESET,
+                "tiles/ground",
+                null,
+                AssetMeta.AssetScope.USER
         );
+        tileset.referenceCellWidth = 16;
+        tileset.referenceCellHeight = 16;
+        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.anchor = TilesetAnchor.TOP_CENTER;
+        tileset.renderSize = TilesetRenderSize.NATIVE;
+        TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(
+                AssetType.TILE,
+                "tiles/ground/0",
+                "orig/tiles/ground/0.png",
+                AssetMeta.AssetScope.USER
+        );
+        tile.tilesetId = tileset.id();
+        tile.sheetIndex = 0;
+        tile.cellX = 0;
+        tile.cellY = 0;
 
-        assertTrue(source.contains("AtlasRuntimeService.CachedRegion cachedRegion"));
-        assertTrue(source.contains("if (cachedRegion != null)"));
-        assertTrue(source.indexOf("if (cachedRegion != null)")
-                < source.indexOf("AssetMeta meta = resolveAssetMeta(visualAssetId);"));
-        assertTrue(source.contains("RuntimeTilesetProfile profile = resolveTilesetProfile(visualAssetId);"));
-        assertTrue(source.contains("reportMissingProfileOnce(visualAssetId, logicalAssetId, tiled.atlasTag);"));
+        Texture standaloneTexture = texture(24, 32);
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                db::findById,
+                new StudioAssetVisualResolver.StandaloneAssetAccess() {
+                    @Override
+                    public Texture resolveTexture(String projectRelativePath) {
+                        return standaloneTexture;
+                    }
+
+                    @Override
+                    public String[] listPngFramePaths(String projectRelativeDirectory) {
+                        return new String[0];
+                    }
+                }
+        );
+        TiledMapRenderState tiledState = new TiledMapRenderState(1);
+        TiledFallbackSystem fallback = new TiledFallbackSystem(
+                tiledState,
+                resolver,
+                db::findById,
+                null
+        );
+        World world = new World(new WorldConfiguration().setSystem(fallback));
+        try {
+            int entityId = world.create();
+            LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
+            layer.type = LayerComponent.TYPE_TILED;
+
+            TiledLayerComponent tiled =
+                    world.getMapper(TiledLayerComponent.class).create(entityId);
+            tiled.atlasTag = "main";
+            tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
+            byte flags = (byte) (TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V);
+            tiled.data.setTile(0, 0, tile.id(), flags);
+
+            world.process();
+
+            int renderRef = tiled.data.tiledRenderRefForTile(0, 0);
+            assertTrue(tiledState.isRenderableRef(renderRef));
+            assertEquals(TextureRegistry.handleOf(standaloneTexture),
+                    tiledState.textureHandle[renderRef]);
+            assertEquals(1, tiledState.getVisibleRefCount());
+            assertEquals(flags, tiled.data.getTileTransformFlags(0, 0));
+        } finally {
+            world.dispose();
+        }
+    }
+
+    private static final class EmptyStandaloneAccess
+            implements StudioAssetVisualResolver.StandaloneAssetAccess {
+        @Override
+        public Texture resolveTexture(String projectRelativePath) {
+            return null;
+        }
+
+        @Override
+        public String[] listPngFramePaths(String projectRelativeDirectory) {
+            return new String[0];
+        }
     }
 }

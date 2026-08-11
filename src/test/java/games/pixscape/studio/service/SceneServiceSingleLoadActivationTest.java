@@ -7,11 +7,19 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -30,8 +38,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class SceneServiceSingleLoadActivationTest {
 
@@ -73,6 +80,45 @@ public class SceneServiceSingleLoadActivationTest {
         fixture.cfg.setCurrentSceneByName("Main");
         ProjectConfig.setInstance(fixture.cfg);
         new TiledMapProperties(active, () -> { }).setLayerEntityId(tiledLayers[0]);
+        active.dispose();
+    }
+
+    @Test
+    public void activationReconstructsLinkedPhysicsAfterTiledData()
+            throws Exception {
+        Fixture fixture = fixture("linked-physics", "Main");
+        fixture.cfg.getSceneMeta("Main").physicsEnabled = true;
+        fixture.cfg.getSceneMeta("Main").nextPhysicsShapeId = 701;
+        writeScene(
+                fixture.sceneFile("Main"),
+                new int[]{12, 8},
+                new int[]{111, 222},
+                true);
+        World active = serializationWorld();
+
+        activate(
+                active,
+                fixture,
+                "Main",
+                new AtomicInteger(),
+                new AtomicInteger());
+
+        IntBag bodies = active.getAspectSubscriptionManager()
+                .get(Aspect.all(PhysicsBodyComponent.class)).getEntities();
+        assertEquals(1, bodies.size());
+        int owner = bodies.get(0);
+        assertNotNull(active.getMapper(
+                TiledLayerComponent.class).get(owner).data);
+        PhysicsCompiledFixturesComponent compiled = active.getMapper(
+                PhysicsCompiledFixturesComponent.class).get(owner);
+        assertTrue(compiled.valid);
+        assertEquals(1, compiled.fixtures.size);
+        assertEquals(700, compiled.fixtures.first().physicsShapeId);
+        assertEquals(
+                PhysicsGeometryData.SHAPE_POLYGON,
+                compiled.fixtures.first().shapeType);
+        assertNull(active.getMapper(PhysicsShapesComponent.class)
+                .get(owner).shapes.first().geometry);
         active.dispose();
     }
 
@@ -154,6 +200,9 @@ public class SceneServiceSingleLoadActivationTest {
                                  AtomicInteger renderRebuilds) {
         HistoryManager history = new HistoryManager(16);
         history.historyIds().ensureForEntity(999);
+        SceneMeta meta = fixture.cfg.getSceneMeta(sceneName);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
         ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
                 world,
                 null,
@@ -172,9 +221,10 @@ public class SceneServiceSingleLoadActivationTest {
                             ResolvedSceneActivationPipeline.firstInvalidSpatialBlock(world));
                     renderRebuilds.incrementAndGet();
                 },
-                (target, file, editMode) -> {
+                (target, file, editMode, loadedMeta) -> {
                     loads.incrementAndGet();
-                    SceneLoader.loadScene(target, file, editMode);
+                    SceneLoader.loadScene(
+                            target, file, editMode, loadedMeta);
                 }
         );
         pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
@@ -186,12 +236,24 @@ public class SceneServiceSingleLoadActivationTest {
                 sceneName,
                 fixture.cfg.canonicalSceneTag(sceneName)
         ));
+        identities.rebuild();
+        identities.bind(null, null);
     }
 
     private static void writeScene(FileHandle sceneFile, int[] counts, int[] assetIds) {
+        writeScene(sceneFile, counts, assetIds, false);
+    }
+
+    private static void writeScene(
+            FileHandle sceneFile,
+            int[] counts,
+            int[] assetIds,
+            boolean linkedPhysics) {
         World authored = serializationWorld();
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
             layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
@@ -217,7 +279,22 @@ public class SceneServiceSingleLoadActivationTest {
             wall.actorOccluder = true;
             wall.beginAuthoredLinkedTileRefs();
             wall.addLinkedTileRef(0, 0, assetIds[i]);
-            authored.getMapper(SpatialBlocksComponent.class).create(layerEntity).blocks.add(wall);
+            SpatialBlocksComponent blocks =
+                    authored.getMapper(SpatialBlocksComponent.class).create(layerEntity);
+            blocks.blocks.add(wall);
+            blocks.nextSpatialBlockId = wall.id + 1;
+
+            if (linkedPhysics && i == 0) {
+                authored.getMapper(TransformComponent.class)
+                        .create(layerEntity);
+                authored.getMapper(PhysicsBodyComponent.class)
+                        .create(layerEntity);
+                PhysicsShapeData linked = new PhysicsShapeData();
+                linked.physicsShapeId = 700;
+                linked.spatialBlockId = wall.id;
+                authored.getMapper(PhysicsShapesComponent.class)
+                        .create(layerEntity).shapes.add(linked);
+            }
         }
         authored.process();
         SceneService.saveScene(authored, sceneFile, false);
@@ -228,6 +305,8 @@ public class SceneServiceSingleLoadActivationTest {
         World authored = serializationWorld();
         for (int i = 0; i < counts.length; i++) {
             int layerEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(layerEntity).stableId = i + 1;
             authored.getMapper(LayerComponent.class).create(layerEntity).spatialEnabled = false;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
             TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(layerEntity);
@@ -304,6 +383,7 @@ public class SceneServiceSingleLoadActivationTest {
             meta.tileHeight = 16;
             meta.chunkSize = 8;
             meta.tiledProjection = SceneMetaRuntime.TiledProjection.ORTHO;
+            meta.nextEntityStableId = 1000;
         }
         return new Fixture(cfg, projectDir);
     }

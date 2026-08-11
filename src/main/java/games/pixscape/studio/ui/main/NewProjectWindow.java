@@ -10,8 +10,10 @@ import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.StudioFileChooser;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 
-public final class NewProjectWindow extends VisWindow {
+public final class NewProjectWindow extends StudioModalWindow {
 
     private final VisTextButton ok = new VisTextButton("OK");
     private final VisTextButton cancel = new VisTextButton("Cancel");
@@ -34,7 +36,6 @@ public final class NewProjectWindow extends VisWindow {
         ok.setColor(CommonLayout.BUTTON_COLOR);
         cancel.setColor(CommonLayout.BUTTON_COLOR);
 
-        addCloseButton();
         setModal(true);
         setResizable(false);
 
@@ -50,7 +51,7 @@ public final class NewProjectWindow extends VisWindow {
         btnBrowseProjectDirectory.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+                FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
                 chooser.setSelectionMode(FileChooser.SelectionMode.DIRECTORIES);
                 chooser.setSize(800, 600);
 
@@ -76,7 +77,7 @@ public final class NewProjectWindow extends VisWindow {
         btnBrowseRoot.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                FileChooser chooser = new FileChooser(FileChooser.Mode.OPEN);
+                FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
                 chooser.setSelectionMode(FileChooser.SelectionMode.DIRECTORIES);
                 chooser.setSize(800, 600);
 

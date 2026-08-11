@@ -7,11 +7,16 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
 import com.kotcrab.vis.ui.widget.VisLabel;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.ui.widget.SimpleFloatField;
@@ -22,14 +27,22 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class SpatialBlockPropertiesTest {
+    private static ProjectConfig previousConfig;
+
     @BeforeClass
     public static void loadVisUiSkin() {
+        previousConfig = ProjectConfig.getInstance();
+        ProjectConfig config = new ProjectConfig();
+        config.createSceneMeta("Properties");
+        config.getCurrentSceneMeta().pixelsPerMeter = 32f;
+        ProjectConfig.setInstance(config);
         VisUiTestBootstrap.loadSkin();
     }
 
     @AfterClass
     public static void unloadVisUiSkin() {
         VisUiTestBootstrap.unloadSkin();
+        ProjectConfig.setInstance(previousConfig);
     }
 
     @Test
@@ -40,6 +53,7 @@ public class SpatialBlockPropertiesTest {
                 fixture.world,
                 fixture.history,
                 fixture.selection,
+                fixture.physics,
                 () -> {
                 }
         );
@@ -218,34 +232,49 @@ public class SpatialBlockPropertiesTest {
         Assert.assertFalse(hasText(properties, "Enabled"));
         Assert.assertFalse(hasText(properties, "Orientation"));
         Assert.assertTrue(properties.findActor("spatialWallStructureId") instanceof VisLabel);
+        Assert.assertTrue(properties.findActor("spatialWallPhysicsCollision")
+                instanceof VisCheckBox);
     }
 
     @Test
-    public void featureCheckboxesMutateOnlyTheirMatchingFields() {
+    public void physicsCollisionCheckboxIsRelationDerivedAndUndoable() {
         Fixture fixture = fixture();
         int layerId = tiledLayer(fixture.world);
+        TransformComponent transform =
+                fixture.world.getMapper(TransformComponent.class).create(layerId);
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
         fixture.history.historyIds().ensureForEntity(layerId);
-        SpatialBlockData wall = wall(1, 1, 0, 0, 1, 1);
-        fixture.world.getMapper(SpatialBlocksComponent.class).create(layerId).blocks.add(wall);
+        SpatialBlockData wall = wall(1, 1, 1, 1, 1, 1);
+        fixture.world.getMapper(SpatialBlocksComponent.class)
+                .create(layerId).blocks.add(wall);
         fixture.selection.selectBlock(layerId, 1);
         SpatialBlockProperties properties = fixture.properties();
         properties.setSpatialBlock(layerId, 1);
+        VisCheckBox collision = checkBox(
+                properties, "spatialWallPhysicsCollision");
+        Assert.assertFalse(collision.isChecked());
 
-        Assert.assertTrue(checkBox(properties, "spatialWallActorOccluder").isChecked());
-        setChecked(properties, "spatialWallActorOccluder", false);
-        Assert.assertFalse(checkBox(properties, "spatialWallActorOccluder").isChecked());
-        Assert.assertFalse(properties.activeBlock().actorOccluder);
         setChecked(properties, "spatialWallPhysicsCollision", true);
-        setChecked(properties, "spatialWallLightOccluder", true);
-        setChecked(properties, "spatialWallShadowCaster", true);
-        setChecked(properties, "spatialWallParticleOccluder", true);
+        Assert.assertTrue(collision.isChecked());
+        Assert.assertEquals(1, fixture.world.getMapper(
+                PhysicsShapesComponent.class).get(layerId).shapes.size);
+        Assert.assertFalse(java.util.Arrays.stream(
+                        SpatialBlockData.class.getFields())
+                .anyMatch(field -> field.getName().equals("physicsCollision")));
 
-        SpatialBlockData edited = properties.activeBlock();
-        Assert.assertFalse(edited.actorOccluder);
-        Assert.assertTrue(edited.physicsCollision);
-        Assert.assertTrue(edited.lightOccluder);
-        Assert.assertTrue(edited.shadowCaster);
-        Assert.assertTrue(edited.particleOccluder);
+        fixture.history.undo();
+        properties.refreshNow();
+        Assert.assertFalse(collision.isChecked());
+
+        fixture.history.redo();
+        properties.refreshNow();
+        Assert.assertTrue(collision.isChecked());
+
+        setChecked(properties, "spatialWallPhysicsCollision", false);
+        Assert.assertFalse(collision.isChecked());
+        Assert.assertFalse(fixture.world.getMapper(
+                PhysicsShapesComponent.class).has(layerId));
     }
 
     @Test
@@ -305,7 +334,11 @@ public class SpatialBlockPropertiesTest {
 
     private static Fixture fixture() {
         World world = new World(new WorldConfiguration());
-        return new Fixture(world, new HistoryManager(8), new SpatialBlockSelectionService());
+        return new Fixture(
+                world,
+                new HistoryManager(8),
+                new SpatialBlockSelectionService(),
+                new PhysicsService(world, null, new SceneMeta()));
     }
 
     private static SpatialBlockData block(int id) {
@@ -342,9 +375,13 @@ public class SpatialBlockPropertiesTest {
         return layerId;
     }
 
-    private record Fixture(World world, HistoryManager history, SpatialBlockSelectionService selection) {
+    private record Fixture(
+            World world,
+            HistoryManager history,
+            SpatialBlockSelectionService selection,
+            PhysicsService physics) {
         SpatialBlockProperties properties() {
-            return new SpatialBlockProperties(world, history, selection, () -> {
+            return new SpatialBlockProperties(world, history, selection, physics, () -> {
             });
         }
     }

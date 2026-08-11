@@ -20,7 +20,8 @@ public class EditorOpsStandaloneSpritePackGuardContractTest {
         String body = methodBody(source, "public int createStandaloneSprite(String relativePath, float worldX, float worldY, String metaName)");
 
         assertTrue(body.contains("boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);"));
-        assertTrue(body.contains("boolean alreadyPacked = assetId >= 0 && atlasStudioService.isPacked(assetId, sceneTag);"));
+        assertTrue(body.contains("boolean alreadyPacked = assetId > 0"));
+        assertTrue(body.contains("atlasStudioService.resolveBinding(assetId, sceneTag) != null"));
         assertTrue(body.contains("boolean packAlreadyQueuedOrRunning = atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag);"));
         assertTrue(body.contains("if (!packAlreadyQueuedOrRunning && (inputChanged || !alreadyPacked))"));
         assertTrue(body.contains("atlasStudioService.requestAsyncPack(sceneTag);"));

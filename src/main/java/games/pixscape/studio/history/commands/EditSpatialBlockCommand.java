@@ -2,9 +2,9 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.SpatialBlockData;
-import games.pixscape.runtime.component.SpatialBlocksComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
@@ -19,7 +19,6 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private final int blockId;
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
-    private final SpatialBlockPhysicsSync.LayerPhysicsState physicsBefore;
     private final CommandOutcome initialOutcome;
 
     public EditSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
@@ -38,8 +37,6 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.edit(
                 component, blockId, replacement, tiled != null ? tiled.data : null);
         this.after = plan.walls;
-        this.physicsBefore = hasPhysics(before) || hasPhysics(after)
-                ? SpatialBlockPhysicsSync.captureLayerPhysics(world, layerEntityId) : null;
         this.initialOutcome = !plan.valid ? CommandOutcome.REJECTED
                 : world == null || historyIds == null || layerHistoryId <= 0L || sameArrays(before, after)
                 ? CommandOutcome.NO_CHANGE : CommandOutcome.APPLIED;
@@ -50,29 +47,17 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     @Override public void redo() { redoOutcome(); }
     @Override public void undo() { undoOutcome(); }
 
-    @Override public CommandOutcome executeOutcome() { return apply(after, false); }
-    @Override public CommandOutcome redoOutcome() { return apply(after, false); }
-    @Override public CommandOutcome undoOutcome() { return apply(before, true); }
+    @Override public CommandOutcome executeOutcome() { return apply(after); }
+    @Override public CommandOutcome redoOutcome() { return apply(after); }
+    @Override public CommandOutcome undoOutcome() { return apply(before); }
 
-    private CommandOutcome apply(Array<SpatialBlockData> snapshot, boolean restorePhysics) {
+    private CommandOutcome apply(Array<SpatialBlockData> snapshot) {
         if (initialOutcome != CommandOutcome.APPLIED) return initialOutcome;
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(world, layer, snapshot);
         if (outcome != CommandOutcome.APPLIED) return outcome;
-        SpatialBlocksComponent component = SpatialBlockCommandSupport.get(world, layer);
         if (selection != null) selection.selectBlock(layer, blockId);
-        if (restorePhysics && physicsBefore != null) {
-            physicsBefore.restore(world, layer, this);
-        } else {
-            for (int i = 0; i < component.blocks.size; i++) {
-                SpatialBlockData wall = component.blocks.get(i);
-                SpatialBlockData previous = find(before, wall.id);
-                if (requiresPhysicsSync(previous, wall)) {
-                    SpatialBlockPhysicsSync.sync(world, layer, wall, this);
-                }
-            }
-        }
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }
@@ -80,30 +65,6 @@ public final class EditSpatialBlockCommand implements Command, HistoryManager.Su
     private int resolveLayer() {
         int entity = historyIds.entityOfHistoryId(layerHistoryId);
         return entity >= 0 && world.getEntityManager().isActive(entity) ? entity : -1;
-    }
-
-    private static boolean hasPhysics(Array<SpatialBlockData> walls) {
-        for (int i = 0; i < walls.size; i++) if (walls.get(i).physicsCollision) return true;
-        return false;
-    }
-
-    private static SpatialBlockData find(Array<SpatialBlockData> walls, int blockId) {
-        for (int i = 0; i < walls.size; i++) {
-            SpatialBlockData wall = walls.get(i);
-            if (wall != null && wall.id == blockId) return wall;
-        }
-        return null;
-    }
-
-    private static boolean requiresPhysicsSync(SpatialBlockData before, SpatialBlockData after) {
-        if (after == null) return false;
-        if (before == null) return after.physicsCollision;
-        if (before.physicsCollision != after.physicsCollision) return true;
-        if (!after.physicsCollision) return false;
-        return Float.compare(before.x, after.x) != 0
-                || Float.compare(before.y, after.y) != 0
-                || Float.compare(before.width, after.width) != 0
-                || Float.compare(before.depth, after.depth) != 0;
     }
 
     private static boolean sameArrays(Array<SpatialBlockData> a, Array<SpatialBlockData> b) {

@@ -5,6 +5,9 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Cursor;
 import com.badlogic.gdx.math.Vector2;
 import com.kotcrab.vis.ui.widget.VisTable;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
@@ -163,7 +166,10 @@ public final class RuntimeAvailabilityPanel extends VisTable {
 
         if (payload.paths != null && payload.paths.size > 0) {
             for (String path : payload.paths) {
-                int assetId = resolveAssetIdForProjectRelativePath(StudioFs.DIR_ORIG_TILES + "/" + path);
+                int assetId = resolveAssetIdForProjectRelativePath(
+                        StudioFs.DIR_ORIG_TILES + "/" + path,
+                        AssetType.TILE
+                );
                 app.getSceneService().addRuntimeAvailableTiledTile(assetId);
             }
             return;
@@ -189,17 +195,25 @@ public final class RuntimeAvailabilityPanel extends VisTable {
         if (payload.assetId > 0) return payload.assetId;
         if (payload.path == null || payload.path.isBlank()) return -1;
 
-        String sourceRelPath = switch (payload.type) {
-            case "image-file" -> StudioFs.DIR_ORIG_IMAGES + "/" + payload.path;
-            case "anim-sheet" -> StudioFs.DIR_ORIG_ANIMATIONS + "/" + payload.path;
-            case "tile-asset" -> StudioFs.DIR_ORIG_TILES + "/" + payload.path;
-            default -> null;
+        return switch (payload.type) {
+            case "image-file" -> resolveAssetIdForProjectRelativePath(
+                    StudioFs.DIR_ORIG_IMAGES + "/" + payload.path,
+                    AssetType.IMAGE
+            );
+            case "anim-sheet" -> resolveAssetIdForProjectRelativePath(
+                    StudioFs.DIR_ORIG_ANIMATIONS + "/" + payload.path,
+                    AssetType.ANIMATION
+            );
+            case "tile-asset" -> resolveAssetIdForProjectRelativePath(
+                    StudioFs.DIR_ORIG_TILES + "/" + payload.path,
+                    AssetType.TILE
+            );
+            default -> -1;
         };
-
-        return resolveAssetIdForProjectRelativePath(sourceRelPath);
     }
 
-    private int resolveAssetIdForProjectRelativePath(String sourceRelPath) {
+    private int resolveAssetIdForProjectRelativePath(String sourceRelPath,
+                                                     AssetType type) {
         if (sourceRelPath == null || sourceRelPath.isBlank()) return -1;
 
         ProjectConfig cfg = ProjectConfig.getInstance();
@@ -208,7 +222,9 @@ public final class RuntimeAvailabilityPanel extends VisTable {
         FileHandle metaFile = StudioFs.requireStudioProjectDir(cfg).child(StudioFs.FILE_ASSETS_JSON);
         if (!metaFile.exists()) return -1;
 
-        return games.pixscape.studio.asset.AssetMetaDatabase.load(metaFile).getIdBySourceRelPath(sourceRelPath);
+        AssetMeta meta = AssetMetaDatabase.load(metaFile)
+                .findUniqueBySourceRelPath(sourceRelPath, type);
+        return meta != null ? meta.id() : -1;
     }
 
     private String resolveParticleEffectPath(DragPayload payload) {

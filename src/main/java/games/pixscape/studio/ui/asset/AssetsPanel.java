@@ -1,13 +1,12 @@
 package games.pixscape.studio.ui.asset;
 
-import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.ui.modal.StudioDialog;
+
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.tiled.TiledPaintService;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -22,8 +21,6 @@ public final class AssetsPanel extends DockablePanel {
     private final VisTextButton importButton;
     private final TiledPaintService tiledPaintService;
     private final StudioApplicationAdapter app;
-
-    private AssetMetaDatabase assetMetaDatabase;
 
     public AssetsPanel(StudioApplicationAdapter app) {
         super("Assets");
@@ -40,8 +37,6 @@ public final class AssetsPanel extends DockablePanel {
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
 
         thumbsView.setTileSelectionListener(node -> {
-            if (assetMetaDatabase == null) setMetaDatase();
-
             if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
                 tiledPaintService.setActiveTileAssetId(node.tileAnimationId);
                 return;
@@ -51,40 +46,22 @@ public final class AssetsPanel extends DockablePanel {
                 return;
             }
 
-            if (node.root != AssetNode.Root.TILES || node.kind != AssetNode.Kind.IMAGE) {
-                return;
-            }
-
-            String baseName = AssetHelper.extractBaseName(node.path);
-
-            String folder = node.path.contains("/")
-                    ? node.path.substring(0, node.path.lastIndexOf('/'))
-                    : "";
-
-            String logical = node.root.name().toLowerCase()
-                    + "/"
-                    + (folder.isEmpty() ? baseName : folder + "/" + baseName);
-
-            AssetMeta asset = assetMetaDatabase.findByLogicalPath(logical);
-
-            if (asset != null) {
-                tiledPaintService.setActiveTileAssetId(asset.id);
+            int tileAssetId = tileAssetIdForSelection(node);
+            if (tileAssetId > 0) {
+                tiledPaintService.setActiveTileAssetId(tileAssetId);
             }
         });
 
         treeView.setTileDroppedOnTiledAnimationListener((tileAnimationId, tilePaths) -> {
             try {
-                if (assetMetaDatabase == null) {
-                    setMetaDatase();
-                }
-
                 if (tilePaths == null || tilePaths.size == 0) {
                     return;
                 }
 
                 for (String tilePath : tilePaths) {
                     String sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + tilePath;
-                    int tileAssetId = app.getSceneService().resolveAssetIdBySourceRelPath(sourceRelPath);
+                    int tileAssetId = app.getSceneService()
+                            .resolveAssetIdBySourceRelPath(sourceRelPath, AssetType.TILE);
 
                     if (tileAssetId <= 0) {
                         throw new IllegalStateException("Tile asset id could not be resolved.");
@@ -154,11 +131,12 @@ public final class AssetsPanel extends DockablePanel {
         buildLayout();
     }
 
-    private void setMetaDatase() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        FileHandle metaFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
-        assetMetaDatabase = AssetMetaDatabase.load(metaFile);
+    static int tileAssetIdForSelection(AssetNode node) {
+        return node != null
+                && node.root == AssetNode.Root.TILES
+                && node.kind == AssetNode.Kind.IMAGE
+                ? node.assetId
+                : -1;
     }
 
     private void buildLayout() {
@@ -176,7 +154,6 @@ public final class AssetsPanel extends DockablePanel {
     public void reloadFromProject(ProjectConfig cfg) {
         AssetNode selected = treeView.getSelectedFolder();
         importButton.setVisible(cfg != null && cfg.getCurrentSceneName() != null);
-        assetMetaDatabase = null;
 
         AssetPreviewCache.clear();
         thumbsView.clear();
@@ -215,7 +192,7 @@ public final class AssetsPanel extends DockablePanel {
         VisTextField nameField = new VisTextField();
         nameField.setMessageText("Animation name");
 
-        VisDialog dialog = new VisDialog("New tiled animation") {
+        VisDialog dialog = new StudioDialog("New tiled animation") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {
@@ -263,7 +240,7 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     private void showSimpleErrorDialog(String message) {
-        VisDialog dialog = new VisDialog("Assets");
+        VisDialog dialog = new StudioDialog("Assets");
         dialog.text(message != null && !message.isBlank()
                 ? message
                 : "The requested asset operation could not be completed.");
@@ -278,7 +255,7 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     private void showDeleteTiledAnimationDialog(int tileAnimationId, String name) {
-        VisDialog dialog = new VisDialog("Delete tiled animation") {
+        VisDialog dialog = new StudioDialog("Delete tiled animation") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) {

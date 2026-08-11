@@ -1,10 +1,6 @@
 package games.pixscape.studio.system;
 
-import com.artemis.Aspect;
-import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.World;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -21,16 +17,19 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.physics.PolygonBuildResult;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.component.physics.AuthoredPolygonData;
-import games.pixscape.studio.component.physics.PhysicsAuthoringComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -42,18 +41,10 @@ import games.pixscape.studio.input.InputManipulationContext;
 import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.*;
-import games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport;
-import games.pixscape.studio.service.spatial.SpatialBlockPicking;
-import games.pixscape.studio.service.spatial.SpatialBlockProjection;
-import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
-import games.pixscape.studio.service.spatial.SpatialCellPicker;
-import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
-import games.pixscape.studio.service.spatial.SpatialWallCreationService;
-import games.pixscape.studio.service.spatial.SpatialStructureTopology;
-import games.pixscape.studio.service.spatial.SpatialWallEditSession;
-import games.pixscape.studio.service.spatial.SpatialPointerInteraction;
+import games.pixscape.studio.service.spatial.*;
 
 import java.util.Objects;
 
@@ -72,16 +63,19 @@ public final class PickingSystem extends BaseSystem {
     private LayerService layerService;
     private PhysicsService physicsService;
     private final PhysicsSelectionService physicsSelectionService;
+    private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final PolygonDrawSession polygonDrawSession;
     private PhysicsPolygonAuthoringService polygonAuthoringService;
     private PhysicsFixturePickingService fixturePickingService;
+    private EntitySubscription selectableObbSubscription;
+    private EntitySubscription particleSubscription;
 
     private ComponentMapper<OrientedBoundsComponent> mOBB;
     private ComponentMapper<VisibilityComponent> mVis;
     private ComponentMapper<PhysicsBodyComponent> mPhysBody;
-    private ComponentMapper<PhysicsFixturesComponent> mFixDefs;
+    private ComponentMapper<PhysicsShapesComponent> mFixDefs;
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<DimensionsComponent> mDim;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
@@ -90,7 +84,7 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<PhysicsGearJointComponent> mGear;
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
-    private ComponentMapper<PhysicsAuthoringComponent> mPhysicsAuthoring;
+    private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
 
@@ -105,6 +99,7 @@ public final class PickingSystem extends BaseSystem {
     private static final float JOINT_PICK_TOL_PX = 6f;
     private static final float LIGHT_ICON_SIZE_PX = 24f;
     private static final float LIGHT_PICK_TOL_PX = 4f;
+    static final float PARTICLE_PICK_TOL_PX = 3f;
 
     private boolean translatingActive = false;
     private final Vector2 oldDrag = new Vector2();
@@ -143,18 +138,14 @@ public final class PickingSystem extends BaseSystem {
     // MOVE FIXTURES
     private boolean movingFixtureActive = false;
     private int movingFixtureBodyEid = -1;
-    private int movingFixtureId = PhysicsSelectionService.NO_FIXTURE;
+    private int movingFixtureId = PhysicsSelectionService.NO_SHAPE;
     private float movingFixtureBeforeOffsetX = 0f;
     private float movingFixtureBeforeOffsetY = 0f;
-    private boolean movingAuthoredPolygonActive = false;
-    private long movingAuthoredPolygonId = 0L;
-    private float movingAuthoredPolygonBeforeOffsetX = 0f;
-    private float movingAuthoredPolygonBeforeOffsetY = 0f;
 
     // BOX HANDLE AND RESIZING
     private boolean resizingBoxActive = false;
     private int resizingBoxBodyEid = -1;
-    private int resizingBoxFixtureId = PhysicsSelectionService.NO_FIXTURE;
+    private int resizingBoxFixtureId = PhysicsSelectionService.NO_SHAPE;
     private InputManipulationContext.Handle resizingBoxHandle = InputManipulationContext.Handle.NONE;
     private final float[] tmpFixtureBoxWorldCorners = new float[8];
     private final float[] tmpSpatialBlockTopCorners = new float[8];
@@ -175,20 +166,17 @@ public final class PickingSystem extends BaseSystem {
     private boolean movingPolygonVertexActive = false;
     private boolean resizingCircleActive = false;
     private int resizingCircleBodyEid = -1;
-    private int resizingCircleFixtureId = PhysicsSelectionService.NO_FIXTURE;
+    private int resizingCircleFixtureId = PhysicsSelectionService.NO_SHAPE;
     private float resizeCircleBeforeRadius = 0f;
     private float circleRadiusDragCurrent = 0f;
     private int movingPolygonVertexBodyEid = -1;
-    private int movingPolygonVertexFixtureId = PhysicsSelectionService.NO_FIXTURE;
+    private int movingPolygonVertexFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int movingPolygonVertexIndex = -1;
     private float movingPolygonVertexBeforeX = 0f;
     private float movingPolygonVertexBeforeY = 0f;
 
     // POLYGON EDITION
     private final Vector2 tmpPolygonLocalPx = new Vector2();
-    private boolean movingAuthoredPolygonVertexActive = false;
-    private float[] movingAuthoredPolygonBeforeVerts = new float[0];
-    private int movingAuthoredPolygonBeforeCount = 0;
 
     private boolean movingSpatialBlockActive = false;
     private int movingSpatialBlockLayerEid = -1;
@@ -238,6 +226,7 @@ public final class PickingSystem extends BaseSystem {
                          Stage uiStage,
                          TiledMapRenderState tiledState,
                          PhysicsSelectionService physicsSelectionService,
+                         PhysicsSelectionReconciler physicsSelectionReconciler,
                          SpatialBlockSelectionService spatialBlockSelectionService,
                          SpatialTileSelectionService spatialTileSelectionService,
                          PolygonDrawSession polygonDrawSession) {
@@ -250,6 +239,7 @@ public final class PickingSystem extends BaseSystem {
         this.uiStage = uiStage;
         this.tiledState = tiledState;
         this.physicsSelectionService = physicsSelectionService;
+        this.physicsSelectionReconciler = physicsSelectionReconciler;
         this.spatialBlockSelectionService = spatialBlockSelectionService;
         this.spatialTileSelectionService = spatialTileSelectionService;
         this.polygonDrawSession = polygonDrawSession;
@@ -279,6 +269,19 @@ public final class PickingSystem extends BaseSystem {
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
         this.fixturePickingService = new PhysicsFixturePickingService(physicsService);
+    }
+
+    @Override
+    protected void initialize() {
+        selectableObbSubscription = world.getAspectSubscriptionManager().get(
+                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
+                        .exclude(PointLightComponent.class, ConeLightComponent.class,
+                                ParticleEmitterComponent.class)
+        );
+        particleSubscription = world.getAspectSubscriptionManager().get(
+                Aspect.all(ParticleEmitterComponent.class, TransformComponent.class,
+                        VisibilityComponent.class)
+        );
     }
 
     @Override
@@ -871,14 +874,14 @@ public final class PickingSystem extends BaseSystem {
         float[] verts = tmpFixtureBoxWorldCorners;
         SpatialBlockProjection.projectTopFootprint(tiled.data, block, verts);
 
-        float halfWorld = HandleHelper.pxToWorld(
+        float halfWidthorld = HandleHelper.pxToWorld(
                 worldCam,
                 GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
         );
 
         float topCx = (verts[0] + verts[2] + verts[4] + verts[6]) * 0.25f;
         float topCy = (verts[1] + verts[3] + verts[5] + verts[7]) * 0.25f;
-        if (HandleHelper.insideSquare(mouseX, mouseY, topCx, topCy, halfWorld)) {
+        if (HandleHelper.insideSquare(mouseX, mouseY, topCx, topCy, halfWidthorld)) {
             return SpatialBlockHandle.HEIGHT;
         }
 
@@ -889,7 +892,7 @@ public final class PickingSystem extends BaseSystem {
         for (int i = 0; i < 4; i++) {
             float vx = verts[i * 2];
             float vy = verts[i * 2 + 1];
-            if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWorld)) continue;
+            if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWidthorld)) continue;
             float d2 = dst2(mouseX, mouseY, vx, vy);
             if (d2 < bestDist2) {
                 bestDist2 = d2;
@@ -905,7 +908,7 @@ public final class PickingSystem extends BaseSystem {
             int next = (i + 1) & 3;
             float vx = (verts[i * 2] + verts[next * 2]) * 0.5f;
             float vy = (verts[i * 2 + 1] + verts[next * 2 + 1]) * 0.5f;
-            if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWorld)) continue;
+            if (!HandleHelper.insideSquare(mouseX, mouseY, vx, vy, halfWidthorld)) continue;
 
             float d2 = dst2(mouseX, mouseY, vx, vy);
             if (d2 < bestDist2) {
@@ -1068,33 +1071,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void syncPhysicsSelectionState() {
-        if (physicsService == null) {
-            physicsSelectionService.clear();
-            return;
-        }
-
-        int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
-        if (focusedBodyEid < 0) {
-            physicsSelectionService.clearHover();
-            return;
-        }
-
-        if (!world.getEntityManager().isActive(focusedBodyEid)
-                || !isSelectableInViewport(focusedBodyEid)
-                || !mPhysBody.has(focusedBodyEid)) {
-            boolean hadSelectedFixture = physicsSelectionService.hasSelectedFixture();
-            physicsSelectionService.clear();
-            if (hadSelectedFixture) {
-                EventFlow.i().publish(new EventFlow.FixtureSelectionCleared(MY_TAG));
-            }
-            return;
-        }
-
-        int selectedFixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (selectedFixtureId > 0
-                && physicsService.getFixtureById(focusedBodyEid, selectedFixtureId) == null) {
-            physicsSelectionService.clearSelectedFixtureIfMatches(
-                    focusedBodyEid, selectedFixtureId);
+        if (physicsSelectionReconciler != null) {
+            physicsSelectionReconciler.reconcile();
         }
     }
 
@@ -1123,7 +1101,8 @@ public final class PickingSystem extends BaseSystem {
 
         FixtureHit fixtureHit = findTopmostFixtureHit(mx, my, tolWorld);
         if (fixtureHit != null) {
-            physicsSelectionService.setHoveredFixture(fixtureHit.bodyEid, fixtureHit.fixtureId);
+            physicsSelectionService.setHoveredShape(
+                    fixtureHit.bodyEid, fixtureHit.physicsShapeId, fixtureHit.partIndex);
         } else {
             clearPhysicsHover();
         }
@@ -1154,8 +1133,9 @@ public final class PickingSystem extends BaseSystem {
         if (hit == null) return false;
 
         physicsSelectionService.focusBody(hit.bodyEid);
-        physicsSelectionService.setSelectedFixture(hit.bodyEid, hit.fixtureId);
-        EventFlow.i().publish(new EventFlow.FixtureSelectionChanged(hit.bodyEid, hit.fixtureId, MY_TAG));
+        physicsSelectionService.setSelectedShape(
+                hit.bodyEid, hit.physicsShapeId, hit.partIndex);
+        EventFlow.i().publish(new EventFlow.FixtureSelectionChanged(hit.bodyEid, hit.physicsShapeId, MY_TAG));
 
         lastPressHit = hit.bodyEid;
         pressStartedOnSelection = false;
@@ -1389,19 +1369,19 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return InputManipulationContext.Handle.NONE;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0) return InputManipulationContext.Handle.NONE;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) {
             return InputManipulationContext.Handle.NONE;
         }
 
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) {
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_BOX) {
             return InputManipulationContext.Handle.NONE;
         }
 
         ensureFixtureVertsCapacity(8);
-        int vertexCount = physicsService.computeFixtureVerticesWU(bodyEid, fixture, tmpFixtureVerts);
+        int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount != 4) return InputManipulationContext.Handle.NONE;
 
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
@@ -1435,22 +1415,22 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return false;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        int fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return false;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
 
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) return false;
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_BOX) return false;
 
         resizingBoxActive = true;
         resizingBoxBodyEid = bodyEid;
-        resizingBoxFixtureId = fixtureId;
+        resizingBoxFixtureId = physicsShapeId;
         resizingBoxHandle = ctx.hoveredHandle();
 
-        resizeBoxBeforeOffsetX = fixture.offsetX;
-        resizeBoxBeforeOffsetY = fixture.offsetY;
-        resizeBoxBeforeHalfW = fixture.halfW;
-        resizeBoxBeforeHalfH = fixture.halfH;
+        resizeBoxBeforeOffsetX = fixture.geometry.offsetX;
+        resizeBoxBeforeOffsetY = fixture.geometry.offsetY;
+        resizeBoxBeforeHalfW = fixture.geometry.halfWidth;
+        resizeBoxBeforeHalfH = fixture.geometry.halfHeight;
 
         oldDrag.set(mx, my);
         return true;
@@ -1458,36 +1438,36 @@ public final class PickingSystem extends BaseSystem {
 
     private InputManipulationContext.Handle detectSelectedCircleRadiusHandleHover(float mx, float my) {
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return InputManipulationContext.Handle.NONE;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) {
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return InputManipulationContext.Handle.NONE;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) {
             return InputManipulationContext.Handle.NONE;
         }
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE)
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE)
             return InputManipulationContext.Handle.NONE;
-        if (!physicsService.computeFixtureCenterWU(bodyEid, fixture, tmpA)) return InputManipulationContext.Handle.NONE;
+        if (!physicsService.computeShapeCenterWU(bodyEid, fixture, tmpA)) return InputManipulationContext.Handle.NONE;
         applyDisplayOffset(bodyEid, tmpA);
-        float hx = tmpA.x + physicsService.computeFixtureRadiusWU(fixture);
+        float hx = tmpA.x + physicsService.computeShapeRadiusWU(fixture);
         float hy = tmpA.y;
-        float halfWorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
-        return HandleHelper.insideSquare(mx, my, hx, hy, halfWorld) ? InputManipulationContext.Handle.E : InputManipulationContext.Handle.NONE;
+        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        return HandleHelper.insideSquare(mx, my, hx, hy, halfWidthorld) ? InputManipulationContext.Handle.E : InputManipulationContext.Handle.NONE;
     }
 
     private boolean tryBeginCircleResize(float mx, float my) {
         if (!isExplicitPhysicsEditMode()) return false;
         if (ctx.hoveredHandle() != InputManipulationContext.Handle.E) return false;
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        int fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return false;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) return false;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) return false;
         resizingCircleActive = true;
         resizingCircleBodyEid = bodyEid;
-        resizingCircleFixtureId = fixtureId;
-        resizeCircleBeforeRadius = fixture.radius;
-        circleRadiusDragCurrent = fixture.radius;
+        resizingCircleFixtureId = physicsShapeId;
+        resizeCircleBeforeRadius = fixture.geometry.radius;
+        circleRadiusDragCurrent = fixture.geometry.radius;
         oldDrag.set(mx, my);
         return true;
     }
@@ -1510,9 +1490,9 @@ public final class PickingSystem extends BaseSystem {
         out.set(localX, localY);
     }
 
-    private void copyFixtureBoxCornersWorld(int bodyEid, FixtureDefData fixture, float[] out8) {
+    private void copyFixtureBoxCornersWorld(int bodyEid, PhysicsShapeData fixture, float[] out8) {
         ensureFixtureVertsCapacity(8);
-        int vertexCount = physicsService.computeFixtureVerticesWU(bodyEid, fixture, tmpFixtureVerts);
+        int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount != 4) return;
         System.arraycopy(tmpFixtureVerts, 0, out8, 0, 8);
         applyDisplayOffset(bodyEid, out8);
@@ -1521,8 +1501,8 @@ public final class PickingSystem extends BaseSystem {
     private void onBoxResizeDragging(float mx, float my) {
         if (!resizingBoxActive) return;
 
-        FixtureDefData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) return;
+        PhysicsShapeData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_BOX) return;
 
         copyFixtureBoxCornersWorld(resizingBoxBodyEid, fixture, tmpFixtureBoxWorldCorners);
         float[] worldCorners = tmpFixtureBoxWorldCorners;
@@ -1560,13 +1540,19 @@ public final class PickingSystem extends BaseSystem {
 
         float centerLocalPxX = (fixedLocalPx.x + dragLocalPx.x) * 0.5f;
         float centerLocalPxY = (fixedLocalPx.y + dragLocalPx.y) * 0.5f;
-        float halfWPx = Math.max(minHalfPx, Math.abs(dragLocalPx.x - fixedLocalPx.x) * 0.5f);
-        float halfHPx = Math.max(minHalfPx, Math.abs(dragLocalPx.y - fixedLocalPx.y) * 0.5f);
+        float halfWidthPx = Math.max(minHalfPx, Math.abs(dragLocalPx.x - fixedLocalPx.x) * 0.5f);
+        float halfHeightPx = Math.max(minHalfPx, Math.abs(dragLocalPx.y - fixedLocalPx.y) * 0.5f);
 
-        fixture.offsetX = physicsService.pxToM(centerLocalPxX);
-        fixture.offsetY = physicsService.pxToM(centerLocalPxY);
-        fixture.halfW = physicsService.pxToM(halfWPx);
-        fixture.halfH = physicsService.pxToM(halfHPx);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, resizingBoxBodyEid);
+        int index = indexOfPhysicsShape(candidate, resizingBoxFixtureId);
+        if (index < 0) return;
+        PhysicsGeometryData geometry = candidate.get(index).geometry;
+        geometry.offsetX = physicsService.pxToM(centerLocalPxX);
+        geometry.offsetY = physicsService.pxToM(centerLocalPxY);
+        geometry.halfWidth = physicsService.pxToM(halfWidthPx);
+        geometry.halfHeight = physicsService.pxToM(halfHeightPx);
+        FixtureCommandSupport.prepareAndPublish(world, resizingBoxBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, resizingBoxBodyEid);
     }
@@ -1574,8 +1560,8 @@ public final class PickingSystem extends BaseSystem {
     private void onBoxResizeReleased() {
         if (!resizingBoxActive) return;
 
-        FixtureDefData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_BOX) {
+        PhysicsShapeData fixture = getSelectedFixture(resizingBoxBodyEid, resizingBoxFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_BOX) {
             clearBoxResizeState();
             return;
         }
@@ -1590,10 +1576,10 @@ public final class PickingSystem extends BaseSystem {
                 resizeBoxBeforeOffsetY,
                 resizeBoxBeforeHalfW,
                 resizeBoxBeforeHalfH,
-                fixture.offsetX,
-                fixture.offsetY,
-                fixture.halfW,
-                fixture.halfH
+                fixture.geometry.offsetX,
+                fixture.geometry.offsetY,
+                fixture.geometry.halfWidth,
+                fixture.geometry.halfHeight
         );
 
         if (!cmd.isNoop()) {
@@ -1606,36 +1592,40 @@ public final class PickingSystem extends BaseSystem {
     private void clearBoxResizeState() {
         resizingBoxActive = false;
         resizingBoxBodyEid = -1;
-        resizingBoxFixtureId = PhysicsSelectionService.NO_FIXTURE;
+        resizingBoxFixtureId = PhysicsSelectionService.NO_SHAPE;
         resizingBoxHandle = InputManipulationContext.Handle.NONE;
     }
 
     private void onCircleResizeDragging(float mx, float my) {
-        FixtureDefData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) return;
-        if (!physicsService.computeFixtureCenterWU(resizingCircleBodyEid, fixture, tmpA)) return;
+        PhysicsShapeData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) return;
+        if (!physicsService.computeShapeCenterWU(resizingCircleBodyEid, fixture, tmpA)) return;
         applyDisplayOffset(resizingCircleBodyEid, tmpA);
         float radiusWorld = Vector2.dst(tmpA.x, tmpA.y, mx, my);
         float radiusM = Math.max(0.001f, physicsService.pxToM(radiusWorld));
-        fixture.radius = radiusM;
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, resizingCircleBodyEid);
+        int index = indexOfPhysicsShape(candidate, resizingCircleFixtureId);
+        if (index < 0) return;
+        candidate.get(index).geometry.radius = radiusM;
+        FixtureCommandSupport.prepareAndPublish(world, resizingCircleBodyEid, candidate);
         circleRadiusDragCurrent = radiusM;
         FixtureCommandSupport.markDirty(world, resizingCircleBodyEid);
     }
 
     private void onCircleResizeReleased() {
-        FixtureDefData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_CIRCLE) {
+        PhysicsShapeData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) {
             clearCircleResizeState();
             return;
         }
         float afterRadius = Math.max(0.001f, circleRadiusDragCurrent);
-        FixtureDefData beforeData = fixture.copy();
-        beforeData.radius = Math.max(0.001f, resizeCircleBeforeRadius);
+        PhysicsShapeData beforeData = fixture.copy();
+        beforeData.geometry.radius = Math.max(0.001f, resizeCircleBeforeRadius);
         EditFixtureCommand.Snapshot before = EditFixtureCommand.Snapshot.capture(beforeData);
-        FixtureDefData edited = fixture.copy();
-        edited.radius = afterRadius;
+        PhysicsShapeData edited = fixture.copy();
+        edited.geometry.radius = afterRadius;
         EditFixtureCommand.Snapshot after = EditFixtureCommand.Snapshot.capture(edited);
-        fixture.radius = resizeCircleBeforeRadius;
         EditFixtureCommand cmd = new EditFixtureCommand(
                 world, historyIds, physicsSelectionService,
                 resizingCircleBodyEid, resizingCircleFixtureId,
@@ -1648,7 +1638,7 @@ public final class PickingSystem extends BaseSystem {
     private void clearCircleResizeState() {
         resizingCircleActive = false;
         resizingCircleBodyEid = -1;
-        resizingCircleFixtureId = PhysicsSelectionService.NO_FIXTURE;
+        resizingCircleFixtureId = PhysicsSelectionService.NO_SHAPE;
         resizeCircleBeforeRadius = 0f;
         circleRadiusDragCurrent = 0f;
     }
@@ -1662,55 +1652,21 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return -1;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        long fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return -1;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return -1;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return -1;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return -1;
 
-        AuthoredPolygonData authored =
-                polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
-
-        if (authored != null) {
-            if (authored.sourceVerts == null
-                    || authored.sourceCount < 3
-                    || authored.sourceVerts.length < authored.sourceCount * 2) {
-                return -1;
-            }
-
-            int floatCount = authored.sourceCount * 2;
-            ensureFixtureVertsCapacity(floatCount);
-
-            int vertexCount = computeAuthoredPolygonVertsWU(
-                    bodyEid,
-                    authored.sourceVerts,
-                    authored.sourceCount,
-                    authored,
-                    tmpFixtureVerts
-            );
-
-            if (vertexCount < 3) return -1;
-
-            return FixtureHandleHelper.detectPolygonVertexHover(
-                    worldCam,
-                    tmpFixtureVerts,
-                    vertexCount,
-                    mx,
-                    my,
-                    HOVER_TOLER_PX,
-                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX
-            );
-        }
-
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_POLYGON) {
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) {
             return -1;
         }
 
-        int floatCount = Math.max(0, fixture.polyCount * 2);
+        int floatCount = Math.max(0, fixture.geometry.polygonVertexCount * 2);
         if (floatCount < 6) return -1;
 
         ensureFixtureVertsCapacity(floatCount);
 
-        int vertexCount = physicsService.computeFixtureVerticesWU(bodyEid, fixture, tmpFixtureVerts);
+        int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount < 3) return -1;
 
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
@@ -1732,57 +1688,24 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null) return false;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        int fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return false;
-        if (!isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return false;
+        if (!isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
 
-        AuthoredPolygonData authored =
-                polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId);
-
-        if (authored != null) {
-            if (authored.sourceVerts == null
-                    || authored.sourceCount < 3
-                    || authored.sourceVerts.length < authored.sourceCount * 2) {
-                return false;
-            }
-
-            int base = hoveredPolygonVertexIndex * 2;
-            if (base < 0 || base + 1 >= authored.sourceVerts.length) return false;
-
-            movingPolygonVertexActive = true;
-            movingAuthoredPolygonVertexActive = true;
-
-            movingPolygonVertexBodyEid = bodyEid;
-            movingPolygonVertexFixtureId = fixtureId;
-            movingPolygonVertexIndex = hoveredPolygonVertexIndex;
-
-            movingAuthoredPolygonId = authored.authoringId;
-            movingAuthoredPolygonBeforeCount = authored.sourceCount;
-            movingAuthoredPolygonBeforeVerts = copyVerts(authored.sourceVerts, authored.sourceCount);
-
-            movingPolygonVertexBeforeX = authored.sourceVerts[base];
-            movingPolygonVertexBeforeY = authored.sourceVerts[base + 1];
-
-            oldDrag.set(mx, my);
-            return true;
-        }
-
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_POLYGON) return false;
-        if (fixture.polyVerts == null) return false;
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) return false;
+        if (fixture.geometry.polygonVertices == null) return false;
 
         int base = hoveredPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polyVerts.length) return false;
+        if (base < 0 || base + 1 >= fixture.geometry.polygonVertices.length) return false;
 
         movingPolygonVertexActive = true;
-        movingAuthoredPolygonVertexActive = false;
-
         movingPolygonVertexBodyEid = bodyEid;
-        movingPolygonVertexFixtureId = fixtureId;
+        movingPolygonVertexFixtureId = physicsShapeId;
         movingPolygonVertexIndex = hoveredPolygonVertexIndex;
 
-        movingPolygonVertexBeforeX = fixture.polyVerts[base];
-        movingPolygonVertexBeforeY = fixture.polyVerts[base + 1];
+        movingPolygonVertexBeforeX = fixture.geometry.polygonVertices[base];
+        movingPolygonVertexBeforeY = fixture.geometry.polygonVertices[base + 1];
 
         oldDrag.set(mx, my);
         return true;
@@ -1792,7 +1715,7 @@ public final class PickingSystem extends BaseSystem {
             int bodyEid,
             float[] localVertsMeters,
             int count,
-            AuthoredPolygonData polygon,
+            PhysicsShapeData polygon,
             float[] out
     ) {
         if (bodyEid < 0) return 0;
@@ -1804,9 +1727,9 @@ public final class PickingSystem extends BaseSystem {
 
         float ppm = resolvePixelsPerMeter();
 
-        float fixtureOffsetX = polygon != null ? polygon.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
+        float fixtureOffsetX = polygon != null ? polygon.geometry.offsetX : 0f;
+        float fixtureOffsetY = polygon != null ? polygon.geometry.offsetY : 0f;
+        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
 
         float fixtureCos = MathUtils.cos(fixtureAngleRad);
         float fixtureSin = MathUtils.sin(fixtureAngleRad);
@@ -1840,75 +1763,26 @@ public final class PickingSystem extends BaseSystem {
     private void onPolygonVertexDragging(float mx, float my) {
         if (!movingPolygonVertexActive) return;
 
-        if (movingAuthoredPolygonVertexActive) {
-            onAuthoredPolygonVertexDragging(mx, my);
-            return;
-        }
-
-        FixtureDefData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_POLYGON) return;
-        if (fixture.polyVerts == null) return;
+        PhysicsShapeData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON) return;
+        if (fixture.geometry.polygonVertices == null) return;
 
         int base = movingPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polyVerts.length) return;
+        if (base < 0 || base + 1 >= fixture.geometry.polygonVertices.length) return;
 
         worldToBodyLocalPx(movingPolygonVertexBodyEid, mx, my, tmpA);
 
-        fixture.polyVerts[base] = physicsService.pxToM(tmpA.x);
-        fixture.polyVerts[base + 1] = physicsService.pxToM(tmpA.y);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, movingPolygonVertexBodyEid);
+        int index = indexOfPhysicsShape(candidate, movingPolygonVertexFixtureId);
+        if (index < 0) return;
+        PhysicsGeometryData geometry = candidate.get(index).geometry;
+        geometry.polygonVertices[base] = physicsService.pxToM(tmpA.x);
+        geometry.polygonVertices[base + 1] = physicsService.pxToM(tmpA.y);
+        FixtureCommandSupport.prepareAndPublish(
+                world, movingPolygonVertexBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, movingPolygonVertexBodyEid);
-    }
-
-    private void onAuthoredPolygonVertexDragging(float mx, float my) {
-        AuthoredPolygonData authored = polygonAuthoringService()
-                .findByAuthoringId(movingPolygonVertexBodyEid, movingAuthoredPolygonId);
-
-        if (authored == null
-                || authored.sourceVerts == null
-                || authored.sourceCount < 3
-                || authored.sourceVerts.length < authored.sourceCount * 2) {
-            return;
-        }
-
-        int base = movingPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= authored.sourceVerts.length) return;
-
-        worldToAuthoredSourceLocalMeters(
-                movingPolygonVertexBodyEid,
-                authored,
-                mx,
-                my,
-                tmpA
-        );
-
-        float[] candidate = copyVerts(authored.sourceVerts, authored.sourceCount);
-        candidate[base] = tmpA.x;
-        candidate[base + 1] = tmpA.y;
-
-        try {
-            FixtureDefData materialSource = materialFromAuthoredPolygon(authored);
-
-            AuthoredPolygonData applied =
-                    polygonAuthoringService().applyAuthoredPolygonReplacingFixture(
-                            movingPolygonVertexBodyEid,
-                            authored.authoringId,
-                            candidate,
-                            authored.sourceCount,
-                            materialSource,
-                            -1L
-                    );
-
-            if (applied.generatedFixtureIds != null && applied.generatedFixtureIds.length > 0) {
-                int selectedId = applied.generatedFixtureIds[0];
-
-                physicsSelectionService.focusBody(movingPolygonVertexBodyEid);
-                physicsSelectionService.setSelectedFixture(movingPolygonVertexBodyEid, selectedId);
-            }
-        } catch (IllegalArgumentException ignored) {
-            // Invalid position: simply reject this drag step.
-            // The last valid shape remains in place.
-        }
     }
 
     private static float[] copyVerts(float[] verts, int count) {
@@ -1924,7 +1798,7 @@ public final class PickingSystem extends BaseSystem {
 
     private void worldToAuthoredSourceLocalMeters(
             int bodyEid,
-            AuthoredPolygonData polygon,
+            PhysicsShapeData polygon,
             float wx,
             float wy,
             Vector2 outMeters
@@ -1939,9 +1813,9 @@ public final class PickingSystem extends BaseSystem {
         float bodyLocalX = tmpA.x / ppm;
         float bodyLocalY = tmpA.y / ppm;
 
-        float offsetX = polygon != null ? polygon.offsetX : 0f;
-        float offsetY = polygon != null ? polygon.offsetY : 0f;
-        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.angleDeg : 0f);
+        float offsetX = polygon != null ? polygon.geometry.offsetX : 0f;
+        float offsetY = polygon != null ? polygon.geometry.offsetY : 0f;
+        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
 
         float dx = bodyLocalX - offsetX;
         float dy = bodyLocalY - offsetY;
@@ -1955,12 +1829,15 @@ public final class PickingSystem extends BaseSystem {
         outMeters.set(lx, ly);
     }
 
-    private FixtureDefData materialFromAuthoredPolygon(AuthoredPolygonData polygon) {
-        FixtureDefData fixture = FixtureCommandSupport.createDefaultFixture();
+    private PhysicsShapeData materialFromAuthoredPolygon(PhysicsShapeData polygon) {
+        PhysicsShapeData fixture = PhysicsService.createDefaultShape(
+                polygon != null && polygon.physicsShapeId > 0
+                        ? polygon.physicsShapeId
+                        : 1);
 
-        fixture.shapeType = FixtureDefData.SHAPE_POLYGON;
-        fixture.polyVerts = new float[0];
-        fixture.polyCount = 0;
+        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        fixture.geometry.polygonVertices = new float[0];
+        fixture.geometry.polygonVertexCount = 0;
 
         if (polygon == null) {
             return fixture;
@@ -1969,15 +1846,15 @@ public final class PickingSystem extends BaseSystem {
         fixture.density = polygon.density;
         fixture.friction = polygon.friction;
         fixture.restitution = polygon.restitution;
-        fixture.isSensor = polygon.isSensor;
+        fixture.sensor = polygon.sensor;
 
         fixture.categoryBits = polygon.categoryBits;
         fixture.maskBits = polygon.maskBits;
         fixture.groupIndex = polygon.groupIndex;
 
-        fixture.offsetX = polygon.offsetX;
-        fixture.offsetY = polygon.offsetY;
-        fixture.angleDeg = polygon.angleDeg;
+        fixture.geometry.offsetX = polygon.geometry.offsetX;
+        fixture.geometry.offsetY = polygon.geometry.offsetY;
+        fixture.geometry.angleDegrees = polygon.geometry.angleDegrees;
 
         return fixture;
     }
@@ -1985,54 +1862,14 @@ public final class PickingSystem extends BaseSystem {
     private void onPolygonVertexReleased() {
         if (!movingPolygonVertexActive) return;
 
-        if (movingAuthoredPolygonVertexActive) {
-            AuthoredPolygonData authored =
-                    polygonAuthoringService().findByAuthoringId(
-                            movingPolygonVertexBodyEid,
-                            movingAuthoredPolygonId
-                    );
-
-            if (authored == null
-                    || authored.sourceVerts == null
-                    || authored.sourceCount < 3
-                    || authored.sourceVerts.length < authored.sourceCount * 2) {
-                clearPolygonVertexMoveState();
-                return;
-            }
-
-            FixtureDefData materialSource = materialFromAuthoredPolygon(authored);
-
-            MoveAuthoredPolygonVertexCommand cmd = new MoveAuthoredPolygonVertexCommand(
-                    world,
-                    historyIds,
-                    physicsSelectionService,
-                    movingPolygonVertexBodyEid,
-                    movingAuthoredPolygonId,
-                    physicsSelectionService.getSelectedFixtureId(),
-                    movingAuthoredPolygonBeforeVerts,
-                    movingAuthoredPolygonBeforeCount,
-                    authored.sourceVerts,
-                    authored.sourceCount,
-                    materialSource,
-                    true // after already applied live during drag
-            );
-
-            if (!cmd.isNoop()) {
-                historyManager.execute(cmd);
-            }
-
-            clearPolygonVertexMoveState();
-            return;
-        }
-
-        FixtureDefData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
-        if (fixture == null || fixture.shapeType != FixtureDefData.SHAPE_POLYGON || fixture.polyVerts == null) {
+        PhysicsShapeData fixture = getSelectedFixture(movingPolygonVertexBodyEid, movingPolygonVertexFixtureId);
+        if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_POLYGON || fixture.geometry.polygonVertices == null) {
             clearPolygonVertexMoveState();
             return;
         }
 
         int base = movingPolygonVertexIndex * 2;
-        if (base < 0 || base + 1 >= fixture.polyVerts.length) {
+        if (base < 0 || base + 1 >= fixture.geometry.polygonVertices.length) {
             clearPolygonVertexMoveState();
             return;
         }
@@ -2046,8 +1883,8 @@ public final class PickingSystem extends BaseSystem {
                 movingPolygonVertexIndex,
                 movingPolygonVertexBeforeX,
                 movingPolygonVertexBeforeY,
-                fixture.polyVerts[base],
-                fixture.polyVerts[base + 1]
+                fixture.geometry.polygonVertices[base],
+                fixture.geometry.polygonVertices[base + 1]
         );
 
         if (!cmd.isNoop()) {
@@ -2059,15 +1896,10 @@ public final class PickingSystem extends BaseSystem {
 
     private void clearPolygonVertexMoveState() {
         movingPolygonVertexActive = false;
-        movingAuthoredPolygonVertexActive = false;
-
         movingPolygonVertexBodyEid = -1;
-        movingPolygonVertexFixtureId = PhysicsSelectionService.NO_FIXTURE;
+        movingPolygonVertexFixtureId = PhysicsSelectionService.NO_SHAPE;
         movingPolygonVertexIndex = -1;
 
-        movingAuthoredPolygonId = 0L;
-        movingAuthoredPolygonBeforeVerts = new float[0];
-        movingAuthoredPolygonBeforeCount = 0;
     }
 
     private void commitPolygonDrawSession() {
@@ -2111,57 +1943,59 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        long fixtureId = polygonDrawSession.getFixtureId();
-
-        AuthoredPolygonData existingAuthored = fixtureId > 0L
-                ? polygonAuthoringService().findByGeneratedFixtureId(bodyEid, fixtureId)
-                : null;
-
-        long authoringId = existingAuthored != null
-                ? existingAuthored.authoringId
-                : 0L;
-
-        FixtureDefData materialSource = resolvePolygonMaterialSource(bodyEid, fixtureId);
-
-        long fixtureToReplaceId = existingAuthored == null && fixtureId > 0L
-                ? fixtureId
-                : -1L;
-
-        ApplyAuthoredPolygonCommand cmd = new ApplyAuthoredPolygonCommand(
-                world,
-                historyIds,
-                physicsSelectionService,
-                bodyEid,
-                authoringId,
-                localVertsM,
-                vertexCount,
-                materialSource,
-                fixtureToReplaceId
-        );
-
-        if (!cmd.isNoop()) {
-            historyManager.execute(cmd);
+        int physicsShapeId = (int) polygonDrawSession.getFixtureId();
+        PhysicsShapeData existing = getSelectedFixture(bodyEid, physicsShapeId);
+        if (existing != null) {
+            ReplacePolygonVerticesCommand command = new ReplacePolygonVerticesCommand(
+                    world,
+                    historyIds,
+                    physicsSelectionService,
+                    bodyEid,
+                    physicsShapeId,
+                    existing.geometry.polygonVertices,
+                    existing.geometry.polygonVertexCount,
+                    localVertsM,
+                    vertexCount
+            );
+            if (!command.isNoop()) {
+                historyManager.execute(command);
+            }
+        } else {
+            PhysicsShapeData polygon = resolvePolygonMaterialSource(bodyEid, physicsShapeId);
+            polygon.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+            polygon.geometry.polygonVertices = copyVerts(localVertsM, vertexCount);
+            polygon.geometry.polygonVertexCount = vertexCount;
+            historyManager.execute(new AddFixtureCommand(
+                    world,
+                    historyIds,
+                    physicsSelectionService,
+                    physicsService,
+                    bodyEid,
+                    polygon,
+                    -1
+            ));
         }
 
         polygonDrawSession.cancel();
     }
 
-    private FixtureDefData resolvePolygonMaterialSource(int bodyEid, long fixtureId) {
-        FixtureDefData selected = fixtureId > 0L
-                ? getSelectedFixture(bodyEid, fixtureId)
+    private PhysicsShapeData resolvePolygonMaterialSource(int bodyEid, int physicsShapeId) {
+        PhysicsShapeData selected = physicsShapeId > 0L
+                ? getSelectedFixture(bodyEid, physicsShapeId)
                 : null;
 
         if (selected != null) {
             return selected.copy();
         }
 
-        FixtureDefData fallback = FixtureCommandSupport.createDefaultFixture();
-        fallback.shapeType = FixtureDefData.SHAPE_POLYGON;
-        fallback.offsetX = 0f;
-        fallback.offsetY = 0f;
-        fallback.angleDeg = 0f;
-        fallback.polyVerts = new float[0];
-        fallback.polyCount = 0;
+        PhysicsShapeData fallback = PhysicsService.createDefaultShape(
+                physicsShapeId > 0 ? physicsShapeId : 1);
+        fallback.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
+        fallback.geometry.offsetX = 0f;
+        fallback.geometry.offsetY = 0f;
+        fallback.geometry.angleDegrees = 0f;
+        fallback.geometry.polygonVertices = new float[0];
+        fallback.geometry.polygonVertexCount = 0;
 
         return fallback;
     }
@@ -2246,84 +2080,31 @@ public final class PickingSystem extends BaseSystem {
         return true;
     }
 
-    private AuthoredPolygonData findAuthoredPolygonByGeneratedFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0L) return null;
-
-        PhysicsAuthoringComponent authoring =
-                mPhysicsAuthoring != null ? mPhysicsAuthoring.getSafe(bodyEid, null) : null;
-
-        if (authoring == null || authoring.polygons == null) return null;
-
-        for (int i = 0; i < authoring.polygons.size; i++) {
-            AuthoredPolygonData polygon = authoring.polygons.get(i);
-            if (polygon == null || polygon.generatedFixtureIds == null) continue;
-
-            if (containsFixtureId(polygon.generatedFixtureIds, fixtureId)) {
-                return polygon;
-            }
-        }
-
-        return null;
-    }
-
-    private static boolean containsFixtureId(int[] ids, long fixtureId) {
-        if (ids == null || fixtureId <= 0L) return false;
-
-        for (int id : ids) {
-            if (id == fixtureId) return true;
-        }
-
-        return false;
-    }
-
-    private void applyAuthoredPolygonOffsetLive(int bodyEid,
-                                                AuthoredPolygonData polygon,
-                                                float offsetX,
-                                                float offsetY) {
-        if (polygon == null) return;
-
-        polygon.offsetX = offsetX;
-        polygon.offsetY = offsetY;
-
-        PhysicsFixturesComponent fixtures =
-                mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
-
-        if (fixtures != null && fixtures.fixtures != null && polygon.generatedFixtureIds != null) {
-            for (int i = 0; i < fixtures.fixtures.size; i++) {
-                FixtureDefData fixture = fixtures.fixtures.get(i);
-                if (fixture == null) continue;
-
-                if (containsFixtureId(polygon.generatedFixtureIds, fixture.fixtureId)) {
-                    fixture.offsetX = offsetX;
-                    fixture.offsetY = offsetY;
-                }
-            }
-        }
-
-        FixtureCommandSupport.markDirty(world, bodyEid);
-    }
-
     private boolean hasAuthoringFixtures(int bodyEid) {
-        PhysicsFixturesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
-        return fixtures != null && fixtures.hasFixtures();
+        PhysicsShapesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
+        return fixtures != null && fixtures.shapes != null && fixtures.shapes.size > 0;
     }
 
-    private int pickFixtureOnBody(int bodyEid, float mouseX, float mouseY, float tolWorld) {
-        if (!isFixtureBodyPickCandidate(bodyEid)) return PhysicsSelectionService.NO_FIXTURE;
+    private PhysicsFixturePickingService.PickResult pickFixtureOnBody(
+            int bodyEid, float mouseX, float mouseY, float tolWorld) {
+        if (!isFixtureBodyPickCandidate(bodyEid)) {
+            return new PhysicsFixturePickingService.PickResult();
+        }
         tmp2Vec.set(mouseX, mouseY);
         removeDisplayOffset(bodyEid, tmp2Vec);
-        return fixturePickingService.pickFixtureId(bodyEid, tmp2Vec.x, tmp2Vec.y, tolWorld);
+        return fixturePickingService.pick(bodyEid, tmp2Vec.x, tmp2Vec.y, tolWorld);
     }
 
     private FixtureHit findTopmostFixtureHit(float mouseX, float mouseY, float tolWorld) {
         EntitySubscription sub = world.getAspectSubscriptionManager().get(
-                Aspect.all(PhysicsFixturesComponent.class)
+                Aspect.all(PhysicsShapesComponent.class)
         );
         IntBag bag = sub.getEntities();
         int[] data = bag.getData();
 
         int bestBody = -1;
-        int bestFixtureId = PhysicsSelectionService.NO_FIXTURE;
+        int bestPhysicsShapeId = PhysicsSelectionService.NO_SHAPE;
+        int bestPartIndex = PhysicsSelectionService.NO_PART;
         int bestLayer = Integer.MIN_VALUE;
         int bestZ = Integer.MIN_VALUE;
 
@@ -2332,20 +2113,23 @@ public final class PickingSystem extends BaseSystem {
             if (bodyEid == -1) continue;
             if (!isFixtureBodyPickCandidate(bodyEid)) continue;
 
-            int fixtureId = pickFixtureOnBody(bodyEid, mouseX, mouseY, tolWorld);
-            if (fixtureId <= 0L) continue;
+            PhysicsFixturePickingService.PickResult hit =
+                    pickFixtureOnBody(bodyEid, mouseX, mouseY, tolWorld);
+            if (!hit.hit()) continue;
 
             int layer = layerOf(bodyEid);
             int z = zOf(bodyEid);
             if (!isBetterHit(bestBody, bestLayer, bestZ, bodyEid, layer, z)) continue;
 
             bestBody = bodyEid;
-            bestFixtureId = fixtureId;
+            bestPhysicsShapeId = hit.physicsShapeId;
+            bestPartIndex = hit.partIndex;
             bestLayer = layer;
             bestZ = z;
         }
 
-        return bestFixtureId > 0L ? new FixtureHit(bestBody, bestFixtureId) : null;
+        return bestPhysicsShapeId > 0
+                ? new FixtureHit(bestBody, bestPhysicsShapeId, bestPartIndex) : null;
     }
 
     private boolean isFixturePickingEnabled() {
@@ -2484,7 +2268,7 @@ public final class PickingSystem extends BaseSystem {
         return meta.pixelsPerMeter;
     }
 
-    private record FixtureHit(int bodyEid, int fixtureId) {
+    private record FixtureHit(int bodyEid, int physicsShapeId, int partIndex) {
     }
 
     private void beginHandleDragIfPossible(float mx, float my,
@@ -2606,12 +2390,7 @@ public final class PickingSystem extends BaseSystem {
 
         IntArray hits = new IntArray();
 
-        EntitySubscription sub = world.getAspectSubscriptionManager().get(
-                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
-                        .exclude(PointLightComponent.class, ConeLightComponent.class)
-        );
-
-        IntBag bag = sub.getEntities();
+        IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
         for (int i = 0, n = bag.size(); i < n; i++) {
@@ -2626,6 +2405,18 @@ public final class PickingSystem extends BaseSystem {
             float cy = (obb[1] + obb[5]) * 0.5f;
 
             if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
+                hits.add(e);
+            }
+        }
+
+        IntBag particleBag = particleSubscription.getEntities();
+        int[] particleData = particleBag.getData();
+        for (int i = 0, n = particleBag.size(); i < n; i++) {
+            int e = particleData[i];
+            if (!isSelectableInViewport(e)) continue;
+            TransformComponent transform = mT.getSafe(e, null);
+            if (transform != null && isPointInsideLasso(
+                    transform.x, transform.y, minX, minY, maxX, maxY)) {
                 hits.add(e);
             }
         }
@@ -2717,15 +2508,17 @@ public final class PickingSystem extends BaseSystem {
         return true;
     }
 
-    private FixtureDefData getSelectedFixture(int bodyEid, long fixtureId) {
-        if (bodyEid < 0 || fixtureId <= 0L) return null;
-        PhysicsFixturesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
-        if (fixtures == null || !fixtures.hasFixtures()) return null;
+    private PhysicsShapeData getSelectedFixture(int bodyEid, int physicsShapeId) {
+        if (bodyEid < 0 || physicsShapeId <= 0L) return null;
+        PhysicsShapesComponent fixtures = mFixDefs != null ? mFixDefs.getSafe(bodyEid, null) : null;
+        if (fixtures == null || fixtures.shapes == null || fixtures.shapes.size == 0) {
+            return null;
+        }
 
-        for (int i = 0, n = fixtures.fixtures.size; i < n; i++) {
-            FixtureDefData fixture = fixtures.fixtures.get(i);
+        for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
+            PhysicsShapeData fixture = fixtures.shapes.get(i);
             if (fixture == null) continue;
-            if (fixture.fixtureId == fixtureId) return fixture;
+            if (fixture.physicsShapeId == physicsShapeId) return fixture;
         }
         return null;
     }
@@ -2735,47 +2528,26 @@ public final class PickingSystem extends BaseSystem {
         if (physicsService == null || !physicsService.isAvailable()) return false;
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
-        int fixtureId = physicsSelectionService.getSelectedFixtureId();
-        if (bodyEid < 0 || fixtureId <= 0L) return false;
+        int physicsShapeId = physicsSelectionService.getSelectedPhysicsShapeId();
+        if (bodyEid < 0 || physicsShapeId <= 0L) return false;
 
-        FixtureDefData fixture = getSelectedFixture(bodyEid, fixtureId);
+        PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
         if (fixture == null) return false;
 
         float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
-        long pickedFixtureId = pickFixtureOnBody(bodyEid, mx, my, tolWorld);
-        if (pickedFixtureId == fixtureId
-                && !isFixtureGeometryEditable(world, bodyEid, fixtureId)) return false;
+        PhysicsFixturePickingService.PickResult picked =
+                pickFixtureOnBody(bodyEid, mx, my, tolWorld);
+        if (picked.physicsShapeId == physicsShapeId
+                && !isFixtureGeometryEditable(world, bodyEid, physicsShapeId)) return false;
 
-        AuthoredPolygonData authored = findAuthoredPolygonByGeneratedFixture(bodyEid, fixtureId);
-
-        if (authored != null) {
-            if (!containsFixtureId(authored.generatedFixtureIds, pickedFixtureId)) {
-                return false;
-            }
-
-            movingFixtureActive = true;
-            movingAuthoredPolygonActive = true;
-
-            movingFixtureBodyEid = bodyEid;
-            movingFixtureId = fixtureId;
-
-            movingAuthoredPolygonId = authored.authoringId;
-            movingAuthoredPolygonBeforeOffsetX = authored.offsetX;
-            movingAuthoredPolygonBeforeOffsetY = authored.offsetY;
-
-            oldDrag.set(mx, my);
-            return true;
-        }
-
-        if (pickedFixtureId != fixtureId) return false;
+        if (picked.physicsShapeId != physicsShapeId) return false;
 
         movingFixtureActive = true;
-        movingAuthoredPolygonActive = false;
 
         movingFixtureBodyEid = bodyEid;
-        movingFixtureId = fixtureId;
-        movingFixtureBeforeOffsetX = fixture.offsetX;
-        movingFixtureBeforeOffsetY = fixture.offsetY;
+        movingFixtureId = physicsShapeId;
+        movingFixtureBeforeOffsetX = fixture.geometry.offsetX;
+        movingFixtureBeforeOffsetY = fixture.geometry.offsetY;
 
         oldDrag.set(mx, my);
         return true;
@@ -2784,11 +2556,7 @@ public final class PickingSystem extends BaseSystem {
     private boolean onFixtureMoveDragging(float mx, float my) {
         if (!movingFixtureActive) return false;
 
-        if (movingAuthoredPolygonActive) {
-            return onAuthoredPolygonMoveDragging(mx, my);
-        }
-
-        FixtureDefData fixture = getSelectedFixture(movingFixtureBodyEid, movingFixtureId);
+        PhysicsShapeData fixture = getSelectedFixture(movingFixtureBodyEid, movingFixtureId);
         TransformComponent bodyT = mT.getSafe(movingFixtureBodyEid, null);
         if (fixture == null || bodyT == null) return false;
 
@@ -2804,43 +2572,16 @@ public final class PickingSystem extends BaseSystem {
         float dyLocalPx = -dxWorld * sin + dyWorld * cos;
 
         // fixture offsets stored in local Box2D authoring meters
-        fixture.offsetX += physicsService.pxToM(dxLocalPx);
-        fixture.offsetY += physicsService.pxToM(dyLocalPx);
+        Array<PhysicsShapeData> candidate =
+                FixtureCommandSupport.copyFixtures(world, movingFixtureBodyEid);
+        int index = indexOfPhysicsShape(candidate, movingFixtureId);
+        if (index < 0) return false;
+        PhysicsGeometryData geometry = candidate.get(index).geometry;
+        geometry.offsetX += physicsService.pxToM(dxLocalPx);
+        geometry.offsetY += physicsService.pxToM(dyLocalPx);
+        FixtureCommandSupport.prepareAndPublish(world, movingFixtureBodyEid, candidate);
 
         FixtureCommandSupport.markDirty(world, movingFixtureBodyEid);
-        oldDrag.set(mx, my);
-        return true;
-    }
-
-    private boolean onAuthoredPolygonMoveDragging(float mx, float my) {
-        AuthoredPolygonData authored =
-                findAuthoredPolygonByGeneratedFixture(movingFixtureBodyEid, movingFixtureId);
-
-        TransformComponent bodyT = mT.getSafe(movingFixtureBodyEid, null);
-
-        if (authored == null || bodyT == null) return false;
-
-        float dxWorld = mx - oldDrag.x;
-        float dyWorld = my - oldDrag.y;
-
-        if (dxWorld == 0f && dyWorld == 0f) return true;
-
-        float cos = MathUtils.cos(bodyT.rotationRad);
-        float sin = MathUtils.sin(bodyT.rotationRad);
-
-        float dxLocalPx = dxWorld * cos + dyWorld * sin;
-        float dyLocalPx = -dxWorld * sin + dyWorld * cos;
-
-        float nextOffsetX = authored.offsetX + physicsService.pxToM(dxLocalPx);
-        float nextOffsetY = authored.offsetY + physicsService.pxToM(dyLocalPx);
-
-        applyAuthoredPolygonOffsetLive(
-                movingFixtureBodyEid,
-                authored,
-                nextOffsetX,
-                nextOffsetY
-        );
-
         oldDrag.set(mx, my);
         return true;
     }
@@ -2848,18 +2589,14 @@ public final class PickingSystem extends BaseSystem {
     private boolean onFixtureMoveReleased() {
         if (!movingFixtureActive) return false;
 
-        if (movingAuthoredPolygonActive) {
-            return onAuthoredPolygonMoveReleased();
-        }
-
-        FixtureDefData fixture = getSelectedFixture(movingFixtureBodyEid, movingFixtureId);
+        PhysicsShapeData fixture = getSelectedFixture(movingFixtureBodyEid, movingFixtureId);
         if (fixture == null) {
             clearFixtureMoveState();
             return true;
         }
 
-        float afterOffsetX = fixture.offsetX;
-        float afterOffsetY = fixture.offsetY;
+        float afterOffsetX = fixture.geometry.offsetX;
+        float afterOffsetY = fixture.geometry.offsetY;
 
         MoveFixtureCommand cmd = new MoveFixtureCommand(
                 world,
@@ -2884,59 +2621,39 @@ public final class PickingSystem extends BaseSystem {
         return true;
     }
 
-    private boolean onAuthoredPolygonMoveReleased() {
-        AuthoredPolygonData authored =
-                findAuthoredPolygonByGeneratedFixture(movingFixtureBodyEid, movingFixtureId);
-
-        if (authored == null) {
-            clearFixtureMoveState();
-            return true;
-        }
-
-        MoveAuthoredPolygonCommand cmd = new MoveAuthoredPolygonCommand(
-                world,
-                historyIds,
-                physicsSelectionService,
-                movingFixtureBodyEid,
-                movingAuthoredPolygonId,
-                movingFixtureId,
-                movingAuthoredPolygonBeforeOffsetX,
-                movingAuthoredPolygonBeforeOffsetY,
-                authored.offsetX,
-                authored.offsetY
-        );
-
-        if (!cmd.isNoop()) {
-            historyManager.execute(cmd);
-        } else {
-            FixtureCommandSupport.markDirty(world, movingFixtureBodyEid);
-            FixtureCommandSupport.publishStructureChanged(movingFixtureBodyEid, this);
-        }
-
-        clearFixtureMoveState();
-        return true;
-    }
-
     private void clearFixtureMoveState() {
         movingFixtureActive = false;
         movingFixtureBodyEid = -1;
-        movingFixtureId = PhysicsSelectionService.NO_FIXTURE;
+        movingFixtureId = PhysicsSelectionService.NO_SHAPE;
 
         movingFixtureBeforeOffsetX = 0f;
         movingFixtureBeforeOffsetY = 0f;
 
-        movingAuthoredPolygonActive = false;
-        movingAuthoredPolygonId = 0L;
-        movingAuthoredPolygonBeforeOffsetX = 0f;
-        movingAuthoredPolygonBeforeOffsetY = 0f;
     }
 
     private boolean isExplicitPhysicsEditMode() {
         return physicsSelectionService.getFocusedBodyEid() >= 0;
     }
 
-    static boolean isFixtureGeometryEditable(World world, int bodyEid, long fixtureId) {
-        return !SpatialOwnedFixtureSupport.isOwned(world, bodyEid, fixtureId);
+    static boolean isFixtureGeometryEditable(World world, int bodyEid, int physicsShapeId) {
+        if (world == null || bodyEid < 0 || physicsShapeId <= 0) return false;
+        PhysicsShapesComponent shapes =
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEid, null);
+        if (shapes == null) return false;
+        int index = indexOfPhysicsShape(shapes.shapes, physicsShapeId);
+        return index >= 0
+                && shapes.shapes.get(index) != null
+                && shapes.shapes.get(index).geometry != null;
+    }
+
+    private static int indexOfPhysicsShape(
+            Array<PhysicsShapeData> shapes, int physicsShapeId) {
+        if (shapes == null) return -1;
+        for (int i = 0; i < shapes.size; i++) {
+            PhysicsShapeData shape = shapes.get(i);
+            if (shape != null && shape.physicsShapeId == physicsShapeId) return i;
+        }
+        return -1;
     }
 
     private boolean isInSelection(IntArray sel, int e) {
@@ -3097,11 +2814,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private Integer findTopmostObbHit(float mouseX, float mouseY) {
-        EntitySubscription sub = world.getAspectSubscriptionManager().get(
-                Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
-                        .exclude(PointLightComponent.class, ConeLightComponent.class)
-        );
-        IntBag bag = sub.getEntities();
+        IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
         float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
@@ -3133,7 +2846,55 @@ public final class PickingSystem extends BaseSystem {
             }
         }
 
+        IntBag particleBag = particleSubscription.getEntities();
+        int[] particleData = particleBag.getData();
+        float particleRadius = particleMarkerHitRadiusWorld(worldCam);
+        float particleRadius2 = particleRadius * particleRadius;
+        for (int i = 0, n = particleBag.size(); i < n; i++) {
+            int e = particleData[i];
+            if (!isSelectableInViewport(e)) continue;
+            TransformComponent transform = mT.getSafe(e, null);
+            if (transform == null || !isParticleMarkerHit(
+                    mouseX, mouseY, transform.x, transform.y, particleRadius2)) continue;
+
+            int layerIndex = mEntityIndex != null && mEntityIndex.has(e)
+                    ? mEntityIndex.get(e).getLayerIndex() : 0;
+            int z = mEntityIndex != null && mEntityIndex.has(e)
+                    ? mEntityIndex.get(e).getZIndex() : 0;
+            if (isBetterHit(bestEntity, bestLayerIndex, bestZIndex, e, layerIndex, z)) {
+                bestEntity = e;
+                bestLayerIndex = layerIndex;
+                bestZIndex = z;
+            }
+        }
+
         return bestEntity;
+    }
+
+    static float particleMarkerHitRadiusWorld(OrthographicCamera camera) {
+        return particleMarkerHitRadiusWorld(HandleHelper.worldUnitsPerPixel(camera));
+    }
+
+    static float particleMarkerHitRadiusWorld(float worldUnitsPerPixel) {
+        return (ParticleOverlayVisual.MARKER_SIZE_PX * 0.5f + PARTICLE_PICK_TOL_PX)
+                * worldUnitsPerPixel;
+    }
+
+    static boolean isParticleMarkerHit(float mouseX,
+                                       float mouseY,
+                                       float emitterX,
+                                       float emitterY,
+                                       float radiusSquared) {
+        return dst2(mouseX, mouseY, emitterX, emitterY) <= radiusSquared;
+    }
+
+    static boolean isPointInsideLasso(float x,
+                                      float y,
+                                      float minX,
+                                      float minY,
+                                      float maxX,
+                                      float maxY) {
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
     }
 
     private Integer findTopmostJointHit(float mouseX, float mouseY) {
@@ -3292,7 +3053,7 @@ public final class PickingSystem extends BaseSystem {
         int[] data = bag.getData();
 
         float wpp = HandleHelper.worldUnitsPerPixel(worldCam);
-        float halfWorld = (LIGHT_ICON_SIZE_PX * 0.5f + LIGHT_PICK_TOL_PX) * wpp;
+        float halfWidthorld = (LIGHT_ICON_SIZE_PX * 0.5f + LIGHT_PICK_TOL_PX) * wpp;
 
         int bestEntity = -1;
         int bestLayerIndex = Integer.MIN_VALUE;
@@ -3310,7 +3071,7 @@ public final class PickingSystem extends BaseSystem {
             float cx = t.x;
             float cy = t.y;
 
-            if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWorld)) continue;
+            if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWidthorld)) continue;
 
             int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
@@ -3371,37 +3132,39 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private InputManipulationContext.Handle detectHandleHover(int entityId, float mx, float my) {
-        if (isLightEntity(entityId)) return InputManipulationContext.Handle.NONE;
+        if (isLightEntity(entityId) || isParticleEntity(entityId)) {
+            return InputManipulationContext.Handle.NONE;
+        }
         float[] obb = computeOBBWorldCorners(entityId);
         if (obb == null) return InputManipulationContext.Handle.NONE;
 
-        float halfWorld = HandleHelper.pxToWorld(
+        float halfWidthorld = HandleHelper.pxToWorld(
                 worldCam,
                 (GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX)
         );
 
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.swX(obb), HandleLayout.swY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.swX(obb), HandleLayout.swY(obb), halfWidthorld))
             return InputManipulationContext.Handle.SW;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.seX(obb), HandleLayout.seY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.seX(obb), HandleLayout.seY(obb), halfWidthorld))
             return InputManipulationContext.Handle.SE;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.neX(obb), HandleLayout.neY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.neX(obb), HandleLayout.neY(obb), halfWidthorld))
             return InputManipulationContext.Handle.NE;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.nwX(obb), HandleLayout.nwY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.nwX(obb), HandleLayout.nwY(obb), halfWidthorld))
             return InputManipulationContext.Handle.NW;
 
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.midSX(obb), HandleLayout.midSY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.midSX(obb), HandleLayout.midSY(obb), halfWidthorld))
             return InputManipulationContext.Handle.S;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.midEX(obb), HandleLayout.midEY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.midEX(obb), HandleLayout.midEY(obb), halfWidthorld))
             return InputManipulationContext.Handle.E;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.midNX(obb), HandleLayout.midNY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.midNX(obb), HandleLayout.midNY(obb), halfWidthorld))
             return InputManipulationContext.Handle.N;
-        if (HandleHelper.insideSquare(mx, my, HandleLayout.midWX(obb), HandleLayout.midWY(obb), halfWorld))
+        if (HandleHelper.insideSquare(mx, my, HandleLayout.midWX(obb), HandleLayout.midWY(obb), halfWidthorld))
             return InputManipulationContext.Handle.W;
 
         float rotateOffsetWorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
         HandleLayout.rotateHandle(obb, rotateOffsetWorld, tmp2);
 
-        if (HandleHelper.insideSquare(mx, my, tmp2[0], tmp2[1], halfWorld)) {
+        if (HandleHelper.insideSquare(mx, my, tmp2[0], tmp2[1], halfWidthorld)) {
             return InputManipulationContext.Handle.ROTATE;
         }
 
@@ -3416,8 +3179,8 @@ public final class PickingSystem extends BaseSystem {
         if (t == null) return false;
 
         computeLightRadiusHandleWorld(entityId, t, tmp2Vec);
-        float halfWorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
-        if (!HandleHelper.insideSquare(mx, my, tmp2Vec.x, tmp2Vec.y, halfWorld)) return false;
+        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        if (!HandleHelper.insideSquare(mx, my, tmp2Vec.x, tmp2Vec.y, halfWidthorld)) return false;
 
         lightRadiusEntityId = entityId;
         lightRadiusBefore = readLightRadius(entityId);
@@ -3507,6 +3270,10 @@ public final class PickingSystem extends BaseSystem {
                 || (mConeLight != null && mConeLight.has(entityId));
     }
 
+    private boolean isParticleEntity(int entityId) {
+        return mParticle != null && mParticle.has(entityId);
+    }
+
     private float[] computeOBBWorldCorners(int e) {
         OrientedBoundsComponent b = mOBB.getSafe(e, null);
         if (b == null) return null;
@@ -3531,6 +3298,14 @@ public final class PickingSystem extends BaseSystem {
                                       InputManipulationContext.Handle activeHandle) {
         if (gizmoSystem != null) {
             gizmoSystem.clearCursor();
+        }
+
+        if (movingPolygonVertexActive) {
+            if (!osCursorHidden) {
+                setCursor(Cursor.SystemCursor.None);
+                osCursorHidden = true;
+            }
+            return;
         }
 
         float objectRotationRad = 0f;
@@ -3564,7 +3339,7 @@ public final class PickingSystem extends BaseSystem {
         if (hoveredPolygonVertexIndex >= 0) {
             if (gizmoSystem != null) {
                 gizmoSystem.setCursor(
-                        CursorKind.RESIZE,
+                        CursorKind.MOVE,
                         0f,
                         tmpMouseWorld
                 );

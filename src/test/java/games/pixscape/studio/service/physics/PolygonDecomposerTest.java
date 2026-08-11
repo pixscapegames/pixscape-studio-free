@@ -1,6 +1,6 @@
 package games.pixscape.studio.service.physics;
 
-import games.pixscape.studio.component.physics.ConvexPolygonPartData;
+import games.pixscape.runtime.physics.*;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -95,16 +95,18 @@ public class PolygonDecomposerTest {
         PolygonBuildResult result = PolygonDecomposer.build(clockwiseSquare, 4);
 
         Assert.assertTrue(result.isValid());
-        Assert.assertTrue(PolygonValidator.signedArea(result.sourceVerts(), result.sourceCount()) > 0f);
+        Assert.assertTrue(PolygonValidator.signedArea(
+                result.sourceVertices(), result.sourceVertexCount()) > 0f);
     }
 
     private static void assertPartsAreBox2dSafeConvex(PolygonBuildResult result) {
         for (int i = 0; i < result.parts().size; i++) {
-            ConvexPolygonPartData part = result.parts().get(i);
+            PolygonPartData part = result.parts().get(i);
             Assert.assertNotNull(part);
-            Assert.assertTrue(part.count >= 3);
-            Assert.assertTrue(part.count <= PolygonDecomposer.BOX2D_MAX_POLYGON_VERTICES);
-            Assert.assertTrue(PolygonValidator.isConvex(part.verts, part.count));
+            Assert.assertTrue(part.vertexCount >= 3);
+            Assert.assertTrue(
+                    part.vertexCount <= PolygonDecomposer.BOX2D_MAX_POLYGON_VERTICES);
+            Assert.assertTrue(PolygonValidator.isConvex(part.vertices, part.vertexCount));
         }
     }
 

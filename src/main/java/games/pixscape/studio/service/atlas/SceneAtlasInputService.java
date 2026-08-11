@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.ParticleEmitter;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -68,15 +69,20 @@ public final class SceneAtlasInputService {
 
             if (copyIfDifferent(source, dest)) {
                 copied++;
-                Gdx.app.log(TAG, "Copied atlas input: " + dest.path());
             }
         }
 
-        return new AtlasInputSyncResult(
+        AtlasInputSyncResult result = new AtlasInputSyncResult(
                 deleted > 0 || copied > 0,
                 copied,
                 deleted
         );
+        Gdx.app.log(TAG,
+                "Atlas input synced: scene=" + sceneTag
+                        + " changed=" + result.changed()
+                        + " copied=" + result.copiedCount()
+                        + " deleted=" + result.deletedCount());
+        return result;
     }
 
     public AtlasInputSyncResult syncSceneAtlasInputForSave(ProjectConfig cfg,
@@ -129,6 +135,17 @@ public final class SceneAtlasInputService {
         for (int i = 0; i < assetRefs.size(); i++) {
             AssetRefComponent ref = mAssetRef.getSafe(data[i], null);
             if (ref != null && ref.assetId > 0) addAssetMetaSourcePath(cfg, assetDb, required, ref.assetId);
+        }
+        ComponentMapper<AnimationComponent> mAnimation = world.getMapper(AnimationComponent.class);
+        IntBag animations = world.getAspectSubscriptionManager()
+                .get(Aspect.all(AnimationComponent.class)).getEntities();
+        int[] animationData = animations.getData();
+        for (int i = 0; i < animations.size(); i++) {
+            AnimationComponent animation = mAnimation.getSafe(animationData[i], null);
+            if (animation == null || animation.animationAssetIds == null) continue;
+            for (int j = 0; j < animation.animationAssetIds.size; j++) {
+                addAssetMetaSourcePath(cfg, assetDb, required, animation.animationAssetIds.get(j));
+            }
         }
         IntSet tiledAssetIds = collectUsedTiledRenderableAssetIds(world, tileAnimationsDb);
         IntSet.IntSetIterator it = tiledAssetIds.iterator();
@@ -222,8 +239,15 @@ public final class SceneAtlasInputService {
             for (EntityGraphEntry entry : graph.entries()) {
                 if (entry == null || entry.initializer() == null) continue;
                 GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-                if (snapshot == null || !snapshot.hasAssetRef || snapshot.assetRefAssetId <= 0) continue;
-                addAssetMetaSourcePath(cfg, assetDb, required, snapshot.assetRefAssetId);
+                if (snapshot == null) continue;
+                if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
+                    addAssetMetaSourcePath(cfg, assetDb, required, snapshot.assetRefAssetId);
+                }
+                if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
+                    for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
+                        addAssetMetaSourcePath(cfg, assetDb, required, snapshot.animationAssetIds.get(i));
+                    }
+                }
             }
         }
     }
@@ -235,10 +259,10 @@ public final class SceneAtlasInputService {
         if (cfg == null || assetDb == null || required == null || assetId <= 0) return;
 
         AssetMeta meta = assetDb.findById(assetId);
-        if (meta == null || meta.sourceRelPath == null || meta.sourceRelPath.isBlank()) return;
+        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) return;
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        FileHandle source = projectDir.child(meta.sourceRelPath);
+        FileHandle source = projectDir.child(meta.sourceRelPath());
 
         if (!source.exists()) return;
 
@@ -247,10 +271,10 @@ public final class SceneAtlasInputService {
                 if (child == null || child.isDirectory()) continue;
                 if (!"png".equalsIgnoreCase(child.extension())) continue;
 
-                required.add(meta.sourceRelPath + "/" + child.name());
+                required.add(meta.sourceRelPath() + "/" + child.name());
             }
         } else {
-            required.add(meta.sourceRelPath);
+            required.add(meta.sourceRelPath());
         }
     }
 
@@ -370,7 +394,7 @@ public final class SceneAtlasInputService {
         inputDir.mkdirs();
         ensureInternalWhitePixel(inputDir);
 
-        boolean changed = false;
+        int copied = 0;
 
         for (FileHandle child : animDir.list()) {
             if (child == null || child.isDirectory()) continue;
@@ -378,12 +402,13 @@ public final class SceneAtlasInputService {
 
             FileHandle dest = inputDir.child(child.name());
             if (copyIfDifferent(child, dest)) {
-                changed = true;
-                Gdx.app.log(TAG, "Copied animation frame to atlas input: " + dest.path());
+                copied++;
             }
         }
 
-        return changed;
+        Gdx.app.log(TAG,
+                "Animation atlas input synced: scene=" + sceneTag + " copied=" + copied);
+        return copied > 0;
     }
 
     public boolean ensureAssetInInput(ProjectConfig cfg,
@@ -440,7 +465,6 @@ public final class SceneAtlasInputService {
 
                 child.deleteDirectory();
                 deleted++;
-                Gdx.app.log(TAG, "Deleted unused atlas input dir: " + child.path());
                 continue;
             }
 
@@ -451,7 +475,6 @@ public final class SceneAtlasInputService {
             if (!requiredInputFileNames.contains(child.name())) {
                 child.delete();
                 deleted++;
-                Gdx.app.log(TAG, "Deleted unused atlas input file: " + child.path());
             }
         }
 

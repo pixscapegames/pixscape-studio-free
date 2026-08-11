@@ -9,9 +9,7 @@ import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class RuntimeAvailabilityServiceTest {
 
@@ -65,13 +63,13 @@ public class RuntimeAvailabilityServiceTest {
                 AssetMeta.AssetScope.USER
         );
 
-        service.addAnimation(cfg.getSceneMeta("Main"), animation.id);
-        service.addAnimation(cfg.getSceneMeta("Other"), animation.id);
+        service.addAnimation(cfg.getSceneMeta("Main"), animation.id());
+        service.addAnimation(cfg.getSceneMeta("Other"), animation.id());
 
         assertTrue(service.removeDeletedAsset(cfg, animation));
 
-        assertFalse(service.containsAnimation(cfg.getSceneMeta("Main"), animation.id));
-        assertFalse(service.containsAnimation(cfg.getSceneMeta("Other"), animation.id));
+        assertFalse(service.containsAnimation(cfg.getSceneMeta("Main"), animation.id()));
+        assertFalse(service.containsAnimation(cfg.getSceneMeta("Other"), animation.id()));
     }
 
     @Test
@@ -109,22 +107,22 @@ public class RuntimeAvailabilityServiceTest {
                 StudioFs.DIR_ORIG_TILES + "/terrain/grass.png",
                 AssetMeta.AssetScope.USER
         );
-        grass.tilesetId = tileset.id;
+        grass.tilesetId = tileset.id();
         TileAssetMeta rock = (TileAssetMeta) db.registerIfAbsent(
                 AssetType.TILE,
                 StudioFs.PREFIX_TILES + "terrain/rock",
                 StudioFs.DIR_ORIG_TILES + "/terrain/rock.png",
                 AssetMeta.AssetScope.USER
         );
-        rock.tilesetId = tileset.id;
+        rock.tilesetId = tileset.id();
 
-        service.addTiledTile(cfg.getSceneMeta("Main"), grass.id);
-        service.addTiledTile(cfg.getSceneMeta("Other"), rock.id);
+        service.addTiledTile(cfg.getSceneMeta("Main"), grass.id());
+        service.addTiledTile(cfg.getSceneMeta("Other"), rock.id());
 
-        assertTrue(service.removeDeletedTileset(cfg, db, tileset.id));
+        assertTrue(service.removeDeletedTileset(cfg, db, tileset.id()));
 
-        assertFalse(service.listTiledTileAssetIds(cfg.getSceneMeta("Main")).contains(grass.id));
-        assertFalse(service.listTiledTileAssetIds(cfg.getSceneMeta("Other")).contains(rock.id));
+        assertFalse(service.listTiledTileAssetIds(cfg.getSceneMeta("Main")).contains(grass.id()));
+        assertFalse(service.listTiledTileAssetIds(cfg.getSceneMeta("Other")).contains(rock.id()));
     }
 
     private static ProjectConfig projectConfig() {
