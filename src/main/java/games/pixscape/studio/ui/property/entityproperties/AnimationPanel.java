@@ -200,7 +200,7 @@ public final class AnimationPanel extends CollapsibleWidget {
         if (animation == null || meta == null || animation.animationAssetIds.contains(meta.id())) return;
         executeMutation(after -> {
             after.animationAssetIds.add(meta.id());
-            initializeFromAsset(after, meta, false);
+            initializeFromAsset(after, meta);
         });
     }
 
@@ -208,7 +208,7 @@ public final class AnimationPanel extends CollapsibleWidget {
         AssetRefComponent assetRef = assetRef();
         AnimationAssetMeta meta = animationMeta(assetId);
         if (assetRef == null || assetRef.assetId == assetId || meta == null) return;
-        executeMutation(after -> initializeFromAsset(after, meta, true));
+        executeMutation(after -> initializeFromAsset(after, meta));
     }
 
     private void deleteActiveAnimation() {
@@ -223,19 +223,14 @@ public final class AnimationPanel extends CollapsibleWidget {
             if (replacement == null) {
                 throw new IllegalStateException("Remaining Animation asset is missing: " + replacementId);
             }
-            initializeFromAsset(after, replacement, true);
+            initializeFromAsset(after, replacement);
         });
     }
 
     private void initializeFromAsset(EditAnimationCommand.Snapshot after,
-                                     AnimationAssetMeta meta,
-                                     boolean keepValidCurrentClip) {
+                                     AnimationAssetMeta meta) {
         after.activeAssetId = meta.id();
-        String clip = keepValidCurrentClip
-                && meta.clips != null
-                && meta.clips.get(after.currentClip) != null
-                ? after.currentClip
-                : StudioAnimationAssets.initialClip(meta);
+        String clip = StudioAnimationAssets.initialClip(meta);
         if (clip == null) {
             throw new IllegalStateException("Animation asset has no authored clips: " + meta.id());
         }

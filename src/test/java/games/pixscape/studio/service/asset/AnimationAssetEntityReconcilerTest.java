@@ -15,7 +15,7 @@ import static org.junit.Assert.*;
 
 public class AnimationAssetEntityReconcilerTest {
     @Test
-    public void validActiveClipIsPreservedWithoutTouchingPlayback() {
+    public void validActiveClipPreservesPlaybackWhileAuthoredFpsIsSynchronized() {
         World world = new World(new WorldConfiguration());
         AnimationAssetMeta meta = animationMeta(17, "idle", "idle", "run");
         AnimationComponent animation = entity(world, 17, 17, "run");
@@ -29,14 +29,14 @@ public class AnimationAssetEntityReconcilerTest {
         int changed = AnimationAssetEntityReconciler.reconcile(
                 world, 17, meta, ignored -> previews.incrementAndGet(), null);
 
-        assertEquals(0, changed);
+        assertEquals(1, changed);
         assertEquals("run", animation.currentClip);
-        assertEquals(7f, animation.fps, 0f);
+        assertEquals(12f, animation.fps, 0f);
         assertEquals(3f, animation.stateTime, 0f);
         assertEquals(4, animation.frame);
         assertFalse(animation.playing);
         assertFalse(animation.loop);
-        assertEquals(0, previews.get());
+        assertEquals(1, previews.get());
     }
 
     @Test
@@ -62,7 +62,7 @@ public class AnimationAssetEntityReconcilerTest {
         assertEquals("run", animation.currentClip);
         assertEquals(0f, animation.stateTime, 0f);
         assertEquals(-1, animation.frame);
-        assertEquals(9f, animation.fps, 0f);
+        assertEquals(12f, animation.fps, 0f);
         assertFalse(animation.playing);
         assertEquals(1, previews.get());
         assertEquals(1, events.get());
@@ -96,6 +96,25 @@ public class AnimationAssetEntityReconcilerTest {
         assertEquals(2f, animation.stateTime, 0f);
         assertEquals(3, animation.frame);
         assertEquals(0, previews.get());
+    }
+
+    @Test
+    public void reconcileAllRepairsLoadedActiveFpsAndInvalidClip() {
+        World world = new World(new WorldConfiguration());
+        AnimationAssetMeta meta = animationMeta(17, "idle", "idle", "run");
+        AnimationComponent animation = entity(world, 17, 17, "removed");
+        animation.fps = 5f;
+        animation.stateTime = 2f;
+        animation.frame = 3;
+
+        int changed = AnimationAssetEntityReconciler.reconcileAll(
+                world, assetId -> assetId == 17 ? meta : null, null, null);
+
+        assertEquals(1, changed);
+        assertEquals("idle", animation.currentClip);
+        assertEquals(12f, animation.fps, 0f);
+        assertEquals(0f, animation.stateTime, 0f);
+        assertEquals(-1, animation.frame);
     }
 
     @Test(expected = IllegalArgumentException.class)

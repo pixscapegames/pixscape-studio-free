@@ -1,14 +1,11 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
+import games.pixscape.studio.service.asset.AnimationAssetEntityReconciler;
 
 import java.util.function.IntConsumer;
 
@@ -81,31 +78,16 @@ public final class EditAnimationAssetFpsCommand
     private void apply(float fps) {
         if (noop) return;
 
-        animationAssetAuthoringService.updateFps(animationAssetId, fps);
-
-        int entityId = historyIds.entityOfHistoryId(entityHistoryId);
-        if (entityId < 0 || !world.getEntityManager().isActive(entityId)) {
-            return;
-        }
-
-        ComponentMapper<AnimationComponent> animations =
-                world.getMapper(AnimationComponent.class);
-        ComponentMapper<AssetRefComponent> assetRefs =
-                world.getMapper(AssetRefComponent.class);
-        AnimationComponent animation = animations.getSafe(entityId, null);
-        AssetRefComponent assetRef = assetRefs.getSafe(entityId, null);
-        if (animation != null
-                && assetRef != null
-                && assetRef.assetId == animationAssetId) {
-            animation.fps = fps;
-            DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
-            if (dirty != null) dirty.mark(entityId, DirtyBits.MATERIAL);
-            if (refreshPreview != null) refreshPreview.accept(entityId);
-            if (markSaveRequired != null) markSaveRequired.run();
-        }
-
-        EventFlow.i().publish(new EventFlow.AnimationChanged(
-                entityId, EventFlow.tag(this)));
+        AnimationAssetMeta edited = animationAssetAuthoringService.updateFps(
+                animationAssetId, fps);
+        int reconciled = AnimationAssetEntityReconciler.reconcile(
+                world,
+                animationAssetId,
+                edited,
+                refreshPreview,
+                entityId -> EventFlow.i().publish(new EventFlow.AnimationChanged(
+                        entityId, EventFlow.tag(this))));
+        if (reconciled > 0 && markSaveRequired != null) markSaveRequired.run();
     }
 
     private static void validateFps(float fps) {

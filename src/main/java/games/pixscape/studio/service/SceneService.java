@@ -776,6 +776,14 @@ public final class SceneService {
                         sceneName,
                         canonicalTag
                 ));
+        ensureAssetMetaDatabaseLoaded();
+        int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(
+                canvas.getEcsWorld(),
+                assetMetaDatabase::findById,
+                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
+                entityId -> EventFlow.i().publish(
+                        new EventFlow.AnimationChanged(entityId, MY_TAG)));
+        if (reconciledAnimations > 0) markCurrentSceneSaveRequired();
         canvas.requestTiledFallbackValidation();
         canvas.getIdentityRegistry().rebuild();
         // UI

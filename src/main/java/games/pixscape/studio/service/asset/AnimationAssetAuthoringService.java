@@ -35,7 +35,7 @@ public final class AnimationAssetAuthoringService {
         this.databaseSaver = Objects.requireNonNull(databaseSaver, "databaseSaver");
     }
 
-    public void updateFps(int assetId, float fps) {
+    public AnimationAssetMeta updateFps(int assetId, float fps) {
         if (!Float.isFinite(fps) || fps <= 0f) {
             throw new IllegalArgumentException(
                     "Animation FPS must be finite and greater than zero.");
@@ -68,5 +68,6 @@ public final class AnimationAssetAuthoringService {
             throw failure;
         }
         metadataPublisher.accept(database);
+        return animation;
     }
 }

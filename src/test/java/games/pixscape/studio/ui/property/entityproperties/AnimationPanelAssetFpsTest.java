@@ -63,10 +63,12 @@ public class AnimationPanelAssetFpsTest {
 
             switchAnimation(harness.panel, harness.walk.id());
             assertEquals(harness.walk.id(), harness.assetRef.assetId);
+            assertEquals("walk", harness.animation.currentClip);
             assertEquals(18f, harness.animation.fps, 0f);
 
             switchAnimation(harness.panel, harness.idle.id());
             assertEquals(harness.idle.id(), harness.assetRef.assetId);
+            assertEquals("idle", harness.animation.currentClip);
             assertEquals(8f, harness.animation.fps, 0f);
 
             AnimationAssetMeta reloaded = (AnimationAssetMeta) AssetMetaDatabase
@@ -105,6 +107,7 @@ public class AnimationPanelAssetFpsTest {
                     .resolve("assets.json").toFile());
             idle = animation(assets, "idle", 12f);
             walk = animation(assets, "walk", 18f);
+            walk.clips.put("idle", new AnimationClipMeta(0, 0));
             Array<AnimationAssetMeta> available = new Array<>();
             available.add(idle);
             available.add(walk);

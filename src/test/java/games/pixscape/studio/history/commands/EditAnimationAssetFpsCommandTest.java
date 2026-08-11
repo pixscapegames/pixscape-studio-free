@@ -73,6 +73,28 @@ public class EditAnimationAssetFpsCommandTest {
     }
 
     @Test
+    public void editingAssetSynchronizesEveryEntityThatCurrentlyUsesIt() throws Exception {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        AssetMetaDatabase database = new AssetMetaDatabase();
+        AnimationAssetMeta asset = asset(database, "walk", 12f);
+        int firstEntity = createAnimationEntity(world, asset.id(), 12f, asset.id());
+        int secondEntity = createAnimationEntity(world, asset.id(), 7f, asset.id());
+        AnimationComponent first = world.getMapper(AnimationComponent.class).get(firstEntity);
+        AnimationComponent second = world.getMapper(AnimationComponent.class).get(secondEntity);
+        AtomicInteger previews = new AtomicInteger();
+        AtomicInteger saveRequests = new AtomicInteger();
+
+        history.execute(command(world, history, firstEntity, asset.id(), 12f, 18f,
+                service(database), previews, saveRequests));
+
+        assertEquals(18f, first.fps, 0f);
+        assertEquals(18f, second.fps, 0f);
+        assertEquals(2, previews.get());
+        assertEquals(1, saveRequests.get());
+    }
+
+    @Test
     public void undoAfterSwitchRestoresMetadataWithoutOverwritingNewActiveFps() throws Exception {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
