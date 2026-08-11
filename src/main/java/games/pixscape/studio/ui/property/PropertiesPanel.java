@@ -122,6 +122,7 @@ public class PropertiesPanel extends DockablePanel {
                 app.getSceneService()::getAssetMeta,
                 canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
                 app.getSceneService()::getAnimationAssetMetas,
+                app.getAnimationAssetAuthoringService(),
                 MY_TAG
         );
 

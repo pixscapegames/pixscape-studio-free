@@ -20,6 +20,7 @@ import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
+import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
@@ -42,6 +43,7 @@ public final class EntityPropertiesContext {
     public final IntFunction<AssetMeta> assetMetaLookup;
     public final IntConsumer refreshAnimationPreview;
     public final Supplier<Array<AnimationAssetMeta>> animationAssets;
+    public final AnimationAssetAuthoringService animationAssetAuthoringService;
     public final int sourceTag;
 
     public final ComponentMapper<DimensionsComponent> mDimensions;
@@ -78,6 +80,7 @@ public final class EntityPropertiesContext {
                                    IntFunction<AssetMeta> assetMetaLookup,
                                    IntConsumer refreshAnimationPreview,
                                    Supplier<Array<AnimationAssetMeta>> animationAssets,
+                                   AnimationAssetAuthoringService animationAssetAuthoringService,
                                    int sourceTag) {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
@@ -93,6 +96,8 @@ public final class EntityPropertiesContext {
         this.refreshAnimationPreview = Objects.requireNonNull(
                 refreshAnimationPreview, "refreshAnimationPreview");
         this.animationAssets = Objects.requireNonNull(animationAssets, "animationAssets");
+        this.animationAssetAuthoringService = Objects.requireNonNull(
+                animationAssetAuthoringService, "animationAssetAuthoringService");
         this.sourceTag = sourceTag;
 
         this.mDimensions = world.getMapper(DimensionsComponent.class);

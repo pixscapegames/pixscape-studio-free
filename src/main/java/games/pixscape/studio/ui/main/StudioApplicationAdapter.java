@@ -32,6 +32,7 @@ import games.pixscape.studio.logging.StudioLogCapture;
 import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
@@ -54,6 +55,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private BottomMenuBar bottomMenuBar;
     private DockManager dockManager;
     private SceneService sceneService;
+    private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
     private boolean previewActive = false;
 
@@ -117,6 +119,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
         dockManager = new DockManager(this, rulerLeft, rulerTop);
         sceneService = new SceneService(this, canvas);
+        animationAssetAuthoringService = new AnimationAssetAuthoringService(
+                sceneService::getAssetMetaDatabase,
+                () -> StudioFs.requireAssetsFile(ProjectConfig.getInstance()),
+                canvas::publishAssetMetaDatabase);
         canvas.bindAssetMetaLookup(sceneService::getAssetMeta);
         canvas.getEditorOps().setSceneService(sceneService);
 
@@ -348,6 +354,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public SceneService getSceneService() {
         return sceneService;
+    }
+
+    public AnimationAssetAuthoringService getAnimationAssetAuthoringService() {
+        return animationAssetAuthoringService;
     }
 
     public ShapeDrawer getDrawer() {

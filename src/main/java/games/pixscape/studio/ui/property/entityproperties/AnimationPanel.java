@@ -13,6 +13,7 @@ import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.commands.EditAnimationCommand;
+import games.pixscape.studio.history.commands.EditAnimationAssetFpsCommand;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -45,8 +46,7 @@ public final class AnimationPanel extends CollapsibleWidget {
                 e -> ctx.mAnim.get(e).fps,
                 ctx.mAnim::has
         ).setDisplayDecimals(2);
-        fpsField.setApplier((eid, value) -> executeMutation(after ->
-                after.fps = Math.max(0.1f, value)));
+        fpsField.setApplier(this::editActiveAnimationFps);
 
         animationBox.addListener(new ChangeListener() {
             @Override
@@ -243,6 +243,30 @@ public final class AnimationPanel extends CollapsibleWidget {
         after.fps = meta.fps;
         after.stateTime = 0f;
         after.frame = -1;
+    }
+
+    private void editActiveAnimationFps(int targetEntityId, float value) {
+        if (targetEntityId < 0
+                || !ctx.world.getEntityManager().isActive(targetEntityId)) return;
+        AnimationComponent animation = ctx.mAnim.getSafe(targetEntityId, null);
+        AssetRefComponent assetRef = ctx.mSpriteSource.getSafe(targetEntityId, null);
+        if (animation == null || assetRef == null) return;
+        AnimationAssetMeta meta = animationMeta(assetRef.assetId);
+        if (meta == null) return;
+
+        float afterFps = Math.max(0.1f, value);
+        ctx.history.execute(new EditAnimationAssetFpsCommand(
+                ctx.world,
+                ctx.history.historyIds(),
+                targetEntityId,
+                assetRef.assetId,
+                meta.fps,
+                afterFps,
+                ctx.animationAssetAuthoringService,
+                ctx.refreshAnimationPreview,
+                ctx.markCurrentSceneSaveRequired
+        ));
+        refresh();
     }
 
     private void executeMutation(Consumer<EditAnimationCommand.Snapshot> mutation) {

@@ -534,6 +534,14 @@ public final class SceneService {
         return assetMetaDatabase != null ? assetMetaDatabase.findById(assetId) : null;
     }
 
+    public AssetMetaDatabase getAssetMetaDatabase() {
+        ensureAssetMetaDatabaseLoaded();
+        if (assetMetaDatabase == null) {
+            throw new IllegalStateException("Asset metadata is unavailable.");
+        }
+        return assetMetaDatabase;
+    }
+
     // ---------------------------------------------------------------------
     // NEW PROJECT
     // ---------------------------------------------------------------------

@@ -20,6 +20,9 @@ import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
+import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -220,6 +223,11 @@ public class LinkedPhysicsUiContractTest {
                     id -> {
                     },
                     Array::new,
+                    new AnimationAssetAuthoringService(
+                            AssetMetaDatabase::new,
+                            () -> new FileHandle("unused-assets.json"),
+                            ignored -> {
+                            }),
                     0);
             PhysicsService.initDefaultBody(
                     world.getMapper(PhysicsBodyComponent.class).create(body));
