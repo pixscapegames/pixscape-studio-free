@@ -18,6 +18,7 @@
 * Added a dedicated Spatial actor layer with automatic physics body and footprint setup.
 * Added visible progress feedback during Tiled map imports.
 * Tiled editing mode now displays the logical grid coordinates under the cursor directly in the canvas mode indicator.
+* Added multi-animation entities, allowing multiple Animation assets to be attached and the active animation to be switched from the Properties panel.
 
 ### Changed
 
@@ -33,6 +34,7 @@
 * Refreshed the Studio interface with a more compact and consistent layout, clearer panel hierarchy, harmonized dialogs and unified icon-based list controls.
 * Desktop and HTML Preview now use render-driven progressive scene loading with a simple progress bar and enter normal preview state only after Runtime READY.
 * HTML bootstrap now defers scene files, atlases and pages, particle effects, prefab fragments and other selected-scene resources to Runtime availability loading.
+* Animation asset clip and FPS metadata is now authoritative and stays synchronized across entity switching, editing, undo/redo and scene reloads.
 
 ### Improved
 
@@ -69,6 +71,8 @@
 * Fixed copied and pasted entities retaining the source layer instead of adapting to the destination layer.
 * Fixed Runtime Availability particle preparation after Studio atlas publication so authored and declared effects are rebuilt against the canonical scene atlas, including renamed scenes.
 * Particle effect replacement is failure-atomic and keeps the previous valid effect when replacement fails.
+* Fixed prefab atlas dependency collection for multi-animation entities and animation metadata propagation after asset edits.
+* Fixed HTML Preview/player prefab spawning with the updated Runtime GWT prefab reflection support.
 
 ### Tests
 
