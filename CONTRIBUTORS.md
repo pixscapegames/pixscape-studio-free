@@ -9,4 +9,4 @@ documentation, art, tutorials, and community support.
   LibGDX ecosystem and community support.
 
 - [Quillraven (@Quillraven)](https://github.com/Quillraven)  
-  Tiled map import testing and feedback.en** — Real-world Tiled/TMX import testing and feedback.
+  Tiled map import testing and feedback.
