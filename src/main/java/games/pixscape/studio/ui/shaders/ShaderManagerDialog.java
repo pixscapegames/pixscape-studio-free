@@ -1095,7 +1095,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private String templateMaterialFragment(ShaderVariant variant) {
         if (variant == ShaderVariant.ES3_WEBGL2) {
             return "#version 300 es\n"
-                    + "precision mediump float;\n"
+                    + "precision highp float;\\n"
                     + "precision mediump int;\n\n"
                     + "#include \"pixscape_common.glsl\"\n\n"
                     + "in vec2  v_uv;\n"
