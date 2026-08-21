@@ -17,7 +17,7 @@ public class GenericWindow implements ApplicationListener {
 
     @Override
     public void create() {
-        stage = new Stage(new ScreenViewport());
+        stage = new StudioUiStage(new ScreenViewport());
         attachPanel();
         Gdx.input.setInputProcessor(stage);
     }
