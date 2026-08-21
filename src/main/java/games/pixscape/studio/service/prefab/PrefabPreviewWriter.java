@@ -3,7 +3,6 @@ package games.pixscape.studio.service.prefab;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.Array;
@@ -15,6 +14,7 @@ import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
+import games.pixscape.studio.ui.StudioSpriteBatch;
 
 import java.util.Comparator;
 
@@ -158,7 +158,7 @@ public final class PrefabPreviewWriter {
         if (outFile.parent() != null) outFile.parent().mkdirs();
 
         Array<Texture> textures = new Array<>();
-        SpriteBatch batch = new SpriteBatch();
+        StudioSpriteBatch batch = StudioSpriteBatch.create();
         FrameBuffer fbo = new FrameBuffer(Pixmap.Format.RGBA8888, PREVIEW_SIZE, PREVIEW_SIZE, false);
         OrthographicCamera cam = new OrthographicCamera(PREVIEW_SIZE, PREVIEW_SIZE);
         cam.position.set(PREVIEW_SIZE * 0.5f, PREVIEW_SIZE * 0.5f, 0f);

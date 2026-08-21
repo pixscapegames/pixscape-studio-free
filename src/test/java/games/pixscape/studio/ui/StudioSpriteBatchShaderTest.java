@@ -5,17 +5,17 @@ import org.junit.Test;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class StudioUiStageShaderTest {
+public class StudioSpriteBatchShaderTest {
 
     @Test
     public void shaderSourcesDeclareGlsl140First() {
-        assertTrue(StudioUiStage.vertexShaderSource().startsWith("#version 140\n"));
-        assertTrue(StudioUiStage.fragmentShaderSource().startsWith("#version 140\n"));
+        assertTrue(StudioSpriteBatch.vertexShaderSource().startsWith("#version 140\n"));
+        assertTrue(StudioSpriteBatch.fragmentShaderSource().startsWith("#version 140\n"));
     }
 
     @Test
     public void vertexShaderRetainsSpriteBatchBindings() {
-        String source = StudioUiStage.vertexShaderSource();
+        String source = StudioSpriteBatch.vertexShaderSource();
 
         assertTrue(source.contains("in vec4 a_position;"));
         assertTrue(source.contains("in vec4 a_color;"));
@@ -26,7 +26,7 @@ public class StudioUiStageShaderTest {
 
     @Test
     public void fragmentShaderUsesCoreProfileOutputAndTextureFunction() {
-        String source = StudioUiStage.fragmentShaderSource();
+        String source = StudioSpriteBatch.fragmentShaderSource();
 
         assertTrue(source.contains("uniform sampler2D u_texture;"));
         assertTrue(source.contains("out vec4 fragColor;"));

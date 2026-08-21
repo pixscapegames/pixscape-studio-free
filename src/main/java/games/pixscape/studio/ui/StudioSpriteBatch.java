@@ -2,12 +2,10 @@ package games.pixscape.studio.ui;
 
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxRuntimeException;
-import com.badlogic.gdx.utils.viewport.Viewport;
 
-/** Scene2D stage whose rendering resources are compatible with the Studio GL3 context. */
-public final class StudioUiStage extends Stage {
+public final class StudioSpriteBatch extends SpriteBatch {
+
     private static final String VERTEX_SHADER = """
             #version 140
             in vec4 a_position;
@@ -37,17 +35,31 @@ public final class StudioUiStage extends Stage {
             }
             """;
 
-    private final SpriteBatch batch;
-    private final ShaderProgram shader;
+    private final ShaderProgram ownedShader;
 
-    public StudioUiStage(Viewport viewport) {
-        this(viewport, createResources());
+    public static StudioSpriteBatch create() {
+        ShaderProgram shader = createShader();
+
+        try {
+            return new StudioSpriteBatch(shader);
+        } catch (RuntimeException | Error failure) {
+            shader.dispose();
+            throw failure;
+        }
     }
 
-    private StudioUiStage(Viewport viewport, Resources resources) {
-        super(viewport, resources.batch);
-        batch = resources.batch;
-        shader = resources.shader;
+    private StudioSpriteBatch(ShaderProgram shader) {
+        super(1000, shader);
+        ownedShader = shader;
+    }
+
+    @Override
+    public void dispose() {
+        try {
+            super.dispose();
+        } finally {
+            ownedShader.dispose();
+        }
     }
 
     static String vertexShaderSource() {
@@ -58,35 +70,17 @@ public final class StudioUiStage extends Stage {
         return FRAGMENT_SHADER;
     }
 
-    private static Resources createResources() {
-        ShaderProgram shader = new ShaderProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+    private static ShaderProgram createShader() {
+        ShaderProgram shader =
+                new ShaderProgram(VERTEX_SHADER, FRAGMENT_SHADER);
+
         if (!shader.isCompiled()) {
             String log = shader.getLog();
             shader.dispose();
-            throw new GdxRuntimeException("Unable to compile the Studio UI shader:\n" + log);
+            throw new GdxRuntimeException(
+                    "Unable to compile Studio GL3 shader:\n" + log);
         }
 
-        try {
-            return new Resources(new SpriteBatch(1000, shader), shader);
-        } catch (RuntimeException | Error failure) {
-            shader.dispose();
-            throw failure;
-        }
-    }
-
-    @Override
-    public void dispose() {
-        try {
-            super.dispose();
-        } finally {
-            try {
-                batch.dispose();
-            } finally {
-                shader.dispose();
-            }
-        }
-    }
-
-    private record Resources(SpriteBatch batch, ShaderProgram shader) {
+        return shader;
     }
 }

@@ -33,7 +33,7 @@ import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
-import games.pixscape.studio.ui.StudioUiStage;
+import games.pixscape.studio.ui.StudioStage;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
@@ -83,7 +83,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
         root = new VisTable();
         root.setTouchable(Touchable.childrenOnly);
-        uiStage = new StudioUiStage(new ScreenViewport());
+        uiStage = new StudioStage(new ScreenViewport());
         drawer = ShapeHelper.newDrawer(uiStage.getBatch());
 
         FileHandle projectDir = cfg.projectFileName != null && !cfg.projectFileName.isBlank()
