@@ -9,6 +9,7 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.color.ColorPicker;
 import com.kotcrab.vis.ui.widget.color.ColorPickerListener;
+import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 
 import java.util.function.Consumer;
@@ -87,7 +88,7 @@ public final class ColorPickerField extends VisTable {
     }
 
     private void showPicker() {
-        ColorPicker picker = new ColorPicker(title);
+        ColorPicker picker = StudioColorPickerFactory.create(title);
         picker.setColor(current);
         picker.setAllowAlphaEdit(allowAlpha);
         picker.setListener(new ColorPickerListener() {

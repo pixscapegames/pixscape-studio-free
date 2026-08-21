@@ -17,6 +17,7 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -166,7 +167,7 @@ public final class PointLightProperties extends VisTable {
         buttonPicker.setColor(Color.WHITE);
         buttonPicker.add(colorImage).width(50).height(25);
 
-        picker = new ColorPicker("Point light color");
+        picker = StudioColorPickerFactory.create("Point light color");
         pickerBinder = new UiBinders.ColorPickerBinder(
                 ctx.world,
                 picker,
