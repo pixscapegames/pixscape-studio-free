@@ -449,23 +449,25 @@ public final class TmxSceneImportService {
                                TmxTileLayerPlan tileLayer,
                                Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerEntity);
+        TiledSparseStorageHelper.NewLayerStorageBuilder sparseStorage =
+                TiledSparseStorageHelper.beginNewLayerStorage(tiled, tileLayer.nonEmptyCellCount());
         tiled.data.beginContentMutation();
         try {
-        for (TmxTileCellPlan cell : tileLayer.cells()) {
-            Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
-            if (logicalIds == null) {
-                throw new IllegalStateException("Missing imported tileset for cell gid " + cell.cleanGid());
+            for (TmxTileCellPlan cell : tileLayer.cells()) {
+                Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
+                if (logicalIds == null) {
+                    throw new IllegalStateException("Missing imported tileset for cell gid " + cell.cleanGid());
+                }
+                Integer logicalId = logicalIds.get(cell.localTileId());
+                if (logicalId == null || logicalId <= 0) {
+                    throw new IllegalStateException("Missing imported tile asset for local tile " + cell.localTileId());
+                }
+                int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
+                int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
+                byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
+                tiled.data.setTile(gx, gy, logicalId, flags);
+                sparseStorage.append(gx, gy, logicalId, flags);
             }
-            Integer logicalId = logicalIds.get(cell.localTileId());
-            if (logicalId == null || logicalId <= 0) {
-                throw new IllegalStateException("Missing imported tile asset for local tile " + cell.localTileId());
-            }
-            int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
-            int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
-            byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
-            tiled.data.setTile(gx, gy, logicalId, flags);
-            TiledSparseStorageHelper.setTile(tiled, gx, gy, logicalId, flags);
-        }
         } finally {
             tiled.data.endContentMutation();
         }

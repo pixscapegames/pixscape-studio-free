@@ -788,6 +788,20 @@ public class TopMenuBar extends MenuBar {
     }
 
     private void importTmxAsNewScene(FileHandle file, String sceneName) {
+        app.runAfterCurrentSceneSaveDecision(
+                "Unsaved Project",
+                "Do you want to save before importing the Tiled map?",
+                () -> startTmxImport(file, sceneName),
+                null,
+                failure -> Dialogs.showOKDialog(
+                        app.getUiStage(),
+                        "Save failed",
+                        PreviewLaunchSupport.userMessageFor(failure)
+                )
+        );
+    }
+
+    private void startTmxImport(FileHandle file, String sceneName) {
         try {
             sceneService.importTmxAsNewSceneWithProgress(
                     app.getUiStage(),

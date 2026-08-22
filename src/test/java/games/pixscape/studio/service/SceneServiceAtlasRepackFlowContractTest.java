@@ -21,12 +21,34 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void saveCurrentSceneOnly_autoRepackEnabledStillCallsRepack() throws Exception {
+    public void saveCurrentSceneOnly_autoRepackEnabledUsesConditionalRepackPath() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "private void saveCurrentSceneOnly(ProjectConfig cfg)");
 
         assertTrue(methodBody.contains("if (EditorSettings.get().autoRepackAtlases)"));
         assertTrue(methodBody.contains("repackSceneAtlas(cfg, sceneName, projectDir);"));
+    }
+
+    @Test
+    public void automaticCurrentSceneRepackSynchronizesOnceAndDecidesBeforePacking() throws Exception {
+        String source = readSceneServiceSource();
+        String methodBody = methodBody(source, "private void repackSceneAtlas(");
+
+        int sync = methodBody.indexOf("sceneAtlasInputService.syncSceneAtlasInputForSave(");
+        int skip = methodBody.indexOf("shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)");
+        int delete = methodBody.indexOf("ProjectFileCleanupService.deleteSceneAtlasFiles(");
+        int pack = methodBody.indexOf("SceneAtlasLoaderService.packSceneAtlas(");
+
+        assertTrue(sync >= 0);
+        assertTrue(skip > sync);
+        assertTrue(delete > skip);
+        assertTrue(pack > delete);
+        assertTrue(occurrences(methodBody, "sceneAtlasInputService.syncSceneAtlasInputForSave(") == 1);
+        String skipGuard = methodBody(
+                methodBody.substring(skip),
+                "shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)"
+        );
+        assertTrue(skipGuard.contains("return;"));
     }
 
     @Test

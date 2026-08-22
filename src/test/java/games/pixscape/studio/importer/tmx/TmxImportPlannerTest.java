@@ -220,7 +220,7 @@ public class TmxImportPlannerTest {
     }
 
     @Test
-    public void imageLayersArePlannedInSourceOrderAndObjectWarningsDoNotPreventPlanning() throws Exception {
+    public void imageLayersArePlannedInSourceOrderWhileObjectLayersRemainUnplanned() throws Exception {
         Path dir = Files.createTempDirectory("tmx-plan-warnings");
         writeFile(dir.resolve("terrain.png"), "fake image");
         writeFile(dir.resolve("background.png"), "fake image");
@@ -239,7 +239,7 @@ public class TmxImportPlannerTest {
 
         TmxImportPlanResult result = new TmxImportPlanner().plan(new TmxImportPlanRequest(tmx));
 
-        assertEquals(TmxImportPlanStatus.PLAN_CREATED_WITH_WARNINGS, result.status());
+        assertEquals(TmxImportPlanStatus.PLAN_CREATED, result.status());
         assertTrue(result.hasPlan());
         assertEquals(2, result.plan().layers().size());
         assertEquals(List.of("Backdrop", "Ground"), result.plan().layers().stream().map(TmxLayerPlan::name).toList());
@@ -258,7 +258,7 @@ public class TmxImportPlannerTest {
         assertEquals("background.png", image.imageSource());
         assertEquals(64, image.imageWidth());
         assertEquals(32, image.imageHeight());
-        assertTrue(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
+        assertFalse(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
         assertFalse(hasDiagnostic(result.preflightReport(), TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
     }
 
