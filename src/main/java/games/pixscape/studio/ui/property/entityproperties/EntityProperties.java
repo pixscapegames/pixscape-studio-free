@@ -263,7 +263,7 @@ public class EntityProperties extends VisTable {
         boolean isSprite = kind == EntityKind.SPRITE;
 
         transformSection.setApplicable(true);
-        materialSection.setApplicable(!isParticle);
+        materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
         repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
@@ -273,6 +273,10 @@ public class EntityProperties extends VisTable {
         physicsSection.setApplicable(physicsApplicable);
 
         invalidateHierarchy();
+    }
+
+    static boolean isMaterialApplicable(EntityKind kind, boolean hasMaterial) {
+        return kind != EntityKind.PARTICLE && hasMaterial;
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
