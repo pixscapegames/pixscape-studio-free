@@ -144,6 +144,7 @@ public final class TmxSceneImportService {
     ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
         Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset = new HashMap<>();
         Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> animationIdsByTileset = new HashMap<>();
         Set<Integer> importedTileAssetIds = new HashSet<>();
         Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer = new HashMap<>();
         Set<Integer> importedImageAssetIds = new HashSet<>();
@@ -203,6 +204,7 @@ public final class TmxSceneImportService {
                     runtimeAvailabilityService.addTiledAnimation(meta, entry.getValue());
                 }
             }
+            animationIdsByTileset.put(tileset.planIndex(), Map.copyOf(animationIds));
             cellLogicalIdsByTileset.put(tileset.planIndex(), cellLogicalIds);
         }
         if (tileAnimationsChanged) {
@@ -234,6 +236,7 @@ public final class TmxSceneImportService {
                 importedTilesetCount,
                 cellLogicalIdsByTileset,
                 staticTileAssetIdsByTileset,
+                Map.copyOf(animationIdsByTileset),
                 importedTileAssetIds,
                 imageAssetsBySourceLayer,
                 importedImageAssetIds
@@ -279,6 +282,7 @@ public final class TmxSceneImportService {
             IdentityRegistry identityRegistry, TmxImportPlan plan,
             Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
             Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
             Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
             String sceneTag) {
         int layerIndex = 0;
@@ -306,7 +310,7 @@ public final class TmxSceneImportService {
                 createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
                 identityRegistry.ensureStableId(layerEntity);
                 populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer,
-                        staticTileAssetIdsByTileset, sceneTag);
+                        staticTileAssetIdsByTileset, animationIdsByTileset, sceneTag);
                 layerIndex++;
             }
         }
@@ -421,13 +425,15 @@ public final class TmxSceneImportService {
                                  TmxScenePlan scene,
                                  TmxObjectLayerPlan objectLayer,
                                  Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                 Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                  String sceneTag) {
         float mapPixelHeight = scene.mapHeightCells() * (float) scene.tileHeight();
         for (TmxObjectPlan object : objectLayer.objects()) {
             int objectEntity = world.create();
             if (object.kind() == TmxObjectKind.TILE) {
                 createTileObjectComponents(world, objectEntity, layerIndex, mapPixelHeight,
-                        objectLayer, object, staticTileAssetIdsByTileset, sceneTag);
+                        objectLayer, object, staticTileAssetIdsByTileset,
+                        animationIdsByTileset, sceneTag);
             } else {
                 createDataObjectComponents(world, objectEntity, layerIndex,
                         mapPixelHeight, objectLayer, object);
@@ -488,6 +494,7 @@ public final class TmxSceneImportService {
                                             TmxObjectLayerPlan objectLayer,
                                             TmxObjectPlan object,
                                             Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                            Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                             String sceneTag) {
         int assetId = staticTileAssetId(staticTileAssetIdsByTileset, object);
         float width = object.width() > 0f ? object.width() : object.nativeTileWidth();
@@ -539,6 +546,17 @@ public final class TmxSceneImportService {
 
         VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).get(objectEntity);
         visibility.visible = object.visible();
+
+        Map<Integer, Integer> tilesetAnimationIds =
+                animationIdsByTileset.get(object.tilesetPlanIndex());
+        Integer animationId = tilesetAnimationIds != null
+                ? tilesetAnimationIds.get(object.localTileId())
+                : null;
+        if (animationId != null && animationId > 0) {
+            TiledAnimationComponent animation = world.getMapper(TiledAnimationComponent.class)
+                    .create(objectEntity);
+            animation.animationId = animationId;
+        }
         attachObjectMetadata(world, objectEntity, object);
     }
 
@@ -767,6 +785,7 @@ public final class TmxSceneImportService {
     record ImportAssetsResult(int importedTilesetCount,
                                       Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
                                       Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                      Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                       Set<Integer> importedTileAssetIds,
                                       Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                       Set<Integer> importedImageAssetIds) {

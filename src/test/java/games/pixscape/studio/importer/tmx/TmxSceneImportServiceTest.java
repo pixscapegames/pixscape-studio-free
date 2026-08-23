@@ -720,6 +720,31 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void importAssetsRetainsSeparateStaticCellAndAnimationMappings() throws Exception {
+        Harness h = harness("tmx-import-animation-mappings");
+        FileHandle tmx = animatedTileTmx(h, "animated-mappings.tmx", "1,2,0,0");
+        TmxSceneImportService importer = h.importer();
+        TmxImportPlanResult planned = importer.plan(request(tmx, "Mappings"));
+        SceneMeta meta = new SceneMeta("Mappings", "mappings.json");
+        importer.configureSceneMeta(meta, planned.plan().scene());
+
+        TmxSceneImportService.ImportAssetsResult assets = importer.importAssets(planned.plan(), meta);
+        int tilesetIndex = planned.plan().tilesets().get(0).planIndex();
+        int staticBaseAssetId = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        int logicalAnimationId = animations.animations.get(0).id;
+
+        assertEquals(1, animations.animations.size);
+        assertEquals(Integer.valueOf(logicalAnimationId),
+                assets.animationIdsByTileset().get(tilesetIndex).get(0));
+        assertEquals(Integer.valueOf(logicalAnimationId),
+                assets.cellLogicalIdsByTileset().get(tilesetIndex).get(0));
+        assertEquals(Integer.valueOf(staticBaseAssetId),
+                assets.staticTileAssetIdsByTileset().get(tilesetIndex).get(0));
+    }
+
+    @Test
     public void importScenePreservesTransformFlagsOnAnimatedCells() throws Exception {
         Harness h = harness("tmx-import-animated-transform-flags");
         long hFlipAnimated = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
@@ -1056,6 +1081,7 @@ public class TmxSceneImportServiceTest {
         assertTrue(world.getMapper(TextureRegionComponent.class).has(shared));
         assertTrue(world.getMapper(RenderMaterialComponent.class).has(shared));
         assertFalse(world.getMapper(AnimationComponent.class).has(shared));
+        assertFalse(world.getMapper(TiledAnimationComponent.class).has(shared));
         assertEquals(firstTiled(world).tileAssetIds.get(0), sharedAsset.assetId);
         assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability.spriteAssetIds
                 .contains(sharedAsset.assetId));
@@ -1093,6 +1119,128 @@ public class TmxSceneImportServiceTest {
                 visualEntityByName(world, "CleanHexPeer"), visualEntityByName(world, "IgnoredHex"));
         assertEquals(0, world.getMapper(EntityIndexComponent.class).get(shared).zIndex);
         assertEquals(5, world.getMapper(EntityIndexComponent.class).get(visualEntityByName(world, "HVFlip")).zIndex);
+    }
+
+    @Test
+    public void importSceneMaterializesSharedAnimatedTileObjectsWithoutTileLayerConsumer() throws Exception {
+        Harness h = harness("tmx-import-isolated-animated-tile-objects");
+        FileHandle tmx = animatedTileObjectTmx(h, "animated-objects.tmx");
+        TmxSceneImportRequest request = new TmxSceneImportRequest(tmx, "Animated Objects", true);
+
+        TmxSceneImportResult result = h.importer().importScene(request);
+        World world = loadImportedWorld(h, result);
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        int staticBaseAssetId = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
+
+        assertTrue(result.imported());
+        assertTrue(result.planResult().preflightReport().isImportableCandidate());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(100, def.frameDurationsMs[0]);
+        assertEquals(150, def.frameDurationsMs[1]);
+
+        int first = visualEntityByName(world, "AnimatedA");
+        int second = visualEntityByName(world, "AnimatedB");
+        int staticPeer = visualEntityByName(world, "StaticPeer");
+        TiledAnimationComponent firstAnimation = world.getMapper(TiledAnimationComponent.class).get(first);
+        TiledAnimationComponent secondAnimation = world.getMapper(TiledAnimationComponent.class).get(second);
+
+        assertNotNull(firstAnimation);
+        assertNotNull(secondAnimation);
+        assertEquals(def.id, firstAnimation.animationId);
+        assertEquals(def.id, secondAnimation.animationId);
+        assertEquals(0, firstAnimation.frameIndex);
+        assertEquals(0, firstAnimation.frameElapsedMs);
+        assertEquals(-1, firstAnimation.appliedFrameAssetId);
+        assertEquals(0, secondAnimation.frameIndex);
+        assertEquals(0, secondAnimation.frameElapsedMs);
+        assertEquals(-1, secondAnimation.appliedFrameAssetId);
+        assertEquals(staticBaseAssetId, world.getMapper(AssetRefComponent.class).get(first).assetId);
+        assertEquals(staticBaseAssetId, world.getMapper(AssetRefComponent.class).get(second).assetId);
+        assertFalse(world.getMapper(TiledAnimationComponent.class).has(staticPeer));
+
+        assertTrue(world.getMapper(TextureRegionComponent.class).has(first));
+        assertTrue(world.getMapper(RenderMaterialComponent.class).has(first));
+        assertTrue(world.getMapper(VisibilityComponent.class).has(first));
+        assertTrue(world.getMapper(PixscapeIdentityComponent.class).has(first));
+        assertTrue(world.getMapper(EntityMetaComponent.class).has(first));
+        assertTrue(world.getMapper(EntityIndexComponent.class).has(first));
+        assertEquals("enemy", world.getMapper(PixscapeTagComponent.class).get(first).tags.first());
+        assertEquals(5, world.getMapper(CustomPropertiesComponent.class).get(first)
+                .properties.getInt("speed", 0));
+        assertEquivalentTransformAndDimensions(world, first, staticPeer);
+        assertFlip(world, "AnimatedB", -1f, 1f, 16f, 0f);
+
+        SceneMeta sceneMeta = h.cfg.getSceneMeta(result.sceneName());
+        assertTrue(sceneMeta.runtimeAvailability.tiledAnimationIds.contains(def.id));
+        for (int frameAssetId : def.frameAssetIds) {
+            assertTrue(sceneMeta.runtimeAvailability.tiledTileAssetIds.contains(frameAssetId));
+            AssetMeta frameAsset = h.db.findById(frameAssetId);
+            assertNotNull(frameAsset);
+            assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
+                    .child(StudioFs.DIR_INPUT)
+                    .child(result.sceneTag())
+                    .child(new FileHandle(frameAsset.sourceRelPath()).name())
+                    .exists());
+        }
+        assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
+                .child(StudioFs.withExt(result.sceneTag(), StudioFs.EXT_ATLAS)).exists());
+
+        FileHandle sceneFile = h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName());
+        String sceneJson = sceneFile.readString(StandardCharsets.UTF_8.name());
+        assertTrue(sceneJson.contains("animationId"));
+        assertFalse(sceneJson.contains("frameIndex"));
+        assertFalse(sceneJson.contains("frameElapsedMs"));
+        assertFalse(sceneJson.contains("appliedFrameAssetId"));
+
+        FileHandle exportDir = new FileHandle(h.root.resolve("isolated-export").toFile());
+        RuntimeExport.exportRuntime(h.cfg, h.projectDir, exportDir);
+        JsonValue profiles = new JsonReader().parse(exportDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                .child(RuntimeFs.FILE_TILESET_PROFILES_JSON));
+        JsonValue tileIds = profiles.get("tilesets").get(0).get("tileAssetIds");
+        for (int frameAssetId : def.frameAssetIds) {
+            assertTrue(containsJsonInt(tileIds, frameAssetId));
+        }
+    }
+
+    @Test
+    public void importSceneSupportsAnimatedTileObjectFromExternalImageCollectionTileset() throws Exception {
+        Harness h = harness("tmx-import-animated-collection-object");
+        writePng(h.projectDir.child("collection-0.png"), 16, 16);
+        writePng(h.projectDir.child("collection-1.png"), 16, 16);
+        writeString(h.projectDir.child("animated-collection.tsx"), """
+                <tileset name="collection" tilewidth="16" tileheight="16" tilecount="2" columns="0">
+                  <tile id="0">
+                    <image source="collection-0.png" width="16" height="16"/>
+                    <animation>
+                      <frame tileid="0" duration="80"/>
+                      <frame tileid="1" duration="120"/>
+                    </animation>
+                  </tile>
+                  <tile id="1"><image source="collection-1.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeTmx(h.root.resolve("animated-collection-object.tmx"), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="5" source="animated-collection.tsx"/>
+                  <objectgroup name="Actors"><object name="CollectionAnimated" gid="5" x="8" y="16"/></objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated Collection"));
+        World world = loadImportedWorld(h, result);
+        int entity = visualEntityByName(world, "CollectionAnimated");
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+
+        assertTrue(result.imported());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(def.id, world.getMapper(TiledAnimationComponent.class).get(entity).animationId);
+        assertEquals(def.frameAssetIds[0], world.getMapper(AssetRefComponent.class).get(entity).assetId);
+        assertEquals(80, def.frameDurationsMs[0]);
+        assertEquals(120, def.frameDurationsMs[1]);
     }
 
     @Test
@@ -1181,6 +1329,31 @@ public class TmxSceneImportServiceTest {
                   <layer name="Ground" width="2" height="2"><data encoding="csv">%s</data></layer>
                 </map>
                 """.formatted(csv));
+    }
+
+    private static FileHandle animatedTileObjectTmx(Harness h, String name) throws Exception {
+        long hFlipAnimated = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
+        return writeTmx(h.root.resolve(name), """
+                <map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0" class="SourceEnemy">
+                      <properties><property name="speed" type="int" value="3"/></properties>
+                      <animation>
+                        <frame tileid="1" duration="100"/>
+                        <frame tileid="2" duration="150"/>
+                      </animation>
+                    </tile>
+                  </tileset>
+                  <objectgroup name="Actors">
+                    <object id="1" name="AnimatedA" class="enemy" gid="1" x="10" y="20">
+                      <properties><property name="speed" type="int" value="5"/></properties>
+                    </object>
+                    <object id="2" name="AnimatedB" gid="%d" x="30" y="20"/>
+                    <object id="3" name="StaticPeer" gid="2" x="10" y="20"/>
+                  </objectgroup>
+                </map>
+                """.formatted(hFlipAnimated));
     }
 
     private static FileHandle writeTmx(Path path, String text) throws Exception {
@@ -1412,6 +1585,14 @@ public class TmxSceneImportServiceTest {
     }
 
     private static void assertEquivalentSpriteTransform(World world, int expectedEntity, int actualEntity) {
+        assertEquivalentTransformAndDimensions(world, expectedEntity, actualEntity);
+        assertEquals(world.getMapper(AssetRefComponent.class).get(expectedEntity).assetId,
+                world.getMapper(AssetRefComponent.class).get(actualEntity).assetId);
+    }
+
+    private static void assertEquivalentTransformAndDimensions(World world,
+                                                               int expectedEntity,
+                                                               int actualEntity) {
         TransformComponent expected = world.getMapper(TransformComponent.class).get(expectedEntity);
         TransformComponent actual = world.getMapper(TransformComponent.class).get(actualEntity);
         assertEquals(expected.x, actual.x, 0.0001f);
@@ -1425,8 +1606,6 @@ public class TmxSceneImportServiceTest {
         DimensionsComponent actualDimensions = world.getMapper(DimensionsComponent.class).get(actualEntity);
         assertEquals(expectedDimensions.width, actualDimensions.width, 0.0001f);
         assertEquals(expectedDimensions.height, actualDimensions.height, 0.0001f);
-        assertEquals(world.getMapper(AssetRefComponent.class).get(expectedEntity).assetId,
-                world.getMapper(AssetRefComponent.class).get(actualEntity).assetId);
     }
 
     private static int[] objectEntitiesByName(World world, String name) {

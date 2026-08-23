@@ -480,7 +480,7 @@ Second line</property>
     }
 
     @Test
-    public void invalidAndAnimatedTileObjectReferencesRemainBlockingWhileDiagonalAndHexAreAccepted() throws Exception {
+    public void animatedTileObjectsAreAcceptedWhileInvalidReferencesRemainBlocking() throws Exception {
         Path dir = Files.createTempDirectory("tmx-tile-object-blocking");
         writeFile(dir.resolve("tiles.png"), "fake image");
         FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
@@ -500,7 +500,7 @@ Second line</property>
 
         TmxPreflightReport report = analyze(tmx);
 
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_TILE_OBJECT_ANIMATION_UNSUPPORTED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_TILE_OBJECT_GID_UNRESOLVED"));
@@ -508,6 +508,27 @@ Second line</property>
                 "TMX_TILE_OBJECT_DIAGONAL_TRANSFORM_UNSUPPORTED"));
         assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
                 "TMX_TILE_OBJECT_HEX120_TRANSFORM_UNSUPPORTED"));
+    }
+
+    @Test
+    public void otherwiseValidAnimatedTileObjectPassesPreflightWithoutAnimationDiagnostic() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-animated-tile-object-preflight");
+        writeFile(dir.resolve("tiles.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="objects" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+                    <image source="tiles.png" width="32" height="16"/>
+                    <tile id="0"><animation><frame tileid="1" duration="125"/></animation></tile>
+                  </tileset>
+                  <objectgroup name="Actors"><object id="1" gid="1"/></objectgroup>
+                </map>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertTrue(report.isImportableCandidate());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_TILE_OBJECT_ANIMATION_UNSUPPORTED"));
     }
 
     @Test

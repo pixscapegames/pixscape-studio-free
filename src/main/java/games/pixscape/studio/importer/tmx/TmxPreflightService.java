@@ -571,14 +571,6 @@ public final class TmxPreflightService {
 
         int localTileId = decoded.cleanGid - tileset.firstGid();
         state.emitTileMetadataDiagnostics(tileset.firstGid(), localTileId);
-        if (hasTileAnimation(tileset, localTileId)) {
-            state.blocking(
-                    "TMX_TILE_OBJECT_ANIMATION_UNSUPPORTED",
-                    "Animated Tiled tiles cannot yet be materialized as regular Tile Object entities without losing frame durations.",
-                    location
-            );
-            return;
-        }
         if (tileset.imageCollection() && !hasImageCollectionTile(tileset, localTileId)) {
             state.blocking(
                     "TMX_TILE_OBJECT_GID_UNRESOLVED",
@@ -618,13 +610,6 @@ public final class TmxPreflightService {
 
     private static long tileMetadataKey(int firstGid, int localTileId) {
         return ((long) firstGid << 32) ^ (localTileId & 0xffffffffL);
-    }
-
-    private static boolean hasTileAnimation(TmxTilesetInfo tileset, int localTileId) {
-        for (TsxTilesetDescriptor.TileAnimation animation : tileset.tileAnimations()) {
-            if (animation != null && animation.baseLocalTileId() == localTileId) return true;
-        }
-        return false;
     }
 
     private PropertySet readProperties(XmlReader.Element owner,
