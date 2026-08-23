@@ -3,13 +3,16 @@ package games.pixscape.studio.importer.tmx;
 import com.artemis.World;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.*;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -17,6 +20,7 @@ import games.pixscape.studio.helper.TiledSparseStorageHelper;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.*;
@@ -282,6 +286,13 @@ public final class TmxSceneImportService {
                 createImageLayerSprite(world, identityRegistry, layerIndex,
                         plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
+            } else if (layerPlan instanceof TmxObjectLayerPlan objectLayer) {
+                requireOrthogonalObjectLayer(plan.scene(), objectLayer);
+                int layerEntity = world.create();
+                createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
+                identityRegistry.ensureStableId(layerEntity);
+                populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer);
+                layerIndex++;
             }
         }
         world.process();
@@ -361,6 +372,131 @@ public final class TmxSceneImportService {
         LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
         parallax.factorX = imageLayer.parallaxX();
         parallax.factorY = imageLayer.parallaxY();
+    }
+
+    private void createObjectLayerComponents(World world,
+                                             int layerEntity,
+                                             int layerIndex,
+                                             TmxObjectLayerPlan objectLayer) {
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
+        layer.layerIndex = layerIndex;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        layer.spatialEnabled = false;
+
+        LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
+        meta.name = objectLayer.name();
+        meta.description = "";
+        meta.locked = false;
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerEntity);
+        visibility.visible = objectLayer.visible();
+        visibility.culledByFrustum = true;
+        visibility.inView = false;
+
+        LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
+        parallax.factorX = objectLayer.parallaxX();
+        parallax.factorY = objectLayer.parallaxY();
+
+        copyCustomProperties(world, layerEntity, objectLayer.properties());
+    }
+
+    private void populateObjects(World world,
+                                 IdentityRegistry identityRegistry,
+                                 int layerIndex,
+                                 TmxScenePlan scene,
+                                 TmxObjectLayerPlan objectLayer) {
+        float mapPixelHeight = scene.mapHeightCells() * (float) scene.tileHeight();
+        int zIndex = 0;
+        for (TmxObjectPlan object : objectLayer.objects()) {
+            int objectEntity = world.create();
+            createObjectComponents(world, objectEntity, layerIndex, zIndex,
+                    mapPixelHeight, objectLayer, object);
+            identityRegistry.setName(objectEntity, object.name());
+            identityRegistry.ensureStableId(objectEntity);
+            zIndex++;
+        }
+    }
+
+    private void createObjectComponents(World world,
+                                        int objectEntity,
+                                        int layerIndex,
+                                        int zIndex,
+                                        float mapPixelHeight,
+                                        TmxObjectLayerPlan objectLayer,
+                                        TmxObjectPlan object) {
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(objectEntity);
+        transform.x = object.x() + objectLayer.offsetX();
+        transform.y = mapPixelHeight - object.y() - objectLayer.offsetY();
+        transform.rotationRad = -object.rotation() * MathUtils.degreesToRadians;
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+
+        if (object.kind() == TmxObjectKind.RECTANGLE) {
+            transform.originX = 0f;
+            transform.originY = object.height();
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
+            dimensions.width = object.width();
+            dimensions.height = object.height();
+        } else if (object.kind() == TmxObjectKind.POINT) {
+            transform.originX = 0f;
+            transform.originY = 0f;
+        } else {
+            throw new IllegalStateException(
+                    "Unsupported Tiled Object Layer materialization kind: " + object.kind());
+        }
+        transform.refreshCaches();
+
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(objectEntity);
+        index.layerIndex = layerIndex;
+        index.zIndex = zIndex;
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(objectEntity);
+        visibility.visible = object.visible();
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+
+        EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).create(objectEntity);
+        meta.note = "";
+        meta.kind = EntityKind.UNKNOWN;
+
+        String classificationTag = classificationTag(object);
+        if (classificationTag != null) {
+            PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(objectEntity);
+            tags.tags.add(classificationTag);
+        }
+
+        copyCustomProperties(world, objectEntity, object.properties());
+    }
+
+    static String classificationTag(TmxObjectPlan object) {
+        if (object == null) return null;
+        String modernClass = normalizedTag(object.className());
+        return modernClass != null ? modernClass : normalizedTag(object.legacyType());
+    }
+
+    private static String normalizedTag(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static void copyCustomProperties(World world,
+                                             int entity,
+                                             PropertySet properties) {
+        if (properties == null || properties.isEmpty()) return;
+        CustomPropertiesComponent component = world
+                .getMapper(CustomPropertiesComponent.class)
+                .create(entity);
+        component.properties.copyFrom(properties);
+    }
+
+    private static void requireOrthogonalObjectLayer(TmxScenePlan scene,
+                                                     TmxObjectLayerPlan objectLayer) {
+        if (scene == null || !"orthogonal".equals(scene.orientation())) {
+            throw new IllegalStateException(
+                    "Tiled Object Layer materialization requires an orthogonal map: "
+                            + objectLayer.name());
+        }
     }
 
     private void createImageLayerSprite(World world,

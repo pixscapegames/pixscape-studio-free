@@ -29,4 +29,8 @@ public record TmxObjectLayerInfo(String name,
     public PropertySet properties() {
         return properties.copy();
     }
+
+    PropertySet propertiesForPlanning() {
+        return properties;
+    }
 }

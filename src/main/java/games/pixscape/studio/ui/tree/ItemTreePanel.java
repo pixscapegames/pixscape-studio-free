@@ -11,8 +11,6 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.ConeLightComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.ZOrderRuntimeService;
@@ -93,14 +91,7 @@ public class ItemTreePanel extends DockablePanel {
 
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
         this.layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
-        this.layerItemsSub = asm.get(
-                Aspect.all(EntityIndexComponent.class).one(
-                        ParticleEmitterComponent.class,
-                        AssetRefComponent.class,
-                        PointLightComponent.class,
-                        ConeLightComponent.class
-                )
-        );
+        this.layerItemsSub = asm.get(layerItemAspect());
 
         this.iconResolver = new IconResolver(world);
 
@@ -189,6 +180,11 @@ public class ItemTreePanel extends DockablePanel {
 
         attachAutoRefresh();
         hookTreeSelection();
+    }
+
+    static Aspect.Builder layerItemAspect() {
+        return Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class)
+                .exclude(LayerComponent.class);
     }
 
     private void focusNode(EntityNode node) {

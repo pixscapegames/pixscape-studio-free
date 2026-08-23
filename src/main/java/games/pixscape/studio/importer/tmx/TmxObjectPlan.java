@@ -2,7 +2,14 @@ package games.pixscape.studio.importer.tmx;
 
 import games.pixscape.runtime.property.PropertySet;
 
-public record TmxObjectInfo(int id,
+import java.util.Objects;
+
+/**
+ * Immutable V1 planning metadata for one supported Tiled object.
+ * <p>
+ * The plan owns one defensive property snapshot and exposes it as a stable read-only value.
+ */
+public record TmxObjectPlan(int sourceId,
                             String name,
                             String className,
                             String legacyType,
@@ -12,27 +19,19 @@ public record TmxObjectInfo(int id,
                             float height,
                             float rotation,
                             boolean visible,
-                            String template,
-                            Long gid,
                             TmxObjectKind kind,
                             PropertySet properties) {
 
-    public static final int NO_SOURCE_ID = -1;
-
-    public TmxObjectInfo {
+    public TmxObjectPlan {
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(properties, "properties");
+        if (kind != TmxObjectKind.RECTANGLE && kind != TmxObjectKind.POINT) {
+            throw new IllegalArgumentException("Unsupported V1 planned object kind: " + kind);
+        }
         properties = properties.copy();
     }
 
-    @Override
-    public PropertySet properties() {
-        return properties.copy();
-    }
-
-    PropertySet propertiesForPlanning() {
-        return properties;
-    }
-
     public boolean hasPositiveSourceId() {
-        return id > 0;
+        return sourceId > 0;
     }
 }

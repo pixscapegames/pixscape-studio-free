@@ -47,6 +47,8 @@ public final class TmxImportPlanner {
             TmxLayerInfo layer = report.layers().get(i);
             if (layer instanceof TmxTileLayerInfo tileLayer) {
                 layers.add(buildTileLayerPlan(i, tileLayer, tilesetByFirstGid));
+            } else if (layer instanceof TmxObjectLayerInfo objectLayer) {
+                layers.add(buildObjectLayerPlan(i, objectLayer));
             } else if (layer instanceof TmxImageLayerInfo imageLayer) {
                 layers.add(buildImageLayerPlan(i, imageLayer));
             }
@@ -146,6 +148,46 @@ public final class TmxImportPlanner {
                 layer.nonEmptyTileCount(),
                 cells
         );
+    }
+
+    private TmxObjectLayerPlan buildObjectLayerPlan(int sourceLayerIndex,
+                                                    TmxObjectLayerInfo layer) {
+        List<TmxObjectPlan> objects = new ArrayList<>();
+        for (TmxObjectInfo object : layer.objects()) {
+            if (!isV1PlannableObject(object.kind())) continue;
+            objects.add(new TmxObjectPlan(
+                    object.id(),
+                    object.name(),
+                    object.className(),
+                    object.legacyType(),
+                    object.x(),
+                    object.y(),
+                    object.width(),
+                    object.height(),
+                    object.rotation(),
+                    object.visible(),
+                    object.kind(),
+                    object.propertiesForPlanning()
+            ));
+        }
+
+        return new TmxObjectLayerPlan(
+                layer.name(),
+                layer.originalName(),
+                sourceLayerIndex,
+                layer.visible(),
+                layer.parallaxX(),
+                layer.parallaxY(),
+                layer.offsetX(),
+                layer.offsetY(),
+                layer.opacity(),
+                layer.propertiesForPlanning(),
+                objects
+        );
+    }
+
+    private static boolean isV1PlannableObject(TmxObjectKind kind) {
+        return kind == TmxObjectKind.RECTANGLE || kind == TmxObjectKind.POINT;
     }
 
     private TmxImageLayerPlan buildImageLayerPlan(int sourceLayerIndex,
