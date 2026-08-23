@@ -26,13 +26,13 @@ import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.TiledObjectComponent;
 import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.model.EntityKind;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -306,9 +306,8 @@ public class TmxSceneImportServiceTest {
         assertFalse(world.getMapper(VisibilityComponent.class).get(rectangle).visible);
         assertEquals(3, world.getMapper(EntityIndexComponent.class).get(rectangle).zIndex);
         assertNotNull(world.getMapper(EntityMetaComponent.class).get(rectangle));
-        TiledObjectComponent rectangleTiled = world.getMapper(TiledObjectComponent.class).get(rectangle);
-        assertEquals(TiledObjectComponent.Kind.RECTANGLE, rectangleTiled.kind);
-        assertEquals("Trigger", rectangleTiled.className);
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
         PixscapeTagComponent rectangleTags = world.getMapper(PixscapeTagComponent.class).get(rectangle);
         assertEquals(1, rectangleTags.tags.size);
         assertEquals("Trigger", rectangleTags.tags.first());
@@ -329,9 +328,8 @@ public class TmxSceneImportServiceTest {
         assertEquals(12f, pointTransform.x, 0.0001f);
         assertEquals(145f, pointTransform.y, 0.0001f);
         assertFalse(world.getMapper(DimensionsComponent.class).has(point));
-        TiledObjectComponent pointTiled = world.getMapper(TiledObjectComponent.class).get(point);
-        assertEquals(TiledObjectComponent.Kind.POINT, pointTiled.kind);
-        assertEquals("", pointTiled.className);
+        assertEquals(EntityKind.TILED_POINT,
+                world.getMapper(EntityMetaComponent.class).get(point).kind);
         assertTrue(world.getMapper(VisibilityComponent.class).get(point).visible);
         assertEquals(2, world.getMapper(EntityIndexComponent.class).get(point).zIndex);
 
@@ -340,8 +338,8 @@ public class TmxSceneImportServiceTest {
         assertEquals(0f, zeroDimensions.width, 0f);
         assertEquals(0f, zeroDimensions.height, 0f);
         assertEquals(0, world.getMapper(EntityIndexComponent.class).get(zero).zIndex);
-        assertEquals(TiledObjectComponent.Kind.RECTANGLE,
-                world.getMapper(TiledObjectComponent.class).get(zero).kind);
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(zero).kind);
 
         int unnamed = objectEntityByName(world, "unnamed");
         assertFalse(world.getMapper(DimensionsComponent.class).has(unnamed));
@@ -480,13 +478,6 @@ public class TmxSceneImportServiceTest {
         int conflict = objectEntityByName(world, "Conflict");
         int internalSpace = objectEntityByName(world, "InternalSpace");
         int lowerCase = objectEntityByName(world, "LowerCase");
-        assertEquals("Enemy", world.getMapper(TiledObjectComponent.class).get(classOnly).className);
-        assertEquals("", world.getMapper(TiledObjectComponent.class).get(typeOnly).className);
-        assertEquals("Modern", world.getMapper(TiledObjectComponent.class).get(conflict).className);
-        assertEquals("", world.getMapper(TiledObjectComponent.class)
-                .get(objectEntityByName(world, "BlankClass")).className);
-        assertEquals("  Boss Enemy.v2", world.getMapper(TiledObjectComponent.class)
-                .get(internalSpace).className);
         assertTrue(registry.hasTag(classOnly, " Enemy "));
         assertTrue(registry.hasTag(typeOnly, "Legacy Enemy"));
         assertTrue(registry.hasTag(conflict, "Modern"));
@@ -1144,9 +1135,7 @@ public class TmxSceneImportServiceTest {
         assertTrue(world.getMapper(RenderMaterialComponent.class).has(shared));
         assertFalse(world.getMapper(AnimationComponent.class).has(shared));
         assertFalse(world.getMapper(TiledAnimationComponent.class).has(shared));
-        TiledObjectComponent sharedTiled = world.getMapper(TiledObjectComponent.class).get(shared);
-        assertEquals(TiledObjectComponent.Kind.TILE, sharedTiled.kind);
-        assertEquals("gem", sharedTiled.className);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(shared).kind);
         assertEquals(firstTiled(world).tileAssetIds.get(0), sharedAsset.assetId);
         assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability.spriteAssetIds
                 .contains(sharedAsset.assetId));
@@ -1160,7 +1149,7 @@ public class TmxSceneImportServiceTest {
         assertEquals(-MathUtils.PI / 2f, centerTransform.rotationRad, 0.0001f);
         assertTransformedCorners(world, center, new float[]{58, 122, 58, 106, 42, 106, 42, 122});
         assertEquals("House", world.getMapper(PixscapeTagComponent.class).get(center).tags.first());
-        assertEquals("House", world.getMapper(TiledObjectComponent.class).get(center).className);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(center).kind);
         assertEquals(0.6f, world.getMapper(CustomPropertiesComponent.class).get(center)
                 .properties.getFloat("tile_speed", 0f), 0.0001f);
 
@@ -1216,11 +1205,8 @@ public class TmxSceneImportServiceTest {
         assertNotNull(secondAnimation);
         assertEquals(def.id, firstAnimation.animationId);
         assertEquals(def.id, secondAnimation.animationId);
-        assertEquals(TiledObjectComponent.Kind.TILE,
-                world.getMapper(TiledObjectComponent.class).get(first).kind);
-        assertEquals("enemy", world.getMapper(TiledObjectComponent.class).get(first).className);
-        assertEquals(TiledObjectComponent.Kind.TILE,
-                world.getMapper(TiledObjectComponent.class).get(second).kind);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(first).kind);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(second).kind);
         assertEquals(0, firstAnimation.frameIndex);
         assertEquals(0, firstAnimation.frameElapsedMs);
         assertEquals(-1, firstAnimation.appliedFrameAssetId);

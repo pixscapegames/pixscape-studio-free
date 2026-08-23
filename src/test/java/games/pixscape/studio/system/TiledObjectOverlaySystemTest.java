@@ -2,7 +2,7 @@ package games.pixscape.studio.system;
 
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.studio.component.TiledObjectComponent;
+import games.pixscape.studio.model.EntityKind;
 import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -107,14 +107,16 @@ public class TiledObjectOverlaySystemTest {
         assertArrayEquals(new float[]{12f, -8f}, center, 0f);
 
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
-                TiledObjectComponent.Kind.RECTANGLE, true, true));
+                EntityKind.TILED_RECTANGLE, true, true));
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
-                TiledObjectComponent.Kind.POINT, true, true));
+                EntityKind.TILED_POINT, true, true));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                TiledObjectComponent.Kind.TILE, true, true));
+                EntityKind.SPRITE, true, true));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                TiledObjectComponent.Kind.RECTANGLE, false, true));
+                EntityKind.TILED_RECTANGLE, false, true));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                TiledObjectComponent.Kind.POINT, true, false));
+                EntityKind.TILED_POINT, true, false));
+        assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.UNKNOWN, true, true));
     }
 }

@@ -7,9 +7,10 @@ import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
-import games.pixscape.studio.component.TiledObjectComponent;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.helper.GizmoDrawHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
+import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
 
 /** Passive Studio overlays for imported Tiled Rectangle and Point objects. */
@@ -26,7 +27,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     private LayerService layerService;
 
-    private ComponentMapper<TiledObjectComponent> mTiledObject;
+    private ComponentMapper<EntityMetaComponent> mEntityMeta;
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<DimensionsComponent> mDimensions;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
@@ -34,7 +35,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     public TiledObjectOverlaySystem(StudioDrawContext ctx) {
         super(Aspect.all(
-                TiledObjectComponent.class,
+                EntityMetaComponent.class,
                 TransformComponent.class,
                 EntityIndexComponent.class
         ));
@@ -53,20 +54,20 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     @Override
     protected void process(int entityId) {
-        TiledObjectComponent tiledObject = mTiledObject.get(entityId);
+        EntityMetaComponent meta = mEntityMeta.get(entityId);
         TransformComponent transform = mTransform.get(entityId);
-        if (tiledObject == null
+        if (meta == null
                 || transform == null
                 || !shouldDrawShape(
-                        tiledObject.kind,
+                        meta.kind,
                         isObjectVisible(entityId),
                         isParentLayerVisible(entityId))) {
             return;
         }
 
-        switch (tiledObject.kind) {
-            case RECTANGLE -> drawRectangle(entityId, transform);
-            case POINT -> drawPoint(transform);
+        switch (meta.kind) {
+            case TILED_RECTANGLE -> drawRectangle(entityId, transform);
+            case TILED_POINT -> drawPoint(transform);
             default -> {
                 // Tile Objects and unknown kinds use no passive shape overlay.
             }
@@ -142,12 +143,12 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         out[1] = transform.y;
     }
 
-    static boolean shouldDrawShape(TiledObjectComponent.Kind kind,
+    static boolean shouldDrawShape(EntityKind kind,
                                    boolean objectVisible,
                                    boolean layerVisible) {
         return objectVisible
                 && layerVisible
-                && (kind == TiledObjectComponent.Kind.RECTANGLE || kind == TiledObjectComponent.Kind.POINT);
+                && (kind == EntityKind.TILED_RECTANGLE || kind == EntityKind.TILED_POINT);
     }
 
     private static void writeCorner(TransformComponent transform,

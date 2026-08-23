@@ -14,7 +14,6 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.TiledObjectComponent;
 import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -485,7 +484,12 @@ public final class TmxSceneImportService {
 
         EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).create(objectEntity);
         meta.note = "";
-        meta.kind = EntityKind.UNKNOWN;
+        meta.kind = switch (object.kind()) {
+            case RECTANGLE -> EntityKind.TILED_RECTANGLE;
+            case POINT -> EntityKind.TILED_POINT;
+            default -> throw new IllegalStateException(
+                    "Unsupported Tiled Object Layer materialization kind: " + object.kind());
+        };
 
         attachObjectMetadata(world, objectEntity, object);
     }
@@ -578,11 +582,6 @@ public final class TmxSceneImportService {
     private static void attachObjectMetadata(World world,
                                              int objectEntity,
                                              TmxObjectPlan object) {
-        TiledObjectComponent tiledObject = world.getMapper(TiledObjectComponent.class).create(objectEntity);
-        tiledObject.kind = tiledObjectKind(object.kind());
-        String className = object.effectiveClassName();
-        tiledObject.className = className == null || className.isBlank() ? "" : className;
-
         String classificationTag = classificationTag(object);
         if (classificationTag != null) {
             PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(objectEntity);
@@ -590,16 +589,6 @@ public final class TmxSceneImportService {
         }
 
         copyCustomProperties(world, objectEntity, object.properties());
-    }
-
-    private static TiledObjectComponent.Kind tiledObjectKind(TmxObjectKind kind) {
-        if (kind == null) return TiledObjectComponent.Kind.UNKNOWN;
-        return switch (kind) {
-            case RECTANGLE -> TiledObjectComponent.Kind.RECTANGLE;
-            case POINT -> TiledObjectComponent.Kind.POINT;
-            case TILE -> TiledObjectComponent.Kind.TILE;
-            default -> TiledObjectComponent.Kind.UNKNOWN;
-        };
     }
 
     static String classificationTag(TmxObjectPlan object) {

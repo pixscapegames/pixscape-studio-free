@@ -13,7 +13,6 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.component.TiledObjectComponent;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.history.HistoryManager;
@@ -49,7 +48,6 @@ public final class EntityPropertiesContext {
 
     public final ComponentMapper<DimensionsComponent> mDimensions;
     public final ComponentMapper<EntityMetaComponent> mMeta;
-    public final ComponentMapper<TiledObjectComponent> mTiledObject;
     public final ComponentMapper<PixscapeIdentityComponent> mIdentity;
     public final ComponentMapper<PixscapeTagComponent> mTags;
 
@@ -104,7 +102,6 @@ public final class EntityPropertiesContext {
 
         this.mDimensions = world.getMapper(DimensionsComponent.class);
         this.mMeta = world.getMapper(EntityMetaComponent.class);
-        this.mTiledObject = world.getMapper(TiledObjectComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.mTags = world.getMapper(PixscapeTagComponent.class);
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");

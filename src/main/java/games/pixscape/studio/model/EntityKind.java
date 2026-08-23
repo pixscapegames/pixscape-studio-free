@@ -10,5 +10,7 @@ public enum EntityKind {
     POINT_LIGHT,
     CONE_LIGHT,
     AMBIENT_LIGHT,
+    TILED_RECTANGLE,
+    TILED_POINT,
     UNKNOWN
 }
