@@ -2,12 +2,14 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.Color;
+import com.kotcrab.vis.ui.widget.color.ColorPickerListener;
 import com.kotcrab.vis.ui.widget.VisTextArea;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.studio.ui.widget.ColorPickerField;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -112,6 +114,28 @@ public class EditPropertiesDialogTest {
         Assert.assertEquals(0, applied.get().getColorRgba8888("tint", -1));
     }
 
+    @Test
+    public void cancelingColorPickerRestoresTheDialogWorkingValueBeforeParentApply()
+            throws Exception {
+        int original = 0x10203040;
+        int changed = 0xA0B0C0D0;
+        AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
+        EditPropertiesDialog dialog = new EditPropertiesDialog(
+                "Edit Properties", new PropertySet().putColorRgba8888("tint", original), applied::set);
+        Object row = rowNamed(dialog, "tint");
+        ColorPickerField colorField = field(row, "colorField", ColorPickerField.class);
+        beginPickerSession(colorField);
+        ColorPickerListener listener = pickerListener(colorField);
+
+        listener.changed(rgba(changed));
+        Assert.assertEquals(changed, Color.rgba8888(field(row, "colorValue", Color.class)));
+        listener.canceled(rgba(original));
+        Assert.assertEquals(original, Color.rgba8888(field(row, "colorValue", Color.class)));
+
+        invokeResult(dialog, true);
+        Assert.assertEquals(original, applied.get().getColorRgba8888("tint", 0));
+    }
+
     private static Object rowNamed(EditPropertiesDialog dialog, String name) throws Exception {
         Array<?> rows = rows(dialog);
         for (int i = 0; i < rows.size; i++) {
@@ -132,6 +156,24 @@ public class EditPropertiesDialogTest {
         Method method = EditPropertiesDialog.class.getDeclaredMethod("result", Object.class);
         method.setAccessible(true);
         method.invoke(dialog, accepted);
+    }
+
+    private static ColorPickerListener pickerListener(ColorPickerField field) throws Exception {
+        Method method = ColorPickerField.class.getDeclaredMethod("createPickerListener");
+        method.setAccessible(true);
+        return (ColorPickerListener) method.invoke(field);
+    }
+
+    private static void beginPickerSession(ColorPickerField field) throws Exception {
+        Method method = ColorPickerField.class.getDeclaredMethod("captureColorBeforePicker");
+        method.setAccessible(true);
+        method.invoke(field);
+    }
+
+    private static Color rgba(int packed) {
+        Color color = new Color();
+        Color.rgba8888ToColor(color, packed);
+        return color;
     }
 
     private static <T> T field(Object target, String name, Class<T> type) throws Exception {
