@@ -414,6 +414,40 @@ public class RuntimeExportAnimationsTest {
         assertTrue(exported.contains("PixscapeIdentityComponent"));
     }
 
+    @Test
+    public void exportRuntimeStripsStudioOnlyTiledObjectMetadataFromScenes() throws Exception {
+        Path studioDir = Files.createTempDirectory("pixscape-studio-export-tiled-object-metadata-studio");
+        Path userDir = Files.createTempDirectory("pixscape-studio-export-tiled-object-metadata-user");
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Tiled Object Metadata Export";
+        cfg.projectFileName = "tiled-object-metadata-export";
+        cfg.exportRootPathDir = userDir.toString();
+        cfg.createSceneMeta("Main");
+
+        Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
+        String scene = "{" +
+                "\"componentIdentifiers\":{" +
+                "\"games.pixscape.studio.component.TiledObjectComponent\":\"TiledObjectComponent\"," +
+                "\"games.pixscape.studio.component.TiledObjectLayerComponent\":\"TiledObjectLayerComponent\"," +
+                "\"games.pixscape.runtime.component.TransformComponent\":\"TransformComponent\"}," +
+                "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
+                "\"TiledObjectComponent\":{\"kind\":\"RECTANGLE\",\"className\":\"Enemy\"}," +
+                "\"TiledObjectLayerComponent\":{\"imported\":true}," +
+                "\"TransformComponent\":{\"x\":10,\"y\":20}}}}," +
+                "\"archetypes\":{\"1\":[\"TiledObjectComponent\",\"TiledObjectLayerComponent\",\"TransformComponent\"]}}";
+        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), scene,
+                StandardCharsets.UTF_8);
+        new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+
+        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
+
+        String exported = Files.readString(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME)
+                .resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), StandardCharsets.UTF_8);
+        assertFalse(exported.contains("TiledObjectComponent"));
+        assertFalse(exported.contains("TiledObjectLayerComponent"));
+        assertTrue(exported.contains("TransformComponent"));
+    }
+
     private static String legacyAnchorField(String axis) {
         return "anchor" + axis;
     }

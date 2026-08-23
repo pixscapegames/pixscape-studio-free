@@ -26,6 +26,8 @@ import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.component.TiledObjectComponent;
+import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -226,6 +228,9 @@ public class TmxSceneImportServiceTest {
         assertEquals("Gameplay", world.getMapper(LayerMetaComponent.class).get(objectLayer).name);
         assertEquals(LayerComponent.TYPE_CLASSIC,
                 world.getMapper(LayerComponent.class).get(objectLayer).type);
+        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(objectLayer));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class)
+                .has(layerEntity(world, 0, true)));
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
         assertEquals(0, objectCountInLayer(world, 1));
     }
@@ -269,6 +274,7 @@ public class TmxSceneImportServiceTest {
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
         assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
+        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity));
         assertEquals("World/Gameplay", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
         assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorX, 0.0001f);
@@ -300,6 +306,9 @@ public class TmxSceneImportServiceTest {
         assertFalse(world.getMapper(VisibilityComponent.class).get(rectangle).visible);
         assertEquals(3, world.getMapper(EntityIndexComponent.class).get(rectangle).zIndex);
         assertNotNull(world.getMapper(EntityMetaComponent.class).get(rectangle));
+        TiledObjectComponent rectangleTiled = world.getMapper(TiledObjectComponent.class).get(rectangle);
+        assertEquals(TiledObjectComponent.Kind.RECTANGLE, rectangleTiled.kind);
+        assertEquals("Trigger", rectangleTiled.className);
         PixscapeTagComponent rectangleTags = world.getMapper(PixscapeTagComponent.class).get(rectangle);
         assertEquals(1, rectangleTags.tags.size);
         assertEquals("Trigger", rectangleTags.tags.first());
@@ -320,6 +329,9 @@ public class TmxSceneImportServiceTest {
         assertEquals(12f, pointTransform.x, 0.0001f);
         assertEquals(145f, pointTransform.y, 0.0001f);
         assertFalse(world.getMapper(DimensionsComponent.class).has(point));
+        TiledObjectComponent pointTiled = world.getMapper(TiledObjectComponent.class).get(point);
+        assertEquals(TiledObjectComponent.Kind.POINT, pointTiled.kind);
+        assertEquals("", pointTiled.className);
         assertTrue(world.getMapper(VisibilityComponent.class).get(point).visible);
         assertEquals(2, world.getMapper(EntityIndexComponent.class).get(point).zIndex);
 
@@ -328,6 +340,8 @@ public class TmxSceneImportServiceTest {
         assertEquals(0f, zeroDimensions.width, 0f);
         assertEquals(0f, zeroDimensions.height, 0f);
         assertEquals(0, world.getMapper(EntityIndexComponent.class).get(zero).zIndex);
+        assertEquals(TiledObjectComponent.Kind.RECTANGLE,
+                world.getMapper(TiledObjectComponent.class).get(zero).kind);
 
         int unnamed = objectEntityByName(world, "unnamed");
         assertFalse(world.getMapper(DimensionsComponent.class).has(unnamed));
@@ -466,6 +480,13 @@ public class TmxSceneImportServiceTest {
         int conflict = objectEntityByName(world, "Conflict");
         int internalSpace = objectEntityByName(world, "InternalSpace");
         int lowerCase = objectEntityByName(world, "LowerCase");
+        assertEquals("Enemy", world.getMapper(TiledObjectComponent.class).get(classOnly).className);
+        assertEquals("", world.getMapper(TiledObjectComponent.class).get(typeOnly).className);
+        assertEquals("Modern", world.getMapper(TiledObjectComponent.class).get(conflict).className);
+        assertEquals("", world.getMapper(TiledObjectComponent.class)
+                .get(objectEntityByName(world, "BlankClass")).className);
+        assertEquals("  Boss Enemy.v2", world.getMapper(TiledObjectComponent.class)
+                .get(internalSpace).className);
         assertTrue(registry.hasTag(classOnly, " Enemy "));
         assertTrue(registry.hasTag(typeOnly, "Legacy Enemy"));
         assertTrue(registry.hasTag(conflict, "Modern"));
@@ -563,6 +584,9 @@ public class TmxSceneImportServiceTest {
         assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 1, false)).type);
         assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
         assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 0, false)));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 1, false)));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 2, true)));
     }
 
     @Test
@@ -758,6 +782,44 @@ public class TmxSceneImportServiceTest {
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
         assertTileAsset(tiled, 0, 1, animations.animations.get(0).id);
         assertEquals(TileTransformFlags.FLIP_H, tiled.tileTransformFlags.get(0));
+    }
+
+    @Test
+    public void importSceneReusesOneLogicalAnimationForTileLayerAndTileObject() throws Exception {
+        Harness h = harness("tmx-import-shared-animation-consumers");
+        FileHandle tmx = writeTmx(h.root.resolve("shared-animation.tmx"), """
+                <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0"><animation>
+                      <frame tileid="0" duration="90"/>
+                      <frame tileid="1" duration="140"/>
+                    </animation></tile>
+                  </tileset>
+                  <layer name="Ground" width="2" height="1"><data encoding="csv">1,0</data></layer>
+                  <objectgroup name="Actors"><object name="SharedAnimated" gid="1" x="8" y="16"/></objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Shared Animation"));
+        World world = loadImportedWorld(h, result);
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+
+        assertTrue(result.imported());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(90, def.frameDurationsMs[0]);
+        assertEquals(140, def.frameDurationsMs[1]);
+        assertTileAsset(firstTiled(world), 0, 0, def.id);
+
+        int object = visualEntityByName(world, "SharedAnimated");
+        assertEquals(def.id,
+                world.getMapper(TiledAnimationComponent.class).get(object).animationId);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id(),
+                world.getMapper(AssetRefComponent.class).get(object).assetId);
+        assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability
+                .tiledAnimationIds.contains(def.id));
     }
 
     @Test
@@ -1082,6 +1144,9 @@ public class TmxSceneImportServiceTest {
         assertTrue(world.getMapper(RenderMaterialComponent.class).has(shared));
         assertFalse(world.getMapper(AnimationComponent.class).has(shared));
         assertFalse(world.getMapper(TiledAnimationComponent.class).has(shared));
+        TiledObjectComponent sharedTiled = world.getMapper(TiledObjectComponent.class).get(shared);
+        assertEquals(TiledObjectComponent.Kind.TILE, sharedTiled.kind);
+        assertEquals("gem", sharedTiled.className);
         assertEquals(firstTiled(world).tileAssetIds.get(0), sharedAsset.assetId);
         assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability.spriteAssetIds
                 .contains(sharedAsset.assetId));
@@ -1095,6 +1160,7 @@ public class TmxSceneImportServiceTest {
         assertEquals(-MathUtils.PI / 2f, centerTransform.rotationRad, 0.0001f);
         assertTransformedCorners(world, center, new float[]{58, 122, 58, 106, 42, 106, 42, 122});
         assertEquals("House", world.getMapper(PixscapeTagComponent.class).get(center).tags.first());
+        assertEquals("House", world.getMapper(TiledObjectComponent.class).get(center).className);
         assertEquals(0.6f, world.getMapper(CustomPropertiesComponent.class).get(center)
                 .properties.getFloat("tile_speed", 0f), 0.0001f);
 
@@ -1150,6 +1216,11 @@ public class TmxSceneImportServiceTest {
         assertNotNull(secondAnimation);
         assertEquals(def.id, firstAnimation.animationId);
         assertEquals(def.id, secondAnimation.animationId);
+        assertEquals(TiledObjectComponent.Kind.TILE,
+                world.getMapper(TiledObjectComponent.class).get(first).kind);
+        assertEquals("enemy", world.getMapper(TiledObjectComponent.class).get(first).className);
+        assertEquals(TiledObjectComponent.Kind.TILE,
+                world.getMapper(TiledObjectComponent.class).get(second).kind);
         assertEquals(0, firstAnimation.frameIndex);
         assertEquals(0, firstAnimation.frameElapsedMs);
         assertEquals(-1, firstAnimation.appliedFrameAssetId);

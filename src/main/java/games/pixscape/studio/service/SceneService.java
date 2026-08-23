@@ -675,10 +675,7 @@ public final class SceneService {
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
 
-        tileAnimationsMetaDatabase = TileAnimationsIO.load(
-                projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
-        );
-        reloadTileAnimationRegistryFromProjectData();
+        reloadTileAnimationsFromProject(projectDir);
 
         applyProjectFixedSettings(cfg);
         refreshParticleEffectsRoot(cfg);
@@ -2186,6 +2183,7 @@ public final class SceneService {
     private void activateImportedTmxScene(ProjectConfig cfg,
                                           FileHandle projectDir,
                                           TmxSceneImportResult result) {
+        reloadTileAnimationsFromProject(projectDir);
         loadScene(cfg, result.sceneName(), projectDir);
         canvas.centerCamera();
         assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
@@ -2205,6 +2203,7 @@ public final class SceneService {
         }
 
         cfg.setCurrentSceneByName(previousSceneName);
+        reloadTileAnimationsFromProject(projectDir);
         loadScene(cfg, previousSceneName, projectDir);
         assertCurrentSceneMetadataIntegrity(cfg, previousSceneName, "importTmxAsNewScene.restorePrevious");
         sceneMetaBridge.pushCurrentSceneMetaToUI();
@@ -2510,6 +2509,13 @@ public final class SceneService {
     // ---------------------------------------------------------------------
     // TILE ANIMATIONS
     // ---------------------------------------------------------------------
+
+    private void reloadTileAnimationsFromProject(FileHandle projectDir) {
+        tileAnimationsMetaDatabase = TileAnimationsIO.load(
+                projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
+        );
+        reloadTileAnimationRegistryFromProjectData();
+    }
 
     private void reloadTileAnimationRegistryFromProjectData() {
         TileAnimationRegistry registry = canvas.getTileAnimationRegistry();

@@ -47,6 +47,7 @@ public class EntityProperties extends VisTable {
     private final EntityPropertiesContext ctx;
 
     private final TransformPanel transformPanel;
+    private final TiledObjectPanel tiledObjectPanel;
     private final MaterialPanel materialPanel;
     private final AnimationPanel animationPanel;
     private final ParticleFxPanel particleFxPanel;
@@ -55,6 +56,7 @@ public class EntityProperties extends VisTable {
     private final BodyPanel bodyPanel;
 
     private final ToggleSection transformSection;
+    private final ToggleSection tiledSection;
     private final ToggleSection materialSection;
     private final ToggleSection animationSection;
     private final ToggleSection particleSection;
@@ -96,6 +98,7 @@ public class EntityProperties extends VisTable {
         );
 
         transformPanel = new TransformPanel(ctx);
+        tiledObjectPanel = new TiledObjectPanel(ctx);
         materialPanel = new MaterialPanel(ctx);
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
@@ -113,6 +116,7 @@ public class EntityProperties extends VisTable {
         );
 
         transformSection = new ToggleSection("Transform", transformPanel);
+        tiledSection = new ToggleSection("Tiled", tiledObjectPanel);
         materialSection = new ToggleSection("Material", materialPanel);
         animationSection = new ToggleSection("Animation", animationPanel);
         particleSection = new ToggleSection("Particle FX", particleFxPanel);
@@ -123,6 +127,7 @@ public class EntityProperties extends VisTable {
         defaults().left().top().pad(5);
 
         add(buildCommonHeader()).growX().left().row();
+        add(tiledSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
@@ -237,6 +242,7 @@ public class EntityProperties extends VisTable {
         visibleBinder.setEntityId(entityId);
 
         transformPanel.setEntityId(entityId);
+        tiledObjectPanel.setEntityId(entityId);
         materialPanel.setEntityId(entityId);
         animationPanel.setEntityId(entityId);
         particleFxPanel.setEntityId(entityId);
@@ -263,6 +269,7 @@ public class EntityProperties extends VisTable {
         boolean isSprite = kind == EntityKind.SPRITE;
 
         transformSection.setApplicable(true);
+        tiledSection.setApplicable(tiledObjectPanel.isApplicable());
         materialSection.setApplicable(!isParticle);
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);

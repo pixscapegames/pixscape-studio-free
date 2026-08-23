@@ -196,6 +196,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private Box2dSyncSystem box2dSyncSystem;
     private PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
     private GizmoSystem gizmoSystem;
+    private TiledObjectOverlaySystem tiledObjectOverlaySystem;
     private final GridActor gridActor;
     private boolean lastPhysicsEnabled = false;
     private float lastPpm = Float.NaN;
@@ -286,6 +287,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 new LightIconOverlaySystem(worldDrawCtx, camera);
 
         tiledPreviewService = new TiledPreviewService();
+        tiledObjectOverlaySystem = new TiledObjectOverlaySystem(worldDrawCtx);
 
         // NEW: inject PhysicsSelectionService
         gizmoSystem = new GizmoSystem(
@@ -393,6 +395,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 )),
                                 profiled(new UiRefreshDispatchSystem()),
                                 lightIconOverlaySystem,
+                                tiledObjectOverlaySystem,
                                 pickingSystem,
                                 gizmoSystem
                         )
@@ -452,6 +455,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         lightIconOverlaySystem.setLayerService(layerService);
         lightIconOverlaySystem.setSelectionService(selectionService);
+        tiledObjectOverlaySystem.setLayerService(layerService);
 
         gizmoSystem.setLayerService(layerService);
         gizmoSystem.setPhysicsService(physicsService);
