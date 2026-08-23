@@ -1948,6 +1948,62 @@ public class TmxSceneImportServiceTest {
         assertFalse(base.contains("target"));
     }
 
+    @Test
+    public void importSceneResolvesObjectPropertiesAcrossLayersAndPersistsStableIds()
+            throws Exception {
+        Harness h = harness("tmx-import-object-references-round-trip");
+        FileHandle tmx = writeTmx(h.root.resolve("object-references.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Triggers">
+                    <properties>
+                      <property name="layerTarget" type="object" value="2002"/>
+                    </properties>
+                    <object id="1001" name="Switch" x="10" y="20" width="8" height="6">
+                      <properties>
+                        <property name="target" type="object" value="2002"/>
+                        <property name="none" type="object" value="0"/>
+                        <property name="behavior" type="class" propertytype="Behavior">
+                          <properties>
+                            <property name="self" type="object" value="1001"/>
+                          </properties>
+                        </property>
+                      </properties>
+                    </object>
+                  </objectgroup>
+                  <objectgroup name="Targets">
+                    <object id="2002" name="Door" x="40" y="50"><point/></object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Object References"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        int switchEntity = objectEntityByName(world, "Switch");
+        int doorEntity = objectEntityByName(world, "Door");
+        ComponentMapper<PixscapeIdentityComponent> identities =
+                world.getMapper(PixscapeIdentityComponent.class);
+        int switchStableId = identities.get(switchEntity).stableId;
+        int doorStableId = identities.get(doorEntity).stableId;
+        assertTrue(switchStableId > 0);
+        assertTrue(doorStableId > 0);
+        assertNotEquals(1001, switchStableId);
+        assertNotEquals(2002, doorStableId);
+
+        PropertySet switchProperties = world.getMapper(CustomPropertiesComponent.class)
+                .get(switchEntity).properties;
+        assertEquals(doorStableId, switchProperties.getObjectStableId("target", -1));
+        assertNotEquals(2002, switchProperties.getObjectStableId("target", -1));
+        assertEquals(-1, switchProperties.getObjectStableId("none", 0));
+        assertEquals(switchStableId, switchProperties.getClassValue("behavior").properties()
+                .getObjectStableId("self", -1));
+
+        PropertySet layerProperties = world.getMapper(CustomPropertiesComponent.class)
+                .get(layerEntity(world, 0, false)).properties;
+        assertEquals(doorStableId, layerProperties.getObjectStableId("layerTarget", -1));
+    }
+
     private static boolean containsJsonInt(JsonValue array, int value) {
         if (array == null || !array.isArray()) {
             return false;

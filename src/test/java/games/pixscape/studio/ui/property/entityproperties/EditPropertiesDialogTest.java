@@ -2,13 +2,27 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.graphics.Color;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.files.FileHandle;
 import com.kotcrab.vis.ui.widget.color.ColorPickerListener;
 import com.kotcrab.vis.ui.widget.VisTextArea;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
 import com.kotcrab.vis.ui.widget.VisTextField;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.IconResolver;
+import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.atlas.AtlasStudioService;
+import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
+import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.ui.widget.ColorPickerField;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
@@ -115,6 +129,41 @@ public class EditPropertiesDialogTest {
     }
 
     @Test
+    public void applyingUnchangedMissingObjectReferencePreservesItsStableId() throws Exception {
+        try (ObjectChoiceContext context = new ObjectChoiceContext()) {
+            AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
+            EditPropertiesDialog dialog = new EditPropertiesDialog(
+                    "Edit Properties", new PropertySet().putObjectStableId("target", 123),
+                    context.context, applied::set);
+
+            Object choice = selectedObjectChoice(rowNamed(dialog, "target"));
+            Assert.assertEquals(123, objectChoiceStableId(choice));
+            Assert.assertEquals("Missing entity (#123)", objectChoiceLabel(choice));
+
+            invokeResult(dialog, true);
+            Assert.assertEquals(123, applied.get().getObjectStableId("target", -1));
+        }
+    }
+
+    @Test
+    public void applyingMultipleUnchangedMissingObjectReferencesPreservesEachStableId()
+            throws Exception {
+        try (ObjectChoiceContext context = new ObjectChoiceContext()) {
+            AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
+            EditPropertiesDialog dialog = new EditPropertiesDialog("Edit Properties",
+                    new PropertySet().putObjectStableId("first", 123)
+                            .putObjectStableId("second", 456), context.context, applied::set);
+
+            Assert.assertEquals(123, objectChoiceStableId(selectedObjectChoice(rowNamed(dialog, "first"))));
+            Assert.assertEquals(456, objectChoiceStableId(selectedObjectChoice(rowNamed(dialog, "second"))));
+
+            invokeResult(dialog, true);
+            Assert.assertEquals(123, applied.get().getObjectStableId("first", -1));
+            Assert.assertEquals(456, applied.get().getObjectStableId("second", -1));
+        }
+    }
+
+    @Test
     public void cancelingColorPickerRestoresTheDialogWorkingValueBeforeParentApply()
             throws Exception {
         int original = 0x10203040;
@@ -176,6 +225,21 @@ public class EditPropertiesDialogTest {
         return color;
     }
 
+    @SuppressWarnings("unchecked")
+    private static Object selectedObjectChoice(Object row) throws Exception {
+        return field(row, "objectBox", VisSelectBox.class).getSelected();
+    }
+
+    private static int objectChoiceStableId(Object choice) throws Exception {
+        Field field = choice.getClass().getDeclaredField("stableId");
+        field.setAccessible(true);
+        return field.getInt(choice);
+    }
+
+    private static String objectChoiceLabel(Object choice) throws Exception {
+        return field(choice, "label", String.class);
+    }
+
     private static <T> T field(Object target, String name, Class<T> type) throws Exception {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
@@ -186,5 +250,43 @@ public class EditPropertiesDialogTest {
         Field field = target.getClass().getSuperclass().getSuperclass().getDeclaredField(name);
         field.setAccessible(true);
         return field.getBoolean(target);
+    }
+
+    private static final class ObjectChoiceContext implements AutoCloseable {
+        private final World world = new World(new WorldConfiguration());
+        private final IdentityRegistry identities = new IdentityRegistry();
+        private final EntityPropertiesContext context;
+
+        private ObjectChoiceContext() {
+            SceneMeta sceneMeta = new SceneMeta();
+            identities.bind(world, sceneMeta);
+            HistoryManager history = new HistoryManager(8);
+            LayerService layers = new LayerService(world, null, history.historyIds(), identities);
+            context = new EntityPropertiesContext(
+                    world,
+                    history,
+                    new PhysicsSelectionService(),
+                    new PhysicsService(world, null, sceneMeta),
+                    layers,
+                    new AtlasStudioService(null),
+                    new SelectionService(world, layers),
+                    identities,
+                    new IconResolver(world),
+                    () -> { },
+                    id -> null,
+                    id -> { },
+                    Array::new,
+                    new AnimationAssetAuthoringService(
+                            AssetMetaDatabase::new,
+                            () -> new FileHandle("unused-assets.json"),
+                            ignored -> { }),
+                    0);
+        }
+
+        @Override
+        public void close() {
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 }

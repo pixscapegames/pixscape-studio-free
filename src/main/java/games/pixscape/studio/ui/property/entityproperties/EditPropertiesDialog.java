@@ -303,7 +303,11 @@ public final class EditPropertiesDialog extends StudioDialog {
                     colorField.refresh();
                     break;
                 case OBJECT:
-                    objectBox.setSelected(objectChoice(value.asObjectStableId()));
+                    ObjectChoice choice = objectChoice(value.asObjectStableId());
+                    // VisSelectBox keeps its own item array. A dangling reference adds its
+                    // synthetic choice lazily, so refresh before selecting it.
+                    objectBox.setItems(objectChoices);
+                    objectBox.setSelected(choice);
                     break;
                 case CLASS:
                     classNameField.setText(value.className());
