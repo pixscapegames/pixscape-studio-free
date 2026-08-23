@@ -464,6 +464,9 @@ public final class TmxSceneImportService {
             DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
             dimensions.width = object.width();
             dimensions.height = object.height();
+            // Bounds are editable/pickable geometry, not rendering state.
+            world.getMapper(AABBComponent.class).create(objectEntity);
+            world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
         } else if (object.kind() == TmxObjectKind.POINT) {
             transform.originX = 0f;
             transform.originY = 0f;

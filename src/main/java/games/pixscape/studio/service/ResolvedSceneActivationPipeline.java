@@ -73,6 +73,8 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
+        // Populate all persisted bounds through the normal dirty-driven geometry system.
+        SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(
                 world,
                 target.meta(),

@@ -107,16 +107,20 @@ public class TiledObjectOverlaySystemTest {
         assertArrayEquals(new float[]{12f, -8f}, center, 0f);
 
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.TILED_RECTANGLE, true, true));
+                EntityKind.TILED_RECTANGLE, true, true, false));
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.TILED_POINT, true, true));
+                EntityKind.TILED_POINT, true, true, false));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.SPRITE, true, true));
+                EntityKind.SPRITE, true, true, false));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.TILED_RECTANGLE, false, true));
+                EntityKind.TILED_RECTANGLE, false, true, false));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.TILED_POINT, true, false));
+                EntityKind.TILED_POINT, true, false, false));
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
-                EntityKind.UNKNOWN, true, true));
+                EntityKind.UNKNOWN, true, true, false));
+        assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.TILED_RECTANGLE, true, true, true));
+        assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.TILED_POINT, true, true, true));
     }
 }

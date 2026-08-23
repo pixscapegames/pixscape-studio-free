@@ -12,6 +12,7 @@ import games.pixscape.studio.helper.GizmoDrawHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SelectionService;
 
 /** Passive Studio overlays for imported Tiled Rectangle and Point objects. */
 public final class TiledObjectOverlaySystem extends IteratingSystem {
@@ -26,6 +27,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     private final float[] pointCenter = new float[2];
 
     private LayerService layerService;
+    private SelectionService selectionService;
 
     private ComponentMapper<EntityMetaComponent> mEntityMeta;
     private ComponentMapper<TransformComponent> mTransform;
@@ -46,6 +48,10 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         this.layerService = layerService;
     }
 
+    public void setSelectionService(SelectionService selectionService) {
+        this.selectionService = selectionService;
+    }
+
     @Override
     protected void begin() {
         ctx.batch.setProjectionMatrix(ctx.cam.combined);
@@ -61,7 +67,8 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
                 || !shouldDrawShape(
                         meta.kind,
                         isObjectVisible(entityId),
-                        isParentLayerVisible(entityId))) {
+                        isParentLayerVisible(entityId),
+                        isSelected(entityId))) {
             return;
         }
 
@@ -145,10 +152,12 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     static boolean shouldDrawShape(EntityKind kind,
                                    boolean objectVisible,
-                                   boolean layerVisible) {
+                                   boolean layerVisible,
+                                   boolean selected) {
         return objectVisible
                 && layerVisible
-                && (kind == EntityKind.TILED_RECTANGLE || kind == EntityKind.TILED_POINT);
+                && (kind == EntityKind.TILED_POINT
+                || (kind == EntityKind.TILED_RECTANGLE && !selected));
     }
 
     private static void writeCorner(TransformComponent transform,
@@ -165,6 +174,10 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     private boolean isObjectVisible(int entityId) {
         VisibilityComponent visibility = mVisibility.getSafe(entityId, null);
         return visibility == null || visibility.isVisible();
+    }
+
+    private boolean isSelected(int entityId) {
+        return selectionService != null && selectionService.getSelectionSet().contains(entityId);
     }
 
     private boolean isParentLayerVisible(int entityId) {

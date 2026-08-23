@@ -130,6 +130,7 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         assertOrdered(body,
                 "sceneLoader.load(",
                 "world.process();",
+                "SceneLoader.forceFullRenderDirty(world);",
                 "resolveTiledLayersForActivation(",
                 "validateAndCompileSpatialBlocksForActivation(",
                 "PhysicsService.rebuildPreparedBodyCaches(",

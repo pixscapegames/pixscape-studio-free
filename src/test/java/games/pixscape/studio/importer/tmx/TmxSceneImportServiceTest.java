@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.ApplicationAdapter;
@@ -19,9 +20,12 @@ import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.TagRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
@@ -32,6 +36,9 @@ import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.GizmoTransformCommand;
+import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -308,6 +315,8 @@ public class TmxSceneImportServiceTest {
         assertNotNull(world.getMapper(EntityMetaComponent.class).get(rectangle));
         assertEquals(EntityKind.TILED_RECTANGLE,
                 world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertTrue(world.getMapper(AABBComponent.class).has(rectangle));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(rectangle));
         PixscapeTagComponent rectangleTags = world.getMapper(PixscapeTagComponent.class).get(rectangle);
         assertEquals(1, rectangleTags.tags.size);
         assertEquals("Trigger", rectangleTags.tags.first());
@@ -328,6 +337,8 @@ public class TmxSceneImportServiceTest {
         assertEquals(12f, pointTransform.x, 0.0001f);
         assertEquals(145f, pointTransform.y, 0.0001f);
         assertFalse(world.getMapper(DimensionsComponent.class).has(point));
+        assertFalse(world.getMapper(AABBComponent.class).has(point));
+        assertFalse(world.getMapper(OrientedBoundsComponent.class).has(point));
         assertEquals(EntityKind.TILED_POINT,
                 world.getMapper(EntityMetaComponent.class).get(point).kind);
         assertTrue(world.getMapper(VisibilityComponent.class).get(point).visible);
@@ -371,6 +382,67 @@ public class TmxSceneImportServiceTest {
         assertEquals(20, objectProperties.properties.getInt("damage", 0));
         assertFalse(objectProperties.properties.contains("class"));
         assertFalse(objectProperties.properties.contains("type"));
+    }
+
+    @Test
+    public void importedRectangleUsesNormalBoundsAndGizmoScaleHistory() throws Exception {
+        Harness h = harness("tmx-import-rectangle-geometry");
+        FileHandle tmx = writeTmx(h.root.resolve("rectangle-geometry.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Gameplay">
+                    <object name="Rectangle" x="10" y="20" width="30" height="40" rotation="90"/>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Rectangle Geometry"));
+        World world = loadImportedWorldWithGeometry(h, result);
+        int rectangle = objectEntityByName(world, "Rectangle");
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(rectangle);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(rectangle);
+        AABBComponent aabb = world.getMapper(AABBComponent.class).get(rectangle);
+        OrientedBoundsComponent obb = world.getMapper(OrientedBoundsComponent.class).get(rectangle);
+
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertEquals(-30f, aabb.minX, 0.0001f);
+        assertEquals(10f, aabb.maxX, 0.0001f);
+        assertEquals(110f, aabb.minY, 0.0001f);
+        assertEquals(140f, aabb.maxY, 0.0001f);
+        assertTrue(OrientedBoundsHelper.contains(obb, -10f, 125f));
+        assertFalse(OrientedBoundsHelper.contains(obb, 15f, 125f));
+
+        HistoryManager history = new HistoryManager(8);
+        long historyId = history.historyIds().ensureForEntity(rectangle);
+        GizmoTransformCommand scale = new GizmoTransformCommand(
+                world, history.historyIds(), TransformOp.SCALE);
+        scale.addEntry(historyId, GizmoTransformCommand.Snapshot.of(transform),
+                new GizmoTransformCommand.Snapshot(
+                        transform.x, transform.y, transform.rotationRad,
+                        1.5f, 0.5f, transform.originX, transform.originY));
+        history.execute(scale);
+        world.process();
+
+        assertEquals(1.5f, transform.scaleX, 0f);
+        assertEquals(0.5f, transform.scaleY, 0f);
+        assertEquals(30f, dimensions.width, 0f);
+        assertEquals(40f, dimensions.height, 0f);
+        assertEquals(-10f, aabb.minX, 0.0001f);
+        assertEquals(10f, aabb.maxX, 0.0001f);
+        assertEquals(95f, aabb.minY, 0.0001f);
+        assertEquals(140f, aabb.maxY, 0.0001f);
+
+        history.undo();
+        world.process();
+        assertEquals(1f, transform.scaleX, 0f);
+        assertEquals(1f, transform.scaleY, 0f);
+        assertEquals(-30f, aabb.minX, 0.0001f);
+        assertEquals(10f, aabb.maxX, 0.0001f);
+
+        history.redo();
+        world.process();
+        assertEquals(1.5f, transform.scaleX, 0f);
+        assertEquals(0.5f, transform.scaleY, 0f);
     }
 
     @Test
@@ -1479,6 +1551,22 @@ public class TmxSceneImportServiceTest {
                 h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()),
                 false,
                 h.cfg.getSceneMeta(result.sceneName()));
+        world.process();
+        return world;
+    }
+
+    private static World loadImportedWorldWithGeometry(Harness h, TmxSceneImportResult result) {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(64),
+                        new UpdateWorldGeometrySystem())
+                .build());
+        SceneLoader.loadScene(
+                world,
+                h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()),
+                false,
+                h.cfg.getSceneMeta(result.sceneName()));
+        world.process();
+        SceneLoader.forceFullRenderDirty(world);
         world.process();
         return world;
     }

@@ -456,6 +456,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         lightIconOverlaySystem.setLayerService(layerService);
         lightIconOverlaySystem.setSelectionService(selectionService);
         tiledObjectOverlaySystem.setLayerService(layerService);
+        tiledObjectOverlaySystem.setSelectionService(selectionService);
 
         gizmoSystem.setLayerService(layerService);
         gizmoSystem.setPhysicsService(physicsService);
