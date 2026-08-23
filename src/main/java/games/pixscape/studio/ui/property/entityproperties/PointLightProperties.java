@@ -44,6 +44,7 @@ public final class PointLightProperties extends VisTable {
     private final VisLabel zIndexValueLabel = new VisLabel();
     private final VisLabel layerValueLabel = new VisLabel();
     private final VisLabel tagsLabel = new VisLabel("");
+    private final CustomPropertiesEditorRow customPropertiesRow;
 
     private final SimpleTextField entityName = new SimpleTextField();
     private final VisTextButton editTagsBtn;
@@ -96,6 +97,7 @@ public final class PointLightProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
 
 
         entityName.bind(
@@ -212,6 +214,9 @@ public final class PointLightProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             onEntityChanged(evt.op());
         });
+        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
+        });
     }
 
     private void onEntityChanged(TransformOp op) {
@@ -250,6 +255,9 @@ public final class PointLightProperties extends VisTable {
         header.add(new VisLabel("Tags:")).left();
         header.add(tagsLabel).left().width(100).growX();
         header.add(editTagsBtn).right().row();
+
+        header.add(new VisLabel("Properties:")).left();
+        header.add(customPropertiesRow).colspan(2).growX().left().row();
 
         header.add(new VisLabel("Layer:")).left();
         header.add(layerValueLabel).colspan(2).left().row();
@@ -299,6 +307,7 @@ public final class PointLightProperties extends VisTable {
         pickerBinder.setEntityId(entityId);
 
         refreshTagsLabel();
+        customPropertiesRow.setEntityId(entityId);
     }
 
     private void refreshTagsLabel() {

@@ -50,6 +50,7 @@ public final class EntityPropertiesContext {
     public final ComponentMapper<EntityMetaComponent> mMeta;
     public final ComponentMapper<PixscapeIdentityComponent> mIdentity;
     public final ComponentMapper<PixscapeTagComponent> mTags;
+    public final ComponentMapper<CustomPropertiesComponent> mCustomProperties;
 
     public final IdentityRegistry identityRegistry;
     public final TagRegistry tagRegistry;
@@ -104,6 +105,7 @@ public final class EntityPropertiesContext {
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.mTags = world.getMapper(PixscapeTagComponent.class);
+        this.mCustomProperties = world.getMapper(CustomPropertiesComponent.class);
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.tagRegistry = new TagRegistry();
         this.tagRegistry.bind(world);

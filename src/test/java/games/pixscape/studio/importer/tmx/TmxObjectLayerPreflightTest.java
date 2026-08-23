@@ -316,6 +316,8 @@ Second line</property>
         TmxPreflightReport report = analyze(tmx);
 
         assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING,
+                "TMX_CUSTOM_PROPERTIES_IGNORED"));
         ClassProperty attack = report.tilesets().get(0).tileDefinition(0)
                 .properties().getClassValue("attack");
         assertEquals("Attack", attack.typeName());

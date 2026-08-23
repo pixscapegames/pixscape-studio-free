@@ -61,7 +61,7 @@ public final class TmxPreflightService {
         if (map.hasAttribute("parallaxoriginx") || map.hasAttribute("parallaxoriginy")) {
             state.warning("TMX_MAP_PARALLAX_ORIGIN_IGNORED", "Map parallax origin is detected but Pixscape has no equivalent.", "map");
         }
-        warnIgnoredProperties(map, state, "map");
+        warnIgnoredProperties(map, state, "map", "map");
         readTilesets(map, tmxFile, mapInfo, state);
         state.tilesets.sort(Comparator.comparingInt(TmxTilesetInfo::firstGid));
 
@@ -210,7 +210,7 @@ public final class TmxPreflightService {
                 (code, message, location) -> state.blocking(code, message, location)
         );
 
-        warnIgnoredProperties(tileset, state, "tileset");
+        warnIgnoredProperties(tileset, state, "tileset", "tileset");
 
         XmlReader.Element image = tileset.getChildByName("image");
         String imageSource = image != null ? image.getAttribute("source", null) : null;
@@ -279,7 +279,7 @@ public final class TmxPreflightService {
         float offsetY = parent.offsetY() + floatAttribute(group, "offsety", 0f);
         float parallaxX = parent.parallaxX() * floatAttribute(group, "parallaxx", 1f);
         float parallaxY = parent.parallaxY() * floatAttribute(group, "parallaxy", 1f);
-        warnIgnoredProperties(group, state, path);
+        warnIgnoredProperties(group, state, "group", path);
         readLayers(group, new LayerContext(path, visible, opacity, offsetX, offsetY, parallaxX, parallaxY), state);
     }
 
@@ -766,7 +766,7 @@ public final class TmxPreflightService {
     private void warnIgnoredImageLayerAttributes(XmlReader.Element layer,
                                                  AnalysisState state,
                                                  String location) {
-        warnIgnoredProperties(layer, state, location);
+        warnIgnoredProperties(layer, state, "image layer", location);
         if (layer.hasAttribute("blendmode")) {
             state.warning("TMX_LAYER_BLENDMODE_IGNORED", "Layer blend mode is detected but ignored by preflight.", location);
         }
@@ -1022,7 +1022,7 @@ public final class TmxPreflightService {
                                             AnalysisState state,
                                             String location,
                                             float opacity) {
-        warnIgnoredProperties(layer, state, location);
+        warnIgnoredProperties(layer, state, "tile layer", location);
         warnIgnoredLayerPresentationAttributes(layer, state, location, opacity);
     }
 
@@ -1041,9 +1041,16 @@ public final class TmxPreflightService {
         }
     }
 
-    private static void warnIgnoredProperties(XmlReader.Element element, AnalysisState state, String location) {
+    private static void warnIgnoredProperties(XmlReader.Element element,
+                                              AnalysisState state,
+                                              String ownerKind,
+                                              String location) {
         if (element != null && element.getChildByName("properties") != null) {
-            state.warning("TMX_CUSTOM_PROPERTIES_IGNORED", "Custom properties are detected but ignored by preflight.", location);
+            state.warning(
+                    "TMX_CUSTOM_PROPERTIES_IGNORED",
+                    "Custom properties on " + ownerKind + " are not imported into Pixscape.",
+                    location
+            );
         }
     }
 
@@ -1078,7 +1085,6 @@ public final class TmxPreflightService {
 
             int localTileId = intAttribute(tile, "id", -1);
             String location = localTileId >= 0 ? "tile " + localTileId : "tile";
-            warnIgnoredProperties(tile, state, location);
 
             XmlReader.Element image = tile.getChildByName("image");
             if (image == null) continue;

@@ -71,6 +71,15 @@ public final class EventFlow {
     }
 
     /**
+     * Authored custom properties changed for an entity.
+     */
+    public record CustomPropertiesChanged(
+            int entityId,
+            int sourceTag
+    ) {
+    }
+
+    /**
      * Layer name changed.
      */
     public record LayerNameChanged(

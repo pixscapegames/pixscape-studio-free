@@ -37,6 +37,7 @@ public class EntityProperties extends VisTable {
     private final VisLabel zIndexValueLabel = new VisLabel();
     private final VisLabel layerValueLabel = new VisLabel();
     private final VisLabel tagsLabel = new VisLabel("");
+    private final CustomPropertiesEditorRow customPropertiesRow;
 
     private final SimpleTextField entityName = new SimpleTextField();
     private final VisTextButton editTagsBtn;
@@ -80,6 +81,7 @@ public class EntityProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
 
         visibleCheckBox = new VisCheckBox("Visible");
         visibleBinder = new UiBinders.CheckBoxBinder(
@@ -139,6 +141,9 @@ public class EntityProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             entityName.refresh();
         });
+        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
+        });
         EventFlow.i().subscribe(EventFlow.ShaderListChanged.class, evt -> materialPanel.refreshShaderList());
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
             scenePhysicsEnabled = evt.enabled();
@@ -196,6 +201,9 @@ public class EntityProperties extends VisTable {
         tagsRight.add(editTagsBtn).right();
         header.add(tagsRight).row();
 
+        header.add(new VisLabel("Properties:")).width(CommonLayout.LABEL_WIDTH).left();
+        header.add(customPropertiesRow).row();
+
         header.add(new VisLabel("Layer:")).width(CommonLayout.LABEL_WIDTH).left();
         header.add(layerValueLabel).colspan(2).left().row();
 
@@ -246,6 +254,7 @@ public class EntityProperties extends VisTable {
 
         updateSectionsVisibility();
         refreshTagsLabel();
+        customPropertiesRow.setEntityId(entityId);
     }
 
     static int displayedPersistentId(PixscapeIdentityComponent identity) {
