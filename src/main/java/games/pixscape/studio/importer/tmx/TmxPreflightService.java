@@ -67,6 +67,7 @@ public final class TmxPreflightService {
 
         LayerContext rootContext = new LayerContext("", true, 1f, 0f, 0f, 1f, 1f);
         readLayers(map, rootContext, state);
+        validateObjectPropertyReferences(state);
         validateTileLayerOffsets(state);
 
         return state.toReport();
@@ -307,7 +308,9 @@ public final class TmxPreflightService {
             );
             drawOrder = TmxObjectDrawOrder.TOP_DOWN;
         }
-        PropertySet properties = readProperties(layer, state, "Object Layer '" + name + "'");
+        ParsedProperties parsedProperties = readPropertiesWithPaths(
+                layer, state, "Object Layer '" + name + "'");
+        PropertySet properties = parsedProperties.properties();
         List<TmxObjectInfo> objects = new ArrayList<>();
 
         for (int i = 0; i < layer.getChildCount(); i++) {
@@ -328,6 +331,7 @@ public final class TmxPreflightService {
                 parallaxY,
                 drawOrder,
                 properties,
+                parsedProperties.objectReferences(),
                 objects
         ));
         if (state.mapInfo != null && "isometric".equals(state.mapInfo.orientation())) {
@@ -388,7 +392,8 @@ public final class TmxPreflightService {
                 gid,
                 kind,
                 properties,
-                parsedProperties.paths()
+                parsedProperties.paths(),
+                parsedProperties.objectReferences()
         );
     }
 
@@ -432,6 +437,11 @@ public final class TmxPreflightService {
             }
             AnalysisState metadataState = new AnalysisState(state.sourcePath);
             ParsedProperties parsed = readPropertiesWithPaths(tile, metadataState, location);
+            if (!parsed.objectReferences().isEmpty()) {
+                metadataState.blocking("TMX_OBJECT_PROPERTY_SCOPE_UNSUPPORTED",
+                        "OBJECT properties in tile-definition metadata use the Tiled tile-collision "
+                                + "object domain, which Pixscape does not import.", location);
+            }
             if (!metadataState.diagnostics.isEmpty()) {
                 state.pendingTileMetadataDiagnostics.put(
                         tileMetadataKey(firstGid, localTileId),
@@ -629,7 +639,9 @@ public final class TmxPreflightService {
                                                       String ownerLocation,
                                                       List<String> pathPrefix) {
         XmlReader.Element propertiesElement = owner.getChildByName("properties");
-        if (propertiesElement == null) return new ParsedProperties(new PropertySet(0), List.of());
+        if (propertiesElement == null) {
+            return new ParsedProperties(new PropertySet(0), List.of(), List.of());
+        }
 
         int propertyCount = 0;
         for (int i = 0; i < propertiesElement.getChildCount(); i++) {
@@ -638,18 +650,21 @@ public final class TmxPreflightService {
         PropertySet properties = new PropertySet(propertyCount);
         Set<String> names = new LinkedHashSet<>();
         List<List<String>> paths = new ArrayList<>();
+        List<TmxObjectPropertyReference> objectReferences = new ArrayList<>();
         for (int i = 0; i < propertiesElement.getChildCount(); i++) {
             XmlReader.Element property = propertiesElement.getChild(i);
             if (!"property".equals(property.getName())) continue;
-            readProperty(property, properties, names, paths, state, ownerLocation, pathPrefix);
+            readProperty(property, properties, names, paths, objectReferences,
+                    state, ownerLocation, pathPrefix);
         }
-        return new ParsedProperties(properties, List.copyOf(paths));
+        return new ParsedProperties(properties, List.copyOf(paths), List.copyOf(objectReferences));
     }
 
     private void readProperty(XmlReader.Element property,
                               PropertySet properties,
                               Set<String> names,
                               List<List<String>> paths,
+                              List<TmxObjectPropertyReference> objectReferences,
                               AnalysisState state,
                               String ownerLocation,
                               List<String> pathPrefix) {
@@ -682,10 +697,16 @@ public final class TmxPreflightService {
                                 property.hasAttribute("value") || (value != null && !value.isEmpty())
                                         ? value : null,
                                 location, state));
+                case "object" -> objectReferences.add(new TmxObjectPropertyReference(
+                        path, parsePropertyObjectReference(
+                                property.hasAttribute("value") || (value != null && !value.isEmpty())
+                                        ? value : null,
+                                location, state), location));
                 case "class" -> {
                     ParsedProperties members = readPropertiesWithPaths(
                             property, state, ownerLocation, path);
                     paths.addAll(members.paths());
+                    objectReferences.addAll(members.objectReferences());
                     if (customType == null || customType.trim().isEmpty()) {
                         state.blocking(
                                 "TMX_CLASS_PROPERTY_TYPE_INVALID",
@@ -780,6 +801,69 @@ public final class TmxPreflightService {
                 "Tiled color property value must use #AARRGGBB format: " + effectiveValue,
                 location);
         throw new InvalidPropertyValueException();
+    }
+
+    private int parsePropertyObjectReference(String value,
+                                             String location,
+                                             AnalysisState state)
+            throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "0";
+        try {
+            int sourceObjectId = Integer.parseInt(effectiveValue);
+            if (sourceObjectId < 0) throw new NumberFormatException();
+            return sourceObjectId;
+        } catch (NumberFormatException ex) {
+            state.blocking("TMX_PROPERTY_VALUE_INVALID",
+                    "Object property value must be a non-negative signed 32-bit integer: "
+                            + effectiveValue, location);
+            throw new InvalidPropertyValueException();
+        }
+    }
+
+    private static void validateObjectPropertyReferences(AnalysisState state) {
+        Map<Integer, List<TmxObjectInfo>> objectsById = new HashMap<>();
+        for (TmxLayerInfo layer : state.layers) {
+            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) continue;
+            for (TmxObjectInfo object : objectLayer.objects()) {
+                if (object.hasPositiveSourceId()) {
+                    objectsById.computeIfAbsent(object.id(), ignored -> new ArrayList<>()).add(object);
+                }
+            }
+        }
+        for (TmxLayerInfo layer : state.layers) {
+            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) continue;
+            validateObjectPropertyReferences(state, objectLayer.objectPropertyReferences(), objectsById);
+            for (TmxObjectInfo object : objectLayer.objects()) {
+                validateObjectPropertyReferences(state, object.objectPropertyReferences(), objectsById);
+            }
+        }
+    }
+
+    private static void validateObjectPropertyReferences(AnalysisState state,
+                                                          List<TmxObjectPropertyReference> references,
+                                                          Map<Integer, List<TmxObjectInfo>> objectsById) {
+        for (TmxObjectPropertyReference reference : references) {
+            if (reference.sourceObjectId() == 0) continue;
+            List<TmxObjectInfo> targets = objectsById.get(reference.sourceObjectId());
+            if (targets == null || targets.isEmpty()) {
+                state.blocking("TMX_OBJECT_REFERENCE_UNRESOLVED",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " does not exist in this map.", reference.location());
+            } else if (targets.size() != 1) {
+                state.blocking("TMX_OBJECT_REFERENCE_AMBIGUOUS",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " is ambiguous.", reference.location());
+            } else if (!isV1MaterializedObjectKind(targets.get(0).kind())) {
+                state.blocking("TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " is not materialized by this import scope.", reference.location());
+            }
+        }
+    }
+
+    private static boolean isV1MaterializedObjectKind(TmxObjectKind kind) {
+        return kind == TmxObjectKind.RECTANGLE || kind == TmxObjectKind.POINT
+                || kind == TmxObjectKind.TILE;
     }
 
     private static int parseHexByte(String value, int start) {
@@ -1268,7 +1352,9 @@ public final class TmxPreflightService {
         }
     }
 
-    private record ParsedProperties(PropertySet properties, List<List<String>> paths) {
+    private record ParsedProperties(PropertySet properties,
+                                    List<List<String>> paths,
+                                    List<TmxObjectPropertyReference> objectReferences) {
     }
 
     private static final class InvalidPropertyValueException extends Exception {

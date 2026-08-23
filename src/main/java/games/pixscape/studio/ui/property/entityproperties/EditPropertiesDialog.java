@@ -4,6 +4,8 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.graphics.Color;
+import com.artemis.Aspect;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.util.TableUtils;
@@ -18,6 +20,8 @@ import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.ColorPickerField;
 
@@ -32,6 +36,8 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     private final PropertySet workingCopy;
     private final Consumer<PropertySet> onApply;
+    private final EntityPropertiesContext context;
+    private final Array<ObjectChoice> objectChoices = new Array<ObjectChoice>();
     private final Array<PropertyRow> rows = new Array<PropertyRow>();
     private final VisTable rowsTable = new VisTable(true);
     private final VisLabel validationLabel = new VisLabel("");
@@ -40,9 +46,18 @@ public final class EditPropertiesDialog extends StudioDialog {
     public EditPropertiesDialog(String title,
                                 PropertySet source,
                                 Consumer<PropertySet> onApply) {
+        this(title, source, null, onApply);
+    }
+
+    public EditPropertiesDialog(String title,
+                                PropertySet source,
+                                EntityPropertiesContext context,
+                                Consumer<PropertySet> onApply) {
         super(title);
         this.workingCopy = source != null ? source.copy() : new PropertySet();
+        this.context = context;
         this.onApply = onApply;
+        populateObjectChoices();
 
         TableUtils.setSpacingDefaults(this);
         setResizable(true);
@@ -142,6 +157,9 @@ public final class EditPropertiesDialog extends StudioDialog {
                 case COLOR:
                     result.putColorRgba8888(name, Color.rgba8888(row.colorValue));
                     break;
+                case OBJECT:
+                    result.putObjectStableId(name, row.objectBox.getSelected().stableId);
+                    break;
                 case CLASS:
                     String className = PropertyAuthoringValidation.requireClassName(
                             row.classNameField.getText(), path);
@@ -159,6 +177,33 @@ public final class EditPropertiesDialog extends StudioDialog {
 
     private static String propertyPath(String parentPath, String name) {
         return parentPath == null || parentPath.isEmpty() ? name : parentPath + "." + name;
+    }
+
+    private void populateObjectChoices() {
+        objectChoices.add(new ObjectChoice(-1, "None"));
+        if (context == null) return;
+        IntBag entities = context.world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class))
+                .getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entityId = entities.get(i);
+            PixscapeIdentityComponent identity = context.mIdentity.getSafe(entityId, null);
+            if (identity == null || identity.stableId <= 0) continue;
+            String name = identity.name == null || identity.name.isBlank() ? "unnamed" : identity.name;
+            objectChoices.add(new ObjectChoice(identity.stableId,
+                    name + " (#" + identity.stableId + ")"));
+        }
+        objectChoices.sort((first, second) -> Integer.compare(first.stableId, second.stableId));
+    }
+
+    private ObjectChoice objectChoice(int stableId) {
+        for (int i = 0; i < objectChoices.size; i++) {
+            ObjectChoice choice = objectChoices.get(i);
+            if (choice.stableId == stableId) return choice;
+        }
+        ObjectChoice missing = new ObjectChoice(stableId, "Missing entity (#" + stableId + ")");
+        objectChoices.add(missing);
+        return missing;
     }
 
     @Override
@@ -196,6 +241,7 @@ public final class EditPropertiesDialog extends StudioDialog {
                 .allowAlpha(true)
                 .useColorSwatch(22f, 22f)
                 .bind(() -> colorValue, colorValue::set);
+        final VisSelectBox<ObjectChoice> objectBox = new VisSelectBox<ObjectChoice>();
         PropertySet classMembers = new PropertySet();
         private PropertyType displayedType;
 
@@ -203,6 +249,7 @@ public final class EditPropertiesDialog extends StudioDialog {
             nameField = new VisTextField(name != null ? name : "");
             typeBox.setItems(PropertyType.values());
             typeBox.setSelected(type != null ? type : PropertyType.STRING);
+            objectBox.setItems(objectChoices);
             loadValue(value);
             displayedType = typeBox.getSelected();
 
@@ -255,6 +302,9 @@ public final class EditPropertiesDialog extends StudioDialog {
                     Color.rgba8888ToColor(colorValue, value.asColorRgba8888());
                     colorField.refresh();
                     break;
+                case OBJECT:
+                    objectBox.setSelected(objectChoice(value.asObjectStableId()));
+                    break;
                 case CLASS:
                     classNameField.setText(value.className());
                     classMembers = value.classPropertiesCopy();
@@ -270,6 +320,7 @@ public final class EditPropertiesDialog extends StudioDialog {
             numberField.setText(type == PropertyType.FLOAT ? "0.0" : "0");
             colorValue.set(0f, 0f, 0f, 0f);
             colorField.refresh();
+            objectBox.setSelected(objectChoice(-1));
             classNameField.setText("");
             classMembers = new PropertySet();
         }
@@ -285,6 +336,8 @@ public final class EditPropertiesDialog extends StudioDialog {
                     return numberField;
                 case COLOR:
                     return colorField;
+                case OBJECT:
+                    return objectBox;
                 case CLASS:
                     VisTable classEditor = new VisTable(true);
                     classEditor.add(classNameField).width(155).growX();
@@ -299,10 +352,25 @@ public final class EditPropertiesDialog extends StudioDialog {
     private void openClassEditor(PropertyRow row) {
         String name = row.nameField.getText();
         String title = name == null || name.isEmpty() ? "Edit Class Properties" : "Edit " + name;
-        EditPropertiesDialog nested = new EditPropertiesDialog(title, row.classMembers, members -> {
+        EditPropertiesDialog nested = new EditPropertiesDialog(title, row.classMembers, context, members -> {
             row.classMembers = members.copy();
             validationLabel.setText("");
         });
         nested.show(getStage());
+    }
+
+    private static final class ObjectChoice {
+        final int stableId;
+        final String label;
+
+        ObjectChoice(int stableId, String label) {
+            this.stableId = stableId;
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 }

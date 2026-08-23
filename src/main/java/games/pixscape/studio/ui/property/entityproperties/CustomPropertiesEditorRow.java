@@ -63,7 +63,7 @@ final class CustomPropertiesEditorRow extends VisTable {
                 ? component.properties
                 : new PropertySet();
         EditPropertiesDialog dialog = new EditPropertiesDialog(
-                "Edit Properties", source, this::apply);
+                "Edit Properties", source, ctx, this::apply);
         dialog.show(getStage());
     }
 

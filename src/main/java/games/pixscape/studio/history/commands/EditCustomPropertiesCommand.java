@@ -123,6 +123,8 @@ public final class EditCustomPropertiesCommand implements Command, SupportsNoop 
                 return Float.compare(first.asFloat(), second.asFloat()) == 0;
             case COLOR:
                 return first.asColorRgba8888() == second.asColorRgba8888();
+            case OBJECT:
+                return first.asObjectStableId() == second.asObjectStableId();
             case CLASS:
                 return first.className().equals(second.className())
                         && sameProperties(first.classPropertiesCopy(), second.classPropertiesCopy());

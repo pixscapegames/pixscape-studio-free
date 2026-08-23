@@ -373,7 +373,9 @@ Second line</property>
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
         assertEquals(9, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertTrue(report.diagnostics().stream()
                 .anyMatch(d -> d.location().contains("property 'overflowFloat'") && d.message().contains("finite Java float")));
@@ -400,7 +402,9 @@ Second line</property>
 
         assertTrue(report.hasBlockingDiagnostics());
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
-        assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_OBJECT_REFERENCE_UNRESOLVED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertEquals(0xFFFFFFFF, ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(0)
                 .properties().getClassValue("physics").properties()
@@ -563,6 +567,39 @@ Second line</property>
         assertFalse(report.hasBlockingDiagnostics());
         assertEquals(0xFFFFFFFF, report.tilesets().get(0).tileDefinition(0)
                 .properties().getColorRgba8888("color", 0));
+    }
+
+    @Test
+    public void objectPropertiesKeepUnresolvedMapObjectIdsForLaterMaterialization() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-object-property-reference");
+        FileHandle tmx = writeMap(dir, """
+                <objectgroup name="Triggers"><properties>
+                  <property name="layerTarget" type="object" value="2002"/>
+                </properties>
+                  <object id="1001" name="Switch"><properties>
+                    <property name="target" type="object" value="2002"/>
+                    <property name="none" type="object"/>
+                    <property name="behavior" type="class" propertytype="Behavior"><properties>
+                      <property name="self" type="object" value="1001"/>
+                    </properties></property>
+                  </properties></object>
+                </objectgroup>
+                <objectgroup name="Targets"><object id="2002" name="Door"/></objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxObjectLayerInfo layer = (TmxObjectLayerInfo) report.layers().get(0);
+        assertEquals(1, layer.objectPropertyReferences().size());
+        TmxObjectInfo source = layer.objects().get(0);
+        assertEquals(3, source.objectPropertyReferences().size());
+        assertFalse(source.properties().contains("target"));
+        assertTrue(source.properties().getClassValue("behavior").properties().isEmpty());
+        assertEquals(2002, source.objectPropertyReferences().get(0).sourceObjectId());
+        assertEquals(0, source.objectPropertyReferences().get(1).sourceObjectId());
+        assertEquals(java.util.List.of("behavior", "self"),
+                source.objectPropertyReferences().get(2).path());
     }
 
     private static TmxPreflightReport analyze(FileHandle tmx) {

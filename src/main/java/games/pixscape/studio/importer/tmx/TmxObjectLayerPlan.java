@@ -21,11 +21,13 @@ public record TmxObjectLayerPlan(String name,
                                  float opacity,
                                  TmxObjectDrawOrder drawOrder,
                                  PropertySet properties,
+                                 List<TmxObjectPropertyReference> objectPropertyReferences,
                                  List<TmxObjectPlan> objects) implements TmxLayerPlan {
 
     public TmxObjectLayerPlan {
         Objects.requireNonNull(properties, "properties");
         properties = properties.copy();
+        objectPropertyReferences = List.copyOf(objectPropertyReferences);
         objects = List.copyOf(objects);
     }
 }

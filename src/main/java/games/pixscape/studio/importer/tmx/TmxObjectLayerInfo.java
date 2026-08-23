@@ -14,10 +14,12 @@ public record TmxObjectLayerInfo(String name,
                                  float parallaxY,
                                  TmxObjectDrawOrder drawOrder,
                                  PropertySet properties,
+                                 List<TmxObjectPropertyReference> objectPropertyReferences,
                                  List<TmxObjectInfo> objects) implements TmxLayerInfo {
 
     public TmxObjectLayerInfo {
         properties = properties.copy();
+        objectPropertyReferences = List.copyOf(objectPropertyReferences);
         objects = List.copyOf(objects);
     }
 

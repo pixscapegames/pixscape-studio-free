@@ -23,6 +23,8 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -1925,6 +1927,25 @@ public class TmxSceneImportServiceTest {
             }
         }
         throw new AssertionError("Missing tile cell " + expectedX + "," + expectedY);
+    }
+
+    @Test
+    public void finalizesObjectReferencesWithPixscapeStableIdsNotTiledSourceIds() {
+        PropertySet base = new PropertySet().putClass("behavior", "Behavior", new PropertySet());
+        java.util.List<TmxObjectPropertyReference> references = java.util.List.of(
+                new TmxObjectPropertyReference(java.util.List.of("target"), 2002, "source"),
+                new TmxObjectPropertyReference(java.util.List.of("none"), 0, "source"),
+                new TmxObjectPropertyReference(java.util.List.of("behavior", "self"), 1001, "source"));
+        PropertySet finalized = TmxSceneImportService.finalizeObjectProperties(
+                base, references, java.util.Map.of(1001, 3, 2002, 7));
+
+        assertEquals(PropertyType.OBJECT, finalized.typeOf("target"));
+        assertEquals(7, finalized.getObjectStableId("target", -1));
+        assertNotEquals(2002, finalized.getObjectStableId("target", -1));
+        assertEquals(-1, finalized.getObjectStableId("none", 0));
+        assertEquals(3, finalized.getClassValue("behavior").properties()
+                .getObjectStableId("self", -1));
+        assertFalse(base.contains("target"));
     }
 
     private static boolean containsJsonInt(JsonValue array, int value) {

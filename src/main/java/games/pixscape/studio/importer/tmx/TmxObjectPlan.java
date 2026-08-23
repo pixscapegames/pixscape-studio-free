@@ -34,7 +34,8 @@ public record TmxObjectPlan(int sourceId,
                             int nativeTileHeight,
                             String effectiveClassName,
                             String effectiveLegacyType,
-                            PropertySet properties) {
+                            PropertySet properties,
+                            java.util.List<TmxObjectPropertyReference> objectPropertyReferences) {
 
     public TmxObjectPlan {
         Objects.requireNonNull(kind, "kind");
@@ -52,6 +53,7 @@ public record TmxObjectPlan(int sourceId,
             }
         }
         properties = properties.copy();
+        objectPropertyReferences = java.util.List.copyOf(objectPropertyReferences);
     }
 
     public boolean hasPositiveSourceId() {

@@ -267,7 +267,8 @@ public final class TmxImportPlanner {
                     nativeTileHeight,
                     effectiveClassName,
                     effectiveLegacyType,
-                    effectiveProperties
+                    effectiveProperties,
+                    object.objectPropertyReferences()
             ));
         }
 
@@ -283,6 +284,7 @@ public final class TmxImportPlanner {
                 layer.opacity(),
                 layer.drawOrder(),
                 layer.propertiesForPlanning(),
+                layer.objectPropertyReferences(),
                 objects
         );
     }
@@ -406,6 +408,7 @@ public final class TmxImportPlanner {
             case INTEGER -> target.putInt(name, source.getInt(name, 0));
             case FLOAT -> target.putFloat(name, source.getFloat(name, 0f));
             case COLOR -> target.putColorRgba8888(name, source.getColorRgba8888(name, 0));
+            case OBJECT -> target.putObjectStableId(name, source.getObjectStableId(name, -1));
             case CLASS -> {
                 ClassProperty value = source.getClassValue(name);
                 PropertySet members = mergeProperties(
@@ -432,6 +435,7 @@ public final class TmxImportPlanner {
         int getInt(String name, int fallback);
         float getFloat(String name, float fallback);
         int getColorRgba8888(String name, int fallback);
+        int getObjectStableId(String name, int fallback);
         ClassProperty getClassValue(String name);
     }
 
@@ -442,6 +446,7 @@ public final class TmxImportPlanner {
         @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
         @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
         @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
+        @Override public int getObjectStableId(String name, int fallback) { return properties.getObjectStableId(name, fallback); }
         @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
     }
 
@@ -452,6 +457,7 @@ public final class TmxImportPlanner {
         @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
         @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
         @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
+        @Override public int getObjectStableId(String name, int fallback) { return properties.getObjectStableId(name, fallback); }
         @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
     }
 
