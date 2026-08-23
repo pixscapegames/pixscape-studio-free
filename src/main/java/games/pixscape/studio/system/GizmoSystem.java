@@ -35,6 +35,7 @@ import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.spatial.*;
@@ -55,6 +56,7 @@ public final class GizmoSystem extends BaseSystem {
     private LayerService layerService;
     private SelectionService selectionService;
     private PhysicsService physicsService;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
     private final PolygonDrawSession polygonDrawSession;
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
@@ -160,6 +162,10 @@ public final class GizmoSystem extends BaseSystem {
 
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
+    }
+
+    public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -1784,8 +1790,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
-        // Studio tools operate in logical world space; preview/runtime display offsets
-        // are intentionally not applied to gizmos and physics handles.
+        if (displayOffsetResolver != null) displayOffsetResolver.addTo(entityId, p);
     }
 
     private boolean isEntityVisibleForGizmo(int e) {
@@ -1824,8 +1829,9 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, float[] corners, int vertexCount) {
-        // See applyDisplayOffset(int, Vector2): Studio gizmos are authored and drawn in
-        // logical world space.
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, corners, vertexCount);
+        }
     }
 
     private boolean isLightEntity(int e) {

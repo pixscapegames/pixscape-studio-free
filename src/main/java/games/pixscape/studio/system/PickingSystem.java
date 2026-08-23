@@ -43,6 +43,7 @@ import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 import games.pixscape.studio.service.physics.*;
 import games.pixscape.studio.service.spatial.*;
 
@@ -62,6 +63,7 @@ public final class PickingSystem extends BaseSystem {
     private SelectionService selectionService;
     private LayerService layerService;
     private PhysicsService physicsService;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
     private final PhysicsSelectionService physicsSelectionService;
     private final PhysicsSelectionReconciler physicsSelectionReconciler;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
@@ -269,6 +271,10 @@ public final class PickingSystem extends BaseSystem {
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
         this.fixturePickingService = new PhysicsFixturePickingService(physicsService);
+    }
+
+    public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -1756,8 +1762,9 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, float[] verts, int vertexCount) {
-        // Studio tools operate in logical world space; preview/runtime display offsets
-        // are intentionally not applied to picking, gizmos, and physics handles.
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, verts, vertexCount);
+        }
     }
 
     private void onPolygonVertexDragging(float mx, float my) {
@@ -2301,7 +2308,9 @@ public final class PickingSystem extends BaseSystem {
         if (hovered == InputManipulationContext.Handle.ROTATE) {
             float px = t0.x + t0.originX;
             float py = t0.y + t0.originY;
-            ctx.beginRotate(px, py, mx, my, t0.rotationRad);
+            tmp2Vec.set(px, py);
+            applyDisplayOffset(e0, tmp2Vec);
+            ctx.beginRotate(tmp2Vec.x, tmp2Vec.y, mx, my, t0.rotationRad);
         } else {
             ctx.beginResize(hovered, mx, my, t0.scaleX, t0.scaleY);
         }
@@ -2700,6 +2709,10 @@ public final class PickingSystem extends BaseSystem {
 
         float cx = t.x + t.originX;
         float cy = t.y + t.originY;
+        tmp2Vec.set(cx, cy);
+        applyDisplayOffset(e0, tmp2Vec);
+        cx = tmp2Vec.x;
+        cy = tmp2Vec.y;
 
         float cos = MathUtils.cos(t.rotationRad);
         float sin = MathUtils.sin(t.rotationRad);
@@ -2790,6 +2803,10 @@ public final class PickingSystem extends BaseSystem {
 
         float cx = t.x + t.originX;
         float cy = t.y + t.originY;
+        tmp2Vec.set(cx, cy);
+        applyDisplayOffset(entityId, tmp2Vec);
+        cx = tmp2Vec.x;
+        cy = tmp2Vec.y;
 
         float delta = signedAngleDelta(cx, cy, ctx.lastMouseX(), ctx.lastMouseY(), mx, my);
 
@@ -2834,7 +2851,7 @@ public final class PickingSystem extends BaseSystem {
             float[] obb = computeOBBWorldCorners(e);
             if (obb == null) continue;
 
-            if (!OrientedBoundsHelper.contains(obb, mouseX, mouseY, tolWorld)) continue;
+            if (!isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
 
             int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
@@ -2886,6 +2903,13 @@ public final class PickingSystem extends BaseSystem {
                                        float emitterY,
                                        float radiusSquared) {
         return dst2(mouseX, mouseY, emitterX, emitterY) <= radiusSquared;
+    }
+
+    static boolean isDisplayedObbHit(float[] displayedCorners,
+                                     float mouseX,
+                                     float mouseY,
+                                     float toleranceWorld) {
+        return OrientedBoundsHelper.contains(displayedCorners, mouseX, mouseY, toleranceWorld);
     }
 
     static boolean isPointInsideLasso(float x,
@@ -3066,10 +3090,10 @@ public final class PickingSystem extends BaseSystem {
             TransformComponent t = mT.getSafe(e, null);
             if (t == null) continue;
 
-            // Studio picking uses logical editing space.
-            // Parallax is preview/runtime-only and must not affect light picking.
-            float cx = t.x;
-            float cy = t.y;
+            tmp2Vec.set(t.x, t.y);
+            applyDisplayOffset(e, tmp2Vec);
+            float cx = tmp2Vec.x;
+            float cy = tmp2Vec.y;
 
             if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWidthorld)) continue;
 
@@ -3102,13 +3126,11 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
-        // See applyDisplayOffset(int, float[], int): Studio picking stays in logical
-        // world space even if preview/runtime display offsets exist.
+        if (displayOffsetResolver != null) displayOffsetResolver.addTo(entityId, p);
     }
 
     private void removeDisplayOffset(int entityId, Vector2 p) {
-        // No-op for the same reason as applyDisplayOffset: mouse/edit coordinates are
-        // already logical Studio world coordinates, not runtime display coordinates.
+        if (displayOffsetResolver != null) displayOffsetResolver.subtractFrom(entityId, p);
     }
 
     private static float pointSegmentDst2(float px, float py, float ax, float ay, float bx, float by) {
@@ -3201,8 +3223,12 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(t.x, t.y, mx, my));
-        float newRotationRad = lightDragIsCone ? (float) Math.atan2(my - t.y, mx - t.x) : lightRotationCurrentRad;
+        tmp2Vec.set(t.x, t.y);
+        applyDisplayOffset(entityId, tmp2Vec);
+        float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(tmp2Vec.x, tmp2Vec.y, mx, my));
+        float newRotationRad = lightDragIsCone
+                ? (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x)
+                : lightRotationCurrentRad;
         applyLightOverlayLive(entityId, newRadius, newRotationRad, lightDragIsCone);
         lightRadiusCurrent = newRadius;
         lightRotationCurrentRad = newRotationRad;
@@ -3261,8 +3287,7 @@ public final class PickingSystem extends BaseSystem {
             out.set(t.x + radius, t.y);
         }
 
-        // No applyDisplayOffset here.
-        // Studio editing space is logical; parallax is preview/runtime-only.
+        applyDisplayOffset(entityId, out);
     }
 
     private boolean isLightEntity(int entityId) {

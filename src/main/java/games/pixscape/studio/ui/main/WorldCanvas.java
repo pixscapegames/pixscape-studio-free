@@ -107,6 +107,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private FrameRenderQueue frameQueue;
     private VfxRenderState vfxState;
     private TiledMapRenderState tiledState;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
 
     // Drawer
     private final ShapeDrawer drawer;
@@ -404,6 +405,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 );
 
         world = bootstrap.getWorld();
+        displayOffsetResolver = new StudioDisplayOffsetResolver(
+                world, dynamicEntityState, layerState, camera);
         animationPreviewRefresher.bindWorld(world);
         if (studioParticleFallbackSystem != null) {
             studioParticleFallbackSystem.setRuntimeParticleSystem(
@@ -454,14 +457,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         pickingSystem.setSelectionService(selectionService);
         pickingSystem.setLayerService(layerService);
         pickingSystem.setPhysicsService(physicsService);
+        pickingSystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         lightIconOverlaySystem.setLayerService(layerService);
         lightIconOverlaySystem.setSelectionService(selectionService);
+        lightIconOverlaySystem.setDisplayOffsetResolver(displayOffsetResolver);
         tiledObjectOverlaySystem.setLayerService(layerService);
         tiledObjectOverlaySystem.setSelectionService(selectionService);
+        tiledObjectOverlaySystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         gizmoSystem.setLayerService(layerService);
         gizmoSystem.setPhysicsService(physicsService);
+        gizmoSystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         zOrderRuntimeService = new ZOrderRuntimeService(world);
 

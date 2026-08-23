@@ -13,6 +13,7 @@ import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 
 /** Passive Studio overlays for imported Tiled Rectangle and Point objects. */
 public final class TiledObjectOverlaySystem extends IteratingSystem {
@@ -28,6 +29,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
     private LayerService layerService;
     private SelectionService selectionService;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
 
     private ComponentMapper<EntityMetaComponent> mEntityMeta;
     private ComponentMapper<TransformComponent> mTransform;
@@ -52,6 +54,10 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         this.selectionService = selectionService;
     }
 
+    public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
+        this.displayOffsetResolver = displayOffsetResolver;
+    }
+
     @Override
     protected void begin() {
         ctx.batch.setProjectionMatrix(ctx.cam.combined);
@@ -74,7 +80,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
 
         switch (meta.kind) {
             case TILED_RECTANGLE -> drawRectangle(entityId, transform);
-            case TILED_POINT -> drawPoint(transform);
+            case TILED_POINT -> drawPoint(entityId, transform);
             default -> {
                 // Tile Objects and unknown kinds use no passive shape overlay.
             }
@@ -103,14 +109,20 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         } else {
             computeRectangleCorners(transform, dimensions, rectangleCorners);
         }
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, rectangleCorners, 4);
+        }
         GizmoDrawHelper.drawDashedObb(ctx, rectangleCorners);
     }
 
-    private void drawPoint(TransformComponent transform) {
+    private void drawPoint(int entityId, TransformComponent transform) {
         float outerRadius = pointOuterRadiusWorld(ctx.wpp());
         float centerRadius = pointCenterRadiusWorld(ctx.wpp());
         float stroke = POINT_STROKE_PX * ctx.wpp();
         pointCenter(transform, pointCenter);
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, pointCenter, 1);
+        }
         float x = pointCenter[0];
         float y = pointCenter[1];
 

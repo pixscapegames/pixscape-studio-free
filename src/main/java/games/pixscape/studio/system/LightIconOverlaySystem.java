@@ -19,6 +19,7 @@ import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 
 public final class LightIconOverlaySystem extends IteratingSystem {
 
@@ -33,6 +34,7 @@ public final class LightIconOverlaySystem extends IteratingSystem {
 
     private LayerService layerService;
     private SelectionService selectionService;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
 
     private ComponentMapper<PointLightComponent> mLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
@@ -42,6 +44,7 @@ public final class LightIconOverlaySystem extends IteratingSystem {
 
     private final Vector2 tmpMouseWorld = new Vector2();
     private final Vector3 tmpMouse3 = new Vector3();
+    private final Vector2 tmpDisplayOffset = new Vector2();
 
     public LightIconOverlaySystem(StudioDrawContext ctx,
                                   OrthographicCamera worldCam) {
@@ -58,6 +61,10 @@ public final class LightIconOverlaySystem extends IteratingSystem {
 
     public void setSelectionService(SelectionService selectionService) {
         this.selectionService = selectionService;
+    }
+
+    public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -78,8 +85,9 @@ public final class LightIconOverlaySystem extends IteratingSystem {
             return;
         }
 
-        float x = displayX(entityId, transform.x);
-        float y = displayY(entityId, transform.y);
+        resolveDisplayOffset(entityId, tmpDisplayOffset);
+        float x = transform.x + tmpDisplayOffset.x;
+        float y = transform.y + tmpDisplayOffset.y;
 
         float sizeWorld = ICON_SIZE_PX * ctx.wpp();
         float half = sizeWorld * 0.5f;
@@ -185,22 +193,12 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         ctx.drawer.line(hx - half, hy + half, hx - half, hy - half, ctx.pxToWorld(2f));
     }
 
-    private float displayX(int entityId, float logicalX) {
-        return logicalX + offsetX(entityId);
-    }
-
-    private float displayY(int entityId, float logicalY) {
-        return logicalY + offsetY(entityId);
-    }
-
-    private float offsetX(int entityId) {
-        // Studio canvas uses logical editing space; parallax is applied only in Preview/runtime.
-        return 0f;
-    }
-
-    private float offsetY(int entityId) {
-        // Studio canvas uses logical editing space; parallax is applied only in Preview/runtime.
-        return 0f;
+    private void resolveDisplayOffset(int entityId, Vector2 out) {
+        if (displayOffsetResolver == null) {
+            out.set(0f, 0f);
+            return;
+        }
+        displayOffsetResolver.resolve(entityId, out);
     }
 
     private boolean isHoveringIcon(float x, float y, float halfWidthorld) {
