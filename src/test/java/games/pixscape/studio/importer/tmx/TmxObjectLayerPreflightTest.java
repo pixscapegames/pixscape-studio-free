@@ -1,6 +1,7 @@
 package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import org.junit.Test;
@@ -109,7 +110,6 @@ public class TmxObjectLayerPreflightTest {
                   <object id="1"><ellipse/></object>
                   <object id="2"><polygon points="0,0 8,0 8,8"/></object>
                   <object id="3"><polyline points="0,0 8,8"/></object>
-                  <object id="4" gid="123"/>
                   <object id="5"><text>Hello</text></object>
                   <object id="6" template="enemy.tx"/>
                   <object id="7" gid="1"><point/></object>
@@ -124,15 +124,13 @@ public class TmxObjectLayerPreflightTest {
                         TmxObjectKind.ELLIPSE,
                         TmxObjectKind.POLYGON,
                         TmxObjectKind.POLYLINE,
-                        TmxObjectKind.TILE,
                         TmxObjectKind.TEXT,
                         TmxObjectKind.TEMPLATE,
                         TmxObjectKind.UNKNOWN,
                         TmxObjectKind.UNKNOWN),
                 layer.objects().stream().map(TmxObjectInfo::kind).toList());
-        assertEquals(Long.valueOf(123), layer.objects().get(3).gid());
-        assertEquals("enemy.tx", layer.objects().get(5).template());
-        assertEquals(5, diagnosticCount(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
+        assertEquals("enemy.tx", layer.objects().get(4).template());
+        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_TEMPLATE_UNSUPPORTED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_KIND_AMBIGUOUS"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_KIND_UNKNOWN"));
@@ -228,6 +226,107 @@ Second line</property>
     }
 
     @Test
+    public void classPropertiesParseEmptyPrimitiveAndNestedMembersRecursively() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-class-properties");
+        FileHandle tmx = writeMap(dir, """
+                <objectgroup name="Gameplay">
+                  <properties><property name="empty" type="class" propertytype="Attack"/></properties>
+                  <object id="1" name="Rectangle"><properties>
+                    <property name="physics" type="class" propertytype=" Physics "><properties>
+                      <property name="label" value="heavy"/>
+                      <property name="sensor" type="bool" value="true"/>
+                      <property name="count" type="int" value="3"/>
+                      <property name="mass" type="float" value="2.5"/>
+                      <property name="material" type="class" propertytype="Material"><properties>
+                        <property name="friction" type="float" value="0.5"/>
+                      </properties></property>
+                    </properties></property>
+                  </properties></object>
+                  <object id="2" name="Point"><point/><properties>
+                    <property name="follow" type="class" propertytype="Follow"/>
+                  </properties></object>
+                </objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxObjectLayerInfo layer = (TmxObjectLayerInfo) report.layers().get(0);
+        ClassProperty empty = layer.properties().getClassValue("empty");
+        assertEquals("Attack", empty.typeName());
+        assertTrue(empty.properties().isEmpty());
+        ClassProperty physics = layer.objects().get(0).properties().getClassValue("physics");
+        assertEquals(" Physics", physics.typeName());
+        assertEquals("heavy", physics.properties().getString("label", null));
+        assertTrue(physics.properties().getBoolean("sensor", false));
+        assertEquals(3, physics.properties().getInt("count", 0));
+        assertEquals(2.5f, physics.properties().getFloat("mass", 0f), 0.0001f);
+        ClassProperty material = physics.properties().getClassValue("material");
+        assertEquals("Material", material.typeName());
+        assertEquals(0.5f, material.properties().getFloat("friction", 0f), 0.0001f);
+        assertEquals("Follow", layer.objects().get(1).properties()
+                .getClassValue("follow").typeName());
+    }
+
+    @Test
+    public void customEnumMetadataKeepsTheAuthoritativePrimitiveType() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-custom-enum-properties");
+        FileHandle tmx = writeMap(dir, """
+                <objectgroup name="Gameplay"><object id="1"><properties>
+                  <property name="direction" type="string" propertytype="Direction" value="North"/>
+                  <property name="flags" type="int" propertytype="Flags" value="3"/>
+                </properties></object></objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        PropertySet properties = ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(0).properties();
+        assertEquals(PropertyType.STRING, properties.typeOf("direction"));
+        assertEquals("North", properties.getString("direction", null));
+        assertEquals(PropertyType.INTEGER, properties.typeOf("flags"));
+        assertEquals(3, properties.getInt("flags", 0));
+    }
+
+    @Test
+    public void tileDefinitionClassPropertiesUseTheSameParserForExternalAndImageCollectionTilesets() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-class-tile-metadata");
+        writeFile(dir.resolve("external.png"), "fake image");
+        writeFile(dir.resolve("collection.png"), "fake image");
+        writeFile(dir.resolve("actors.tsx"), """
+                <tileset name="actors" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                  <image source="external.png" width="16" height="16"/>
+                  <tile id="0"><properties><property name="attack" type="class" propertytype="Attack"><properties>
+                    <property name="damage" type="int" value="20"/>
+                  </properties></property></properties></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" source="actors.tsx"/>
+                  <tileset firstgid="10" name="collection" tilewidth="16" tileheight="16" tilecount="1" columns="0">
+                    <tile id="0"><image source="collection.png" width="12" height="14"/><properties>
+                      <property name="wander" type="class" propertytype="Wander"/>
+                    </properties></tile>
+                  </tileset>
+                  <objectgroup name="Actors"><object gid="1"/><object gid="10"/></objectgroup>
+                </map>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        ClassProperty attack = report.tilesets().get(0).tileDefinition(0)
+                .properties().getClassValue("attack");
+        assertEquals("Attack", attack.typeName());
+        assertEquals(20, attack.properties().getInt("damage", 0));
+        ClassProperty wander = report.tilesets().get(1).tileDefinition(0)
+                .properties().getClassValue("wander");
+        assertEquals("Wander", wander.typeName());
+        assertTrue(wander.properties().isEmpty());
+    }
+
+    @Test
     public void malformedAndUnsupportedPropertiesProduceBlockingDiagnostics() throws Exception {
         Path dir = Files.createTempDirectory("tmx-invalid-properties");
         FileHandle tmx = writeMap(dir, """
@@ -264,11 +363,39 @@ Second line</property>
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
         assertEquals(7, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(7, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(5, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertTrue(report.diagnostics().stream()
                 .anyMatch(d -> d.location().contains("property 'overflowFloat'") && d.message().contains("finite Java float")));
+    }
+
+    @Test
+    public void malformedAndUnsupportedNestedClassMembersReportTheirFullPaths() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-invalid-class-members");
+        FileHandle tmx = writeMap(dir, """
+                <objectgroup name="Gameplay"><object id="1"><properties>
+                  <property name="physics" type="class" propertytype="Physics"><properties>
+                    <property name="mass" type="float" value="1"/>
+                    <property name="mass" type="float" value="2"/>
+                    <property name="collisionColor" type="color" value="#ffffffff"/>
+                    <property name="source" type="file" value="physics.json"/>
+                    <property name="target" type="object" value="2"/>
+                    <property name="states" type="list"/>
+                    <property name="material" type="class" propertytype=" "/>
+                  </properties></property>
+                </properties></object></objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertTrue(report.hasBlockingDiagnostics());
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
+        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertTrue(report.diagnostics().stream()
-                .anyMatch(d -> d.location().contains("property 'customEnum'") && d.message().contains("Direction")));
+                .anyMatch(d -> d.location().contains("property 'physics.collisionColor'")));
+        assertTrue(report.diagnostics().stream()
+                .anyMatch(d -> d.location().contains("property 'physics.material'")));
     }
 
     @Test
@@ -316,6 +443,93 @@ Second line</property>
                 layer.objects().stream().map(TmxObjectInfo::kind).toList());
         assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
         assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_CUSTOM_PROPERTIES_IGNORED"));
+    }
+
+    @Test
+    public void tileObjectsPreserveTilesetPresentationAndDrawOrderWithoutDeferredWarning() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-tile-object-preflight");
+        writeFile(dir.resolve("tiles.png"), "fake image");
+        writeFile(dir.resolve("objects.tsx"), """
+                <tileset name="objects" tilewidth="16" tileheight="24" tilecount="2" columns="2"
+                         objectalignment="center">
+                  <tileoffset x="3" y="-2"/>
+                  <image source="tiles.png" width="32" height="24"/>
+                </tileset>
+                """);
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="24">
+                  <tileset firstgid="10" source="objects.tsx"/>
+                  <objectgroup name="Actors" draworder="index">
+                    <object id="7" name="Gem" gid="2147483659" x="12" y="18" width="32" height="48"/>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
+        TmxTilesetInfo tileset = report.tilesets().get(0);
+        assertEquals(TmxObjectAlignment.CENTER, tileset.objectAlignment());
+        assertEquals(3, tileset.tileOffsetX());
+        assertEquals(-2, tileset.tileOffsetY());
+        TmxObjectLayerInfo layer = (TmxObjectLayerInfo) report.layers().get(0);
+        assertEquals(TmxObjectDrawOrder.INDEX, layer.drawOrder());
+        assertEquals(TmxObjectKind.TILE, layer.objects().get(0).kind());
+        assertEquals(Long.valueOf(2147483659L), layer.objects().get(0).gid());
+    }
+
+    @Test
+    public void invalidAndAnimatedTileObjectReferencesRemainBlockingWhileDiagonalAndHexAreAccepted() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-tile-object-blocking");
+        writeFile(dir.resolve("tiles.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="objects" tilewidth="16" tileheight="16" tilecount="2" columns="2">
+                    <image source="tiles.png" width="32" height="16"/>
+                    <tile id="0"><animation><frame tileid="1" duration="125"/></animation></tile>
+                  </tileset>
+                  <objectgroup name="Actors">
+                    <object id="1" gid="1"/>
+                    <object id="2" gid="99"/>
+                    <object id="3" gid="536870914"/>
+                    <object id="4" gid="268435458"/>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_TILE_OBJECT_ANIMATION_UNSUPPORTED"));
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_TILE_OBJECT_GID_UNRESOLVED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_TILE_OBJECT_DIAGONAL_TRANSFORM_UNSUPPORTED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_TILE_OBJECT_HEX120_TRANSFORM_UNSUPPORTED"));
+    }
+
+    @Test
+    public void unsupportedInheritedTilePropertyUsesExistingBlockingPolicy() throws Exception {
+        Path dir = Files.createTempDirectory("tmx-inherited-property-blocking");
+        writeFile(dir.resolve("tiles.png"), "fake image");
+        FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="objects" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="tiles.png" width="16" height="16"/>
+                    <tile id="0"><properties>
+                      <property name="color" type="color" value="#ffffffff"/>
+                    </properties></tile>
+                  </tileset>
+                  <objectgroup name="Actors"><object gid="1"/></objectgroup>
+                </map>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_PROPERTY_TYPE_UNSUPPORTED"));
     }
 
     private static TmxPreflightReport analyze(FileHandle tmx) {

@@ -12,6 +12,7 @@ public record TmxObjectLayerInfo(String name,
                                  float offsetY,
                                  float parallaxX,
                                  float parallaxY,
+                                 TmxObjectDrawOrder drawOrder,
                                  PropertySet properties,
                                  List<TmxObjectInfo> objects) implements TmxLayerInfo {
 

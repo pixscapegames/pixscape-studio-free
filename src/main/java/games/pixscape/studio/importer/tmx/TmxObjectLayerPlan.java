@@ -19,6 +19,7 @@ public record TmxObjectLayerPlan(String name,
                                  float offsetX,
                                  float offsetY,
                                  float opacity,
+                                 TmxObjectDrawOrder drawOrder,
                                  PropertySet properties,
                                  List<TmxObjectPlan> objects) implements TmxLayerPlan {
 

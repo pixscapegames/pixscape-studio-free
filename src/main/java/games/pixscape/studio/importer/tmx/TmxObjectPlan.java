@@ -20,13 +20,36 @@ public record TmxObjectPlan(int sourceId,
                             float rotation,
                             boolean visible,
                             TmxObjectKind kind,
+                            int sourceOrder,
+                            int zIndex,
+                            int rawGid,
+                            int cleanGid,
+                            int tilesetPlanIndex,
+                            int localTileId,
+                            TmxTransformPlan tileTransform,
+                            TmxObjectAlignment tileObjectAlignment,
+                            int tileOffsetX,
+                            int tileOffsetY,
+                            int nativeTileWidth,
+                            int nativeTileHeight,
+                            String effectiveClassName,
+                            String effectiveLegacyType,
                             PropertySet properties) {
 
     public TmxObjectPlan {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(properties, "properties");
-        if (kind != TmxObjectKind.RECTANGLE && kind != TmxObjectKind.POINT) {
+        if (kind != TmxObjectKind.RECTANGLE
+                && kind != TmxObjectKind.POINT
+                && kind != TmxObjectKind.TILE) {
             throw new IllegalArgumentException("Unsupported V1 planned object kind: " + kind);
+        }
+        if (kind == TmxObjectKind.TILE) {
+            Objects.requireNonNull(tileTransform, "tileTransform");
+            Objects.requireNonNull(tileObjectAlignment, "tileObjectAlignment");
+            if (cleanGid <= 0 || tilesetPlanIndex < 0 || localTileId < 0) {
+                throw new IllegalArgumentException("Tile Object plan requires a resolved GID and tileset.");
+            }
         }
         properties = properties.copy();
     }

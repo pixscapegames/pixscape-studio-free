@@ -143,6 +143,7 @@ public final class TmxSceneImportService {
 
     ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
         Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset = new HashMap<>();
         Set<Integer> importedTileAssetIds = new HashSet<>();
         Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer = new HashMap<>();
         Set<Integer> importedImageAssetIds = new HashSet<>();
@@ -180,6 +181,8 @@ public final class TmxSceneImportService {
             }
             importedTilesetCount += result.importedCount();
             Map<Integer, Integer> cellLogicalIds = new HashMap<>(result.localTileAssetIds());
+            staticTileAssetIdsByTileset.put(
+                    tileset.planIndex(), Map.copyOf(result.localTileAssetIds()));
             for (Integer assetId : result.localTileAssetIds().values()) {
                 if (assetId == null || assetId <= 0) continue;
                 importedTileAssetIds.add(assetId);
@@ -218,9 +221,19 @@ public final class TmxSceneImportService {
             runtimeAvailabilityService.addSprite(meta, imageAsset.assetId());
         }
 
+        for (TmxLayerPlan layer : plan.layers()) {
+            if (!(layer instanceof TmxObjectLayerPlan objectLayer)) continue;
+            for (TmxObjectPlan object : objectLayer.objects()) {
+                if (object.kind() != TmxObjectKind.TILE) continue;
+                Integer assetId = staticTileAssetId(staticTileAssetIdsByTileset, object);
+                runtimeAvailabilityService.addSprite(meta, assetId);
+            }
+        }
+
         return new ImportAssetsResult(
                 importedTilesetCount,
                 cellLogicalIdsByTileset,
+                staticTileAssetIdsByTileset,
                 importedTileAssetIds,
                 imageAssetsBySourceLayer,
                 importedImageAssetIds
@@ -264,7 +277,8 @@ public final class TmxSceneImportService {
 
     void populateImportedWorld(World world,
             IdentityRegistry identityRegistry, TmxImportPlan plan,
-            Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
             Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
             String sceneTag) {
         int layerIndex = 0;
@@ -273,7 +287,7 @@ public final class TmxSceneImportService {
                 int layerEntity = world.create();
                 createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
                 identityRegistry.ensureStableId(layerEntity);
-                populateTiles(world, layerEntity, tileLayer, tileAssetIdsByTileset);
+                populateTiles(world, layerEntity, tileLayer, cellLogicalIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
                 ImportedImageAsset imageAsset = imageAssetsBySourceLayer.get(imageLayer.sourceLayerIndex());
@@ -291,7 +305,8 @@ public final class TmxSceneImportService {
                 int layerEntity = world.create();
                 createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
                 identityRegistry.ensureStableId(layerEntity);
-                populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer);
+                populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer,
+                        staticTileAssetIdsByTileset, sceneTag);
                 layerIndex++;
             }
         }
@@ -404,26 +419,30 @@ public final class TmxSceneImportService {
                                  IdentityRegistry identityRegistry,
                                  int layerIndex,
                                  TmxScenePlan scene,
-                                 TmxObjectLayerPlan objectLayer) {
+                                 TmxObjectLayerPlan objectLayer,
+                                 Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                 String sceneTag) {
         float mapPixelHeight = scene.mapHeightCells() * (float) scene.tileHeight();
-        int zIndex = 0;
         for (TmxObjectPlan object : objectLayer.objects()) {
             int objectEntity = world.create();
-            createObjectComponents(world, objectEntity, layerIndex, zIndex,
-                    mapPixelHeight, objectLayer, object);
+            if (object.kind() == TmxObjectKind.TILE) {
+                createTileObjectComponents(world, objectEntity, layerIndex, mapPixelHeight,
+                        objectLayer, object, staticTileAssetIdsByTileset, sceneTag);
+            } else {
+                createDataObjectComponents(world, objectEntity, layerIndex,
+                        mapPixelHeight, objectLayer, object);
+            }
             identityRegistry.setName(objectEntity, object.name());
             identityRegistry.ensureStableId(objectEntity);
-            zIndex++;
         }
     }
 
-    private void createObjectComponents(World world,
-                                        int objectEntity,
-                                        int layerIndex,
-                                        int zIndex,
-                                        float mapPixelHeight,
-                                        TmxObjectLayerPlan objectLayer,
-                                        TmxObjectPlan object) {
+    private void createDataObjectComponents(World world,
+                                            int objectEntity,
+                                            int layerIndex,
+                                            float mapPixelHeight,
+                                            TmxObjectLayerPlan objectLayer,
+                                            TmxObjectPlan object) {
         TransformComponent transform = world.getMapper(TransformComponent.class).create(objectEntity);
         transform.x = object.x() + objectLayer.offsetX();
         transform.y = mapPixelHeight - object.y() - objectLayer.offsetY();
@@ -448,7 +467,7 @@ public final class TmxSceneImportService {
 
         EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(objectEntity);
         index.layerIndex = layerIndex;
-        index.zIndex = zIndex;
+        index.zIndex = object.zIndex();
 
         VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(objectEntity);
         visibility.visible = object.visible();
@@ -459,6 +478,85 @@ public final class TmxSceneImportService {
         meta.note = "";
         meta.kind = EntityKind.UNKNOWN;
 
+        attachObjectMetadata(world, objectEntity, object);
+    }
+
+    private void createTileObjectComponents(World world,
+                                            int objectEntity,
+                                            int layerIndex,
+                                            float mapPixelHeight,
+                                            TmxObjectLayerPlan objectLayer,
+                                            TmxObjectPlan object,
+                                            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                            String sceneTag) {
+        int assetId = staticTileAssetId(staticTileAssetIdsByTileset, object);
+        float width = object.width() > 0f ? object.width() : object.nativeTileWidth();
+        float height = object.height() > 0f ? object.height() : object.nativeTileHeight();
+        if (width <= 0f || height <= 0f) {
+            throw new IllegalStateException("Tile Object has no usable authored or native size.");
+        }
+
+        float anchorX = object.tileObjectAlignment().anchorX();
+        float anchorY = object.tileObjectAlignment().anchorY();
+        float baseOriginX = anchorX * width - object.tileOffsetX();
+        float baseOriginY = (1f - anchorY) * height + object.tileOffsetY();
+        TmxTileTransformSupport.TileObjectTransform tiledTransform =
+                TmxTileTransformSupport.decomposeTileObject(
+                        width, height, baseOriginX, baseOriginY, object.tileTransform());
+
+        GenericEntityInitializer init = new GenericEntityInitializer(world)
+                .configureStandaloneSprite(
+                        assetId,
+                        sceneTag,
+                        Math.max(1, object.nativeTileWidth()),
+                        Math.max(1, object.nativeTileHeight()),
+                        object.x() + objectLayer.offsetX(),
+                        mapPixelHeight - object.y() - objectLayer.offsetY(),
+                        tiledTransform.originX(),
+                        tiledTransform.originY(),
+                        0,
+                        BlendMode.ALPHA.id,
+                        0,
+                        object.name(),
+                        layerIndex
+                )
+                .setTintRgba(tintForOpacity(objectLayer.opacity()));
+        init.init(objectEntity);
+
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(objectEntity);
+        transform.rotationRad = -object.rotation() * MathUtils.degreesToRadians
+                + tiledTransform.rotationOffsetRad();
+        transform.scaleX = tiledTransform.scaleX();
+        transform.scaleY = tiledTransform.scaleY();
+        transform.refreshCaches();
+
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(objectEntity);
+        dimensions.width = width;
+        dimensions.height = height;
+
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(objectEntity);
+        index.zIndex = object.zIndex();
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).get(objectEntity);
+        visibility.visible = object.visible();
+        attachObjectMetadata(world, objectEntity, object);
+    }
+
+    private static int staticTileAssetId(
+            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+            TmxObjectPlan object) {
+        Map<Integer, Integer> localIds = staticTileAssetIdsByTileset.get(object.tilesetPlanIndex());
+        Integer assetId = localIds != null ? localIds.get(object.localTileId()) : null;
+        if (assetId == null || assetId <= 0) {
+            throw new IllegalStateException(
+                    "Missing imported static tile asset for local tile " + object.localTileId());
+        }
+        return assetId;
+    }
+
+    private static void attachObjectMetadata(World world,
+                                             int objectEntity,
+                                             TmxObjectPlan object) {
         String classificationTag = classificationTag(object);
         if (classificationTag != null) {
             PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(objectEntity);
@@ -470,8 +568,8 @@ public final class TmxSceneImportService {
 
     static String classificationTag(TmxObjectPlan object) {
         if (object == null) return null;
-        String modernClass = normalizedTag(object.className());
-        return modernClass != null ? modernClass : normalizedTag(object.legacyType());
+        String modernClass = normalizedTag(object.effectiveClassName());
+        return modernClass != null ? modernClass : normalizedTag(object.effectiveLegacyType());
     }
 
     private static String normalizedTag(String value) {
@@ -668,6 +766,7 @@ public final class TmxSceneImportService {
 
     record ImportAssetsResult(int importedTilesetCount,
                                       Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+                                      Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
                                       Set<Integer> importedTileAssetIds,
                                       Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                       Set<Integer> importedImageAssetIds) {

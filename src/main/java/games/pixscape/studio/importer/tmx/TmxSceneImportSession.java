@@ -100,6 +100,7 @@ public final class TmxSceneImportSession {
                     identityRegistry,
                     plan,
                     importedAssets.cellLogicalIdsByTileset(),
+                    importedAssets.staticTileAssetIdsByTileset(),
                     importedAssets.imageAssetsBySourceLayer(),
                     createdSceneTag
             );

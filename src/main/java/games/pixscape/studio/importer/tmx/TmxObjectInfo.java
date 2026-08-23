@@ -15,12 +15,14 @@ public record TmxObjectInfo(int id,
                             String template,
                             Long gid,
                             TmxObjectKind kind,
-                            PropertySet properties) {
+                            PropertySet properties,
+                            java.util.List<java.util.List<String>> propertyPaths) {
 
     public static final int NO_SOURCE_ID = -1;
 
     public TmxObjectInfo {
         properties = properties.copy();
+        propertyPaths = propertyPaths.stream().map(java.util.List::copyOf).toList();
     }
 
     @Override
