@@ -163,18 +163,10 @@ public class TopMenuBar extends MenuBar {
         final MenuItem paste = new MenuItem("Paste         ctrl+V");
 
         final MenuItem undo = new MenuItem("Undo         ctrl+Z");
-        onClick(undo, () -> {
-            app.getCanvas().getSelectionService().clearSelection();
-            app.getCanvas().getPhysicsSelectionService().clearSelectionOnly();
-            app.getCanvas().getHistoryManager().undo();
-        });
+        onClick(undo, () -> app.getCanvas().undoHistory());
 
         final MenuItem redo = new MenuItem("Redo          ctrl+Y");
-        onClick(redo, () -> {
-            app.getCanvas().getSelectionService().clearSelection();
-            app.getCanvas().getPhysicsSelectionService().clearSelectionOnly();
-            app.getCanvas().getHistoryManager().redo();
-        });
+        onClick(redo, () -> app.getCanvas().redoHistory());
 
         // --------------------------------------------------------------------
         // RESOURCES

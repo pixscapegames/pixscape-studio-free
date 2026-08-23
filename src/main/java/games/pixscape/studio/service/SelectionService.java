@@ -150,6 +150,40 @@ public final class SelectionService {
         publish(source);
     }
 
+    /**
+     * Removes selections for entities that no longer exist in the active world.
+     * Surviving selections keep their current primary entity and bypass selection gates.
+     */
+    public void reconcileActiveSelection() {
+        IntArray inactive = null;
+        for (IntSet.IntSetIterator it = selection.iterator(); it.hasNext; ) {
+            int entityId = it.next();
+            if (!isEntityActive(entityId)) {
+                if (inactive == null) inactive = new IntArray();
+                inactive.add(entityId);
+            }
+        }
+
+        boolean changed = false;
+        if (inactive != null) {
+            for (int i = 0; i < inactive.size; i++) {
+                changed |= selection.remove(inactive.get(i));
+            }
+        }
+
+        if (firstSelectedEntityId == -1
+                || !selection.contains(firstSelectedEntityId)
+                || !isEntityActive(firstSelectedEntityId)) {
+            int repairedPrimaryId = firstRemainingSelectedEntityId();
+            if (firstSelectedEntityId != repairedPrimaryId) {
+                firstSelectedEntityId = repairedPrimaryId;
+                changed = true;
+            }
+        }
+
+        if (changed) publish(SelectionSource.VIEWPORT);
+    }
+
     public void selectAdd(int e) {
         selectAdd(e, SelectionSource.VIEWPORT);
     }

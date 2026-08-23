@@ -164,6 +164,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     // Undo redo
     private final HistoryManager historyManager;
     private static final int UNDOREDO_MAX_SIZE = 1024;
+    // Artemis completes batched deletions after systems run, so structural history needs one later pass.
+    private boolean selectionReconciliationPending;
 
     // Operations
     private EditorOps editorOps;
@@ -994,20 +996,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 // --- Undo / Redo : ALWAYS active, even while typing ---
                 if (ctrl) {
                     if ((keycode == Input.Keys.Z) || keycode == Input.Keys.W) {
-                        selectionService.clearSelection();
-                        physicsSelectionService.clearSelectionOnly();
-                        spatialBlockSelectionService.clearSelectionOnly();
-                        spatialTileSelectionService.clear();
-                        historyManager.undo();
+                        undoHistory();
                         return true;
                     }
 
                     if (keycode == Input.Keys.Y) {
-                        selectionService.clearSelection();
-                        physicsSelectionService.clearSelectionOnly();
-                        spatialBlockSelectionService.clearSelectionOnly();
-                        spatialTileSelectionService.clear();
-                        historyManager.redo();
+                        redoHistory();
                         return true;
                     }
                     if (!typing && keycode == Input.Keys.C) {
@@ -2209,6 +2203,26 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return historyManager;
     }
 
+    public void undoHistory() {
+        clearHistorySubSelections();
+        historyManager.undo();
+        selectionService.reconcileActiveSelection();
+        selectionReconciliationPending = true;
+    }
+
+    public void redoHistory() {
+        clearHistorySubSelections();
+        historyManager.redo();
+        selectionService.reconcileActiveSelection();
+        selectionReconciliationPending = true;
+    }
+
+    private void clearHistorySubSelections() {
+        physicsSelectionService.clearSelectionOnly();
+        spatialBlockSelectionService.clearSelectionOnly();
+        spatialTileSelectionService.clear();
+    }
+
     public AtlasStudioService getAtlasService() {
         return atlasStudioService;
     }
@@ -2326,6 +2340,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     @Override
     public void processFrame() {
         world.process();
+        if (selectionReconciliationPending) {
+            selectionReconciliationPending = false;
+            selectionService.reconcileActiveSelection();
+        }
         particleAvailabilityRefresh.consumeIf(
                 canConsumeParticleAvailabilityRefresh(),
                 this::refreshParticleRuntimeAvailability);
