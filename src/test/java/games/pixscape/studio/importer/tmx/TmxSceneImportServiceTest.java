@@ -23,6 +23,7 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
@@ -304,10 +305,10 @@ public class TmxSceneImportServiceTest {
 
         TransformComponent rectangleTransform = world.getMapper(TransformComponent.class).get(rectangle);
         DimensionsComponent rectangleDimensions = world.getMapper(DimensionsComponent.class).get(rectangle);
-        assertEquals(18f, rectangleTransform.x, 0.0001f);
-        assertEquals(130f, rectangleTransform.y, 0.0001f);
-        assertEquals(0f, rectangleTransform.originX, 0f);
-        assertEquals(40f, rectangleTransform.originY, 0f);
+        assertEquals(33f, rectangleTransform.x, 0.0001f);
+        assertEquals(110f, rectangleTransform.y, 0.0001f);
+        assertEquals(15f, rectangleTransform.originX, 0f);
+        assertEquals(20f, rectangleTransform.originY, 0f);
         assertEquals(30f, rectangleDimensions.width, 0f);
         assertEquals(40f, rectangleDimensions.height, 0f);
         assertFalse(world.getMapper(VisibilityComponent.class).get(rectangle).visible);
@@ -405,6 +406,14 @@ public class TmxSceneImportServiceTest {
 
         assertEquals(EntityKind.TILED_RECTANGLE,
                 world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertEquals(-10f, transform.x, 0.0001f);
+        assertEquals(125f, transform.y, 0.0001f);
+        assertEquals(15f, transform.originX, 0.0001f);
+        assertEquals(20f, transform.originY, 0.0001f);
+        float[] importedCorners = new float[8];
+        OrientedBoundsHelper.toCorners(obb, importedCorners);
+        assertSameCornerSet(tiledSourceCorners(10f, 140f, 30f, 40f, -MathUtils.PI / 2f),
+                importedCorners);
         assertEquals(-30f, aabb.minX, 0.0001f);
         assertEquals(10f, aabb.maxX, 0.0001f);
         assertEquals(110f, aabb.minY, 0.0001f);
@@ -427,10 +436,10 @@ public class TmxSceneImportServiceTest {
         assertEquals(0.5f, transform.scaleY, 0f);
         assertEquals(30f, dimensions.width, 0f);
         assertEquals(40f, dimensions.height, 0f);
-        assertEquals(-10f, aabb.minX, 0.0001f);
-        assertEquals(10f, aabb.maxX, 0.0001f);
-        assertEquals(95f, aabb.minY, 0.0001f);
-        assertEquals(140f, aabb.maxY, 0.0001f);
+        assertEquals(-20f, aabb.minX, 0.0001f);
+        assertEquals(0f, aabb.maxX, 0.0001f);
+        assertEquals(102.5f, aabb.minY, 0.0001f);
+        assertEquals(147.5f, aabb.maxY, 0.0001f);
 
         history.undo();
         world.process();
@@ -443,6 +452,16 @@ public class TmxSceneImportServiceTest {
         world.process();
         assertEquals(1.5f, transform.scaleX, 0f);
         assertEquals(0.5f, transform.scaleY, 0f);
+    }
+
+    @Test
+    public void centeredRectanglePivotPreservesTiledSourceGeometry() {
+        assertCenteredRectangleGeometry(10f, 140f, 30f, 40f, 0f);
+        assertCenteredRectangleGeometry(18f, 130f, 30f, 40f, 0.65f);
+        assertCenteredRectangleGeometry(-3f, 90f, 17f, 9f, -1.1f);
+        assertCenteredRectangleGeometry(18f, 130f, 0f, 40f, 0.65f);
+        assertCenteredRectangleGeometry(18f, 130f, 30f, 0f, -1.1f);
+        assertCenteredRectangleGeometry(18f, 130f, 0f, 0f, 0.65f);
     }
 
     @Test
@@ -865,7 +884,7 @@ public class TmxSceneImportServiceTest {
                 """);
 
         TmxSceneImportResult result = h.importer().importScene(request(tmx, "Shared Animation"));
-        World world = loadImportedWorld(h, result);
+        World world = loadImportedWorldWithGeometry(h, result);
         TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
                 h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
 
@@ -1569,6 +1588,81 @@ public class TmxSceneImportServiceTest {
         SceneLoader.forceFullRenderDirty(world);
         world.process();
         return world;
+    }
+
+    private static void assertCenteredRectangleGeometry(float sourceX,
+                                                        float sourceY,
+                                                        float width,
+                                                        float height,
+                                                        float rotationRad) {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64), new UpdateWorldGeometrySystem())
+                .build());
+        try {
+            int entity = world.create();
+            TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
+            transform.x = sourceX;
+            transform.y = sourceY;
+            transform.rotationRad = rotationRad;
+            transform.scaleX = 1f;
+            transform.scaleY = 1f;
+            TmxSceneImportService.centerRectangleTransformFromTiledPivot(transform, width, height);
+            transform.refreshCaches();
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entity);
+            dimensions.width = width;
+            dimensions.height = height;
+            world.getMapper(AABBComponent.class).create(entity);
+            OrientedBoundsComponent bounds = world.getMapper(OrientedBoundsComponent.class).create(entity);
+
+            world.process();
+            world.getSystem(DirtyTrackerSystem.class).geometry(entity, GeometryDirty.ALL);
+            world.process();
+
+            float[] expected = tiledSourceCorners(sourceX, sourceY, width, height, rotationRad);
+            float[] actual = new float[8];
+            OrientedBoundsHelper.toCorners(bounds, actual);
+            assertSameCornerSet(expected, actual);
+
+            AABBComponent aabb = world.getMapper(AABBComponent.class).get(entity);
+            for (int i = 0; i < expected.length; i += 2) {
+                assertTrue(expected[i] >= aabb.minX - 0.0001f);
+                assertTrue(expected[i] <= aabb.maxX + 0.0001f);
+                assertTrue(expected[i + 1] >= aabb.minY - 0.0001f);
+                assertTrue(expected[i + 1] <= aabb.maxY + 0.0001f);
+            }
+        } finally {
+            world.dispose();
+        }
+    }
+
+    private static float[] tiledSourceCorners(float sourceX,
+                                              float sourceY,
+                                              float width,
+                                              float height,
+                                              float rotationRad) {
+        float cos = MathUtils.cos(rotationRad);
+        float sin = MathUtils.sin(rotationRad);
+        float[] local = {0f, 0f, width, 0f, width, -height, 0f, -height};
+        float[] corners = new float[8];
+        for (int i = 0; i < local.length; i += 2) {
+            corners[i] = sourceX + cos * local[i] - sin * local[i + 1];
+            corners[i + 1] = sourceY + sin * local[i] + cos * local[i + 1];
+        }
+        return corners;
+    }
+
+    private static void assertSameCornerSet(float[] expected, float[] actual) {
+        for (int i = 0; i < expected.length; i += 2) {
+            boolean found = false;
+            for (int j = 0; j < actual.length; j += 2) {
+                if (Math.abs(expected[i] - actual[j]) <= 0.0001f
+                        && Math.abs(expected[i + 1] - actual[j + 1]) <= 0.0001f) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("Missing expected corner (" + expected[i] + ", " + expected[i + 1] + ")", found);
+        }
     }
 
     private static TiledLayerComponent firstTiled(World world) {

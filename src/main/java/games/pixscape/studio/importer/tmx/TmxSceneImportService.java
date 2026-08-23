@@ -459,11 +459,10 @@ public final class TmxSceneImportService {
         transform.scaleY = 1f;
 
         if (object.kind() == TmxObjectKind.RECTANGLE) {
-            transform.originX = 0f;
-            transform.originY = object.height();
             DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
             dimensions.width = object.width();
             dimensions.height = object.height();
+            centerRectangleTransformFromTiledPivot(transform, dimensions.width, dimensions.height);
             // Bounds are editable/pickable geometry, not rendering state.
             world.getMapper(AABBComponent.class).create(objectEntity);
             world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
@@ -495,6 +494,23 @@ public final class TmxSceneImportService {
         };
 
         attachObjectMetadata(world, objectEntity, object);
+    }
+
+    /**
+     * Converts Tiled's top-left rectangle pivot to Pixscape's centered authoring pivot.
+     * The translation is rotated with the rectangle so its world-space geometry is unchanged.
+     */
+    static void centerRectangleTransformFromTiledPivot(TransformComponent transform,
+                                                        float width,
+                                                        float height) {
+        float dx = width * 0.5f;
+        float dy = -height * 0.5f;
+        float cos = MathUtils.cos(transform.rotationRad);
+        float sin = MathUtils.sin(transform.rotationRad);
+        transform.x += cos * dx - sin * dy;
+        transform.y += sin * dx + cos * dy;
+        transform.originX = dx;
+        transform.originY = height * 0.5f;
     }
 
     private void createTileObjectComponents(World world,

@@ -37,11 +37,12 @@ public class TiledObjectOverlaySystemTest {
     }
 
     @Test
-    public void rectangleCornersSupportTiledTopLeftOriginAndZeroDimensions() {
+    public void rectangleCornersSupportCenteredImportedTransformAndZeroDimensions() {
         TransformComponent transform = new TransformComponent();
-        transform.x = 10f;
-        transform.y = 140f;
-        transform.originY = 40f;
+        transform.x = 25f;
+        transform.y = 120f;
+        transform.originX = 15f;
+        transform.originY = 20f;
         transform.scaleX = 1f;
         transform.scaleY = 1f;
         transform.refreshCaches();
@@ -54,15 +55,20 @@ public class TiledObjectOverlaySystemTest {
         assertArrayEquals(new float[]{10f, 100f, 40f, 100f, 40f, 140f, 10f, 140f},
                 corners, 0.0001f);
 
+        transform.x = 10f;
+        transform.y = 140f;
+        transform.originX = 0f;
+        transform.originY = 0f;
+        transform.refreshCaches();
         dimensions.width = 0f;
         dimensions.height = 0f;
         TiledObjectOverlaySystem.computeRectangleCorners(transform, dimensions, corners);
-        assertArrayEquals(new float[]{10f, 100f, 10f, 100f, 10f, 100f, 10f, 100f},
+        assertArrayEquals(new float[]{10f, 140f, 10f, 140f, 10f, 140f, 10f, 140f},
                 corners, 0.0001f);
     }
 
     @Test
-    public void rectangleCornersSupportArbitraryRotation() {
+    public void rectangleCornersSupportCenteredOriginWithRotation() {
         TransformComponent transform = new TransformComponent();
         transform.x = 3f;
         transform.y = -4f;
