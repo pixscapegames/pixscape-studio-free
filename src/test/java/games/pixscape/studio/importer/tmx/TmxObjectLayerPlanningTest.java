@@ -307,6 +307,7 @@ public class TmxObjectLayerPlanningTest {
                       <property name="label" value="source"/>
                       <property name="collectible" type="bool" value="true"/>
                       <property name="damage" type="int" value="10"/>
+                      <property name="tint" type="color" value="#40010203"/>
                       <property name="speed" type="float" value="0.6"/>
                     </properties></tile>
                     <tile id="1" type="LegacyPickup"/>
@@ -367,9 +368,11 @@ public class TmxObjectLayerPlanningTest {
                         <property name="material" type="class" propertytype="Material"><properties>
                           <property name="restitution" type="float" value="0.2"/>
                           <property name="density" type="float" value="1"/>
+                          <property name="tint" type="color" value="#40010203"/>
                         </properties></property>
                       </properties></property>
                       <property name="damage" type="int" value="10"/>
+                      <property name="tint" type="color" value="#40010203"/>
                     </properties></tile>
                   </tileset>
                   <objectgroup name="Actors">
@@ -381,6 +384,7 @@ public class TmxObjectLayerPlanningTest {
                         </properties></property>
                       </properties></property>
                       <property name="damage" type="int" value="20"/>
+                      <property name="tint" type="color" value="#800A0B0C"/>
                     </properties></object>
                     <object name="Different" gid="1"><properties>
                       <property name="physics" type="class" propertytype="Behavior"><properties>
@@ -401,7 +405,9 @@ public class TmxObjectLayerPlanningTest {
         ClassProperty material = physics.properties().getClassValue("material");
         assertEquals(0.8f, material.properties().getFloat("restitution", 0f), 0.0001f);
         assertEquals(1f, material.properties().getFloat("density", 0f), 0.0001f);
+        assertEquals(0x01020340, material.properties().getColorRgba8888("tint", 0));
         assertEquals(20, partial.properties().getInt("damage", 0));
+        assertEquals(0x0A0B0C80, partial.properties().getColorRgba8888("tint", 0));
 
         ClassProperty replacement = layer.objects().get(1).properties().getClassValue("physics");
         assertEquals("Behavior", replacement.typeName());
@@ -413,6 +419,8 @@ public class TmxObjectLayerPlanningTest {
         assertEquals(1f, source.properties().getFloat("mass", 0f), 0.0001f);
         assertEquals(0.2f, source.properties().getClassValue("material")
                 .properties().getFloat("restitution", 0f), 0.0001f);
+        assertEquals(0x01020340, plan.tilesets().get(0).tileDefinition(0)
+                .properties().getColorRgba8888("tint", 0));
     }
 
     @Test

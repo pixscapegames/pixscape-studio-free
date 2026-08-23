@@ -192,6 +192,8 @@ Second line</property>
                       <property name="zero" type="int"/>
                       <property name="ratio" type="float" value="1.25"/>
                       <property name="defaultFloat" type="float"/>
+                      <property name="tint" type="color" value="#80FF0000"/>
+                      <property name="defaultTint" type="color"/>
                     </properties>
                   </object>
                   <object id="2"><properties><property name="enabled" type="bool" value="false"/></properties></object>
@@ -220,6 +222,9 @@ Second line</property>
         assertEquals(0, properties.getInt("zero", 1));
         assertEquals(1.25f, properties.getFloat("ratio", 0f), 0.0001f);
         assertEquals(0f, properties.getFloat("defaultFloat", 1f), 0f);
+        assertEquals(PropertyType.COLOR, properties.typeOf("tint"));
+        assertEquals(0xFF000080, properties.getColorRgba8888("tint", 0));
+        assertEquals(0, properties.getColorRgba8888("defaultTint", -1));
         assertFalse(layer.objects().get(1).properties().getBoolean("enabled", true));
         properties.putString("new", "mutated copy");
         assertFalse(layer.objects().get(0).properties().contains("new"));
@@ -237,6 +242,7 @@ Second line</property>
                       <property name="sensor" type="bool" value="true"/>
                       <property name="count" type="int" value="3"/>
                       <property name="mass" type="float" value="2.5"/>
+                      <property name="tint" type="color" value="#40204080"/>
                       <property name="material" type="class" propertytype="Material"><properties>
                         <property name="friction" type="float" value="0.5"/>
                       </properties></property>
@@ -261,6 +267,7 @@ Second line</property>
         assertTrue(physics.properties().getBoolean("sensor", false));
         assertEquals(3, physics.properties().getInt("count", 0));
         assertEquals(2.5f, physics.properties().getFloat("mass", 0f), 0.0001f);
+        assertEquals(0x20408040, physics.properties().getColorRgba8888("tint", 0));
         ClassProperty material = physics.properties().getClassValue("material");
         assertEquals("Material", material.typeName());
         assertEquals(0.5f, material.properties().getFloat("friction", 0f), 0.0001f);
@@ -347,7 +354,8 @@ Second line</property>
                       <property name="nan" type="float" value="NaN"/>
                       <property name="infinity" type="float" value="Infinity"/>
                       <property name="overflowFloat" type="float" value="1e100"/>
-                      <property name="color" type="color" value="#ffffffff"/>
+                      <property name="color" type="color" value="#fff"/>
+                      <property name="emptyColor" type="color" value=""/>
                       <property name="file" type="file" value="asset.png"/>
                       <property name="reference" type="object" value="2"/>
                       <property name="classValue" type="class"/>
@@ -364,8 +372,8 @@ Second line</property>
         assertTrue(report.hasBlockingDiagnostics());
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
         assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_INVALID"));
-        assertEquals(7, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
-        assertEquals(5, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(9, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_VALUE_INVALID"));
+        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
         assertTrue(report.diagnostics().stream()
                 .anyMatch(d -> d.location().contains("property 'overflowFloat'") && d.message().contains("finite Java float")));
@@ -392,10 +400,11 @@ Second line</property>
 
         assertTrue(report.hasBlockingDiagnostics());
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_NAME_DUPLICATE"));
-        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertEquals(3, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_PROPERTY_TYPE_UNSUPPORTED"));
         assertEquals(1, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING, "TMX_CLASS_PROPERTY_TYPE_INVALID"));
-        assertTrue(report.diagnostics().stream()
-                .anyMatch(d -> d.location().contains("property 'physics.collisionColor'")));
+        assertEquals(0xFFFFFFFF, ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(0)
+                .properties().getClassValue("physics").properties()
+                .getColorRgba8888("collisionColor", 0));
         assertTrue(report.diagnostics().stream()
                 .anyMatch(d -> d.location().contains("property 'physics.material'")));
     }
@@ -534,7 +543,7 @@ Second line</property>
     }
 
     @Test
-    public void unsupportedInheritedTilePropertyUsesExistingBlockingPolicy() throws Exception {
+    public void colorInheritedFromATileDefinitionIsSupported() throws Exception {
         Path dir = Files.createTempDirectory("tmx-inherited-property-blocking");
         writeFile(dir.resolve("tiles.png"), "fake image");
         FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
@@ -551,8 +560,9 @@ Second line</property>
 
         TmxPreflightReport report = analyze(tmx);
 
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
-                "TMX_PROPERTY_TYPE_UNSUPPORTED"));
+        assertFalse(report.hasBlockingDiagnostics());
+        assertEquals(0xFFFFFFFF, report.tilesets().get(0).tileDefinition(0)
+                .properties().getColorRgba8888("color", 0));
     }
 
     private static TmxPreflightReport analyze(FileHandle tmx) {

@@ -84,7 +84,8 @@ public class EditCustomPropertiesCommandTest {
                     .putString("title", "Boss")
                     .putBoolean("aggressive", true)
                     .putInt("health", 100)
-                    .putFloat("speed", 1.5f);
+                    .putFloat("speed", 1.5f)
+                    .putColorRgba8888("tint", 0x01020304);
             EditCustomPropertiesCommand command = new EditCustomPropertiesCommand(
                     world, ids, historyId, false, new PropertySet(), after, 0, null);
             after.putInt("health", 999);
@@ -92,6 +93,8 @@ public class EditCustomPropertiesCommandTest {
             history.execute(command);
             Assert.assertEquals(1, history.getCursor());
             Assert.assertEquals(100, properties(world, entityId).getInt("health", 0));
+            Assert.assertEquals(0x01020304,
+                    properties(world, entityId).getColorRgba8888("tint", 0));
         } finally {
             world.dispose();
         }

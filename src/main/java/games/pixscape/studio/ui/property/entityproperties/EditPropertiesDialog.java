@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.property.entityproperties;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.util.TableUtils;
@@ -18,6 +19,7 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.studio.ui.modal.StudioDialog;
+import games.pixscape.studio.ui.widget.ColorPickerField;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -137,6 +139,9 @@ public final class EditPropertiesDialog extends StudioDialog {
                 case FLOAT:
                     result.putFloat(name, PropertyAuthoringValidation.parseFloat(row.numberField.getText(), path));
                     break;
+                case COLOR:
+                    result.putColorRgba8888(name, Color.rgba8888(row.colorValue));
+                    break;
                 case CLASS:
                     String className = PropertyAuthoringValidation.requireClassName(
                             row.classNameField.getText(), path);
@@ -185,6 +190,12 @@ public final class EditPropertiesDialog extends StudioDialog {
         final VisTextField classNameField = new VisTextField();
         final VisTextButton editClassButton = new VisTextButton("Edit…");
         final Button removeButton = new Button(VisUI.getSkin(), "delete");
+        final Color colorValue = new Color(0f, 0f, 0f, 0f);
+        final ColorPickerField colorField = new ColorPickerField(
+                "Property color", "Choose color…")
+                .allowAlpha(true)
+                .useColorSwatch(22f, 22f)
+                .bind(() -> colorValue, colorValue::set);
         PropertySet classMembers = new PropertySet();
         private PropertyType displayedType;
 
@@ -240,6 +251,10 @@ public final class EditPropertiesDialog extends StudioDialog {
                 case FLOAT:
                     numberField.setText(Float.toString(value.asFloat()));
                     break;
+                case COLOR:
+                    Color.rgba8888ToColor(colorValue, value.asColorRgba8888());
+                    colorField.refresh();
+                    break;
                 case CLASS:
                     classNameField.setText(value.className());
                     classMembers = value.classPropertiesCopy();
@@ -253,6 +268,8 @@ public final class EditPropertiesDialog extends StudioDialog {
             stringField.setText("");
             booleanField.setChecked(false);
             numberField.setText(type == PropertyType.FLOAT ? "0.0" : "0");
+            colorValue.set(0f, 0f, 0f, 0f);
+            colorField.refresh();
             classNameField.setText("");
             classMembers = new PropertySet();
         }
@@ -266,6 +283,8 @@ public final class EditPropertiesDialog extends StudioDialog {
                 case INTEGER:
                 case FLOAT:
                     return numberField;
+                case COLOR:
+                    return colorField;
                 case CLASS:
                     VisTable classEditor = new VisTable(true);
                     classEditor.add(classNameField).width(155).growX();

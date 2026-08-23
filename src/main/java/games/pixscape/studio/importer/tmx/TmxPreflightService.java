@@ -677,6 +677,11 @@ public final class TmxPreflightService {
                 case "bool" -> properties.putBoolean(name, parsePropertyBoolean(value, location, state));
                 case "int" -> properties.putInt(name, parsePropertyInt(value, location, state));
                 case "float" -> properties.putFloat(name, parsePropertyFloat(value, location, state));
+                case "color" -> properties.putColorRgba8888(name,
+                        parsePropertyColorRgba8888(
+                                property.hasAttribute("value") || (value != null && !value.isEmpty())
+                                        ? value : null,
+                                location, state));
                 case "class" -> {
                     ParsedProperties members = readPropertiesWithPaths(
                             property, state, ownerLocation, path);
@@ -751,6 +756,36 @@ public final class TmxPreflightService {
             state.blocking("TMX_PROPERTY_VALUE_INVALID", "Float property value must be a finite Java float: " + effectiveValue, location);
             throw new InvalidPropertyValueException();
         }
+    }
+
+    /**
+     * Converts Tiled's strict {@code #AARRGGBB} notation into Runtime RGBA8888
+     * ({@code 0xRRGGBBAA}).
+     */
+    private int parsePropertyColorRgba8888(String value,
+                                           String location,
+                                           AnalysisState state)
+            throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "#00000000";
+        if (effectiveValue.length() == 9 && effectiveValue.charAt(0) == '#') {
+            int alpha = parseHexByte(effectiveValue, 1);
+            int red = parseHexByte(effectiveValue, 3);
+            int green = parseHexByte(effectiveValue, 5);
+            int blue = parseHexByte(effectiveValue, 7);
+            if (alpha >= 0 && red >= 0 && green >= 0 && blue >= 0) {
+                return (red << 24) | (green << 16) | (blue << 8) | alpha;
+            }
+        }
+        state.blocking("TMX_PROPERTY_VALUE_INVALID",
+                "Tiled color property value must use #AARRGGBB format: " + effectiveValue,
+                location);
+        throw new InvalidPropertyValueException();
+    }
+
+    private static int parseHexByte(String value, int start) {
+        int high = Character.digit(value.charAt(start), 16);
+        int low = Character.digit(value.charAt(start + 1), 16);
+        return high < 0 || low < 0 ? -1 : (high << 4) | low;
     }
 
     private static String objectLocation(String layerName, String rawId, String name) {

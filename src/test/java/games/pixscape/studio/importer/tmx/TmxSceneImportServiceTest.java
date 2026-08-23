@@ -255,6 +255,7 @@ public class TmxSceneImportServiceTest {
                         <property name="enabled" type="bool" value="true"/>
                         <property name="count" type="int" value="7"/>
                         <property name="weight" type="float" value="1.5"/>
+                        <property name="tint" type="color" value="#40010203"/>
                       </properties>
                       <object id="777" name="Duplicate" class="Trigger" type="LegacyTrigger"
                               x="10" y="20" width="30" height="40" visible="0">
@@ -263,6 +264,7 @@ public class TmxSceneImportServiceTest {
                           <property name="armed" type="bool" value="true"/>
                           <property name="damage" type="int" value="20"/>
                           <property name="ratio" type="float" value="2.25"/>
+                          <property name="tint" type="color" value="#800A0B0C"/>
                         </properties>
                       </object>
                       <object id="777" name="Duplicate" x="4" y="5"><point/></object>
@@ -292,6 +294,7 @@ public class TmxSceneImportServiceTest {
         assertTrue(layerProperties.properties.getBoolean("enabled", false));
         assertEquals(7, layerProperties.properties.getInt("count", 0));
         assertEquals(1.5f, layerProperties.properties.getFloat("weight", 0f), 0.0001f);
+        assertEquals(0x01020340, layerProperties.properties.getColorRgba8888("tint", 0));
         TmxObjectLayerPlan plannedLayer = (TmxObjectLayerPlan) result.planResult().plan().layers().get(0);
         assertNotSame(plannedLayer.properties(), layerProperties.properties);
         assertTrue(world.getMapper(PixscapeIdentityComponent.class).get(layerEntity).stableId > 0);
@@ -331,6 +334,7 @@ public class TmxSceneImportServiceTest {
         assertTrue(objectProperties.properties.getBoolean("armed", false));
         assertEquals(20, objectProperties.properties.getInt("damage", 0));
         assertEquals(2.25f, objectProperties.properties.getFloat("ratio", 0f), 0.0001f);
+        assertEquals(0x0A0B0C80, objectProperties.properties.getColorRgba8888("tint", 0));
         assertNotSame(layerProperties.properties, objectProperties.properties);
         assertNotSame(plannedLayer.objects().get(0).properties(), objectProperties.properties);
 

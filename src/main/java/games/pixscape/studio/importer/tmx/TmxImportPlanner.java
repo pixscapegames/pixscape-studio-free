@@ -405,6 +405,7 @@ public final class TmxImportPlanner {
             case BOOLEAN -> target.putBoolean(name, source.getBoolean(name, false));
             case INTEGER -> target.putInt(name, source.getInt(name, 0));
             case FLOAT -> target.putFloat(name, source.getFloat(name, 0f));
+            case COLOR -> target.putColorRgba8888(name, source.getColorRgba8888(name, 0));
             case CLASS -> {
                 ClassProperty value = source.getClassValue(name);
                 PropertySet members = mergeProperties(
@@ -430,6 +431,7 @@ public final class TmxImportPlanner {
         boolean getBoolean(String name, boolean fallback);
         int getInt(String name, int fallback);
         float getFloat(String name, float fallback);
+        int getColorRgba8888(String name, int fallback);
         ClassProperty getClassValue(String name);
     }
 
@@ -439,6 +441,7 @@ public final class TmxImportPlanner {
         @Override public boolean getBoolean(String name, boolean fallback) { return properties.getBoolean(name, fallback); }
         @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
         @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
+        @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
         @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
     }
 
@@ -448,6 +451,7 @@ public final class TmxImportPlanner {
         @Override public boolean getBoolean(String name, boolean fallback) { return properties.getBoolean(name, fallback); }
         @Override public int getInt(String name, int fallback) { return properties.getInt(name, fallback); }
         @Override public float getFloat(String name, float fallback) { return properties.getFloat(name, fallback); }
+        @Override public int getColorRgba8888(String name, int fallback) { return properties.getColorRgba8888(name, fallback); }
         @Override public ClassProperty getClassValue(String name) { return properties.getClassValue(name); }
     }
 

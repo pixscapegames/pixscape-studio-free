@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.graphics.Color;
 import com.kotcrab.vis.ui.widget.VisTextArea;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisSelectBox;
@@ -78,6 +79,37 @@ public class EditPropertiesDialogTest {
         Assert.assertEquals("0", field(row, "numberField", VisTextField.class).getText());
         invokeResult(dialog, true);
         Assert.assertEquals(0, applied.get().getInt("health", -1));
+    }
+
+    @Test
+    public void colorRowsKeepTheExactPackedRgba8888ValueInTheWorkingCopy() throws Exception {
+        int packed = 0x12345678;
+        AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
+        EditPropertiesDialog dialog = new EditPropertiesDialog(
+                "Edit Properties", new PropertySet().putColorRgba8888("tint", packed), applied::set);
+
+        Object row = rowNamed(dialog, "tint");
+        Color localColor = field(row, "colorValue", Color.class);
+        Assert.assertEquals(packed, Color.rgba8888(localColor));
+        invokeResult(dialog, true);
+
+        Assert.assertEquals(packed, applied.get().getColorRgba8888("tint", 0));
+    }
+
+    @Test
+    public void changingToColorUsesTransparentBlackByDefault() throws Exception {
+        AtomicReference<PropertySet> applied = new AtomicReference<PropertySet>();
+        EditPropertiesDialog dialog = new EditPropertiesDialog(
+                "Edit Properties", new PropertySet().putString("tint", "red"), applied::set);
+        Object row = rowNamed(dialog, "tint");
+        @SuppressWarnings("unchecked")
+        VisSelectBox<PropertyType> typeBox = field(row, "typeBox", VisSelectBox.class);
+        typeBox.setSelected(PropertyType.COLOR);
+        typeBox.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
+
+        Assert.assertEquals(0, Color.rgba8888(field(row, "colorValue", Color.class)));
+        invokeResult(dialog, true);
+        Assert.assertEquals(0, applied.get().getColorRgba8888("tint", -1));
     }
 
     private static Object rowNamed(EditPropertiesDialog dialog, String name) throws Exception {
