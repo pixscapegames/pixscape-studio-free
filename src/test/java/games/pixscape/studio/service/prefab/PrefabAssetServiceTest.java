@@ -53,12 +53,20 @@ public class PrefabAssetServiceTest {
         String serialized = file.readString("UTF-8");
         assertPrefabHeader(serialized, "simple");
         Assert.assertEquals(
-                2, new JsonReader().parse(serialized).getInt("version"));
+                3, new JsonReader().parse(serialized).getInt("version"));
         Assert.assertTrue(serialized.contains("\"entities\""));
+        Assert.assertTrue(new JsonReader().parse(serialized)
+                .get("entities").get(0).get("quadDeform").isNull());
         Assert.assertFalse(serialized.contains("ownerClass"));
         Assert.assertFalse(serialized.contains("fieldName"));
         Assert.assertFalse(serialized.contains("fieldType"));
         Assert.assertFalse(serialized.contains("valueJson"));
+        Assert.assertFalse(serialized.contains("EntityEditMode"));
+        Assert.assertFalse(serialized.contains("quadEditEntityId"));
+        Assert.assertFalse(serialized.contains("hoveredQuadVertexIndex"));
+        Assert.assertFalse(serialized.contains("movingQuadVertex"));
+        Assert.assertFalse(serialized.contains("displayOffset"));
+        Assert.assertFalse(serialized.contains("parallaxOffset"));
         FileHandle fragmentFile =
                 file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
         Assert.assertEquals(
@@ -82,6 +90,7 @@ public class PrefabAssetServiceTest {
         PhysicsShapesComponent restoredFixtures = world.getMapper(PhysicsShapesComponent.class).get(probe);
         Assert.assertNotNull(restoredFixtures);
         Assert.assertTrue(restoredFixtures.shapes.size > 0);
+        Assert.assertFalse(world.getMapper(QuadDeformComponent.class).has(probe));
 
         HistoryManager hm = new HistoryManager(32);
         IdentityRegistry reg = new IdentityRegistry();
@@ -94,6 +103,69 @@ public class PrefabAssetServiceTest {
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         Assert.assertTrue(result.createdIds().size > 0);
+        Assert.assertFalse(world.getMapper(QuadDeformComponent.class)
+                .has(result.createdIds().first()));
+    }
+
+    @Test
+    public void saveLoadInstantiate_preservesQuadDeformationInPrefabAndRuntimeFragment() {
+        World world = new World(new WorldConfiguration());
+        int entity = sprite(world);
+        QuadDeformComponent source = world.getMapper(QuadDeformComponent.class).create(entity);
+        setQuad(source, 1.25f, -2.5f, 3.75f, -4.5f, 5.25f, -6.5f, 7.75f, -8.5f);
+
+        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entity));
+        FileHandle file = tmpFile("quad-deform.pixprefab");
+        PrefabAssetService service = new PrefabAssetService(world);
+        service.savePrefab(file, "quad-deform", graph);
+
+        JsonValue prefabRoot = new JsonReader().parse(file.readString("UTF-8"));
+        Assert.assertEquals(3, prefabRoot.getInt("version"));
+        JsonValue prefabQuad = prefabRoot.get("entities").get(0).get("quadDeform");
+        Assert.assertNotNull(prefabQuad);
+        assertQuadJson(prefabQuad);
+
+        FileHandle fragmentFile =
+                file.sibling(file.nameWithoutExtension() + ".pixfragment.json");
+        JsonValue fragmentRoot = new JsonReader().parse(fragmentFile.readString("UTF-8"));
+        JsonValue fragmentQuad = findNamed(fragmentRoot, "QuadDeformComponent");
+        Assert.assertNotNull("Runtime fragment should contain structured QuadDeformComponent data", fragmentQuad);
+        assertQuadJson(fragmentQuad);
+
+        EntityGraph loaded = service.loadPrefab(file);
+        int probe = world.create();
+        loaded.entries().get(0).initializer().init(probe);
+        assertQuad(world.getMapper(QuadDeformComponent.class).get(probe));
+
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry registry = new IdentityRegistry();
+        registry.bind(world, new games.pixscape.studio.configuration.SceneMeta());
+        registry.rebuild();
+        EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
+                world, history, registry, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                .instantiate(loaded, 0, 0f, 0f, "Instantiate Quad Prefab");
+
+        Assert.assertEquals(1, result.createdIds().size);
+        assertQuad(world.getMapper(QuadDeformComponent.class).get(result.createdIds().first()));
+    }
+
+    @Test
+    public void loadLegacyV2PrefabMigratesWithoutQuadDeformation() {
+        World world = new World(new WorldConfiguration());
+        FileHandle file = tmpFile("legacy-v2.pixprefab");
+        file.writeString(
+                "{\"type\":\"pixscape-prefab\",\"version\":2,\"name\":\"legacy\","
+                        + "\"entities\":[{\"sourceEntityId\":17}]}",
+                false,
+                "UTF-8"
+        );
+
+        EntityGraph loaded = new PrefabAssetService(world).loadPrefab(file);
+        Assert.assertEquals(1, loaded.size());
+        int probe = world.create();
+        loaded.entries().get(0).initializer().init(probe);
+        Assert.assertFalse(world.getMapper(QuadDeformComponent.class).has(probe));
     }
 
     @Test
@@ -459,7 +531,7 @@ public class PrefabAssetServiceTest {
         String serialized = file.readString("UTF-8");
         JsonValue root = new JsonReader().parse(serialized);
         Assert.assertEquals("pixscape-prefab", root.getString("type"));
-        Assert.assertEquals(2, root.getInt("version"));
+        Assert.assertEquals(3, root.getInt("version"));
         Assert.assertEquals("all-joints", root.getString("name"));
         String[] jointBlocks = {
                 "\"joint\"", "\"distanceJoint\"", "\"revoluteJoint\"",
@@ -798,6 +870,63 @@ public class PrefabAssetServiceTest {
             a.add(id);
         }
         return a;
+    }
+
+    private static void setQuad(
+            QuadDeformComponent quad,
+            float blX,
+            float blY,
+            float brX,
+            float brY,
+            float trX,
+            float trY,
+            float tlX,
+            float tlY
+    ) {
+        quad.blX = blX;
+        quad.blY = blY;
+        quad.brX = brX;
+        quad.brY = brY;
+        quad.trX = trX;
+        quad.trY = trY;
+        quad.tlX = tlX;
+        quad.tlY = tlY;
+    }
+
+    private static void assertQuad(QuadDeformComponent quad) {
+        Assert.assertNotNull(quad);
+        Assert.assertEquals(1.25f, quad.blX, 0f);
+        Assert.assertEquals(-2.5f, quad.blY, 0f);
+        Assert.assertEquals(3.75f, quad.brX, 0f);
+        Assert.assertEquals(-4.5f, quad.brY, 0f);
+        Assert.assertEquals(5.25f, quad.trX, 0f);
+        Assert.assertEquals(-6.5f, quad.trY, 0f);
+        Assert.assertEquals(7.75f, quad.tlX, 0f);
+        Assert.assertEquals(-8.5f, quad.tlY, 0f);
+    }
+
+    private static void assertQuadJson(JsonValue quad) {
+        Assert.assertEquals(1.25f, quad.getFloat("blX"), 0f);
+        Assert.assertEquals(-2.5f, quad.getFloat("blY"), 0f);
+        Assert.assertEquals(3.75f, quad.getFloat("brX"), 0f);
+        Assert.assertEquals(-4.5f, quad.getFloat("brY"), 0f);
+        Assert.assertEquals(5.25f, quad.getFloat("trX"), 0f);
+        Assert.assertEquals(-6.5f, quad.getFloat("trY"), 0f);
+        Assert.assertEquals(7.75f, quad.getFloat("tlX"), 0f);
+        Assert.assertEquals(-8.5f, quad.getFloat("tlY"), 0f);
+    }
+
+    private static JsonValue findNamed(JsonValue value, String name) {
+        if (name.equals(value.name)) {
+            return value;
+        }
+        for (JsonValue child = value.child; child != null; child = child.next) {
+            JsonValue found = findNamed(child, name);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
     }
 
     private static int body(World w) {
