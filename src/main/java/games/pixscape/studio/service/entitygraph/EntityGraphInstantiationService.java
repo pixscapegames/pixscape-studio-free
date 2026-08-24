@@ -15,8 +15,10 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.CompositeCommand;
 import games.pixscape.studio.history.commands.CreateEntityCommand;
+import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
+import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -150,10 +152,26 @@ public final class EntityGraphInstantiationService {
         if (commands.isEmpty()) return EntityGraphInstantiationResult.empty();
         commands.add(new ApplyPreparedJointRemapsCommand(
                 preparedJointRemaps, sourceToCreated));
+        if (prefabInstanceId > 0) {
+            commands.add(ReorderLogicalLayerCommand.normalizeAfterCreation(
+                    world,
+                    historyManager.historyIds(),
+                    activeLayerIndex,
+                    new LayerLogicalOrderService(world),
+                    () -> currentCreatedEntityIds(sourceToCreated)));
+        }
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
         historyManager.execute(new CompositeCommand(label, commands));
 
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
+    }
+
+    private static IntArray currentCreatedEntityIds(IntIntMap sourceToCreated) {
+        IntArray entityIds = new IntArray(false, sourceToCreated.size);
+        for (IntIntMap.Entry entry : sourceToCreated) {
+            entityIds.add(entry.value);
+        }
+        return entityIds;
     }
 
     private List<PreparedEntity> prepareEntities(

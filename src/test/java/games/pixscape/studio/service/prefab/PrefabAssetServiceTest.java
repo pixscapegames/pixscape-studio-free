@@ -134,6 +134,11 @@ public class PrefabAssetServiceTest {
         IdentityRegistry identities = new IdentityRegistry();
         identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
         identities.rebuild();
+        int targetLayer = world.create();
+        world.getMapper(games.pixscape.runtime.component.LayerComponent.class)
+                .create(targetLayer).layerIndex = 0;
+        world.getMapper(games.pixscape.studio.component.LayerMetaComponent.class)
+                .create(targetLayer).name = "Target";
         EntityGraphInstantiationResult dropped = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
                 world, null, new games.pixscape.studio.configuration.SceneMeta()))

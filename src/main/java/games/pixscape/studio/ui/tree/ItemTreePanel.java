@@ -13,20 +13,19 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.render.SortKey64;
-import games.pixscape.runtime.service.ZOrderRuntimeService;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.ShiftPrefabInstanceZCommand;
+import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
@@ -34,11 +33,7 @@ import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static games.pixscape.runtime.component.physics.PhysicsBodyComponent.*;
@@ -50,7 +45,7 @@ public class ItemTreePanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SelectionService selectionService;
-    private final ZOrderRuntimeService zOrderRuntimeService;
+    private final LayerLogicalOrderService logicalOrderService;
     private final HistoryManager historyManager;
 
     private final ComponentMapper<EntityMetaComponent> mMeta;
@@ -87,7 +82,7 @@ public class ItemTreePanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
         this.selectionService = canvas.getSelectionService();
-        this.zOrderRuntimeService = app.getCanvas().getZOrderService();
+        this.logicalOrderService = new LayerLogicalOrderService(world);
         this.historyManager = canvas.getHistoryManager();
 
         this.mMeta = world.getMapper(EntityMetaComponent.class);
@@ -227,51 +222,26 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private void moveSelectionUp() {
-        if (shiftExplicitPrefab(1)) return;
-        IntArray sel = selectionService.getSelectionSnapshot();
-        if (sel.size == 0) return;
-
-        int layer = requireEntityIndex(sel.get(0), "ItemTree move up").getLayerIndex();
-
-        for (int i = 1; i < sel.size; i++) {
-            int e = sel.get(i);
-            int l = requireEntityIndex(e, "ItemTree move up").getLayerIndex();
-            if (l != layer) {
-                return;
-            }
-        }
-
-        sel.sort();
-        for (int i = sel.size - 1; i >= 0; i--) {
-            zOrderRuntimeService.moveUp(sel.get(i));
-        }
-        markDirty();
+        moveSelection(-1);
     }
 
     private void moveSelectionDown() {
-        if (shiftExplicitPrefab(-1)) return;
-        IntArray sel = selectionService.getSelectionSnapshot();
-        if (sel.size == 0) return;
-
-        int layer = requireEntityIndex(sel.get(0), "ItemTree move down").getLayerIndex();
-
-        for (int i = 1; i < sel.size; i++) {
-            int e = sel.get(i);
-            int l = requireEntityIndex(e, "ItemTree move down").getLayerIndex();
-            if (l != layer) {
-                return;
-            }
-        }
-
-        sel.sort();
-        for (int i = 0; i < sel.size; i++) {
-            zOrderRuntimeService.moveDown(sel.get(i));
-        }
-        markDirty();
+        moveSelection(1);
     }
 
-    private boolean shiftExplicitPrefab(int direction) {
-        if (explicitPrefabInstanceId < 0) return false;
+    private void moveSelection(int direction) {
+        if (moveExplicitPrefab(direction)) return;
+        IntArray selection = selectionService.getSelectionSnapshot();
+        if (selection.size != 1) return;
+        int entityId = selection.first();
+        EntityIndexComponent index = requireEntityIndex(entityId, "ItemTree move");
+        LayerLogicalOrderService.LayerOrder order =
+                logicalOrderService.derive(index.layerIndex);
+        executeLogicalReorder(index.layerIndex, order.moveEntity(entityId, direction));
+    }
+
+    private boolean moveExplicitPrefab(int direction) {
+        if (explicitPrefabInstanceId <= 0) return false;
         EntityNode node = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
         var selectedNodes = tree.getSelection().toArray();
         if (node == null
@@ -281,48 +251,24 @@ public class ItemTreePanel extends DockablePanel {
             explicitPrefabInstanceId = -1;
             return false;
         }
-
-        Long delta = resolvePrefabTreeShiftDelta(node, direction);
-        if (delta == null) return true;
-
-        ShiftPrefabInstanceZCommand command = new ShiftPrefabInstanceZCommand(
-                world,
-                historyManager.historyIds(),
-                layerService,
-                explicitPrefabInstanceId,
-                node.getPrefabMemberIds(),
-                delta);
-        if (!command.isNoop()) {
-            historyManager.execute(command);
-            markDirty();
-        }
+        IntArray members = node.getPrefabMemberIds();
+        if (members.size == 0) return true;
+        EntityIndexComponent index = mEntityIndex.getSafe(members.first(), null);
+        if (index == null) return true;
+        LayerLogicalOrderService.LayerOrder order =
+                logicalOrderService.derive(index.layerIndex);
+        executeLogicalReorder(
+                index.layerIndex,
+                order.movePrefab(explicitPrefabInstanceId, direction));
         return true;
     }
 
-    private Long resolvePrefabTreeShiftDelta(EntityNode prefabNode, int direction) {
-        if (prefabNode == null || (direction != 1 && direction != -1)) return null;
-        IntArray members = prefabNode.getPrefabMemberIds();
-        if (members.size == 0) return null;
-        EntityIndexComponent firstIndex = mEntityIndex.getSafe(members.first(), null);
-        if (firstIndex == null) return null;
-
-        IntBag itemBag = layerItemsSub.getEntities();
-        int[] itemData = itemBag.getData();
-        List<Integer> layerEntities = new ArrayList<>();
-        for (int i = 0; i < itemBag.size(); i++) {
-            int entityId = itemData[i];
-            EntityIndexComponent index = mEntityIndex.getSafe(entityId, null);
-            if (index != null && index.layerIndex == firstIndex.layerIndex) {
-                layerEntities.add(entityId);
-            }
-        }
-
-        Map<Integer, PrefabGroupCandidate> groups =
-                collectPrefabGroups(world, itemData, itemBag.size());
-        List<TreeDisplayEntry> entries = buildDisplayEntries(layerEntities, groups);
-        entries.sort(ItemTreePanel::compareDisplayEntries);
-        return computePrefabTreeShiftDelta(
-                entries, prefabNode.getPrefabInstanceId(), direction);
+    private void executeLogicalReorder(int layerIndex, IntArray desiredOrder) {
+        if (desiredOrder == null) return;
+        ReorderLogicalLayerCommand command = new ReorderLogicalLayerCommand(
+                world, historyManager.historyIds(), layerIndex, desiredOrder, this::markDirty);
+        if (command.isNoop()) return;
+        historyManager.execute(command);
     }
 
     public void markDirty() {
@@ -535,15 +481,7 @@ public class ItemTreePanel extends DockablePanel {
         tree.clearNodes();
 
         int layerCount = layerService.count();
-        IntBag itemsBag = layerItemsSub.getEntities();
-        int[] itemData = itemsBag.getData();
-        int itemCount = itemsBag.size();
-        List<Integer> layerEntities = new ArrayList<>();
-        Map<Integer, PrefabGroupCandidate> prefabGroups =
-                collectPrefabGroups(world, itemData, itemCount);
-
         for (int li = layerCount - 1; li >= 0; li--) {
-            layerEntities.clear();
             int eLayer = layerService.getLayerEntity(li);
             var meta = layerService.meta(li);
 
@@ -633,40 +571,25 @@ public class ItemTreePanel extends DockablePanel {
                 }
             }
 
-            for (int i = 0; i < itemCount; i++) {
-                int e = itemData[i];
-                EntityIndexComponent index = requireEntityIndex(e, "ItemTree rebuild");
-                if (index.getLayerIndex() != li) continue;
-                layerEntities.add(e);
-            }
-
-            layerEntities.sort(this::compareEntitiesByZIndex);
-
-            List<TreeDisplayEntry> displayEntries = buildDisplayEntries(layerEntities, prefabGroups);
-            displayEntries.sort(ItemTreePanel::compareDisplayEntries);
-            for (TreeDisplayEntry displayEntry : displayEntries) {
-                if (displayEntry.group != null) {
-                    PrefabGroupCandidate group = displayEntry.group;
+            LayerLogicalOrderService.LayerOrder logicalOrder = logicalOrderService.derive(li);
+            for (LayerLogicalOrderService.LogicalItem item : logicalOrder.items()) {
+                if (item.isPrefab()) {
+                    IntArray members = item.members();
                     EntityNode prefabNode = EntityNode.prefabInstance(
-                            group.prefabId,
+                            item.prefabId(),
                             VisUI.getSkin().getDrawable("cube"),
-                            group.instanceId,
-                            group.members,
+                            item.prefabInstanceId(),
+                            members,
                             !meta.locked);
                     prefabNode.getLabel().setColor(meta.locked ? Color.DARK_GRAY : Color.WHITE);
                     layerNode.add(prefabNode);
                     tree.registerPrefabInstanceNode(prefabNode);
 
-                    List<Integer> children = new ArrayList<>();
-                    for (int i = 0; i < group.members.size; i++) {
-                        children.add(group.members.get(i));
-                    }
-                    children.sort(this::compareEntitiesByZIndex);
-                    for (int childEntityId : children) {
-                        prefabNode.add(createEntityNode(childEntityId, meta.locked));
+                    for (int i = 0; i < members.size; i++) {
+                        prefabNode.add(createEntityNode(members.get(i), meta.locked));
                     }
                 } else {
-                    layerNode.add(createEntityNode(displayEntry.entityId, meta.locked));
+                    layerNode.add(createEntityNode(item.entityId(), meta.locked));
                 }
             }
         }
@@ -675,93 +598,6 @@ public class ItemTreePanel extends DockablePanel {
 
         suppressTreeSelectionEvents = false;
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
-    }
-
-    static Map<Integer, PrefabGroupCandidate> collectPrefabGroups(
-            World world, int[] itemData, int itemCount) {
-        Map<Integer, PrefabGroupCandidate> groups = new HashMap<>();
-        ComponentMapper<PrefabInstanceComponent> prefabInstances =
-                world.getMapper(PrefabInstanceComponent.class);
-        ComponentMapper<EntityIndexComponent> entityIndexes =
-                world.getMapper(EntityIndexComponent.class);
-        for (int i = 0; i < itemCount; i++) {
-            int entityId = itemData[i];
-            PrefabInstanceComponent prefab = prefabInstances.getSafe(entityId, null);
-            if (prefab == null || prefab.instanceId <= 0) continue;
-
-            EntityIndexComponent index = entityIndexes.getSafe(entityId, null);
-            PrefabGroupCandidate group = groups.computeIfAbsent(
-                    prefab.instanceId, PrefabGroupCandidate::new);
-            group.add(entityId, index, prefab.prefabId);
-        }
-        return groups;
-    }
-
-    private List<TreeDisplayEntry> buildDisplayEntries(
-            List<Integer> layerEntities,
-            Map<Integer, PrefabGroupCandidate> prefabGroups) {
-        List<TreeDisplayEntry> entries = new ArrayList<>();
-        Set<Integer> addedGroups = new HashSet<>();
-        for (int entityId : layerEntities) {
-            PrefabInstanceComponent prefab = mPrefabInstance.getSafe(entityId, null);
-            PrefabGroupCandidate group = prefab != null && prefab.instanceId > 0
-                    ? prefabGroups.get(prefab.instanceId)
-                    : null;
-            if (group == null || !group.valid) {
-                entries.add(TreeDisplayEntry.entity(entityId, requireEntityIndex(
-                        entityId, "ItemTree display entry").zIndex));
-                continue;
-            }
-            if (addedGroups.add(group.instanceId)) {
-                entries.add(TreeDisplayEntry.group(group));
-            }
-        }
-        return entries;
-    }
-
-    static int compareDisplayEntries(TreeDisplayEntry first, TreeDisplayEntry second) {
-        if (first.effectiveZ != second.effectiveZ) {
-            return Integer.compare(second.effectiveZ, first.effectiveZ);
-        }
-        if (first.group != null && second.group != null) {
-            return Integer.compare(first.group.instanceId, second.group.instanceId);
-        }
-        if (first.group == null && second.group == null) {
-            return Integer.compare(first.entityId, second.entityId);
-        }
-        return first.group != null ? -1 : 1;
-    }
-
-    static Long computePrefabTreeShiftDelta(
-            List<TreeDisplayEntry> orderedEntries, int prefabInstanceId, int direction) {
-        if (orderedEntries == null
-                || prefabInstanceId <= 0
-                || (direction != 1 && direction != -1)) {
-            return null;
-        }
-        int currentIndex = -1;
-        for (int i = 0; i < orderedEntries.size(); i++) {
-            TreeDisplayEntry entry = orderedEntries.get(i);
-            if (entry.group != null && entry.group.instanceId == prefabInstanceId) {
-                currentIndex = i;
-                break;
-            }
-        }
-        if (currentIndex < 0) return null;
-
-        int siblingIndex = currentIndex + (direction > 0 ? -1 : 1);
-        if (siblingIndex < 0 || siblingIndex >= orderedEntries.size()) return null;
-
-        TreeDisplayEntry current = orderedEntries.get(currentIndex);
-        TreeDisplayEntry sibling = orderedEntries.get(siblingIndex);
-        long targetMaxZ = (long) sibling.effectiveZ + direction;
-        if (targetMaxZ < SortKey64.MIN_Z || targetMaxZ > SortKey64.MAX_Z) return null;
-
-        long delta = targetMaxZ - current.effectiveZ;
-        if (delta == 0L || (direction > 0 && delta < 0L) || (direction < 0 && delta > 0L)) {
-            return null;
-        }
-        return delta;
     }
 
     private EntityNode createEntityNode(int entityId, boolean layerLocked) {
@@ -801,61 +637,6 @@ public class ItemTreePanel extends DockablePanel {
             if (selectable) tree.registerNode(bodyNode, entityId);
         }
         return entityNode;
-    }
-
-    static final class PrefabGroupCandidate {
-        final int instanceId;
-        final IntArray members = new IntArray();
-        String prefabId;
-        int layerIndex = -1;
-        int maxZ = Integer.MIN_VALUE;
-        boolean valid = true;
-
-        PrefabGroupCandidate(int instanceId) {
-            this.instanceId = instanceId;
-        }
-
-        void add(int entityId, EntityIndexComponent index, String candidatePrefabId) {
-            members.add(entityId);
-            if (index == null || candidatePrefabId == null || candidatePrefabId.isBlank()) {
-                valid = false;
-                return;
-            }
-            if (layerIndex < 0) layerIndex = index.layerIndex;
-            if (layerIndex != index.layerIndex) valid = false;
-            if (prefabId == null) prefabId = candidatePrefabId;
-            if (!prefabId.equals(candidatePrefabId)) valid = false;
-            maxZ = Math.max(maxZ, index.zIndex);
-        }
-    }
-
-    static final class TreeDisplayEntry {
-        final int entityId;
-        final PrefabGroupCandidate group;
-        final int effectiveZ;
-
-        private TreeDisplayEntry(int entityId, PrefabGroupCandidate group, int effectiveZ) {
-            this.entityId = entityId;
-            this.group = group;
-            this.effectiveZ = effectiveZ;
-        }
-
-        static TreeDisplayEntry entity(int entityId, int zIndex) {
-            return new TreeDisplayEntry(entityId, null, zIndex);
-        }
-
-        static TreeDisplayEntry group(PrefabGroupCandidate group) {
-            return new TreeDisplayEntry(-1, group, group.maxZ);
-        }
-    }
-
-    private int compareEntitiesByZIndex(int e1, int e2) {
-        int z1 = requireEntityIndex(e1, "ItemTree compare").getZIndex();
-        int z2 = requireEntityIndex(e2, "ItemTree compare").getZIndex();
-        if (z1 != z2) {
-            return Integer.compare(z2, z1);
-        }
-        return Integer.compare(e1, e2);
     }
 
     private EntityIndexComponent requireEntityIndex(int entityId, String context) {
