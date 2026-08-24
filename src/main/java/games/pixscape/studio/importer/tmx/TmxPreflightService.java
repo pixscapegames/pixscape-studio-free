@@ -361,6 +361,7 @@ public final class TmxPreflightService {
         String template = object.getAttribute("template", null);
         Long gid = readObjectGid(object, location, state);
         TmxObjectKind kind = readObjectKind(object, template, location, state);
+        List<TmxObjectPoint> points = readObjectPoints(object, kind, location, state);
         ParsedProperties parsedProperties = readPropertiesWithPaths(object, state, location);
         PropertySet properties = parsedProperties.properties();
 
@@ -391,6 +392,7 @@ public final class TmxPreflightService {
                 template,
                 gid,
                 kind,
+                points,
                 properties,
                 parsedProperties.paths(),
                 parsedProperties.objectReferences()
@@ -548,9 +550,62 @@ public final class TmxPreflightService {
         return kind;
     }
 
+    private List<TmxObjectPoint> readObjectPoints(XmlReader.Element object,
+                                                   TmxObjectKind kind,
+                                                   String location,
+                                                   AnalysisState state) {
+        if (kind != TmxObjectKind.POLYGON && kind != TmxObjectKind.POLYLINE) {
+            return List.of();
+        }
+        XmlReader.Element shape = object.getChildByName(
+                kind == TmxObjectKind.POLYGON ? "polygon" : "polyline");
+        String code = kind == TmxObjectKind.POLYGON
+                ? "TMX_POLYGON_POINTS_INVALID"
+                : "TMX_POLYLINE_POINTS_INVALID";
+        String raw = shape != null ? shape.getAttribute("points", null) : null;
+        if (raw == null || raw.trim().isEmpty()) {
+            state.blocking(code, kind.name() + " object requires a non-empty points attribute.", location);
+            return List.of();
+        }
+
+        String[] tokens = raw.trim().split("\\s+");
+        List<TmxObjectPoint> points = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            String[] coordinates = token.split(",", -1);
+            if (coordinates.length != 2
+                    || coordinates[0].isEmpty()
+                    || coordinates[1].isEmpty()) {
+                state.blocking(code, kind.name() + " point must use exactly x,y syntax: " + token,
+                        location);
+                return List.of();
+            }
+            try {
+                float x = Float.parseFloat(coordinates[0]);
+                float y = Float.parseFloat(coordinates[1]);
+                if (Float.isNaN(x) || Float.isInfinite(x)
+                        || Float.isNaN(y) || Float.isInfinite(y)) {
+                    throw new NumberFormatException();
+                }
+                points.add(new TmxObjectPoint(x, y));
+            } catch (NumberFormatException ex) {
+                state.blocking(code, kind.name() + " point coordinates must be finite floats: " + token,
+                        location);
+                return List.of();
+            }
+        }
+
+        int minimum = kind == TmxObjectKind.POLYGON ? 3 : 2;
+        if (points.size() < minimum) {
+            state.blocking(code, kind.name() + " object requires at least " + minimum + " points.",
+                    location);
+            return List.of();
+        }
+        return List.copyOf(points);
+    }
+
     private void diagnoseObjectKind(TmxObjectKind kind, String location, AnalysisState state) {
         switch (kind) {
-            case ELLIPSE, POLYGON, POLYLINE, TEXT -> state.warning(
+            case ELLIPSE, TEXT -> state.warning(
                     "TMX_OBJECT_KIND_DEFERRED",
                     "Unsupported Tiled object kind for import: " + kind.name().toLowerCase(Locale.ROOT) + ".",
                     location
@@ -863,7 +918,8 @@ public final class TmxPreflightService {
 
     private static boolean isV1MaterializedObjectKind(TmxObjectKind kind) {
         return kind == TmxObjectKind.RECTANGLE || kind == TmxObjectKind.POINT
-                || kind == TmxObjectKind.TILE;
+                || kind == TmxObjectKind.TILE || kind == TmxObjectKind.POLYGON
+                || kind == TmxObjectKind.POLYLINE;
     }
 
     private static int parseHexByte(String value, int start) {

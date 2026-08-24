@@ -2,6 +2,7 @@ package games.pixscape.studio.system;
 
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.studio.helper.AuthoredGeometryTransform;
 import games.pixscape.studio.model.EntityKind;
 import org.junit.Test;
 
@@ -128,5 +129,27 @@ public class TiledObjectOverlaySystemTest {
                 EntityKind.TILED_RECTANGLE, true, true, true));
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
                 EntityKind.TILED_POINT, true, true, true));
+        assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.POLYGON, true, true, true));
+        assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.POLYLINE, true, true, true));
+    }
+
+    @Test
+    public void authoredPathVerticesUseTheNormalTransformMath() {
+        TransformComponent transform = new TransformComponent();
+        transform.x = 10f;
+        transform.y = 20f;
+        transform.originX = 2f;
+        transform.originY = 1f;
+        transform.scaleX = 2f;
+        transform.scaleY = 1f;
+        transform.rotationRad = (float) (Math.PI * 0.5d);
+        transform.refreshCaches();
+        float[] out = new float[4];
+
+        AuthoredGeometryTransform.transformVertices(transform, new float[]{2f, 1f, 3f, 1f}, out);
+
+        assertArrayEquals(new float[]{10f, 20f, 10f, 22f}, out, 0.0001f);
     }
 }

@@ -253,6 +253,7 @@ public final class TmxImportPlanner {
                     object.rotation(),
                     object.visible(),
                     object.kind(),
+                    object.points(),
                     sourceOrders.get(object),
                     zIndices.get(object),
                     rawGid,
@@ -292,7 +293,9 @@ public final class TmxImportPlanner {
     private static boolean isV1PlannableObject(TmxObjectKind kind) {
         return kind == TmxObjectKind.RECTANGLE
                 || kind == TmxObjectKind.POINT
-                || kind == TmxObjectKind.TILE;
+                || kind == TmxObjectKind.TILE
+                || kind == TmxObjectKind.POLYGON
+                || kind == TmxObjectKind.POLYLINE;
     }
 
     private static TmxTilesetPlan resolveTilesetPlan(int cleanGid, List<TmxTilesetPlan> tilesets) {

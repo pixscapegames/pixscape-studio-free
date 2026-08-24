@@ -103,7 +103,7 @@ public class TmxObjectLayerPreflightTest {
     }
 
     @Test
-    public void deferredAndBlockingObjectKindsAreDistinguished() throws Exception {
+    public void supportedDeferredAndBlockingObjectKindsAreDistinguished() throws Exception {
         Path dir = Files.createTempDirectory("tmx-object-kinds");
         FileHandle tmx = writeMap(dir, """
                 <objectgroup name="Shapes">
@@ -130,10 +130,64 @@ public class TmxObjectLayerPreflightTest {
                         TmxObjectKind.UNKNOWN),
                 layer.objects().stream().map(TmxObjectInfo::kind).toList());
         assertEquals("enemy.tx", layer.objects().get(4).template());
-        assertEquals(4, diagnosticCount(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_POLYGON_POINTS_INVALID"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_POLYLINE_POINTS_INVALID"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_TEMPLATE_UNSUPPORTED"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_KIND_AMBIGUOUS"));
         assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_KIND_UNKNOWN"));
+    }
+
+    @Test
+    public void polygonAndPolylinePointsAreStrictlyParsedAsImmutableSourceLocalGeometry()
+            throws Exception {
+        FileHandle tmx = writeMap(Files.createTempDirectory("tmx-object-path-points"), """
+                <objectgroup name="Shapes">
+                  <object id="10" name="Polygon" class="Area" type="LegacyArea" rotation="30">
+                    <polygon points="-10,5 20.5,-7 40,12"/>
+                    <properties><property name="target" type="object" value="11"/></properties>
+                  </object>
+                  <object id="11" name="Polyline"><polyline points="0,0 1.25,2.5"/></object>
+                </objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertFalse(report.hasBlockingDiagnostics());
+        TmxObjectInfo polygon = ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(0);
+        TmxObjectInfo polyline = ((TmxObjectLayerInfo) report.layers().get(0)).objects().get(1);
+        assertEquals(TmxObjectKind.POLYGON, polygon.kind());
+        assertEquals(List.of(new TmxObjectPoint(-10f, 5f), new TmxObjectPoint(20.5f, -7f),
+                new TmxObjectPoint(40f, 12f)), polygon.points());
+        assertEquals(30f, polygon.rotation(), 0f);
+        assertEquals("Area", polygon.className());
+        assertEquals("LegacyArea", polygon.legacyType());
+        assertEquals(TmxObjectKind.POLYLINE, polyline.kind());
+        assertEquals(List.of(new TmxObjectPoint(0f, 0f), new TmxObjectPoint(1.25f, 2.5f)),
+                polyline.points());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_KIND_DEFERRED"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED"));
+    }
+
+    @Test
+    public void malformedPolygonAndPolylinePointsBlockPreflight() throws Exception {
+        FileHandle tmx = writeMap(Files.createTempDirectory("tmx-object-invalid-path-points"), """
+                <objectgroup name="Shapes">
+                  <object id="1"><polygon points="0,0 1,1"/></object>
+                  <object id="2"><polyline points="0,0 1,"/></object>
+                  <object id="3"><polygon points="NaN,0 1,1 2,2"/></object>
+                  <object id="4"><polyline points="Infinity,0 1,1"/></object>
+                </objectgroup>
+                """);
+
+        TmxPreflightReport report = analyze(tmx);
+
+        assertTrue(report.hasBlockingDiagnostics());
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_POLYGON_POINTS_INVALID"));
+        assertEquals(2, diagnosticCount(report, TmxDiagnosticSeverity.BLOCKING,
+                "TMX_POLYLINE_POINTS_INVALID"));
     }
 
     @Test

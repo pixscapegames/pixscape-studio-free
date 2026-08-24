@@ -20,6 +20,7 @@ public record TmxObjectPlan(int sourceId,
                             float rotation,
                             boolean visible,
                             TmxObjectKind kind,
+                            java.util.List<TmxObjectPoint> points,
                             int sourceOrder,
                             int zIndex,
                             int rawGid,
@@ -42,7 +43,9 @@ public record TmxObjectPlan(int sourceId,
         Objects.requireNonNull(properties, "properties");
         if (kind != TmxObjectKind.RECTANGLE
                 && kind != TmxObjectKind.POINT
-                && kind != TmxObjectKind.TILE) {
+                && kind != TmxObjectKind.TILE
+                && kind != TmxObjectKind.POLYGON
+                && kind != TmxObjectKind.POLYLINE) {
             throw new IllegalArgumentException("Unsupported V1 planned object kind: " + kind);
         }
         if (kind == TmxObjectKind.TILE) {
@@ -52,6 +55,7 @@ public record TmxObjectPlan(int sourceId,
                 throw new IllegalArgumentException("Tile Object plan requires a resolved GID and tileset.");
             }
         }
+        points = java.util.List.copyOf(points);
         properties = properties.copy();
         objectPropertyReferences = java.util.List.copyOf(objectPropertyReferences);
     }

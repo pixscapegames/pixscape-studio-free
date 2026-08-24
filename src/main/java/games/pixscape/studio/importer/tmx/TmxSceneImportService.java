@@ -484,6 +484,9 @@ public final class TmxSceneImportService {
         } else if (object.kind() == TmxObjectKind.POINT) {
             transform.originX = 0f;
             transform.originY = 0f;
+        } else if (object.kind() == TmxObjectKind.POLYGON
+                || object.kind() == TmxObjectKind.POLYLINE) {
+            createPathObjectGeometry(world, objectEntity, transform, object);
         } else {
             throw new IllegalStateException(
                     "Unsupported Tiled Object Layer materialization kind: " + object.kind());
@@ -504,11 +507,66 @@ public final class TmxSceneImportService {
         meta.kind = switch (object.kind()) {
             case RECTANGLE -> EntityKind.TILED_RECTANGLE;
             case POINT -> EntityKind.TILED_POINT;
+            case POLYGON -> EntityKind.POLYGON;
+            case POLYLINE -> EntityKind.POLYLINE;
             default -> throw new IllegalStateException(
                     "Unsupported Tiled Object Layer materialization kind: " + object.kind());
         };
 
         attachObjectMetadata(world, objectEntity, object);
+    }
+
+    private static void createPathObjectGeometry(World world,
+                                                 int objectEntity,
+                                                 TransformComponent transform,
+                                                 TmxObjectPlan object) {
+        List<TmxObjectPoint> points = object.points();
+        if (points.isEmpty()) {
+            throw new IllegalStateException("Path Object has no parsed points.");
+        }
+
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        for (TmxObjectPoint point : points) {
+            float x = point.x();
+            float y = -point.y();
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+
+        float width = maxX - minX;
+        float height = maxY - minY;
+        float[] vertices = new float[points.size() * 2];
+        for (int i = 0; i < points.size(); i++) {
+            TmxObjectPoint point = points.get(i);
+            vertices[i * 2] = point.x() - minX;
+            vertices[i * 2 + 1] = -point.y() - minY;
+        }
+
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
+        dimensions.width = width;
+        dimensions.height = height;
+        transform.originX = width * 0.5f;
+        transform.originY = height * 0.5f;
+
+        float rawCenterX = minX + transform.originX;
+        float rawCenterY = minY + transform.originY;
+        float cos = MathUtils.cos(transform.rotationRad);
+        float sin = MathUtils.sin(transform.rotationRad);
+        transform.x += cos * rawCenterX - sin * rawCenterY;
+        transform.y += sin * rawCenterX + cos * rawCenterY;
+
+        if (object.kind() == TmxObjectKind.POLYGON) {
+            world.getMapper(PolygonComponent.class).create(objectEntity).setVertices(vertices);
+        } else {
+            world.getMapper(PolylineComponent.class).create(objectEntity).setVertices(vertices);
+        }
+        world.getMapper(AABBComponent.class).create(objectEntity);
+        world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
     }
 
     /**

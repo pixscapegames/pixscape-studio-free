@@ -80,6 +80,8 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<PhysicsShapesComponent> mFixDefs;
     private ComponentMapper<TransformComponent> mT;
     private ComponentMapper<DimensionsComponent> mDim;
+    private ComponentMapper<PolygonComponent> mPolygon;
+    private ComponentMapper<PolylineComponent> mPolyline;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<PhysicsJointComponent> mJointBase;
     private ComponentMapper<PhysicsPulleyJointComponent> mPulley;
@@ -2852,6 +2854,7 @@ public final class PickingSystem extends BaseSystem {
             if (obb == null) continue;
 
             if (!isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
+            if (!isPreciseAuthoredGeometryHit(e, mouseX, mouseY, tolWorld)) continue;
 
             int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
@@ -2888,6 +2891,25 @@ public final class PickingSystem extends BaseSystem {
         return bestEntity;
     }
 
+    private boolean isPreciseAuthoredGeometryHit(int entityId,
+                                                 float mouseX,
+                                                 float mouseY,
+                                                 float toleranceWorld) {
+        PolygonComponent polygon = mPolygon.getSafe(entityId, null);
+        PolylineComponent polyline = mPolyline.getSafe(entityId, null);
+        if (polygon == null && polyline == null) return true;
+
+        TransformComponent transform = mT.getSafe(entityId, null);
+        if (transform == null) return false;
+        tmp2Vec.set(0f, 0f);
+        if (displayOffsetResolver != null) displayOffsetResolver.resolve(entityId, tmp2Vec);
+        return polygon != null
+                ? isPolygonHit(polygon.vertices, transform, mouseX, mouseY, toleranceWorld,
+                tmp2Vec.x, tmp2Vec.y)
+                : isPolylineHit(polyline.vertices, transform, mouseX, mouseY, toleranceWorld,
+                tmp2Vec.x, tmp2Vec.y);
+    }
+
     static float particleMarkerHitRadiusWorld(OrthographicCamera camera) {
         return particleMarkerHitRadiusWorld(HandleHelper.worldUnitsPerPixel(camera));
     }
@@ -2910,6 +2932,62 @@ public final class PickingSystem extends BaseSystem {
                                      float mouseY,
                                      float toleranceWorld) {
         return OrientedBoundsHelper.contains(displayedCorners, mouseX, mouseY, toleranceWorld);
+    }
+
+    static boolean isPolygonHit(float[] vertices,
+                                TransformComponent transform,
+                                float mouseX,
+                                float mouseY,
+                                float toleranceWorld,
+                                float offsetX,
+                                float offsetY) {
+        if (vertices == null || transform == null || vertices.length < 6
+                || (vertices.length & 1) != 0) return false;
+        float tolerance2 = toleranceWorld * toleranceWorld;
+        int previous = vertices.length - 2;
+        boolean inside = false;
+        for (int current = 0; current < vertices.length; current += 2) {
+            float ax = AuthoredGeometryTransform.worldX(transform,
+                    vertices[previous], vertices[previous + 1]) + offsetX;
+            float ay = AuthoredGeometryTransform.worldY(transform,
+                    vertices[previous], vertices[previous + 1]) + offsetY;
+            float bx = AuthoredGeometryTransform.worldX(transform,
+                    vertices[current], vertices[current + 1]) + offsetX;
+            float by = AuthoredGeometryTransform.worldY(transform,
+                    vertices[current], vertices[current + 1]) + offsetY;
+            if (pointSegmentDst2(mouseX, mouseY, ax, ay, bx, by) <= tolerance2) return true;
+            if ((ay > mouseY) != (by > mouseY)
+                    && mouseX < (bx - ax) * (mouseY - ay) / (by - ay) + ax) {
+                inside = !inside;
+            }
+            previous = current;
+        }
+        return inside;
+    }
+
+    static boolean isPolylineHit(float[] vertices,
+                                 TransformComponent transform,
+                                 float mouseX,
+                                 float mouseY,
+                                 float toleranceWorld,
+                                 float offsetX,
+                                 float offsetY) {
+        if (vertices == null || transform == null || vertices.length < 4
+                || (vertices.length & 1) != 0) return false;
+        float tolerance2 = toleranceWorld * toleranceWorld;
+        for (int current = 2; current < vertices.length; current += 2) {
+            int previous = current - 2;
+            float ax = AuthoredGeometryTransform.worldX(transform,
+                    vertices[previous], vertices[previous + 1]) + offsetX;
+            float ay = AuthoredGeometryTransform.worldY(transform,
+                    vertices[previous], vertices[previous + 1]) + offsetY;
+            float bx = AuthoredGeometryTransform.worldX(transform,
+                    vertices[current], vertices[current + 1]) + offsetX;
+            float by = AuthoredGeometryTransform.worldY(transform,
+                    vertices[current], vertices[current + 1]) + offsetY;
+            if (pointSegmentDst2(mouseX, mouseY, ax, ay, bx, by) <= tolerance2) return true;
+        }
+        return false;
     }
 
     static boolean isPointInsideLasso(float x,
@@ -3133,7 +3211,7 @@ public final class PickingSystem extends BaseSystem {
         if (displayOffsetResolver != null) displayOffsetResolver.subtractFrom(entityId, p);
     }
 
-    private static float pointSegmentDst2(float px, float py, float ax, float ay, float bx, float by) {
+    static float pointSegmentDst2(float px, float py, float ax, float ay, float bx, float by) {
         float abx = bx - ax, aby = by - ay;
         float apx = px - ax, apy = py - ay;
 

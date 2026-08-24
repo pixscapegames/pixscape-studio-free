@@ -428,11 +428,15 @@ public class RuntimeExportAnimationsTest {
         String scene = "{" +
                 "\"componentIdentifiers\":{" +
                 "\"games.pixscape.studio.component.TiledObjectLayerComponent\":\"TiledObjectLayerComponent\"," +
-                "\"games.pixscape.runtime.component.TransformComponent\":\"TransformComponent\"}," +
+                "\"games.pixscape.runtime.component.TransformComponent\":\"TransformComponent\"," +
+                "\"games.pixscape.runtime.component.PolygonComponent\":\"PolygonComponent\"," +
+                "\"games.pixscape.runtime.component.PolylineComponent\":\"PolylineComponent\"}," +
                 "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
                 "\"TiledObjectLayerComponent\":{\"imported\":true}," +
-                "\"TransformComponent\":{\"x\":10,\"y\":20}}}}," +
-                "\"archetypes\":{\"1\":[\"TiledObjectLayerComponent\",\"TransformComponent\"]}}";
+                "\"TransformComponent\":{\"x\":10,\"y\":20}," +
+                "\"PolygonComponent\":{\"vertices\":[0,0,1,0,0,1]}," +
+                "\"PolylineComponent\":{\"vertices\":[0,0,1,1]}}}}," +
+                "\"archetypes\":{\"1\":[\"TiledObjectLayerComponent\",\"TransformComponent\",\"PolygonComponent\",\"PolylineComponent\"]}}";
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), scene,
                 StandardCharsets.UTF_8);
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
@@ -443,6 +447,8 @@ public class RuntimeExportAnimationsTest {
                 .resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), StandardCharsets.UTF_8);
         assertFalse(exported.contains("TiledObjectLayerComponent"));
         assertTrue(exported.contains("TransformComponent"));
+        assertTrue(exported.contains("PolygonComponent"));
+        assertTrue(exported.contains("PolylineComponent"));
     }
 
     private static String legacyAnchorField(String axis) {

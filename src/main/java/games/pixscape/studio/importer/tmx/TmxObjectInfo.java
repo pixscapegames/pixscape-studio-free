@@ -15,6 +15,7 @@ public record TmxObjectInfo(int id,
                             String template,
                             Long gid,
                             TmxObjectKind kind,
+                            java.util.List<TmxObjectPoint> points,
                             PropertySet properties,
                             java.util.List<java.util.List<String>> propertyPaths,
                             java.util.List<TmxObjectPropertyReference> objectPropertyReferences) {
@@ -23,6 +24,7 @@ public record TmxObjectInfo(int id,
 
     public TmxObjectInfo {
         properties = properties.copy();
+        points = java.util.List.copyOf(points);
         propertyPaths = propertyPaths.stream().map(java.util.List::copyOf).toList();
         objectPropertyReferences = java.util.List.copyOf(objectPropertyReferences);
     }

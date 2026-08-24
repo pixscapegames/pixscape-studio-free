@@ -163,7 +163,7 @@ public class TmxObjectLayerPlanningTest {
     }
 
     @Test
-    public void deferredObjectKindsAreExcludedWithoutReorderingSupportedObjects() throws Exception {
+    public void polygonAndPolylinePlansPreservePointsAndSourceOrder() throws Exception {
         FileHandle tmx = writeMap(Files.createTempDirectory("tmx-plan-deferred-objects"), """
                 <objectgroup name="Shapes">
                   <object id="1" name="Rectangle" width="1" height="1"/>
@@ -179,9 +179,17 @@ public class TmxObjectLayerPlanningTest {
         TmxObjectLayerPlan layer = firstObjectLayer(result);
 
         assertTrue(result.hasPlan());
-        assertEquals(List.of("Rectangle", "Point"),
+        assertEquals(List.of("Rectangle", "", "", "Point"),
                 layer.objects().stream().map(TmxObjectPlan::name).toList());
-        assertEquals(4, result.preflightReport().diagnostics().stream()
+        assertEquals(List.of(TmxObjectKind.RECTANGLE, TmxObjectKind.POLYGON,
+                        TmxObjectKind.POLYLINE, TmxObjectKind.POINT),
+                layer.objects().stream().map(TmxObjectPlan::kind).toList());
+        assertEquals(List.of(new TmxObjectPoint(0f, 0f), new TmxObjectPoint(8f, 0f),
+                        new TmxObjectPoint(8f, 8f)),
+                layer.objects().get(1).points());
+        assertEquals(List.of(new TmxObjectPoint(0f, 0f), new TmxObjectPoint(8f, 8f)),
+                layer.objects().get(2).points());
+        assertEquals(2, result.preflightReport().diagnostics().stream()
                 .filter(d -> d.code().equals("TMX_OBJECT_KIND_DEFERRED"))
                 .count());
     }

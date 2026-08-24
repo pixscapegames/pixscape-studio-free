@@ -12,5 +12,7 @@ public enum EntityKind {
     AMBIENT_LIGHT,
     TILED_RECTANGLE,
     TILED_POINT,
+    POLYGON,
+    POLYLINE,
     UNKNOWN
 }

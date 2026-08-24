@@ -1280,7 +1280,7 @@ public class TmxSceneImportServiceTest {
         TmxSceneImportRequest request = new TmxSceneImportRequest(tmx, "Animated Objects", true);
 
         TmxSceneImportResult result = h.importer().importScene(request);
-        World world = loadImportedWorld(h, result);
+        World world = loadImportedWorldWithGeometry(h, result);
         TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
                 h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
         int staticBaseAssetId = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
@@ -2002,6 +2002,84 @@ public class TmxSceneImportServiceTest {
         PropertySet layerProperties = world.getMapper(CustomPropertiesComponent.class)
                 .get(layerEntity(world, 0, false)).properties;
         assertEquals(doorStableId, layerProperties.getObjectStableId("layerTarget", -1));
+    }
+
+    @Test
+    public void importSceneRoundTripsPolygonAndPolylineAsGenericAuthoredGeometry()
+            throws Exception {
+        Harness h = harness("tmx-import-authored-path-geometry");
+        FileHandle tmx = writeTmx(h.root.resolve("paths.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Shapes" offsetx="3" offsety="4">
+                    <object id="1001" name="Polygon" class="Area" x="100" y="80" rotation="0">
+                      <polygon points="0,0 40,10 20,50 -10,20"/>
+                      <properties><property name="target" type="object" value="2002"/></properties>
+                    </object>
+                    <object id="2002" name="Polyline" type="Route" x="20" y="30" rotation="90">
+                      <polyline points="-10,5 20,-7 40,12"/>
+                      <properties><property name="label" value="exit"/></properties>
+                    </object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Authored Paths"));
+        World world = loadImportedWorldWithGeometry(h, result);
+
+        assertTrue(result.imported());
+        int polygonEntity = objectEntityByName(world, "Polygon");
+        int polylineEntity = objectEntityByName(world, "Polyline");
+        PolygonComponent polygon = world.getMapper(PolygonComponent.class).get(polygonEntity);
+        PolylineComponent polyline = world.getMapper(PolylineComponent.class).get(polylineEntity);
+        assertNotNull(polygon);
+        assertNotNull(polyline);
+        assertArrayEquals(new float[]{10f, 50f, 50f, 40f, 30f, 0f, 0f, 30f},
+                polygon.vertices, 0.0001f);
+        assertArrayEquals(new float[]{0f, 7f, 30f, 19f, 50f, 0f}, polyline.vertices, 0.0001f);
+
+        DimensionsComponent polygonDimensions = world.getMapper(DimensionsComponent.class).get(polygonEntity);
+        DimensionsComponent polylineDimensions = world.getMapper(DimensionsComponent.class).get(polylineEntity);
+        assertEquals(50f, polygonDimensions.width, 0.0001f);
+        assertEquals(50f, polygonDimensions.height, 0.0001f);
+        assertEquals(50f, polylineDimensions.width, 0.0001f);
+        assertEquals(19f, polylineDimensions.height, 0.0001f);
+        assertTrue(world.getMapper(AABBComponent.class).has(polygonEntity));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(polygonEntity));
+        assertTrue(world.getMapper(AABBComponent.class).has(polylineEntity));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(polylineEntity));
+        assertEquals(EntityKind.POLYGON, world.getMapper(EntityMetaComponent.class).get(polygonEntity).kind);
+        assertEquals(EntityKind.POLYLINE, world.getMapper(EntityMetaComponent.class).get(polylineEntity).kind);
+
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polygonEntity), polygon.vertices,
+                new float[]{103f, 76f, 143f, 66f, 123f, 26f, 93f, 56f});
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polylineEntity), polyline.vertices,
+                new float[]{18f, 136f, 30f, 106f, 11f, 86f});
+
+        int polygonStableId = world.getMapper(PixscapeIdentityComponent.class).get(polygonEntity).stableId;
+        int polylineStableId = world.getMapper(PixscapeIdentityComponent.class).get(polylineEntity).stableId;
+        assertTrue(polygonStableId > 0);
+        assertTrue(polylineStableId > 0);
+        assertNotEquals(2002, polylineStableId);
+        assertEquals(polylineStableId, world.getMapper(CustomPropertiesComponent.class).get(polygonEntity)
+                .properties.getObjectStableId("target", -1));
+        assertEquals("exit", world.getMapper(CustomPropertiesComponent.class).get(polylineEntity)
+                .properties.getString("label", null));
+        assertSingleTag(world, "Polygon", "Area");
+        assertSingleTag(world, "Polyline", "Route");
+    }
+
+    private static void assertWorldVertices(TransformComponent transform,
+                                            float[] vertices,
+                                            float[] expected) {
+        assertEquals(expected.length, vertices.length);
+        for (int i = 0; i < vertices.length; i += 2) {
+            float x = (vertices[i] - transform.originX) * transform.scaleX;
+            float y = (vertices[i + 1] - transform.originY) * transform.scaleY;
+            float worldX = transform.x + transform.cos * x - transform.sin * y;
+            float worldY = transform.y + transform.sin * x + transform.cos * y;
+            assertEquals(expected[i], worldX, 0.0001f);
+            assertEquals(expected[i + 1], worldY, 0.0001f);
+        }
     }
 
     private static boolean containsJsonInt(JsonValue array, int value) {

@@ -5,10 +5,13 @@ import com.artemis.ComponentMapper;
 import com.artemis.systems.IteratingSystem;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PolygonComponent;
+import games.pixscape.runtime.component.PolylineComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.helper.GizmoDrawHelper;
+import games.pixscape.studio.helper.AuthoredGeometryTransform;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
@@ -26,6 +29,7 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     private final StudioDrawContext ctx;
     private final float[] rectangleCorners = new float[8];
     private final float[] pointCenter = new float[2];
+    private float[] pathVertices = new float[8];
 
     private LayerService layerService;
     private SelectionService selectionService;
@@ -34,6 +38,8 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     private ComponentMapper<EntityMetaComponent> mEntityMeta;
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<DimensionsComponent> mDimensions;
+    private ComponentMapper<PolygonComponent> mPolygon;
+    private ComponentMapper<PolylineComponent> mPolyline;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<VisibilityComponent> mVisibility;
 
@@ -81,6 +87,10 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         switch (meta.kind) {
             case TILED_RECTANGLE -> drawRectangle(entityId, transform);
             case TILED_POINT -> drawPoint(entityId, transform);
+            case POLYGON -> drawPath(entityId, transform,
+                    mPolygon.getSafe(entityId, null) != null ? mPolygon.get(entityId).vertices : null, true);
+            case POLYLINE -> drawPath(entityId, transform,
+                    mPolyline.getSafe(entityId, null) != null ? mPolyline.get(entityId).vertices : null, false);
             default -> {
                 // Tile Objects and unknown kinds use no passive shape overlay.
             }
@@ -133,16 +143,49 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         ctx.drawer.filledCircle(x, y, centerRadius);
     }
 
+    private void drawPath(int entityId,
+                          TransformComponent transform,
+                          float[] localVertices,
+                          boolean closed) {
+        if (localVertices == null || localVertices.length < 4 || (localVertices.length & 1) != 0) return;
+        ensurePathCapacity(localVertices.length);
+        AuthoredGeometryTransform.transformVertices(transform, localVertices, pathVertices);
+        int pointCount = localVertices.length / 2;
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, pathVertices, pointCount);
+        }
+        float stroke = POINT_STROKE_PX * ctx.wpp();
+        ctx.drawer.setColor(0.8f, 0.8f, 0.8f, 1f);
+        for (int i = 0; i < pointCount - 1; i++) {
+            int offset = i * 2;
+            ctx.drawer.line(pathVertices[offset], pathVertices[offset + 1],
+                    pathVertices[offset + 2], pathVertices[offset + 3], stroke);
+        }
+        if (closed && pointCount >= 3) {
+            int last = (pointCount - 1) * 2;
+            ctx.drawer.line(pathVertices[last], pathVertices[last + 1],
+                    pathVertices[0], pathVertices[1], stroke);
+        }
+    }
+
+    private void ensurePathCapacity(int required) {
+        if (pathVertices.length < required) pathVertices = new float[required];
+    }
+
     static void computeRectangleCorners(TransformComponent transform,
                                         DimensionsComponent dimensions,
                                         float[] out) {
         if (transform == null || dimensions == null || out == null || out.length < 8) {
             throw new IllegalArgumentException("Rectangle corner output requires transform, dimensions, and 8 floats.");
         }
-        writeCorner(transform, 0f, 0f, out, 0);
-        writeCorner(transform, dimensions.width, 0f, out, 2);
-        writeCorner(transform, dimensions.width, dimensions.height, out, 4);
-        writeCorner(transform, 0f, dimensions.height, out, 6);
+        out[0] = AuthoredGeometryTransform.worldX(transform, 0f, 0f);
+        out[1] = AuthoredGeometryTransform.worldY(transform, 0f, 0f);
+        out[2] = AuthoredGeometryTransform.worldX(transform, dimensions.width, 0f);
+        out[3] = AuthoredGeometryTransform.worldY(transform, dimensions.width, 0f);
+        out[4] = AuthoredGeometryTransform.worldX(transform, dimensions.width, dimensions.height);
+        out[5] = AuthoredGeometryTransform.worldY(transform, dimensions.width, dimensions.height);
+        out[6] = AuthoredGeometryTransform.worldX(transform, 0f, dimensions.height);
+        out[7] = AuthoredGeometryTransform.worldY(transform, 0f, dimensions.height);
     }
 
     static float pointOuterRadiusWorld(float worldPerPixel) {
@@ -169,18 +212,9 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
         return objectVisible
                 && layerVisible
                 && (kind == EntityKind.TILED_POINT
+                || kind == EntityKind.POLYGON
+                || kind == EntityKind.POLYLINE
                 || (kind == EntityKind.TILED_RECTANGLE && !selected));
-    }
-
-    private static void writeCorner(TransformComponent transform,
-                                    float localX,
-                                    float localY,
-                                    float[] out,
-                                    int offset) {
-        float x = (localX - transform.originX) * transform.scaleX;
-        float y = (localY - transform.originY) * transform.scaleY;
-        out[offset] = transform.x + transform.cos * x - transform.sin * y;
-        out[offset + 1] = transform.y + transform.sin * x + transform.cos * y;
     }
 
     private boolean isObjectVisible(int entityId) {
