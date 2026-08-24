@@ -2778,19 +2778,24 @@ public final class PickingSystem extends BaseSystem {
             }
         }
 
+        boolean affectsX = canScaleX && resizeHandleAffectsX(handle);
+        boolean affectsY = canScaleY && resizeHandleAffectsY(handle);
+        if (!affectsX && !affectsY) return;
+
         sx = clampScaleAwayFromZero(sx, baseSx, minScale);
         sy = clampScaleAwayFromZero(sy, baseSy, minScale);
 
         if (inputState.isCtrl()) {
-            float k = switch (handle) {
-                case E, W -> sx;
-                case N, S -> sy;
-                case NE, NW, SE, SW -> absMax(sx, sy);
-                default -> sx;
-            };
+            float k = uniformScaleReference(canScaleX, canScaleY, sx, sy, handle);
             k = clampScaleAwayFromZero(k, absMax(baseSx, baseSy), minScale);
-            if (canScaleX) sx = k;
-            if (canScaleY) sy = k;
+            if (canScaleX && canScaleY) {
+                sx = k;
+                sy = k;
+            } else if (affectsX) {
+                sx = k;
+            } else {
+                sy = k;
+            }
         }
 
         t.scaleX = sx;
@@ -2819,6 +2824,35 @@ public final class PickingSystem extends BaseSystem {
 
     static float resizedScale(float baseScale, float localDelta, float dimension) {
         return dimension == 0f ? baseScale : baseScale + localDelta / dimension;
+    }
+
+    static boolean resizeHandleAffectsX(InputManipulationContext.Handle handle) {
+        return switch (handle) {
+            case E, W, NE, NW, SE, SW -> true;
+            default -> false;
+        };
+    }
+
+    static boolean resizeHandleAffectsY(InputManipulationContext.Handle handle) {
+        return switch (handle) {
+            case N, S, NE, NW, SE, SW -> true;
+            default -> false;
+        };
+    }
+
+    static float uniformScaleReference(boolean canScaleX,
+                                       boolean canScaleY,
+                                       float scaleX,
+                                       float scaleY,
+                                       InputManipulationContext.Handle handle) {
+        if (canScaleX && !canScaleY) return scaleX;
+        if (!canScaleX && canScaleY) return scaleY;
+        return switch (handle) {
+            case E, W -> scaleX;
+            case N, S -> scaleY;
+            case NE, NW, SE, SW -> absMax(scaleX, scaleY);
+            default -> scaleX;
+        };
     }
 
     static float transformPivotX(TransformComponent transform) {
@@ -2881,7 +2915,11 @@ public final class PickingSystem extends BaseSystem {
             if (b == null) continue;
 
             boolean authoredGeometry = mPolygon.has(e) || mPolyline.has(e);
-            if (!authoredGeometry) {
+            if (authoredGeometry) {
+                tmp2Vec.set(0f, 0f);
+                if (displayOffsetResolver != null) displayOffsetResolver.resolve(e, tmp2Vec);
+                if (!isAuthoredObbHit(b, mouseX, mouseY, tolWorld, tmp2Vec.x, tmp2Vec.y)) continue;
+            } else {
                 float[] obb = computeOBBWorldCorners(e);
                 if (obb == null || !isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
             }
@@ -2963,6 +3001,19 @@ public final class PickingSystem extends BaseSystem {
                                      float mouseY,
                                      float toleranceWorld) {
         return OrientedBoundsHelper.contains(displayedCorners, mouseX, mouseY, toleranceWorld);
+    }
+
+    static boolean isAuthoredObbHit(OrientedBoundsComponent bounds,
+                                    float mouseX,
+                                    float mouseY,
+                                    float toleranceWorld,
+                                    float displayOffsetX,
+                                    float displayOffsetY) {
+        return bounds != null && OrientedBoundsHelper.contains(
+                bounds,
+                mouseX - displayOffsetX,
+                mouseY - displayOffsetY,
+                toleranceWorld);
     }
 
     static boolean isPolygonHit(float[] vertices,
