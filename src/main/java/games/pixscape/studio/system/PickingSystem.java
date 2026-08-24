@@ -2308,8 +2308,8 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (hovered == InputManipulationContext.Handle.ROTATE) {
-            float px = t0.x + t0.originX;
-            float py = t0.y + t0.originY;
+            float px = transformPivotX(t0);
+            float py = transformPivotY(t0);
             tmp2Vec.set(px, py);
             applyDisplayOffset(e0, tmp2Vec);
             ctx.beginRotate(tmp2Vec.x, tmp2Vec.y, mx, my, t0.rotationRad);
@@ -2707,10 +2707,12 @@ public final class PickingSystem extends BaseSystem {
 
         float w0 = d.width;
         float h0 = d.height;
-        if (w0 == 0f || h0 == 0f) return;
+        boolean canScaleX = w0 != 0f;
+        boolean canScaleY = h0 != 0f;
+        if (!canScaleX && !canScaleY) return;
 
-        float cx = t.x + t.originX;
-        float cy = t.y + t.originY;
+        float cx = transformPivotX(t);
+        float cy = transformPivotY(t);
         tmp2Vec.set(cx, cy);
         applyDisplayOffset(e0, tmp2Vec);
         cx = tmp2Vec.x;
@@ -2721,15 +2723,15 @@ public final class PickingSystem extends BaseSystem {
 
         float dx = mx - cx;
         float dy = my - cy;
-        float mxLocal = dx * cos - dy * sin;
-        float myLocal = dx * sin + dy * cos;
+        float mxLocal = worldDeltaToLocalX(dx, dy, cos, sin);
+        float myLocal = worldDeltaToLocalY(dx, dy, cos, sin);
 
         float sx0w = ctx.dragStartMouseX();
         float sy0w = ctx.dragStartMouseY();
         float dx0 = sx0w - cx;
         float dy0 = sy0w - cy;
-        float mxLocal0 = dx0 * cos - dy0 * sin;
-        float myLocal0 = dx0 * sin + dy0 * cos;
+        float mxLocal0 = worldDeltaToLocalX(dx0, dy0, cos, sin);
+        float myLocal0 = worldDeltaToLocalY(dx0, dy0, cos, sin);
 
         float deltaX = mxLocal - mxLocal0;
         float deltaY = myLocal - myLocal0;
@@ -2743,25 +2745,33 @@ public final class PickingSystem extends BaseSystem {
         float sy = baseSy;
 
         switch (handle) {
-            case E -> sx = baseSx + (deltaX / w0);
-            case W -> sx = baseSx - (deltaX / w0);
-            case N -> sy = baseSy + (deltaY / h0);
-            case S -> sy = baseSy - (deltaY / h0);
+            case E -> {
+                sx = resizedScale(baseSx, deltaX, w0);
+            }
+            case W -> {
+                sx = resizedScale(baseSx, -deltaX, w0);
+            }
+            case N -> {
+                sy = resizedScale(baseSy, deltaY, h0);
+            }
+            case S -> {
+                sy = resizedScale(baseSy, -deltaY, h0);
+            }
             case NE -> {
-                sx = baseSx + (deltaX / w0);
-                sy = baseSy + (deltaY / h0);
+                sx = resizedScale(baseSx, deltaX, w0);
+                sy = resizedScale(baseSy, deltaY, h0);
             }
             case NW -> {
-                sx = baseSx - (deltaX / w0);
-                sy = baseSy + (deltaY / h0);
+                sx = resizedScale(baseSx, -deltaX, w0);
+                sy = resizedScale(baseSy, deltaY, h0);
             }
             case SE -> {
-                sx = baseSx + (deltaX / w0);
-                sy = baseSy - (deltaY / h0);
+                sx = resizedScale(baseSx, deltaX, w0);
+                sy = resizedScale(baseSy, -deltaY, h0);
             }
             case SW -> {
-                sx = baseSx - (deltaX / w0);
-                sy = baseSy - (deltaY / h0);
+                sx = resizedScale(baseSx, -deltaX, w0);
+                sy = resizedScale(baseSy, -deltaY, h0);
             }
             default -> {
                 return;
@@ -2779,8 +2789,8 @@ public final class PickingSystem extends BaseSystem {
                 default -> sx;
             };
             k = clampScaleAwayFromZero(k, absMax(baseSx, baseSy), minScale);
-            sx = k;
-            sy = k;
+            if (canScaleX) sx = k;
+            if (canScaleY) sy = k;
         }
 
         t.scaleX = sx;
@@ -2799,12 +2809,32 @@ public final class PickingSystem extends BaseSystem {
         return Math.abs(a) >= Math.abs(b) ? a : b;
     }
 
+    static float worldDeltaToLocalX(float worldX, float worldY, float cos, float sin) {
+        return worldX * cos + worldY * sin;
+    }
+
+    static float worldDeltaToLocalY(float worldX, float worldY, float cos, float sin) {
+        return -worldX * sin + worldY * cos;
+    }
+
+    static float resizedScale(float baseScale, float localDelta, float dimension) {
+        return dimension == 0f ? baseScale : baseScale + localDelta / dimension;
+    }
+
+    static float transformPivotX(TransformComponent transform) {
+        return transform.x;
+    }
+
+    static float transformPivotY(TransformComponent transform) {
+        return transform.y;
+    }
+
     private void applyRotate(int entityId, float mx, float my) {
         TransformComponent t = mT.get(entityId);
         if (t == null) return;
 
-        float cx = t.x + t.originX;
-        float cy = t.y + t.originY;
+        float cx = transformPivotX(t);
+        float cy = transformPivotY(t);
         tmp2Vec.set(cx, cy);
         applyDisplayOffset(entityId, tmp2Vec);
         cx = tmp2Vec.x;
@@ -2819,9 +2849,9 @@ public final class PickingSystem extends BaseSystem {
         if (dirty != null) dirty.geometry(entityId, GeometryDirty.ROTATION);
     }
 
-    private float signedAngleDelta(float cx, float cy,
-                                   float x0, float y0,
-                                   float x1, float y1) {
+    static float signedAngleDelta(float cx, float cy,
+                                  float x0, float y0,
+                                  float x1, float y1) {
         float a0 = (float) Math.atan2(y0 - cy, x0 - cx);
         float a1 = (float) Math.atan2(y1 - cy, x1 - cx);
         float d = a1 - a0;
@@ -2850,10 +2880,11 @@ public final class PickingSystem extends BaseSystem {
             OrientedBoundsComponent b = mOBB.get(e);
             if (b == null) continue;
 
-            float[] obb = computeOBBWorldCorners(e);
-            if (obb == null) continue;
-
-            if (!isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
+            boolean authoredGeometry = mPolygon.has(e) || mPolyline.has(e);
+            if (!authoredGeometry) {
+                float[] obb = computeOBBWorldCorners(e);
+                if (obb == null || !isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
+            }
             if (!isPreciseAuthoredGeometryHit(e, mouseX, mouseY, tolWorld)) continue;
 
             int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
