@@ -469,14 +469,19 @@ public final class TmxSceneImportService {
                 scene, object.x(), object.y(), objectLayer.offsetX(), objectLayer.offsetY());
         transform.x = position.x();
         transform.y = position.y();
-        transform.rotationRad = -object.rotation() * MathUtils.degreesToRadians;
+        boolean bakeIsoGeometryRotation = isometricDataGeometry(scene, object.kind());
+        // Tiled rotates ISO object geometry in projected screen space. Pixscape's standard
+        // rotation cannot represent that non-uniform basis conversion, so bake it into vertices.
+        transform.rotationRad = bakeIsoGeometryRotation
+                ? 0f
+                : -object.rotation() * MathUtils.degreesToRadians;
         transform.scaleX = 1f;
         transform.scaleY = 1f;
 
         if (object.kind() == TmxObjectKind.RECTANGLE) {
             if ("isometric".equals(scene.orientation())) {
                 createPathObjectGeometry(world, objectEntity, transform, scene,
-                        rectanglePoints(object), true);
+                        rectanglePoints(object), true, object.rotation());
             } else {
                 DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
                 dimensions.width = object.width();
@@ -492,7 +497,7 @@ public final class TmxSceneImportService {
         } else if (object.kind() == TmxObjectKind.POLYGON
                 || object.kind() == TmxObjectKind.POLYLINE) {
             createPathObjectGeometry(world, objectEntity, transform, scene,
-                    object.points(), object.kind() == TmxObjectKind.POLYGON);
+                    object.points(), object.kind() == TmxObjectKind.POLYGON, object.rotation());
         } else {
             throw new IllegalStateException(
                     "Unsupported Tiled Object Layer materialization kind: " + object.kind());
@@ -527,7 +532,8 @@ public final class TmxSceneImportService {
                                                  TransformComponent transform,
                                                  TmxScenePlan scene,
                                                  List<TmxObjectPoint> points,
-                                                 boolean polygon) {
+                                                 boolean polygon,
+                                                 float tiledRotationDeg) {
         if (points.isEmpty()) {
             throw new IllegalStateException("Path Object has no parsed points.");
         }
@@ -538,7 +544,7 @@ public final class TmxSceneImportService {
         float maxY = Float.NEGATIVE_INFINITY;
         for (TmxObjectPoint point : points) {
             TmxObjectCoordinateMapper.Coordinate projected =
-                    TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+                    localPathPoint(scene, point, tiledRotationDeg);
             float x = projected.x();
             float y = projected.y();
             minX = Math.min(minX, x);
@@ -553,7 +559,7 @@ public final class TmxSceneImportService {
         for (int i = 0; i < points.size(); i++) {
             TmxObjectPoint point = points.get(i);
             TmxObjectCoordinateMapper.Coordinate projected =
-                    TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+                    localPathPoint(scene, point, tiledRotationDeg);
             vertices[i * 2] = projected.x() - minX;
             vertices[i * 2 + 1] = projected.y() - minY;
         }
@@ -578,6 +584,22 @@ public final class TmxSceneImportService {
         }
         world.getMapper(AABBComponent.class).create(objectEntity);
         world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+    }
+
+    private static TmxObjectCoordinateMapper.Coordinate localPathPoint(TmxScenePlan scene,
+                                                                         TmxObjectPoint point,
+                                                                         float tiledRotationDeg) {
+        return "isometric".equals(scene.orientation())
+                ? TmxObjectCoordinateMapper.localWithTiledRotation(
+                        scene, point.x(), point.y(), tiledRotationDeg)
+                : TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+    }
+
+    private static boolean isometricDataGeometry(TmxScenePlan scene, TmxObjectKind kind) {
+        return "isometric".equals(scene.orientation())
+                && (kind == TmxObjectKind.RECTANGLE
+                || kind == TmxObjectKind.POLYGON
+                || kind == TmxObjectKind.POLYLINE);
     }
 
     private static List<TmxObjectPoint> rectanglePoints(TmxObjectPlan object) {

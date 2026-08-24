@@ -33,6 +33,32 @@ public class TmxObjectCoordinateMapperTest {
     }
 
     @Test
+    public void isometricLocalRotationUsesTiledScreenSpaceBeforePixscapeBasisConversion() {
+        TmxScenePlan scene = scene("isometric", 4, 4, 32, 16);
+
+        TmxObjectCoordinateMapper.Coordinate first =
+                TmxObjectCoordinateMapper.localWithTiledRotation(scene, 16f, 0f, 90f);
+        TmxObjectCoordinateMapper.Coordinate second =
+                TmxObjectCoordinateMapper.localWithTiledRotation(scene, 16f, 16f, 90f);
+
+        assertEquals(32f, first.x(), 0.0001f);
+        assertEquals(-4f, first.y(), 0.0001f);
+        assertEquals(0f, second.x(), 0.0001f);
+        assertEquals(-8f, second.y(), 0.0001f);
+    }
+
+    @Test
+    public void isometricLocalRotationSupportsNonRightAngles() {
+        TmxScenePlan scene = scene("isometric", 4, 4, 32, 16);
+
+        TmxObjectCoordinateMapper.Coordinate coordinate =
+                TmxObjectCoordinateMapper.localWithTiledRotation(scene, 16f, 0f, 30f);
+
+        assertEquals(29.8564f, coordinate.x(), 0.0001f);
+        assertEquals(4.9282f, coordinate.y(), 0.0001f);
+    }
+
+    @Test
     public void orthogonalCoordinatesRemainExactlyThePreviousConversion() {
         TmxScenePlan scene = scene("orthogonal", 10, 8, 32, 16);
 

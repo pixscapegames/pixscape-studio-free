@@ -40,6 +40,30 @@ public final class TmxObjectCoordinateMapper {
                 (deltaGridX + deltaGridY) * halfHeight);
     }
 
+    /**
+     * Projects an ISO local point using Tiled's screen-space object rotation.
+     * Pixscape's post-projection rotation is not equivalent when tile width and height differ.
+     */
+    public static Coordinate localWithTiledRotation(TmxScenePlan scene,
+                                                     float sourceLocalX,
+                                                     float sourceLocalY,
+                                                     float tiledRotationDeg) {
+        if (!isometric(scene)) return local(scene, sourceLocalX, sourceLocalY);
+
+        float tileWidth = scene.tileWidth();
+        float tileHeight = scene.tileHeight();
+        float screenX = (sourceLocalX - sourceLocalY) * tileWidth / (2f * tileHeight);
+        float screenY = (sourceLocalX + sourceLocalY) * 0.5f;
+        double radians = Math.toRadians(tiledRotationDeg);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
+        float rotatedScreenX = screenX * cos - screenY * sin;
+        float rotatedScreenY = screenX * sin + screenY * cos;
+        return new Coordinate(
+                rotatedScreenY * tileWidth / tileHeight,
+                rotatedScreenX * tileHeight / tileWidth);
+    }
+
     private static boolean isometric(TmxScenePlan scene) {
         if (scene == null || scene.tileHeight() <= 0) {
             throw new IllegalArgumentException("Object coordinate mapping requires a scene with tileHeight > 0.");

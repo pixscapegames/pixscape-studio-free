@@ -2087,8 +2087,9 @@ public class TmxSceneImportServiceTest {
                         <properties><property name="target" type="object" value="102"/></properties>
                       </object>
                       <object id="102" name="Rectangle" class="Area" type="LegacyArea" x="24" y="24" width="16" height="16"/>
+                      <object name="RotatedRectangle" x="24" y="24" width="16" height="16" rotation="90"/>
                       <object id="103" name="Polygon" class="Zone" x="24" y="24" rotation="90"><polygon points="0,0 16,0 16,16"/></object>
-                      <object name="Polyline" x="24" y="24"><polyline points="0,0 16,0 16,16"/></object>
+                      <object name="Polyline" x="24" y="24" rotation="90"><polyline points="0,0 16,0 16,16"/></object>
                       <object name="Tile" gid="1" x="24" y="24"/>
                     </objectgroup>
                   </group>
@@ -2104,7 +2105,7 @@ public class TmxSceneImportServiceTest {
         assertEquals(List.of("Below", "World/Gameplay", "Above"), result.planResult().plan().layers()
                 .stream().map(TmxLayerPlan::name).toList());
         TmxObjectLayerPlan layer = (TmxObjectLayerPlan) result.planResult().plan().layers().get(1);
-        assertEquals(List.of(0, 1, 2, 3, 4),
+        assertEquals(List.of(0, 1, 2, 3, 4, 5),
                 layer.objects().stream().map(TmxObjectPlan::zIndex).toList());
         int objectLayer = layerEntity(world, 1, false);
         assertFalse(world.getMapper(VisibilityComponent.class).get(objectLayer).visible);
@@ -2132,22 +2133,34 @@ public class TmxSceneImportServiceTest {
                 new float[]{3f, 27f, 19f, 35f, 35f, 27f, 19f, 19f});
         assertEquals(32f, world.getMapper(DimensionsComponent.class).get(rectangle).width, 0.0001f);
         assertEquals(16f, world.getMapper(DimensionsComponent.class).get(rectangle).height, 0.0001f);
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(rectangle).rotationRad, 0f);
         assertEquals("Area", world.getMapper(PixscapeTagComponent.class).get(rectangle).tags.first());
         int rectangleStableId = world.getMapper(PixscapeIdentityComponent.class).get(rectangle).stableId;
         assertTrue(rectangleStableId > 0);
         assertEquals(rectangleStableId, world.getMapper(CustomPropertiesComponent.class).get(point)
                 .properties.getObjectStableId("target", -1));
 
+        int rotatedRectangle = objectEntityByName(world, "RotatedRectangle");
+        PolygonComponent rotatedRectanglePolygon = world.getMapper(PolygonComponent.class).get(rotatedRectangle);
+        assertNotNull(rotatedRectanglePolygon);
+        assertArrayEquals(new float[]{32f, 8f, 64f, 4f, 32f, 0f, 0f, 4f},
+                rotatedRectanglePolygon.vertices, 0.0001f);
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(rotatedRectangle),
+                rotatedRectanglePolygon.vertices,
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f, -29f, 23f});
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(rotatedRectangle).rotationRad, 0f);
+
         int polygon = objectEntityByName(world, "Polygon");
         assertWorldVertices(world.getMapper(TransformComponent.class).get(polygon),
                 world.getMapper(PolygonComponent.class).get(polygon).vertices,
-                new float[]{3f, 27f, 11f, 11f, 3f, -5f});
-        assertEquals(-MathUtils.PI / 2f,
-                world.getMapper(TransformComponent.class).get(polygon).rotationRad, 0.0001f);
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f});
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(polygon).rotationRad, 0f);
         int polyline = objectEntityByName(world, "Polyline");
         assertWorldVertices(world.getMapper(TransformComponent.class).get(polyline),
                 world.getMapper(PolylineComponent.class).get(polyline).vertices,
-                new float[]{3f, 27f, 19f, 35f, 35f, 27f});
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f});
+        assertFalse(world.getMapper(PolygonComponent.class).has(polyline));
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(polyline).rotationRad, 0f);
 
         int tile = visualEntityByName(world, "Tile");
         TransformComponent tileTransform = world.getMapper(TransformComponent.class).get(tile);
