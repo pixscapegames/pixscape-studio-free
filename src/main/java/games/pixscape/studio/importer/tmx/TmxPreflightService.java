@@ -334,13 +334,6 @@ public final class TmxPreflightService {
                 parsedProperties.objectReferences(),
                 objects
         ));
-        if (state.mapInfo != null && "isometric".equals(state.mapInfo.orientation())) {
-            state.blocking(
-                    "TMX_OBJECT_LAYER_ISOMETRIC_UNSUPPORTED",
-                    "Object Layers in isometric maps are not supported for import.",
-                    name
-            );
-        }
         warnIgnoredLayerPresentationAttributes(layer, state, name, opacity);
     }
 

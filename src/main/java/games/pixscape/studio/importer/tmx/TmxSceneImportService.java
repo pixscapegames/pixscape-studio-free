@@ -310,7 +310,6 @@ public final class TmxSceneImportService {
                         plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
             } else if (layerPlan instanceof TmxObjectLayerPlan objectLayer) {
-                requireOrthogonalObjectLayer(plan.scene(), objectLayer);
                 int layerEntity = world.create();
                 createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
                 identityRegistry.ensureStableId(layerEntity);
@@ -438,16 +437,15 @@ public final class TmxSceneImportService {
                                  String sceneTag,
                                  Map<Integer, Integer> stableIdsBySourceObjectId,
                                  List<PendingObjectProperties> pendingProperties) {
-        float mapPixelHeight = scene.mapHeightCells() * (float) scene.tileHeight();
         for (TmxObjectPlan object : objectLayer.objects()) {
             int objectEntity = world.create();
             if (object.kind() == TmxObjectKind.TILE) {
-                createTileObjectComponents(world, objectEntity, layerIndex, mapPixelHeight,
+                createTileObjectComponents(world, objectEntity, layerIndex, scene,
                         objectLayer, object, staticTileAssetIdsByTileset,
                         animationIdsByTileset, sceneTag);
             } else {
                 createDataObjectComponents(world, objectEntity, layerIndex,
-                        mapPixelHeight, objectLayer, object);
+                        scene, objectLayer, object);
             }
             identityRegistry.setName(objectEntity, object.name());
             identityRegistry.ensureStableId(objectEntity);
@@ -463,30 +461,38 @@ public final class TmxSceneImportService {
     private void createDataObjectComponents(World world,
                                             int objectEntity,
                                             int layerIndex,
-                                            float mapPixelHeight,
+                                            TmxScenePlan scene,
                                             TmxObjectLayerPlan objectLayer,
                                             TmxObjectPlan object) {
         TransformComponent transform = world.getMapper(TransformComponent.class).create(objectEntity);
-        transform.x = object.x() + objectLayer.offsetX();
-        transform.y = mapPixelHeight - object.y() - objectLayer.offsetY();
+        TmxObjectCoordinateMapper.Coordinate position = TmxObjectCoordinateMapper.absolute(
+                scene, object.x(), object.y(), objectLayer.offsetX(), objectLayer.offsetY());
+        transform.x = position.x();
+        transform.y = position.y();
         transform.rotationRad = -object.rotation() * MathUtils.degreesToRadians;
         transform.scaleX = 1f;
         transform.scaleY = 1f;
 
         if (object.kind() == TmxObjectKind.RECTANGLE) {
-            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
-            dimensions.width = object.width();
-            dimensions.height = object.height();
-            centerRectangleTransformFromTiledPivot(transform, dimensions.width, dimensions.height);
-            // Bounds are editable/pickable geometry, not rendering state.
-            world.getMapper(AABBComponent.class).create(objectEntity);
-            world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+            if ("isometric".equals(scene.orientation())) {
+                createPathObjectGeometry(world, objectEntity, transform, scene,
+                        rectanglePoints(object), true);
+            } else {
+                DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
+                dimensions.width = object.width();
+                dimensions.height = object.height();
+                centerRectangleTransformFromTiledPivot(transform, dimensions.width, dimensions.height);
+                // Bounds are editable/pickable geometry, not rendering state.
+                world.getMapper(AABBComponent.class).create(objectEntity);
+                world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+            }
         } else if (object.kind() == TmxObjectKind.POINT) {
             transform.originX = 0f;
             transform.originY = 0f;
         } else if (object.kind() == TmxObjectKind.POLYGON
                 || object.kind() == TmxObjectKind.POLYLINE) {
-            createPathObjectGeometry(world, objectEntity, transform, object);
+            createPathObjectGeometry(world, objectEntity, transform, scene,
+                    object.points(), object.kind() == TmxObjectKind.POLYGON);
         } else {
             throw new IllegalStateException(
                     "Unsupported Tiled Object Layer materialization kind: " + object.kind());
@@ -519,8 +525,9 @@ public final class TmxSceneImportService {
     private static void createPathObjectGeometry(World world,
                                                  int objectEntity,
                                                  TransformComponent transform,
-                                                 TmxObjectPlan object) {
-        List<TmxObjectPoint> points = object.points();
+                                                 TmxScenePlan scene,
+                                                 List<TmxObjectPoint> points,
+                                                 boolean polygon) {
         if (points.isEmpty()) {
             throw new IllegalStateException("Path Object has no parsed points.");
         }
@@ -530,8 +537,10 @@ public final class TmxSceneImportService {
         float maxX = Float.NEGATIVE_INFINITY;
         float maxY = Float.NEGATIVE_INFINITY;
         for (TmxObjectPoint point : points) {
-            float x = point.x();
-            float y = -point.y();
+            TmxObjectCoordinateMapper.Coordinate projected =
+                    TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+            float x = projected.x();
+            float y = projected.y();
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             maxX = Math.max(maxX, x);
@@ -543,8 +552,10 @@ public final class TmxSceneImportService {
         float[] vertices = new float[points.size() * 2];
         for (int i = 0; i < points.size(); i++) {
             TmxObjectPoint point = points.get(i);
-            vertices[i * 2] = point.x() - minX;
-            vertices[i * 2 + 1] = -point.y() - minY;
+            TmxObjectCoordinateMapper.Coordinate projected =
+                    TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+            vertices[i * 2] = projected.x() - minX;
+            vertices[i * 2 + 1] = projected.y() - minY;
         }
 
         DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
@@ -560,13 +571,22 @@ public final class TmxSceneImportService {
         transform.x += cos * rawCenterX - sin * rawCenterY;
         transform.y += sin * rawCenterX + cos * rawCenterY;
 
-        if (object.kind() == TmxObjectKind.POLYGON) {
+        if (polygon) {
             world.getMapper(PolygonComponent.class).create(objectEntity).setVertices(vertices);
         } else {
             world.getMapper(PolylineComponent.class).create(objectEntity).setVertices(vertices);
         }
         world.getMapper(AABBComponent.class).create(objectEntity);
         world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+    }
+
+    private static List<TmxObjectPoint> rectanglePoints(TmxObjectPlan object) {
+        return List.of(
+                new TmxObjectPoint(0f, 0f),
+                new TmxObjectPoint(object.width(), 0f),
+                new TmxObjectPoint(object.width(), object.height()),
+                new TmxObjectPoint(0f, object.height())
+        );
     }
 
     /**
@@ -589,7 +609,7 @@ public final class TmxSceneImportService {
     private void createTileObjectComponents(World world,
                                             int objectEntity,
                                             int layerIndex,
-                                            float mapPixelHeight,
+                                            TmxScenePlan scene,
                                             TmxObjectLayerPlan objectLayer,
                                             TmxObjectPlan object,
                                             Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
@@ -602,8 +622,11 @@ public final class TmxSceneImportService {
             throw new IllegalStateException("Tile Object has no usable authored or native size.");
         }
 
-        float anchorX = object.tileObjectAlignment().anchorX();
-        float anchorY = object.tileObjectAlignment().anchorY();
+        TmxObjectAlignment alignment = effectiveTileObjectAlignment(object.tileObjectAlignment(), scene);
+        TmxObjectCoordinateMapper.Coordinate position = TmxObjectCoordinateMapper.absolute(
+                scene, object.x(), object.y(), objectLayer.offsetX(), objectLayer.offsetY());
+        float anchorX = alignment.anchorX();
+        float anchorY = alignment.anchorY();
         float baseOriginX = anchorX * width - object.tileOffsetX();
         float baseOriginY = (1f - anchorY) * height + object.tileOffsetY();
         TmxTileTransformSupport.TileObjectTransform tiledTransform =
@@ -616,8 +639,8 @@ public final class TmxSceneImportService {
                         sceneTag,
                         Math.max(1, object.nativeTileWidth()),
                         Math.max(1, object.nativeTileHeight()),
-                        object.x() + objectLayer.offsetX(),
-                        mapPixelHeight - object.y() - objectLayer.offsetY(),
+                        position.x(),
+                        position.y(),
                         tiledTransform.originX(),
                         tiledTransform.originY(),
                         0,
@@ -657,6 +680,14 @@ public final class TmxSceneImportService {
             animation.animationId = animationId;
         }
         attachObjectMetadata(world, objectEntity, object);
+    }
+
+    static TmxObjectAlignment effectiveTileObjectAlignment(TmxObjectAlignment alignment,
+                                                            TmxScenePlan scene) {
+        if (alignment != TmxObjectAlignment.UNSPECIFIED) return alignment;
+        return "isometric".equals(scene.orientation())
+                ? TmxObjectAlignment.BOTTOM
+                : TmxObjectAlignment.BOTTOM_LEFT;
     }
 
     private static int staticTileAssetId(
@@ -758,15 +789,6 @@ public final class TmxSceneImportService {
                 .getMapper(CustomPropertiesComponent.class)
                 .create(entity);
         component.properties.copyFrom(properties);
-    }
-
-    private static void requireOrthogonalObjectLayer(TmxScenePlan scene,
-                                                     TmxObjectLayerPlan objectLayer) {
-        if (scene == null || !"orthogonal".equals(scene.orientation())) {
-            throw new IllegalStateException(
-                    "Tiled Object Layer materialization requires an orthogonal map: "
-                            + objectLayer.name());
-        }
     }
 
     private void createImageLayerSprite(World world,

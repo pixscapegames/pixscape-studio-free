@@ -74,21 +74,28 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
     protected void process(int entityId) {
         EntityMetaComponent meta = mEntityMeta.get(entityId);
         TransformComponent transform = mTransform.get(entityId);
+        PolygonComponent polygon = mPolygon.getSafe(entityId, null);
         if (meta == null
                 || transform == null
                 || !shouldDrawShape(
                         meta.kind,
                         isObjectVisible(entityId),
                         isParentLayerVisible(entityId),
-                        isSelected(entityId))) {
+                        isSelected(entityId),
+                        meta.kind == EntityKind.TILED_RECTANGLE && polygon != null)) {
             return;
         }
 
         switch (meta.kind) {
-            case TILED_RECTANGLE -> drawRectangle(entityId, transform);
+            case TILED_RECTANGLE -> {
+                if (polygon != null) {
+                    drawPath(entityId, transform, polygon.vertices, true);
+                } else {
+                    drawRectangle(entityId, transform);
+                }
+            }
             case TILED_POINT -> drawPoint(entityId, transform);
-            case POLYGON -> drawPath(entityId, transform,
-                    mPolygon.getSafe(entityId, null) != null ? mPolygon.get(entityId).vertices : null, true);
+            case POLYGON -> drawPath(entityId, transform, polygon != null ? polygon.vertices : null, true);
             case POLYLINE -> drawPath(entityId, transform,
                     mPolyline.getSafe(entityId, null) != null ? mPolyline.get(entityId).vertices : null, false);
             default -> {
@@ -209,12 +216,20 @@ public final class TiledObjectOverlaySystem extends IteratingSystem {
                                    boolean objectVisible,
                                    boolean layerVisible,
                                    boolean selected) {
+        return shouldDrawShape(kind, objectVisible, layerVisible, selected, false);
+    }
+
+    static boolean shouldDrawShape(EntityKind kind,
+                                   boolean objectVisible,
+                                   boolean layerVisible,
+                                   boolean selected,
+                                   boolean projectedRectangle) {
         return objectVisible
                 && layerVisible
                 && (kind == EntityKind.TILED_POINT
                 || kind == EntityKind.POLYGON
                 || kind == EntityKind.POLYLINE
-                || (kind == EntityKind.TILED_RECTANGLE && !selected));
+                || (kind == EntityKind.TILED_RECTANGLE && (projectedRectangle || !selected)));
     }
 
     private boolean isObjectVisible(int entityId) {

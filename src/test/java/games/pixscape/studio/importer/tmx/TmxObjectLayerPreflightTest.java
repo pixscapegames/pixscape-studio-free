@@ -468,7 +468,7 @@ Second line</property>
     }
 
     @Test
-    public void isometricObjectLayerIsExplicitlyBlockedWhileRemainingInspected() throws Exception {
+    public void isometricObjectLayerIsAcceptedAndInspected() throws Exception {
         Path dir = Files.createTempDirectory("tmx-isometric-objects");
         FileHandle tmx = writeFile(dir.resolve("map.tmx"), """
                 <map orientation="isometric" width="1" height="1" tilewidth="16" tileheight="16">
@@ -478,7 +478,8 @@ Second line</property>
 
         TmxPreflightReport report = analyze(tmx);
 
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_LAYER_ISOMETRIC_UNSUPPORTED"));
+        assertFalse(report.hasBlockingDiagnostics());
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.BLOCKING, "TMX_OBJECT_LAYER_ISOMETRIC_UNSUPPORTED"));
         TmxObjectLayerInfo layer = (TmxObjectLayerInfo) report.layers().get(0);
         assertEquals(TmxObjectKind.POINT, layer.objects().get(0).kind());
     }

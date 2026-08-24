@@ -128,6 +128,8 @@ public class TiledObjectOverlaySystemTest {
         assertFalse(TiledObjectOverlaySystem.shouldDrawShape(
                 EntityKind.TILED_RECTANGLE, true, true, true));
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
+                EntityKind.TILED_RECTANGLE, true, true, true, true));
+        assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
                 EntityKind.TILED_POINT, true, true, true));
         assertTrue(TiledObjectOverlaySystem.shouldDrawShape(
                 EntityKind.POLYGON, true, true, true));

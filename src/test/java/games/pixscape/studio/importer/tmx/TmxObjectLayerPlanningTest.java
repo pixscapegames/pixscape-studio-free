@@ -195,7 +195,7 @@ public class TmxObjectLayerPlanningTest {
     }
 
     @Test
-    public void blockingObjectPreflightPreventsPlanIncludingIsometricLayers() throws Exception {
+    public void blockingObjectPreflightPreventsPlanForTemplatesAndInvalidProperties() throws Exception {
         Path dir = Files.createTempDirectory("tmx-plan-blocked-objects");
         FileHandle isometric = writeFile(dir.resolve("isometric.tmx"), """
                 <map orientation="isometric" width="1" height="1" tilewidth="16" tileheight="16">
@@ -217,9 +217,8 @@ public class TmxObjectLayerPlanningTest {
         TmxImportPlanResult templateResult = plan(template);
         TmxImportPlanResult invalidPropertyResult = plan(invalidProperty);
 
-        assertEquals(TmxImportPlanStatus.PREFLIGHT_FAILED, isometricResult.status());
-        assertNull(isometricResult.plan());
-        assertTrue(hasBlocking(isometricResult, "TMX_OBJECT_LAYER_ISOMETRIC_UNSUPPORTED"));
+        assertTrue(isometricResult.hasPlan());
+        assertEquals(TmxObjectKind.POINT, firstObjectLayer(isometricResult).objects().get(0).kind());
         assertEquals(TmxImportPlanStatus.PREFLIGHT_FAILED, templateResult.status());
         assertNull(templateResult.plan());
         assertTrue(hasBlocking(templateResult, "TMX_OBJECT_TEMPLATE_UNSUPPORTED"));
@@ -292,6 +291,24 @@ public class TmxObjectLayerPlanningTest {
 
         assertEquals(List.of(0, 1), index.objects().stream().map(TmxObjectPlan::zIndex).toList());
         assertEquals(List.of(1, 0, 2), topdown.objects().stream().map(TmxObjectPlan::zIndex).toList());
+    }
+
+    @Test
+    public void isometricTopdownUsesProjectedDepthRatherThanRawY() throws Exception {
+        FileHandle tmx = writeFile(Files.createTempDirectory("tmx-plan-isometric-topdown")
+                .resolve("map.tmx"), """
+                <map orientation="isometric" width="4" height="4" tilewidth="32" tileheight="16">
+                  <objectgroup name="Topdown" draworder="topdown">
+                    <object name="First" x="0" y="20"><point/></object>
+                    <object name="Second" x="10" y="0"><point/></object>
+                    <object name="Third" x="0" y="20"><point/></object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxObjectLayerPlan layer = firstObjectLayer(plan(tmx));
+
+        assertEquals(List.of(1, 0, 2), layer.objects().stream().map(TmxObjectPlan::zIndex).toList());
     }
 
     @Test

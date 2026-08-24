@@ -50,6 +50,7 @@ import org.junit.Test;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -2066,6 +2067,95 @@ public class TmxSceneImportServiceTest {
                 .properties.getString("label", null));
         assertSingleTag(world, "Polygon", "Area");
         assertSingleTag(world, "Polyline", "Route");
+    }
+
+    @Test
+    public void importSceneRoundTripsIsometricObjectLayerGeometryAndDefaultTileObjectAlignment()
+            throws Exception {
+        Harness h = harness("tmx-import-isometric-objects");
+        writePng(h.projectDir.child("terrain.png"), 64, 16);
+        FileHandle tmx = writeTmx(h.root.resolve("isometric-objects.tmx"), """
+                <map orientation="isometric" width="4" height="4" tilewidth="32" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="32" tileheight="16" tilecount="2" columns="2">
+                    <image source="terrain.png" width="64" height="16"/>
+                  </tileset>
+                  <layer name="Below" width="4" height="4"><data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0</data></layer>
+                  <group name="World" visible="0" offsetx="2" offsety="4" parallaxx="2" parallaxy="0.5">
+                    <objectgroup name="Gameplay" offsetx="1" offsety="1" parallaxx="3" parallaxy="4" draworder="topdown">
+                      <properties><property name="role" value="logic"/></properties>
+                      <object id="101" name="Point" class="Spawn" x="24" y="24"><point/>
+                        <properties><property name="target" type="object" value="102"/></properties>
+                      </object>
+                      <object id="102" name="Rectangle" class="Area" type="LegacyArea" x="24" y="24" width="16" height="16"/>
+                      <object id="103" name="Polygon" class="Zone" x="24" y="24" rotation="90"><polygon points="0,0 16,0 16,16"/></object>
+                      <object name="Polyline" x="24" y="24"><polyline points="0,0 16,0 16,16"/></object>
+                      <object name="Tile" gid="1" x="24" y="24"/>
+                    </objectgroup>
+                  </group>
+                  <layer name="Above" width="4" height="4"><data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0</data></layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Isometric Objects"));
+        World world = loadImportedWorldWithGeometry(h, result);
+
+        assertTrue(result.imported());
+        assertTrue(result.planResult().hasPlan());
+        assertEquals(List.of("Below", "World/Gameplay", "Above"), result.planResult().plan().layers()
+                .stream().map(TmxLayerPlan::name).toList());
+        TmxObjectLayerPlan layer = (TmxObjectLayerPlan) result.planResult().plan().layers().get(1);
+        assertEquals(List.of(0, 1, 2, 3, 4),
+                layer.objects().stream().map(TmxObjectPlan::zIndex).toList());
+        int objectLayer = layerEntity(world, 1, false);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(objectLayer).visible);
+        assertEquals(6f, world.getMapper(LayerParallaxComponent.class).get(objectLayer).factorX, 0.0001f);
+        assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(objectLayer).factorY, 0.0001f);
+        assertEquals("logic", world.getMapper(CustomPropertiesComponent.class).get(objectLayer)
+                .properties.getString("role", null));
+
+        int point = objectEntityByName(world, "Point");
+        TransformComponent pointTransform = world.getMapper(TransformComponent.class).get(point);
+        assertEquals(3f, pointTransform.x, 0.0001f);
+        assertEquals(27f, pointTransform.y, 0.0001f);
+        assertEquals(EntityKind.TILED_POINT, world.getMapper(EntityMetaComponent.class).get(point).kind);
+        assertEquals("Spawn", world.getMapper(PixscapeTagComponent.class).get(point).tags.first());
+
+        int rectangle = objectEntityByName(world, "Rectangle");
+        PolygonComponent rectanglePolygon = world.getMapper(PolygonComponent.class).get(rectangle);
+        assertNotNull(rectanglePolygon);
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertFalse(world.getMapper(PolylineComponent.class).has(rectangle));
+        assertArrayEquals(new float[]{0f, 8f, 16f, 16f, 32f, 8f, 16f, 0f},
+                rectanglePolygon.vertices, 0.0001f);
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(rectangle), rectanglePolygon.vertices,
+                new float[]{3f, 27f, 19f, 35f, 35f, 27f, 19f, 19f});
+        assertEquals(32f, world.getMapper(DimensionsComponent.class).get(rectangle).width, 0.0001f);
+        assertEquals(16f, world.getMapper(DimensionsComponent.class).get(rectangle).height, 0.0001f);
+        assertEquals("Area", world.getMapper(PixscapeTagComponent.class).get(rectangle).tags.first());
+        int rectangleStableId = world.getMapper(PixscapeIdentityComponent.class).get(rectangle).stableId;
+        assertTrue(rectangleStableId > 0);
+        assertEquals(rectangleStableId, world.getMapper(CustomPropertiesComponent.class).get(point)
+                .properties.getObjectStableId("target", -1));
+
+        int polygon = objectEntityByName(world, "Polygon");
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polygon),
+                world.getMapper(PolygonComponent.class).get(polygon).vertices,
+                new float[]{3f, 27f, 11f, 11f, 3f, -5f});
+        assertEquals(-MathUtils.PI / 2f,
+                world.getMapper(TransformComponent.class).get(polygon).rotationRad, 0.0001f);
+        int polyline = objectEntityByName(world, "Polyline");
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polyline),
+                world.getMapper(PolylineComponent.class).get(polyline).vertices,
+                new float[]{3f, 27f, 19f, 35f, 35f, 27f});
+
+        int tile = visualEntityByName(world, "Tile");
+        TransformComponent tileTransform = world.getMapper(TransformComponent.class).get(tile);
+        assertEquals(3f, tileTransform.x, 0.0001f);
+        assertEquals(27f, tileTransform.y, 0.0001f);
+        assertEquals(16f, tileTransform.originX, 0.0001f);
+        assertEquals(0f, tileTransform.originY, 0.0001f);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(tile).kind);
     }
 
     private static void assertWorldVertices(TransformComponent transform,

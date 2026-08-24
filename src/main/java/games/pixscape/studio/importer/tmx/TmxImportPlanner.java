@@ -52,7 +52,7 @@ public final class TmxImportPlanner {
             if (layer instanceof TmxTileLayerInfo tileLayer) {
                 layers.add(buildTileLayerPlan(i, tileLayer, tilesetByFirstGid));
             } else if (layer instanceof TmxObjectLayerInfo objectLayer) {
-                layers.add(buildObjectLayerPlan(i, objectLayer, tilesets));
+                layers.add(buildObjectLayerPlan(i, objectLayer, tilesets, report.mapInfo().orientation()));
             } else if (layer instanceof TmxImageLayerInfo imageLayer) {
                 layers.add(buildImageLayerPlan(i, imageLayer));
             }
@@ -175,7 +175,8 @@ public final class TmxImportPlanner {
 
     private TmxObjectLayerPlan buildObjectLayerPlan(int sourceLayerIndex,
                                                     TmxObjectLayerInfo layer,
-                                                    List<TmxTilesetPlan> tilesets) {
+                                                    List<TmxTilesetPlan> tilesets,
+                                                    String orientation) {
         List<TmxObjectInfo> supported = new ArrayList<>();
         Map<TmxObjectInfo, Integer> sourceOrders = new IdentityHashMap<>();
         for (int i = 0; i < layer.objects().size(); i++) {
@@ -188,8 +189,8 @@ public final class TmxImportPlanner {
         Map<TmxObjectInfo, Integer> zIndices = new IdentityHashMap<>();
         if (layer.drawOrder() == TmxObjectDrawOrder.TOP_DOWN) {
             List<TmxObjectInfo> sorted = new ArrayList<>(supported);
-            sorted.sort(Comparator
-                    .comparingDouble(TmxObjectInfo::y)
+            sorted.sort(Comparator.<TmxObjectInfo>comparingDouble(
+                            object -> topDownKey(object, orientation))
                     .thenComparingInt(sourceOrders::get));
             for (int i = 0; i < sorted.size(); i++) zIndices.put(sorted.get(i), i);
         } else {
@@ -296,6 +297,10 @@ public final class TmxImportPlanner {
                 || kind == TmxObjectKind.TILE
                 || kind == TmxObjectKind.POLYGON
                 || kind == TmxObjectKind.POLYLINE;
+    }
+
+    static float topDownKey(TmxObjectInfo object, String orientation) {
+        return "isometric".equals(orientation) ? object.x() + object.y() : object.y();
     }
 
     private static TmxTilesetPlan resolveTilesetPlan(int cleanGid, List<TmxTilesetPlan> tilesets) {
