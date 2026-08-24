@@ -2782,8 +2782,17 @@ public final class PickingSystem extends BaseSystem {
         boolean affectsY = canScaleY && resizeHandleAffectsY(handle);
         if (!affectsX && !affectsY) return;
 
-        sx = clampScaleAwayFromZero(sx, baseSx, minScale);
-        sy = clampScaleAwayFromZero(sy, baseSy, minScale);
+        if (affectsX) {
+            sx = clampScaleAwayFromZero(sx, baseSx, minScale);
+        } else {
+            sx = baseSx;
+        }
+
+        if (affectsY) {
+            sy = clampScaleAwayFromZero(sy, baseSy, minScale);
+        } else {
+            sy = baseSy;
+        }
 
         if (inputState.isCtrl()) {
             float k = uniformScaleReference(canScaleX, canScaleY, sx, sy, handle);
