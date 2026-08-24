@@ -17,6 +17,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -114,6 +115,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
+    private ComponentMapper<QuadDeformComponent> mQuadDeform;
 
     private int[] selected = new int[0];
     private final float[] tmpCorners = new float[8];
@@ -276,13 +278,21 @@ public final class GizmoSystem extends BaseSystem {
                         if (isLightEntity(e)) continue;
                         if (!isEntityVisibleForGizmo(e)) continue;
 
-                        float[] obb = computeOBBWorldCorners(e);
-                        if (obb == null) continue;
+                        boolean quadEdit = selected.length == 1
+                                && selectionService != null
+                                && selectionService.isQuadEditModeFor(e);
+                        float[] geometry = quadEdit
+                                ? computeQuadEditWorldCorners(e)
+                                : computeOBBWorldCorners(e);
+                        if (geometry == null) continue;
 
-                        GizmoDrawHelper.drawDashedObb(ctx, obb);
-
-                        if (selected.length == 1) {
-                            GizmoDrawHelper.drawHandlesObb(ctx, obb);
+                        if (quadEdit) {
+                            GizmoDrawHelper.drawQuadEditGizmo(ctx, geometry);
+                        } else {
+                            GizmoDrawHelper.drawDashedObb(ctx, geometry);
+                            if (selected.length == 1) {
+                                GizmoDrawHelper.drawHandlesObb(ctx, geometry);
+                            }
                         }
                     }
                 }
@@ -1822,6 +1832,27 @@ public final class GizmoSystem extends BaseSystem {
         OrientedBoundsHelper.toCorners(b, tmpCorners);
         applyDisplayOffset(e, tmpCorners);
         return tmpCorners;
+    }
+
+    private float[] computeQuadEditWorldCorners(int e) {
+        OrientedBoundsComponent bounds = mOBB.getSafe(e, null);
+        TransformComponent transform = mT.getSafe(e, null);
+        if (bounds == null || transform == null) return null;
+
+        computeQuadEditCorners(
+                bounds,
+                transform,
+                mQuadDeform.getSafe(e, null),
+                tmpCorners);
+        applyDisplayOffset(e, tmpCorners);
+        return tmpCorners;
+    }
+
+    static void computeQuadEditCorners(OrientedBoundsComponent bounds,
+                                       TransformComponent transform,
+                                       QuadDeformComponent deform,
+                                       float[] out8) {
+        QuadGeometryHelper.toWorldCorners(bounds, transform, deform, out8);
     }
 
     private void applyDisplayOffset(int entityId, float[] corners) {

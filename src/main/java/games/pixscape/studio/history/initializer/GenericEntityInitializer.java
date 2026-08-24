@@ -49,6 +49,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float dimWidth;
     protected float dimHeight;
 
+    // --- Quad deformation ---
+    protected boolean hasQuadDeform;
+    protected float quadBlX, quadBlY, quadBrX, quadBrY;
+    protected float quadTrX, quadTrY, quadTlX, quadTlY;
+
     // --- Render material ---
     protected boolean hasRenderMaterial;
     protected int shaderIdx;
@@ -168,6 +173,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
+        ComponentMapper<QuadDeformComponent> mQuad = world.getMapper(QuadDeformComponent.class);
         ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
         ComponentMapper<ShaderParamsComponent> mShaderParams = world.getMapper(ShaderParamsComponent.class);
@@ -213,6 +219,23 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             dimHeight = d.height;
         } else {
             hasDimensions = false;
+        }
+
+        if (mQuad.has(e)) {
+            QuadDeformComponent quad = mQuad.get(e);
+            hasQuadDeform = true;
+            quadBlX = quad.blX;
+            quadBlY = quad.blY;
+            quadBrX = quad.brX;
+            quadBrY = quad.brY;
+            quadTrX = quad.trX;
+            quadTrY = quad.trY;
+            quadTlX = quad.tlX;
+            quadTlY = quad.tlY;
+        } else {
+            hasQuadDeform = false;
+            quadBlX = quadBlY = quadBrX = quadBrY = 0f;
+            quadTrX = quadTrY = quadTlX = quadTlY = 0f;
         }
 
         // --- RenderMaterial (runtime) ---
@@ -496,6 +519,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
+        ComponentMapper<QuadDeformComponent> mQuad = world.getMapper(QuadDeformComponent.class);
         ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
         ComponentMapper<ShaderParamsComponent> mShaderParams = world.getMapper(ShaderParamsComponent.class);
@@ -541,6 +565,19 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             d.width = dimWidth;
             d.height = dimHeight;
             if (dirty != null) dirty.geometry(e, GeometryDirty.SIZE);
+        }
+
+        if (hasQuadDeform) {
+            QuadDeformComponent quad = mQuad.has(e) ? mQuad.get(e) : mQuad.create(e);
+            quad.blX = quadBlX;
+            quad.blY = quadBlY;
+            quad.brX = quadBrX;
+            quad.brY = quadBrY;
+            quad.trX = quadTrX;
+            quad.trY = quadTrY;
+            quad.tlX = quadTlX;
+            quad.tlY = quadTlY;
+            if (dirty != null) dirty.geometry(e, GeometryDirty.QUAD);
         }
 
         // --- RenderMaterial (runtime) ---
@@ -831,6 +868,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasDimensions = hasDimensions;
         out.dimensionsWidth = dimWidth;
         out.dimensionsHeight = dimHeight;
+        out.hasQuadDeform = hasQuadDeform;
+        out.quadBlX = quadBlX;
+        out.quadBlY = quadBlY;
+        out.quadBrX = quadBrX;
+        out.quadBrY = quadBrY;
+        out.quadTrX = quadTrX;
+        out.quadTrY = quadTrY;
+        out.quadTlX = quadTlX;
+        out.quadTlY = quadTlY;
         out.hasTextureRegion = hasTextureRegion;
         out.textureU1 = u1;
         out.textureV1 = v1;
@@ -975,6 +1021,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasDimensions = in.hasDimensions;
         dimWidth = in.dimensionsWidth;
         dimHeight = in.dimensionsHeight;
+        hasQuadDeform = in.hasQuadDeform;
+        quadBlX = in.quadBlX;
+        quadBlY = in.quadBlY;
+        quadBrX = in.quadBrX;
+        quadBrY = in.quadBrY;
+        quadTrX = in.quadTrX;
+        quadTrY = in.quadTrY;
+        quadTlX = in.quadTlX;
+        quadTlY = in.quadTlY;
         hasTextureRegion = in.hasTextureRegion;
         u1 = in.textureU1;
         v1 = in.textureV1;
@@ -1586,6 +1641,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasDimensions = this.hasDimensions;
         copy.dimWidth = this.dimWidth;
         copy.dimHeight = this.dimHeight;
+        copy.hasQuadDeform = this.hasQuadDeform;
+        copy.quadBlX = this.quadBlX;
+        copy.quadBlY = this.quadBlY;
+        copy.quadBrX = this.quadBrX;
+        copy.quadBrY = this.quadBrY;
+        copy.quadTrX = this.quadTrX;
+        copy.quadTrY = this.quadTrY;
+        copy.quadTlX = this.quadTlX;
+        copy.quadTlY = this.quadTlY;
 
         // --- Render material ---
         copy.hasRenderMaterial = this.hasRenderMaterial;

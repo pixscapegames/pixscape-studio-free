@@ -4,9 +4,9 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -24,6 +24,16 @@ public final class SelectionService {
     private final ComponentMapper<LayerComponent> mLayer;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
     private final ComponentMapper<VisibilityComponent> mVis;
+    private final ComponentMapper<TransformComponent> mTransform;
+    private final ComponentMapper<DimensionsComponent> mDimensions;
+    private final ComponentMapper<OrientedBoundsComponent> mBounds;
+    private final ComponentMapper<TextureRegionComponent> mTextureRegion;
+    private final ComponentMapper<RenderMaterialComponent> mRenderMaterial;
+    private final ComponentMapper<RenderRepeatComponent> mRenderRepeat;
+    private final ComponentMapper<PointLightComponent> mPointLight;
+    private final ComponentMapper<ConeLightComponent> mConeLight;
+    private final ComponentMapper<ParticleEmitterComponent> mParticle;
+    private final ComponentMapper<TiledLayerComponent> mTiledLayer;
 
     // ✅ Joint base only (no type mapper here)
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
@@ -33,6 +43,8 @@ public final class SelectionService {
 
     private final IntSet selection = new IntSet();
     private int firstSelectedEntityId = -1;
+    private EntityEditMode entityEditMode = EntityEditMode.TRANSFORM;
+    private int quadEditEntityId = -1;
 
     private int activelayerId = 0;
     private int hoveredEntityId = -1;
@@ -49,6 +61,16 @@ public final class SelectionService {
         this.mLayer = world.getMapper(LayerComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
         this.mVis = world.getMapper(VisibilityComponent.class);
+        this.mTransform = world.getMapper(TransformComponent.class);
+        this.mDimensions = world.getMapper(DimensionsComponent.class);
+        this.mBounds = world.getMapper(OrientedBoundsComponent.class);
+        this.mTextureRegion = world.getMapper(TextureRegionComponent.class);
+        this.mRenderMaterial = world.getMapper(RenderMaterialComponent.class);
+        this.mRenderRepeat = world.getMapper(RenderRepeatComponent.class);
+        this.mPointLight = world.getMapper(PointLightComponent.class);
+        this.mConeLight = world.getMapper(ConeLightComponent.class);
+        this.mParticle = world.getMapper(ParticleEmitterComponent.class);
+        this.mTiledLayer = world.getMapper(TiledLayerComponent.class);
 
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
 
@@ -126,6 +148,67 @@ public final class SelectionService {
         return hoveredEntityId;
     }
 
+    public EntityEditMode entityEditMode() {
+        validateEntityEditMode();
+        return entityEditMode;
+    }
+
+    public boolean isQuadEditMode() {
+        return entityEditMode() == EntityEditMode.QUAD;
+    }
+
+    public boolean isQuadEditModeFor(int entityId) {
+        return isQuadEditMode() && quadEditEntityId == entityId;
+    }
+
+    public boolean isOnlySelected(int entityId) {
+        return selection.size == 1 && selection.contains(entityId);
+    }
+
+    public boolean enterQuadEdit(int entityId) {
+        if (!isEntityEditingContext()
+                || !isOnlySelected(entityId)
+                || !isQuadEditEligible(entityId)) {
+            return false;
+        }
+        entityEditMode = EntityEditMode.QUAD;
+        quadEditEntityId = entityId;
+        return true;
+    }
+
+    public boolean toggleQuadEdit(int entityId) {
+        if (isQuadEditModeFor(entityId)) {
+            exitQuadEdit();
+            return true;
+        }
+        return enterQuadEdit(entityId);
+    }
+
+    public void exitQuadEdit() {
+        entityEditMode = EntityEditMode.TRANSFORM;
+        quadEditEntityId = -1;
+    }
+
+    public boolean isQuadEditEligible(int entityId) {
+        if (!isEntityActive(entityId)) return false;
+        if (mJointBase.has(entityId)
+                || mPointLight.has(entityId)
+                || mConeLight.has(entityId)
+                || mParticle.has(entityId)
+                || mTiledLayer.has(entityId)) {
+            return false;
+        }
+
+        RenderRepeatComponent repeat = mRenderRepeat.getSafe(entityId, null);
+        if (repeat != null && (repeat.repeatX || repeat.repeatY)) return false;
+
+        return mTransform.has(entityId)
+                && mDimensions.has(entityId)
+                && mBounds.has(entityId)
+                && mTextureRegion.has(entityId)
+                && mRenderMaterial.has(entityId);
+    }
+
     public void setHoveredEntityId(int entityId) {
         this.hoveredEntityId = entityId;
     }
@@ -145,6 +228,7 @@ public final class SelectionService {
     }
 
     public void clearSelection(SelectionSource source) {
+        exitQuadEdit();
         selection.clear();
         firstSelectedEntityId = -1;
         publish(source);
@@ -181,7 +265,10 @@ public final class SelectionService {
             }
         }
 
-        if (changed) publish(SelectionSource.VIEWPORT);
+        if (changed) {
+            exitQuadEdit();
+            publish(SelectionSource.VIEWPORT);
+        }
     }
 
     public void selectAdd(int e) {
@@ -191,9 +278,11 @@ public final class SelectionService {
     public void selectAdd(int e, SelectionSource source) {
         if (!isEntityActive(e)) return;
         if (!passesGatesForSelection(e, source)) return;
+        if (source == SelectionSource.TREE) exitQuadEdit();
 
         boolean wasEmpty = selection.size == 0;
         if (selection.add(e)) {
+            exitQuadEdit();
             if (wasEmpty || firstSelectedEntityId == -1) {
                 firstSelectedEntityId = e;
             }
@@ -206,6 +295,7 @@ public final class SelectionService {
     }
 
     public void selectOnly(int e, SelectionSource source) {
+        exitQuadEdit();
         if (!isEntityActive(e)) {
             clearSelection(source);
             return;
@@ -227,6 +317,7 @@ public final class SelectionService {
     public void toggle(int e, SelectionSource source) {
         if (!isEntityActive(e)) return;
         if (!passesGatesForSelection(e, source)) return;
+        exitQuadEdit();
 
         if (selection.contains(e)) {
             selection.remove(e);
@@ -263,6 +354,7 @@ public final class SelectionService {
     }
 
     public void deleteSelection() {
+        exitQuadEdit();
         for (IntSet.IntSetIterator it = selection.iterator(); it.hasNext; ) {
             world.delete(it.next());
         }
@@ -392,6 +484,20 @@ public final class SelectionService {
 
     private boolean isEntityActive(int e) {
         return e >= 0 && world.getEntityManager().isActive(e);
+    }
+
+    public boolean isEntityEditingContext() {
+        return studioEditingModeService == null
+                || studioEditingModeService.getCurrentMode() == StudioEditingMode.NORMAL;
+    }
+
+    private void validateEntityEditMode() {
+        if (entityEditMode != EntityEditMode.QUAD) return;
+        if (!isEntityEditingContext()
+                || !isOnlySelected(quadEditEntityId)
+                || !isQuadEditEligible(quadEditEntityId)) {
+            exitQuadEdit();
+        }
     }
 
     private void publish(SelectionSource source) {

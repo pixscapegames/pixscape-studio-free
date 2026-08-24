@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -89,6 +90,48 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals("run", pasted.currentClip);
         Assert.assertArrayEquals(new int[]{17, 31}, pasted.animationAssetIds.toArray());
         Assert.assertNotSame(animation.animationAssetIds, pasted.animationAssetIds);
+    }
+
+    @Test
+    public void copyPastePreservesCompleteQuadDeformation() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 7f, 9f, 0);
+        QuadDeformComponent quad = h.world.getMapper(QuadDeformComponent.class).create(source);
+        quad.blX = 1f;
+        quad.blY = 2f;
+        quad.brX = 3f;
+        quad.brY = 4f;
+        quad.trX = 5f;
+        quad.trY = 6f;
+        quad.tlX = 7f;
+        quad.tlY = 8f;
+        h.selection.selectOnly(source);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+
+        QuadDeformComponent pasted = h.world.getMapper(QuadDeformComponent.class)
+                .get(h.selection.getSelectionSnapshot().first());
+        Assert.assertNotNull(pasted);
+        Assert.assertArrayEquals(
+                new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f},
+                new float[]{
+                        pasted.blX, pasted.blY, pasted.brX, pasted.brY,
+                        pasted.trX, pasted.trY, pasted.tlX, pasted.tlY},
+                0f);
+    }
+
+    @Test
+    public void copyPasteOfUndeformedEntityDoesNotAddQuadComponent() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 7f, 9f, 0);
+        h.selection.selectOnly(source);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+
+        int pasted = h.selection.getSelectionSnapshot().first();
+        Assert.assertFalse(h.world.getMapper(QuadDeformComponent.class).has(pasted));
     }
 
     @Test

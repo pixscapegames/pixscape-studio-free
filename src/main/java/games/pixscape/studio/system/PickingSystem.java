@@ -19,6 +19,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PolygonBuildResult;
@@ -91,6 +92,7 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
+    private ComponentMapper<QuadDeformComponent> mQuadDeform;
 
     private DirtyTrackerSystem dirty;
     private GizmoSystem gizmoSystem;
@@ -104,11 +106,14 @@ public final class PickingSystem extends BaseSystem {
     private static final float LIGHT_ICON_SIZE_PX = 24f;
     private static final float LIGHT_PICK_TOL_PX = 4f;
     static final float PARTICLE_PICK_TOL_PX = 3f;
+    static final float FREE_MOVE_DRAG_THRESHOLD_PX = 4f;
+    static final float QUAD_SCALE_EPSILON = 0.01f;
 
     private boolean translatingActive = false;
     private final Vector2 oldDrag = new Vector2();
 
     private final float[] tmpCorners = new float[8];
+    private final float[] tmpBaseCorners = new float[8];
     private float[] tmpFixtureVerts = new float[8];
     private final float[] tmp2 = new float[2];
 
@@ -121,6 +126,7 @@ public final class PickingSystem extends BaseSystem {
     private Integer lastPressHit = null;
     private boolean lastPressCtrl = false;
     private boolean lastPressOnHandle = false;
+    private boolean pressHitWasAlreadySelected = false;
 
     private boolean pressStartedOnSelection = false;
     private boolean jointAnchorDragActive = false;
@@ -178,6 +184,18 @@ public final class PickingSystem extends BaseSystem {
     private int movingPolygonVertexIndex = -1;
     private float movingPolygonVertexBeforeX = 0f;
     private float movingPolygonVertexBeforeY = 0f;
+
+    // QUAD VERTEX EDITION
+    private int hoveredQuadVertexIndex = -1;
+    private boolean movingQuadVertexActive = false;
+    private boolean movingQuadVertexChanged = false;
+    private int movingQuadVertexEntityId = -1;
+    private int movingQuadVertexIndex = -1;
+    private float movingQuadPressX = 0f;
+    private float movingQuadPressY = 0f;
+    private float movingQuadStartWorldX = 0f;
+    private float movingQuadStartWorldY = 0f;
+    private EditQuadDeformCommand.Snapshot movingQuadVertexBefore = null;
 
     // POLYGON EDITION
     private final Vector2 tmpPolygonLocalPx = new Vector2();
@@ -308,6 +326,19 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
+        if (selectionService != null
+                && selectionService.isQuadEditMode()
+                && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            cancelQuadVertexMove();
+            selectionService.exitQuadEdit();
+            resetPressState();
+            return;
+        }
+
+        if (movingQuadVertexActive && !isValidQuadVertexInteraction()) {
+            cancelQuadVertexMove();
+        }
+
         if (isPointerOverUI()) {
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
@@ -383,6 +414,17 @@ public final class PickingSystem extends BaseSystem {
 
         if (leftPressed) {
             onLeftPress(mx, my, hovered, viewportSel);
+        }
+
+        if (movingQuadVertexActive) {
+            if (leftDown) {
+                onQuadVertexDragging(mx, my);
+            }
+            if (leftReleased) {
+                onQuadVertexReleased();
+                resetPressState();
+            }
+            return;
         }
 
         if (movingPolygonVertexActive) {
@@ -960,6 +1002,7 @@ public final class PickingSystem extends BaseSystem {
     private void resetPressState() {
         lastPressHit = null;
         lastPressOnHandle = false;
+        pressHitWasAlreadySelected = false;
         pressStartedOnSelection = false;
         oldDrag.setZero();
         ctx.setHovered(InputManipulationContext.Handle.NONE);
@@ -975,6 +1018,7 @@ public final class PickingSystem extends BaseSystem {
                              IntArray viewportSel) {
 
         oldDrag.set(mx, my);
+        pressHitWasAlreadySelected = false;
         pressStartedOnSelection = false;
 
         if (lassoActive && gizmoSystem != null) {
@@ -984,8 +1028,14 @@ public final class PickingSystem extends BaseSystem {
 
         boolean physicsEditMode = isExplicitPhysicsEditMode();
         boolean singleSel = viewportSel.size == 1;
-        lastPressOnHandle = (!physicsEditMode && singleSel && hovered != InputManipulationContext.Handle.NONE);
+        boolean quadVertexHandle = hoveredQuadVertexIndex >= 0;
+        lastPressOnHandle = quadVertexHandle
+                || (!physicsEditMode && singleSel && hovered != InputManipulationContext.Handle.NONE);
         lastPressCtrl = inputState.isCtrl();
+        if (quadVertexHandle && tryBeginQuadVertexMove()) {
+            lastPressHit = null;
+            return;
+        }
         if (lastPressOnHandle) {
             beginHandleDragIfPossible(mx, my, hovered, viewportSel);
             return;
@@ -1028,6 +1078,11 @@ public final class PickingSystem extends BaseSystem {
                 lastPressHit = physicsEditMode ? null : findTopmostObbHit(mx, my);
             }
         }
+
+        pressHitWasAlreadySelected = lastPressHit != null
+                && lastPressHit >= 0
+                && viewportSel.size == 1
+                && viewportSel.get(0) == lastPressHit;
 
         if (!lastPressCtrl) {
             if (lastPressHit != null && lastPressHit >= 0) {
@@ -1117,6 +1172,11 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private InputManipulationContext.Handle resolveHoveredHandle(float mx, float my, IntArray viewportSel) {
+        hoveredQuadVertexIndex = detectSelectedQuadVertexHover(mx, my, viewportSel);
+        if (hoveredQuadVertexIndex >= 0) {
+            clearHoveredPolygonVertex();
+            return InputManipulationContext.Handle.NONE;
+        }
         clearHoveredPolygonVertex();
         hoveredPolygonVertexIndex = detectSelectedPolygonVertexHover(mx, my);
         if (hoveredPolygonVertexIndex >= 0) {
@@ -1127,7 +1187,11 @@ public final class PickingSystem extends BaseSystem {
             if (box != InputManipulationContext.Handle.NONE) return box;
             return detectSelectedCircleRadiusHandleHover(mx, my);
         }
-        if (viewportSel.size == 1) {
+        if (shouldDetectEntityTransformHandles(
+                viewportSel.size,
+                selectionService != null
+                        && viewportSel.size == 1
+                        && selectionService.isQuadEditModeFor(viewportSel.get(0)))) {
             return detectHandleHover(viewportSel.get(0), mx, my);
         }
         return InputManipulationContext.Handle.NONE;
@@ -1653,6 +1717,277 @@ public final class PickingSystem extends BaseSystem {
 
     private void clearHoveredPolygonVertex() {
         hoveredPolygonVertexIndex = -1;
+    }
+
+    private int detectSelectedQuadVertexHover(float mx, float my, IntArray viewportSel) {
+        if (selectionService == null || viewportSel == null || viewportSel.size != 1) return -1;
+        int entityId = viewportSel.get(0);
+        if (!selectionService.isQuadEditModeFor(entityId)
+                || !selectionService.isQuadEditEligible(entityId)) return -1;
+
+        float[] corners = computeQuadWorldCorners(entityId, true);
+        if (corners == null) return -1;
+        return detectQuadVertexHover(
+                corners,
+                mx,
+                my,
+                HandleHelper.worldUnitsPerPixel(worldCam));
+    }
+
+    static int detectQuadVertexHover(float[] corners,
+                                     float mouseX,
+                                     float mouseY,
+                                     float worldUnitsPerPixel) {
+        if (corners == null || corners.length < 8) return -1;
+        float radius = (GizmoDrawHelper.QUAD_HANDLE_DIAMETER_PX * 0.5f + HOVER_TOLER_PX)
+                * worldUnitsPerPixel;
+        for (int vertex = 0; vertex < 4; vertex++) {
+            int index = vertex * 2;
+            if (HandleHelper.insideCircle(
+                    mouseX, mouseY, corners[index], corners[index + 1], radius)) {
+                return vertex;
+            }
+        }
+        return -1;
+    }
+
+    private boolean tryBeginQuadVertexMove() {
+        if (selectionService == null) return false;
+        int entityId = selectionService.getFirstSelectedEntityId();
+        if (!shouldStartQuadVertexMove(
+                selectionService.getSelectionSet().size,
+                selectionService.isQuadEditModeFor(entityId),
+                selectionService.isQuadEditEligible(entityId),
+                hoveredQuadVertexIndex)) return false;
+
+        float[] corners = computeQuadWorldCorners(entityId, true);
+        if (corners == null) return false;
+        int corner = hoveredQuadVertexIndex * 2;
+
+        movingQuadVertexActive = true;
+        movingQuadVertexChanged = false;
+        movingQuadVertexEntityId = entityId;
+        movingQuadVertexIndex = hoveredQuadVertexIndex;
+        movingQuadPressX = tmpMouseWorld.x;
+        movingQuadPressY = tmpMouseWorld.y;
+        movingQuadStartWorldX = corners[corner];
+        movingQuadStartWorldY = corners[corner + 1];
+        movingQuadVertexBefore = EditQuadDeformCommand.Snapshot.capture(
+                mQuadDeform.getSafe(entityId, null));
+        return true;
+    }
+
+    static boolean shouldStartQuadVertexMove(int selectionSize,
+                                             boolean quadModeForEntity,
+                                             boolean eligible,
+                                             int hoveredVertexIndex) {
+        return selectionSize == 1
+                && quadModeForEntity
+                && eligible
+                && hoveredVertexIndex >= 0
+                && hoveredVertexIndex < 4;
+    }
+
+    private void onQuadVertexDragging(float mouseX, float mouseY) {
+        if (!isValidQuadVertexInteraction()) {
+            cancelQuadVertexMove();
+            return;
+        }
+
+        OrientedBoundsComponent bounds = mOBB.getSafe(movingQuadVertexEntityId, null);
+        TransformComponent transform = mT.getSafe(movingQuadVertexEntityId, null);
+        if (bounds == null || transform == null) {
+            cancelQuadVertexMove();
+            return;
+        }
+
+        tmp2Vec.set(
+                movingQuadStartWorldX + mouseX - movingQuadPressX,
+                movingQuadStartWorldY + mouseY - movingQuadPressY);
+        removeDisplayOffset(movingQuadVertexEntityId, tmp2Vec);
+        OrientedBoundsHelper.toCorners(bounds, tmpBaseCorners);
+        int corner = movingQuadVertexIndex * 2;
+        if (!worldPointToLocalQuadOffset(
+                bounds,
+                transform,
+                tmpBaseCorners[corner],
+                tmpBaseCorners[corner + 1],
+                tmp2Vec.x,
+                tmp2Vec.y,
+                tmp2)) {
+            cancelQuadVertexMove();
+            return;
+        }
+
+        if (!applyQuadVertexChange(
+                mQuadDeform,
+                movingQuadVertexEntityId,
+                movingQuadVertexIndex,
+                tmp2[0],
+                tmp2[1])) return;
+        movingQuadVertexChanged = true;
+        markQuadDirty(movingQuadVertexEntityId);
+    }
+
+    static boolean applyQuadVertexChange(ComponentMapper<QuadDeformComponent> mapper,
+                                         int entityId,
+                                         int vertexIndex,
+                                         float nextX,
+                                         float nextY) {
+        if (mapper == null || vertexIndex < 0 || vertexIndex > 3) return false;
+        QuadDeformComponent component = mapper.getSafe(entityId, null);
+        float currentX = quadVertexX(component, vertexIndex);
+        float currentY = quadVertexY(component, vertexIndex);
+        if (!hasMeaningfulQuadVertexChange(currentX, currentY, nextX, nextY)) return false;
+        if (component == null) component = mapper.create(entityId);
+        setQuadVertex(component, vertexIndex, nextX, nextY);
+        return true;
+    }
+
+    static boolean hasMeaningfulQuadVertexChange(float currentX,
+                                                 float currentY,
+                                                 float nextX,
+                                                 float nextY) {
+        return Math.abs(nextX - currentX) > EditQuadDeformCommand.ZERO_EPSILON
+                || Math.abs(nextY - currentY) > EditQuadDeformCommand.ZERO_EPSILON;
+    }
+
+    static boolean worldPointToLocalQuadOffset(OrientedBoundsComponent bounds,
+                                               TransformComponent transform,
+                                               float baseWorldX,
+                                               float baseWorldY,
+                                               float targetWorldX,
+                                               float targetWorldY,
+                                               float[] out2) {
+        if (bounds == null || transform == null || out2 == null || out2.length < 2) return false;
+        if (Math.abs(transform.scaleX) < QUAD_SCALE_EPSILON
+                || Math.abs(transform.scaleY) < QUAD_SCALE_EPSILON) return false;
+        float dx = targetWorldX - baseWorldX;
+        float dy = targetWorldY - baseWorldY;
+        out2[0] = (dx * bounds.ux + dy * bounds.uy) / transform.scaleX;
+        out2[1] = (dx * bounds.vx + dy * bounds.vy) / transform.scaleY;
+        return true;
+    }
+
+    static void setQuadVertex(QuadDeformComponent component,
+                              int vertexIndex,
+                              float localX,
+                              float localY) {
+        if (component == null) return;
+        switch (vertexIndex) {
+            case 0 -> {
+                component.blX = localX;
+                component.blY = localY;
+            }
+            case 1 -> {
+                component.brX = localX;
+                component.brY = localY;
+            }
+            case 2 -> {
+                component.trX = localX;
+                component.trY = localY;
+            }
+            case 3 -> {
+                component.tlX = localX;
+                component.tlY = localY;
+            }
+            default -> {
+            }
+        }
+    }
+
+    private static float quadVertexX(QuadDeformComponent component, int vertexIndex) {
+        if (component == null) return 0f;
+        return switch (vertexIndex) {
+            case 0 -> component.blX;
+            case 1 -> component.brX;
+            case 2 -> component.trX;
+            case 3 -> component.tlX;
+            default -> 0f;
+        };
+    }
+
+    private static float quadVertexY(QuadDeformComponent component, int vertexIndex) {
+        if (component == null) return 0f;
+        return switch (vertexIndex) {
+            case 0 -> component.blY;
+            case 1 -> component.brY;
+            case 2 -> component.trY;
+            case 3 -> component.tlY;
+            default -> 0f;
+        };
+    }
+
+    private void onQuadVertexReleased() {
+        if (!movingQuadVertexActive) return;
+        if (!isValidQuadVertexInteraction()) {
+            cancelQuadVertexMove();
+            return;
+        }
+
+        int entityId = movingQuadVertexEntityId;
+        if (movingQuadVertexChanged) {
+            QuadDeformComponent component = mQuadDeform.getSafe(entityId, null);
+            EditQuadDeformCommand.Snapshot after =
+                    EditQuadDeformCommand.Snapshot.normalized(component);
+            if (!after.present && component != null) {
+                mQuadDeform.remove(entityId);
+                markQuadDirty(entityId);
+            }
+            EditQuadDeformCommand command = new EditQuadDeformCommand(
+                    world, historyIds, entityId, movingQuadVertexBefore, after);
+            if (!command.isNoop()) historyManager.execute(command);
+        }
+        clearQuadVertexMoveState();
+    }
+
+    private boolean isValidQuadVertexInteraction() {
+        return movingQuadVertexActive
+                && movingQuadVertexEntityId >= 0
+                && movingQuadVertexIndex >= 0
+                && movingQuadVertexIndex < 4
+                && world.getEntityManager().isActive(movingQuadVertexEntityId)
+                && selectionService != null
+                && selectionService.isOnlySelected(movingQuadVertexEntityId)
+                && selectionService.isQuadEditModeFor(movingQuadVertexEntityId)
+                && selectionService.isQuadEditEligible(movingQuadVertexEntityId);
+    }
+
+    private void cancelQuadVertexMove() {
+        if (!movingQuadVertexActive) return;
+        int entityId = movingQuadVertexEntityId;
+        if (world.getEntityManager().isActive(entityId) && movingQuadVertexBefore != null) {
+            restoreQuadSnapshot(entityId, movingQuadVertexBefore);
+        }
+        clearQuadVertexMoveState();
+    }
+
+    private void restoreQuadSnapshot(int entityId, EditQuadDeformCommand.Snapshot snapshot) {
+        if (!snapshot.present) {
+            if (mQuadDeform.has(entityId)) mQuadDeform.remove(entityId);
+        } else {
+            QuadDeformComponent component = mQuadDeform.has(entityId)
+                    ? mQuadDeform.get(entityId)
+                    : mQuadDeform.create(entityId);
+            snapshot.applyTo(component);
+        }
+        markQuadDirty(entityId);
+    }
+
+    private void clearQuadVertexMoveState() {
+        movingQuadVertexActive = false;
+        movingQuadVertexChanged = false;
+        movingQuadVertexEntityId = -1;
+        movingQuadVertexIndex = -1;
+        movingQuadPressX = 0f;
+        movingQuadPressY = 0f;
+        movingQuadStartWorldX = 0f;
+        movingQuadStartWorldY = 0f;
+        movingQuadVertexBefore = null;
+    }
+
+    private void markQuadDirty(int entityId) {
+        if (dirty != null) dirty.geometry(entityId, GeometryDirty.QUAD);
     }
 
     private int detectSelectedPolygonVertexHover(float mx, float my) {
@@ -2323,8 +2658,40 @@ public final class PickingSystem extends BaseSystem {
             if (lastPressCtrl) {
                 activateLayerForEntity(lastPressHit);
                 selectionService.toggle(lastPressHit);
+                return;
+            }
+
+            if (shouldToggleQuadEdit(
+                    false,
+                    lastPressOnHandle,
+                    false,
+                    pressHitWasAlreadySelected,
+                    selectionService.isOnlySelected(lastPressHit),
+                    selectionService.isQuadEditEligible(lastPressHit),
+                    selectionService.isEntityEditingContext())) {
+                selectionService.toggleQuadEdit(lastPressHit);
             }
         }
+    }
+
+    static boolean shouldToggleQuadEdit(boolean moved,
+                                        boolean pressedHandle,
+                                        boolean ctrl,
+                                        boolean hitWasAlreadySelected,
+                                        boolean sameSingleSelection,
+                                        boolean eligible,
+                                        boolean entityEditingContext) {
+        return !moved
+                && !pressedHandle
+                && !ctrl
+                && hitWasAlreadySelected
+                && sameSingleSelection
+                && eligible
+                && entityEditingContext;
+    }
+
+    static boolean shouldDetectEntityTransformHandles(int selectionSize, boolean quadEditMode) {
+        return selectionSize == 1 && !quadEditMode;
     }
 
     private void onGizmoDragging(float mx, float my, int e0, boolean leftReleased) {
@@ -2446,7 +2813,6 @@ public final class PickingSystem extends BaseSystem {
     private boolean onFreeMoveDragging(float mx, float my, IntArray viewportSel) {
         if (isExplicitPhysicsEditMode()) return false;
         if (viewportSel.size == 0) return false;
-        if (oldDrag.isZero()) return false;
         if (!pressStartedOnSelection) return false;
         if (lastPressOnHandle) return false;
         if (lassoActive) return false;
@@ -2454,9 +2820,13 @@ public final class PickingSystem extends BaseSystem {
         float dx = mx - oldDrag.x;
         float dy = my - oldDrag.y;
 
-        if (dx == 0f && dy == 0f) return false;
-
         if (!translatingActive) {
+            if (!reachedFreeMoveThreshold(
+                    dx,
+                    dy,
+                    HandleHelper.worldUnitsPerPixel(worldCam))) {
+                return false;
+            }
             translatingActive = true;
             gizmoHistoryIds.clear();
             gizmoBefore.clear();
@@ -2488,6 +2858,13 @@ public final class PickingSystem extends BaseSystem {
 
         oldDrag.set(mx, my);
         return false;
+    }
+
+    static boolean reachedFreeMoveThreshold(float dx,
+                                            float dy,
+                                            float worldUnitsPerPixel) {
+        float thresholdWorld = FREE_MOVE_DRAG_THRESHOLD_PX * worldUnitsPerPixel;
+        return dx * dx + dy * dy >= thresholdWorld * thresholdWorld;
     }
 
     private boolean onFreeMoveReleased(IntArray viewportSel) {
@@ -2923,16 +3300,25 @@ public final class PickingSystem extends BaseSystem {
             OrientedBoundsComponent b = mOBB.get(e);
             if (b == null) continue;
 
-            boolean authoredGeometry = mPolygon.has(e) || mPolyline.has(e);
-            if (authoredGeometry) {
-                tmp2Vec.set(0f, 0f);
-                if (displayOffsetResolver != null) displayOffsetResolver.resolve(e, tmp2Vec);
-                if (!isAuthoredObbHit(b, mouseX, mouseY, tolWorld, tmp2Vec.x, tmp2Vec.y)) continue;
+            QuadDeformComponent deform = mQuadDeform.getSafe(e, null);
+            if (deform != null) {
+                float[] quad = computeQuadWorldCorners(e, true);
+                if (quad == null || !isRenderedQuadHit(
+                        quad, mouseX, mouseY, tolWorld)) continue;
             } else {
-                float[] obb = computeOBBWorldCorners(e);
-                if (obb == null || !isDisplayedObbHit(obb, mouseX, mouseY, tolWorld)) continue;
+                boolean authoredGeometry = mPolygon.has(e) || mPolyline.has(e);
+                if (authoredGeometry) {
+                    tmp2Vec.set(0f, 0f);
+                    if (displayOffsetResolver != null) displayOffsetResolver.resolve(e, tmp2Vec);
+                    if (!isAuthoredObbHit(
+                            b, mouseX, mouseY, tolWorld, tmp2Vec.x, tmp2Vec.y)) continue;
+                } else {
+                    float[] obb = computeOBBWorldCorners(e);
+                    if (obb == null || !isDisplayedObbHit(
+                            obb, mouseX, mouseY, tolWorld)) continue;
+                }
+                if (!isPreciseAuthoredGeometryHit(e, mouseX, mouseY, tolWorld)) continue;
             }
-            if (!isPreciseAuthoredGeometryHit(e, mouseX, mouseY, tolWorld)) continue;
 
             int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
@@ -3023,6 +3409,44 @@ public final class PickingSystem extends BaseSystem {
                 mouseX - displayOffsetX,
                 mouseY - displayOffsetY,
                 toleranceWorld);
+    }
+
+    static boolean isRenderedQuadHit(float[] quad,
+                                     float mouseX,
+                                     float mouseY,
+                                     float toleranceWorld) {
+        if (quad == null || quad.length < 8) return false;
+        if (isPointInTriangle(mouseX, mouseY,
+                quad[0], quad[1], quad[6], quad[7], quad[4], quad[5])
+                || isPointInTriangle(mouseX, mouseY,
+                quad[4], quad[5], quad[2], quad[3], quad[0], quad[1])) {
+            return true;
+        }
+        float tolerance2 = toleranceWorld * toleranceWorld;
+        return pointSegmentDst2(mouseX, mouseY, quad[0], quad[1], quad[2], quad[3]) <= tolerance2
+                || pointSegmentDst2(mouseX, mouseY, quad[2], quad[3], quad[4], quad[5]) <= tolerance2
+                || pointSegmentDst2(mouseX, mouseY, quad[4], quad[5], quad[6], quad[7]) <= tolerance2
+                || pointSegmentDst2(mouseX, mouseY, quad[6], quad[7], quad[0], quad[1]) <= tolerance2;
+    }
+
+    private static boolean isPointInTriangle(float px, float py,
+                                             float ax, float ay,
+                                             float bx, float by,
+                                             float cx, float cy) {
+        float area = triangleSign(ax, ay, bx, by, cx, cy);
+        if (Math.abs(area) <= 1e-12f) return false;
+        float d1 = triangleSign(px, py, ax, ay, bx, by);
+        float d2 = triangleSign(px, py, bx, by, cx, cy);
+        float d3 = triangleSign(px, py, cx, cy, ax, ay);
+        boolean hasNegative = d1 < 0f || d2 < 0f || d3 < 0f;
+        boolean hasPositive = d1 > 0f || d2 > 0f || d3 > 0f;
+        return !(hasNegative && hasPositive);
+    }
+
+    private static float triangleSign(float px, float py,
+                                      float ax, float ay,
+                                      float bx, float by) {
+        return (px - bx) * (ay - by) - (ax - bx) * (py - by);
     }
 
     static boolean isPolygonHit(float[] vertices,
@@ -3477,6 +3901,19 @@ public final class PickingSystem extends BaseSystem {
         return tmpCorners;
     }
 
+    private float[] computeQuadWorldCorners(int entityId, boolean applyDisplayOffset) {
+        OrientedBoundsComponent bounds = mOBB.getSafe(entityId, null);
+        TransformComponent transform = mT.getSafe(entityId, null);
+        if (bounds == null || transform == null) return null;
+        QuadGeometryHelper.toWorldCorners(
+                bounds,
+                transform,
+                mQuadDeform.getSafe(entityId, null),
+                tmpCorners);
+        if (applyDisplayOffset) applyDisplayOffset(entityId, tmpCorners);
+        return tmpCorners;
+    }
+
     private void applyDisplayOffset(int entityId, float[] corners) {
         applyDisplayOffset(entityId, corners, corners != null ? corners.length / 2 : 0);
     }
@@ -3494,7 +3931,7 @@ public final class PickingSystem extends BaseSystem {
             gizmoSystem.clearCursor();
         }
 
-        if (movingPolygonVertexActive) {
+        if (movingPolygonVertexActive || movingQuadVertexActive) {
             if (!osCursorHidden) {
                 setCursor(Cursor.SystemCursor.None);
                 osCursorHidden = true;
@@ -3530,7 +3967,7 @@ public final class PickingSystem extends BaseSystem {
 
         boolean hasCustomCursor = false;
 
-        if (hoveredPolygonVertexIndex >= 0) {
+        if (hoveredQuadVertexIndex >= 0 || hoveredPolygonVertexIndex >= 0) {
             if (gizmoSystem != null) {
                 gizmoSystem.setCursor(
                         CursorKind.MOVE,

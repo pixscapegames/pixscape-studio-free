@@ -21,6 +21,7 @@ public final class GizmoDrawHelper {
     public static final float SHAPE_VERTEX_HANDLE_SIZE_PX = 8f;
     public static final float ROTATE_OFFSET_PX = 22f;
     public static final float ROTATE_RADIUS_PX = 6f;
+    public static final float QUAD_HANDLE_DIAMETER_PX = 8f;
 
     private static final float[] tmp2 = new float[2];
     private static final float[] tmpCell = new float[8];
@@ -74,6 +75,31 @@ public final class GizmoDrawHelper {
         drawHandleSquare(ctx, HandleLayout.midWX(obb), HandleLayout.midWY(obb));
 
         drawRotateHandle(ctx, obb);
+    }
+
+    /** Draws BL, BR, TR and TL quad edges with one round handle per corner. */
+    public static void drawQuadEditGizmo(StudioDrawContext ctx, float[] quad) {
+        float lineWorld = thicknessPx * ctx.wpp();
+        ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
+        ctx.drawer.line(quad[0], quad[1], quad[2], quad[3], lineWorld);
+        ctx.drawer.line(quad[2], quad[3], quad[4], quad[5], lineWorld);
+        ctx.drawer.line(quad[4], quad[5], quad[6], quad[7], lineWorld);
+        ctx.drawer.line(quad[6], quad[7], quad[0], quad[1], lineWorld);
+
+        drawQuadHandle(ctx, quad[0], quad[1]);
+        drawQuadHandle(ctx, quad[2], quad[3]);
+        drawQuadHandle(ctx, quad[4], quad[5]);
+        drawQuadHandle(ctx, quad[6], quad[7]);
+    }
+
+    private static void drawQuadHandle(StudioDrawContext ctx, float cx, float cy) {
+        float borderWorld = ctx.wpp();
+        float radiusWorld = QUAD_HANDLE_DIAMETER_PX * 0.5f * borderWorld;
+
+        ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
+        ctx.drawer.filledCircle(cx, cy, radiusWorld);
+        ctx.drawer.setColor(0f, 0f, 0f, 1f);
+        ctx.drawer.circle(cx, cy, radiusWorld, borderWorld);
     }
 
     public static void drawHandleSquare(StudioDrawContext ctx, float cx, float cy) {
