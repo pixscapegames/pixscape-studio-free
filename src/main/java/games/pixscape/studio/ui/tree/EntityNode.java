@@ -15,6 +15,7 @@ public class EntityNode extends VisTree.Node {
         LAYER,
         ENTITY,
         BODY,
+        JOINT,
         TILED_MAP,
         SPATIAL_BLOCKS,
         PREFAB_INSTANCE,
@@ -36,13 +37,14 @@ public class EntityNode extends VisTree.Node {
     private final int prefabInstanceId;
     private final String prefabId;
     private final IntArray prefabMemberIds;
+    private final IntArray prefabZOrderMemberIds;
 
     public EntityNode(String name, Drawable icon, int entityId, boolean selectable) {
         this(name, icon, entityId, selectable, NodeKind.ENTITY);
     }
 
     public EntityNode(String name, Drawable icon, int entityId, boolean selectable, NodeKind kind) {
-        this(name, icon, entityId, selectable, kind, -1, "", null);
+        this(name, icon, entityId, selectable, kind, -1, "", null, null);
     }
 
     public static EntityNode prefabInstance(
@@ -62,7 +64,30 @@ public class EntityNode extends VisTree.Node {
                 NodeKind.PREFAB_INSTANCE,
                 prefabInstanceId,
                 prefabId,
+                memberEntityIds,
                 memberEntityIds);
+    }
+
+    public static EntityNode prefabInstance(
+            String prefabId,
+            Drawable icon,
+            int prefabInstanceId,
+            IntArray allMemberEntityIds,
+            IntArray zOrderMemberEntityIds,
+            boolean selectable) {
+        if (prefabInstanceId <= 0) {
+            throw new IllegalArgumentException("Prefab instance ID must be positive.");
+        }
+        return new EntityNode(
+                prefabId,
+                icon,
+                -1,
+                selectable,
+                NodeKind.PREFAB_INSTANCE,
+                prefabInstanceId,
+                prefabId,
+                allMemberEntityIds,
+                zOrderMemberEntityIds);
     }
 
     private EntityNode(
@@ -73,7 +98,8 @@ public class EntityNode extends VisTree.Node {
             NodeKind kind,
             int prefabInstanceId,
             String prefabId,
-            IntArray memberEntityIds) {
+            IntArray memberEntityIds,
+            IntArray zOrderMemberEntityIds) {
         super();
 
         this.entityId = entityId;
@@ -83,6 +109,9 @@ public class EntityNode extends VisTree.Node {
         this.prefabId = prefabId != null ? prefabId : "";
         this.prefabMemberIds = memberEntityIds != null
                 ? new IntArray(memberEntityIds)
+                : new IntArray();
+        this.prefabZOrderMemberIds = zOrderMemberEntityIds != null
+                ? new IntArray(zOrderMemberEntityIds)
                 : new IntArray();
 
         VisTable row = new VisTable();
@@ -122,6 +151,10 @@ public class EntityNode extends VisTree.Node {
         return kind == NodeKind.BODY;
     }
 
+    public boolean isJointNode() {
+        return kind == NodeKind.JOINT;
+    }
+
     public boolean isSpatialBlocksNode() {
         return kind == NodeKind.SPATIAL_BLOCKS;
     }
@@ -140,6 +173,10 @@ public class EntityNode extends VisTree.Node {
 
     public IntArray getPrefabMemberIds() {
         return new IntArray(prefabMemberIds);
+    }
+
+    public IntArray getPrefabZOrderMemberIds() {
+        return new IntArray(prefabZOrderMemberIds);
     }
 
     public boolean isInfoNode() {

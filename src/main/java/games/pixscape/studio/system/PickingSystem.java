@@ -1069,7 +1069,12 @@ public final class PickingSystem extends BaseSystem {
         boolean fixtureHit = false;
 
         if (specialHit != null && specialHit >= 0) {
-            physicsSelectionService.clearSelectionOnly();
+            PhysicsJointComponent joint = mJointBase.getSafe(specialHit, null);
+            if (joint != null) {
+                physicsSelectionService.setSelectedJoint(joint.aEid, specialHit);
+            } else {
+                physicsSelectionService.clearSelectionOnly();
+            }
             lastPressHit = specialHit;
         } else {
             fixtureHit = tryPickVisibleFixture(mx, my);
