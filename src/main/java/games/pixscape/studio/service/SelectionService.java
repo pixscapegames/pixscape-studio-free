@@ -310,6 +310,33 @@ public final class SelectionService {
         publish(source);
     }
 
+    /** Replaces the entity selection atomically and publishes only the final snapshot. */
+    public void replaceSelection(IntArray entityIds, SelectionSource source) {
+        exitQuadEdit();
+        IntArray accepted = new IntArray();
+        IntSet unique = new IntSet();
+        if (entityIds != null) {
+            for (int i = 0; i < entityIds.size; i++) {
+                int entityId = entityIds.get(i);
+                if (!isEntityActive(entityId)
+                        || !passesGatesForSelection(entityId, source)
+                        || !unique.add(entityId)) {
+                    continue;
+                }
+                accepted.add(entityId);
+            }
+        }
+
+        selection.clear();
+        firstSelectedEntityId = -1;
+        for (int i = 0; i < accepted.size; i++) {
+            int entityId = accepted.get(i);
+            selection.add(entityId);
+            if (firstSelectedEntityId < 0) firstSelectedEntityId = entityId;
+        }
+        publish(source, accepted);
+    }
+
     public void toggle(int e) {
         toggle(e, SelectionSource.VIEWPORT);
     }
@@ -501,9 +528,13 @@ public final class SelectionService {
     }
 
     private void publish(SelectionSource source) {
+        publish(source, getSelectionSnapshot());
+    }
+
+    private void publish(SelectionSource source, IntArray snapshot) {
         EventFlow.i().publish(
                 new EventFlow.SelectionChanged(
-                        getSelectionSnapshot(),
+                        snapshot != null ? new IntArray(snapshot) : new IntArray(),
                         getValidFirstSelectedEntityId(),
                         source,
                         MY_TAG

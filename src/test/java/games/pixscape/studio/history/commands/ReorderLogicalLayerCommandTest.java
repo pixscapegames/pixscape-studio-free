@@ -10,9 +10,13 @@ import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -226,6 +230,49 @@ public class ReorderLogicalLayerCommandTest {
             for (int i = 0; i < restored.size; i++) h.assertZ(restored.get(i), 12);
             h.assertZ(standalone, 12);
         } finally {
+            h.dispose();
+        }
+    }
+
+    @Test
+    public void zOrderEventPublishesOnceOnExecuteUndoRedoAndNotForNoopOrRejected() {
+        EventFlow.i().flush();
+        Harness h = new Harness();
+        List<EventFlow.EntityZOrderChanged> events = new ArrayList<>();
+        EventFlow.Listener<EventFlow.EntityZOrderChanged> listener = events::add;
+        EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, listener);
+        try {
+            int top = h.entity(1);
+            int bottom = h.entity(0);
+            h.process();
+
+            h.execute(h.order().moveEntity(top, 1));
+            EventFlow.i().flush();
+            assertEquals(1, events.size());
+            assertEquals(0, events.get(0).layerIndex());
+
+            h.history.undo();
+            EventFlow.i().flush();
+            assertEquals(2, events.size());
+
+            h.history.redo();
+            EventFlow.i().flush();
+            assertEquals(3, events.size());
+
+            h.history.execute(h.command(h.order().flattenedTopToBottom()));
+            EventFlow.i().flush();
+            assertEquals(3, events.size());
+
+            h.layerMeta.locked = true;
+            h.history.execute(h.command(h.order().moveEntity(bottom, 1)));
+            EventFlow.i().flush();
+            assertEquals(3, events.size());
+            assertEquals(1, h.history.getCursor());
+            h.assertZ(bottom, 1);
+            h.assertZ(top, 0);
+        } finally {
+            EventFlow.i().unsubscribe(EventFlow.EntityZOrderChanged.class, listener);
+            EventFlow.i().flush();
             h.dispose();
         }
     }

@@ -69,6 +69,12 @@ public class ItemTreePanel extends DockablePanel {
     private int explicitTiledMapLayerEid = -1;
     private int explicitPrefabInstanceId = -1;
 
+    enum ExplicitPrefabSyncResult {
+        SELECTED,
+        PENDING_NODE,
+        INVALID
+    }
+
     private final VisScrollPane scroller;
 
     private PropertiesPanel propertiesPanel;
@@ -153,7 +159,10 @@ public class ItemTreePanel extends DockablePanel {
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
-            syncTreeSelectionFromModel(evt.ids(), applyFocus);
+            IntArray snapshot = explicitPrefabInstanceId >= 0
+                    ? selectionService.getSelectionSnapshot()
+                    : evt.ids();
+            syncTreeSelectionFromModel(snapshot, applyFocus);
         });
 
         EventFlow.i().subscribe(EventFlow.LayerNameChanged.class, evt -> {
@@ -167,6 +176,7 @@ public class ItemTreePanel extends DockablePanel {
         });
 
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());
+        EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.LayerLockChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> markDirty());
@@ -266,7 +276,7 @@ public class ItemTreePanel extends DockablePanel {
     private void executeLogicalReorder(int layerIndex, IntArray desiredOrder) {
         if (desiredOrder == null) return;
         ReorderLogicalLayerCommand command = new ReorderLogicalLayerCommand(
-                world, historyManager.historyIds(), layerIndex, desiredOrder, this::markDirty);
+                world, historyManager.historyIds(), layerIndex, desiredOrder);
         if (command.isNoop()) return;
         historyManager.execute(command);
     }
@@ -397,13 +407,20 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
+        selectPrefabInstance(prefabNode.getPrefabInstanceId(), prefabNode.getPrefabMemberIds());
+    }
+
+    public void selectPrefabInstance(int prefabInstanceId, IntArray members) {
+        if (prefabInstanceId < 0 || members == null || members.size == 0) {
+            explicitPrefabInstanceId = -1;
+            return;
+        }
+
         explicitTiledMapLayerEid = -1;
         if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
         exitExplicitPhysicsEditMode();
         exitExplicitSpatialBlockMode();
 
-        IntArray members = prefabNode.getPrefabMemberIds();
-        selectionService.clearSelection(SelectionService.SelectionSource.TREE);
         boolean layerActivated = false;
         for (int i = 0; i < members.size; i++) {
             int member = members.get(i);
@@ -412,10 +429,18 @@ public class ItemTreePanel extends DockablePanel {
                 activateLayerForEntity(member, SelectionService.SelectionSource.TREE);
                 layerActivated = true;
             }
-            selectionService.selectFromTree(member);
         }
-        explicitPrefabInstanceId = layerActivated ? prefabNode.getPrefabInstanceId() : -1;
-        if (explicitPrefabInstanceId >= 0) forceSingleTreeSelection(prefabNode);
+        selectionService.replaceSelection(members, SelectionService.SelectionSource.TREE);
+        explicitPrefabInstanceId = layerActivated ? prefabInstanceId : -1;
+        if (explicitPrefabInstanceId < 0) return;
+
+        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
+        if (prefabNode == null) {
+            markDirty();
+        } else if (selectionExactlyMatchesPrefab(
+                selectionService.getSelectionSnapshot(), prefabNode)) {
+            forceSingleTreeSelection(prefabNode);
+        }
     }
 
     private EntityNode findFirstPrefabInstanceNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
@@ -660,12 +685,15 @@ public class ItemTreePanel extends DockablePanel {
         tree.getSelection().clear();
 
         if (explicitPrefabInstanceId >= 0) {
-            EntityNode prefabNode = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
-            if (prefabNode != null
-                    && prefabNode.isSelectable()
-                    && selectionExactlyMatchesPrefab(selectionSnapshot, prefabNode)) {
-                tree.getSelection().add(prefabNode);
-                if (applyFocus) focusNode(prefabNode);
+            ExplicitPrefabSyncResult result = syncExplicitPrefabSelection(
+                    world,
+                    mPrefabInstance,
+                    tree,
+                    explicitPrefabInstanceId,
+                    selectionSnapshot);
+            if (result != ExplicitPrefabSyncResult.INVALID) {
+                EntityNode prefabNode = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
+                if (applyFocus && prefabNode != null) focusNode(prefabNode);
                 tree.getSelection().setProgrammaticChangeEvents(true);
                 return;
             }
@@ -741,6 +769,15 @@ public class ItemTreePanel extends DockablePanel {
 
     private boolean selectionExactlyMatchesPrefab(
             IntArray selectionSnapshot, EntityNode prefabNode) {
+        return selectionExactlyMatchesPrefab(
+                world, mPrefabInstance, selectionSnapshot, prefabNode);
+    }
+
+    static boolean selectionExactlyMatchesPrefab(
+            World world,
+            ComponentMapper<PrefabInstanceComponent> prefabInstances,
+            IntArray selectionSnapshot,
+            EntityNode prefabNode) {
         if (selectionSnapshot == null || prefabNode == null) return false;
         IntArray members = prefabNode.getPrefabMemberIds();
         if (selectionSnapshot.size != members.size) return false;
@@ -755,12 +792,29 @@ public class ItemTreePanel extends DockablePanel {
                     || !selected.contains(member)) {
                 return false;
             }
-            PrefabInstanceComponent prefab = mPrefabInstance.getSafe(member, null);
+            PrefabInstanceComponent prefab = prefabInstances.getSafe(member, null);
             if (prefab == null || prefab.instanceId != prefabNode.getPrefabInstanceId()) {
                 return false;
             }
         }
         return true;
+    }
+
+    static ExplicitPrefabSyncResult syncExplicitPrefabSelection(
+            World world,
+            ComponentMapper<PrefabInstanceComponent> prefabInstances,
+            IdVisTree tree,
+            int prefabInstanceId,
+            IntArray selectionSnapshot) {
+        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
+        if (prefabNode == null) return ExplicitPrefabSyncResult.PENDING_NODE;
+        if (!prefabNode.isSelectable()
+                || !selectionExactlyMatchesPrefab(
+                world, prefabInstances, selectionSnapshot, prefabNode)) {
+            return ExplicitPrefabSyncResult.INVALID;
+        }
+        tree.getSelection().add(prefabNode);
+        return ExplicitPrefabSyncResult.SELECTED;
     }
 
     private EntityNode resolvePhysicsContextNode() {

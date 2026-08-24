@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
@@ -31,7 +32,6 @@ public final class ReorderLogicalLayerCommand
     private final Supplier<IntArray> additionalEntityIds;
     private final IntArray requestedOrder;
     private final DirtyTrackerSystem dirtyTracker;
-    private final Runnable onApplied;
     private final List<Entry> entries = new ArrayList<>();
     private boolean prepared;
     private boolean valid = true;
@@ -41,16 +41,7 @@ public final class ReorderLogicalLayerCommand
             HistoryIdRegistry historyIds,
             int layerIndex,
             IntArray topToBottomEntityIds) {
-        this(world, historyIds, layerIndex, topToBottomEntityIds, null);
-    }
-
-    public ReorderLogicalLayerCommand(
-            World world,
-            HistoryIdRegistry historyIds,
-            int layerIndex,
-            IntArray topToBottomEntityIds,
-            Runnable onApplied) {
-        this(world, historyIds, layerIndex, null, null, topToBottomEntityIds, onApplied);
+        this(world, historyIds, layerIndex, null, null, topToBottomEntityIds);
         prepareIfNeeded();
     }
 
@@ -63,7 +54,7 @@ public final class ReorderLogicalLayerCommand
             Supplier<IntArray> additionalEntityIds) {
         return new ReorderLogicalLayerCommand(
                 world, historyIds, layerIndex, logicalOrderService,
-                additionalEntityIds, null, null);
+                additionalEntityIds, null);
     }
 
     private ReorderLogicalLayerCommand(
@@ -72,8 +63,7 @@ public final class ReorderLogicalLayerCommand
             int layerIndex,
             LayerLogicalOrderService logicalOrderService,
             Supplier<IntArray> additionalEntityIds,
-            IntArray requestedOrder,
-            Runnable onApplied) {
+            IntArray requestedOrder) {
         this.world = world;
         this.historyIds = historyIds;
         this.layerIndex = layerIndex;
@@ -81,7 +71,6 @@ public final class ReorderLogicalLayerCommand
         this.additionalEntityIds = additionalEntityIds;
         this.requestedOrder = requestedOrder != null ? new IntArray(requestedOrder) : null;
         this.dirtyTracker = world.getSystem(DirtyTrackerSystem.class);
-        this.onApplied = onApplied;
     }
 
     @Override
@@ -201,6 +190,7 @@ public final class ReorderLogicalLayerCommand
             }
             entities.add(entityId);
         }
+        boolean changed = false;
         for (int i = 0; i < entries.size(); i++) {
             Entry entry = entries.get(i);
             int entityId = entities.get(i);
@@ -209,9 +199,12 @@ public final class ReorderLogicalLayerCommand
             if (index.zIndex != value) {
                 index.zIndex = value;
                 if (dirtyTracker != null) dirtyTracker.order(entityId);
+                changed = true;
             }
         }
-        if (onApplied != null) onApplied.run();
+        if (!changed) return CommandOutcome.NO_CHANGE;
+        EventFlow.i().publish(new EventFlow.EntityZOrderChanged(
+                layerIndex, EventFlow.tag(this)));
         return CommandOutcome.APPLIED;
     }
 

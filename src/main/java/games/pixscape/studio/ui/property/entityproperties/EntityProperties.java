@@ -235,8 +235,7 @@ public class EntityProperties extends VisTable {
 
         EntityIndexComponent entityIndex = mEntityIndex.getSafe(entityId, null);
 
-        int zIndex = (entityIndex != null) ? entityIndex.getZIndex() : 0;
-        zIndexValueLabel.setText(String.valueOf(zIndex));
+        refreshZIndex();
 
         int layerIndex = (entityIndex != null) ? entityIndex.getLayerIndex() : 0;
         String layerName = (ctx.layerService != null) ? ctx.layerService.getNameByIndex(layerIndex) : "";
@@ -255,6 +254,24 @@ public class EntityProperties extends VisTable {
         updateSectionsVisibility();
         refreshTagsLabel();
         customPropertiesRow.setEntityId(entityId);
+    }
+
+    public void refreshZIndex() {
+        refreshZIndexLabel(
+                ctx.world, mEntityIndex, currentEntityId, zIndexValueLabel);
+    }
+
+    static void refreshZIndexLabel(
+            com.artemis.World world,
+            ComponentMapper<EntityIndexComponent> indexes,
+            int entityId,
+            VisLabel label) {
+        if (world == null || indexes == null || label == null
+                || entityId < 0 || !world.getEntityManager().isActive(entityId)) {
+            return;
+        }
+        EntityIndexComponent index = indexes.getSafe(entityId, null);
+        label.setText(String.valueOf(index != null ? index.zIndex : 0));
     }
 
     static int displayedPersistentId(PixscapeIdentityComponent identity) {

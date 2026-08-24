@@ -55,6 +55,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private ToolBar toolBar;
     private BottomMenuBar bottomMenuBar;
     private DockManager dockManager;
+    private ItemTreePanel itemTreePanel;
     private SceneService sceneService;
     private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
@@ -127,7 +128,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         canvas.bindAssetMetaLookup(sceneService::getAssetMeta);
         canvas.getEditorOps().setSceneService(sceneService);
 
-        ItemTreePanel itemTreePanel = new ItemTreePanel(this);
+        itemTreePanel = new ItemTreePanel(this);
         itemTreePanel.setPreferredWindowSize(362, 600);
         dockManager.register(itemTreePanel, DockSlot.LEFT, true);
 
@@ -351,6 +352,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public DockManager getDockManager() {
         return dockManager;
+    }
+
+    public ItemTreePanel getItemTreePanel() {
+        return itemTreePanel;
     }
 
     public SceneService getSceneService() {

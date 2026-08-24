@@ -82,6 +82,7 @@ import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
+import games.pixscape.studio.ui.tree.ItemTreePanel;
 import games.pixscape.studio.ui.widget.TextInputWidget;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
@@ -1845,7 +1846,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
         }
 
-        selectCreatedEntities(result.createdIds());
+        ItemTreePanel itemTreePanel = app.getItemTreePanel();
+        if (itemTreePanel != null) {
+            itemTreePanel.selectPrefabInstance(prefabInstanceId, result.createdIds());
+        } else {
+            selectionService.replaceSelection(
+                    result.createdIds(), SelectionService.SelectionSource.TREE);
+        }
     }
 
     private boolean prefabContainsPhysics(EntityGraph graph) {
@@ -1935,19 +1942,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             AssetRefComponent assetRef = mAssetRef.getSafe(eid, null);
             if (assetRef == null) continue;
             assetRef.atlasTag = sceneTag;
-        }
-    }
-
-    private void selectCreatedEntities(IntArray createdIds) {
-        if (createdIds == null || createdIds.size == 0) {
-            return;
-        }
-
-        selectionService.clearSelection();
-        selectionService.selectOnly(createdIds.get(0));
-
-        for (int i = 1; i < createdIds.size; i++) {
-            selectionService.selectAdd(createdIds.get(i));
         }
     }
 
