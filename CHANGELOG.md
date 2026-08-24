@@ -1,5 +1,56 @@
 # Changelog
 
+
+## 0.2.3 - Tiled Objects, Quad Editing and Prefab Instances
+
+### Added
+
+* Added Tiled Object Layer import for orthogonal and isometric maps.
+* Added import support for Tiled rectangle, point, tile, polygon and polyline objects.
+* Added support for animated Tiled tile objects as regular Pixscape entities.
+* Added Tiled object class/type metadata and custom-property import, including inherited tile properties and object-level overrides.
+* Added generic custom properties to entities with String, Boolean, Integer, Float, Color, Object and nested Class values.
+* Added direct quad editing for sprites, with per-corner deformation handles and undo/redo support.
+* Added logical prefab instance nodes to the Item Tree, allowing complete prefab instances to be selected, reordered and deleted as a group while keeping their individual entities editable.
+* Added physics joint nodes to the Item Tree, displayed below their owning body with joint-specific labels and selection support.
+
+### Changed
+
+* Pixscape Studio Free 0.2.3 requires Pixscape Runtime 0.1.10.
+* Prefab instances now participate in Item Tree ordering as logical blocks while their visual entities keep compact, contiguous z-order values.
+* Physics joints remain prefab members but no longer participate in visual z-order.
+* Quad deformation is now preserved through scene history, prefab creation, prefab instantiation and Runtime export.
+* Tiled Object Layers are materialized as native Pixscape layers and entities instead of introducing a separate Tiled-specific runtime object model.
+
+### Improved
+
+* Greatly reduced sprite, animation and prefab drop latency when their atlas content is already present in the published GPU texture array.
+* Optimized TMX import and scene-save workflows.
+* Improved Tiled object overlays, picking and authored-geometry gizmos.
+* Improved polygon and polyline selection, resizing and degenerate-geometry handling.
+* Improved Item Tree selection synchronization for prefab instances and physics joints.
+
+### Fixed
+
+* Fixed complex physics prefabs appearing far from the mouse position when dropped into a scene.
+* Fixed isometric Tiled object placement and rotation.
+* Fixed authored geometry picking and gizmo transforms.
+* Fixed resizing one axis unexpectedly changing the unaffected scale axis.
+* Fixed selection state after undo/redo.
+* Fixed editor overlays when layer parallax is enabled.
+* Fixed custom-property Object references when the referenced entity is missing.
+* Fixed Color property cancellation in the color picker.
+* Fixed Studio UI and VisUI color-picker rendering on GL3.
+* Fixed WebGL2 material shader precision for generated Studio shaders.
+
+### Tests
+
+* Added extensive regression coverage for Tiled Object Layers, tile objects, animated tile objects, custom properties, polygon/polyline geometry and isometric coordinate conversion.
+* Added regression coverage for direct quad editing, prefab persistence and Runtime export.
+* Added regression coverage for logical prefab ordering, atomic prefab selection, Item Tree joint integration and physics-aware prefab deletion/history.
+* Added a real-world regression based on the tiled-iso-demo chain prefab to verify drop placement, joint remapping and Box2D synchronization.
+
+
 ## 0.2.2 - Physics Authoring and Spatial Collisions
 
 ### Breaking changes
