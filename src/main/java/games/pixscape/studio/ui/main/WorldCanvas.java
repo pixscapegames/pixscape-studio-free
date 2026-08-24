@@ -1945,7 +1945,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    private void computePrefabOrigin(EntityGraph graph, Vector2 out) {
+    static void computePrefabOrigin(EntityGraph graph, Vector2 out) {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
@@ -1956,7 +1956,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             GenericEntityInitializer.PreviewVisualData visual =
                     entry.initializer().toPreviewVisualData();
 
-            if (!visual.hasTransform) {
+            if (!visual.hasTransform || visual.hasPhysicsJoint) {
                 continue;
             }
 

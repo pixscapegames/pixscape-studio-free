@@ -1590,9 +1590,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer translate(float dx, float dy) {
-        this.hasTransform = true;
-        this.trX += dx;
-        this.trY += dy;
+        if (this.hasTransform) {
+            this.trX += dx;
+            this.trY += dy;
+        }
         return this;
     }
 
