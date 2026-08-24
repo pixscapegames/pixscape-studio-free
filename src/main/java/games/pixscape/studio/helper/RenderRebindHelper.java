@@ -101,6 +101,9 @@ public final class RenderRebindHelper {
         var mSrc = world.getMapper(AssetRefComponent.class);
         var mTR = world.getMapper(TextureRegionComponent.class);
         var mMat = world.getMapper(RenderMaterialComponent.class);
+        GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
+        boolean snapshotInvalidationRequired = false;
+        boolean reboundAnyEntity = false;
 
         if (entityIds == null || entityIds.size == 0) {
             IntBag bag = world.getAspectSubscriptionManager()
@@ -108,7 +111,7 @@ public final class RenderRebindHelper {
                     .getEntities();
             int[] data = bag.getData();
             for (int i = 0, n = bag.size(); i < n; i++) {
-                rebindEntity(
+                String result = rebindEntity(
                         data[i],
                         sceneTag,
                         visualResolver,
@@ -117,11 +120,15 @@ public final class RenderRebindHelper {
                         mMat,
                         dirty
                 );
+                reboundAnyEntity |= !"skipped".equals(result);
+                snapshotInvalidationRequired |= requiresSnapshotInvalidation(
+                        snapshotManager, sceneTag, result, mMat.getSafe(data[i], null));
             }
         } else {
             for (int i = 0; i < entityIds.size; i++) {
-                rebindEntity(
-                        entityIds.get(i),
+                int entityId = entityIds.get(i);
+                String result = rebindEntity(
+                        entityId,
                         sceneTag,
                         visualResolver,
                         mSrc,
@@ -129,13 +136,20 @@ public final class RenderRebindHelper {
                         mMat,
                         dirty
                 );
+                snapshotInvalidationRequired |= requiresSnapshotInvalidation(
+                        snapshotManager, sceneTag, result, mMat.getSafe(entityId, null));
+                reboundAnyEntity |= !"skipped".equals(result);
             }
         }
 
         // 2) snapshot rebind (safe point) via manager
-        GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
         if (snapshotManager != null && snapshotDirtyReason != null) {
-            snapshotManager.markDirty(sceneTag, snapshotDirtyReason);
+            publishSnapshotInvalidationDecision(
+                    snapshotManager,
+                    sceneTag,
+                    snapshotDirtyReason,
+                    snapshotInvalidationRequired || !reboundAnyEntity
+            );
         }
 
         // 3) Force a full render rebuild pass
@@ -178,10 +192,39 @@ public final class RenderRebindHelper {
 
         GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
         if (snapshotManager != null) {
-            snapshotManager.markDirty(sceneTag, "history-entity-render-rebind");
+            RenderMaterialComponent material = mMat.getSafe(entityId, null);
+            boolean invalidationRequired = requiresSnapshotInvalidation(
+                    snapshotManager, sceneTag, result, material);
+            publishSnapshotInvalidationDecision(
+                    snapshotManager,
+                    sceneTag,
+                    "history-entity-render-rebind",
+                    invalidationRequired
+            );
         }
         SceneLoader.forceFullRenderDirty(world);
         return result;
+    }
+
+    private static boolean requiresSnapshotInvalidation(
+            GpuSnapshotManager snapshotManager,
+            String sceneTag,
+            String rebindResult,
+            RenderMaterialComponent material
+    ) {
+        if ("skipped".equals(rebindResult)) return false;
+        int textureHandle = material != null ? material.textureHandle : 0;
+        return snapshotManager == null
+                || !snapshotManager.isHandlePublishedInCurrentBundle(sceneTag, textureHandle);
+    }
+
+    private static void publishSnapshotInvalidationDecision(
+            GpuSnapshotManager snapshotManager,
+            String sceneTag,
+            String reason,
+            boolean invalidationRequired
+    ) {
+        if (invalidationRequired) snapshotManager.markDirty(sceneTag, reason);
     }
 
     static String rebindEntity(

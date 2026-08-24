@@ -1614,6 +1614,25 @@ public final class SceneService {
         return shouldSkipSaveAtlasRepack(plan.studioDir(), plan.canonicalTag(), syncResult);
     }
 
+    /** Allocates the next persistent prefab-instance identity from the active Studio scene. */
+    public int allocatePrefabInstanceId() {
+        return allocatePrefabInstanceId(ProjectConfig.getInstance());
+    }
+
+    static int allocatePrefabInstanceId(ProjectConfig cfg) {
+        SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        if (meta == null) {
+            throw new IllegalStateException("An active scene is required to allocate a prefab instance ID.");
+        }
+        int allocated = meta.nextPrefabInstanceId;
+        if (allocated <= 0 || allocated == Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "nextPrefabInstanceId must be positive and allocatable, got " + allocated + ".");
+        }
+        meta.nextPrefabInstanceId = allocated + 1;
+        return allocated;
+    }
+
     private boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
                                               String sceneTag,
                                               AtlasInputSyncResult syncResult) {

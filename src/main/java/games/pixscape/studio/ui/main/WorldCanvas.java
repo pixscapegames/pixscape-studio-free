@@ -1798,17 +1798,32 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         computePrefabOrigin(graph, tmpPrefabOrigin);
 
+        int prefabInstanceId;
+        String prefabId = StudioFs.removeExtension(prefabFile.name());
+        try {
+            SceneService sceneService = app != null ? app.getSceneService() : null;
+            if (sceneService == null) {
+                throw new IllegalStateException("Scene service is unavailable");
+            }
+            prefabInstanceId = sceneService.allocatePrefabInstanceId();
+        } catch (RuntimeException ex) {
+            Gdx.app.error("PrefabDrop", "Failed to allocate prefab instance: " + p.path, ex);
+            return;
+        }
+
         String sceneTag = currentSceneTag();
         boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
 
         EntityGraphInstantiationResult result;
         try {
-            result = entityGraphInstantiationService.instantiate(
+            result = entityGraphInstantiationService.instantiatePrefab(
                     graph,
                     selectionService.getActiveLayerIndex(),
                     tmpWorldPos.x - tmpPrefabOrigin.x,
                     tmpWorldPos.y - tmpPrefabOrigin.y,
-                    "Instantiate Prefab"
+                    "Instantiate Prefab",
+                    prefabInstanceId,
+                    prefabId
             );
         } catch (RuntimeException ex) {
             Gdx.app.error("PrefabDrop", "Failed to instantiate prefab: " + p.path, ex);

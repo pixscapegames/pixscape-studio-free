@@ -16,6 +16,7 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
 
@@ -163,6 +164,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected int gearJoint1Eid, gearJoint2Eid;
     protected float gearRatio;
 
+    // --- Studio prefab-instance grouping (never copied to GenericEntitySnapshotData) ---
+    protected boolean hasPrefabInstance;
+    protected int prefabInstanceId = -1;
+    protected String prefabId = "";
+
     public GenericEntityInitializer(World world) {
         super(world);
     }
@@ -195,6 +201,17 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PhysicsWeldJointComponent> mWeld = world.getMapper(PhysicsWeldJointComponent.class);
         ComponentMapper<PhysicsPulleyJointComponent> mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         ComponentMapper<PhysicsGearJointComponent> mGear = world.getMapper(PhysicsGearJointComponent.class);
+        ComponentMapper<PrefabInstanceComponent> mPrefabInstance =
+                world.getMapper(PrefabInstanceComponent.class);
+
+        PrefabInstanceComponent prefabInstance = mPrefabInstance.getSafe(e, null);
+        if (prefabInstance != null) {
+            hasPrefabInstance = true;
+            prefabInstanceId = prefabInstance.instanceId;
+            prefabId = prefabInstance.prefabId != null ? prefabInstance.prefabId : "";
+        } else {
+            clearPrefabInstance();
+        }
 
         // --- TextureRegion (runtime) ---
         if (mTR.has(e)) {
@@ -543,7 +560,19 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PhysicsWeldJointComponent> mWeld = world.getMapper(PhysicsWeldJointComponent.class);
         ComponentMapper<PhysicsPulleyJointComponent> mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         ComponentMapper<PhysicsGearJointComponent> mGear = world.getMapper(PhysicsGearJointComponent.class);
+        ComponentMapper<PrefabInstanceComponent> mPrefabInstance =
+                world.getMapper(PrefabInstanceComponent.class);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+
+        if (hasPrefabInstance) {
+            PrefabInstanceComponent prefabInstance = mPrefabInstance.has(e)
+                    ? mPrefabInstance.get(e)
+                    : mPrefabInstance.create(e);
+            prefabInstance.instanceId = prefabInstanceId;
+            prefabInstance.prefabId = prefabId != null ? prefabId : "";
+        } else if (mPrefabInstance.has(e)) {
+            mPrefabInstance.remove(e);
+        }
 
 
         // --- TextureRegion (runtime) ---
@@ -1611,6 +1640,26 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
+    public GenericEntityInitializer setPrefabInstance(int instanceId, String prefabId) {
+        if (instanceId <= 0) {
+            throw new IllegalArgumentException("Prefab instance ID must be positive.");
+        }
+        if (prefabId == null || prefabId.isBlank()) {
+            throw new IllegalArgumentException("Prefab ID must not be blank.");
+        }
+        this.hasPrefabInstance = true;
+        this.prefabInstanceId = instanceId;
+        this.prefabId = prefabId;
+        return this;
+    }
+
+    public GenericEntityInitializer clearPrefabInstance() {
+        hasPrefabInstance = false;
+        prefabInstanceId = -1;
+        prefabId = "";
+        return this;
+    }
+
     private void clearPhysicsJointData() {
         hasPhysicsJoint = false;
         hasDistanceJoint = false;
@@ -1626,6 +1675,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     public GenericEntityInitializer duplicate() {
         GenericEntityInitializer copy = new GenericEntityInitializer(world);
+
+        copy.hasPrefabInstance = this.hasPrefabInstance;
+        copy.prefabInstanceId = this.prefabInstanceId;
+        copy.prefabId = this.prefabId;
 
         // --- TextureRegion ---
         copy.hasTextureRegion = this.hasTextureRegion;

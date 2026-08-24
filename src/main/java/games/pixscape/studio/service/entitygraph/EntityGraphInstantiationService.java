@@ -67,7 +67,26 @@ public final class EntityGraphInstantiationService {
                                                       float dx,
                                                       float dy,
                                                       String commandName) {
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null);
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null, -1, null);
+    }
+
+    public EntityGraphInstantiationResult instantiatePrefab(
+            EntityGraph graph,
+            int activeLayerIndex,
+            float dx,
+            float dy,
+            String commandName,
+            int prefabInstanceId,
+            String prefabId) {
+        if (prefabInstanceId <= 0) {
+            throw new IllegalArgumentException("Prefab instance ID must be positive.");
+        }
+        if (prefabId == null || prefabId.isBlank()) {
+            throw new IllegalArgumentException("Prefab ID must not be blank.");
+        }
+        return instantiate(
+                graph, activeLayerIndex, dx, dy, commandName,
+                null, prefabInstanceId, prefabId);
     }
 
     public EntityGraphInstantiationResult instantiateForClipboard(
@@ -80,7 +99,7 @@ public final class EntityGraphInstantiationService {
         if (targetLayer == null) {
             throw new IllegalArgumentException("targetLayer must not be null.");
         }
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer, -1, null);
     }
 
     private EntityGraphInstantiationResult instantiate(
@@ -89,7 +108,9 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             String commandName,
-            ClipboardTargetLayer clipboardTargetLayer) {
+            ClipboardTargetLayer clipboardTargetLayer,
+            int prefabInstanceId,
+            String prefabId) {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
@@ -98,7 +119,8 @@ public final class EntityGraphInstantiationService {
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
-                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer);
+                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer,
+                prefabInstanceId, prefabId);
         if (clipboardTargetLayer == ClipboardTargetLayer.PHYSICS) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
@@ -128,7 +150,6 @@ public final class EntityGraphInstantiationService {
         if (commands.isEmpty()) return EntityGraphInstantiationResult.empty();
         commands.add(new ApplyPreparedJointRemapsCommand(
                 preparedJointRemaps, sourceToCreated));
-
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
         historyManager.execute(new CompositeCommand(label, commands));
 
@@ -141,7 +162,9 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             IntMap<GenericEntitySnapshotData> snapshots,
-            ClipboardTargetLayer clipboardTargetLayer) {
+            ClipboardTargetLayer clipboardTargetLayer,
+            int prefabInstanceId,
+            String prefabId) {
         List<PreparedEntity> prepared = new ArrayList<>();
         for (EntityGraphEntry entry : graph.entries()) {
             int sourceEntityId = entry.sourceEntityId();
@@ -161,6 +184,9 @@ public final class EntityGraphInstantiationService {
                 initializer.normalizeClipboardPhysics(
                         clipboardTargetLayer.physicsEnabled,
                         clipboardTargetLayer.spatialEnabled);
+                initializer.clearPrefabInstance();
+            } else if (prefabInstanceId > 0) {
+                initializer.setPrefabInstance(prefabInstanceId, prefabId);
             }
             initializer.overrideLayerIndex(activeLayerIndex);
             initializer.translate(dx, dy);

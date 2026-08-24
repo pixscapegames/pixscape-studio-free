@@ -3603,7 +3603,7 @@ atlasData: {
 			hidden: false
 		}
 		{
-			file: C:/Users/lauro/Desktop/scrollpane/scroll-horizontal.9.png
+			file: C:/Users/lauro/IdeaProjects/pixscape-studio-free/assets/ui/scpm/pixscape_data/scroll-horizontal.9.png
 			bgColor: {
 				r: 1
 				g: 1
@@ -3623,7 +3623,7 @@ atlasData: {
 			hidden: false
 		}
 		{
-			file: C:/Users/lauro/Desktop/scrollpane/scroll-knob-horizontal.9.png
+			file: C:/Users/lauro/IdeaProjects/pixscape-studio-free/assets/ui/scpm/pixscape_data/scroll-knob-horizontal.9.png
 			bgColor: {
 				r: 1
 				g: 1
@@ -3673,6 +3673,26 @@ atlasData: {
 			tint: null
 			tintName: null
 			name: move
+			tiled: false
+			minWidth: -1
+			minHeight: -1
+			customized: false
+			tenPatchData: null
+			tvgData: null
+			type: TEXTURE
+			hidden: false
+		}
+		{
+			file: C:/Users/lauro/IdeaProjects/pixscape-studio-free/assets/ui/scpm/pixscape_data/cube.png
+			bgColor: {
+				r: 1
+				g: 1
+				b: 1
+				a: 1
+			}
+			tint: null
+			tintName: null
+			name: cube
 			tiled: false
 			minWidth: -1
 			minHeight: -1

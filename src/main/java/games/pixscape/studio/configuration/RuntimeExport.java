@@ -41,6 +41,7 @@ public final class RuntimeExport {
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsRuntimeJointComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsCompiledFixturesComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("SpatialPhysicsFootprintComponent");
+        RUNTIME_EXCLUDED_COMPONENTS.add("PrefabInstanceComponent");
     }
 
     private static final Json JSON = new Json();

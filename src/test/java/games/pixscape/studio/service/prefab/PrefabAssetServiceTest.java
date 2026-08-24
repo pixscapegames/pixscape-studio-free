@@ -13,6 +13,7 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
@@ -105,6 +106,43 @@ public class PrefabAssetServiceTest {
         Assert.assertTrue(result.createdIds().size > 0);
         Assert.assertFalse(world.getMapper(QuadDeformComponent.class)
                 .has(result.createdIds().first()));
+    }
+
+    @Test
+    public void savingGroupedSceneEntitiesFlattensMembershipAndLaterDropGetsOnlyFreshMetadata() {
+        World world = new World(new WorldConfiguration());
+        int entity = body(world);
+        PrefabInstanceComponent original =
+                world.getMapper(PrefabInstanceComponent.class).create(entity);
+        original.instanceId = 12;
+        original.prefabId = "Castle";
+
+        FileHandle file = tmpFile("fortress.pixprefab");
+        PrefabAssetService assets = new PrefabAssetService(world);
+        assets.savePrefab(
+                file, "fortress", new EntityGraphCaptureService(world).capture(arr(entity)));
+        Assert.assertFalse(file.readString("UTF-8").contains("PrefabInstance"));
+        Assert.assertFalse(file.sibling("fortress.pixfragment.json")
+                .readString("UTF-8").contains("PrefabInstance"));
+
+        EntityGraph loaded = assets.loadPrefab(file);
+        int probe = world.create();
+        loaded.entries().get(0).initializer().init(probe);
+        Assert.assertFalse(world.getMapper(PrefabInstanceComponent.class).has(probe));
+
+        HistoryManager history = new HistoryManager(8);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
+        identities.rebuild();
+        EntityGraphInstantiationResult dropped = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                .instantiatePrefab(loaded, 0, 0f, 0f, "Drop Fortress", 13, "Fortress");
+        PrefabInstanceComponent fresh = world.getMapper(PrefabInstanceComponent.class)
+                .get(dropped.createdIds().first());
+        Assert.assertEquals(13, fresh.instanceId);
+        Assert.assertEquals("Fortress", fresh.prefabId);
+        Assert.assertEquals(12, original.instanceId);
     }
 
     @Test

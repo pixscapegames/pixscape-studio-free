@@ -4,6 +4,10 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
@@ -13,6 +17,7 @@ import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.ImageAssetMeta;
@@ -237,6 +242,98 @@ public class RenderRebindHelperTest {
     }
 
     @Test
+    public void atlasBackedAnimationRebindDoesNotInvalidatePublishedHandle()
+            throws Exception {
+        World world = worldWithDirtyTracker();
+        Fixture animation = fixture(world, 7);
+        makeEligibleForFullRenderDirty(animation);
+        world.getMapper(AnimationComponent.class).create(animation.entityId);
+        Texture texture = texture(32, 33);
+        VisualResolverTestSupport.TrackingAtlasService atlas =
+                new VisualResolverTestSupport.TrackingAtlasService("main");
+        atlas.publish(new TextureAtlas(), binding(7, "frame__a7", texture));
+        GpuSnapshotManager snapshots = publishedSnapshots(
+                TextureRegistry.handleOf(texture));
+
+        assertEquals("atlas", RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                canvas(world, snapshots),
+                "main",
+                resolver(atlas, null, null),
+                animation.entityId));
+
+        assertFalse(hasSnapshotDirtyReason(
+                snapshots, "main", "history-entity-render-rebind"));
+        assertTrue(world.getSystem(DirtyTrackerSystem.class)
+                .isDirty(animation.entityId, DirtyBits.MATERIAL));
+    }
+
+    @Test
+    public void prefabRebindWithThreePublishedHandlesDoesNotInvalidateSnapshot()
+            throws Exception {
+        World world = worldWithDirtyTracker();
+        Fixture first = fixture(world, 7);
+        Fixture second = fixture(world, 8);
+        Fixture third = fixture(world, 9);
+        Texture firstTexture = texture(31, 32);
+        Texture secondTexture = texture(33, 34);
+        Texture thirdTexture = texture(35, 36);
+        VisualResolverTestSupport.TrackingAtlasService atlas =
+                new VisualResolverTestSupport.TrackingAtlasService("main");
+        atlas.publish(
+                new TextureAtlas(),
+                binding(7, "first__a7", firstTexture),
+                binding(8, "second__a8", secondTexture),
+                binding(9, "third__a9", thirdTexture));
+        GpuSnapshotManager snapshots = publishedSnapshots(
+                TextureRegistry.handleOf(firstTexture),
+                TextureRegistry.handleOf(secondTexture),
+                TextureRegistry.handleOf(thirdTexture));
+        IntArray members = new IntArray();
+        members.add(first.entityId);
+        members.add(second.entityId);
+        members.add(third.entityId);
+
+        RenderRebindHelper.rebindEntitiesAfterAtlasChange(
+                canvas(world, snapshots), "main", resolver(atlas, null, null), members);
+
+        assertFalse(hasSnapshotDirtyReason(
+                snapshots, "main", "render-rebind-after-atlas-change"));
+    }
+
+    @Test
+    public void prefabRebindInvalidatesOnceWhenOneHandleIsUnpublished()
+            throws Exception {
+        World world = worldWithDirtyTracker();
+        Fixture first = fixture(world, 7);
+        Fixture second = fixture(world, 8);
+        Fixture third = fixture(world, 9);
+        Texture firstTexture = texture(31, 32);
+        Texture secondTexture = texture(33, 34);
+        Texture thirdTexture = texture(35, 36);
+        VisualResolverTestSupport.TrackingAtlasService atlas =
+                new VisualResolverTestSupport.TrackingAtlasService("main");
+        atlas.publish(
+                new TextureAtlas(),
+                binding(7, "first__a7", firstTexture),
+                binding(8, "second__a8", secondTexture),
+                binding(9, "third__a9", thirdTexture));
+        GpuSnapshotManager snapshots = publishedSnapshots(
+                TextureRegistry.handleOf(firstTexture),
+                TextureRegistry.handleOf(secondTexture));
+        IntArray members = new IntArray();
+        members.add(first.entityId);
+        members.add(second.entityId);
+        members.add(third.entityId);
+
+        RenderRebindHelper.rebindEntitiesAfterAtlasChange(
+                canvas(world, snapshots), "main", resolver(atlas, null, null), members);
+
+        assertTrue(hasSnapshotDirtyReason(
+                snapshots, "main", "render-rebind-after-atlas-change"));
+        assertEquals(1, snapshotDirtyReasonCount(snapshots, "main"));
+    }
+
+    @Test
     public void historyRebindSkipsNonRenderEntityWithoutGlobalDirty()
             throws Exception {
         World world = worldWithDirtyTracker();
@@ -402,6 +499,38 @@ public class RenderRebindHelperTest {
         );
         method.setAccessible(true);
         return (boolean) method.invoke(snapshots, sceneTag, reason);
+    }
+
+    private static int snapshotDirtyReasonCount(
+            GpuSnapshotManager snapshots,
+            String sceneTag
+    ) throws Exception {
+        Method method = GpuSnapshotManager.class.getDeclaredMethod(
+                "dirtyReasonCount", String.class);
+        method.setAccessible(true);
+        return (int) method.invoke(snapshots, sceneTag);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static GpuSnapshotManager publishedSnapshots(int... handles)
+            throws Exception {
+        IntIntMap handleToLayer = new IntIntMap();
+        for (int i = 0; i < handles.length; i++) handleToLayer.put(handles[i], i);
+        AtlasRuntimeService.TextureArrayBundle bundle =
+                new AtlasRuntimeService.TextureArrayBundle(null, handleToLayer);
+        GpuSnapshotManager snapshots =
+                new GpuSnapshotManager(new AtlasStudioService(null), null);
+        Field activeField = GpuSnapshotManager.class.getDeclaredField("activeSnapshots");
+        activeField.setAccessible(true);
+        ((ObjectMap<String, AtlasRuntimeService.TextureArrayBundle>) activeField.get(snapshots))
+                .put("main", bundle);
+        Field boundTagField = GpuSnapshotManager.class.getDeclaredField("boundSceneTag");
+        boundTagField.setAccessible(true);
+        boundTagField.set(snapshots, "main");
+        Field boundSnapshotField = GpuSnapshotManager.class.getDeclaredField("boundSnapshot");
+        boundSnapshotField.setAccessible(true);
+        boundSnapshotField.set(snapshots, bundle);
+        return snapshots;
     }
 
     private static Unsafe unsafe() throws Exception {
