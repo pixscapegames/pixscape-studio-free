@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
 import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.ApplicationAdapter;
@@ -13,20 +14,35 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.render.GeometryDirty;
+import games.pixscape.runtime.service.TagRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.*;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.GizmoTransformCommand;
+import games.pixscape.studio.history.commands.TransformOp;
+import games.pixscape.studio.model.EntityKind;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -34,6 +50,7 @@ import org.junit.Test;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -200,6 +217,404 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void importSceneMaterializesEmptyObjectLayerInMixedGlobalOrder() throws Exception {
+        Harness h = harness("tmx-import-empty-object-layer");
+        FileHandle tmx = writeTmx(h.root.resolve("empty-object-layer.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <layer name="Below" width="1" height="1"><data encoding="csv">1</data></layer>
+                  <objectgroup name="Gameplay"/>
+                  <layer name="Above" width="1" height="1"><data encoding="csv">0</data></layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Objects"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        assertEquals("Below", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, true)).name);
+        int objectLayer = layerEntity(world, 1, false);
+        assertEquals("Gameplay", world.getMapper(LayerMetaComponent.class).get(objectLayer).name);
+        assertEquals(LayerComponent.TYPE_CLASSIC,
+                world.getMapper(LayerComponent.class).get(objectLayer).type);
+        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(objectLayer));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class)
+                .has(layerEntity(world, 0, true)));
+        assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
+        assertEquals(0, objectCountInLayer(world, 1));
+    }
+
+    @Test
+    public void importSceneRoundTripsObjectLayerRectanglesPointsPropertiesAndIdentity() throws Exception {
+        Harness h = harness("tmx-import-object-roundtrip");
+        FileHandle tmx = writeTmx(h.root.resolve("objects.tmx"), """
+                <map orientation="orthogonal" width="20" height="10" tilewidth="16" tileheight="16">
+                  <group name="World" visible="0" offsetx="3" offsety="4" parallaxx="2" parallaxy="0.5">
+                    <objectgroup name="Gameplay" offsetx="5" offsety="6" parallaxx="0.5" parallaxy="2">
+                      <properties>
+                        <property name="role" value="logic"/>
+                        <property name="enabled" type="bool" value="true"/>
+                        <property name="count" type="int" value="7"/>
+                        <property name="weight" type="float" value="1.5"/>
+                        <property name="tint" type="color" value="#40010203"/>
+                      </properties>
+                      <object id="777" name="Duplicate" class="Trigger" type="LegacyTrigger"
+                              x="10" y="20" width="30" height="40" visible="0">
+                        <properties>
+                          <property name="label" value="door"/>
+                          <property name="armed" type="bool" value="true"/>
+                          <property name="damage" type="int" value="20"/>
+                          <property name="ratio" type="float" value="2.25"/>
+                          <property name="tint" type="color" value="#800A0B0C"/>
+                        </properties>
+                      </object>
+                      <object id="777" name="Duplicate" x="4" y="5"><point/></object>
+                      <object name="Zero" x="1" y="2" width="0" height="0"/>
+                      <object x="2" y="3"><point/></object>
+                      <object id="9" name="Deferred"><ellipse/></object>
+                    </objectgroup>
+                  </group>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Object Round Trip"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        int layerEntity = layerEntity(world, 0, false);
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
+        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
+        assertFalse(layer.spatialEnabled);
+        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity));
+        assertEquals("World/Gameplay", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
+        assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorX, 0.0001f);
+        assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorY, 0.0001f);
+        CustomPropertiesComponent layerProperties = world.getMapper(CustomPropertiesComponent.class).get(layerEntity);
+        assertEquals("logic", layerProperties.properties.getString("role", null));
+        assertTrue(layerProperties.properties.getBoolean("enabled", false));
+        assertEquals(7, layerProperties.properties.getInt("count", 0));
+        assertEquals(1.5f, layerProperties.properties.getFloat("weight", 0f), 0.0001f);
+        assertEquals(0x01020340, layerProperties.properties.getColorRgba8888("tint", 0));
+        TmxObjectLayerPlan plannedLayer = (TmxObjectLayerPlan) result.planResult().plan().layers().get(0);
+        assertNotSame(plannedLayer.properties(), layerProperties.properties);
+        assertTrue(world.getMapper(PixscapeIdentityComponent.class).get(layerEntity).stableId > 0);
+
+        int[] duplicates = objectEntitiesByName(world, "Duplicate");
+        assertEquals(2, duplicates.length);
+        int rectangle = world.getMapper(DimensionsComponent.class).has(duplicates[0])
+                ? duplicates[0] : duplicates[1];
+        int point = rectangle == duplicates[0] ? duplicates[1] : duplicates[0];
+        assertEquals(4, objectCountInLayer(world, 0));
+
+        TransformComponent rectangleTransform = world.getMapper(TransformComponent.class).get(rectangle);
+        DimensionsComponent rectangleDimensions = world.getMapper(DimensionsComponent.class).get(rectangle);
+        assertEquals(33f, rectangleTransform.x, 0.0001f);
+        assertEquals(110f, rectangleTransform.y, 0.0001f);
+        assertEquals(15f, rectangleTransform.originX, 0f);
+        assertEquals(20f, rectangleTransform.originY, 0f);
+        assertEquals(30f, rectangleDimensions.width, 0f);
+        assertEquals(40f, rectangleDimensions.height, 0f);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(rectangle).visible);
+        assertEquals(3, world.getMapper(EntityIndexComponent.class).get(rectangle).zIndex);
+        assertNotNull(world.getMapper(EntityMetaComponent.class).get(rectangle));
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertTrue(world.getMapper(AABBComponent.class).has(rectangle));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(rectangle));
+        PixscapeTagComponent rectangleTags = world.getMapper(PixscapeTagComponent.class).get(rectangle);
+        assertEquals(1, rectangleTags.tags.size);
+        assertEquals("Trigger", rectangleTags.tags.first());
+        assertFalse(rectangleTags.tags.contains("LegacyTrigger", false));
+        assertFalse(world.getMapper(AssetRefComponent.class).has(rectangle));
+        assertFalse(world.getMapper(TextureRegionComponent.class).has(rectangle));
+        assertFalse(world.getMapper(RenderMaterialComponent.class).has(rectangle));
+        assertFalse(world.getMapper(TintComponent.class).has(rectangle));
+        CustomPropertiesComponent objectProperties = world.getMapper(CustomPropertiesComponent.class).get(rectangle);
+        assertEquals("door", objectProperties.properties.getString("label", null));
+        assertTrue(objectProperties.properties.getBoolean("armed", false));
+        assertEquals(20, objectProperties.properties.getInt("damage", 0));
+        assertEquals(2.25f, objectProperties.properties.getFloat("ratio", 0f), 0.0001f);
+        assertEquals(0x0A0B0C80, objectProperties.properties.getColorRgba8888("tint", 0));
+        assertNotSame(layerProperties.properties, objectProperties.properties);
+        assertNotSame(plannedLayer.objects().get(0).properties(), objectProperties.properties);
+
+        TransformComponent pointTransform = world.getMapper(TransformComponent.class).get(point);
+        assertEquals(12f, pointTransform.x, 0.0001f);
+        assertEquals(145f, pointTransform.y, 0.0001f);
+        assertFalse(world.getMapper(DimensionsComponent.class).has(point));
+        assertFalse(world.getMapper(AABBComponent.class).has(point));
+        assertFalse(world.getMapper(OrientedBoundsComponent.class).has(point));
+        assertEquals(EntityKind.TILED_POINT,
+                world.getMapper(EntityMetaComponent.class).get(point).kind);
+        assertTrue(world.getMapper(VisibilityComponent.class).get(point).visible);
+        assertEquals(2, world.getMapper(EntityIndexComponent.class).get(point).zIndex);
+
+        int zero = objectEntityByName(world, "Zero");
+        DimensionsComponent zeroDimensions = world.getMapper(DimensionsComponent.class).get(zero);
+        assertEquals(0f, zeroDimensions.width, 0f);
+        assertEquals(0f, zeroDimensions.height, 0f);
+        assertEquals(0, world.getMapper(EntityIndexComponent.class).get(zero).zIndex);
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(zero).kind);
+
+        int unnamed = objectEntityByName(world, "unnamed");
+        assertFalse(world.getMapper(DimensionsComponent.class).has(unnamed));
+        assertEquals(1, world.getMapper(EntityIndexComponent.class).get(unnamed).zIndex);
+
+        PixscapeIdentityComponent rectangleIdentity = world.getMapper(PixscapeIdentityComponent.class).get(rectangle);
+        PixscapeIdentityComponent pointIdentity = world.getMapper(PixscapeIdentityComponent.class).get(point);
+        PixscapeIdentityComponent zeroIdentity = world.getMapper(PixscapeIdentityComponent.class).get(zero);
+        PixscapeIdentityComponent unnamedIdentity = world.getMapper(PixscapeIdentityComponent.class).get(unnamed);
+        assertTrue(rectangleIdentity.stableId > 0);
+        assertTrue(pointIdentity.stableId > 0);
+        assertTrue(zeroIdentity.stableId > 0);
+        assertTrue(unnamedIdentity.stableId > 0);
+        assertNotEquals(777, rectangleIdentity.stableId);
+        assertNotEquals(rectangleIdentity.stableId, pointIdentity.stableId);
+        assertNotEquals(pointIdentity.stableId, zeroIdentity.stableId);
+        assertNotEquals(zeroIdentity.stableId, unnamedIdentity.stableId);
+        assertEquals("Duplicate", rectangleIdentity.name);
+        assertEquals("Duplicate", pointIdentity.name);
+        assertEquals("Zero", zeroIdentity.name);
+        assertEquals("unnamed", unnamedIdentity.name);
+
+        TagRegistry registry = new TagRegistry();
+        registry.bind(world);
+        registry.rebuild();
+        assertTrue(registry.hasTag(rectangle, "Trigger"));
+        assertEquals(rectangle, registry.first("Trigger"));
+        assertEquals(1, registry.get("Trigger").size);
+        assertEquals(20, objectProperties.properties.getInt("damage", 0));
+        assertFalse(objectProperties.properties.contains("class"));
+        assertFalse(objectProperties.properties.contains("type"));
+    }
+
+    @Test
+    public void importedRectangleUsesNormalBoundsAndGizmoScaleHistory() throws Exception {
+        Harness h = harness("tmx-import-rectangle-geometry");
+        FileHandle tmx = writeTmx(h.root.resolve("rectangle-geometry.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Gameplay">
+                    <object name="Rectangle" x="10" y="20" width="30" height="40" rotation="90"/>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Rectangle Geometry"));
+        World world = loadImportedWorldWithGeometry(h, result);
+        int rectangle = objectEntityByName(world, "Rectangle");
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(rectangle);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(rectangle);
+        AABBComponent aabb = world.getMapper(AABBComponent.class).get(rectangle);
+        OrientedBoundsComponent obb = world.getMapper(OrientedBoundsComponent.class).get(rectangle);
+
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertEquals(-10f, transform.x, 0.0001f);
+        assertEquals(125f, transform.y, 0.0001f);
+        assertEquals(15f, transform.originX, 0.0001f);
+        assertEquals(20f, transform.originY, 0.0001f);
+        float[] importedCorners = new float[8];
+        OrientedBoundsHelper.toCorners(obb, importedCorners);
+        assertSameCornerSet(tiledSourceCorners(10f, 140f, 30f, 40f, -MathUtils.PI / 2f),
+                importedCorners);
+        assertEquals(-30f, aabb.minX, 0.0001f);
+        assertEquals(10f, aabb.maxX, 0.0001f);
+        assertEquals(110f, aabb.minY, 0.0001f);
+        assertEquals(140f, aabb.maxY, 0.0001f);
+        assertTrue(OrientedBoundsHelper.contains(obb, -10f, 125f));
+        assertFalse(OrientedBoundsHelper.contains(obb, 15f, 125f));
+
+        HistoryManager history = new HistoryManager(8);
+        long historyId = history.historyIds().ensureForEntity(rectangle);
+        GizmoTransformCommand scale = new GizmoTransformCommand(
+                world, history.historyIds(), TransformOp.SCALE);
+        scale.addEntry(historyId, GizmoTransformCommand.Snapshot.of(transform),
+                new GizmoTransformCommand.Snapshot(
+                        transform.x, transform.y, transform.rotationRad,
+                        1.5f, 0.5f, transform.originX, transform.originY));
+        history.execute(scale);
+        world.process();
+
+        assertEquals(1.5f, transform.scaleX, 0f);
+        assertEquals(0.5f, transform.scaleY, 0f);
+        assertEquals(30f, dimensions.width, 0f);
+        assertEquals(40f, dimensions.height, 0f);
+        assertEquals(-20f, aabb.minX, 0.0001f);
+        assertEquals(0f, aabb.maxX, 0.0001f);
+        assertEquals(102.5f, aabb.minY, 0.0001f);
+        assertEquals(147.5f, aabb.maxY, 0.0001f);
+
+        history.undo();
+        world.process();
+        assertEquals(1f, transform.scaleX, 0f);
+        assertEquals(1f, transform.scaleY, 0f);
+        assertEquals(-30f, aabb.minX, 0.0001f);
+        assertEquals(10f, aabb.maxX, 0.0001f);
+
+        history.redo();
+        world.process();
+        assertEquals(1.5f, transform.scaleX, 0f);
+        assertEquals(0.5f, transform.scaleY, 0f);
+    }
+
+    @Test
+    public void centeredRectanglePivotPreservesTiledSourceGeometry() {
+        assertCenteredRectangleGeometry(10f, 140f, 30f, 40f, 0f);
+        assertCenteredRectangleGeometry(18f, 130f, 30f, 40f, 0.65f);
+        assertCenteredRectangleGeometry(-3f, 90f, 17f, 9f, -1.1f);
+        assertCenteredRectangleGeometry(18f, 130f, 0f, 40f, 0.65f);
+        assertCenteredRectangleGeometry(18f, 130f, 30f, 0f, -1.1f);
+        assertCenteredRectangleGeometry(18f, 130f, 0f, 0f, 0.65f);
+    }
+
+    @Test
+    public void classPropertiesSurviveMaterializationSceneSaveReloadAndRuntimeReadback() throws Exception {
+        Harness h = harness("tmx-import-class-round-trip");
+        FileHandle tmx = writeTmx(h.root.resolve("class-properties.tmx"), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="actors" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0"><properties><property name="physics" type="class" propertytype="Physics"><properties>
+                      <property name="mass" type="float" value="1"/>
+                      <property name="sensor" type="bool" value="false"/>
+                    </properties></property></properties></tile>
+                  </tileset>
+                  <objectgroup name="Gameplay"><properties>
+                    <property name="settings" type="class" propertytype="LayerSettings"><properties>
+                      <property name="enabled" type="bool" value="true"/>
+                    </properties></property>
+                  </properties>
+                    <object name="Rectangle" width="4" height="5"><properties>
+                      <property name="attack" type="class" propertytype="Attack"><properties>
+                        <property name="damage" type="int" value="20"/>
+                      </properties></property>
+                    </properties></object>
+                    <object name="Point"><point/><properties>
+                      <property name="follow" type="class" propertytype="Follow"/>
+                    </properties></object>
+                    <object name="Tile" gid="1"><properties>
+                      <property name="physics" type="class" propertytype="Physics"><properties>
+                        <property name="mass" type="float" value="2"/>
+                        <property name="sensor" type="bool" value="true"/>
+                      </properties></property>
+                    </properties></object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Class Round Trip"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        ClassProperty settings = world.getMapper(CustomPropertiesComponent.class)
+                .get(layerEntity(world, 0, false)).properties.getClassValue("settings");
+        assertEquals("LayerSettings", settings.typeName());
+        assertTrue(settings.properties().getBoolean("enabled", false));
+
+        ClassProperty attack = world.getMapper(CustomPropertiesComponent.class)
+                .get(objectEntityByName(world, "Rectangle")).properties.getClassValue("attack");
+        assertEquals("Attack", attack.typeName());
+        assertEquals(20, attack.properties().getInt("damage", 0));
+        assertFalse(world.getMapper(PixscapeTagComponent.class)
+                .has(objectEntityByName(world, "Rectangle")));
+
+        ClassProperty follow = world.getMapper(CustomPropertiesComponent.class)
+                .get(objectEntityByName(world, "Point")).properties.getClassValue("follow");
+        assertEquals("Follow", follow.typeName());
+        assertTrue(follow.properties().isEmpty());
+
+        ClassProperty physics = world.getMapper(CustomPropertiesComponent.class)
+                .get(visualEntityByName(world, "Tile")).properties.getClassValue("physics");
+        assertEquals("Physics", physics.typeName());
+        assertEquals(2f, physics.properties().getFloat("mass", 0f), 0.0001f);
+        assertTrue(physics.properties().getBoolean("sensor", false));
+    }
+
+    @Test
+    public void importSceneMapsModernAndLegacyClassificationToOneNormalizedTag() throws Exception {
+        Harness h = harness("tmx-import-object-tags");
+        FileHandle tmx = writeTmx(h.root.resolve("object-tags.tmx"), """
+                <map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="16">
+                  <objectgroup name="Classified">
+                    <object id="99" name="ClassOnly" class="Enemy" width="2" height="3"/>
+                    <object id="99" name="TypeOnly" type="Legacy Enemy"><point/></object>
+                    <object name="Equal" class="Same" type="Same"><point/></object>
+                    <object name="Conflict" class="Modern" type="Legacy"><point/></object>
+                    <object name="BlankClass" class="   " type="Fallback"><point/></object>
+                    <object name="None"><point/></object>
+                    <object name="InternalSpace" class="  Boss Enemy.v2  "><point/></object>
+                    <object name="LowerCase" class="enemy"><point/></object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Object Tags"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        assertSingleTag(world, "ClassOnly", "Enemy");
+        assertSingleTag(world, "TypeOnly", "Legacy Enemy");
+        assertSingleTag(world, "Equal", "Same");
+        assertSingleTag(world, "Conflict", "Modern");
+        assertSingleTag(world, "BlankClass", "Fallback");
+        assertSingleTag(world, "InternalSpace", "Boss Enemy.v2");
+        assertSingleTag(world, "LowerCase", "enemy");
+        assertFalse(world.getMapper(PixscapeTagComponent.class).has(objectEntityByName(world, "None")));
+        assertFalse(world.getMapper(PixscapeTagComponent.class).has(layerEntity(world, 0, false)));
+        assertTrue(result.diagnostics().stream()
+                .anyMatch(diagnostic -> "TMX_OBJECT_CLASS_TYPE_CONFLICT".equals(diagnostic.code())));
+
+        TagRegistry registry = new TagRegistry();
+        registry.bind(world);
+        registry.rebuild();
+        int classOnly = objectEntityByName(world, "ClassOnly");
+        int typeOnly = objectEntityByName(world, "TypeOnly");
+        int conflict = objectEntityByName(world, "Conflict");
+        int internalSpace = objectEntityByName(world, "InternalSpace");
+        int lowerCase = objectEntityByName(world, "LowerCase");
+        assertTrue(registry.hasTag(classOnly, " Enemy "));
+        assertTrue(registry.hasTag(typeOnly, "Legacy Enemy"));
+        assertTrue(registry.hasTag(conflict, "Modern"));
+        assertFalse(registry.hasTag(conflict, "Legacy"));
+        assertTrue(registry.hasTag(internalSpace, "  Boss Enemy.v2  "));
+        assertTrue(registry.hasTag(lowerCase, "enemy"));
+        assertFalse(registry.hasTag(lowerCase, "Enemy"));
+        assertEquals(1, registry.get("Enemy").size);
+        assertEquals(1, registry.get("enemy").size);
+    }
+
+    @Test
+    public void importScenePreservesTiledRectanglePivotAndRotatedCorners() throws Exception {
+        Harness h = harness("tmx-import-object-rotation");
+        FileHandle tmx = writeTmx(h.root.resolve("rotations.tmx"), """
+                <map orientation="orthogonal" width="20" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Geometry">
+                    <object id="1" name="Zero" x="10" y="20" width="30" height="40" rotation="0"/>
+                    <object id="2" name="Clockwise" x="10" y="20" width="30" height="40" rotation="90"/>
+                    <object id="3" name="CounterClockwise" x="10" y="20" width="30" height="40" rotation="-90"/>
+                  </objectgroup>
+                </map>
+                """);
+
+        World world = loadImportedWorld(h,
+                h.importer().importScene(request(tmx, "Rotated Objects")));
+
+        assertCorners(world, objectEntityByName(world, "Zero"), new float[]{
+                10f, 140f, 40f, 140f, 40f, 100f, 10f, 100f
+        });
+        assertCorners(world, objectEntityByName(world, "Clockwise"), new float[]{
+                10f, 140f, 10f, 110f, -30f, 110f, -30f, 140f
+        });
+        assertCorners(world, objectEntityByName(world, "CounterClockwise"), new float[]{
+                10f, 140f, 10f, 170f, 50f, 170f, 50f, 140f
+        });
+    }
+
+    @Test
     public void importScenePlacesOrthogonalImageLayersUsingTiledTopLeftCoordinates() throws Exception {
         Harness h = harness("tmx-import-image-layer-placement");
         writePng(h.projectDir.child("graphics").child("sky.png"), 384, 240);
@@ -258,6 +673,9 @@ public class TmxSceneImportServiceTest {
         assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 1, false)).type);
         assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
         assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 0, false)));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 1, false)));
+        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 2, true)));
     }
 
     @Test
@@ -415,6 +833,31 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void importAssetsRetainsSeparateStaticCellAndAnimationMappings() throws Exception {
+        Harness h = harness("tmx-import-animation-mappings");
+        FileHandle tmx = animatedTileTmx(h, "animated-mappings.tmx", "1,2,0,0");
+        TmxSceneImportService importer = h.importer();
+        TmxImportPlanResult planned = importer.plan(request(tmx, "Mappings"));
+        SceneMeta meta = new SceneMeta("Mappings", "mappings.json");
+        importer.configureSceneMeta(meta, planned.plan().scene());
+
+        TmxSceneImportService.ImportAssetsResult assets = importer.importAssets(planned.plan(), meta);
+        int tilesetIndex = planned.plan().tilesets().get(0).planIndex();
+        int staticBaseAssetId = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        int logicalAnimationId = animations.animations.get(0).id;
+
+        assertEquals(1, animations.animations.size);
+        assertEquals(Integer.valueOf(logicalAnimationId),
+                assets.animationIdsByTileset().get(tilesetIndex).get(0));
+        assertEquals(Integer.valueOf(logicalAnimationId),
+                assets.cellLogicalIdsByTileset().get(tilesetIndex).get(0));
+        assertEquals(Integer.valueOf(staticBaseAssetId),
+                assets.staticTileAssetIdsByTileset().get(tilesetIndex).get(0));
+    }
+
+    @Test
     public void importScenePreservesTransformFlagsOnAnimatedCells() throws Exception {
         Harness h = harness("tmx-import-animated-transform-flags");
         long hFlipAnimated = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
@@ -428,6 +871,44 @@ public class TmxSceneImportServiceTest {
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
         assertTileAsset(tiled, 0, 1, animations.animations.get(0).id);
         assertEquals(TileTransformFlags.FLIP_H, tiled.tileTransformFlags.get(0));
+    }
+
+    @Test
+    public void importSceneReusesOneLogicalAnimationForTileLayerAndTileObject() throws Exception {
+        Harness h = harness("tmx-import-shared-animation-consumers");
+        FileHandle tmx = writeTmx(h.root.resolve("shared-animation.tmx"), """
+                <map orientation="orthogonal" width="2" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0"><animation>
+                      <frame tileid="0" duration="90"/>
+                      <frame tileid="1" duration="140"/>
+                    </animation></tile>
+                  </tileset>
+                  <layer name="Ground" width="2" height="1"><data encoding="csv">1,0</data></layer>
+                  <objectgroup name="Actors"><object name="SharedAnimated" gid="1" x="8" y="16"/></objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Shared Animation"));
+        World world = loadImportedWorldWithGeometry(h, result);
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+
+        assertTrue(result.imported());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(90, def.frameDurationsMs[0]);
+        assertEquals(140, def.frameDurationsMs[1]);
+        assertTileAsset(firstTiled(world), 0, 0, def.id);
+
+        int object = visualEntityByName(world, "SharedAnimated");
+        assertEquals(def.id,
+                world.getMapper(TiledAnimationComponent.class).get(object).animationId);
+        assertEquals(requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id(),
+                world.getMapper(AssetRefComponent.class).get(object).assetId);
+        assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability
+                .tiledAnimationIds.contains(def.id));
     }
 
     @Test
@@ -616,6 +1097,42 @@ public class TmxSceneImportServiceTest {
         assertNull(h.cfg.getSceneMeta("Dispose"));
     }
 
+    @Test
+    public void tileObjectMaterializationFailureRollsBackPartialSceneAssetsAndRestoresCurrentScene() throws Exception {
+        Harness h = harness("tmx-import-object-rollback");
+        FileHandle tmx = writeTmx(h.root.resolve("object-failure.tmx"), """
+                <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="objects" tilewidth="16" tileheight="16" tilecount="1" columns="1">
+                    <image source="terrain.png" width="16" height="16"/>
+                  </tileset>
+                  <objectgroup name="Gameplay"><object id="1" name="Spawn" gid="1"/></objectgroup>
+                </map>
+                """);
+        TmxSceneImportSession session = h.importer().beginImport(request(tmx, "Broken Objects"));
+        session.prepare();
+        session.createScene();
+        session.importAssets();
+        h.cfg.getSceneMeta("Broken Objects").nextEntityStableId = Integer.MAX_VALUE - 1;
+
+        RuntimeException materializeFailure = null;
+        try {
+            session.materializeAndSaveScene();
+        } catch (RuntimeException failure) {
+            materializeFailure = failure;
+        }
+
+        assertNotNull(materializeFailure);
+        assertFalse(session.hasTemporaryWorld());
+        TmxSceneImportResult rollback = session.rollback(materializeFailure);
+        assertEquals(TmxSceneImportStatus.FAILED_ROLLED_BACK, rollback.status());
+        assertTrue(rollback.rollbackSucceeded());
+        assertEquals("Main", h.cfg.getCurrentSceneName());
+        assertNull(h.cfg.getSceneMeta("Broken Objects"));
+        assertFalse(h.projectDir.child(StudioFs.DIR_SCENES).child("scene2.json").exists());
+        assertEquals(0, h.db.size());
+        assertEquals(0, h.projectDir.child(StudioFs.DIR_ORIG_TILES).list().length);
+    }
+
     private static void assertIllegalState(Runnable action) {
         try {
             action.run();
@@ -627,6 +1144,295 @@ public class TmxSceneImportServiceTest {
 
     private static TmxSceneImportRequest request(FileHandle tmx, String sceneName) {
         return new TmxSceneImportRequest(tmx, sceneName, false);
+    }
+
+    @Test
+    public void importSceneMaterializesStaticTileObjectsWithExactSpriteMetadataAndTransforms() throws Exception {
+        Harness h = harness("tmx-import-static-tile-objects");
+        writePng(h.projectDir.child("center.png"), 32, 16);
+        writeString(h.projectDir.child("center.tsx"), """
+                <tileset name="center" tilewidth="16" tileheight="16" tilecount="2" columns="2"
+                         objectalignment="center">
+                  <tileoffset x="2" y="3"/>
+                  <image source="center.png" width="32" height="16"/>
+                  <tile id="0" class="House"><properties>
+                    <property name="tile_speed" type="float" value="0.6"/>
+                  </properties></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeTmx(h.root.resolve("tile-objects.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="inline" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="1" class="TileGem"><properties>
+                      <property name="tile_label" value="inline"/>
+                      <property name="collectible" type="bool" value="true"/>
+                      <property name="damage" type="int" value="10"/>
+                      <property name="animation_speed" type="float" value="0.5"/>
+                    </properties></tile>
+                  </tileset>
+                  <tileset firstgid="10" source="center.tsx"/>
+                  <layer name="Ground" width="10" height="10"><data encoding="csv">2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0</data></layer>
+                  <group opacity="0.5" offsetx="1" offsety="2">
+                    <objectgroup name="Actors" opacity="0.5" offsetx="2" offsety="2" draworder="topdown" visible="0">
+                      <object id="7" name="Shared" class="gem" type="legacy" gid="2"
+                              x="10" y="20" width="32" height="24" visible="0">
+                        <properties>
+                          <property name="animation_speed" type="float" value="0.6"/>
+                          <property name="damage" type="int" value="25"/>
+                          <property name="instance" value="yes"/>
+                        </properties>
+                      </object>
+                      <object name="BottomNegative" gid="2" x="20" y="30" rotation="-90"/>
+                      <object id="7" name="CenterRotated" gid="10" x="50" y="40" rotation="90"/>
+                      <object name="HFlip" gid="2147483649" x="70" y="60"/>
+                      <object name="VFlip" gid="1073741825" x="80" y="70"/>
+                      <object name="HVFlip" gid="3221225473" x="90" y="80"/>
+                      <object name="DiagonalRotated" gid="536870913" x="95" y="82"
+                              width="34" height="18" rotation="30"/>
+                      <object name="CleanHexPeer" gid="1" x="105" y="84"/>
+                      <object name="IgnoredHex" gid="268435457" x="105" y="84"/>
+                      <object name="DuplicateTile" gid="1" x="100" y="85"/>
+                      <object name="DuplicateTile" gid="1" x="110" y="90"/>
+                    </objectgroup>
+                  </group>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Tile Objects"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        int layer = layerEntity(world, 1, false);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(layer).visible);
+        assertEquals(11, drawableCountInLayer(world, 1));
+        assertEquals(2, visualEntityCountByName(world, "DuplicateTile"));
+
+        int shared = visualEntityByName(world, "Shared");
+        TransformComponent sharedTransform = world.getMapper(TransformComponent.class).get(shared);
+        DimensionsComponent sharedDimensions = world.getMapper(DimensionsComponent.class).get(shared);
+        AssetRefComponent sharedAsset = world.getMapper(AssetRefComponent.class).get(shared);
+        assertEquals(13f, sharedTransform.x, 0.0001f);
+        assertEquals(136f, sharedTransform.y, 0.0001f);
+        assertEquals(0f, sharedTransform.originX, 0.0001f);
+        assertEquals(0f, sharedTransform.originY, 0.0001f);
+        assertEquals(32f, sharedDimensions.width, 0.0001f);
+        assertEquals(24f, sharedDimensions.height, 0.0001f);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(shared).visible);
+        assertEquals(0x40FFFFFF, world.getMapper(TintComponent.class).get(shared).getRgba());
+        assertEquals("gem", world.getMapper(PixscapeTagComponent.class).get(shared).tags.first());
+        assertEquals(0.6f, world.getMapper(CustomPropertiesComponent.class).get(shared)
+                .properties.getFloat("animation_speed", 0f), 0.0001f);
+        CustomPropertiesComponent sharedProperties = world.getMapper(CustomPropertiesComponent.class).get(shared);
+        assertEquals("inline", sharedProperties.properties.getString("tile_label", null));
+        assertTrue(sharedProperties.properties.getBoolean("collectible", false));
+        assertEquals(25, sharedProperties.properties.getInt("damage", 0));
+        assertEquals("yes", sharedProperties.properties.getString("instance", null));
+        assertTrue(world.getMapper(PixscapeIdentityComponent.class).get(shared).stableId > 0);
+        assertTrue(world.getMapper(TextureRegionComponent.class).has(shared));
+        assertTrue(world.getMapper(RenderMaterialComponent.class).has(shared));
+        assertFalse(world.getMapper(AnimationComponent.class).has(shared));
+        assertFalse(world.getMapper(TiledAnimationComponent.class).has(shared));
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(shared).kind);
+        assertEquals(firstTiled(world).tileAssetIds.get(0), sharedAsset.assetId);
+        assertTrue(h.cfg.getSceneMeta(result.sceneName()).runtimeAvailability.spriteAssetIds
+                .contains(sharedAsset.assetId));
+
+        int center = visualEntityByName(world, "CenterRotated");
+        TransformComponent centerTransform = world.getMapper(TransformComponent.class).get(center);
+        assertEquals(53f, centerTransform.x, 0.0001f);
+        assertEquals(116f, centerTransform.y, 0.0001f);
+        assertEquals(6f, centerTransform.originX, 0.0001f);
+        assertEquals(11f, centerTransform.originY, 0.0001f);
+        assertEquals(-MathUtils.PI / 2f, centerTransform.rotationRad, 0.0001f);
+        assertTransformedCorners(world, center, new float[]{58, 122, 58, 106, 42, 106, 42, 122});
+        assertEquals("House", world.getMapper(PixscapeTagComponent.class).get(center).tags.first());
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(center).kind);
+        assertEquals(0.6f, world.getMapper(CustomPropertiesComponent.class).get(center)
+                .properties.getFloat("tile_speed", 0f), 0.0001f);
+
+        int bottomNegative = visualEntityByName(world, "BottomNegative");
+        assertEquals(MathUtils.PI / 2f,
+                world.getMapper(TransformComponent.class).get(bottomNegative).rotationRad, 0.0001f);
+        assertTransformedCorners(world, bottomNegative,
+                new float[]{7, 126, 7, 142, 23, 142, 23, 126});
+
+        assertFlip(world, "HFlip", -1f, 1f, 16f, 0f);
+        assertFlip(world, "VFlip", 1f, -1f, 0f, 16f);
+        assertFlip(world, "HVFlip", -1f, -1f, 16f, 16f);
+        assertTransformedBounds(world, visualEntityByName(world, "HFlip"), 73, 96, 89, 112);
+        assertTransformedBounds(world, visualEntityByName(world, "VFlip"), 83, 86, 99, 102);
+        assertTransformedBounds(world, visualEntityByName(world, "HVFlip"), 93, 76, 109, 92);
+        int diagonal = visualEntityByName(world, "DiagonalRotated");
+        assertEquals(98f, world.getMapper(TransformComponent.class).get(diagonal).x, 0.0001f);
+        assertEquals(74f, world.getMapper(TransformComponent.class).get(diagonal).y, 0.0001f);
+        assertEquals(34f, world.getMapper(DimensionsComponent.class).get(diagonal).width, 0.0001f);
+        assertEquals(18f, world.getMapper(DimensionsComponent.class).get(diagonal).height, 0.0001f);
+        assertEquivalentSpriteTransform(world,
+                visualEntityByName(world, "CleanHexPeer"), visualEntityByName(world, "IgnoredHex"));
+        assertEquals(0, world.getMapper(EntityIndexComponent.class).get(shared).zIndex);
+        assertEquals(5, world.getMapper(EntityIndexComponent.class).get(visualEntityByName(world, "HVFlip")).zIndex);
+    }
+
+    @Test
+    public void importSceneMaterializesSharedAnimatedTileObjectsWithoutTileLayerConsumer() throws Exception {
+        Harness h = harness("tmx-import-isolated-animated-tile-objects");
+        FileHandle tmx = animatedTileObjectTmx(h, "animated-objects.tmx");
+        TmxSceneImportRequest request = new TmxSceneImportRequest(tmx, "Animated Objects", true);
+
+        TmxSceneImportResult result = h.importer().importScene(request);
+        World world = loadImportedWorldWithGeometry(h, result);
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        int staticBaseAssetId = requireTile(h.db.findByLogicalPath("tiles/terrain/0")).id();
+
+        assertTrue(result.imported());
+        assertTrue(result.planResult().preflightReport().isImportableCandidate());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(100, def.frameDurationsMs[0]);
+        assertEquals(150, def.frameDurationsMs[1]);
+
+        int first = visualEntityByName(world, "AnimatedA");
+        int second = visualEntityByName(world, "AnimatedB");
+        int staticPeer = visualEntityByName(world, "StaticPeer");
+        TiledAnimationComponent firstAnimation = world.getMapper(TiledAnimationComponent.class).get(first);
+        TiledAnimationComponent secondAnimation = world.getMapper(TiledAnimationComponent.class).get(second);
+
+        assertNotNull(firstAnimation);
+        assertNotNull(secondAnimation);
+        assertEquals(def.id, firstAnimation.animationId);
+        assertEquals(def.id, secondAnimation.animationId);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(first).kind);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(second).kind);
+        assertEquals(0, firstAnimation.frameIndex);
+        assertEquals(0, firstAnimation.frameElapsedMs);
+        assertEquals(-1, firstAnimation.appliedFrameAssetId);
+        assertEquals(0, secondAnimation.frameIndex);
+        assertEquals(0, secondAnimation.frameElapsedMs);
+        assertEquals(-1, secondAnimation.appliedFrameAssetId);
+        assertEquals(staticBaseAssetId, world.getMapper(AssetRefComponent.class).get(first).assetId);
+        assertEquals(staticBaseAssetId, world.getMapper(AssetRefComponent.class).get(second).assetId);
+        assertFalse(world.getMapper(TiledAnimationComponent.class).has(staticPeer));
+
+        assertTrue(world.getMapper(TextureRegionComponent.class).has(first));
+        assertTrue(world.getMapper(RenderMaterialComponent.class).has(first));
+        assertTrue(world.getMapper(VisibilityComponent.class).has(first));
+        assertTrue(world.getMapper(PixscapeIdentityComponent.class).has(first));
+        assertTrue(world.getMapper(EntityMetaComponent.class).has(first));
+        assertTrue(world.getMapper(EntityIndexComponent.class).has(first));
+        assertEquals("enemy", world.getMapper(PixscapeTagComponent.class).get(first).tags.first());
+        assertEquals(5, world.getMapper(CustomPropertiesComponent.class).get(first)
+                .properties.getInt("speed", 0));
+        assertEquivalentTransformAndDimensions(world, first, staticPeer);
+        assertFlip(world, "AnimatedB", -1f, 1f, 16f, 0f);
+
+        SceneMeta sceneMeta = h.cfg.getSceneMeta(result.sceneName());
+        assertTrue(sceneMeta.runtimeAvailability.tiledAnimationIds.contains(def.id));
+        for (int frameAssetId : def.frameAssetIds) {
+            assertTrue(sceneMeta.runtimeAvailability.tiledTileAssetIds.contains(frameAssetId));
+            AssetMeta frameAsset = h.db.findById(frameAssetId);
+            assertNotNull(frameAsset);
+            assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
+                    .child(StudioFs.DIR_INPUT)
+                    .child(result.sceneTag())
+                    .child(new FileHandle(frameAsset.sourceRelPath()).name())
+                    .exists());
+        }
+        assertTrue(h.projectDir.child(StudioFs.DIR_ATLASES)
+                .child(StudioFs.withExt(result.sceneTag(), StudioFs.EXT_ATLAS)).exists());
+
+        FileHandle sceneFile = h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName());
+        String sceneJson = sceneFile.readString(StandardCharsets.UTF_8.name());
+        assertTrue(sceneJson.contains("animationId"));
+        assertFalse(sceneJson.contains("frameIndex"));
+        assertFalse(sceneJson.contains("frameElapsedMs"));
+        assertFalse(sceneJson.contains("appliedFrameAssetId"));
+
+        FileHandle exportDir = new FileHandle(h.root.resolve("isolated-export").toFile());
+        RuntimeExport.exportRuntime(h.cfg, h.projectDir, exportDir);
+        JsonValue profiles = new JsonReader().parse(exportDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                .child(RuntimeFs.FILE_TILESET_PROFILES_JSON));
+        JsonValue tileIds = profiles.get("tilesets").get(0).get("tileAssetIds");
+        for (int frameAssetId : def.frameAssetIds) {
+            assertTrue(containsJsonInt(tileIds, frameAssetId));
+        }
+    }
+
+    @Test
+    public void importSceneSupportsAnimatedTileObjectFromExternalImageCollectionTileset() throws Exception {
+        Harness h = harness("tmx-import-animated-collection-object");
+        writePng(h.projectDir.child("collection-0.png"), 16, 16);
+        writePng(h.projectDir.child("collection-1.png"), 16, 16);
+        writeString(h.projectDir.child("animated-collection.tsx"), """
+                <tileset name="collection" tilewidth="16" tileheight="16" tilecount="2" columns="0">
+                  <tile id="0">
+                    <image source="collection-0.png" width="16" height="16"/>
+                    <animation>
+                      <frame tileid="0" duration="80"/>
+                      <frame tileid="1" duration="120"/>
+                    </animation>
+                  </tile>
+                  <tile id="1"><image source="collection-1.png" width="16" height="16"/></tile>
+                </tileset>
+                """);
+        FileHandle tmx = writeTmx(h.root.resolve("animated-collection-object.tmx"), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="5" source="animated-collection.tsx"/>
+                  <objectgroup name="Actors"><object name="CollectionAnimated" gid="5" x="8" y="16"/></objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Animated Collection"));
+        World world = loadImportedWorld(h, result);
+        int entity = visualEntityByName(world, "CollectionAnimated");
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.load(
+                h.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+
+        assertTrue(result.imported());
+        assertEquals(1, animations.animations.size);
+        TileAnimationProjectDefData def = animations.animations.get(0);
+        assertEquals(def.id, world.getMapper(TiledAnimationComponent.class).get(entity).animationId);
+        assertEquals(def.frameAssetIds[0], world.getMapper(AssetRefComponent.class).get(entity).assetId);
+        assertEquals(80, def.frameDurationsMs[0]);
+        assertEquals(120, def.frameDurationsMs[1]);
+    }
+
+    @Test
+    public void importSceneUsesActualImageCollectionTileAssetAndNativeSize() throws Exception {
+        Harness h = harness("tmx-import-image-collection-object");
+        writePng(h.projectDir.child("tree.png"), 23, 29);
+        FileHandle tmx = writeTmx(h.root.resolve("collection-object.tmx"), """
+                <map orientation="orthogonal" width="2" height="2" tilewidth="16" tileheight="16">
+                  <tileset firstgid="5" name="collection" tilewidth="16" tileheight="16" tilecount="3" columns="0"
+                           objectalignment="topleft">
+                    <tile id="2" class="Tree"><image source="tree.png" width="23" height="29"/>
+                      <properties><property name="solid" type="bool" value="true"/></properties>
+                    </tile>
+                  </tileset>
+                  <objectgroup name="Props"><object name="Tree" gid="7" x="8" y="9" rotation="-90"/></objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Collection Object"));
+        World world = loadImportedWorld(h, result);
+        int tree = visualEntityByName(world, "Tree");
+
+        assertTrue(result.imported());
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(tree);
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(tree);
+        assertEquals(23f, dimensions.width, 0.0001f);
+        assertEquals(29f, dimensions.height, 0.0001f);
+        assertEquals(0f, transform.originX, 0.0001f);
+        assertEquals(29f, transform.originY, 0.0001f);
+        assertEquals(MathUtils.PI / 2f, transform.rotationRad, 0.0001f);
+        assertTransformedCorners(world, tree, new float[]{8, 23, 8, 46, 37, 46, 37, 23});
+        AssetMeta asset = h.db.findById(world.getMapper(AssetRefComponent.class).get(tree).assetId);
+        assertNotNull(asset);
+        assertTrue(h.projectDir.child(asset.sourceRelPath()).exists());
+        assertEquals("Tree", world.getMapper(PixscapeTagComponent.class).get(tree).tags.first());
+        assertTrue(world.getMapper(CustomPropertiesComponent.class).get(tree)
+                .properties.getBoolean("solid", false));
     }
 
     private static Harness harness(String name) throws Exception {
@@ -678,6 +1484,31 @@ public class TmxSceneImportServiceTest {
                   <layer name="Ground" width="2" height="2"><data encoding="csv">%s</data></layer>
                 </map>
                 """.formatted(csv));
+    }
+
+    private static FileHandle animatedTileObjectTmx(Harness h, String name) throws Exception {
+        long hFlipAnimated = TmxGidSupport.FLIPPED_HORIZONTALLY_FLAG | 1L;
+        return writeTmx(h.root.resolve(name), """
+                <map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="16" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="32" height="32"/>
+                    <tile id="0" class="SourceEnemy">
+                      <properties><property name="speed" type="int" value="3"/></properties>
+                      <animation>
+                        <frame tileid="1" duration="100"/>
+                        <frame tileid="2" duration="150"/>
+                      </animation>
+                    </tile>
+                  </tileset>
+                  <objectgroup name="Actors">
+                    <object id="1" name="AnimatedA" class="enemy" gid="1" x="10" y="20">
+                      <properties><property name="speed" type="int" value="5"/></properties>
+                    </object>
+                    <object id="2" name="AnimatedB" gid="%d" x="30" y="20"/>
+                    <object id="3" name="StaticPeer" gid="2" x="10" y="20"/>
+                  </objectgroup>
+                </map>
+                """.formatted(hFlipAnimated));
     }
 
     private static FileHandle writeTmx(Path path, String text) throws Exception {
@@ -750,6 +1581,97 @@ public class TmxSceneImportServiceTest {
         return world;
     }
 
+    private static World loadImportedWorldWithGeometry(Harness h, TmxSceneImportResult result) {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(64),
+                        new UpdateWorldGeometrySystem())
+                .build());
+        SceneLoader.loadScene(
+                world,
+                h.projectDir.child(StudioFs.DIR_SCENES).child(result.sceneFileName()),
+                false,
+                h.cfg.getSceneMeta(result.sceneName()));
+        world.process();
+        SceneLoader.forceFullRenderDirty(world);
+        world.process();
+        return world;
+    }
+
+    private static void assertCenteredRectangleGeometry(float sourceX,
+                                                        float sourceY,
+                                                        float width,
+                                                        float height,
+                                                        float rotationRad) {
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(64), new UpdateWorldGeometrySystem())
+                .build());
+        try {
+            int entity = world.create();
+            TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
+            transform.x = sourceX;
+            transform.y = sourceY;
+            transform.rotationRad = rotationRad;
+            transform.scaleX = 1f;
+            transform.scaleY = 1f;
+            TmxSceneImportService.centerRectangleTransformFromTiledPivot(transform, width, height);
+            transform.refreshCaches();
+            DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(entity);
+            dimensions.width = width;
+            dimensions.height = height;
+            world.getMapper(AABBComponent.class).create(entity);
+            OrientedBoundsComponent bounds = world.getMapper(OrientedBoundsComponent.class).create(entity);
+
+            world.process();
+            world.getSystem(DirtyTrackerSystem.class).geometry(entity, GeometryDirty.ALL);
+            world.process();
+
+            float[] expected = tiledSourceCorners(sourceX, sourceY, width, height, rotationRad);
+            float[] actual = new float[8];
+            OrientedBoundsHelper.toCorners(bounds, actual);
+            assertSameCornerSet(expected, actual);
+
+            AABBComponent aabb = world.getMapper(AABBComponent.class).get(entity);
+            for (int i = 0; i < expected.length; i += 2) {
+                assertTrue(expected[i] >= aabb.minX - 0.0001f);
+                assertTrue(expected[i] <= aabb.maxX + 0.0001f);
+                assertTrue(expected[i + 1] >= aabb.minY - 0.0001f);
+                assertTrue(expected[i + 1] <= aabb.maxY + 0.0001f);
+            }
+        } finally {
+            world.dispose();
+        }
+    }
+
+    private static float[] tiledSourceCorners(float sourceX,
+                                              float sourceY,
+                                              float width,
+                                              float height,
+                                              float rotationRad) {
+        float cos = MathUtils.cos(rotationRad);
+        float sin = MathUtils.sin(rotationRad);
+        float[] local = {0f, 0f, width, 0f, width, -height, 0f, -height};
+        float[] corners = new float[8];
+        for (int i = 0; i < local.length; i += 2) {
+            corners[i] = sourceX + cos * local[i] - sin * local[i + 1];
+            corners[i + 1] = sourceY + sin * local[i] + cos * local[i + 1];
+        }
+        return corners;
+    }
+
+    private static void assertSameCornerSet(float[] expected, float[] actual) {
+        for (int i = 0; i < expected.length; i += 2) {
+            boolean found = false;
+            for (int j = 0; j < actual.length; j += 2) {
+                if (Math.abs(expected[i] - actual[j]) <= 0.0001f
+                        && Math.abs(expected[i + 1] - actual[j + 1]) <= 0.0001f) {
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue("Missing expected corner (" + expected[i] + ", " + expected[i + 1] + ")", found);
+        }
+    }
+
     private static TiledLayerComponent firstTiled(World world) {
         IntBag entities = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
@@ -804,6 +1726,187 @@ public class TmxSceneImportServiceTest {
         return count;
     }
 
+    private static int objectCountInLayer(World world, int layerIndex) {
+        int count = 0;
+        ComponentMapper<EntityIndexComponent> indices = world.getMapper(EntityIndexComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TransformComponent.class,
+                        PixscapeIdentityComponent.class))
+                .getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (indices.get(entity).layerIndex == layerIndex
+                    && !world.getMapper(AssetRefComponent.class).has(entity)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int objectEntityByName(World world, String name) {
+        int[] entities = objectEntitiesByName(world, name);
+        if (entities.length != 1) {
+            throw new AssertionError("Expected one object named " + name + " but found " + entities.length);
+        }
+        return entities[0];
+    }
+
+    private static int visualEntityByName(World world, String name) {
+        ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TransformComponent.class,
+                        PixscapeIdentityComponent.class, AssetRefComponent.class))
+                .getEntities();
+        int found = -1;
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (!name.equals(identities.get(entity).name)) continue;
+            if (found >= 0) throw new AssertionError("More than one visual entity named " + name);
+            found = entity;
+        }
+        if (found < 0) throw new AssertionError("Missing visual entity named " + name);
+        return found;
+    }
+
+    private static int visualEntityCountByName(World world, String name) {
+        ComponentMapper<PixscapeIdentityComponent> identities = world.getMapper(PixscapeIdentityComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class,
+                        AssetRefComponent.class))
+                .getEntities();
+        int count = 0;
+        for (int i = 0; i < entities.size(); i++) {
+            if (name.equals(identities.get(entities.get(i)).name)) count++;
+        }
+        return count;
+    }
+
+    private static void assertFlip(World world, String name,
+                                   float scaleX, float scaleY, float originX, float originY) {
+        TransformComponent transform = world.getMapper(TransformComponent.class)
+                .get(visualEntityByName(world, name));
+        assertEquals(scaleX, transform.scaleX, 0.0001f);
+        assertEquals(scaleY, transform.scaleY, 0.0001f);
+        assertEquals(originX, transform.originX, 0.0001f);
+        assertEquals(originY, transform.originY, 0.0001f);
+    }
+
+    private static void assertTransformedCorners(World world, int entity, float[] expected) {
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        float[] local = {0f, dimensions.height, dimensions.width, dimensions.height,
+                dimensions.width, 0f, 0f, 0f};
+        for (int i = 0; i < local.length; i += 2) {
+            float dx = (local[i] - transform.originX) * transform.scaleX;
+            float dy = (local[i + 1] - transform.originY) * transform.scaleY;
+            assertEquals(expected[i], transform.x + transform.cos * dx - transform.sin * dy, 0.0001f);
+            assertEquals(expected[i + 1], transform.y + transform.sin * dx + transform.cos * dy, 0.0001f);
+        }
+    }
+
+    private static void assertTransformedBounds(World world, int entity,
+                                                float minX, float minY, float maxX, float maxY) {
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        float[] local = {0f, dimensions.height, dimensions.width, dimensions.height,
+                dimensions.width, 0f, 0f, 0f};
+        float actualMinX = Float.POSITIVE_INFINITY;
+        float actualMinY = Float.POSITIVE_INFINITY;
+        float actualMaxX = Float.NEGATIVE_INFINITY;
+        float actualMaxY = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < local.length; i += 2) {
+            float dx = (local[i] - transform.originX) * transform.scaleX;
+            float dy = (local[i + 1] - transform.originY) * transform.scaleY;
+            float x = transform.x + transform.cos * dx - transform.sin * dy;
+            float y = transform.y + transform.sin * dx + transform.cos * dy;
+            actualMinX = Math.min(actualMinX, x);
+            actualMinY = Math.min(actualMinY, y);
+            actualMaxX = Math.max(actualMaxX, x);
+            actualMaxY = Math.max(actualMaxY, y);
+        }
+        assertEquals(minX, actualMinX, 0.0001f);
+        assertEquals(minY, actualMinY, 0.0001f);
+        assertEquals(maxX, actualMaxX, 0.0001f);
+        assertEquals(maxY, actualMaxY, 0.0001f);
+    }
+
+    private static void assertEquivalentSpriteTransform(World world, int expectedEntity, int actualEntity) {
+        assertEquivalentTransformAndDimensions(world, expectedEntity, actualEntity);
+        assertEquals(world.getMapper(AssetRefComponent.class).get(expectedEntity).assetId,
+                world.getMapper(AssetRefComponent.class).get(actualEntity).assetId);
+    }
+
+    private static void assertEquivalentTransformAndDimensions(World world,
+                                                               int expectedEntity,
+                                                               int actualEntity) {
+        TransformComponent expected = world.getMapper(TransformComponent.class).get(expectedEntity);
+        TransformComponent actual = world.getMapper(TransformComponent.class).get(actualEntity);
+        assertEquals(expected.x, actual.x, 0.0001f);
+        assertEquals(expected.y, actual.y, 0.0001f);
+        assertEquals(expected.originX, actual.originX, 0.0001f);
+        assertEquals(expected.originY, actual.originY, 0.0001f);
+        assertEquals(expected.rotationRad, actual.rotationRad, 0.0001f);
+        assertEquals(expected.scaleX, actual.scaleX, 0.0001f);
+        assertEquals(expected.scaleY, actual.scaleY, 0.0001f);
+        DimensionsComponent expectedDimensions = world.getMapper(DimensionsComponent.class).get(expectedEntity);
+        DimensionsComponent actualDimensions = world.getMapper(DimensionsComponent.class).get(actualEntity);
+        assertEquals(expectedDimensions.width, actualDimensions.width, 0.0001f);
+        assertEquals(expectedDimensions.height, actualDimensions.height, 0.0001f);
+    }
+
+    private static int[] objectEntitiesByName(World world, String name) {
+        ComponentMapper<PixscapeIdentityComponent> identities =
+                world.getMapper(PixscapeIdentityComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TransformComponent.class,
+                        PixscapeIdentityComponent.class))
+                .getEntities();
+        int count = 0;
+        for (int i = 0; i < entities.size(); i++) {
+            if (name.equals(identities.get(entities.get(i)).name)
+                    && !world.getMapper(AssetRefComponent.class).has(entities.get(i))) {
+                count++;
+            }
+        }
+        int[] matching = new int[count];
+        int next = 0;
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (name.equals(identities.get(entity).name)
+                    && !world.getMapper(AssetRefComponent.class).has(entity)) {
+                matching[next++] = entity;
+            }
+        }
+        return matching;
+    }
+
+    private static void assertCorners(World world, int entity, float[] expected) {
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(entity);
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(entity);
+        float[] local = {
+                0f, dimensions.height,
+                dimensions.width, dimensions.height,
+                dimensions.width, 0f,
+                0f, 0f
+        };
+        for (int i = 0; i < local.length; i += 2) {
+            float dx = local[i] - transform.originX;
+            float dy = local[i + 1] - transform.originY;
+            float worldX = transform.x + transform.cos * dx - transform.sin * dy;
+            float worldY = transform.y + transform.sin * dx + transform.cos * dy;
+            assertEquals(expected[i], worldX, 0.0001f);
+            assertEquals(expected[i + 1], worldY, 0.0001f);
+        }
+    }
+
+    private static void assertSingleTag(World world, String entityName, String expectedTag) {
+        int entity = objectEntityByName(world, entityName);
+        PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).get(entity);
+        assertNotNull(tags);
+        assertEquals(1, tags.tags.size);
+        assertEquals(expectedTag, tags.tags.first());
+    }
+
     private static void assertRepeat(World world, int entity, boolean repeatX, boolean repeatY) {
         RenderRepeatComponent repeat = world.getMapper(RenderRepeatComponent.class).get(entity);
         assertNotNull(repeat);
@@ -825,6 +1928,261 @@ public class TmxSceneImportServiceTest {
             }
         }
         throw new AssertionError("Missing tile cell " + expectedX + "," + expectedY);
+    }
+
+    @Test
+    public void finalizesObjectReferencesWithPixscapeStableIdsNotTiledSourceIds() {
+        PropertySet base = new PropertySet().putClass("behavior", "Behavior", new PropertySet());
+        java.util.List<TmxObjectPropertyReference> references = java.util.List.of(
+                new TmxObjectPropertyReference(java.util.List.of("target"), 2002, "source"),
+                new TmxObjectPropertyReference(java.util.List.of("none"), 0, "source"),
+                new TmxObjectPropertyReference(java.util.List.of("behavior", "self"), 1001, "source"));
+        PropertySet finalized = TmxSceneImportService.finalizeObjectProperties(
+                base, references, java.util.Map.of(1001, 3, 2002, 7));
+
+        assertEquals(PropertyType.OBJECT, finalized.typeOf("target"));
+        assertEquals(7, finalized.getObjectStableId("target", -1));
+        assertNotEquals(2002, finalized.getObjectStableId("target", -1));
+        assertEquals(-1, finalized.getObjectStableId("none", 0));
+        assertEquals(3, finalized.getClassValue("behavior").properties()
+                .getObjectStableId("self", -1));
+        assertFalse(base.contains("target"));
+    }
+
+    @Test
+    public void importSceneResolvesObjectPropertiesAcrossLayersAndPersistsStableIds()
+            throws Exception {
+        Harness h = harness("tmx-import-object-references-round-trip");
+        FileHandle tmx = writeTmx(h.root.resolve("object-references.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Triggers">
+                    <properties>
+                      <property name="layerTarget" type="object" value="2002"/>
+                    </properties>
+                    <object id="1001" name="Switch" x="10" y="20" width="8" height="6">
+                      <properties>
+                        <property name="target" type="object" value="2002"/>
+                        <property name="none" type="object" value="0"/>
+                        <property name="behavior" type="class" propertytype="Behavior">
+                          <properties>
+                            <property name="self" type="object" value="1001"/>
+                          </properties>
+                        </property>
+                      </properties>
+                    </object>
+                  </objectgroup>
+                  <objectgroup name="Targets">
+                    <object id="2002" name="Door" x="40" y="50"><point/></object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Object References"));
+        World world = loadImportedWorld(h, result);
+
+        assertTrue(result.imported());
+        int switchEntity = objectEntityByName(world, "Switch");
+        int doorEntity = objectEntityByName(world, "Door");
+        ComponentMapper<PixscapeIdentityComponent> identities =
+                world.getMapper(PixscapeIdentityComponent.class);
+        int switchStableId = identities.get(switchEntity).stableId;
+        int doorStableId = identities.get(doorEntity).stableId;
+        assertTrue(switchStableId > 0);
+        assertTrue(doorStableId > 0);
+        assertNotEquals(1001, switchStableId);
+        assertNotEquals(2002, doorStableId);
+
+        PropertySet switchProperties = world.getMapper(CustomPropertiesComponent.class)
+                .get(switchEntity).properties;
+        assertEquals(doorStableId, switchProperties.getObjectStableId("target", -1));
+        assertNotEquals(2002, switchProperties.getObjectStableId("target", -1));
+        assertEquals(-1, switchProperties.getObjectStableId("none", 0));
+        assertEquals(switchStableId, switchProperties.getClassValue("behavior").properties()
+                .getObjectStableId("self", -1));
+
+        PropertySet layerProperties = world.getMapper(CustomPropertiesComponent.class)
+                .get(layerEntity(world, 0, false)).properties;
+        assertEquals(doorStableId, layerProperties.getObjectStableId("layerTarget", -1));
+    }
+
+    @Test
+    public void importSceneRoundTripsPolygonAndPolylineAsGenericAuthoredGeometry()
+            throws Exception {
+        Harness h = harness("tmx-import-authored-path-geometry");
+        FileHandle tmx = writeTmx(h.root.resolve("paths.tmx"), """
+                <map orientation="orthogonal" width="10" height="10" tilewidth="16" tileheight="16">
+                  <objectgroup name="Shapes" offsetx="3" offsety="4">
+                    <object id="1001" name="Polygon" class="Area" x="100" y="80" rotation="0">
+                      <polygon points="0,0 40,10 20,50 -10,20"/>
+                      <properties><property name="target" type="object" value="2002"/></properties>
+                    </object>
+                    <object id="2002" name="Polyline" type="Route" x="20" y="30" rotation="90">
+                      <polyline points="-10,5 20,-7 40,12"/>
+                      <properties><property name="label" value="exit"/></properties>
+                    </object>
+                  </objectgroup>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Authored Paths"));
+        World world = loadImportedWorldWithGeometry(h, result);
+
+        assertTrue(result.imported());
+        int polygonEntity = objectEntityByName(world, "Polygon");
+        int polylineEntity = objectEntityByName(world, "Polyline");
+        PolygonComponent polygon = world.getMapper(PolygonComponent.class).get(polygonEntity);
+        PolylineComponent polyline = world.getMapper(PolylineComponent.class).get(polylineEntity);
+        assertNotNull(polygon);
+        assertNotNull(polyline);
+        assertArrayEquals(new float[]{10f, 50f, 50f, 40f, 30f, 0f, 0f, 30f},
+                polygon.vertices, 0.0001f);
+        assertArrayEquals(new float[]{0f, 7f, 30f, 19f, 50f, 0f}, polyline.vertices, 0.0001f);
+
+        DimensionsComponent polygonDimensions = world.getMapper(DimensionsComponent.class).get(polygonEntity);
+        DimensionsComponent polylineDimensions = world.getMapper(DimensionsComponent.class).get(polylineEntity);
+        assertEquals(50f, polygonDimensions.width, 0.0001f);
+        assertEquals(50f, polygonDimensions.height, 0.0001f);
+        assertEquals(50f, polylineDimensions.width, 0.0001f);
+        assertEquals(19f, polylineDimensions.height, 0.0001f);
+        assertTrue(world.getMapper(AABBComponent.class).has(polygonEntity));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(polygonEntity));
+        assertTrue(world.getMapper(AABBComponent.class).has(polylineEntity));
+        assertTrue(world.getMapper(OrientedBoundsComponent.class).has(polylineEntity));
+        assertEquals(EntityKind.POLYGON, world.getMapper(EntityMetaComponent.class).get(polygonEntity).kind);
+        assertEquals(EntityKind.POLYLINE, world.getMapper(EntityMetaComponent.class).get(polylineEntity).kind);
+
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polygonEntity), polygon.vertices,
+                new float[]{103f, 76f, 143f, 66f, 123f, 26f, 93f, 56f});
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polylineEntity), polyline.vertices,
+                new float[]{18f, 136f, 30f, 106f, 11f, 86f});
+
+        int polygonStableId = world.getMapper(PixscapeIdentityComponent.class).get(polygonEntity).stableId;
+        int polylineStableId = world.getMapper(PixscapeIdentityComponent.class).get(polylineEntity).stableId;
+        assertTrue(polygonStableId > 0);
+        assertTrue(polylineStableId > 0);
+        assertNotEquals(2002, polylineStableId);
+        assertEquals(polylineStableId, world.getMapper(CustomPropertiesComponent.class).get(polygonEntity)
+                .properties.getObjectStableId("target", -1));
+        assertEquals("exit", world.getMapper(CustomPropertiesComponent.class).get(polylineEntity)
+                .properties.getString("label", null));
+        assertSingleTag(world, "Polygon", "Area");
+        assertSingleTag(world, "Polyline", "Route");
+    }
+
+    @Test
+    public void importSceneRoundTripsIsometricObjectLayerGeometryAndDefaultTileObjectAlignment()
+            throws Exception {
+        Harness h = harness("tmx-import-isometric-objects");
+        writePng(h.projectDir.child("terrain.png"), 64, 16);
+        FileHandle tmx = writeTmx(h.root.resolve("isometric-objects.tmx"), """
+                <map orientation="isometric" width="4" height="4" tilewidth="32" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="32" tileheight="16" tilecount="2" columns="2">
+                    <image source="terrain.png" width="64" height="16"/>
+                  </tileset>
+                  <layer name="Below" width="4" height="4"><data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0</data></layer>
+                  <group name="World" visible="0" offsetx="2" offsety="4" parallaxx="2" parallaxy="0.5">
+                    <objectgroup name="Gameplay" offsetx="1" offsety="1" parallaxx="3" parallaxy="4" draworder="topdown">
+                      <properties><property name="role" value="logic"/></properties>
+                      <object id="101" name="Point" class="Spawn" x="24" y="24"><point/>
+                        <properties><property name="target" type="object" value="102"/></properties>
+                      </object>
+                      <object id="102" name="Rectangle" class="Area" type="LegacyArea" x="24" y="24" width="16" height="16"/>
+                      <object name="RotatedRectangle" x="24" y="24" width="16" height="16" rotation="90"/>
+                      <object id="103" name="Polygon" class="Zone" x="24" y="24" rotation="90"><polygon points="0,0 16,0 16,16"/></object>
+                      <object name="Polyline" x="24" y="24" rotation="90"><polyline points="0,0 16,0 16,16"/></object>
+                      <object name="Tile" gid="1" x="24" y="24"/>
+                    </objectgroup>
+                  </group>
+                  <layer name="Above" width="4" height="4"><data encoding="csv">0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0</data></layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Isometric Objects"));
+        World world = loadImportedWorldWithGeometry(h, result);
+
+        assertTrue(result.imported());
+        assertTrue(result.planResult().hasPlan());
+        assertEquals(List.of("Below", "World/Gameplay", "Above"), result.planResult().plan().layers()
+                .stream().map(TmxLayerPlan::name).toList());
+        TmxObjectLayerPlan layer = (TmxObjectLayerPlan) result.planResult().plan().layers().get(1);
+        assertEquals(List.of(0, 1, 2, 3, 4, 5),
+                layer.objects().stream().map(TmxObjectPlan::zIndex).toList());
+        int objectLayer = layerEntity(world, 1, false);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(objectLayer).visible);
+        assertEquals(6f, world.getMapper(LayerParallaxComponent.class).get(objectLayer).factorX, 0.0001f);
+        assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(objectLayer).factorY, 0.0001f);
+        assertEquals("logic", world.getMapper(CustomPropertiesComponent.class).get(objectLayer)
+                .properties.getString("role", null));
+
+        int point = objectEntityByName(world, "Point");
+        TransformComponent pointTransform = world.getMapper(TransformComponent.class).get(point);
+        assertEquals(3f, pointTransform.x, 0.0001f);
+        assertEquals(27f, pointTransform.y, 0.0001f);
+        assertEquals(EntityKind.TILED_POINT, world.getMapper(EntityMetaComponent.class).get(point).kind);
+        assertEquals("Spawn", world.getMapper(PixscapeTagComponent.class).get(point).tags.first());
+
+        int rectangle = objectEntityByName(world, "Rectangle");
+        PolygonComponent rectanglePolygon = world.getMapper(PolygonComponent.class).get(rectangle);
+        assertNotNull(rectanglePolygon);
+        assertEquals(EntityKind.TILED_RECTANGLE,
+                world.getMapper(EntityMetaComponent.class).get(rectangle).kind);
+        assertFalse(world.getMapper(PolylineComponent.class).has(rectangle));
+        assertArrayEquals(new float[]{0f, 8f, 16f, 16f, 32f, 8f, 16f, 0f},
+                rectanglePolygon.vertices, 0.0001f);
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(rectangle), rectanglePolygon.vertices,
+                new float[]{3f, 27f, 19f, 35f, 35f, 27f, 19f, 19f});
+        assertEquals(32f, world.getMapper(DimensionsComponent.class).get(rectangle).width, 0.0001f);
+        assertEquals(16f, world.getMapper(DimensionsComponent.class).get(rectangle).height, 0.0001f);
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(rectangle).rotationRad, 0f);
+        assertEquals("Area", world.getMapper(PixscapeTagComponent.class).get(rectangle).tags.first());
+        int rectangleStableId = world.getMapper(PixscapeIdentityComponent.class).get(rectangle).stableId;
+        assertTrue(rectangleStableId > 0);
+        assertEquals(rectangleStableId, world.getMapper(CustomPropertiesComponent.class).get(point)
+                .properties.getObjectStableId("target", -1));
+
+        int rotatedRectangle = objectEntityByName(world, "RotatedRectangle");
+        PolygonComponent rotatedRectanglePolygon = world.getMapper(PolygonComponent.class).get(rotatedRectangle);
+        assertNotNull(rotatedRectanglePolygon);
+        assertArrayEquals(new float[]{32f, 8f, 64f, 4f, 32f, 0f, 0f, 4f},
+                rotatedRectanglePolygon.vertices, 0.0001f);
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(rotatedRectangle),
+                rotatedRectanglePolygon.vertices,
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f, -29f, 23f});
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(rotatedRectangle).rotationRad, 0f);
+
+        int polygon = objectEntityByName(world, "Polygon");
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polygon),
+                world.getMapper(PolygonComponent.class).get(polygon).vertices,
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f});
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(polygon).rotationRad, 0f);
+        int polyline = objectEntityByName(world, "Polyline");
+        assertWorldVertices(world.getMapper(TransformComponent.class).get(polyline),
+                world.getMapper(PolylineComponent.class).get(polyline).vertices,
+                new float[]{3f, 27f, 35f, 23f, 3f, 19f});
+        assertFalse(world.getMapper(PolygonComponent.class).has(polyline));
+        assertEquals(0f, world.getMapper(TransformComponent.class).get(polyline).rotationRad, 0f);
+
+        int tile = visualEntityByName(world, "Tile");
+        TransformComponent tileTransform = world.getMapper(TransformComponent.class).get(tile);
+        assertEquals(3f, tileTransform.x, 0.0001f);
+        assertEquals(27f, tileTransform.y, 0.0001f);
+        assertEquals(16f, tileTransform.originX, 0.0001f);
+        assertEquals(0f, tileTransform.originY, 0.0001f);
+        assertEquals(EntityKind.SPRITE, world.getMapper(EntityMetaComponent.class).get(tile).kind);
+    }
+
+    private static void assertWorldVertices(TransformComponent transform,
+                                            float[] vertices,
+                                            float[] expected) {
+        assertEquals(expected.length, vertices.length);
+        for (int i = 0; i < vertices.length; i += 2) {
+            float x = (vertices[i] - transform.originX) * transform.scaleX;
+            float y = (vertices[i + 1] - transform.originY) * transform.scaleY;
+            float worldX = transform.x + transform.cos * x - transform.sin * y;
+            float worldY = transform.y + transform.sin * x + transform.cos * y;
+            assertEquals(expected[i], worldX, 0.0001f);
+            assertEquals(expected[i + 1], worldY, 0.0001f);
+        }
     }
 
     private static boolean containsJsonInt(JsonValue array, int value) {

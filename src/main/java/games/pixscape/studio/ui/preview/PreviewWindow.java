@@ -7,7 +7,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -20,6 +19,7 @@ import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.debug.StudioFrameProfiler;
 import games.pixscape.studio.logging.StudioLogLevel;
+import games.pixscape.studio.ui.StudioStage;
 
 public final class PreviewWindow extends ApplicationAdapter {
 
@@ -39,7 +39,6 @@ public final class PreviewWindow extends ApplicationAdapter {
     private StudioFrameProfiler frameProfiler;
     private FrameSystemProfiler systemProfiler;
     private Stage uiStage;
-    private SpriteBatch uiBatch;
     private RenderStatsOverlay statsOverlay;
     private PreviewLoadingUi loadingUi;
     private SceneLoadHandle sceneLoad;
@@ -107,8 +106,7 @@ public final class PreviewWindow extends ApplicationAdapter {
         applyPreviewNearestFiltering();
         box2d = engine.getBox2dWorldService();
 
-        uiBatch = new SpriteBatch();
-        uiStage = new Stage(new ScreenViewport(), uiBatch);
+        uiStage = new StudioStage(new ScreenViewport());
 
         statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats());
 
@@ -245,10 +243,6 @@ public final class PreviewWindow extends ApplicationAdapter {
         if (uiStage != null) {
             uiStage.dispose();
             uiStage = null;
-        }
-        if (uiBatch != null) {
-            uiBatch.dispose();
-            uiBatch = null;
         }
 
         if (engine != null) {

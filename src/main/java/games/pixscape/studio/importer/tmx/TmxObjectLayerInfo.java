@@ -1,0 +1,39 @@
+package games.pixscape.studio.importer.tmx;
+
+import games.pixscape.runtime.property.PropertySet;
+
+import java.util.List;
+
+public record TmxObjectLayerInfo(String name,
+                                 String originalName,
+                                 boolean visible,
+                                 float opacity,
+                                 float offsetX,
+                                 float offsetY,
+                                 float parallaxX,
+                                 float parallaxY,
+                                 TmxObjectDrawOrder drawOrder,
+                                 PropertySet properties,
+                                 List<TmxObjectPropertyReference> objectPropertyReferences,
+                                 List<TmxObjectInfo> objects) implements TmxLayerInfo {
+
+    public TmxObjectLayerInfo {
+        properties = properties.copy();
+        objectPropertyReferences = List.copyOf(objectPropertyReferences);
+        objects = List.copyOf(objects);
+    }
+
+    @Override
+    public TmxLayerKind kind() {
+        return TmxLayerKind.OBJECT;
+    }
+
+    @Override
+    public PropertySet properties() {
+        return properties.copy();
+    }
+
+    PropertySet propertiesForPlanning() {
+        return properties;
+    }
+}

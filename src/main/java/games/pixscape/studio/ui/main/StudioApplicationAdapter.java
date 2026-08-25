@@ -33,6 +33,7 @@ import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
+import games.pixscape.studio.ui.StudioStage;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
@@ -54,6 +55,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private ToolBar toolBar;
     private BottomMenuBar bottomMenuBar;
     private DockManager dockManager;
+    private ItemTreePanel itemTreePanel;
     private SceneService sceneService;
     private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
@@ -82,7 +84,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
         root = new VisTable();
         root.setTouchable(Touchable.childrenOnly);
-        uiStage = new Stage(new ScreenViewport());
+        uiStage = new StudioStage(new ScreenViewport());
         drawer = ShapeHelper.newDrawer(uiStage.getBatch());
 
         FileHandle projectDir = cfg.projectFileName != null && !cfg.projectFileName.isBlank()
@@ -126,7 +128,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         canvas.bindAssetMetaLookup(sceneService::getAssetMeta);
         canvas.getEditorOps().setSceneService(sceneService);
 
-        ItemTreePanel itemTreePanel = new ItemTreePanel(this);
+        itemTreePanel = new ItemTreePanel(this);
         itemTreePanel.setPreferredWindowSize(362, 600);
         dockManager.register(itemTreePanel, DockSlot.LEFT, true);
 
@@ -350,6 +352,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public DockManager getDockManager() {
         return dockManager;
+    }
+
+    public ItemTreePanel getItemTreePanel() {
+        return itemTreePanel;
     }
 
     public SceneService getSceneService() {

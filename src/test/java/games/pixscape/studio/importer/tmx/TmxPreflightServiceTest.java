@@ -355,7 +355,7 @@ public class TmxPreflightServiceTest {
     }
 
     @Test
-    public void objectLayersWarnAndImageLayersAnalyze() throws Exception {
+    public void objectLayersAndImageLayersAreInspected() throws Exception {
         Path dir = Files.createTempDirectory("tmx-preflight-other-layers");
         writeFile(dir.resolve("terrain.png"), "fake image");
         writeFile(dir.resolve("background.png"), "fake image");
@@ -375,10 +375,13 @@ public class TmxPreflightServiceTest {
         TmxPreflightReport report = new TmxPreflightService().analyze(new TmxPreflightRequest(tmx));
 
         assertFalse(report.hasBlockingDiagnostics());
-        assertTrue(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
+        assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_OBJECT_LAYER_OUT_OF_SCOPE"));
         assertFalse(hasDiagnostic(report, TmxDiagnosticSeverity.WARNING, "TMX_IMAGE_LAYER_OUT_OF_SCOPE"));
         assertEquals(1, report.tileLayerCount());
         assertEquals(3, report.layers().size());
+        TmxObjectLayerInfo objects = (TmxObjectLayerInfo) report.layers().get(0);
+        assertEquals("Objects", objects.name());
+        assertTrue(objects.objects().isEmpty());
         TmxImageLayerInfo image = (TmxImageLayerInfo) report.layers().get(1);
         assertEquals("Backdrop", image.name());
         assertFalse(image.visible());

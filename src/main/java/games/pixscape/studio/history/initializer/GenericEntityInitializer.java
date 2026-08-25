@@ -16,6 +16,7 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.SpatialActorShapeSupport;
 
@@ -48,6 +49,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected boolean hasDimensions;
     protected float dimWidth;
     protected float dimHeight;
+
+    // --- Quad deformation ---
+    protected boolean hasQuadDeform;
+    protected float quadBlX, quadBlY, quadBrX, quadBrY;
+    protected float quadTrX, quadTrY, quadTlX, quadTlY;
 
     // --- Render material ---
     protected boolean hasRenderMaterial;
@@ -158,6 +164,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected int gearJoint1Eid, gearJoint2Eid;
     protected float gearRatio;
 
+    // --- Studio prefab-instance grouping (never copied to GenericEntitySnapshotData) ---
+    protected boolean hasPrefabInstance;
+    protected int prefabInstanceId = -1;
+    protected String prefabId = "";
+
     public GenericEntityInitializer(World world) {
         super(world);
     }
@@ -168,6 +179,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
+        ComponentMapper<QuadDeformComponent> mQuad = world.getMapper(QuadDeformComponent.class);
         ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
         ComponentMapper<ShaderParamsComponent> mShaderParams = world.getMapper(ShaderParamsComponent.class);
@@ -189,6 +201,17 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PhysicsWeldJointComponent> mWeld = world.getMapper(PhysicsWeldJointComponent.class);
         ComponentMapper<PhysicsPulleyJointComponent> mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         ComponentMapper<PhysicsGearJointComponent> mGear = world.getMapper(PhysicsGearJointComponent.class);
+        ComponentMapper<PrefabInstanceComponent> mPrefabInstance =
+                world.getMapper(PrefabInstanceComponent.class);
+
+        PrefabInstanceComponent prefabInstance = mPrefabInstance.getSafe(e, null);
+        if (prefabInstance != null) {
+            hasPrefabInstance = true;
+            prefabInstanceId = prefabInstance.instanceId;
+            prefabId = prefabInstance.prefabId != null ? prefabInstance.prefabId : "";
+        } else {
+            clearPrefabInstance();
+        }
 
         // --- TextureRegion (runtime) ---
         if (mTR.has(e)) {
@@ -213,6 +236,23 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             dimHeight = d.height;
         } else {
             hasDimensions = false;
+        }
+
+        if (mQuad.has(e)) {
+            QuadDeformComponent quad = mQuad.get(e);
+            hasQuadDeform = true;
+            quadBlX = quad.blX;
+            quadBlY = quad.blY;
+            quadBrX = quad.brX;
+            quadBrY = quad.brY;
+            quadTrX = quad.trX;
+            quadTrY = quad.trY;
+            quadTlX = quad.tlX;
+            quadTlY = quad.tlY;
+        } else {
+            hasQuadDeform = false;
+            quadBlX = quadBlY = quadBrX = quadBrY = 0f;
+            quadTrX = quadTrY = quadTlX = quadTlY = 0f;
         }
 
         // --- RenderMaterial (runtime) ---
@@ -496,6 +536,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         ComponentMapper<TextureRegionComponent> mTR = world.getMapper(TextureRegionComponent.class);
         ComponentMapper<DimensionsComponent> mDim = world.getMapper(DimensionsComponent.class);
+        ComponentMapper<QuadDeformComponent> mQuad = world.getMapper(QuadDeformComponent.class);
         ComponentMapper<RenderMaterialComponent> mMat = world.getMapper(RenderMaterialComponent.class);
         ComponentMapper<AssetRefComponent> mSrc = world.getMapper(AssetRefComponent.class);
         ComponentMapper<ShaderParamsComponent> mShaderParams = world.getMapper(ShaderParamsComponent.class);
@@ -519,7 +560,19 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         ComponentMapper<PhysicsWeldJointComponent> mWeld = world.getMapper(PhysicsWeldJointComponent.class);
         ComponentMapper<PhysicsPulleyJointComponent> mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         ComponentMapper<PhysicsGearJointComponent> mGear = world.getMapper(PhysicsGearJointComponent.class);
+        ComponentMapper<PrefabInstanceComponent> mPrefabInstance =
+                world.getMapper(PrefabInstanceComponent.class);
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+
+        if (hasPrefabInstance) {
+            PrefabInstanceComponent prefabInstance = mPrefabInstance.has(e)
+                    ? mPrefabInstance.get(e)
+                    : mPrefabInstance.create(e);
+            prefabInstance.instanceId = prefabInstanceId;
+            prefabInstance.prefabId = prefabId != null ? prefabId : "";
+        } else if (mPrefabInstance.has(e)) {
+            mPrefabInstance.remove(e);
+        }
 
 
         // --- TextureRegion (runtime) ---
@@ -541,6 +594,19 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             d.width = dimWidth;
             d.height = dimHeight;
             if (dirty != null) dirty.geometry(e, GeometryDirty.SIZE);
+        }
+
+        if (hasQuadDeform) {
+            QuadDeformComponent quad = mQuad.has(e) ? mQuad.get(e) : mQuad.create(e);
+            quad.blX = quadBlX;
+            quad.blY = quadBlY;
+            quad.brX = quadBrX;
+            quad.brY = quadBrY;
+            quad.trX = quadTrX;
+            quad.trY = quadTrY;
+            quad.tlX = quadTlX;
+            quad.tlY = quadTlY;
+            if (dirty != null) dirty.geometry(e, GeometryDirty.QUAD);
         }
 
         // --- RenderMaterial (runtime) ---
@@ -831,6 +897,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasDimensions = hasDimensions;
         out.dimensionsWidth = dimWidth;
         out.dimensionsHeight = dimHeight;
+        out.hasQuadDeform = hasQuadDeform;
+        out.quadBlX = quadBlX;
+        out.quadBlY = quadBlY;
+        out.quadBrX = quadBrX;
+        out.quadBrY = quadBrY;
+        out.quadTrX = quadTrX;
+        out.quadTrY = quadTrY;
+        out.quadTlX = quadTlX;
+        out.quadTlY = quadTlY;
         out.hasTextureRegion = hasTextureRegion;
         out.textureU1 = u1;
         out.textureV1 = v1;
@@ -975,6 +1050,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasDimensions = in.hasDimensions;
         dimWidth = in.dimensionsWidth;
         dimHeight = in.dimensionsHeight;
+        hasQuadDeform = in.hasQuadDeform;
+        quadBlX = in.quadBlX;
+        quadBlY = in.quadBlY;
+        quadBrX = in.quadBrX;
+        quadBrY = in.quadBrY;
+        quadTrX = in.quadTrX;
+        quadTrY = in.quadTrY;
+        quadTlX = in.quadTlX;
+        quadTlY = in.quadTlY;
         hasTextureRegion = in.hasTextureRegion;
         u1 = in.textureU1;
         v1 = in.textureV1;
@@ -1506,9 +1590,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer translate(float dx, float dy) {
-        this.hasTransform = true;
-        this.trX += dx;
-        this.trY += dy;
+        if (this.hasTransform) {
+            this.trX += dx;
+            this.trY += dy;
+        }
         return this;
     }
 
@@ -1556,6 +1641,26 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
+    public GenericEntityInitializer setPrefabInstance(int instanceId, String prefabId) {
+        if (instanceId <= 0) {
+            throw new IllegalArgumentException("Prefab instance ID must be positive.");
+        }
+        if (prefabId == null || prefabId.isBlank()) {
+            throw new IllegalArgumentException("Prefab ID must not be blank.");
+        }
+        this.hasPrefabInstance = true;
+        this.prefabInstanceId = instanceId;
+        this.prefabId = prefabId;
+        return this;
+    }
+
+    public GenericEntityInitializer clearPrefabInstance() {
+        hasPrefabInstance = false;
+        prefabInstanceId = -1;
+        prefabId = "";
+        return this;
+    }
+
     private void clearPhysicsJointData() {
         hasPhysicsJoint = false;
         hasDistanceJoint = false;
@@ -1572,6 +1677,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     public GenericEntityInitializer duplicate() {
         GenericEntityInitializer copy = new GenericEntityInitializer(world);
 
+        copy.hasPrefabInstance = this.hasPrefabInstance;
+        copy.prefabInstanceId = this.prefabInstanceId;
+        copy.prefabId = this.prefabId;
+
         // --- TextureRegion ---
         copy.hasTextureRegion = this.hasTextureRegion;
         copy.u1 = this.u1;
@@ -1586,6 +1695,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasDimensions = this.hasDimensions;
         copy.dimWidth = this.dimWidth;
         copy.dimHeight = this.dimHeight;
+        copy.hasQuadDeform = this.hasQuadDeform;
+        copy.quadBlX = this.quadBlX;
+        copy.quadBlY = this.quadBlY;
+        copy.quadBrX = this.quadBrX;
+        copy.quadBrY = this.quadBrY;
+        copy.quadTrX = this.quadTrX;
+        copy.quadTrY = this.quadTrY;
+        copy.quadTlX = this.quadTlX;
+        copy.quadTlY = this.quadTlY;
 
         // --- Render material ---
         copy.hasRenderMaterial = this.hasRenderMaterial;

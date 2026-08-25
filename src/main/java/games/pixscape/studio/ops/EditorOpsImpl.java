@@ -137,7 +137,7 @@ public class EditorOpsImpl implements EditorOps {
 
         int shaderIdx = ShaderRegistry.indexOf(defaultShaderName);
         int textureHandle = TextureRegistry.handleOf(region.getTexture());
-        ensureHandleBoundToTextureArray();
+        ensureHandleBoundToTextureArray(textureHandle);
         int blend = BlendMode.ALPHA.id;
 
         int assetId = AssetHelper.extractAssetIdFromRegionName(regionPath);
@@ -984,10 +984,14 @@ public class EditorOpsImpl implements EditorOps {
         }
     }
 
-    private void ensureHandleBoundToTextureArray() {
+    private void ensureHandleBoundToTextureArray(int textureHandle) {
         String tag = getCurrentSceneTag();
         if (snapshotManager != null) {
-            snapshotManager.markDirty(tag, "editor-handle-binding-required");
+            boolean alreadyPublished = snapshotManager
+                    .isHandlePublishedInCurrentBundle(tag, textureHandle);
+            if (!alreadyPublished) {
+                snapshotManager.markDirty(tag, "editor-handle-binding-required");
+            }
         }
     }
 

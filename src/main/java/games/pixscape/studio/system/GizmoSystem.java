@@ -17,6 +17,7 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.helper.QuadGeometryHelper;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -35,6 +36,7 @@ import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.ParticleOverlayVisual;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.spatial.*;
@@ -55,6 +57,7 @@ public final class GizmoSystem extends BaseSystem {
     private LayerService layerService;
     private SelectionService selectionService;
     private PhysicsService physicsService;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
     private final PolygonDrawSession polygonDrawSession;
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
@@ -112,6 +115,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<ParticleEmitterComponent> mParticle;
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
+    private ComponentMapper<QuadDeformComponent> mQuadDeform;
 
     private int[] selected = new int[0];
     private final float[] tmpCorners = new float[8];
@@ -160,6 +164,10 @@ public final class GizmoSystem extends BaseSystem {
 
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
+    }
+
+    public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
+        this.displayOffsetResolver = displayOffsetResolver;
     }
 
     @Override
@@ -270,13 +278,21 @@ public final class GizmoSystem extends BaseSystem {
                         if (isLightEntity(e)) continue;
                         if (!isEntityVisibleForGizmo(e)) continue;
 
-                        float[] obb = computeOBBWorldCorners(e);
-                        if (obb == null) continue;
+                        boolean quadEdit = selected.length == 1
+                                && selectionService != null
+                                && selectionService.isQuadEditModeFor(e);
+                        float[] geometry = quadEdit
+                                ? computeQuadEditWorldCorners(e)
+                                : computeOBBWorldCorners(e);
+                        if (geometry == null) continue;
 
-                        GizmoDrawHelper.drawDashedObb(ctx, obb);
-
-                        if (selected.length == 1) {
-                            GizmoDrawHelper.drawHandlesObb(ctx, obb);
+                        if (quadEdit) {
+                            GizmoDrawHelper.drawQuadEditGizmo(ctx, geometry);
+                        } else {
+                            GizmoDrawHelper.drawDashedObb(ctx, geometry);
+                            if (selected.length == 1) {
+                                GizmoDrawHelper.drawHandlesObb(ctx, geometry);
+                            }
                         }
                     }
                 }
@@ -1784,8 +1800,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
-        // Studio tools operate in logical world space; preview/runtime display offsets
-        // are intentionally not applied to gizmos and physics handles.
+        if (displayOffsetResolver != null) displayOffsetResolver.addTo(entityId, p);
     }
 
     private boolean isEntityVisibleForGizmo(int e) {
@@ -1819,13 +1834,35 @@ public final class GizmoSystem extends BaseSystem {
         return tmpCorners;
     }
 
+    private float[] computeQuadEditWorldCorners(int e) {
+        OrientedBoundsComponent bounds = mOBB.getSafe(e, null);
+        TransformComponent transform = mT.getSafe(e, null);
+        if (bounds == null || transform == null) return null;
+
+        computeQuadEditCorners(
+                bounds,
+                transform,
+                mQuadDeform.getSafe(e, null),
+                tmpCorners);
+        applyDisplayOffset(e, tmpCorners);
+        return tmpCorners;
+    }
+
+    static void computeQuadEditCorners(OrientedBoundsComponent bounds,
+                                       TransformComponent transform,
+                                       QuadDeformComponent deform,
+                                       float[] out8) {
+        QuadGeometryHelper.toWorldCorners(bounds, transform, deform, out8);
+    }
+
     private void applyDisplayOffset(int entityId, float[] corners) {
         applyDisplayOffset(entityId, corners, corners != null ? corners.length / 2 : 0);
     }
 
     private void applyDisplayOffset(int entityId, float[] corners, int vertexCount) {
-        // See applyDisplayOffset(int, Vector2): Studio gizmos are authored and drawn in
-        // logical world space.
+        if (displayOffsetResolver != null) {
+            displayOffsetResolver.addTo(entityId, corners, vertexCount);
+        }
     }
 
     private boolean isLightEntity(int e) {

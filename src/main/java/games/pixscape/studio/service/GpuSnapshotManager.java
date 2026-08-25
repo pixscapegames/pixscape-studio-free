@@ -35,6 +35,9 @@ public final class GpuSnapshotManager {
     private final ObjectMap<String, Integer> rebuildCountByScene = new ObjectMap<>();
     private final StringBuilder report = new StringBuilder(768);
 
+    private String boundSceneTag;
+    private AtlasRuntimeService.TextureArrayBundle boundSnapshot;
+
     private long totalSyncAttempts;
     private long skippedNotDirtyCount;
     private long rebuildCount;
@@ -149,7 +152,7 @@ public final class GpuSnapshotManager {
         AtlasRuntimeService.TextureArrayBundle next = null;
         try {
             next = uploaded.buildBundle();
-            if (metricsBatch != null) metricsBatch.setTextureArrayBundle(next);
+            bindSnapshot(sceneTag, next);
             ReplacementResult replacement = replaceActiveSnapshot(sceneTag, next, diagnosticsEnabled);
             next = null;
 
@@ -195,9 +198,7 @@ public final class GpuSnapshotManager {
         AtlasRuntimeService.TextureArrayBundle next = result.bundle;
 
         long metricsStartNs = diagnosticsEnabled ? System.nanoTime() : 0L;
-        if (metricsBatch != null) {
-            metricsBatch.setTextureArrayBundle(next);
-        }
+        bindSnapshot(sceneTag, next);
         long metricsSetNs = diagnosticsEnabled ? System.nanoTime() - metricsStartNs : 0L;
 
         ReplacementResult replacement = replaceActiveSnapshot(sceneTag, next, diagnosticsEnabled);
@@ -295,7 +296,30 @@ public final class GpuSnapshotManager {
         dirtyInfos.clear();
         lastSyncAtNsByScene.clear();
         rebuildCountByScene.clear();
+        boundSceneTag = null;
+        boundSnapshot = null;
         flushDeferredDisposals();
+    }
+
+    /** Returns whether the scene's active snapshot is also bound for rendering and contains the handle. */
+    public boolean isHandlePublishedInCurrentBundle(String sceneTag, int textureHandle) {
+        if (sceneTag == null || sceneTag.isEmpty() || textureHandle == 0) return false;
+        AtlasRuntimeService.TextureArrayBundle sceneSnapshot = activeSnapshots.get(sceneTag);
+        return sceneSnapshot != null
+                && sceneSnapshot == boundSnapshot
+                && sceneTag.equals(boundSceneTag)
+                && sceneSnapshot.handle2layer.containsKey(textureHandle);
+    }
+
+    private void bindSnapshot(String sceneTag, AtlasRuntimeService.TextureArrayBundle snapshot) {
+        if (metricsBatch == null) {
+            boundSceneTag = null;
+            boundSnapshot = null;
+            return;
+        }
+        metricsBatch.setTextureArrayBundle(snapshot);
+        boundSceneTag = sceneTag;
+        boundSnapshot = snapshot;
     }
 
     int activeSnapshotCount() {

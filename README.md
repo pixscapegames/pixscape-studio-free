@@ -2,14 +2,14 @@
 
 <h1>Pixscape Studio Free</h1>
 
-[![Changelog](https://img.shields.io/badge/changelog-0.2.2-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.2.3-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![Java version](https://img.shields.io/badge/Java%20version-21-blue.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
-**Open-source 2D game studio for LibGDX and Pixscape Runtime.**
+**Visual authoring for Pixscape, a 2D and 2.5D game engine built on LibGDX.**
 
-Build fast. Stay free. Keep full control.
+Build your game visually. Write gameplay in Java. Keep using LibGDX.
 
 🌐 **Website:** https://pixscape.games/  
 📘 **Documentation:** https://pixscape.games/docs  
@@ -20,17 +20,23 @@ Build fast. Stay free. Keep full control.
   <img src="assets/readme/pixscape-studio-free.png" alt="Pixscape Studio Free" width="100%">
 </p>
 
-## What is Pixscape Studio Free?
+## What is Pixscape?
 
-Pixscape Studio Free is the open-source visual editor for **Pixscape Runtime**, built for developers who want the speed of a game editor without giving up code-level control.
+Pixscape is a visual 2D and 2.5D game engine built on LibGDX.
 
-It is designed for **LibGDX** projects and focuses on lightweight 2D production workflows: scenes, sprites, tiled and isometric maps, animations, particles, shaders, lights, physics, prefabs, runtime export, and deterministic 2.5D spatial ordering.
+It combines **Pixscape Studio**, the visual authoring environment, with
+**Pixscape Runtime**, the engine layer that loads and runs authored scenes.
 
-Pixscape Studio Free is released under the **Apache License 2.0**.
+Use Studio to build scenes, tiled and isometric worlds, physics, animations,
+particles, prefabs, shaders, lights and 2.5D spatial environments.
 
-It is not a trial version. You can use it to build real games, including commercial games, with no Pixscape royalties, no runtime fees, and no hidden export fees.
+Your gameplay and application logic stay in **Java**. LibGDX remains underneath
+Pixscape and stays available alongside it.
 
-**Pixscape Free is the foundation. Pixscape Pro funds the future.**
+Pixscape adds an opinionated game-engine layer rather than replacing LibGDX:
+scene management, ECS-based entities, rendering and ordering, asset coordination,
+physics, Tiled integration, animation, particles and Spatial 2.5D are handled by
+the engine so game code can focus on gameplay.
 
 ## Open-source foundation
 
@@ -50,6 +56,10 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * **TMX and TSX import workflows**
 * **Single-image and image collection tilesets**
 * **Tileset profiles for native-size and isometric tiles**
+* **Tiled Object Layer import for orthogonal and isometric maps**
+* **Typed entity custom properties**
+* **Direct quad editing**
+* **Logical prefab instances with editable contents**
 * **Spatial V3 deterministic 2.5D wall and actor ordering**
 * **Prefab authoring and drag-and-drop placement**
 * **Box2D physics integration**
@@ -82,6 +92,7 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Runtime animation export
 * Repeatable sprites
 * 2.5D spatial properties for sprites and animations
+* Direct per-corner quad editing
 
 ### Tiled Maps
 
@@ -98,6 +109,10 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * Authored collision polygons
 * Spatial V3 wall authoring with connected structures and junction handling
 * Layer-based rendering and depth control
+* Tiled Object Layer import for orthogonal and isometric maps
+* Rectangle, point, tile, polygon and polyline objects
+* Animated Tiled tile objects
+* Tiled class/type metadata and typed custom properties
 
 ### Spatial V3
 
@@ -136,9 +151,11 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 ### Prefabs
 
 * Create reusable prefabs from selected entities
-* Save prefab assets
-* Preview prefabs in the asset browser
-* Drag and drop prefabs into scenes
+* Save and preview prefab assets
+* Drag and drop complete prefab instances into scenes
+* Logical prefab nodes in the Item Tree
+* Group selection and z-order while keeping prefab members individually editable
+* Physics-aware prefab contents, including bodies and joints
 * Export prefab data for runtime use
 
 ## Pixscape Runtime

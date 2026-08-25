@@ -90,6 +90,34 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
     }
 
     @Test
+    public void tiledAnimationStateReloadsBeforeTmxActivationAndRollbackRecovery() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
+                StandardCharsets.UTF_8
+        );
+        String reloadBody = methodBody(source, "private void reloadTileAnimationsFromProject(");
+        String activationBody = methodBody(source, "private void activateImportedTmxScene(");
+        String restoreBody = methodBody(source, "private void restorePreviousSceneAfterTmxActivationFailure(");
+        String openBody = methodBody(source, "private void openProjectStrict(");
+
+        assertOrdered(reloadBody,
+                "TileAnimationsIO.load(",
+                "reloadTileAnimationRegistryFromProjectData();"
+        );
+        assertOrdered(activationBody,
+                "reloadTileAnimationsFromProject(projectDir);",
+                "loadScene(cfg, result.sceneName(), projectDir);"
+        );
+        assertOrdered(restoreBody,
+                "cfg.setCurrentSceneByName(previousSceneName);",
+                "reloadTileAnimationsFromProject(projectDir);",
+                "loadScene(cfg, previousSceneName, projectDir);"
+        );
+        assertTrue(openBody.contains("reloadTileAnimationsFromProject(projectDir);"));
+        assertFalse(openBody.contains("TileAnimationsIO.load("));
+    }
+
+    @Test
     public void activationCompilesLinkedPhysicsAfterTiledAndSpatialResolution()
             throws Exception {
         String source = Files.readString(
@@ -102,6 +130,7 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         assertOrdered(body,
                 "sceneLoader.load(",
                 "world.process();",
+                "SceneLoader.forceFullRenderDirty(world);",
                 "resolveTiledLayersForActivation(",
                 "validateAndCompileSpatialBlocksForActivation(",
                 "PhysicsService.rebuildPreparedBodyCaches(",

@@ -7,24 +7,27 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.ConeLightComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.service.ZOrderRuntimeService;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
@@ -32,8 +35,8 @@ import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 import static games.pixscape.runtime.component.physics.PhysicsBodyComponent.*;
 
@@ -44,7 +47,8 @@ public class ItemTreePanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SelectionService selectionService;
-    private final ZOrderRuntimeService zOrderRuntimeService;
+    private final LayerLogicalOrderService logicalOrderService;
+    private final HistoryManager historyManager;
 
     private final ComponentMapper<EntityMetaComponent> mMeta;
     private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -53,9 +57,11 @@ public class ItemTreePanel extends DockablePanel {
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsShapesComponent> mFixtures;
+    private final ComponentMapper<PrefabInstanceComponent> mPrefabInstance;
 
     private final EntitySubscription layersSub;
     private final EntitySubscription layerItemsSub;
+    private final EntitySubscription jointsSub;
 
     private final IdVisTree tree;
     private final IconResolver iconResolver;
@@ -64,6 +70,13 @@ public class ItemTreePanel extends DockablePanel {
     private boolean handlingTreeSelection = false;
 
     private int explicitTiledMapLayerEid = -1;
+    private int explicitPrefabInstanceId = -1;
+
+    enum ExplicitPrefabSyncResult {
+        SELECTED,
+        PENDING_NODE,
+        INVALID
+    }
 
     private final VisScrollPane scroller;
 
@@ -78,7 +91,8 @@ public class ItemTreePanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
         this.selectionService = canvas.getSelectionService();
-        this.zOrderRuntimeService = app.getCanvas().getZOrderService();
+        this.logicalOrderService = new LayerLogicalOrderService(world);
+        this.historyManager = canvas.getHistoryManager();
 
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
@@ -87,20 +101,15 @@ public class ItemTreePanel extends DockablePanel {
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mFixtures = world.getMapper(PhysicsShapesComponent.class);
+        this.mPrefabInstance = world.getMapper(PrefabInstanceComponent.class);
 
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
 
         AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
         this.layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
-        this.layerItemsSub = asm.get(
-                Aspect.all(EntityIndexComponent.class).one(
-                        ParticleEmitterComponent.class,
-                        AssetRefComponent.class,
-                        PointLightComponent.class,
-                        ConeLightComponent.class
-                )
-        );
+        this.layerItemsSub = asm.get(layerItemAspect());
+        this.jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
 
         this.iconResolver = new IconResolver(world);
 
@@ -147,13 +156,17 @@ public class ItemTreePanel extends DockablePanel {
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
                 explicitTiledMapLayerEid = -1;
+                explicitPrefabInstanceId = -1;
                 if (propertiesPanel != null) {
                     propertiesPanel.clearTiledMapMode();
                 }
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
-            syncTreeSelectionFromModel(evt.ids(), applyFocus);
+            IntArray snapshot = explicitPrefabInstanceId >= 0
+                    ? selectionService.getSelectionSnapshot()
+                    : evt.ids();
+            syncTreeSelectionFromModel(snapshot, applyFocus);
         });
 
         EventFlow.i().subscribe(EventFlow.LayerNameChanged.class, evt -> {
@@ -167,6 +180,7 @@ public class ItemTreePanel extends DockablePanel {
         });
 
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());
+        EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.LayerLockChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> markDirty());
         EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> markDirty());
@@ -181,6 +195,7 @@ public class ItemTreePanel extends DockablePanel {
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
                 explicitTiledMapLayerEid = -1;
+                explicitPrefabInstanceId = -1;
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
@@ -189,6 +204,11 @@ public class ItemTreePanel extends DockablePanel {
 
         attachAutoRefresh();
         hookTreeSelection();
+    }
+
+    static Aspect.Builder layerItemAspect() {
+        return Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class)
+                .exclude(LayerComponent.class, PhysicsJointComponent.class);
     }
 
     private void focusNode(EntityNode node) {
@@ -216,45 +236,54 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private void moveSelectionUp() {
-        IntArray sel = selectionService.getSelectionSnapshot();
-        if (sel.size == 0) return;
-
-        int layer = requireEntityIndex(sel.get(0), "ItemTree move up").getLayerIndex();
-
-        for (int i = 1; i < sel.size; i++) {
-            int e = sel.get(i);
-            int l = requireEntityIndex(e, "ItemTree move up").getLayerIndex();
-            if (l != layer) {
-                return;
-            }
-        }
-
-        sel.sort();
-        for (int i = sel.size - 1; i >= 0; i--) {
-            zOrderRuntimeService.moveUp(sel.get(i));
-        }
-        markDirty();
+        moveSelection(-1);
     }
 
     private void moveSelectionDown() {
-        IntArray sel = selectionService.getSelectionSnapshot();
-        if (sel.size == 0) return;
+        moveSelection(1);
+    }
 
-        int layer = requireEntityIndex(sel.get(0), "ItemTree move down").getLayerIndex();
+    private void moveSelection(int direction) {
+        if (moveExplicitPrefab(direction)) return;
+        IntArray selection = selectionService.getSelectionSnapshot();
+        if (selection.size != 1) return;
+        int entityId = selection.first();
+        if (!ItemTreeJointSupport.isLogicalOrderMoveAllowed(world, entityId)) return;
+        EntityIndexComponent index = requireEntityIndex(entityId, "ItemTree move");
+        LayerLogicalOrderService.LayerOrder order =
+                logicalOrderService.derive(index.layerIndex);
+        executeLogicalReorder(index.layerIndex, order.moveEntity(entityId, direction));
+    }
 
-        for (int i = 1; i < sel.size; i++) {
-            int e = sel.get(i);
-            int l = requireEntityIndex(e, "ItemTree move down").getLayerIndex();
-            if (l != layer) {
-                return;
-            }
+    private boolean moveExplicitPrefab(int direction) {
+        if (explicitPrefabInstanceId <= 0) return false;
+        EntityNode node = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
+        var selectedNodes = tree.getSelection().toArray();
+        if (node == null
+                || !node.isSelectable()
+                || selectedNodes.size != 1
+                || selectedNodes.first() != node) {
+            explicitPrefabInstanceId = -1;
+            return false;
         }
+        IntArray members = node.getPrefabZOrderMemberIds();
+        if (members.size == 0) return true;
+        EntityIndexComponent index = mEntityIndex.getSafe(members.first(), null);
+        if (index == null) return true;
+        LayerLogicalOrderService.LayerOrder order =
+                logicalOrderService.derive(index.layerIndex);
+        executeLogicalReorder(
+                index.layerIndex,
+                order.movePrefab(explicitPrefabInstanceId, direction));
+        return true;
+    }
 
-        sel.sort();
-        for (int i = 0; i < sel.size; i++) {
-            zOrderRuntimeService.moveDown(sel.get(i));
-        }
-        markDirty();
+    private void executeLogicalReorder(int layerIndex, IntArray desiredOrder) {
+        if (desiredOrder == null) return;
+        ReorderLogicalLayerCommand command = new ReorderLogicalLayerCommand(
+                world, historyManager.historyIds(), layerIndex, desiredOrder);
+        if (command.isNoop()) return;
+        historyManager.execute(command);
     }
 
     public void markDirty() {
@@ -294,6 +323,7 @@ public class ItemTreePanel extends DockablePanel {
             }
         };
         layerItemsSub.addSubscriptionListener(refsListener);
+        jointsSub.addSubscriptionListener(refsListener);
     }
 
     private void hookTreeSelection() {
@@ -308,15 +338,26 @@ public class ItemTreePanel extends DockablePanel {
                 try {
                     EntityNode mapNode = findFirstTiledMapNode(nodes);
                     EntityNode bodyNode = findFirstBodyNode(nodes);
+                    EntityNode jointNode = findFirstJointNode(nodes);
                     EntityNode spatialNode = findFirstSpatialBlocksNode(nodes);
+                    EntityNode prefabNode = findFirstPrefabInstanceNode(nodes);
 
-                    if (mapNode != null && nodes.size == 1) {
+                    if (prefabNode != null && nodes.size == 1) {
+                        handlePrefabInstanceNodeSelection(prefabNode);
+                    } else if (jointNode != null && nodes.size == 1) {
+                        explicitPrefabInstanceId = -1;
+                        handleJointNodeSelection(jointNode);
+                    } else if (mapNode != null && nodes.size == 1) {
+                        explicitPrefabInstanceId = -1;
                         handleTiledMapNodeSelection(mapNode);
                     } else if (bodyNode != null && nodes.size == 1) {
+                        explicitPrefabInstanceId = -1;
                         handleBodyNodeSelection(bodyNode);
                     } else if (spatialNode != null && nodes.size == 1) {
+                        explicitPrefabInstanceId = -1;
                         handleSpatialBlocksNodeSelection(spatialNode);
                     } else {
+                        explicitPrefabInstanceId = -1;
                         explicitTiledMapLayerEid = -1;
                         if (propertiesPanel != null) {
                             propertiesPanel.clearTiledMapMode();
@@ -329,6 +370,19 @@ public class ItemTreePanel extends DockablePanel {
                         boolean layerSwitched = false;
                         for (EntityNode en : nodes) {
                             if (en == null) continue;
+
+                            if (en.isPrefabInstanceNode()) {
+                                IntArray members = en.getPrefabMemberIds();
+                                for (int i = 0; i < members.size; i++) {
+                                    int member = members.get(i);
+                                    if (!layerSwitched) {
+                                        activateLayerForEntity(member, SelectionService.SelectionSource.TREE);
+                                        layerSwitched = true;
+                                    }
+                                    selectionService.selectFromTree(member);
+                                }
+                                continue;
+                            }
 
                             int eid = en.getEntityId();
                             if (eid < 0) continue;
@@ -355,6 +409,57 @@ public class ItemTreePanel extends DockablePanel {
                 syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
             }
         });
+    }
+
+    private void handlePrefabInstanceNodeSelection(EntityNode prefabNode) {
+        if (prefabNode == null || !prefabNode.isPrefabInstanceNode() || !prefabNode.isSelectable()) {
+            explicitPrefabInstanceId = -1;
+            return;
+        }
+
+        selectPrefabInstance(prefabNode.getPrefabInstanceId(), prefabNode.getPrefabMemberIds());
+    }
+
+    public void selectPrefabInstance(int prefabInstanceId, IntArray members) {
+        if (prefabInstanceId < 0 || members == null || members.size == 0) {
+            explicitPrefabInstanceId = -1;
+            return;
+        }
+
+        explicitTiledMapLayerEid = -1;
+        if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
+        exitExplicitPhysicsEditMode();
+        exitExplicitSpatialBlockMode();
+
+        boolean layerActivated = false;
+        for (int i = 0; i < members.size; i++) {
+            int member = members.get(i);
+            if (!world.getEntityManager().isActive(member)) continue;
+            if (!layerActivated) {
+                activateLayerForEntity(member, SelectionService.SelectionSource.TREE);
+                layerActivated = true;
+            }
+        }
+        selectionService.replaceSelection(members, SelectionService.SelectionSource.TREE);
+        explicitPrefabInstanceId = layerActivated ? prefabInstanceId : -1;
+        if (explicitPrefabInstanceId < 0) return;
+
+        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
+        if (prefabNode == null) {
+            markDirty();
+        } else if (selectionExactlyMatchesPrefab(
+                selectionService.getSelectionSnapshot(), prefabNode)) {
+            forceSingleTreeSelection(prefabNode);
+        }
+    }
+
+    private EntityNode findFirstPrefabInstanceNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
+        if (nodes == null) return null;
+        for (int i = 0; i < nodes.size; i++) {
+            EntityNode node = nodes.get(i);
+            if (node != null && node.isPrefabInstanceNode()) return node;
+        }
+        return null;
     }
 
     private EntityNode findFirstTiledMapNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
@@ -409,15 +514,10 @@ public class ItemTreePanel extends DockablePanel {
         suppressTreeSelectionEvents = true;
 
         tree.clearNodes();
+        IntMap<IntArray> allPrefabMembers = collectPrefabMembers(world);
 
         int layerCount = layerService.count();
-        IntBag itemsBag = layerItemsSub.getEntities();
-        int[] itemData = itemsBag.getData();
-        int itemCount = itemsBag.size();
-        List<Integer> layerEntities = new ArrayList<>();
-
         for (int li = layerCount - 1; li >= 0; li--) {
-            layerEntities.clear();
             int eLayer = layerService.getLayerEntity(li);
             var meta = layerService.meta(li);
 
@@ -464,7 +564,7 @@ public class ItemTreePanel extends DockablePanel {
                                 null,
                                 eLayer,
                                 selectableBody,
-                                selectableBody ? EntityNode.NodeKind.BODY : EntityNode.NodeKind.INFO
+                                EntityNode.NodeKind.BODY
                         );
 
                         if (meta.locked) {
@@ -476,9 +576,7 @@ public class ItemTreePanel extends DockablePanel {
                         }
 
                         mapNode.add(bodyNode);
-                        if (selectableBody) {
-                            tree.registerNode(bodyNode, eLayer);
-                        }
+                        tree.registerNode(bodyNode, eLayer);
                     }
 
                     if (isLayerSpatialEnabled(eLayer, layerComp, tiled)) {
@@ -507,78 +605,39 @@ public class ItemTreePanel extends DockablePanel {
                 }
             }
 
-            for (int i = 0; i < itemCount; i++) {
-                int e = itemData[i];
-                EntityIndexComponent index = requireEntityIndex(e, "ItemTree rebuild");
-                if (index.getLayerIndex() != li) continue;
-                layerEntities.add(e);
-            }
+            LayerLogicalOrderService.LayerOrder logicalOrder = logicalOrderService.derive(li);
+            for (LayerLogicalOrderService.LogicalItem item : logicalOrder.items()) {
+                if (item.isPrefab()) {
+                    IntArray members = item.members();
+                    IntArray completeMembers = allPrefabMembers.get(
+                            item.prefabInstanceId(), members);
+                    EntityNode prefabNode = EntityNode.prefabInstance(
+                            item.prefabId(),
+                            VisUI.getSkin().getDrawable("cube"),
+                            item.prefabInstanceId(),
+                            completeMembers,
+                            members,
+                            !meta.locked);
+                    prefabNode.getLabel().setColor(meta.locked ? Color.DARK_GRAY : Color.WHITE);
+                    layerNode.add(prefabNode);
+                    tree.registerPrefabInstanceNode(prefabNode);
 
-            layerEntities.sort(this::compareEntitiesByZIndex);
-
-            for (int e : layerEntities) {
-                PixscapeIdentityComponent identity = mIdentity.getSafe(e, null);
-                ParticleEmitterComponent emitter = mEmitter.getSafe(e, null);
-                String name = identity != null ? identity.name : null;
-                if (name == null) {
-                    if (emitter != null && emitter.effectPath != null && !emitter.effectPath.isEmpty()) {
-                        name = "Particle: " + emitter.effectPath;
-                    } else {
-                        name = "Entity " + e;
+                    for (int i = 0; i < members.size; i++) {
+                        prefabNode.add(createEntityNode(members.get(i), meta.locked));
                     }
-                }
-
-                boolean selectableBody = !meta.locked;
-                EntityNode child = new EntityNode(
-                        name,
-                        iconResolver.iconForEntity(e),
-                        e,
-                        selectableBody
-                );
-
-                if (meta.locked) {
-                    child.getLabel().setColor(Color.DARK_GRAY);
-                } else if (child.isSelectable()) {
-                    child.getLabel().setColor(Color.WHITE);
                 } else {
-                    child.getLabel().setColor(Color.GRAY);
-                }
-
-                layerNode.add(child);
-                tree.registerNode(child, e);
-
-                if (mBody.has(e)) {
-                    PhysicsBodyComponent body = mBody.get(e);
-                    String type = switch (body.type) {
-                        case STATIC -> "Static";
-                        case DYNAMIC -> "Dynamic";
-                        case KINEMATIC -> "Kinematic";
-                        default -> "Unknown";
-                    };
-
-                    EntityNode bodyNode = new EntityNode(
-                            type + " body",
-                            null,
-                            e,
-                            selectableBody,
-                            selectableBody ? EntityNode.NodeKind.BODY : EntityNode.NodeKind.INFO
-                    );
-
-                    if (meta.locked) {
-                        bodyNode.getLabel().setColor(Color.DARK_GRAY);
-                    } else if (selectableBody) {
-                        bodyNode.getLabel().setColor(Color.WHITE);
-                    } else {
-                        bodyNode.getLabel().setColor(0.65f, 0.65f, 0.65f, 1f);
-                    }
-
-                    child.add(bodyNode);
-                    if (selectableBody) {
-                        tree.registerNode(bodyNode, e);
-                    }
+                    layerNode.add(createEntityNode(item.entityId(), meta.locked));
                 }
             }
         }
+
+        ItemTreeJointSupport.attachJointNodes(
+                world,
+                tree,
+                layerIndex -> {
+                    LayerMetaComponent meta = layerService.meta(layerIndex);
+                    return meta != null && meta.locked;
+                });
 
         tree.expandAll();
 
@@ -586,13 +645,43 @@ public class ItemTreePanel extends DockablePanel {
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
 
-    private int compareEntitiesByZIndex(int e1, int e2) {
-        int z1 = requireEntityIndex(e1, "ItemTree compare").getZIndex();
-        int z2 = requireEntityIndex(e2, "ItemTree compare").getZIndex();
-        if (z1 != z2) {
-            return Integer.compare(z2, z1);
+    private EntityNode createEntityNode(int entityId, boolean layerLocked) {
+        PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+        ParticleEmitterComponent emitter = mEmitter.getSafe(entityId, null);
+        String name = identity != null ? identity.name : null;
+        if (name == null) {
+            name = emitter != null && emitter.effectPath != null && !emitter.effectPath.isEmpty()
+                    ? "Particle: " + emitter.effectPath
+                    : "Entity " + entityId;
         }
-        return Integer.compare(e1, e2);
+
+        boolean selectable = !layerLocked;
+        EntityNode entityNode = new EntityNode(
+                name, iconResolver.iconForEntity(entityId), entityId, selectable);
+        entityNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+        tree.registerNode(entityNode, entityId);
+
+        if (mBody.has(entityId)) {
+            PhysicsBodyComponent body = mBody.get(entityId);
+            String type = switch (body.type) {
+                case STATIC -> "Static";
+                case DYNAMIC -> "Dynamic";
+                case KINEMATIC -> "Kinematic";
+                default -> "Unknown";
+            };
+            EntityNode bodyNode = new EntityNode(
+                    type + " body",
+                    null,
+                    entityId,
+                    selectable,
+                    EntityNode.NodeKind.BODY);
+            bodyNode.getLabel().setColor(layerLocked
+                    ? Color.DARK_GRAY
+                    : selectable ? Color.WHITE : new Color(0.65f, 0.65f, 0.65f, 1f));
+            entityNode.add(bodyNode);
+            tree.registerNode(bodyNode, entityId);
+        }
+        return entityNode;
     }
 
     private EntityIndexComponent requireEntityIndex(int entityId, String context) {
@@ -614,6 +703,22 @@ public class ItemTreePanel extends DockablePanel {
     private void syncTreeSelectionFromModel(IntArray selectionSnapshot, boolean applyFocus) {
         tree.getSelection().setProgrammaticChangeEvents(false);
         tree.getSelection().clear();
+
+        if (explicitPrefabInstanceId >= 0) {
+            ExplicitPrefabSyncResult result = syncExplicitPrefabSelection(
+                    world,
+                    mPrefabInstance,
+                    tree,
+                    explicitPrefabInstanceId,
+                    selectionSnapshot);
+            if (result != ExplicitPrefabSyncResult.INVALID) {
+                EntityNode prefabNode = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
+                if (applyFocus && prefabNode != null) focusNode(prefabNode);
+                tree.getSelection().setProgrammaticChangeEvents(true);
+                return;
+            }
+            explicitPrefabInstanceId = -1;
+        }
 
         EntityNode physicsNode = resolvePhysicsContextNode();
         if (physicsNode != null) {
@@ -682,7 +787,60 @@ public class ItemTreePanel extends DockablePanel {
         tree.getSelection().setProgrammaticChangeEvents(true);
     }
 
+    private boolean selectionExactlyMatchesPrefab(
+            IntArray selectionSnapshot, EntityNode prefabNode) {
+        return selectionExactlyMatchesPrefab(
+                world, mPrefabInstance, selectionSnapshot, prefabNode);
+    }
+
+    static boolean selectionExactlyMatchesPrefab(
+            World world,
+            ComponentMapper<PrefabInstanceComponent> prefabInstances,
+            IntArray selectionSnapshot,
+            EntityNode prefabNode) {
+        if (selectionSnapshot == null || prefabNode == null) return false;
+        IntArray members = prefabNode.getPrefabMemberIds();
+        if (selectionSnapshot.size != members.size) return false;
+        Set<Integer> selected = new HashSet<>();
+        for (int i = 0; i < selectionSnapshot.size; i++) {
+            selected.add(selectionSnapshot.get(i));
+        }
+        if (selected.size() != members.size) return false;
+        for (int i = 0; i < members.size; i++) {
+            int member = members.get(i);
+            if (!world.getEntityManager().isActive(member)
+                    || !selected.contains(member)) {
+                return false;
+            }
+            PrefabInstanceComponent prefab = prefabInstances.getSafe(member, null);
+            if (prefab == null || prefab.instanceId != prefabNode.getPrefabInstanceId()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static ExplicitPrefabSyncResult syncExplicitPrefabSelection(
+            World world,
+            ComponentMapper<PrefabInstanceComponent> prefabInstances,
+            IdVisTree tree,
+            int prefabInstanceId,
+            IntArray selectionSnapshot) {
+        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
+        if (prefabNode == null) return ExplicitPrefabSyncResult.PENDING_NODE;
+        if (!prefabNode.isSelectable()
+                || !selectionExactlyMatchesPrefab(
+                world, prefabInstances, selectionSnapshot, prefabNode)) {
+            return ExplicitPrefabSyncResult.INVALID;
+        }
+        tree.getSelection().add(prefabNode);
+        return ExplicitPrefabSyncResult.SELECTED;
+    }
+
     private EntityNode resolvePhysicsContextNode() {
+        EntityNode jointNode = ItemTreeJointSupport.resolveSelectedJointNode(
+                tree, physicsSelectionService);
+        if (jointNode != null) return jointNode;
         int bodyEid = resolveExplicitPhysicsContextBody();
         if (bodyEid < 0) return null;
         return tree.findBodyNode(bodyEid);
@@ -735,6 +893,22 @@ public class ItemTreePanel extends DockablePanel {
         }
     }
 
+    private void handleJointNodeSelection(EntityNode jointNode) {
+        if (jointNode == null || !jointNode.isJointNode() || !jointNode.isSelectable()) return;
+        int jointEntityId = jointNode.getEntityId();
+        if (!ItemTreeJointSupport.selectJointContext(
+                world, physicsSelectionService, jointEntityId)) {
+            return;
+        }
+
+        explicitTiledMapLayerEid = -1;
+        if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
+        exitExplicitSpatialBlockMode();
+        activateLayerForEntity(jointEntityId, SelectionService.SelectionSource.TREE);
+        selectionService.selectOnly(jointEntityId, SelectionService.SelectionSource.TREE);
+        forceSingleTreeSelection(jointNode);
+    }
+
     private void activateLayerForEntity(int eid, SelectionService.SelectionSource source) {
         EntityIndexComponent idx = mEntityIndex.getSafe(eid, null);
         if (idx == null) return;
@@ -760,6 +934,36 @@ public class ItemTreePanel extends DockablePanel {
             if (node != null && node.isBodyNode()) return node;
         }
         return null;
+    }
+
+    private EntityNode findFirstJointNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
+        if (nodes == null) return null;
+        for (int i = 0; i < nodes.size; i++) {
+            EntityNode node = nodes.get(i);
+            if (node != null && node.isJointNode()) return node;
+        }
+        return null;
+    }
+
+    static IntMap<IntArray> collectPrefabMembers(World world) {
+        IntMap<IntArray> membersByInstance = new IntMap<>();
+        ComponentMapper<PrefabInstanceComponent> prefabs =
+                world.getMapper(PrefabInstanceComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PrefabInstanceComponent.class)).getEntities();
+        int[] data = entities.getData();
+        for (int i = 0; i < entities.size(); i++) {
+            int entityId = data[i];
+            PrefabInstanceComponent prefab = prefabs.getSafe(entityId, null);
+            if (prefab == null || prefab.instanceId <= 0) continue;
+            IntArray members = membersByInstance.get(prefab.instanceId);
+            if (members == null) {
+                members = new IntArray();
+                membersByInstance.put(prefab.instanceId, members);
+            }
+            members.add(entityId);
+        }
+        return membersByInstance;
     }
 
     private EntityNode findFirstSpatialBlocksNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {

@@ -39,9 +39,11 @@ public class BottomMenuBar extends VisTable {
     private final VisSelectBox<Resolution> resolutionSelectBox;
     private final VisCheckBox landScapeChekBox;
     private final VisCheckBox rulersVisibilityCheckBox;
+    private final Button btnAddScene;
     private final Button btnDeleteScene;
     private final SceneSwitchWorkflow sceneSwitchWorkflow;
     private String lastValue = null;
+    private boolean sceneControlsBusy;
 
     public static final float HEIGHT = 32;
     private final int MY_TAG = EventFlow.tag(this);
@@ -55,6 +57,13 @@ public class BottomMenuBar extends VisTable {
         padTop(3);
 
         sceneSelectBox = new VisSelectBox<>("default");
+        btnAddScene = new Button(VisUI.getSkin(), "add");
+        btnAddScene.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                openNewSceneWindow();
+            }
+        });
         btnDeleteScene = new Button(VisUI.getSkin(), "delete");
         btnDeleteScene.addListener(new ChangeListener() {
             @Override
@@ -135,7 +144,7 @@ public class BottomMenuBar extends VisTable {
                         PreviewLaunchSupport.userMessageFor(throwable)
                 ),
                 ex -> Dialogs.showOKDialog(getStage(), "Scene switch failed", ex.getMessage()),
-                sceneSelectBox::setDisabled
+                this::setSceneControlsBusy
         );
         sceneSelectBox.addListener(new ChangeListener() {
             @Override
@@ -144,15 +153,6 @@ public class BottomMenuBar extends VisTable {
 
                 String cur = sceneSelectBox.getSelected();
                 if (cur == null || cur.equals(lastValue)) return;
-
-                if ("New...".equals(cur)) {
-                    lastValue = cur;
-                    // Open the scene creation window
-                    newSceneWindow.resetSceneName();
-                    app.getUiStage().addActor(newSceneWindow.fadeIn());
-                    return;
-                }
-
                 sceneSwitchWorkflow.request(cur);
             }
         });
@@ -184,6 +184,7 @@ public class BottomMenuBar extends VisTable {
         left();
         add(sceneLabel).padLeft(10).padRight(3);
         add(sceneSelectBox).width(120).left();
+        add(btnAddScene).padLeft(4).left();
         add(btnDeleteScene).padLeft(4).padRight(100).left();
         add(btnPreview).left().padRight(8);
         add(btnPreviewSettings).left().padRight(20);
@@ -324,10 +325,24 @@ public class BottomMenuBar extends VisTable {
         return cfg.getCurrentSceneName();
     }
 
+    private void openNewSceneWindow() {
+        newSceneWindow.resetSceneName();
+        app.getUiStage().addActor(newSceneWindow.fadeIn());
+        newSceneWindow.centerWindow();
+    }
+
+    private void setSceneControlsBusy(boolean busy) {
+        sceneControlsBusy = busy;
+        sceneSelectBox.setDisabled(busy);
+        btnAddScene.setDisabled(busy);
+        updateDeleteSceneButtonState();
+    }
+
     private void updateDeleteSceneButtonState() {
         ProjectConfig cfg = ProjectConfig.getInstance();
         boolean disabled =
-                cfg == null
+                sceneControlsBusy
+                        || cfg == null
                         || cfg.getCurrentSceneName() == null
                         || cfg.getSceneNames().size <= 1;
 
@@ -336,7 +351,6 @@ public class BottomMenuBar extends VisTable {
 
     public void refreshSelectBox() {
         items.clear();
-        items.add("New...");
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg != null) {
@@ -351,13 +365,17 @@ public class BottomMenuBar extends VisTable {
             if (curName != null && items.contains(curName, false)) {
                 sceneSelectBox.getSelection().set(curName);
                 lastValue = curName;
+            } else if (items.size > 0) {
+                sceneSelectBox.getSelection().set(items.first());
+                lastValue = items.first();
             } else {
-                sceneSelectBox.getSelection().set("New...");
-                lastValue = "New...";
+                lastValue = null;
             }
+        } else if (items.size > 0) {
+            sceneSelectBox.getSelection().set(items.first());
+            lastValue = items.first();
         } else {
-            sceneSelectBox.getSelection().set("New...");
-            lastValue = "New...";
+            lastValue = null;
         }
 
         sceneSelectBox.getSelection().setProgrammaticChangeEvents(true);
@@ -423,12 +441,6 @@ public class BottomMenuBar extends VisTable {
             add(tfTileHeight).growX().row();
 
             add(ok).padTop(15).center().colspan(2);
-        }
-
-        @Override
-        protected void close() {
-            refreshSelectBox();
-            super.close();
         }
 
         public VisTextButton getOKButton() {

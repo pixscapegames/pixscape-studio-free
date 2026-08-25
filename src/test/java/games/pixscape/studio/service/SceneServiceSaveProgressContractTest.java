@@ -104,20 +104,17 @@ public class SceneServiceSaveProgressContractTest {
     }
 
     @Test
-    public void tmxImportOnlySavesDirtyCurrentSceneAndReportsTheRepackPhase() throws Exception {
+    public void tmxImportAssumesCallerAlreadyResolvedCurrentSceneSaveDecision() throws Exception {
         String source = readSceneServiceSource();
         String synchronousBody = methodBody(source, "public TmxSceneImportResult importTmxAsNewScene(");
         String progressBody = methodBody(source, "public void importTmxAsNewSceneWithProgress(");
 
-        assertTrue(synchronousBody.contains(
-                "previousSceneName != null && requiresSaveBeforeLeavingCurrentScene()"
-        ));
-        assertTrue(progressBody.contains("context.previousSceneName != null"));
-        assertTrue(progressBody.contains("&& requiresSaveBeforeLeavingCurrentScene()"));
-        assertTrue(progressBody.contains("if (saveCurrentScene)"));
-        assertTrue(progressBody.contains("0.05f"));
-        assertTrue(progressBody.contains("\"Saving current scene and repacking atlas...\""));
-        assertTrue(progressBody.contains("() -> saveCurrentSceneOnly(context.cfg)"));
+        assertFalse(synchronousBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
+        assertFalse(synchronousBody.contains("saveCurrentSceneOnly("));
+        assertTrue(progressBody.contains("context.previousSceneName = context.cfg.getCurrentSceneName()"));
+        assertFalse(progressBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
+        assertFalse(progressBody.contains("saveCurrentSceneOnly("));
+        assertFalse(progressBody.contains("\"Saving current scene and repacking atlas...\""));
     }
 
     private static String readSceneServiceSource() throws Exception {

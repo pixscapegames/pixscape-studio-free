@@ -163,18 +163,10 @@ public class TopMenuBar extends MenuBar {
         final MenuItem paste = new MenuItem("Paste         ctrl+V");
 
         final MenuItem undo = new MenuItem("Undo         ctrl+Z");
-        onClick(undo, () -> {
-            app.getCanvas().getSelectionService().clearSelection();
-            app.getCanvas().getPhysicsSelectionService().clearSelectionOnly();
-            app.getCanvas().getHistoryManager().undo();
-        });
+        onClick(undo, () -> app.getCanvas().undoHistory());
 
         final MenuItem redo = new MenuItem("Redo          ctrl+Y");
-        onClick(redo, () -> {
-            app.getCanvas().getSelectionService().clearSelection();
-            app.getCanvas().getPhysicsSelectionService().clearSelectionOnly();
-            app.getCanvas().getHistoryManager().redo();
-        });
+        onClick(redo, () -> app.getCanvas().redoHistory());
 
         // --------------------------------------------------------------------
         // RESOURCES
@@ -337,7 +329,8 @@ public class TopMenuBar extends MenuBar {
 
         info.add(new VisLabel("Pixscape Studio " + BuildInfo.APP_VERSION)).left().padBottom(15).row();
 
-        info.add(new VisLabel("Build #PS-001, built on " + BuildInfo.BUILD_DATE)).left().padBottom(10).row();
+        info.add(new VisLabel("Build #" + BUILD_IDENTIFIER + ", built on " + BuildInfo.BUILD_DATE))
+                .left().padBottom(10).row();
 
         info.add(new VisLabel("Runtime version: " + System.getProperty("java.runtime.version"))).left().row();
         info.add(new VisLabel("VM: " + System.getProperty("java.vm.name"))).left().row();
@@ -348,12 +341,16 @@ public class TopMenuBar extends MenuBar {
         LinkLabel ossLink = new LinkLabel("open-source software", "internal://oss");
         ossLink.setListener(url -> showOpenSourceDialog(stage));
 
+        LinkLabel contributorsLink = new LinkLabel("Contributors", "internal://contributors");
+        contributorsLink.setListener(url -> showContributorsDialog(stage));
+
         Table poweredRow = new VisTable();
         poweredRow.left();
         poweredRow.add(new VisLabel("Powered by ")).left();
         poweredRow.add(ossLink).left();
 
         info.add(poweredRow).left().padTop(6).padBottom(6).row();
+        info.add(contributorsLink).left().padBottom(6).row();
 
         Table copyrightRow = new VisTable();
         copyrightRow.left();
@@ -414,17 +411,84 @@ public class TopMenuBar extends MenuBar {
         dialog.show(stage);
     }
 
+    private void showContributorsDialog(Stage stage) {
+        VisDialog dialog = new StudioDialog("Contributors");
+        dialog.setResizable(false);
+        dialog.setMovable(true);
+        dialog.setModal(true);
+        dialog.closeOnEscape();
+
+        Table content = dialog.getContentTable();
+        content.pad(16);
+
+        VisTable root = new VisTable();
+        root.left().top();
+
+        VisLabel introduction = new VisLabel(
+                "Pixscape grows thanks to people who contribute code, testing, feedback, "
+                        + "documentation, art, tutorials, and community support."
+        );
+        introduction.setWrap(true);
+        root.add(introduction).width(480).left().padBottom(14).row();
+
+        for (ContributorEntry entry : CONTRIBUTORS) {
+            LinkLabel identityLink = new LinkLabel(entry.displayName(), entry.url());
+            root.add(identityLink).left().padBottom(3).row();
+            root.add(new VisLabel(entry.contribution())).left().padBottom(12).row();
+        }
+
+        content.add(root).left().top();
+
+        dialog.button("Close");
+        dialog.pack();
+        dialog.centerWindow();
+        dialog.show(stage);
+    }
+
     private String buildAboutText() {
-        return "Pixscape Studio " + BuildInfo.APP_VERSION + "\n"
-                + "Build #PS-001\n"
-                + "Built on " + BuildInfo.BUILD_DATE + "\n\n"
-                + "Runtime version: " + System.getProperty("java.runtime.version") + "\n"
-                + "VM: " + System.getProperty("java.vm.name") + "\n"
-                + "OS: " + System.getProperty("os.name") + " " + System.getProperty("os.arch");
+        StringBuilder text = new StringBuilder()
+                .append("Pixscape Studio ").append(BuildInfo.APP_VERSION).append('\n')
+                .append("Build #").append(BUILD_IDENTIFIER).append('\n')
+                .append("Built on ").append(BuildInfo.BUILD_DATE).append("\n\n")
+                .append("Runtime version: ").append(System.getProperty("java.runtime.version")).append('\n')
+                .append("VM: ").append(System.getProperty("java.vm.name")).append('\n')
+                .append("OS: ").append(System.getProperty("os.name")).append(' ')
+                .append(System.getProperty("os.arch"))
+                .append("\n\nContributors:\n");
+
+        for (ContributorEntry entry : CONTRIBUTORS) {
+            text.append("- ").append(entry.displayName()).append(" — ")
+                    .append(entry.contribution()).append('\n');
+        }
+
+        return text.toString().stripTrailing();
     }
 
     private record OssEntry(String name, String version, String license) {
     }
+
+    private record ContributorEntry(String name, String handle, String url, String contribution) {
+        private String displayName() {
+            return handle == null || handle.isBlank() ? name : name + " (" + handle + ")";
+        }
+    }
+
+    private static final String BUILD_IDENTIFIER = "PS-001";
+
+    private static final ContributorEntry[] CONTRIBUTORS = new ContributorEntry[]{
+            new ContributorEntry(
+                    "Tommy Ettinger",
+                    "@tommyettinger",
+                    "https://github.com/tommyettinger",
+                    "LibGDX ecosystem and community support."
+            ),
+            new ContributorEntry(
+                    "Quillraven",
+                    "@Quillraven",
+                    "https://github.com/Quillraven",
+                    "Tiled map import testing and feedback."
+            )
+    };
 
     private static final OssEntry[] OSS_ENTRIES = new OssEntry[]{
             new OssEntry("LibGDX", BuildInfo.GDX_VERSION, "Apache-2.0"),
@@ -716,6 +780,20 @@ public class TopMenuBar extends MenuBar {
     }
 
     private void importTmxAsNewScene(FileHandle file, String sceneName) {
+        app.runAfterCurrentSceneSaveDecision(
+                "Unsaved Project",
+                "Do you want to save before importing the Tiled map?",
+                () -> startTmxImport(file, sceneName),
+                null,
+                failure -> Dialogs.showOKDialog(
+                        app.getUiStage(),
+                        "Save failed",
+                        PreviewLaunchSupport.userMessageFor(failure)
+                )
+        );
+    }
+
+    private void startTmxImport(FileHandle file, String sceneName) {
         try {
             sceneService.importTmxAsNewSceneWithProgress(
                     app.getUiStage(),

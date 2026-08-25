@@ -3,20 +3,27 @@ package games.pixscape.studio.importer.tmx;
 import com.artemis.World;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.*;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.asset.TiledAnimationImportSupport;
 import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.*;
@@ -139,6 +146,8 @@ public final class TmxSceneImportService {
 
     ImportAssetsResult importAssets(TmxImportPlan plan, SceneMeta meta) {
         Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> animationIdsByTileset = new HashMap<>();
         Set<Integer> importedTileAssetIds = new HashSet<>();
         Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer = new HashMap<>();
         Set<Integer> importedImageAssetIds = new HashSet<>();
@@ -176,6 +185,8 @@ public final class TmxSceneImportService {
             }
             importedTilesetCount += result.importedCount();
             Map<Integer, Integer> cellLogicalIds = new HashMap<>(result.localTileAssetIds());
+            staticTileAssetIdsByTileset.put(
+                    tileset.planIndex(), Map.copyOf(result.localTileAssetIds()));
             for (Integer assetId : result.localTileAssetIds().values()) {
                 if (assetId == null || assetId <= 0) continue;
                 importedTileAssetIds.add(assetId);
@@ -196,6 +207,7 @@ public final class TmxSceneImportService {
                     runtimeAvailabilityService.addTiledAnimation(meta, entry.getValue());
                 }
             }
+            animationIdsByTileset.put(tileset.planIndex(), Map.copyOf(animationIds));
             cellLogicalIdsByTileset.put(tileset.planIndex(), cellLogicalIds);
         }
         if (tileAnimationsChanged) {
@@ -214,9 +226,20 @@ public final class TmxSceneImportService {
             runtimeAvailabilityService.addSprite(meta, imageAsset.assetId());
         }
 
+        for (TmxLayerPlan layer : plan.layers()) {
+            if (!(layer instanceof TmxObjectLayerPlan objectLayer)) continue;
+            for (TmxObjectPlan object : objectLayer.objects()) {
+                if (object.kind() != TmxObjectKind.TILE) continue;
+                Integer assetId = staticTileAssetId(staticTileAssetIdsByTileset, object);
+                runtimeAvailabilityService.addSprite(meta, assetId);
+            }
+        }
+
         return new ImportAssetsResult(
                 importedTilesetCount,
                 cellLogicalIdsByTileset,
+                staticTileAssetIdsByTileset,
+                Map.copyOf(animationIdsByTileset),
                 importedTileAssetIds,
                 imageAssetsBySourceLayer,
                 importedImageAssetIds
@@ -260,16 +283,20 @@ public final class TmxSceneImportService {
 
     void populateImportedWorld(World world,
             IdentityRegistry identityRegistry, TmxImportPlan plan,
-            Map<Integer, Map<Integer, Integer>> tileAssetIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+            Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
             Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
             String sceneTag) {
         int layerIndex = 0;
+        Map<Integer, Integer> stableIdsBySourceObjectId = new HashMap<>();
+        List<PendingObjectProperties> pendingProperties = new ArrayList<>();
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
                 createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
                 identityRegistry.ensureStableId(layerEntity);
-                populateTiles(world, layerEntity, tileLayer, tileAssetIdsByTileset);
+                populateTiles(world, layerEntity, tileLayer, cellLogicalIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
                 ImportedImageAsset imageAsset = imageAssetsBySourceLayer.get(imageLayer.sourceLayerIndex());
@@ -282,8 +309,19 @@ public final class TmxSceneImportService {
                 createImageLayerSprite(world, identityRegistry, layerIndex,
                         plan.scene(), imageLayer, imageAsset, sceneTag);
                 layerIndex++;
+            } else if (layerPlan instanceof TmxObjectLayerPlan objectLayer) {
+                int layerEntity = world.create();
+                createObjectLayerComponents(world, layerEntity, layerIndex, objectLayer);
+                identityRegistry.ensureStableId(layerEntity);
+                pendingProperties.add(new PendingObjectProperties(layerEntity,
+                        objectLayer.properties(), objectLayer.objectPropertyReferences()));
+                populateObjects(world, identityRegistry, layerIndex, plan.scene(), objectLayer,
+                        staticTileAssetIdsByTileset, animationIdsByTileset, sceneTag,
+                        stableIdsBySourceObjectId, pendingProperties);
+                layerIndex++;
             }
         }
+        finalizeObjectProperties(world, pendingProperties, stableIdsBySourceObjectId);
         world.process();
     }
 
@@ -361,6 +399,418 @@ public final class TmxSceneImportService {
         LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
         parallax.factorX = imageLayer.parallaxX();
         parallax.factorY = imageLayer.parallaxY();
+    }
+
+    private void createObjectLayerComponents(World world,
+                                             int layerEntity,
+                                             int layerIndex,
+                                             TmxObjectLayerPlan objectLayer) {
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
+        layer.layerIndex = layerIndex;
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        layer.spatialEnabled = false;
+
+        LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
+        meta.name = objectLayer.name();
+        meta.description = "";
+        meta.locked = false;
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(layerEntity);
+        visibility.visible = objectLayer.visible();
+        visibility.culledByFrustum = true;
+        visibility.inView = false;
+
+        LayerParallaxComponent parallax = world.getMapper(LayerParallaxComponent.class).create(layerEntity);
+        parallax.factorX = objectLayer.parallaxX();
+        parallax.factorY = objectLayer.parallaxY();
+
+        world.getMapper(TiledObjectLayerComponent.class).create(layerEntity);
+    }
+
+    private void populateObjects(World world,
+                                 IdentityRegistry identityRegistry,
+                                 int layerIndex,
+                                 TmxScenePlan scene,
+                                 TmxObjectLayerPlan objectLayer,
+                                 Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                 Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
+                                 String sceneTag,
+                                 Map<Integer, Integer> stableIdsBySourceObjectId,
+                                 List<PendingObjectProperties> pendingProperties) {
+        for (TmxObjectPlan object : objectLayer.objects()) {
+            int objectEntity = world.create();
+            if (object.kind() == TmxObjectKind.TILE) {
+                createTileObjectComponents(world, objectEntity, layerIndex, scene,
+                        objectLayer, object, staticTileAssetIdsByTileset,
+                        animationIdsByTileset, sceneTag);
+            } else {
+                createDataObjectComponents(world, objectEntity, layerIndex,
+                        scene, objectLayer, object);
+            }
+            identityRegistry.setName(objectEntity, object.name());
+            identityRegistry.ensureStableId(objectEntity);
+            if (object.hasPositiveSourceId()) {
+                stableIdsBySourceObjectId.put(object.sourceId(),
+                        world.getMapper(PixscapeIdentityComponent.class).get(objectEntity).stableId);
+            }
+            pendingProperties.add(new PendingObjectProperties(objectEntity,
+                    object.properties(), object.objectPropertyReferences()));
+        }
+    }
+
+    private void createDataObjectComponents(World world,
+                                            int objectEntity,
+                                            int layerIndex,
+                                            TmxScenePlan scene,
+                                            TmxObjectLayerPlan objectLayer,
+                                            TmxObjectPlan object) {
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(objectEntity);
+        TmxObjectCoordinateMapper.Coordinate position = TmxObjectCoordinateMapper.absolute(
+                scene, object.x(), object.y(), objectLayer.offsetX(), objectLayer.offsetY());
+        transform.x = position.x();
+        transform.y = position.y();
+        boolean bakeIsoGeometryRotation = isometricDataGeometry(scene, object.kind());
+        // Tiled rotates ISO object geometry in projected screen space. Pixscape's standard
+        // rotation cannot represent that non-uniform basis conversion, so bake it into vertices.
+        transform.rotationRad = bakeIsoGeometryRotation
+                ? 0f
+                : -object.rotation() * MathUtils.degreesToRadians;
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+
+        if (object.kind() == TmxObjectKind.RECTANGLE) {
+            if ("isometric".equals(scene.orientation())) {
+                createPathObjectGeometry(world, objectEntity, transform, scene,
+                        rectanglePoints(object), true, object.rotation());
+            } else {
+                DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
+                dimensions.width = object.width();
+                dimensions.height = object.height();
+                centerRectangleTransformFromTiledPivot(transform, dimensions.width, dimensions.height);
+                // Bounds are editable/pickable geometry, not rendering state.
+                world.getMapper(AABBComponent.class).create(objectEntity);
+                world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+            }
+        } else if (object.kind() == TmxObjectKind.POINT) {
+            transform.originX = 0f;
+            transform.originY = 0f;
+        } else if (object.kind() == TmxObjectKind.POLYGON
+                || object.kind() == TmxObjectKind.POLYLINE) {
+            createPathObjectGeometry(world, objectEntity, transform, scene,
+                    object.points(), object.kind() == TmxObjectKind.POLYGON, object.rotation());
+        } else {
+            throw new IllegalStateException(
+                    "Unsupported Tiled Object Layer materialization kind: " + object.kind());
+        }
+        transform.refreshCaches();
+
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(objectEntity);
+        index.layerIndex = layerIndex;
+        index.zIndex = object.zIndex();
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(objectEntity);
+        visibility.visible = object.visible();
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+
+        EntityMetaComponent meta = world.getMapper(EntityMetaComponent.class).create(objectEntity);
+        meta.note = "";
+        meta.kind = switch (object.kind()) {
+            case RECTANGLE -> EntityKind.TILED_RECTANGLE;
+            case POINT -> EntityKind.TILED_POINT;
+            case POLYGON -> EntityKind.POLYGON;
+            case POLYLINE -> EntityKind.POLYLINE;
+            default -> throw new IllegalStateException(
+                    "Unsupported Tiled Object Layer materialization kind: " + object.kind());
+        };
+
+        attachObjectMetadata(world, objectEntity, object);
+    }
+
+    private static void createPathObjectGeometry(World world,
+                                                 int objectEntity,
+                                                 TransformComponent transform,
+                                                 TmxScenePlan scene,
+                                                 List<TmxObjectPoint> points,
+                                                 boolean polygon,
+                                                 float tiledRotationDeg) {
+        if (points.isEmpty()) {
+            throw new IllegalStateException("Path Object has no parsed points.");
+        }
+
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        for (TmxObjectPoint point : points) {
+            TmxObjectCoordinateMapper.Coordinate projected =
+                    localPathPoint(scene, point, tiledRotationDeg);
+            float x = projected.x();
+            float y = projected.y();
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+
+        float width = maxX - minX;
+        float height = maxY - minY;
+        float[] vertices = new float[points.size() * 2];
+        for (int i = 0; i < points.size(); i++) {
+            TmxObjectPoint point = points.get(i);
+            TmxObjectCoordinateMapper.Coordinate projected =
+                    localPathPoint(scene, point, tiledRotationDeg);
+            vertices[i * 2] = projected.x() - minX;
+            vertices[i * 2 + 1] = projected.y() - minY;
+        }
+
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).create(objectEntity);
+        dimensions.width = width;
+        dimensions.height = height;
+        transform.originX = width * 0.5f;
+        transform.originY = height * 0.5f;
+
+        float rawCenterX = minX + transform.originX;
+        float rawCenterY = minY + transform.originY;
+        float cos = MathUtils.cos(transform.rotationRad);
+        float sin = MathUtils.sin(transform.rotationRad);
+        transform.x += cos * rawCenterX - sin * rawCenterY;
+        transform.y += sin * rawCenterX + cos * rawCenterY;
+
+        if (polygon) {
+            world.getMapper(PolygonComponent.class).create(objectEntity).setVertices(vertices);
+        } else {
+            world.getMapper(PolylineComponent.class).create(objectEntity).setVertices(vertices);
+        }
+        world.getMapper(AABBComponent.class).create(objectEntity);
+        world.getMapper(OrientedBoundsComponent.class).create(objectEntity);
+    }
+
+    private static TmxObjectCoordinateMapper.Coordinate localPathPoint(TmxScenePlan scene,
+                                                                         TmxObjectPoint point,
+                                                                         float tiledRotationDeg) {
+        return "isometric".equals(scene.orientation())
+                ? TmxObjectCoordinateMapper.localWithTiledRotation(
+                        scene, point.x(), point.y(), tiledRotationDeg)
+                : TmxObjectCoordinateMapper.local(scene, point.x(), point.y());
+    }
+
+    private static boolean isometricDataGeometry(TmxScenePlan scene, TmxObjectKind kind) {
+        return "isometric".equals(scene.orientation())
+                && (kind == TmxObjectKind.RECTANGLE
+                || kind == TmxObjectKind.POLYGON
+                || kind == TmxObjectKind.POLYLINE);
+    }
+
+    private static List<TmxObjectPoint> rectanglePoints(TmxObjectPlan object) {
+        return List.of(
+                new TmxObjectPoint(0f, 0f),
+                new TmxObjectPoint(object.width(), 0f),
+                new TmxObjectPoint(object.width(), object.height()),
+                new TmxObjectPoint(0f, object.height())
+        );
+    }
+
+    /**
+     * Converts Tiled's top-left rectangle pivot to Pixscape's centered authoring pivot.
+     * The translation is rotated with the rectangle so its world-space geometry is unchanged.
+     */
+    static void centerRectangleTransformFromTiledPivot(TransformComponent transform,
+                                                        float width,
+                                                        float height) {
+        float dx = width * 0.5f;
+        float dy = -height * 0.5f;
+        float cos = MathUtils.cos(transform.rotationRad);
+        float sin = MathUtils.sin(transform.rotationRad);
+        transform.x += cos * dx - sin * dy;
+        transform.y += sin * dx + cos * dy;
+        transform.originX = dx;
+        transform.originY = height * 0.5f;
+    }
+
+    private void createTileObjectComponents(World world,
+                                            int objectEntity,
+                                            int layerIndex,
+                                            TmxScenePlan scene,
+                                            TmxObjectLayerPlan objectLayer,
+                                            TmxObjectPlan object,
+                                            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                            Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
+                                            String sceneTag) {
+        int assetId = staticTileAssetId(staticTileAssetIdsByTileset, object);
+        float width = object.width() > 0f ? object.width() : object.nativeTileWidth();
+        float height = object.height() > 0f ? object.height() : object.nativeTileHeight();
+        if (width <= 0f || height <= 0f) {
+            throw new IllegalStateException("Tile Object has no usable authored or native size.");
+        }
+
+        TmxObjectAlignment alignment = effectiveTileObjectAlignment(object.tileObjectAlignment(), scene);
+        TmxObjectCoordinateMapper.Coordinate position = TmxObjectCoordinateMapper.absolute(
+                scene, object.x(), object.y(), objectLayer.offsetX(), objectLayer.offsetY());
+        float anchorX = alignment.anchorX();
+        float anchorY = alignment.anchorY();
+        float baseOriginX = anchorX * width - object.tileOffsetX();
+        float baseOriginY = (1f - anchorY) * height + object.tileOffsetY();
+        TmxTileTransformSupport.TileObjectTransform tiledTransform =
+                TmxTileTransformSupport.decomposeTileObject(
+                        width, height, baseOriginX, baseOriginY, object.tileTransform());
+
+        GenericEntityInitializer init = new GenericEntityInitializer(world)
+                .configureStandaloneSprite(
+                        assetId,
+                        sceneTag,
+                        Math.max(1, object.nativeTileWidth()),
+                        Math.max(1, object.nativeTileHeight()),
+                        position.x(),
+                        position.y(),
+                        tiledTransform.originX(),
+                        tiledTransform.originY(),
+                        0,
+                        BlendMode.ALPHA.id,
+                        0,
+                        object.name(),
+                        layerIndex
+                )
+                .setTintRgba(tintForOpacity(objectLayer.opacity()));
+        init.init(objectEntity);
+
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(objectEntity);
+        transform.rotationRad = -object.rotation() * MathUtils.degreesToRadians
+                + tiledTransform.rotationOffsetRad();
+        transform.scaleX = tiledTransform.scaleX();
+        transform.scaleY = tiledTransform.scaleY();
+        transform.refreshCaches();
+
+        DimensionsComponent dimensions = world.getMapper(DimensionsComponent.class).get(objectEntity);
+        dimensions.width = width;
+        dimensions.height = height;
+
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).get(objectEntity);
+        index.zIndex = object.zIndex();
+
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).get(objectEntity);
+        visibility.visible = object.visible();
+
+        Map<Integer, Integer> tilesetAnimationIds =
+                animationIdsByTileset.get(object.tilesetPlanIndex());
+        Integer animationId = tilesetAnimationIds != null
+                ? tilesetAnimationIds.get(object.localTileId())
+                : null;
+        if (animationId != null && animationId > 0) {
+            TiledAnimationComponent animation = world.getMapper(TiledAnimationComponent.class)
+                    .create(objectEntity);
+            animation.animationId = animationId;
+        }
+        attachObjectMetadata(world, objectEntity, object);
+    }
+
+    static TmxObjectAlignment effectiveTileObjectAlignment(TmxObjectAlignment alignment,
+                                                            TmxScenePlan scene) {
+        if (alignment != TmxObjectAlignment.UNSPECIFIED) return alignment;
+        return "isometric".equals(scene.orientation())
+                ? TmxObjectAlignment.BOTTOM
+                : TmxObjectAlignment.BOTTOM_LEFT;
+    }
+
+    private static int staticTileAssetId(
+            Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+            TmxObjectPlan object) {
+        Map<Integer, Integer> localIds = staticTileAssetIdsByTileset.get(object.tilesetPlanIndex());
+        Integer assetId = localIds != null ? localIds.get(object.localTileId()) : null;
+        if (assetId == null || assetId <= 0) {
+            throw new IllegalStateException(
+                    "Missing imported static tile asset for local tile " + object.localTileId());
+        }
+        return assetId;
+    }
+
+    private static void attachObjectMetadata(World world,
+                                             int objectEntity,
+                                             TmxObjectPlan object) {
+        String classificationTag = classificationTag(object);
+        if (classificationTag != null) {
+            PixscapeTagComponent tags = world.getMapper(PixscapeTagComponent.class).create(objectEntity);
+            tags.tags.add(classificationTag);
+        }
+
+    }
+
+    private static void finalizeObjectProperties(World world,
+                                                 List<PendingObjectProperties> pendingProperties,
+                                                 Map<Integer, Integer> stableIdsBySourceObjectId) {
+        for (PendingObjectProperties pending : pendingProperties) {
+            PropertySet properties = finalizeObjectProperties(
+                    pending.properties(), pending.references(), stableIdsBySourceObjectId);
+            copyCustomProperties(world, pending.entityId(), properties);
+        }
+    }
+
+    static PropertySet finalizeObjectProperties(PropertySet base,
+                                                List<TmxObjectPropertyReference> references,
+                                                Map<Integer, Integer> stableIdsBySourceObjectId) {
+        PropertySet result = base != null ? base.copy() : new PropertySet();
+        for (TmxObjectPropertyReference reference : references) {
+            int stableId = reference.sourceObjectId() == 0 ? -1
+                    : requiredStableId(reference, stableIdsBySourceObjectId);
+            putObjectReferenceAtPath(result, reference.path(), 0, stableId);
+        }
+        return result;
+    }
+
+    private static int requiredStableId(TmxObjectPropertyReference reference,
+                                        Map<Integer, Integer> stableIdsBySourceObjectId) {
+        Integer stableId = stableIdsBySourceObjectId.get(reference.sourceObjectId());
+        if (stableId == null || stableId <= 0) {
+            throw new IllegalStateException("Unable to resolve Tiled object reference #"
+                    + reference.sourceObjectId() + " at " + reference.location());
+        }
+        return stableId;
+    }
+
+    private static void putObjectReferenceAtPath(PropertySet properties,
+                                                 List<String> path,
+                                                 int index,
+                                                 int stableId) {
+        String name = path.get(index);
+        if (index == path.size() - 1) {
+            properties.putObjectStableId(name, stableId);
+            return;
+        }
+        PropertyValue value = properties.valueCopy(name);
+        if (value == null || value.type() != PropertyType.CLASS) {
+            throw new IllegalStateException("OBJECT property path does not resolve through CLASS: "
+                    + String.join(".", path));
+        }
+        PropertySet members = value.classPropertiesCopy();
+        putObjectReferenceAtPath(members, path, index + 1, stableId);
+        properties.putClass(name, value.className(), members);
+    }
+
+    private record PendingObjectProperties(int entityId,
+                                           PropertySet properties,
+                                           List<TmxObjectPropertyReference> references) {
+    }
+
+    static String classificationTag(TmxObjectPlan object) {
+        if (object == null) return null;
+        String modernClass = normalizedTag(object.effectiveClassName());
+        return modernClass != null ? modernClass : normalizedTag(object.effectiveLegacyType());
+    }
+
+    private static String normalizedTag(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static void copyCustomProperties(World world,
+                                             int entity,
+                                             PropertySet properties) {
+        if (properties == null || properties.isEmpty()) return;
+        CustomPropertiesComponent component = world
+                .getMapper(CustomPropertiesComponent.class)
+                .create(entity);
+        component.properties.copyFrom(properties);
     }
 
     private void createImageLayerSprite(World world,
@@ -449,23 +899,25 @@ public final class TmxSceneImportService {
                                TmxTileLayerPlan tileLayer,
                                Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerEntity);
+        TiledSparseStorageHelper.NewLayerStorageBuilder sparseStorage =
+                TiledSparseStorageHelper.beginNewLayerStorage(tiled, tileLayer.nonEmptyCellCount());
         tiled.data.beginContentMutation();
         try {
-        for (TmxTileCellPlan cell : tileLayer.cells()) {
-            Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
-            if (logicalIds == null) {
-                throw new IllegalStateException("Missing imported tileset for cell gid " + cell.cleanGid());
+            for (TmxTileCellPlan cell : tileLayer.cells()) {
+                Map<Integer, Integer> logicalIds = cellLogicalIdsByTileset.get(cell.tilesetPlanIndex());
+                if (logicalIds == null) {
+                    throw new IllegalStateException("Missing imported tileset for cell gid " + cell.cleanGid());
+                }
+                Integer logicalId = logicalIds.get(cell.localTileId());
+                if (logicalId == null || logicalId <= 0) {
+                    throw new IllegalStateException("Missing imported tile asset for local tile " + cell.localTileId());
+                }
+                int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
+                int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
+                byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
+                tiled.data.setTile(gx, gy, logicalId, flags);
+                sparseStorage.append(gx, gy, logicalId, flags);
             }
-            Integer logicalId = logicalIds.get(cell.localTileId());
-            if (logicalId == null || logicalId <= 0) {
-                throw new IllegalStateException("Missing imported tile asset for local tile " + cell.localTileId());
-            }
-            int gx = TmxTileCoordinateMapper.pixscapeX(cell.sourceX());
-            int gy = TmxTileCoordinateMapper.pixscapeY(tileLayer.height(), cell.sourceY());
-            byte flags = TmxTileTransformSupport.toTileTransformFlags(cell.transform());
-            tiled.data.setTile(gx, gy, logicalId, flags);
-            TiledSparseStorageHelper.setTile(tiled, gx, gy, logicalId, flags);
-        }
         } finally {
             tiled.data.endContentMutation();
         }
@@ -530,6 +982,8 @@ public final class TmxSceneImportService {
 
     record ImportAssetsResult(int importedTilesetCount,
                                       Map<Integer, Map<Integer, Integer>> cellLogicalIdsByTileset,
+                                      Map<Integer, Map<Integer, Integer>> staticTileAssetIdsByTileset,
+                                      Map<Integer, Map<Integer, Integer>> animationIdsByTileset,
                                       Set<Integer> importedTileAssetIds,
                                       Map<Integer, ImportedImageAsset> imageAssetsBySourceLayer,
                                       Set<Integer> importedImageAssetIds) {

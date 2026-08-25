@@ -15,6 +15,7 @@ import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditJointBaseCommand;
 import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.physics.PhysicsJointUiNames;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -184,7 +185,7 @@ public final class JointProperties extends VisTable {
             return;
         }
 
-        typeValue.setText(jointTypeName(base.type));
+        typeValue.setText(PhysicsJointUiNames.typeName(base.type));
         bodyAValue.setText(formatInternalId(base.aEid));
         bodyBValue.setText(formatInternalId(base.bEid));
 
@@ -333,21 +334,6 @@ public final class JointProperties extends VisTable {
     private float readJointAnchorBy(int jointEid) {
         PhysicsJointComponent base = mJointBase.getSafe(jointEid, null);
         return base != null ? base.anchorBy : 0f;
-    }
-
-    private static String jointTypeName(int type) {
-        return switch (type) {
-            case PhysicsJointComponent.TYPE_DISTANCE -> "DISTANCE";
-            case PhysicsJointComponent.TYPE_REVOLUTE -> "REVOLUTE";
-            case PhysicsJointComponent.TYPE_PRISMATIC -> "PRISMATIC";
-            case PhysicsJointComponent.TYPE_WELD -> "WELD";
-            case PhysicsJointComponent.TYPE_WHEEL -> "WHEEL";
-            case PhysicsJointComponent.TYPE_FRICTION -> "FRICTION";
-            case PhysicsJointComponent.TYPE_MOTOR -> "MOTOR";
-            case PhysicsJointComponent.TYPE_PULLEY -> "PULLEY";
-            case PhysicsJointComponent.TYPE_GEAR -> "GEAR";
-            default -> "UNKNOWN";
-        };
     }
 
     private static VisTable makeXYStack(Actor xField, Actor yField) {

@@ -138,6 +138,16 @@ def isWindows = currentOs.contains("win")
 def isLinux = currentOs.contains("linux")
 def isMac = currentOs.contains("mac")
 
+def macPackageVersion = project.version.toString()
+
+if (isMac) {
+  def parts = macPackageVersion.tokenize('.')
+  if (!parts.isEmpty()) {
+    parts[0] = (parts[0] as int) + 1
+    macPackageVersion = parts.join('.')
+  }
+}
+
 runtime {
   modules = ['java.se', 'jdk.unsupported', 'jdk.httpserver']
   options = ['--strip-debug', '--no-header-files', '--no-man-pages']
@@ -154,7 +164,9 @@ runtime {
   jpackage {
     imageName = appName
     installerName = appName
-    appVersion = project.version.toString()
+    appVersion = isMac
+            ? macPackageVersion
+            : project.version.toString()
 
     imageOptions = ['--verbose']
     installerOptions = [

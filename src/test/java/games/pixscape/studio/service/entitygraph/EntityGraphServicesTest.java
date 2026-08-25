@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.entitygraph;
 
 import com.artemis.*;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -8,8 +9,10 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -93,6 +96,165 @@ public class EntityGraphServicesTest {
     }
 
     @Test
+    public void instantiatePrefabAssignsOneLogicalInstanceBeforeHistoryAndRedoPreservesIt() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
+        identities.rebuild();
+        int targetLayer = world.create();
+        world.getMapper(games.pixscape.runtime.component.LayerComponent.class)
+                .create(targetLayer).layerIndex = 7;
+        world.getMapper(games.pixscape.studio.component.LayerMetaComponent.class)
+                .create(targetLayer).name = "Target";
+
+        int a = body(world);
+        int b = body(world);
+        world.getMapper(EntityIndexComponent.class).get(a).layerIndex = 2;
+        world.getMapper(EntityIndexComponent.class).get(a).zIndex = 14;
+        world.getMapper(EntityIndexComponent.class).get(b).layerIndex = 4;
+        world.getMapper(EntityIndexComponent.class).get(b).zIndex = 9;
+        int existing = body(world);
+        world.getMapper(EntityIndexComponent.class).get(existing).layerIndex = 7;
+        world.getMapper(EntityIndexComponent.class).get(existing).zIndex = 12;
+        world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class)
+                .create(existing).name = "Existing";
+        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
+        EntityGraphInstantiationService service = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()));
+
+        EntityGraphInstantiationResult result = service.instantiatePrefab(
+                graph, 7, 0f, 0f, "Drop Castle", 41, "Castle");
+        Assert.assertEquals(2, result.createdIds().size);
+        assertPrefabMembers(world, 41, "Castle", 7, 2);
+        Assert.assertEquals(1, history.getCursor());
+        int droppedAZ = world.getMapper(EntityIndexComponent.class)
+                .get(result.sourceToCreated().get(a, -1)).zIndex;
+        int droppedBZ = world.getMapper(EntityIndexComponent.class)
+                .get(result.sourceToCreated().get(b, -1)).zIndex;
+        int existingAfterDrop = world.getMapper(EntityIndexComponent.class).get(existing).zIndex;
+        Assert.assertEquals(1, Math.abs(droppedAZ - droppedBZ));
+        Assert.assertTrue(existingAfterDrop < Math.min(droppedAZ, droppedBZ)
+                || existingAfterDrop > Math.max(droppedAZ, droppedBZ));
+        Assert.assertEquals(3, new java.util.HashSet<>(java.util.List.of(
+                droppedAZ, droppedBZ, existingAfterDrop)).size());
+        Assert.assertEquals(0, Math.min(existingAfterDrop, Math.min(droppedAZ, droppedBZ)));
+        Assert.assertEquals(2, Math.max(existingAfterDrop, Math.max(droppedAZ, droppedBZ)));
+
+        history.undo();
+        world.process();
+        assertPrefabMembers(world, 41, "Castle", 7, 0);
+        Assert.assertEquals(12, world.getMapper(EntityIndexComponent.class).get(existing).zIndex);
+        history.redo();
+        world.process();
+        assertPrefabMembers(world, 41, "Castle", 7, 2);
+        Assert.assertEquals(existingAfterDrop,
+                world.getMapper(EntityIndexComponent.class).get(existing).zIndex);
+    }
+
+    @Test
+    public void prefabDropNormalizesCompleteMaterializedLayerUsingSourceOrder() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
+        identities.rebuild();
+        int targetLayer = world.create();
+        world.getMapper(games.pixscape.runtime.component.LayerComponent.class)
+                .create(targetLayer).layerIndex = 7;
+        world.getMapper(games.pixscape.studio.component.LayerMetaComponent.class)
+                .create(targetLayer).name = "Target";
+
+        IntArray existing = new IntArray();
+        for (int z : new int[]{9, 8, 7, 6, 5, 0}) {
+            int entityId = body(world);
+            world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex = 7;
+            world.getMapper(EntityIndexComponent.class).get(entityId).zIndex = z;
+            world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class)
+                    .create(entityId).name = "Existing " + z;
+            existing.add(entityId);
+        }
+
+        IntArray sources = new IntArray();
+        for (int z : new int[]{139, 141, 142, 140}) {
+            int entityId = body(world);
+            world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex = 2;
+            world.getMapper(EntityIndexComponent.class).get(entityId).zIndex = z;
+            world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class)
+                    .create(entityId).name = "Prefab " + z;
+            sources.add(entityId);
+        }
+        EntityGraph graph = new EntityGraphCaptureService(world).capture(sources);
+
+        // Match Studio: ItemTreePanel has already materialized this subscription.
+        world.process();
+        LayerLogicalOrderService logicalOrder = new LayerLogicalOrderService(world);
+        logicalOrder.derive(7);
+
+        EntityGraphInstantiationService service = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()));
+        EntityGraphInstantiationResult result = service.instantiatePrefab(
+                graph, 7, 0f, 0f, "Drop Observed Prefab", 41, "Observed");
+
+        assertZValues(world, result.createdIds(), 6, 8, 9, 7);
+        assertZValues(world, existing, 5, 4, 3, 2, 1, 0);
+        assertCompactLayer(world, 7, result.createdIds(), existing);
+        world.process();
+        Assert.assertArrayEquals(
+                new int[]{9, 8, 7, 6},
+                prefabZTopToBottom(world, logicalOrder, 7, 41));
+
+        history.undo();
+        world.process();
+        assertZValues(world, existing, 9, 8, 7, 6, 5, 0);
+        assertPrefabMembers(world, 41, "Observed", 7, 0);
+
+        history.redo();
+        assertCompactLayer(world, 7, result.createdIds(), existing);
+        assertZValues(world, existing, 5, 4, 3, 2, 1, 0);
+        world.process();
+        Assert.assertArrayEquals(
+                new int[]{9, 8, 7, 6},
+                prefabZTopToBottom(world, logicalOrder, 7, 41));
+    }
+
+    @Test
+    public void clipboardInstantiationAlwaysStripsMembershipAndLeavesOriginalsGrouped() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(32);
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, new games.pixscape.studio.configuration.SceneMeta());
+        identities.rebuild();
+
+        int a = body(world);
+        int b = body(world);
+        for (int entity : new int[]{a, b}) {
+            PrefabInstanceComponent prefab =
+                    world.getMapper(PrefabInstanceComponent.class).create(entity);
+            prefab.instanceId = 10;
+            prefab.prefabId = "Castle";
+        }
+        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
+        EntityGraphInstantiationResult pasted = new EntityGraphInstantiationService(
+                world, history, identities, new games.pixscape.runtime.service.PhysicsService(
+                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                .instantiateForClipboard(
+                        graph, 3, 0f, 0f, "Paste",
+                        EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS);
+
+        Assert.assertEquals(2, pasted.createdIds().size);
+        for (int i = 0; i < pasted.createdIds().size; i++) {
+            int entity = pasted.createdIds().get(i);
+            Assert.assertFalse(world.getMapper(PrefabInstanceComponent.class).has(entity));
+            Assert.assertEquals(3, world.getMapper(EntityIndexComponent.class).get(entity).layerIndex);
+        }
+        Assert.assertEquals(10, world.getMapper(PrefabInstanceComponent.class).get(a).instanceId);
+        Assert.assertEquals(10, world.getMapper(PrefabInstanceComponent.class).get(b).instanceId);
+    }
+
+    @Test
     public void invalidJointGraphFailsDuringPreparationWithoutProcessingWorld() {
         SentinelSystem sentinel = new SentinelSystem();
         World world = new World(new WorldConfigurationBuilder()
@@ -150,6 +312,81 @@ public class EntityGraphServicesTest {
 
     private static int count(World world, com.artemis.Aspect.Builder aspect) {
         return world.getAspectSubscriptionManager().get(aspect).getEntities().size();
+    }
+
+    private static void assertPrefabMembers(
+            World world, int instanceId, String prefabId, int layerIndex, int expectedCount) {
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PrefabInstanceComponent.class)).getEntities();
+        int matching = 0;
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            PrefabInstanceComponent prefab =
+                    world.getMapper(PrefabInstanceComponent.class).get(entity);
+            if (prefab.instanceId != instanceId) continue;
+            matching++;
+            Assert.assertEquals(prefabId, prefab.prefabId);
+            Assert.assertEquals(layerIndex,
+                    world.getMapper(EntityIndexComponent.class).get(entity).layerIndex);
+        }
+        Assert.assertEquals(expectedCount, matching);
+    }
+
+    private static void assertCompactLayer(
+            World world, int layerIndex, IntArray first, IntArray second) {
+        int[] seen = new int[10];
+        com.badlogic.gdx.utils.IntSet seenEntities = new com.badlogic.gdx.utils.IntSet();
+        int count = 0;
+        StringBuilder actual = new StringBuilder();
+        for (IntArray entities : new IntArray[]{first, second}) {
+            for (int i = 0; i < entities.size; i++) {
+                int entityId = entities.get(i);
+                if (!world.getEntityManager().isActive(entityId)
+                        || !seenEntities.add(entityId)) continue;
+                EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
+                        .getSafe(entityId, null);
+                if (index == null || index.layerIndex != layerIndex) continue;
+                if (actual.length() > 0) actual.append(',');
+                actual.append(index.zIndex);
+                Assert.assertTrue("zIndex outside compact layer: " + actual,
+                        index.zIndex >= 0 && index.zIndex < seen.length);
+                seen[index.zIndex]++;
+                count++;
+            }
+        }
+        Assert.assertEquals(seen.length, count);
+        for (int z = 0; z < seen.length; z++) {
+            Assert.assertEquals("non-unique compact zIndex " + z + " in: " + actual,
+                    1, seen[z]);
+        }
+    }
+
+    private static void assertZValues(World world, IntArray entities, int... expected) {
+        int activeIndex = 0;
+        for (int i = 0; i < entities.size; i++) {
+            int entityId = entities.get(i);
+            if (!world.getEntityManager().isActive(entityId)) continue;
+            Assert.assertTrue("more active entities than expected", activeIndex < expected.length);
+            Assert.assertEquals(expected[activeIndex++],
+                    world.getMapper(EntityIndexComponent.class).get(entityId).zIndex);
+        }
+        Assert.assertEquals(expected.length, activeIndex);
+    }
+
+    private static int[] prefabZTopToBottom(
+            World world, LayerLogicalOrderService service,
+            int layerIndex, int prefabInstanceId) {
+        for (LayerLogicalOrderService.LogicalItem item : service.derive(layerIndex).items()) {
+            if (!item.isPrefab() || item.prefabInstanceId() != prefabInstanceId) continue;
+            IntArray members = item.members();
+            int[] values = new int[members.size];
+            for (int i = 0; i < members.size; i++) {
+                values[i] = world.getMapper(EntityIndexComponent.class)
+                        .get(members.get(i)).zIndex;
+            }
+            return values;
+        }
+        return new int[0];
     }
 
     private static final class SentinelSystem extends BaseSystem {

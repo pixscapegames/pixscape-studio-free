@@ -9,6 +9,7 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.color.ColorPicker;
 import com.kotcrab.vis.ui.widget.color.ColorPickerListener;
+import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 
 import java.util.function.Consumer;
@@ -22,6 +23,7 @@ public final class ColorPickerField extends VisTable {
     private final String title;
     private final VisTextButton button;
     private final Color current = new Color(Color.WHITE);
+    private final Color colorBeforePicker = new Color(Color.WHITE);
     private VisImage colorSwatch;
 
     private Supplier<Color> reader;
@@ -87,10 +89,23 @@ public final class ColorPickerField extends VisTable {
     }
 
     private void showPicker() {
-        ColorPicker picker = new ColorPicker(title);
+        captureColorBeforePicker();
+        ColorPicker picker = StudioColorPickerFactory.create(title);
         picker.setColor(current);
         picker.setAllowAlphaEdit(allowAlpha);
-        picker.setListener(new ColorPickerListener() {
+        picker.setListener(createPickerListener());
+
+        if (getStage() != null) {
+            getStage().addActor(picker.fadeIn());
+        }
+    }
+
+    private void captureColorBeforePicker() {
+        colorBeforePicker.set(current);
+    }
+
+    private ColorPickerListener createPickerListener() {
+        return new ColorPickerListener() {
             @Override
             public void changed(Color newColor) {
                 applyColor(newColor);
@@ -98,6 +113,7 @@ public final class ColorPickerField extends VisTable {
 
             @Override
             public void canceled(Color oldColor) {
+                applyColor(colorBeforePicker);
             }
 
             @Override
@@ -107,11 +123,7 @@ public final class ColorPickerField extends VisTable {
             @Override
             public void finished(Color newColor) {
             }
-        });
-
-        if (getStage() != null) {
-            getStage().addActor(picker.fadeIn());
-        }
+        };
     }
 
     private void applyColor(Color color) {

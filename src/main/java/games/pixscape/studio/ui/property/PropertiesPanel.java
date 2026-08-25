@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.IntArray;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -73,6 +74,7 @@ public class PropertiesPanel extends DockablePanel {
     private final ComponentMapper<PhysicsShapesComponent> mPhysFixtures;
     private final ComponentMapper<PointLightComponent> mPointLight;
     private final ComponentMapper<ConeLightComponent> mConeLight;
+    private final ComponentMapper<EntityIndexComponent> mEntityIndex;
 
     private boolean dirty = true;
     private PendingView pendingView = PendingView.SCENE;
@@ -106,6 +108,7 @@ public class PropertiesPanel extends DockablePanel {
         this.mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
         this.mPointLight = world.getMapper(PointLightComponent.class);
         this.mConeLight = world.getMapper(ConeLightComponent.class);
+        this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
 
         EntityPropertiesContext ctx = new EntityPropertiesContext(
@@ -174,6 +177,14 @@ public class PropertiesPanel extends DockablePanel {
             pendingSelection = evt.ids() != null ? new IntArray(evt.ids()) : null;
             pendingView = PendingView.SELECTION;
             markDirty();
+        });
+
+        EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> {
+            if (boundEntity < 0 || !world.getEntityManager().isActive(boundEntity)) return;
+            EntityIndexComponent index = mEntityIndex.getSafe(boundEntity, null);
+            if (index != null && index.layerIndex == evt.layerIndex()) {
+                entityProperties.refreshZIndex();
+            }
         });
 
         EventFlow.i().subscribe(EventFlow.FixtureSelectionChanged.class, evt -> {

@@ -675,10 +675,7 @@ public final class SceneService {
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
 
-        tileAnimationsMetaDatabase = TileAnimationsIO.load(
-                projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
-        );
-        reloadTileAnimationRegistryFromProjectData();
+        reloadTileAnimationsFromProject(projectDir);
 
         applyProjectFixedSettings(cfg);
         refreshParticleEffectsRoot(cfg);
@@ -1614,12 +1611,37 @@ public final class SceneService {
 
     private boolean shouldSkipSaveAtlasRepack(SaveExecutionPlan plan, AtlasInputSyncResult syncResult) {
         if (plan == null || syncResult == null) return false;
+        return shouldSkipSaveAtlasRepack(plan.studioDir(), plan.canonicalTag(), syncResult);
+    }
+
+    /** Allocates the next persistent prefab-instance identity from the active Studio scene. */
+    public int allocatePrefabInstanceId() {
+        return allocatePrefabInstanceId(ProjectConfig.getInstance());
+    }
+
+    static int allocatePrefabInstanceId(ProjectConfig cfg) {
+        SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        if (meta == null) {
+            throw new IllegalStateException("An active scene is required to allocate a prefab instance ID.");
+        }
+        int allocated = meta.nextPrefabInstanceId;
+        if (allocated <= 0 || allocated == Integer.MAX_VALUE) {
+            throw new IllegalStateException(
+                    "nextPrefabInstanceId must be positive and allocatable, got " + allocated + ".");
+        }
+        meta.nextPrefabInstanceId = allocated + 1;
+        return allocated;
+    }
+
+    private boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
+                                              String sceneTag,
+                                              AtlasInputSyncResult syncResult) {
         return shouldSkipSaveAtlasRepack(
-                plan.studioDir(),
-                plan.canonicalTag(),
+                studioDir,
+                sceneTag,
                 syncResult,
-                hasUsableSceneAtlas(plan.studioDir(), plan.canonicalTag()),
-                atlasStudioService.hasAsyncPackQueuedOrRunningFor(plan.canonicalTag())
+                hasUsableSceneAtlas(studioDir, sceneTag),
+                atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag)
         );
     }
 
@@ -1745,6 +1767,11 @@ public final class SceneService {
                         assetMetaDatabase,
                         tileAnimationsMetaDatabase
                 );
+
+        if (shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)) {
+            logSaveAtlasRepackSkipped(canonicalTag);
+            return;
+        }
 
         ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, canonicalTag);
 
@@ -2012,15 +2039,15 @@ public final class SceneService {
         }
     }
 
+    /**
+     * Imports and activates a TMX scene after the caller has resolved the current-scene save decision.
+     */
     public TmxSceneImportResult importTmxAsNewScene(TmxSceneImportRequest request) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) {
             throw new IllegalStateException("No project is loaded.");
         }
         String previousSceneName = cfg.getCurrentSceneName();
-        if (previousSceneName != null && requiresSaveBeforeLeavingCurrentScene()) {
-            saveCurrentSceneOnly(cfg);
-        }
 
         ensureAssetMetaDatabaseLoaded();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
@@ -2059,6 +2086,10 @@ public final class SceneService {
         return animations;
     }
 
+    /**
+     * Imports and activates a TMX scene with progress after the caller has resolved the
+     * current-scene save decision.
+     */
     public void importTmxAsNewSceneWithProgress(
             Stage uiStage,
             TmxSceneImportRequest request,
@@ -2081,8 +2112,6 @@ public final class SceneService {
             return;
         }
         context.previousSceneName = context.cfg.getCurrentSceneName();
-        boolean saveCurrentScene = context.previousSceneName != null
-                && requiresSaveBeforeLeavingCurrentScene();
 
         SaveProgressRunner runner = new SaveProgressRunner(
                 uiStage,
@@ -2098,13 +2127,6 @@ public final class SceneService {
             );
             context.session = importService.beginImport(request);
         }));
-        if (saveCurrentScene) {
-            steps.add(SaveProgressRunner.Step.sync(
-                    0.05f,
-                    "Saving current scene and repacking atlas...",
-                    () -> saveCurrentSceneOnly(context.cfg)
-            ));
-        }
         steps.add(tmxImportStep(0.08f, "Reading and validating Tiled map...", context,
                 () -> context.session.prepare()));
         steps.add(tmxImportStep(0.18f, "Creating imported scene...", context,
@@ -2180,6 +2202,7 @@ public final class SceneService {
     private void activateImportedTmxScene(ProjectConfig cfg,
                                           FileHandle projectDir,
                                           TmxSceneImportResult result) {
+        reloadTileAnimationsFromProject(projectDir);
         loadScene(cfg, result.sceneName(), projectDir);
         canvas.centerCamera();
         assertCurrentSceneMetadataIntegrity(cfg, result.sceneName(), "importTmxAsNewScene");
@@ -2199,6 +2222,7 @@ public final class SceneService {
         }
 
         cfg.setCurrentSceneByName(previousSceneName);
+        reloadTileAnimationsFromProject(projectDir);
         loadScene(cfg, previousSceneName, projectDir);
         assertCurrentSceneMetadataIntegrity(cfg, previousSceneName, "importTmxAsNewScene.restorePrevious");
         sceneMetaBridge.pushCurrentSceneMetaToUI();
@@ -2504,6 +2528,13 @@ public final class SceneService {
     // ---------------------------------------------------------------------
     // TILE ANIMATIONS
     // ---------------------------------------------------------------------
+
+    private void reloadTileAnimationsFromProject(FileHandle projectDir) {
+        tileAnimationsMetaDatabase = TileAnimationsIO.load(
+                projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
+        );
+        reloadTileAnimationRegistryFromProjectData();
+    }
 
     private void reloadTileAnimationRegistryFromProjectData() {
         TileAnimationRegistry registry = canvas.getTileAnimationRegistry();

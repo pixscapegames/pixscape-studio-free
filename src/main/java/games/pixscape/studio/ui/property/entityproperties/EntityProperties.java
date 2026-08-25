@@ -37,6 +37,7 @@ public class EntityProperties extends VisTable {
     private final VisLabel zIndexValueLabel = new VisLabel();
     private final VisLabel layerValueLabel = new VisLabel();
     private final VisLabel tagsLabel = new VisLabel("");
+    private final CustomPropertiesEditorRow customPropertiesRow;
 
     private final SimpleTextField entityName = new SimpleTextField();
     private final VisTextButton editTagsBtn;
@@ -80,6 +81,7 @@ public class EntityProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
 
         visibleCheckBox = new VisCheckBox("Visible");
         visibleBinder = new UiBinders.CheckBoxBinder(
@@ -139,6 +141,9 @@ public class EntityProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             entityName.refresh();
         });
+        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
+        });
         EventFlow.i().subscribe(EventFlow.ShaderListChanged.class, evt -> materialPanel.refreshShaderList());
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
             scenePhysicsEnabled = evt.enabled();
@@ -196,6 +201,9 @@ public class EntityProperties extends VisTable {
         tagsRight.add(editTagsBtn).right();
         header.add(tagsRight).row();
 
+        header.add(new VisLabel("Properties:")).width(CommonLayout.LABEL_WIDTH).left();
+        header.add(customPropertiesRow).row();
+
         header.add(new VisLabel("Layer:")).width(CommonLayout.LABEL_WIDTH).left();
         header.add(layerValueLabel).colspan(2).left().row();
 
@@ -227,8 +235,7 @@ public class EntityProperties extends VisTable {
 
         EntityIndexComponent entityIndex = mEntityIndex.getSafe(entityId, null);
 
-        int zIndex = (entityIndex != null) ? entityIndex.getZIndex() : 0;
-        zIndexValueLabel.setText(String.valueOf(zIndex));
+        refreshZIndex();
 
         int layerIndex = (entityIndex != null) ? entityIndex.getLayerIndex() : 0;
         String layerName = (ctx.layerService != null) ? ctx.layerService.getNameByIndex(layerIndex) : "";
@@ -246,6 +253,25 @@ public class EntityProperties extends VisTable {
 
         updateSectionsVisibility();
         refreshTagsLabel();
+        customPropertiesRow.setEntityId(entityId);
+    }
+
+    public void refreshZIndex() {
+        refreshZIndexLabel(
+                ctx.world, mEntityIndex, currentEntityId, zIndexValueLabel);
+    }
+
+    static void refreshZIndexLabel(
+            com.artemis.World world,
+            ComponentMapper<EntityIndexComponent> indexes,
+            int entityId,
+            VisLabel label) {
+        if (world == null || indexes == null || label == null
+                || entityId < 0 || !world.getEntityManager().isActive(entityId)) {
+            return;
+        }
+        EntityIndexComponent index = indexes.getSafe(entityId, null);
+        label.setText(String.valueOf(index != null ? index.zIndex : 0));
     }
 
     static int displayedPersistentId(PixscapeIdentityComponent identity) {
@@ -263,7 +289,7 @@ public class EntityProperties extends VisTable {
         boolean isSprite = kind == EntityKind.SPRITE;
 
         transformSection.setApplicable(true);
-        materialSection.setApplicable(!isParticle);
+        materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
         repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
@@ -273,6 +299,10 @@ public class EntityProperties extends VisTable {
         physicsSection.setApplicable(physicsApplicable);
 
         invalidateHierarchy();
+    }
+
+    static boolean isMaterialApplicable(EntityKind kind, boolean hasMaterial) {
+        return kind != EntityKind.PARTICLE && hasMaterial;
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {

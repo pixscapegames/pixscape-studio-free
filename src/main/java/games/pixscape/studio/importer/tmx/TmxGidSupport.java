@@ -1,5 +1,8 @@
 package games.pixscape.studio.importer.tmx;
 
+import java.util.List;
+import java.util.function.ToIntFunction;
+
 public final class TmxGidSupport {
 
     public static final long FLIPPED_HORIZONTALLY_FLAG = 0x80000000L;
@@ -50,6 +53,21 @@ public final class TmxGidSupport {
         int cleanGid = (int) (raw & ~GID_FLAGS_MASK);
 
         return new DecodedGid(cleanGid, flipH, flipV, flipD, hex120);
+    }
+
+    static <T> T resolveTileset(int cleanGid,
+                                List<T> tilesets,
+                                ToIntFunction<T> firstGid,
+                                ToIntFunction<T> tileCount) {
+        T resolved = null;
+        for (T tileset : tilesets) {
+            if (firstGid.applyAsInt(tileset) <= cleanGid) resolved = tileset;
+            else break;
+        }
+        if (resolved == null) return null;
+        int first = firstGid.applyAsInt(resolved);
+        long lastExclusive = first + (long) Math.max(tileCount.applyAsInt(resolved), 0);
+        return cleanGid >= first && cleanGid < lastExclusive ? resolved : null;
     }
 
     private static long unsigned(int rawGid) {

@@ -2,6 +2,7 @@ package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.XmlReader;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.asset.TsxTilesetDescriptor;
 import games.pixscape.studio.service.asset.TsxTilesetImportParser;
@@ -60,12 +61,14 @@ public final class TmxPreflightService {
         if (map.hasAttribute("parallaxoriginx") || map.hasAttribute("parallaxoriginy")) {
             state.warning("TMX_MAP_PARALLAX_ORIGIN_IGNORED", "Map parallax origin is detected but Pixscape has no equivalent.", "map");
         }
-        warnIgnoredProperties(map, state, "map");
+        warnIgnoredProperties(map, state, "map", "map");
         readTilesets(map, tmxFile, mapInfo, state);
         state.tilesets.sort(Comparator.comparingInt(TmxTilesetInfo::firstGid));
 
         LayerContext rootContext = new LayerContext("", true, 1f, 0f, 0f, 1f, 1f);
         readLayers(map, rootContext, state);
+        validateObjectPropertyReferences(state);
+        validateTileLayerOffsets(state);
 
         return state.toReport();
     }
@@ -132,7 +135,9 @@ public final class TmxPreflightService {
         if (tsxFile == null || !tsxFile.exists() || tsxFile.isDirectory()) {
             state.blocking("TMX_TSX_MISSING", "External TSX file is missing: " + source, source);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList()));
+                    TmxObjectAlignment.UNSPECIFIED, 0, 0,
+                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList(),
+                    Collections.emptyList()));
             return;
         }
 
@@ -142,7 +147,9 @@ public final class TmxPreflightService {
         } catch (RuntimeException ex) {
             state.blocking("TMX_TSX_INVALID_XML", "External TSX XML could not be parsed: " + ex.getMessage(), tsxPath);
             state.tilesets.add(new TmxTilesetInfo(firstGid, tsxPath, null, 0, 0, 0, 0, 0, 0,
-                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList()));
+                    TmxObjectAlignment.UNSPECIFIED, 0, 0,
+                    null, 0, 0, null, false, true, Collections.emptyList(), Collections.emptyList(),
+                    Collections.emptyList()));
             return;
         }
 
@@ -163,10 +170,22 @@ public final class TmxPreflightService {
         int columns = intAttribute(tileset, "columns", 0);
         int spacing = intAttribute(tileset, "spacing", 0);
         int margin = intAttribute(tileset, "margin", 0);
+        String rawObjectAlignment = tileset.getAttribute("objectalignment", null);
+        TmxObjectAlignment objectAlignment = TmxObjectAlignment.fromTiled(rawObjectAlignment);
+        if (objectAlignment == null) {
+            state.blocking(
+                    "TMX_TILESET_OBJECT_ALIGNMENT_INVALID",
+                    "Unsupported tileset objectalignment: " + rawObjectAlignment,
+                    name
+            );
+            objectAlignment = TmxObjectAlignment.UNSPECIFIED;
+        }
         boolean imageCollectionForm = hasPerTileImages(tileset);
         List<TsxTilesetDescriptor.ImageCollectionTile> imageCollectionTiles =
                 readImageCollectionTiles(tileset, declaringFile, declaredTileCount, state);
         int tileCount = Math.max(declaredTileCount, imageCollectionTileCount(imageCollectionTiles));
+        List<TmxTileDefinitionInfo> tileDefinitions =
+                readTileDefinitions(firstGid, tileset, tileCount, name, state);
 
         if (!imageCollectionForm
                 && (tileWidth > 0 && mapInfo.tileWidth() > 0 && tileWidth != mapInfo.tileWidth()
@@ -179,12 +198,11 @@ public final class TmxPreflightService {
         }
 
         XmlReader.Element tileOffset = tileset.getChildByName("tileoffset");
+        int tileOffsetX = 0;
+        int tileOffsetY = 0;
         if (tileOffset != null) {
-            int x = intAttribute(tileOffset, "x", 0);
-            int y = intAttribute(tileOffset, "y", 0);
-            if (x != 0 || y != 0) {
-                state.blocking("TMX_TILEOFFSET_UNSUPPORTED", "Non-zero tileset tileoffset is not supported.", name);
-            }
+            tileOffsetX = intAttribute(tileOffset, "x", 0);
+            tileOffsetY = intAttribute(tileOffset, "y", 0);
         }
 
         List<TsxTilesetDescriptor.TileAnimation> tileAnimations = TsxTilesetImportParser.parseTileAnimations(
@@ -193,7 +211,7 @@ public final class TmxPreflightService {
                 (code, message, location) -> state.blocking(code, message, location)
         );
 
-        warnIgnoredProperties(tileset, state, "tileset");
+        warnIgnoredProperties(tileset, state, "tileset", "tileset");
 
         XmlReader.Element image = tileset.getChildByName("image");
         String imageSource = image != null ? image.getAttribute("source", null) : null;
@@ -224,6 +242,9 @@ public final class TmxPreflightService {
                 columns,
                 spacing,
                 margin,
+                objectAlignment,
+                tileOffsetX,
+                tileOffsetY,
                 imageSource,
                 imageWidth,
                 imageHeight,
@@ -231,7 +252,8 @@ public final class TmxPreflightService {
                 imageExists,
                 external,
                 imageCollectionTiles,
-                tileAnimations
+                tileAnimations,
+                tileDefinitions
         );
     }
 
@@ -241,7 +263,7 @@ public final class TmxPreflightService {
             switch (child.getName()) {
                 case "group" -> readGroup(child, context, state);
                 case "layer" -> readTileLayer(child, context, state);
-                case "objectgroup" -> readGenericLayer(child, context, state, TmxLayerKind.OBJECT);
+                case "objectgroup" -> readObjectLayer(child, context, state);
                 case "imagelayer" -> readImageLayer(child, context, state);
                 default -> {
                 }
@@ -258,14 +280,13 @@ public final class TmxPreflightService {
         float offsetY = parent.offsetY() + floatAttribute(group, "offsety", 0f);
         float parallaxX = parent.parallaxX() * floatAttribute(group, "parallaxx", 1f);
         float parallaxY = parent.parallaxY() * floatAttribute(group, "parallaxy", 1f);
-        warnIgnoredProperties(group, state, path);
+        warnIgnoredProperties(group, state, "group", path);
         readLayers(group, new LayerContext(path, visible, opacity, offsetX, offsetY, parallaxX, parallaxY), state);
     }
 
-    private void readGenericLayer(XmlReader.Element layer,
-                                  LayerContext context,
-                                  AnalysisState state,
-                                  TmxLayerKind kind) {
+    private void readObjectLayer(XmlReader.Element layer,
+                                 LayerContext context,
+                                 AnalysisState state) {
         String name = layerName(layer, context);
         boolean visible = context.visible() && intAttribute(layer, "visible", 1) != 0;
         float opacity = context.opacity() * floatAttribute(layer, "opacity", 1f);
@@ -273,18 +294,647 @@ public final class TmxPreflightService {
         float offsetY = context.offsetY() + floatAttribute(layer, "offsety", 0f);
         float parallaxX = context.parallaxX() * floatAttribute(layer, "parallaxx", 1f);
         float parallaxY = context.parallaxY() * floatAttribute(layer, "parallaxy", 1f);
-
-        state.layers.add(new TmxGenericLayerInfo(kind, name, visible, opacity, offsetX, offsetY, parallaxX, parallaxY));
-        if (kind == TmxLayerKind.OBJECT) {
-            state.warning("TMX_OBJECT_LAYER_OUT_OF_SCOPE", "Object layers are not part of the first import scope yet.", name);
+        String rawDrawOrder = layer.getAttribute("draworder", "topdown");
+        TmxObjectDrawOrder drawOrder;
+        if ("index".equals(rawDrawOrder)) {
+            drawOrder = TmxObjectDrawOrder.INDEX;
+        } else if ("topdown".equals(rawDrawOrder)) {
+            drawOrder = TmxObjectDrawOrder.TOP_DOWN;
+        } else {
+            state.blocking(
+                    "TMX_OBJECT_DRAW_ORDER_INVALID",
+                    "Unsupported Object Layer draworder: " + rawDrawOrder,
+                    name
+            );
+            drawOrder = TmxObjectDrawOrder.TOP_DOWN;
         }
-        warnIgnoredLayerAttributes(layer, state, name, opacity);
+        ParsedProperties parsedProperties = readPropertiesWithPaths(
+                layer, state, "Object Layer '" + name + "'");
+        PropertySet properties = parsedProperties.properties();
+        List<TmxObjectInfo> objects = new ArrayList<>();
+
+        for (int i = 0; i < layer.getChildCount(); i++) {
+            XmlReader.Element child = layer.getChild(i);
+            if ("object".equals(child.getName())) {
+                objects.add(readObject(child, name, state));
+            }
+        }
+
+        state.layers.add(new TmxObjectLayerInfo(
+                name,
+                layer.getAttribute("name", layer.getName()),
+                visible,
+                opacity,
+                offsetX,
+                offsetY,
+                parallaxX,
+                parallaxY,
+                drawOrder,
+                properties,
+                parsedProperties.objectReferences(),
+                objects
+        ));
+        warnIgnoredLayerPresentationAttributes(layer, state, name, opacity);
+    }
+
+    private TmxObjectInfo readObject(XmlReader.Element object,
+                                     String layerName,
+                                     AnalysisState state) {
+        String name = object.getAttribute("name", "");
+        String className = object.getAttribute("class", null);
+        String legacyType = object.getAttribute("type", null);
+        String location = objectLocation(layerName, object.getAttribute("id", null), name);
+        int id = readObjectId(object, location, state);
+        float x = floatAttribute(object, "x", 0f);
+        float y = floatAttribute(object, "y", 0f);
+        float width = floatAttribute(object, "width", 0f);
+        float height = floatAttribute(object, "height", 0f);
+        float rotation = floatAttribute(object, "rotation", 0f);
+        boolean visible = booleanAttribute(object, "visible", true);
+        String template = object.getAttribute("template", null);
+        Long gid = readObjectGid(object, location, state);
+        TmxObjectKind kind = readObjectKind(object, template, location, state);
+        List<TmxObjectPoint> points = readObjectPoints(object, kind, location, state);
+        ParsedProperties parsedProperties = readPropertiesWithPaths(object, state, location);
+        PropertySet properties = parsedProperties.properties();
+
+        if (kind == TmxObjectKind.TILE) {
+            validateTileObject(gid, location, state);
+        }
+
+        if (className != null && legacyType != null && !className.equals(legacyType)) {
+            state.warning(
+                    "TMX_OBJECT_CLASS_TYPE_CONFLICT",
+                    "Object declares different class ('" + className + "') and legacy type ('" + legacyType + "') values.",
+                    location
+            );
+        }
+        diagnoseObjectKind(kind, location, state);
+
+        return new TmxObjectInfo(
+                id,
+                name,
+                className,
+                legacyType,
+                x,
+                y,
+                width,
+                height,
+                rotation,
+                visible,
+                template,
+                gid,
+                kind,
+                points,
+                properties,
+                parsedProperties.paths(),
+                parsedProperties.objectReferences()
+        );
+    }
+
+    private List<TmxTileDefinitionInfo> readTileDefinitions(int firstGid,
+                                                             XmlReader.Element tileset,
+                                                             int tileCount,
+                                                             String tilesetName,
+                                                             AnalysisState state) {
+        List<TmxTileDefinitionInfo> definitions = new ArrayList<>();
+        Set<Integer> ids = new HashSet<>();
+        for (int i = 0; i < tileset.getChildCount(); i++) {
+            XmlReader.Element tile = tileset.getChild(i);
+            if (!"tile".equals(tile.getName())) continue;
+            int localTileId = intAttribute(tile, "id", -1);
+            String location = "tileset '" + tilesetName + "' / tile " + localTileId;
+            if (localTileId < 0 || (tileCount > 0 && localTileId >= tileCount)) {
+                state.blocking(
+                        "TMX_TILE_METADATA_ID_OUT_OF_RANGE",
+                        "Tile metadata id is outside the tileset tile range: " + localTileId,
+                        location
+                );
+                continue;
+            }
+            if (!ids.add(localTileId)) {
+                state.blocking(
+                        "TMX_TILE_METADATA_ID_DUPLICATE",
+                        "Duplicate tile definition id: " + localTileId,
+                        location
+                );
+                continue;
+            }
+            String className = tile.getAttribute("class", null);
+            String legacyType = tile.getAttribute("type", null);
+            if (className != null && legacyType != null && !className.equals(legacyType)) {
+                state.warning(
+                        "TMX_TILE_CLASS_TYPE_CONFLICT",
+                        "Tile declares different class ('" + className
+                                + "') and legacy type ('" + legacyType + "') values.",
+                        location
+                );
+            }
+            AnalysisState metadataState = new AnalysisState(state.sourcePath);
+            ParsedProperties parsed = readPropertiesWithPaths(tile, metadataState, location);
+            if (!parsed.objectReferences().isEmpty()) {
+                metadataState.blocking("TMX_OBJECT_PROPERTY_SCOPE_UNSUPPORTED",
+                        "OBJECT properties in tile-definition metadata use the Tiled tile-collision "
+                                + "object domain, which Pixscape does not import.", location);
+            }
+            if (!metadataState.diagnostics.isEmpty()) {
+                state.pendingTileMetadataDiagnostics.put(
+                        tileMetadataKey(firstGid, localTileId),
+                        List.copyOf(metadataState.diagnostics));
+            }
+            definitions.add(new TmxTileDefinitionInfo(
+                    localTileId, className, legacyType, parsed.properties(), parsed.paths()));
+        }
+        return definitions;
+    }
+
+    private int readObjectId(XmlReader.Element object, String location, AnalysisState state) {
+        String rawId = object.getAttribute("id", null);
+        if (rawId == null) return TmxObjectInfo.NO_SOURCE_ID;
+
+        int id;
+        try {
+            id = Integer.parseInt(rawId);
+        } catch (NumberFormatException ex) {
+            state.warning(
+                    "TMX_OBJECT_ID_INVALID",
+                    "Tiled object ID is not a signed 32-bit integer and will not be used: " + rawId,
+                    location
+            );
+            return TmxObjectInfo.NO_SOURCE_ID;
+        }
+        if (id <= 0) {
+            return TmxObjectInfo.NO_SOURCE_ID;
+        }
+        String previousLocation = state.objectIdLocations.get(id);
+        if (previousLocation != null) {
+            state.warning(
+                    "TMX_OBJECT_ID_DUPLICATE",
+                    "Duplicate Tiled object ID " + id + "; first declared at " + previousLocation + ".",
+                    location
+            );
+        } else {
+            state.objectIdLocations.put(id, location);
+        }
+        return id;
+    }
+
+    private Long readObjectGid(XmlReader.Element object, String location, AnalysisState state) {
+        String rawGid = object.getAttribute("gid", null);
+        if (rawGid == null) return null;
+        try {
+            long gid = Long.parseLong(rawGid);
+            if (gid < 0 || gid > 0xffffffffL) throw new NumberFormatException();
+            return gid;
+        } catch (NumberFormatException ex) {
+            state.blocking("TMX_OBJECT_GID_INVALID", "Tile object GID is not a valid unsigned 32-bit value: " + rawGid, location);
+            return null;
+        }
+    }
+
+    private TmxObjectKind readObjectKind(XmlReader.Element object,
+                                         String template,
+                                         String location,
+                                         AnalysisState state) {
+        if (template != null) return TmxObjectKind.TEMPLATE;
+
+        int kindCount = 0;
+        TmxObjectKind kind = TmxObjectKind.RECTANGLE;
+        if (object.hasAttribute("gid")) {
+            kind = TmxObjectKind.TILE;
+            kindCount++;
+        }
+        String unknownChild = null;
+        for (int i = 0; i < object.getChildCount(); i++) {
+            XmlReader.Element child = object.getChild(i);
+            TmxObjectKind childKind = switch (child.getName()) {
+                case "point" -> TmxObjectKind.POINT;
+                case "ellipse" -> TmxObjectKind.ELLIPSE;
+                case "polygon" -> TmxObjectKind.POLYGON;
+                case "polyline" -> TmxObjectKind.POLYLINE;
+                case "text" -> TmxObjectKind.TEXT;
+                case "properties" -> null;
+                default -> {
+                    unknownChild = child.getName();
+                    yield null;
+                }
+            };
+            if (childKind != null) {
+                kind = childKind;
+                kindCount++;
+            }
+        }
+        if (unknownChild != null) {
+            state.blocking(
+                    "TMX_OBJECT_KIND_UNKNOWN",
+                    "Object contains an unknown Tiled shape element: " + unknownChild + ".",
+                    location
+            );
+            return TmxObjectKind.UNKNOWN;
+        }
+        if (kindCount > 1) {
+            state.blocking(
+                    "TMX_OBJECT_KIND_AMBIGUOUS",
+                    "Object declares more than one Tiled object kind.",
+                    location
+            );
+            return TmxObjectKind.UNKNOWN;
+        }
+        return kind;
+    }
+
+    private List<TmxObjectPoint> readObjectPoints(XmlReader.Element object,
+                                                   TmxObjectKind kind,
+                                                   String location,
+                                                   AnalysisState state) {
+        if (kind != TmxObjectKind.POLYGON && kind != TmxObjectKind.POLYLINE) {
+            return List.of();
+        }
+        XmlReader.Element shape = object.getChildByName(
+                kind == TmxObjectKind.POLYGON ? "polygon" : "polyline");
+        String code = kind == TmxObjectKind.POLYGON
+                ? "TMX_POLYGON_POINTS_INVALID"
+                : "TMX_POLYLINE_POINTS_INVALID";
+        String raw = shape != null ? shape.getAttribute("points", null) : null;
+        if (raw == null || raw.trim().isEmpty()) {
+            state.blocking(code, kind.name() + " object requires a non-empty points attribute.", location);
+            return List.of();
+        }
+
+        String[] tokens = raw.trim().split("\\s+");
+        List<TmxObjectPoint> points = new ArrayList<>(tokens.length);
+        for (String token : tokens) {
+            String[] coordinates = token.split(",", -1);
+            if (coordinates.length != 2
+                    || coordinates[0].isEmpty()
+                    || coordinates[1].isEmpty()) {
+                state.blocking(code, kind.name() + " point must use exactly x,y syntax: " + token,
+                        location);
+                return List.of();
+            }
+            try {
+                float x = Float.parseFloat(coordinates[0]);
+                float y = Float.parseFloat(coordinates[1]);
+                if (Float.isNaN(x) || Float.isInfinite(x)
+                        || Float.isNaN(y) || Float.isInfinite(y)) {
+                    throw new NumberFormatException();
+                }
+                points.add(new TmxObjectPoint(x, y));
+            } catch (NumberFormatException ex) {
+                state.blocking(code, kind.name() + " point coordinates must be finite floats: " + token,
+                        location);
+                return List.of();
+            }
+        }
+
+        int minimum = kind == TmxObjectKind.POLYGON ? 3 : 2;
+        if (points.size() < minimum) {
+            state.blocking(code, kind.name() + " object requires at least " + minimum + " points.",
+                    location);
+            return List.of();
+        }
+        return List.copyOf(points);
+    }
+
+    private void diagnoseObjectKind(TmxObjectKind kind, String location, AnalysisState state) {
+        switch (kind) {
+            case ELLIPSE, TEXT -> state.warning(
+                    "TMX_OBJECT_KIND_DEFERRED",
+                    "Unsupported Tiled object kind for import: " + kind.name().toLowerCase(Locale.ROOT) + ".",
+                    location
+            );
+            case TEMPLATE -> state.blocking(
+                    "TMX_OBJECT_TEMPLATE_UNSUPPORTED",
+                    "Template-backed Tiled objects are not supported.",
+                    location
+            );
+            default -> {
+            }
+        }
+    }
+
+    private void validateTileObject(Long gid, String location, AnalysisState state) {
+        if (gid == null) return;
+        TmxGidSupport.DecodedGid decoded = TmxGidSupport.decode((int) (gid & 0xffffffffL));
+
+        TmxTilesetInfo tileset = resolveTileset(decoded.cleanGid, state.tilesets);
+        if (tileset == null) {
+            state.blocking(
+                    "TMX_TILE_OBJECT_GID_UNRESOLVED",
+                    "Tile Object GID does not resolve to a tileset: " + decoded.cleanGid,
+                    location
+            );
+            return;
+        }
+
+        int localTileId = decoded.cleanGid - tileset.firstGid();
+        state.emitTileMetadataDiagnostics(tileset.firstGid(), localTileId);
+        if (tileset.imageCollection() && !hasImageCollectionTile(tileset, localTileId)) {
+            state.blocking(
+                    "TMX_TILE_OBJECT_GID_UNRESOLVED",
+                    "Tile Object GID resolves to a missing image-collection tile: " + decoded.cleanGid,
+                    location
+            );
+            return;
+        }
+    }
+
+    private static void validateTileLayerOffsets(AnalysisState state) {
+        Set<Integer> usedTilesets = new HashSet<>();
+        for (TmxLayerInfo layer : state.layers) {
+            if (!(layer instanceof TmxTileLayerInfo tileLayer)) continue;
+            for (TmxTileCellInfo cell : tileLayer.cells()) {
+                usedTilesets.add(cell.tilesetFirstGid());
+            }
+        }
+        for (TmxTilesetInfo tileset : state.tilesets) {
+            if ((tileset.tileOffsetX() != 0 || tileset.tileOffsetY() != 0)
+                    && usedTilesets.contains(tileset.firstGid())) {
+                state.blocking(
+                        "TMX_TILEOFFSET_UNSUPPORTED",
+                        "Non-zero tileset tileoffset is not supported for Tile Layer cells.",
+                        tileset.name()
+                );
+            }
+        }
+    }
+
+    private static boolean hasImageCollectionTile(TmxTilesetInfo tileset, int localTileId) {
+        for (TsxTilesetDescriptor.ImageCollectionTile tile : tileset.imageCollectionTiles()) {
+            if (tile != null && tile.localTileId() == localTileId) return true;
+        }
+        return false;
+    }
+
+    private static long tileMetadataKey(int firstGid, int localTileId) {
+        return ((long) firstGid << 32) ^ (localTileId & 0xffffffffL);
+    }
+
+    private PropertySet readProperties(XmlReader.Element owner,
+                                       AnalysisState state,
+                                       String ownerLocation) {
+        return readPropertiesWithPaths(owner, state, ownerLocation).properties();
+    }
+
+    private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
+                                                     AnalysisState state,
+                                                     String ownerLocation) {
+        return readPropertiesWithPaths(owner, state, ownerLocation, List.of());
+    }
+
+    private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
+                                                      AnalysisState state,
+                                                      String ownerLocation,
+                                                      List<String> pathPrefix) {
+        XmlReader.Element propertiesElement = owner.getChildByName("properties");
+        if (propertiesElement == null) {
+            return new ParsedProperties(new PropertySet(0), List.of(), List.of());
+        }
+
+        int propertyCount = 0;
+        for (int i = 0; i < propertiesElement.getChildCount(); i++) {
+            if ("property".equals(propertiesElement.getChild(i).getName())) propertyCount++;
+        }
+        PropertySet properties = new PropertySet(propertyCount);
+        Set<String> names = new LinkedHashSet<>();
+        List<List<String>> paths = new ArrayList<>();
+        List<TmxObjectPropertyReference> objectReferences = new ArrayList<>();
+        for (int i = 0; i < propertiesElement.getChildCount(); i++) {
+            XmlReader.Element property = propertiesElement.getChild(i);
+            if (!"property".equals(property.getName())) continue;
+            readProperty(property, properties, names, paths, objectReferences,
+                    state, ownerLocation, pathPrefix);
+        }
+        return new ParsedProperties(properties, List.copyOf(paths), List.copyOf(objectReferences));
+    }
+
+    private void readProperty(XmlReader.Element property,
+                              PropertySet properties,
+                              Set<String> names,
+                              List<List<String>> paths,
+                              List<TmxObjectPropertyReference> objectReferences,
+                              AnalysisState state,
+                              String ownerLocation,
+                              List<String> pathPrefix) {
+        String name = property.getAttribute("name", null);
+        List<String> path = appendPath(pathPrefix, name);
+        String location = ownerLocation + " / property " + quotedPropertyPath(path, name);
+        if (name == null || name.isEmpty() || name.trim().isEmpty()) {
+            state.blocking("TMX_PROPERTY_NAME_INVALID", "Tiled property name must not be missing, empty, or whitespace-only.", location);
+            return;
+        }
+        if (!names.add(name)) {
+            state.blocking("TMX_PROPERTY_NAME_DUPLICATE", "Duplicate Tiled property name '" + name + "'.", location);
+            return;
+        }
+        paths.add(List.copyOf(path));
+
+        String type = property.getAttribute("type", "string");
+        String customType = property.getAttribute("propertytype", null);
+        String value = property.hasAttribute("value")
+                ? property.getAttribute("value")
+                : property.getText();
+        try {
+            switch (type) {
+                case "string" -> properties.putString(name, value != null ? value : "");
+                case "bool" -> properties.putBoolean(name, parsePropertyBoolean(value, location, state));
+                case "int" -> properties.putInt(name, parsePropertyInt(value, location, state));
+                case "float" -> properties.putFloat(name, parsePropertyFloat(value, location, state));
+                case "color" -> properties.putColorRgba8888(name,
+                        parsePropertyColorRgba8888(
+                                property.hasAttribute("value") || (value != null && !value.isEmpty())
+                                        ? value : null,
+                                location, state));
+                case "object" -> objectReferences.add(new TmxObjectPropertyReference(
+                        path, parsePropertyObjectReference(
+                                property.hasAttribute("value") || (value != null && !value.isEmpty())
+                                        ? value : null,
+                                location, state), location));
+                case "class" -> {
+                    ParsedProperties members = readPropertiesWithPaths(
+                            property, state, ownerLocation, path);
+                    paths.addAll(members.paths());
+                    objectReferences.addAll(members.objectReferences());
+                    if (customType == null || customType.trim().isEmpty()) {
+                        state.blocking(
+                                "TMX_CLASS_PROPERTY_TYPE_INVALID",
+                                "Tiled CLASS property must declare a non-blank propertytype.",
+                                location
+                        );
+                        return;
+                    }
+                    try {
+                        properties.putClass(name, customType, members.properties());
+                    } catch (IllegalArgumentException | IllegalStateException ex) {
+                        state.blocking(
+                                "TMX_CLASS_PROPERTY_VALUE_INVALID",
+                                "Tiled CLASS property is invalid: " + ex.getMessage(),
+                                location
+                        );
+                    }
+                }
+                default -> state.blocking(
+                        "TMX_PROPERTY_TYPE_UNSUPPORTED",
+                        "Unsupported Tiled property type '" + type + "'.",
+                        location
+                );
+            }
+        } catch (InvalidPropertyValueException ignored) {
+            // The value parser already added the descriptive blocking diagnostic.
+        }
+    }
+
+    private static List<String> appendPath(List<String> prefix, String name) {
+        List<String> path = new ArrayList<>(prefix.size() + 1);
+        path.addAll(prefix);
+        if (name != null) path.add(name);
+        return path;
+    }
+
+    private boolean parsePropertyBoolean(String value,
+                                         String location,
+                                         AnalysisState state) throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "false";
+        if ("true".equals(effectiveValue)) return true;
+        if ("false".equals(effectiveValue)) return false;
+        state.blocking("TMX_PROPERTY_VALUE_INVALID", "Boolean property value must be 'true' or 'false': " + effectiveValue, location);
+        throw new InvalidPropertyValueException();
+    }
+
+    private int parsePropertyInt(String value,
+                                 String location,
+                                 AnalysisState state) throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "0";
+        try {
+            return Integer.parseInt(effectiveValue);
+        } catch (NumberFormatException ex) {
+            state.blocking("TMX_PROPERTY_VALUE_INVALID", "Integer property value is malformed or outside the signed 32-bit range: " + effectiveValue, location);
+            throw new InvalidPropertyValueException();
+        }
+    }
+
+    private float parsePropertyFloat(String value,
+                                     String location,
+                                     AnalysisState state) throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "0";
+        try {
+            float parsed = Float.parseFloat(effectiveValue);
+            if (Float.isNaN(parsed) || Float.isInfinite(parsed)) throw new NumberFormatException();
+            return parsed;
+        } catch (NumberFormatException ex) {
+            state.blocking("TMX_PROPERTY_VALUE_INVALID", "Float property value must be a finite Java float: " + effectiveValue, location);
+            throw new InvalidPropertyValueException();
+        }
+    }
+
+    /**
+     * Converts Tiled's strict {@code #AARRGGBB} notation into Runtime RGBA8888
+     * ({@code 0xRRGGBBAA}).
+     */
+    private int parsePropertyColorRgba8888(String value,
+                                           String location,
+                                           AnalysisState state)
+            throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "#00000000";
+        if (effectiveValue.length() == 9 && effectiveValue.charAt(0) == '#') {
+            int alpha = parseHexByte(effectiveValue, 1);
+            int red = parseHexByte(effectiveValue, 3);
+            int green = parseHexByte(effectiveValue, 5);
+            int blue = parseHexByte(effectiveValue, 7);
+            if (alpha >= 0 && red >= 0 && green >= 0 && blue >= 0) {
+                return (red << 24) | (green << 16) | (blue << 8) | alpha;
+            }
+        }
+        state.blocking("TMX_PROPERTY_VALUE_INVALID",
+                "Tiled color property value must use #AARRGGBB format: " + effectiveValue,
+                location);
+        throw new InvalidPropertyValueException();
+    }
+
+    private int parsePropertyObjectReference(String value,
+                                             String location,
+                                             AnalysisState state)
+            throws InvalidPropertyValueException {
+        String effectiveValue = value != null ? value : "0";
+        try {
+            int sourceObjectId = Integer.parseInt(effectiveValue);
+            if (sourceObjectId < 0) throw new NumberFormatException();
+            return sourceObjectId;
+        } catch (NumberFormatException ex) {
+            state.blocking("TMX_PROPERTY_VALUE_INVALID",
+                    "Object property value must be a non-negative signed 32-bit integer: "
+                            + effectiveValue, location);
+            throw new InvalidPropertyValueException();
+        }
+    }
+
+    private static void validateObjectPropertyReferences(AnalysisState state) {
+        Map<Integer, List<TmxObjectInfo>> objectsById = new HashMap<>();
+        for (TmxLayerInfo layer : state.layers) {
+            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) continue;
+            for (TmxObjectInfo object : objectLayer.objects()) {
+                if (object.hasPositiveSourceId()) {
+                    objectsById.computeIfAbsent(object.id(), ignored -> new ArrayList<>()).add(object);
+                }
+            }
+        }
+        for (TmxLayerInfo layer : state.layers) {
+            if (!(layer instanceof TmxObjectLayerInfo objectLayer)) continue;
+            validateObjectPropertyReferences(state, objectLayer.objectPropertyReferences(), objectsById);
+            for (TmxObjectInfo object : objectLayer.objects()) {
+                validateObjectPropertyReferences(state, object.objectPropertyReferences(), objectsById);
+            }
+        }
+    }
+
+    private static void validateObjectPropertyReferences(AnalysisState state,
+                                                          List<TmxObjectPropertyReference> references,
+                                                          Map<Integer, List<TmxObjectInfo>> objectsById) {
+        for (TmxObjectPropertyReference reference : references) {
+            if (reference.sourceObjectId() == 0) continue;
+            List<TmxObjectInfo> targets = objectsById.get(reference.sourceObjectId());
+            if (targets == null || targets.isEmpty()) {
+                state.blocking("TMX_OBJECT_REFERENCE_UNRESOLVED",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " does not exist in this map.", reference.location());
+            } else if (targets.size() != 1) {
+                state.blocking("TMX_OBJECT_REFERENCE_AMBIGUOUS",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " is ambiguous.", reference.location());
+            } else if (!isV1MaterializedObjectKind(targets.get(0).kind())) {
+                state.blocking("TMX_OBJECT_REFERENCE_TARGET_UNSUPPORTED",
+                        "Object property reference target #" + reference.sourceObjectId()
+                                + " is not materialized by this import scope.", reference.location());
+            }
+        }
+    }
+
+    private static boolean isV1MaterializedObjectKind(TmxObjectKind kind) {
+        return kind == TmxObjectKind.RECTANGLE || kind == TmxObjectKind.POINT
+                || kind == TmxObjectKind.TILE || kind == TmxObjectKind.POLYGON
+                || kind == TmxObjectKind.POLYLINE;
+    }
+
+    private static int parseHexByte(String value, int start) {
+        int high = Character.digit(value.charAt(start), 16);
+        int low = Character.digit(value.charAt(start + 1), 16);
+        return high < 0 || low < 0 ? -1 : (high << 4) | low;
+    }
+
+    private static String objectLocation(String layerName, String rawId, String name) {
+        String id = rawId != null ? rawId : "missing id";
+        String suffix = name != null && !name.isEmpty() ? " ('" + name + "')" : "";
+        return "Object Layer '" + layerName + "' / object #" + id + suffix;
+    }
+
+    private static String quotedPropertyPath(List<String> path, String name) {
+        return name != null ? "'" + String.join(".", path) + "'" : "<missing>";
     }
 
     private void warnIgnoredImageLayerAttributes(XmlReader.Element layer,
                                                  AnalysisState state,
                                                  String location) {
-        warnIgnoredProperties(layer, state, location);
+        warnIgnoredProperties(layer, state, "image layer", location);
         if (layer.hasAttribute("blendmode")) {
             state.warning("TMX_LAYER_BLENDMODE_IGNORED", "Layer blend mode is detected but ignored by preflight.", location);
         }
@@ -511,18 +1161,8 @@ public final class TmxPreflightService {
     }
 
     private static TmxTilesetInfo resolveTileset(int cleanGid, List<TmxTilesetInfo> tilesets) {
-        TmxTilesetInfo resolved = null;
-        for (TmxTilesetInfo tileset : tilesets) {
-            if (tileset.firstGid() <= cleanGid) {
-                resolved = tileset;
-            } else {
-                break;
-            }
-        }
-        if (resolved == null || !resolved.containsCleanGid(cleanGid)) {
-            return null;
-        }
-        return resolved;
+        return TmxGidSupport.resolveTileset(
+                cleanGid, tilesets, TmxTilesetInfo::firstGid, TmxTilesetInfo::tileCount);
     }
 
     private static int imageCollectionTileCount(List<TsxTilesetDescriptor.ImageCollectionTile> tiles) {
@@ -550,7 +1190,14 @@ public final class TmxPreflightService {
                                             AnalysisState state,
                                             String location,
                                             float opacity) {
-        warnIgnoredProperties(layer, state, location);
+        warnIgnoredProperties(layer, state, "tile layer", location);
+        warnIgnoredLayerPresentationAttributes(layer, state, location, opacity);
+    }
+
+    private void warnIgnoredLayerPresentationAttributes(XmlReader.Element layer,
+                                                        AnalysisState state,
+                                                        String location,
+                                                        float opacity) {
         if (Math.abs(opacity - 1f) > 0.0001f) {
             state.warning("TMX_LAYER_OPACITY_IGNORED", "Layer opacity differs from 1.0 and may be ignored by the first import scope.", location);
         }
@@ -562,9 +1209,16 @@ public final class TmxPreflightService {
         }
     }
 
-    private static void warnIgnoredProperties(XmlReader.Element element, AnalysisState state, String location) {
+    private static void warnIgnoredProperties(XmlReader.Element element,
+                                              AnalysisState state,
+                                              String ownerKind,
+                                              String location) {
         if (element != null && element.getChildByName("properties") != null) {
-            state.warning("TMX_CUSTOM_PROPERTIES_IGNORED", "Custom properties are detected but ignored by preflight.", location);
+            state.warning(
+                    "TMX_CUSTOM_PROPERTIES_IGNORED",
+                    "Custom properties on " + ownerKind + " are not imported into Pixscape.",
+                    location
+            );
         }
     }
 
@@ -599,7 +1253,6 @@ public final class TmxPreflightService {
 
             int localTileId = intAttribute(tile, "id", -1);
             String location = localTileId >= 0 ? "tile " + localTileId : "tile";
-            warnIgnoredProperties(tile, state, location);
 
             XmlReader.Element image = tile.getChildByName("image");
             if (image == null) continue;
@@ -699,6 +1352,9 @@ public final class TmxPreflightService {
         private final List<TmxTilesetInfo> tilesets = new ArrayList<>();
         private final List<TmxLayerInfo> layers = new ArrayList<>();
         private final List<TmxDiagnostic> diagnostics = new ArrayList<>();
+        private final Map<Integer, String> objectIdLocations = new HashMap<>();
+        private final Map<Long, List<TmxDiagnostic>> pendingTileMetadataDiagnostics = new HashMap<>();
+        private final Set<Long> emittedTileMetadataDiagnostics = new HashSet<>();
         private int tileLayerCount;
         private long requiredTiledCells;
         private long nonEmptyTileCount;
@@ -713,6 +1369,13 @@ public final class TmxPreflightService {
 
         private void warning(String code, String message, String location) {
             diagnostics.add(new TmxDiagnostic(TmxDiagnosticSeverity.WARNING, code, message, location));
+        }
+
+        private void emitTileMetadataDiagnostics(int firstGid, int localTileId) {
+            long key = tileMetadataKey(firstGid, localTileId);
+            if (!emittedTileMetadataDiagnostics.add(key)) return;
+            List<TmxDiagnostic> pending = pendingTileMetadataDiagnostics.get(key);
+            if (pending != null) diagnostics.addAll(pending);
         }
 
         private TmxPreflightReport toReport() {
@@ -736,5 +1399,13 @@ public final class TmxPreflightService {
             super(message);
             this.code = code;
         }
+    }
+
+    private record ParsedProperties(PropertySet properties,
+                                    List<List<String>> paths,
+                                    List<TmxObjectPropertyReference> objectReferences) {
+    }
+
+    private static final class InvalidPropertyValueException extends Exception {
     }
 }

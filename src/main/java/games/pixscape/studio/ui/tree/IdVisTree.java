@@ -9,8 +9,10 @@ import com.kotcrab.vis.ui.widget.VisTree;
 public class IdVisTree extends VisTree<EntityNode, Integer> {
     private final IntMap<EntityNode> primaryNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> bodyNodesByEntityId = new IntMap<>();
+    private final IntMap<EntityNode> jointNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> mapNodes = new IntMap<>();
     private final IntMap<EntityNode> spatialBlockNodes = new IntMap<>();
+    private final IntMap<EntityNode> prefabInstanceNodes = new IntMap<>();
 
     /**
      * Clears the tree and resets internal indexes.
@@ -19,8 +21,10 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         super.clearChildren();
         primaryNodesByEntityId.clear();
         bodyNodesByEntityId.clear();
+        jointNodesByEntityId.clear();
         mapNodes.clear();
         spatialBlockNodes.clear();
+        prefabInstanceNodes.clear();
     }
 
     /**
@@ -45,6 +49,25 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         if (node != null) {
             mapNodes.put(entityId, node);
         }
+    }
+
+    public void registerPrefabInstanceNode(EntityNode node) {
+        if (node == null || !node.isPrefabInstanceNode()) return;
+        prefabInstanceNodes.put(node.getPrefabInstanceId(), node);
+    }
+
+    public void registerJointNode(EntityNode node, int jointEntityId) {
+        if (node == null || !node.isJointNode()) return;
+        node.setValue(jointEntityId);
+        jointNodesByEntityId.put(jointEntityId, node);
+    }
+
+    public EntityNode findJointNode(int jointEntityId) {
+        return jointNodesByEntityId.get(jointEntityId);
+    }
+
+    public EntityNode findPrefabInstanceNode(int instanceId) {
+        return prefabInstanceNodes.get(instanceId);
     }
 
     public EntityNode findMapNode(int entityId) {
@@ -117,6 +140,9 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         }
         if (kind == EntityNode.NodeKind.SPATIAL_BLOCKS) {
             return findSpatialBlocksNode(entityId);
+        }
+        if (kind == EntityNode.NodeKind.JOINT) {
+            return findJointNode(entityId);
         }
         if (kind == null) {
             return findNode(entityId);
@@ -193,6 +219,7 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         if (actualKind == null) return false;
         if (wantedKind != null) return actualKind == wantedKind;
         return actualKind != EntityNode.NodeKind.BODY
+                && actualKind != EntityNode.NodeKind.JOINT
                 && actualKind != EntityNode.NodeKind.SPATIAL_BLOCKS
                 && actualKind != EntityNode.NodeKind.INFO;
     }

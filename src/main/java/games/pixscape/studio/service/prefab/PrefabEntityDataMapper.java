@@ -52,6 +52,17 @@ final class PrefabEntityDataMapper {
             d.dimensions.width = s.dimensionsWidth;
             d.dimensions.height = s.dimensionsHeight;
         }
+        if (s.hasQuadDeform) {
+            d.quadDeform = new PrefabAsset.QuadDeformData();
+            d.quadDeform.blX = s.quadBlX;
+            d.quadDeform.blY = s.quadBlY;
+            d.quadDeform.brX = s.quadBrX;
+            d.quadDeform.brY = s.quadBrY;
+            d.quadDeform.trX = s.quadTrX;
+            d.quadDeform.trY = s.quadTrY;
+            d.quadDeform.tlX = s.quadTlX;
+            d.quadDeform.tlY = s.quadTlY;
+        }
         if (s.hasTextureRegion) {
             d.textureRegion = new PrefabAsset.TextureRegionData();
             d.textureRegion.u1 = s.textureU1;
@@ -238,6 +249,17 @@ final class PrefabEntityDataMapper {
             s.hasDimensions = true;
             s.dimensionsWidth = d.dimensions.width;
             s.dimensionsHeight = d.dimensions.height;
+        }
+        if (d.quadDeform != null) {
+            s.hasQuadDeform = true;
+            s.quadBlX = d.quadDeform.blX;
+            s.quadBlY = d.quadDeform.blY;
+            s.quadBrX = d.quadDeform.brX;
+            s.quadBrY = d.quadDeform.brY;
+            s.quadTrX = d.quadDeform.trX;
+            s.quadTrY = d.quadDeform.trY;
+            s.quadTlX = d.quadDeform.tlX;
+            s.quadTlY = d.quadDeform.tlY;
         }
         if (d.textureRegion != null) {
             s.hasTextureRegion = true;

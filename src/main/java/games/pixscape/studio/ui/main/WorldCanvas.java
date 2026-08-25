@@ -82,6 +82,7 @@ import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
+import games.pixscape.studio.ui.tree.ItemTreePanel;
 import games.pixscape.studio.ui.widget.TextInputWidget;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
@@ -107,6 +108,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private FrameRenderQueue frameQueue;
     private VfxRenderState vfxState;
     private TiledMapRenderState tiledState;
+    private StudioDisplayOffsetResolver displayOffsetResolver;
 
     // Drawer
     private final ShapeDrawer drawer;
@@ -164,6 +166,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     // Undo redo
     private final HistoryManager historyManager;
     private static final int UNDOREDO_MAX_SIZE = 1024;
+    // Artemis completes batched deletions after systems run, so structural history needs one later pass.
+    private boolean selectionReconciliationPending;
 
     // Operations
     private EditorOps editorOps;
@@ -196,6 +200,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private Box2dSyncSystem box2dSyncSystem;
     private PhysicsSpatialFootprintSyncSystem physicsSpatialFootprintSyncSystem;
     private GizmoSystem gizmoSystem;
+    private TiledObjectOverlaySystem tiledObjectOverlaySystem;
     private final GridActor gridActor;
     private boolean lastPhysicsEnabled = false;
     private float lastPpm = Float.NaN;
@@ -286,6 +291,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 new LightIconOverlaySystem(worldDrawCtx, camera);
 
         tiledPreviewService = new TiledPreviewService();
+        tiledObjectOverlaySystem = new TiledObjectOverlaySystem(worldDrawCtx);
 
         // NEW: inject PhysicsSelectionService
         gizmoSystem = new GizmoSystem(
@@ -393,12 +399,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 )),
                                 profiled(new UiRefreshDispatchSystem()),
                                 lightIconOverlaySystem,
+                                tiledObjectOverlaySystem,
                                 pickingSystem,
                                 gizmoSystem
                         )
                 );
 
         world = bootstrap.getWorld();
+        displayOffsetResolver = new StudioDisplayOffsetResolver(
+                world, dynamicEntityState, layerState, camera);
         animationPreviewRefresher.bindWorld(world);
         if (studioParticleFallbackSystem != null) {
             studioParticleFallbackSystem.setRuntimeParticleSystem(
@@ -449,12 +458,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         pickingSystem.setSelectionService(selectionService);
         pickingSystem.setLayerService(layerService);
         pickingSystem.setPhysicsService(physicsService);
+        pickingSystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         lightIconOverlaySystem.setLayerService(layerService);
         lightIconOverlaySystem.setSelectionService(selectionService);
+        lightIconOverlaySystem.setDisplayOffsetResolver(displayOffsetResolver);
+        tiledObjectOverlaySystem.setLayerService(layerService);
+        tiledObjectOverlaySystem.setSelectionService(selectionService);
+        tiledObjectOverlaySystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         gizmoSystem.setLayerService(layerService);
         gizmoSystem.setPhysicsService(physicsService);
+        gizmoSystem.setDisplayOffsetResolver(displayOffsetResolver);
 
         zOrderRuntimeService = new ZOrderRuntimeService(world);
 
@@ -989,20 +1004,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 // --- Undo / Redo : ALWAYS active, even while typing ---
                 if (ctrl) {
                     if ((keycode == Input.Keys.Z) || keycode == Input.Keys.W) {
-                        selectionService.clearSelection();
-                        physicsSelectionService.clearSelectionOnly();
-                        spatialBlockSelectionService.clearSelectionOnly();
-                        spatialTileSelectionService.clear();
-                        historyManager.undo();
+                        undoHistory();
                         return true;
                     }
 
                     if (keycode == Input.Keys.Y) {
-                        selectionService.clearSelection();
-                        physicsSelectionService.clearSelectionOnly();
-                        spatialBlockSelectionService.clearSelectionOnly();
-                        spatialTileSelectionService.clear();
-                        historyManager.redo();
+                        redoHistory();
                         return true;
                     }
                     if (!typing && keycode == Input.Keys.C) {
@@ -1792,17 +1799,32 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         computePrefabOrigin(graph, tmpPrefabOrigin);
 
+        int prefabInstanceId;
+        String prefabId = StudioFs.removeExtension(prefabFile.name());
+        try {
+            SceneService sceneService = app != null ? app.getSceneService() : null;
+            if (sceneService == null) {
+                throw new IllegalStateException("Scene service is unavailable");
+            }
+            prefabInstanceId = sceneService.allocatePrefabInstanceId();
+        } catch (RuntimeException ex) {
+            Gdx.app.error("PrefabDrop", "Failed to allocate prefab instance: " + p.path, ex);
+            return;
+        }
+
         String sceneTag = currentSceneTag();
         boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
 
         EntityGraphInstantiationResult result;
         try {
-            result = entityGraphInstantiationService.instantiate(
+            result = entityGraphInstantiationService.instantiatePrefab(
                     graph,
                     selectionService.getActiveLayerIndex(),
                     tmpWorldPos.x - tmpPrefabOrigin.x,
                     tmpWorldPos.y - tmpPrefabOrigin.y,
-                    "Instantiate Prefab"
+                    "Instantiate Prefab",
+                    prefabInstanceId,
+                    prefabId
             );
         } catch (RuntimeException ex) {
             Gdx.app.error("PrefabDrop", "Failed to instantiate prefab: " + p.path, ex);
@@ -1824,7 +1846,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
         }
 
-        selectCreatedEntities(result.createdIds());
+        ItemTreePanel itemTreePanel = app.getItemTreePanel();
+        if (itemTreePanel != null) {
+            itemTreePanel.selectPrefabInstance(prefabInstanceId, result.createdIds());
+        } else {
+            selectionService.replaceSelection(
+                    result.createdIds(), SelectionService.SelectionSource.TREE);
+        }
     }
 
     private boolean prefabContainsPhysics(EntityGraph graph) {
@@ -1917,20 +1945,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
-    private void selectCreatedEntities(IntArray createdIds) {
-        if (createdIds == null || createdIds.size == 0) {
-            return;
-        }
-
-        selectionService.clearSelection();
-        selectionService.selectOnly(createdIds.get(0));
-
-        for (int i = 1; i < createdIds.size; i++) {
-            selectionService.selectAdd(createdIds.get(i));
-        }
-    }
-
-    private void computePrefabOrigin(EntityGraph graph, Vector2 out) {
+    static void computePrefabOrigin(EntityGraph graph, Vector2 out) {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float maxX = Float.NEGATIVE_INFINITY;
@@ -1941,7 +1956,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             GenericEntityInitializer.PreviewVisualData visual =
                     entry.initializer().toPreviewVisualData();
 
-            if (!visual.hasTransform) {
+            if (!visual.hasTransform || visual.hasPhysicsJoint) {
                 continue;
             }
 
@@ -2204,6 +2219,26 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return historyManager;
     }
 
+    public void undoHistory() {
+        clearHistorySubSelections();
+        historyManager.undo();
+        selectionService.reconcileActiveSelection();
+        selectionReconciliationPending = true;
+    }
+
+    public void redoHistory() {
+        clearHistorySubSelections();
+        historyManager.redo();
+        selectionService.reconcileActiveSelection();
+        selectionReconciliationPending = true;
+    }
+
+    private void clearHistorySubSelections() {
+        physicsSelectionService.clearSelectionOnly();
+        spatialBlockSelectionService.clearSelectionOnly();
+        spatialTileSelectionService.clear();
+    }
+
     public AtlasStudioService getAtlasService() {
         return atlasStudioService;
     }
@@ -2321,6 +2356,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     @Override
     public void processFrame() {
         world.process();
+        if (selectionReconciliationPending) {
+            selectionReconciliationPending = false;
+            selectionService.reconcileActiveSelection();
+        }
         particleAvailabilityRefresh.consumeIf(
                 canConsumeParticleAvailabilityRefresh(),
                 this::refreshParticleRuntimeAvailability);

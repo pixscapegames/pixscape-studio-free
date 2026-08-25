@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.layer;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
 import com.artemis.World;
+import com.artemis.ComponentMapper;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -14,6 +15,7 @@ import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.history.HistoryManager;
@@ -40,6 +42,7 @@ public class LayersPanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
     private final World world;
+    private final ComponentMapper<TiledObjectLayerComponent> mTiledObjectLayer;
     private final Runnable markCurrentSceneSaveRequired;
 
     private final VisTable listTable;
@@ -67,6 +70,7 @@ public class LayersPanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
         this.world = canvas.getEcsWorld();
+        this.mTiledObjectLayer = world.getMapper(TiledObjectLayerComponent.class);
         this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -391,7 +395,7 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    buildLayerTypeSuffix(ui.type(), ui.spatialEnabled()),
+                    buildLayerTypeSuffix(ui.layerEntityId(), ui.type(), ui.spatialEnabled()),
                     ui.visible(),
                     ui.locked()
             );
@@ -444,12 +448,27 @@ public class LayersPanel extends DockablePanel {
         }
     }
 
-    private String buildLayerTypeSuffix(int type, boolean spatialEnabled) {
+    private String buildLayerTypeSuffix(int layerEntityId, int type, boolean spatialEnabled) {
+        return layerTypeSuffix(
+                type,
+                spatialEnabled,
+                mTiledObjectLayer.has(layerEntityId),
+                currentTiledProjection()
+        );
+    }
+
+    static String layerTypeSuffix(int type,
+                                  boolean spatialEnabled,
+                                  boolean tiledObjectLayer,
+                                  games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
+        if (tiledObjectLayer) {
+            return "(Tiled Object)";
+        }
         if (type != LayerComponent.TYPE_TILED) {
             return LayerService.typeSuffixLabel(type, spatialEnabled);
         }
 
-        return switch (currentTiledProjection()) {
+        return switch (projection) {
             case ISO -> "(Tiled isometric)";
             case ORTHO -> "(Tiled orthogonal)";
             case null -> "(Tiled)";

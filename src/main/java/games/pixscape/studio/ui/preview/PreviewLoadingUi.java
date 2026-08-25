@@ -5,20 +5,18 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.ProgressBar;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import games.pixscape.studio.ui.StudioStage;
 
 /** Minimal Scene2D presentation used until the preview scene reaches READY. */
 final class PreviewLoadingUi {
     private static final float BAR_HEIGHT = 10f;
 
     private final Texture texture;
-    private final SpriteBatch batch;
-    private final Stage stage;
+    private final StudioStage stage;
     private final ProgressBar progressBar;
 
     PreviewLoadingUi() {
@@ -37,8 +35,7 @@ final class PreviewLoadingUi {
 
         progressBar = new ProgressBar(0f, 1f, 0.001f, false, style);
         progressBar.setProgrammaticChangeEvents(false);
-        batch = new SpriteBatch();
-        stage = new Stage(new ScreenViewport(), batch);
+        stage = new StudioStage(new ScreenViewport());
         stage.addActor(progressBar);
         resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
     }
@@ -63,7 +60,6 @@ final class PreviewLoadingUi {
 
     void dispose() {
         stage.dispose();
-        batch.dispose();
         texture.dispose();
     }
 }

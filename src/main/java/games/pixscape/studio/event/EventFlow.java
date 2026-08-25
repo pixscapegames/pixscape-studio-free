@@ -53,6 +53,13 @@ public final class EventFlow {
     ) {
     }
 
+    /** Entity z-order values changed within one authored layer. */
+    public record EntityZOrderChanged(
+            int layerIndex,
+            int sourceTag
+    ) {
+    }
+
     /**
      * Entity name (sprite, layer, etc.) changed.
      */
@@ -66,6 +73,15 @@ public final class EventFlow {
     public record EntityChanged(
             int entityId,
             TransformOp op,
+            int sourceTag
+    ) {
+    }
+
+    /**
+     * Authored custom properties changed for an entity.
+     */
+    public record CustomPropertiesChanged(
+            int entityId,
             int sourceTag
     ) {
     }

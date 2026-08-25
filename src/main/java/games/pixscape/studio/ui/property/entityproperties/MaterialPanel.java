@@ -16,6 +16,7 @@ import games.pixscape.runtime.render.ShaderMode;
 import games.pixscape.runtime.render.ShaderOrigin;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.history.commands.ChangeShaderCommand;
+import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.UiBinders;
 
@@ -51,7 +52,7 @@ public final class MaterialPanel extends CollapsibleWidget {
         buttonPicker.setColor(Color.WHITE);
         buttonPicker.add(colorImage).width(50).height(25);
 
-        picker = new ColorPicker("Sprite color chooser");
+        picker = StudioColorPickerFactory.create("Sprite color chooser");
         pickerBinder = new UiBinders.ColorPickerBinder(
                 ctx.world,
                 picker,

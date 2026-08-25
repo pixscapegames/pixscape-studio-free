@@ -21,6 +21,9 @@ public final class GenericEntitySnapshotData {
     public boolean hasObb;
     public boolean hasDimensions;
     public float dimensionsWidth, dimensionsHeight;
+    public boolean hasQuadDeform;
+    public float quadBlX, quadBlY, quadBrX, quadBrY;
+    public float quadTrX, quadTrY, quadTlX, quadTlY;
     public boolean hasTextureRegion;
     public float textureU1, textureV1, textureU2, textureV2;
     public int texturePixW, texturePixH;

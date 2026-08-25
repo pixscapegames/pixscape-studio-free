@@ -18,6 +18,7 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -48,6 +49,7 @@ public final class ConeLightProperties extends VisTable {
     private final VisLabel zIndexValueLabel = new VisLabel();
     private final VisLabel layerValueLabel = new VisLabel();
     private final VisLabel tagsLabel = new VisLabel("");
+    private final CustomPropertiesEditorRow customPropertiesRow;
 
     private final SimpleTextField entityName = new SimpleTextField();
     private final VisTextButton editTagsBtn;
@@ -102,6 +104,7 @@ public final class ConeLightProperties extends VisTable {
                 openEditTagsDialog();
             }
         });
+        customPropertiesRow = new CustomPropertiesEditorRow(ctx);
 
         entityName.bind(
                 () -> {
@@ -188,7 +191,7 @@ public final class ConeLightProperties extends VisTable {
         buttonPicker.setColor(Color.WHITE);
         buttonPicker.add(colorImage).width(50).height(25);
 
-        picker = new ColorPicker("Cone light color");
+        picker = StudioColorPickerFactory.create("Cone light color");
         pickerBinder = new UiBinders.ColorPickerBinder(
                 ctx.world,
                 picker,
@@ -239,6 +242,9 @@ public final class ConeLightProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             onEntityChanged(evt.op());
         });
+        EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
+        });
     }
 
     private void onEntityChanged(TransformOp op) {
@@ -280,6 +286,9 @@ public final class ConeLightProperties extends VisTable {
         header.add(new VisLabel("Tags:")).left();
         header.add(tagsLabel).left().width(100).growX();
         header.add(editTagsBtn).right().row();
+
+        header.add(new VisLabel("Properties:")).left();
+        header.add(customPropertiesRow).colspan(2).growX().left().row();
 
         header.add(new VisLabel("Layer:")).left();
         header.add(layerValueLabel).colspan(2).left().row();
@@ -330,6 +339,7 @@ public final class ConeLightProperties extends VisTable {
         pickerBinder.setEntityId(entityId);
 
         refreshTagsLabel();
+        customPropertiesRow.setEntityId(entityId);
     }
 
     private void refreshTagsLabel() {

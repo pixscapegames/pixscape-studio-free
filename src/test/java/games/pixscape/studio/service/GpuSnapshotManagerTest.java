@@ -5,6 +5,7 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.studio.debug.StudioFrameProfiler;
 import org.junit.Test;
 
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -111,6 +112,59 @@ public class GpuSnapshotManagerTest {
     }
 
     @Test
+    public void currentScenePublishedHandleDoesNotRequireAnotherRebuild() {
+        AtlasRuntimeService.TextureArrayBundle snapshot = bundleWithHandle(17);
+        GpuSnapshotManager manager = instrumentedManager(new ArrayList<>(), snapshot);
+
+        manager.markDirty("scene", "initial-publication");
+        manager.syncIfDirty("scene");
+        assertTrue(manager.isHandlePublishedInCurrentBundle("scene", 17));
+
+        if (!manager.isHandlePublishedInCurrentBundle("scene", 17)) {
+            manager.markDirty("scene", "redundant-rebind");
+        }
+        manager.syncIfDirty("scene");
+
+        assertEquals(1, manager.rebuildCount());
+        assertFalse(manager.hasDirtyReason("scene", "redundant-rebind"));
+    }
+
+    @Test
+    public void absentHandleStillRequiresSnapshotInvalidation() {
+        GpuSnapshotManager manager = instrumentedManager(
+                new ArrayList<>(), bundleWithHandle(17));
+
+        manager.markDirty("scene", "initial-publication");
+        manager.syncIfDirty("scene");
+
+        assertFalse(manager.isHandlePublishedInCurrentBundle("scene", 18));
+    }
+
+    @Test
+    public void cachedSnapshotFromAnotherSceneIsNotTreatedAsCurrentlyBound() {
+        AtlasRuntimeService.TextureArrayBundle first = bundleWithHandle(17);
+        AtlasRuntimeService.TextureArrayBundle second = bundleWithHandle(23);
+        GpuSnapshotManager manager = new GpuSnapshotManager(
+                null,
+                metricsBatch(),
+                (sceneTag, diagnosticsEnabled) -> new SnapshotBuilder.BuildResult(
+                        "first".equals(sceneTag) ? first : second,
+                        1, 1, 0, 0L, 0L, 0L, 0L, 0L),
+                false,
+                0L,
+                message -> { }
+        );
+
+        manager.markDirty("first", "publish-first");
+        manager.syncIfDirty("first");
+        manager.markDirty("second", "publish-second");
+        manager.syncIfDirty("second");
+
+        assertFalse(manager.isHandlePublishedInCurrentBundle("first", 17));
+        assertTrue(manager.isHandlePublishedInCurrentBundle("second", 23));
+    }
+
+    @Test
     public void slowDiagnosticLogIncludesReasonsAndBuildBuckets() {
         List<String> logs = new ArrayList<>();
         GpuSnapshotManager manager = instrumentedManager(logs);
@@ -162,12 +216,24 @@ public class GpuSnapshotManagerTest {
         return new AtlasRuntimeService.TextureArrayBundle(null, new IntIntMap());
     }
 
+    private static AtlasRuntimeService.TextureArrayBundle bundleWithHandle(int handle) {
+        IntIntMap handles = new IntIntMap();
+        handles.put(handle, 0);
+        return new AtlasRuntimeService.TextureArrayBundle(null, handles);
+    }
+
     private static GpuSnapshotManager instrumentedManager(List<String> logs) {
+        return instrumentedManager(logs, bundle());
+    }
+
+    private static GpuSnapshotManager instrumentedManager(
+            List<String> logs,
+            AtlasRuntimeService.TextureArrayBundle snapshot) {
         return new GpuSnapshotManager(
                 null,
-                null,
+                metricsBatch(),
                 (sceneTag, diagnosticsEnabled) -> new SnapshotBuilder.BuildResult(
-                        bundle(),
+                        snapshot,
                         2,
                         3,
                         0,
@@ -180,6 +246,14 @@ public class GpuSnapshotManagerTest {
                 true,
                 0L,
                 logs::add
+        );
+    }
+
+    private static games.pixscape.runtime.render.batch.MetricsBatch metricsBatch() {
+        return (games.pixscape.runtime.render.batch.MetricsBatch) Proxy.newProxyInstance(
+                GpuSnapshotManagerTest.class.getClassLoader(),
+                new Class<?>[]{games.pixscape.runtime.render.batch.MetricsBatch.class},
+                (proxy, method, args) -> null
         );
     }
 
