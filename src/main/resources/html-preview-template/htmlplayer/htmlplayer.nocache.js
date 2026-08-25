@@ -303,6 +303,14 @@ function htmlplayer(){
   function getCompiledCodeFilename(){
     var answers = [];
     var softPermutationId = 0;
+    function unflattenKeylistIntoAnswers(propValArray, value_0){
+      var answer = answers;
+      for (var i = 0, n = propValArray.length - 1; i < n; ++i) {
+        answer = answer[propValArray[i]] || (answer[propValArray[i]] = []);
+      }
+      answer[propValArray[n]] = value_0;
+    }
+
     var values = [];
     var providers = [];
     function computePropValue(propName){
@@ -320,6 +328,23 @@ function htmlplayer(){
       throw null;
     }
 
+    providers['user.agent'] = function(){
+      var ua = navigator.userAgent.toLowerCase();
+      var docMode = $doc_0.documentMode;
+      if (function(){
+        return ua.indexOf('webkit') != -1;
+      }
+      ())
+        return 'safari';
+      if (function(){
+        return ua.indexOf('gecko') != -1 || docMode >= 11;
+      }
+      ())
+        return 'gecko1_8';
+      return '';
+    }
+    ;
+    values['user.agent'] = {'gecko1_8':0, 'safari':1};
     __gwt_isKnownPropertyValue = function(propName, propValue){
       return propValue in values[propName];
     }
@@ -342,7 +367,9 @@ function htmlplayer(){
     }
     var strongName;
     try {
-      strongName = '87B3A2627CF1898524B11F83C559CF82';
+      unflattenKeylistIntoAnswers(['gecko1_8'], 'D6CC0800F3070244A07D34B691121FA6');
+      unflattenKeylistIntoAnswers(['safari'], 'D6CC0800F3070244A07D34B691121FA6' + ':1');
+      strongName = answers[computePropValue('user.agent')];
       var idx = strongName.indexOf(':');
       if (idx != -1) {
         softPermutationId = parseInt(strongName.substring(idx + 1), 10);
