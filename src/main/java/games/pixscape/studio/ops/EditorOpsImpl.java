@@ -602,7 +602,7 @@ public class EditorOpsImpl implements EditorOps {
 
         int shaderIdx = ShaderRegistry.indexOf(RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
         if (shaderIdx < 0) {
-            Gdx.app.error("EditorOps", "Missing shader: " + RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
+            Gdx.app.error("EditorOps", "Missing shader: " + RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
             return -1;
         }
         int textureHandle = InternalTextures.whiteHandle();

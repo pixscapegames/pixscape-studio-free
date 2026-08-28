@@ -484,7 +484,8 @@ public class ItemTreePanel extends DockablePanel {
         exitExplicitSpatialBlockMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerId(layerEid, SelectionService.SelectionSource.TREE);
+        selectionService.setActivelayerIdForTiledMapContext(
+                layerEid, SelectionService.SelectionSource.TREE);
 
         if (propertiesPanel != null) {
             propertiesPanel.requestTiledMapProperties(layerEid);
@@ -750,6 +751,7 @@ public class ItemTreePanel extends DockablePanel {
                 tree.getSelection().setProgrammaticChangeEvents(true);
                 return;
             }
+            explicitTiledMapLayerEid = -1;
         }
 
         int activeLayerId = selectionService.getActivelayerId();

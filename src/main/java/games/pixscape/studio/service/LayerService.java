@@ -724,7 +724,6 @@ public final class LayerService {
         return switch (type) {
             case LayerComponent.TYPE_CLASSIC,
                  LayerComponent.TYPE_PHYSICS,
-                 LayerComponent.TYPE_LIGHT,
                  LayerComponent.TYPE_TILED -> type;
             default -> LayerComponent.TYPE_CLASSIC;
         };
@@ -746,7 +745,6 @@ public final class LayerService {
         }
         return switch (type) {
             case LayerComponent.TYPE_PHYSICS -> "Physics";
-            case LayerComponent.TYPE_LIGHT -> "Light";
             case LayerComponent.TYPE_TILED -> "Tiled";
             default -> "Classic";
         };
@@ -757,10 +755,12 @@ public final class LayerService {
     }
 
     public static String typeSuffixLabel(int type, boolean spatialEnabled) {
-        if (type == LayerComponent.TYPE_CLASSIC) {
-            return "";
-        }
-        return "(" + typeDisplayName(type, spatialEnabled) + ")";
+        if (isSpatialActorLayer(type, spatialEnabled)) return "(Spatial)";
+        return switch (type) {
+            case LayerComponent.TYPE_PHYSICS -> "(Physics)";
+            case LayerComponent.TYPE_TILED -> "(Tiled)";
+            default -> "";
+        };
     }
 
     public record LayerUI(int layerEntityId, String name, String description, int index, int type,

@@ -522,17 +522,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private boolean isTiledModeActive() {
-        SceneMeta meta = currentSceneMeta();
-        if (meta == null) return false;
-        if (!meta.tiledEnabled) return false;
-        if (meta.editorMode != SceneMeta.EditorMode.TILE) return false;
-        if (selectionService == null) return false;
-
-        int layerEntity = selectionService.getActivelayerId();
-        if (layerEntity == -1) return false;
-
-        LayerComponent lc = world.getMapper(LayerComponent.class).getSafe(layerEntity, null);
-        return lc != null && lc.type == LayerComponent.TYPE_TILED;
+        return selectionService != null
+                && selectionService.isTiledMapEditingTargetActive();
     }
 
     private boolean isSpatialBlockModeActive() {

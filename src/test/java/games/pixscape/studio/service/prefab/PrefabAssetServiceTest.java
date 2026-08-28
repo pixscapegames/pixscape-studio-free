@@ -44,7 +44,7 @@ public class PrefabAssetServiceTest {
         t.y = -7f;
         t.rotationRad = 0.25f;
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entity));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(entity));
 
         FileHandle file = tmpFile("simple.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
@@ -120,7 +120,7 @@ public class PrefabAssetServiceTest {
         FileHandle file = tmpFile("fortress.pixprefab");
         PrefabAssetService assets = new PrefabAssetService(world);
         assets.savePrefab(
-                file, "fortress", new EntityGraphCaptureService(world).capture(arr(entity)));
+                file, "fortress", new EntityGraphCaptureService(world).captureForPrefab(arr(entity)));
         Assert.assertFalse(file.readString("UTF-8").contains("PrefabInstance"));
         Assert.assertFalse(file.sibling("fortress.pixfragment.json")
                 .readString("UTF-8").contains("PrefabInstance"));
@@ -157,7 +157,7 @@ public class PrefabAssetServiceTest {
         QuadDeformComponent source = world.getMapper(QuadDeformComponent.class).create(entity);
         setQuad(source, 1.25f, -2.5f, 3.75f, -4.5f, 5.25f, -6.5f, 7.75f, -8.5f);
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entity));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(entity));
         FileHandle file = tmpFile("quad-deform.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
         service.savePrefab(file, "quad-deform", graph);
@@ -225,7 +225,7 @@ public class PrefabAssetServiceTest {
         animation.currentClip = "run";
         animation.fps = 24f;
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entityId));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(entityId));
         FileHandle file = tmpFile("multi-animation.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
         service.savePrefab(file, "multi-animation", graph);
@@ -245,7 +245,7 @@ public class PrefabAssetServiceTest {
     public void saveLoad_visibleSpritePrefabRestoresVisualComponents() {
         World world = new World(new WorldConfiguration());
         int entity = sprite(world);
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(entity));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(entity));
 
         FileHandle file = tmpFile("sprite.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
@@ -299,7 +299,7 @@ public class PrefabAssetServiceTest {
         int b = body(world);
         int j = distanceJoint(world, a, b);
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(a, b));
 
         FileHandle file = tmpFile("joint.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
@@ -350,7 +350,7 @@ public class PrefabAssetServiceTest {
         sourceWheel.motorSpeedRad = 3f;
         sourceWheel.maxMotorTorque = 4f;
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(a, b));
 
         FileHandle file = tmpFile("wheel.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
@@ -401,7 +401,7 @@ public class PrefabAssetServiceTest {
         int j2 = prismaticJoint(world, b, c);
         int g = gearJoint(world, a, c, j1, j2);
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b, c));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(a, b, c));
 
         FileHandle file = tmpFile("gear.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
@@ -561,7 +561,7 @@ public class PrefabAssetServiceTest {
         gearData.ratio = 2.25f;
 
         EntityGraph graph = new EntityGraphCaptureService(world)
-                .capture(arr(bodyA, bodyB, bodyC, bodyD));
+                .captureForPrefab(arr(bodyA, bodyB, bodyC, bodyD));
         Assert.assertEquals(
                 "Four bodies and all nine joints should be captured",
                 13, graph.size());
@@ -807,7 +807,7 @@ public class PrefabAssetServiceTest {
         polygon.geometry.polygonVertices = new float[]{0f, 0f, 2f, 0f, 3f, 1f, 1f, 3f, -1f, 1f};
         sources.shapes.add(polygon);
 
-        EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(e));
+        EntityGraph graph = new EntityGraphCaptureService(world).captureForPrefab(arr(e));
         FileHandle file = tmpFile("authoring.pixprefab");
         PrefabAssetService service = new PrefabAssetService(world);
         service.savePrefab(file, "authoring", graph);

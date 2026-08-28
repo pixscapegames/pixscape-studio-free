@@ -6,18 +6,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ToolBarContractTest {
 
     @Test
-    public void constructor_wiresTiledSectionVisibilityToCurrentLayerChanges() throws Exception {
+    public void toolbarUsesAuthoritativeTiledEditingTargetAndEditorModeEvents() throws Exception {
         String source = readToolBarSource();
-        String body = methodBody(source, "public ToolBar(StudioApplicationAdapter app)");
+        String constructor = methodBody(source, "public ToolBar(StudioApplicationAdapter app)");
+        String update = methodBody(source, "private void updateEditingContextState()");
 
-        assertTrue(body.contains("EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class"));
-        assertTrue(body.contains("updateTiledSectionVisibility(evt.layerEntityId());"));
-        assertTrue(body.contains("updateTiledSectionVisibility(selectionService.getActivelayerId());"));
+        assertTrue(constructor.contains("EventFlow.i().subscribe(EventFlow.EditorModeChanged.class"));
+        assertTrue(update.contains("selectionService.isTiledMapEditingTargetActive()"));
+        assertTrue(update.contains("setAlignmentButtonsDisabled(tiledMapTarget)"));
+        assertFalse(source.contains("LayerComponent.TYPE_TILED"));
+        assertFalse(source.contains("LayerService"));
     }
 
     private static String readToolBarSource() throws Exception {

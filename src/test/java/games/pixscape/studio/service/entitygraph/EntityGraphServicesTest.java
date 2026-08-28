@@ -5,6 +5,8 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
@@ -48,6 +50,22 @@ public class EntityGraphServicesTest {
         EntityGraph graph = svc.capture(arr(a));
 
         assertContains(graph, a); assertNotContains(graph, j);
+    }
+
+    @Test
+    public void genericCaptureIncludesLightsWhilePrefabCaptureExcludesThem() {
+        World world = new World(new WorldConfiguration());
+        int point = light(world, false);
+        int cone = light(world, true);
+        EntityGraphCaptureService service = new EntityGraphCaptureService(world);
+
+        EntityGraph generic = service.capture(arr(point, cone));
+        EntityGraph prefab = service.captureForPrefab(arr(point, cone));
+
+        assertContains(generic, point);
+        assertContains(generic, cone);
+        assertNotContains(prefab, point);
+        assertNotContains(prefab, cone);
     }
 
     @Test
@@ -399,6 +417,7 @@ public class EntityGraphServicesTest {
     }
 
     private static IntArray arr(int... ids) { IntArray a = new IntArray(); for (int id : ids) a.add(id); return a; }
+    private static int light(World w, boolean cone) {int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);if(cone)w.getMapper(ConeLightComponent.class).create(e);else w.getMapper(PointLightComponent.class).create(e);return e;}
     private static int body(World w){int e=w.create();w.getMapper(TransformComponent.class).create(e);w.getMapper(EntityIndexComponent.class).create(e);w.getMapper(PhysicsBodyComponent.class).create(e);PhysicsShapesComponent f=w.getMapper(PhysicsShapesComponent.class).create(e);PhysicsShapeData d=new PhysicsShapeData();d.geometry=new PhysicsGeometryData();d.physicsShapeId=e+1;d.geometry.shapeType=PhysicsGeometryData.SHAPE_BOX;f.shapes.add(d);return e;}
     private static int distanceJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_DISTANCE,a,b);w.getMapper(PhysicsDistanceJointComponent.class).create(e);return e;}
     private static int revoluteJoint(World w,int a,int b){int e=base(w,PhysicsJointComponent.TYPE_REVOLUTE,a,b);w.getMapper(PhysicsRevoluteJointComponent.class).create(e);return e;}

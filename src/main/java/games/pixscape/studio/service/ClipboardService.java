@@ -150,7 +150,6 @@ public final class ClipboardService {
     private static boolean isKnownLayerType(int type) {
         return type == LayerComponent.TYPE_CLASSIC
                 || type == LayerComponent.TYPE_PHYSICS
-                || type == LayerComponent.TYPE_LIGHT
                 || type == LayerComponent.TYPE_TILED;
     }
 

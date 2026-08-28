@@ -7,9 +7,7 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.Tooltip;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 
@@ -17,7 +15,6 @@ public class ToolBar extends VisTable {
     public static final float HEIGHT = 32f;
 
     private final StudioApplicationAdapter app;
-    private final LayerService layerService;
     private final SelectionService selectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
 
@@ -37,7 +34,6 @@ public class ToolBar extends VisTable {
     public ToolBar(StudioApplicationAdapter app) {
         super(false);
         this.app = app;
-        this.layerService = app.getCanvas().getLayerService();
         this.selectionService = app.getCanvas().getSelectionService();
         this.spatialBlockSelectionService = app.getCanvas().getSpatialBlockSelectionService();
 
@@ -71,14 +67,14 @@ public class ToolBar extends VisTable {
         tiledToolBar = new TiledToolBar(app.getCanvas().getTileToolService());
         add(tiledToolBar);
 
-        EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, evt -> {
-            updateTiledSectionVisibility(evt.layerEntityId());
+        EventFlow.i().subscribe(EventFlow.EditorModeChanged.class, evt -> {
+            updateEditingContextState();
         });
         EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, evt -> {
-            updateTiledSectionVisibility(selectionService.getActivelayerId());
+            updateEditingContextState();
         });
 
-        updateTiledSectionVisibility(selectionService.getActivelayerId());
+        updateEditingContextState();
     }
 
     private ImageButton createToolButton(String style, String tooltipText, Runnable action) {
@@ -97,24 +93,10 @@ public class ToolBar extends VisTable {
         return button;
     }
 
-    private void updateTiledSectionVisibility(int layerEntityId) {
-
-        switch (layerService.getLayerTypeByEntity(layerEntityId)) {
-            case LayerComponent.TYPE_TILED -> {
-                tiledToolBar.setDisabled(isSpatialBlockEditingActive());
-                setAlignmentButtonsDisabled(true);
-            }
-            case LayerComponent.TYPE_LIGHT -> {
-                tiledToolBar.setDisabled(true);
-                setAlignmentButtonsDisabled(true);
-            }
-            default -> {
-                tiledToolBar.setDisabled(true);
-                setAlignmentButtonsDisabled(false);
-            }
-        }
-
-
+    private void updateEditingContextState() {
+        boolean tiledMapTarget = selectionService.isTiledMapEditingTargetActive();
+        tiledToolBar.setDisabled(!tiledMapTarget || isSpatialBlockEditingActive());
+        setAlignmentButtonsDisabled(tiledMapTarget);
         invalidateHierarchy();
     }
 

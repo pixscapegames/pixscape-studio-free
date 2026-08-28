@@ -870,7 +870,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             case LayerComponent.TYPE_TILED -> tilePayload
                     ? DropAllowedResult.allowed()
                     : DropAllowedResult.forbidden();
-            case LayerComponent.TYPE_LIGHT -> DropAllowedResult.forbidden();
             case LayerComponent.TYPE_PHYSICS -> DropAllowedResult.allowed();
             default -> {
                 if (tilePayload) {
@@ -2211,7 +2210,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean isTiledToolInputEnabled() {
-        return spatialBlockSelectionService == null || !spatialBlockSelectionService.isEditingActive();
+        return selectionService != null
+                && selectionService.isTiledMapEditingTargetActive()
+                && (spatialBlockSelectionService == null
+                || !spatialBlockSelectionService.isEditingActive());
     }
 
 

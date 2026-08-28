@@ -95,32 +95,36 @@ public final class SelectionService {
         setActivelayerIdInternal(layer, false, source);
     }
 
+    public void setActivelayerIdForTiledMapContext(int layer, SelectionSource source) {
+        setActivelayerIdInternal(layer, true, source);
+    }
+
     public void setActivelayerIdForPhysicsContext(int layer) {
         setActivelayerIdForPhysicsContext(layer, SelectionSource.VIEWPORT);
     }
 
     public void setActivelayerIdForPhysicsContext(int layer, SelectionSource source) {
-        setActivelayerIdInternal(layer, true, source);
+        setActivelayerIdInternal(layer, false, source);
     }
 
-    private void setActivelayerIdInternal(int layer, boolean forceEntityMode, SelectionSource source) {
+    private void setActivelayerIdInternal(
+            int layer, boolean tiledMapEditingTarget, SelectionSource source) {
         this.activelayerId = layer;
 
         int type = layerService.getLayerTypeByEntity(layer);
+        boolean isTiled = tiledMapEditingTarget
+                && type == LayerComponent.TYPE_TILED
+                && mTiledLayer.has(layer);
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg.getCurrentSceneMeta();
 
-        if (!forceEntityMode && type == LayerComponent.TYPE_TILED) {
+        if (isTiled) {
             meta.editorMode = SceneMeta.EditorMode.TILE;
         } else {
             meta.editorMode = SceneMeta.EditorMode.ENTITY;
         }
 
         EventFlow.i().publish(new EventFlow.CurrentLayerChanged(layer, source, MY_TAG));
-
-        int layerType = layerService.getLayerTypeByEntity(layer);
-
-        boolean isTiled = !forceEntityMode && layerType == LayerComponent.TYPE_TILED;
 
         if (studioEditingModeService != null) {
             studioEditingModeService.setModeActive(StudioEditingMode.TILED, isTiled, MY_TAG);
@@ -134,6 +138,18 @@ public final class SelectionService {
                         EventFlow.tag(this)
                 )
         );
+    }
+
+    public boolean isTiledMapEditingTargetActive() {
+        if (studioEditingModeService == null
+                || studioEditingModeService.getCurrentMode() != StudioEditingMode.TILED
+                || !world.getEntityManager().isActive(activelayerId)) {
+            return false;
+        }
+        LayerComponent layer = mLayer.getSafe(activelayerId, null);
+        return layer != null
+                && layer.type == LayerComponent.TYPE_TILED
+                && mTiledLayer.has(activelayerId);
     }
 
     public IntSet getSelectionSet() {
@@ -532,6 +548,9 @@ public final class SelectionService {
     }
 
     private void publish(SelectionSource source, IntArray snapshot) {
+        if (snapshot != null && snapshot.size > 0 && isTiledMapEditingTargetActive()) {
+            setActivelayerIdInternal(activelayerId, false, source);
+        }
         EventFlow.i().publish(
                 new EventFlow.SelectionChanged(
                         snapshot != null ? new IntArray(snapshot) : new IntArray(),

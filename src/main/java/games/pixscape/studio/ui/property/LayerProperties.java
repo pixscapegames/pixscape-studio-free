@@ -447,8 +447,7 @@ public class LayerProperties extends VisTable {
     private boolean supportsEditableParallax(int layerEntityId, LayerComponent lic) {
         if (lic == null) return false;
 
-        if (lic.type == LayerComponent.TYPE_CLASSIC ||
-                lic.type == LayerComponent.TYPE_LIGHT) {
+        if (lic.type == LayerComponent.TYPE_CLASSIC) {
             return true;
         }
 

@@ -18,8 +18,6 @@ import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.light.ConeLightComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -59,8 +57,6 @@ public final class StudioContextMenu extends InputListener {
 
     private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
-    private final ComponentMapper<PointLightComponent> mPointLight;
-    private final ComponentMapper<ConeLightComponent> mConeLight;
 
     private final PopupMenu menu = new PopupMenu();
     private final Vector2 lastRightClickWorld = new Vector2();
@@ -87,8 +83,6 @@ public final class StudioContextMenu extends InputListener {
 
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
-        this.mPointLight = world.getMapper(PointLightComponent.class);
-        this.mConeLight = world.getMapper(ConeLightComponent.class);
 
         this.entityGraphCaptureService = new EntityGraphCaptureService(world);
         this.prefabAssetService = new PrefabAssetService(world);
@@ -134,7 +128,7 @@ public final class StudioContextMenu extends InputListener {
         }
         showEditMenu();
         showShapeMenu();
-        showLightsMenu();
+        showAddLightMenu();
         showJointsMenu();
     }
 
@@ -327,13 +321,13 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showLightsMenu() {
+    private void showAddLightMenu() {
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasJointSelected = selection.size == 1 && mJointBase.has(selection.get(0));
-        boolean isLightLayer = layerService != null
-                && layerService.getLayerTypeByIndex(selectionService.getActiveLayerIndex()) == LayerComponent.TYPE_LIGHT;
+        boolean hasActiveLayer = layerService != null
+                && layerService.getLayerEntity(selectionService.getActiveLayerIndex()) >= 0;
 
-        if (!hasJointSelected && isLightLayer) {
+        if (!hasJointSelected && hasActiveLayer) {
             PopupMenu addLightSub = new PopupMenu();
             MenuItem addPoint = new MenuItem("Point Light");
             addPoint.addListener(new ClickListener() {
@@ -365,20 +359,6 @@ public final class StudioContextMenu extends InputListener {
             menu.addItem(addRoot);
         }
 
-        if (selection.size == 1) {
-            int e = selection.get(0);
-            if (e >= 0 && (mPointLight.has(e) || mConeLight.has(e))) {
-                MenuItem del = new MenuItem("Delete light");
-                del.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        world.delete(e);
-                        selectionService.clearSelection();
-                    }
-                });
-                menu.addItem(del);
-            }
-        }
     }
 
     private void showJointsMenu() {
@@ -546,11 +526,6 @@ public final class StudioContextMenu extends InputListener {
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasSelection = selection.size > 0;
 
-        boolean isLightLayer = layerService != null
-                && layerService.getLayerTypeByIndex(selectionService.getActiveLayerIndex()) == LayerComponent.TYPE_LIGHT;
-
-        if (isLightLayer) return;
-
         boolean canPaste = clipboardService != null && clipboardService.hasContent();
 
         MenuItem copy = new MenuItem("Copy");
@@ -666,7 +641,7 @@ public final class StudioContextMenu extends InputListener {
             return;
         }
 
-        EntityGraph graph = entityGraphCaptureService.capture(selection);
+        EntityGraph graph = entityGraphCaptureService.captureForPrefab(selection);
         if (graph == null || graph.isEmpty()) {
             Dialogs.showOKDialog(stage, "Create Prefab", "Selection cannot be saved as a prefab.");
             return;

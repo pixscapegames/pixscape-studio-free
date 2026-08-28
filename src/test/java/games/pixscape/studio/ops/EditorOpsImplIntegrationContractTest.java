@@ -23,6 +23,20 @@ public class EditorOpsImplIntegrationContractTest {
     }
 
     @Test
+    public void lightCreationUsesActiveLayerAndGenericHistoryCreationWithoutLayerTypeGate() throws Exception {
+        String source = readEditorOpsImpl();
+        String point = methodBody(source, "public int createPointLight(float worldX, float worldY)");
+        String cone = methodBody(source, "public int createConeLight(float worldX, float worldY)");
+
+        assertTrue(point.contains("int activeLayerIndex = selectionService.getActiveLayerIndex();"));
+        assertTrue(point.contains(".configurePointLightProcedural("));
+        assertTrue(point.contains("historyManager.execute(cmd);"));
+        assertTrue(cone.contains("int activeLayerIndex = selectionService.getActiveLayerIndex();"));
+        assertTrue(cone.contains(".configureConeLightProcedural("));
+        assertTrue(cone.contains("historyManager.execute(cmd);"));
+    }
+
+    @Test
     public void deleteJoint_andDeleteFixture_applyInvalidGuards_beforeHistoryMutation() throws Exception {
         String source = readEditorOpsImpl();
         String deleteJoint = methodBody(source, "public void deleteJoint(int jointEntityId)");

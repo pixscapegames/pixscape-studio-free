@@ -166,9 +166,6 @@ public final class NewLayerDialog extends StudioDialog {
 
         String info = switch (type) {
             case LayerComponent.TYPE_PHYSICS -> "Physics only with scene parallax";
-
-            case LayerComponent.TYPE_LIGHT -> "Lights only with no parallax";
-
             case LayerComponent.TYPE_TILED -> "Tiled Map only with parallax";
 
             default -> "Classic layer with parallax";
@@ -206,10 +203,6 @@ public final class NewLayerDialog extends StudioDialog {
             return LayerComponent.TYPE_PHYSICS;
         }
 
-        if ("Light".equals(selected)) {
-            return LayerComponent.TYPE_LIGHT;
-        }
-
         if ("Tiled".equals(selected)) {
             return LayerComponent.TYPE_TILED;
         }
@@ -220,7 +213,6 @@ public final class NewLayerDialog extends StudioDialog {
     static Array<String> availableLayerTypes(SceneMeta meta, boolean hasSpatialActorLayer) {
         Array<String> types = new Array<>();
         types.add("Classic");
-        types.add("Light");
         if (meta != null && meta.physicsEnabled) {
             types.add("Physics");
             if (!hasSpatialActorLayer) {

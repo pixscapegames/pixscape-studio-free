@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
@@ -132,6 +133,37 @@ public class ClipboardServiceFlowTest {
 
         int pasted = h.selection.getSelectionSnapshot().first();
         Assert.assertFalse(h.world.getMapper(QuadDeformComponent.class).has(pasted));
+    }
+
+    @Test
+    public void copyPastePointLightPreservesCompleteLightStateInClassicLayer() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 13f, 17f, 0);
+        PointLightComponent light = h.world.getMapper(PointLightComponent.class).create(source);
+        light.enabled = false;
+        light.radius = 123f;
+        light.intensity = 2.5f;
+        light.falloff = 3.25f;
+        light.r = 0.15f;
+        light.g = 0.35f;
+        light.b = 0.75f;
+        h.selection.selectOnly(source);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+
+        int pastedEntity = h.selection.getFirstSelectedEntityId();
+        PointLightComponent pasted = h.world.getMapper(PointLightComponent.class).get(pastedEntity);
+        Assert.assertNotNull(pasted);
+        Assert.assertFalse(pasted.enabled);
+        Assert.assertEquals(123f, pasted.radius, 0f);
+        Assert.assertEquals(2.5f, pasted.intensity, 0f);
+        Assert.assertEquals(3.25f, pasted.falloff, 0f);
+        Assert.assertEquals(0.15f, pasted.r, 0f);
+        Assert.assertEquals(0.35f, pasted.g, 0f);
+        Assert.assertEquals(0.75f, pasted.b, 0f);
+        Assert.assertEquals(0,
+                h.world.getMapper(EntityIndexComponent.class).get(pastedEntity).layerIndex);
     }
 
     @Test

@@ -16,10 +16,10 @@ import org.junit.Test;
 
 import static org.junit.Assert.*;
 
-public class LayerServiceLightParallaxTest {
+public class LayerServiceParallaxTest {
 
     @Test
-    public void parallax_returnsParallaxComponentForLightLayer() {
+    public void parallax_returnsParallaxComponentForClassicLayer() {
         World world = new World(new WorldConfiguration());
         IdentityRegistry identities = new IdentityRegistry();
         identities.bind(world, new SceneMetaRuntime());
@@ -29,7 +29,7 @@ public class LayerServiceLightParallaxTest {
 
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = 0;
-        layer.type = LayerComponent.TYPE_LIGHT;
+        layer.type = LayerComponent.TYPE_CLASSIC;
 
         world.getMapper(LayerMetaComponent.class).create(layerEntity);
 
