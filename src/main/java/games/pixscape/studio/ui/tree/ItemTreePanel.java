@@ -884,7 +884,7 @@ public class ItemTreePanel extends DockablePanel {
             selectionService.selectOnly(bodyEid, SelectionService.SelectionSource.TREE);
         } else {
             selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-            selectionService.setActivelayerIdForPhysicsContext(bodyEid, SelectionService.SelectionSource.TREE);
+            selectionService.setActivelayerId(bodyEid, SelectionService.SelectionSource.TREE);
         }
 
         physicsSelectionService.clearSelectionOnly();

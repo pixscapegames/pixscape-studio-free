@@ -165,7 +165,6 @@ public final class NewLayerDialog extends StudioDialog {
         int type = resolveLayerType(typeBox.getSelected());
 
         String info = switch (type) {
-            case LayerComponent.TYPE_PHYSICS -> "Physics only with scene parallax";
             case LayerComponent.TYPE_TILED -> "Tiled Map only with parallax";
 
             default -> "Classic layer with parallax";
@@ -195,12 +194,8 @@ public final class NewLayerDialog extends StudioDialog {
 
     private int resolveLayerType(String selected) {
 
-        if ("Physics".equals(selected)) {
-            return LayerComponent.TYPE_PHYSICS;
-        }
-
         if (isSpatialSelection(selected)) {
-            return LayerComponent.TYPE_PHYSICS;
+            return LayerComponent.TYPE_CLASSIC;
         }
 
         if ("Tiled".equals(selected)) {
@@ -214,7 +209,6 @@ public final class NewLayerDialog extends StudioDialog {
         Array<String> types = new Array<>();
         types.add("Classic");
         if (meta != null && meta.physicsEnabled) {
-            types.add("Physics");
             if (!hasSpatialActorLayer) {
                 types.add("Spatial");
             }

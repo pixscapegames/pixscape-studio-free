@@ -145,6 +145,12 @@ public class EntityGraphServicesTest {
         EntityGraphInstantiationResult result = service.instantiatePrefab(
                 graph, 7, 0f, 0f, "Drop Castle", 41, "Castle");
         Assert.assertEquals(2, result.createdIds().size);
+        for (int i = 0; i < result.createdIds().size; i++) {
+            int entityId = result.createdIds().get(i);
+            Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(entityId));
+            Assert.assertEquals(1,
+                    world.getMapper(PhysicsShapesComponent.class).get(entityId).shapes.size);
+        }
         assertPrefabMembers(world, 41, "Castle", 7, 2);
         Assert.assertEquals(1, history.getCursor());
         int droppedAZ = world.getMapper(EntityIndexComponent.class)
@@ -260,7 +266,7 @@ public class EntityGraphServicesTest {
                 world, null, new games.pixscape.studio.configuration.SceneMeta()))
                 .instantiateForClipboard(
                         graph, 3, 0f, 0f, "Paste",
-                        EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS);
+                        EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
 
         Assert.assertEquals(2, pasted.createdIds().size);
         for (int i = 0; i < pasted.createdIds().size; i++) {

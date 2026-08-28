@@ -190,7 +190,7 @@ public final class LayerService {
     }
 
     public static boolean isSpatialActorLayer(int type, boolean spatialEnabled) {
-        return type == LayerComponent.TYPE_PHYSICS && spatialEnabled;
+        return type == LayerComponent.TYPE_CLASSIC && spatialEnabled;
     }
 
     public LayerMetaComponent meta(int index) {
@@ -723,7 +723,6 @@ public final class LayerService {
     private static int normalizeLayerType(int type) {
         return switch (type) {
             case LayerComponent.TYPE_CLASSIC,
-                 LayerComponent.TYPE_PHYSICS,
                  LayerComponent.TYPE_TILED -> type;
             default -> LayerComponent.TYPE_CLASSIC;
         };
@@ -744,7 +743,6 @@ public final class LayerService {
             return "Spatial";
         }
         return switch (type) {
-            case LayerComponent.TYPE_PHYSICS -> "Physics";
             case LayerComponent.TYPE_TILED -> "Tiled";
             default -> "Classic";
         };
@@ -757,7 +755,6 @@ public final class LayerService {
     public static String typeSuffixLabel(int type, boolean spatialEnabled) {
         if (isSpatialActorLayer(type, spatialEnabled)) return "(Spatial)";
         return switch (type) {
-            case LayerComponent.TYPE_PHYSICS -> "(Physics)";
             case LayerComponent.TYPE_TILED -> "(Tiled)";
             default -> "";
         };

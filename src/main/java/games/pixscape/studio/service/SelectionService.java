@@ -99,14 +99,6 @@ public final class SelectionService {
         setActivelayerIdInternal(layer, true, source);
     }
 
-    public void setActivelayerIdForPhysicsContext(int layer) {
-        setActivelayerIdForPhysicsContext(layer, SelectionSource.VIEWPORT);
-    }
-
-    public void setActivelayerIdForPhysicsContext(int layer, SelectionSource source) {
-        setActivelayerIdInternal(layer, false, source);
-    }
-
     private void setActivelayerIdInternal(
             int layer, boolean tiledMapEditingTarget, SelectionSource source) {
         this.activelayerId = layer;

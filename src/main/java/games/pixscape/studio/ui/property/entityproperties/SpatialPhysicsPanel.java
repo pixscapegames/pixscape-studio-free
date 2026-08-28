@@ -22,6 +22,7 @@ import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditSpatialHeightCommand;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -161,12 +162,11 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
         if (index == null) return false;
         int layerIndex = index.getLayerIndex();
-        if (ctx.layerService.getLayerTypeByIndex(layerIndex) != LayerComponent.TYPE_PHYSICS) return false;
         int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
-        return layer != null && layer.spatialEnabled;
+        return LayerService.isSpatialActorLayer(layer);
     }
 
     private PhysicsShapeData createDefaultFootprint(int eid) {

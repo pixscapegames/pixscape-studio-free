@@ -1608,22 +1608,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
-    /**
-     * Removes authored physics state that the destination clipboard layer cannot support.
-     * This initializer must be a private duplicate prepared for one instantiation.
-     */
-    public GenericEntityInitializer normalizeClipboardPhysics(
-            boolean targetPhysicsEnabled, boolean targetSpatialEnabled) {
-        if (!targetPhysicsEnabled) {
-            hasSpatialHeight = false;
-            hasPhysicsBody = false;
-            hasPhysicsShapes = false;
-            physicsShapes.clear();
-            clearPhysicsJointData();
-            preparedPhysicsCandidate = null;
-            return this;
-        }
-
+    /** Removes Spatial-only actor state when copying into an ordinary layer. */
+    public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
             hasSpatialHeight = false;
             boolean hadFootprint =
@@ -1659,19 +1645,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         prefabInstanceId = -1;
         prefabId = "";
         return this;
-    }
-
-    private void clearPhysicsJointData() {
-        hasPhysicsJoint = false;
-        hasDistanceJoint = false;
-        hasRevoluteJoint = false;
-        hasPrismaticJoint = false;
-        hasWheelJoint = false;
-        hasFrictionJoint = false;
-        hasMotorJoint = false;
-        hasWeldJoint = false;
-        hasPulleyJoint = false;
-        hasGearJoint = false;
     }
 
     public GenericEntityInitializer duplicate() {

@@ -139,17 +139,14 @@ public final class ClipboardService {
         }
 
         EntityGraphInstantiationService.ClipboardTargetLayer targetLayer =
-                layer.type != LayerComponent.TYPE_PHYSICS
-                        ? EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS
-                        : LayerService.isSpatialActorLayer(layer)
-                                ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_PHYSICS
-                                : EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS;
+                LayerService.isSpatialActorLayer(layer)
+                        ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL
+                        : EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY;
         return new ResolvedClipboardDestination(layerIndex, targetLayer);
     }
 
     private static boolean isKnownLayerType(int type) {
         return type == LayerComponent.TYPE_CLASSIC
-                || type == LayerComponent.TYPE_PHYSICS
                 || type == LayerComponent.TYPE_TILED;
     }
 

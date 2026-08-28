@@ -276,9 +276,10 @@ public class ItemTreePrefabQueuedSelectionTest {
         String canvas = Files.readString(Path.of(
                 "src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java"));
         int methodStart = canvas.indexOf("public void handlePrefabDrop");
-        int methodEnd = canvas.indexOf("private boolean prefabContainsPhysics", methodStart);
+        int methodEnd = canvas.indexOf("boolean ensurePrefabRenderAssetsInSceneAtlas", methodStart);
         String method = canvas.substring(methodStart, methodEnd);
         assertTrue(method.contains("itemTreePanel.selectPrefabInstance("));
+        assertFalse(method.contains("prefabContainsPhysics"));
         assertFalse(method.contains("selectionService.clearSelection("));
         assertFalse(method.contains("selectionService.selectOnly("));
         assertFalse(method.contains("selectionService.selectAdd("));

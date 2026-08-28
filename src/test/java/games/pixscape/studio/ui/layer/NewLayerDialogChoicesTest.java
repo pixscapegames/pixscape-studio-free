@@ -18,8 +18,8 @@ public class NewLayerDialogChoicesTest {
         assertChoices(meta, false, "Classic", "Tiled");
 
         meta.physicsEnabled = true;
-        assertChoices(meta, false, "Classic", "Physics", "Spatial", "Tiled");
-        assertChoices(meta, true, "Classic", "Physics", "Tiled");
+        assertChoices(meta, false, "Classic", "Spatial", "Tiled");
+        assertChoices(meta, true, "Classic", "Tiled");
     }
 
     private static void assertChoices(SceneMeta meta, boolean hasSpatialActorLayer, String... expected) {

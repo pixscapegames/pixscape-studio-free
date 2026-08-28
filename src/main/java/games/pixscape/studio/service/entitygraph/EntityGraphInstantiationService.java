@@ -26,15 +26,12 @@ import java.util.function.IntConsumer;
 
 public final class EntityGraphInstantiationService {
     public enum ClipboardTargetLayer {
-        NON_PHYSICS(false, false),
-        PHYSICS(true, false),
-        SPATIAL_PHYSICS(true, true);
+        ORDINARY(false),
+        SPATIAL(true);
 
         final boolean spatialEnabled;
-        final boolean physicsEnabled;
 
-        ClipboardTargetLayer(boolean physicsEnabled, boolean spatialEnabled) {
-            this.physicsEnabled = physicsEnabled;
+        ClipboardTargetLayer(boolean spatialEnabled) {
             this.spatialEnabled = spatialEnabled;
         }
     }
@@ -123,7 +120,7 @@ public final class EntityGraphInstantiationService {
         List<PreparedEntity> preparedEntities = prepareEntities(
                 graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer,
                 prefabInstanceId, prefabId);
-        if (clipboardTargetLayer == ClipboardTargetLayer.PHYSICS) {
+        if (clipboardTargetLayer == ClipboardTargetLayer.ORDINARY) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
         prepareJointRemaps(snapshots);
@@ -192,16 +189,9 @@ public final class EntityGraphInstantiationService {
                                 + sourceEntityId + ".");
             }
             GenericEntityInitializer initializer = entry.initializer().duplicate();
-            GenericEntitySnapshotData snapshot =
-                    initializer.toSnapshotData(sourceEntityId);
-            if (clipboardTargetLayer == ClipboardTargetLayer.NON_PHYSICS
-                    && snapshot.hasJoint) {
-                continue;
-            }
+            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             if (clipboardTargetLayer != null) {
-                initializer.normalizeClipboardPhysics(
-                        clipboardTargetLayer.physicsEnabled,
-                        clipboardTargetLayer.spatialEnabled);
+                initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);
                 initializer.clearPrefabInstance();
             } else if (prefabInstanceId > 0) {
                 initializer.setPrefabInstance(prefabInstanceId, prefabId);

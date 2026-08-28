@@ -11,6 +11,8 @@ import com.kotcrab.vis.ui.widget.VisDialog;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
@@ -54,7 +56,7 @@ public class ScenePropertiesPhysicsPurgeTest {
     }
 
     @Test
-    public void purgeCompletesAfterNativeTeardownAndLeavesHistoryDirty() throws Exception {
+    public void purgeRemovesPhysicsButPreservesOrdinaryLayers() throws Exception {
         SceneMeta meta = new SceneMeta();
         meta.physicsEnabled = true;
         ProjectConfig config = new ProjectConfig();
@@ -90,14 +92,17 @@ public class ScenePropertiesPhysicsPurgeTest {
         reconciler.bindWorld(world);
         PhysicsService physics = new PhysicsService(world, box2d, meta);
 
-        int fallbackLayer = layer(world, history, 0, LayerComponent.TYPE_CLASSIC);
-        int physicsLayer = layer(world, history, 1, LayerComponent.TYPE_PHYSICS);
+        int firstLayer = layer(world, history, 0, LayerComponent.TYPE_CLASSIC);
+        int activeLayer = layer(world, history, 1, LayerComponent.TYPE_CLASSIC);
+        int unrelatedEntity = world.create();
+        world.getMapper(TransformComponent.class).create(unrelatedEntity).x = 42f;
+        history.historyIds().ensureForEntity(unrelatedEntity);
         int bodyA = body(world, history, physics, 0f);
         int bodyB = body(world, history, physics, 100f);
         int joint = physics.createDistanceJoint(bodyA, bodyB);
         long jointHistoryId = history.historyIds().ensureForEntity(joint);
         long bodyHistoryId = history.historyIds().historyIdOfEntity(bodyA);
-        selection.setActivelayerId(physicsLayer);
+        selection.setActivelayerId(activeLayer);
         physicsSelection.focusBody(bodyA);
         history.execute(new CounterCommand());
         boolean[] previewDirty = {false};
@@ -145,8 +150,19 @@ public class ScenePropertiesPhysicsPurgeTest {
         Assert.assertTrue(history.isDirty());
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(bodyA));
         Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(bodyB));
-        Assert.assertFalse(world.getEntityManager().isActive(physicsLayer));
-        Assert.assertEquals(fallbackLayer, selection.getActivelayerId());
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(bodyA));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(bodyB));
+        Assert.assertEquals(0, world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities().size());
+        Assert.assertEquals(0, world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+        Assert.assertEquals(2, layers.count());
+        Assert.assertTrue(world.getEntityManager().isActive(firstLayer));
+        Assert.assertTrue(world.getEntityManager().isActive(activeLayer));
+        Assert.assertTrue(world.getEntityManager().isActive(unrelatedEntity));
+        Assert.assertEquals(42f,
+                world.getMapper(TransformComponent.class).get(unrelatedEntity).x, 0f);
+        Assert.assertEquals(activeLayer, selection.getActivelayerId());
         Assert.assertEquals(-1, history.historyIds().entityOfHistoryId(jointHistoryId));
         Assert.assertEquals(bodyA, history.historyIds().entityOfHistoryId(bodyHistoryId));
         Assert.assertFalse(physicsSelection.hasFocusedBody());

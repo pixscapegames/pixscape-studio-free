@@ -19,8 +19,8 @@ public class LayersPanelTiledObjectSuffixTest {
         assertEquals("", LayersPanel.layerTypeSuffix(
                 LayerComponent.TYPE_CLASSIC, false, false, SceneMetaRuntime.TiledProjection.ORTHO));
         assertEquals(LayersPanel.layerTypeSuffix(
-                        LayerComponent.TYPE_PHYSICS, true, false, SceneMetaRuntime.TiledProjection.ORTHO),
+                        LayerComponent.TYPE_CLASSIC, true, false, SceneMetaRuntime.TiledProjection.ORTHO),
                 games.pixscape.studio.service.LayerService.typeSuffixLabel(
-                        LayerComponent.TYPE_PHYSICS, true));
+                        LayerComponent.TYPE_CLASSIC, true));
     }
 }

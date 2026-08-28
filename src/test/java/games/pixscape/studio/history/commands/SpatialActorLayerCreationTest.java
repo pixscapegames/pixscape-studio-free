@@ -17,7 +17,7 @@ import static org.junit.Assert.*;
 public class SpatialActorLayerCreationTest {
 
     @Test
-    public void spatialCreationUsesPhysicsIdentityAndSurvivesUndoRedo() {
+    public void spatialCreationUsesOrdinaryLayerIdentityAndSurvivesUndoRedo() {
         Fixture fixture = new Fixture();
         CreateLayerCommand command = fixture.spatialCommand("Actors", null);
 
@@ -26,8 +26,8 @@ public class SpatialActorLayerCreationTest {
         assertFalse(command.wasRejected());
         assertEquals(1, fixture.service.count());
         assertSpatial(fixture.layer(0));
-        assertEquals("Spatial", LayerService.typeDisplayName(LayerComponent.TYPE_PHYSICS, true));
-        assertEquals("(Spatial)", LayerService.typeSuffixLabel(LayerComponent.TYPE_PHYSICS, true));
+        assertEquals("Spatial", LayerService.typeDisplayName(LayerComponent.TYPE_CLASSIC, true));
+        assertEquals("(Spatial)", LayerService.typeSuffixLabel(LayerComponent.TYPE_CLASSIC, true));
 
         fixture.history.undo();
         assertEquals(0, fixture.service.count());
@@ -81,19 +81,19 @@ public class SpatialActorLayerCreationTest {
     }
 
     @Test
-    public void ordinaryPhysicsRemainsAvailableBesideSpatial() {
+    public void ordinaryLayerRemainsAvailableBesideSpatial() {
         Fixture fixture = new Fixture();
         fixture.history.execute(fixture.spatialCommand("Spatial", null));
 
         fixture.history.execute(new CreateLayerCommand(
-                fixture.service, fixture.service.count(), "Physics",
-                LayerComponent.TYPE_PHYSICS, false, null));
+                fixture.service, fixture.service.count(), "Ordinary",
+                LayerComponent.TYPE_CLASSIC, false, null));
 
         assertEquals(2, fixture.service.count());
-        LayerComponent physics = fixture.layer(1);
-        assertEquals(LayerComponent.TYPE_PHYSICS, physics.type);
-        assertFalse(physics.spatialEnabled);
-        assertEquals("Physics", LayerService.typeDisplayName(physics.type, physics.spatialEnabled));
+        LayerComponent ordinary = fixture.layer(1);
+        assertEquals(LayerComponent.TYPE_CLASSIC, ordinary.type);
+        assertFalse(ordinary.spatialEnabled);
+        assertEquals("Classic", LayerService.typeDisplayName(ordinary.type, ordinary.spatialEnabled));
     }
 
     @Test
@@ -119,9 +119,15 @@ public class SpatialActorLayerCreationTest {
         assertFalse(fixture.history.canUndo());
     }
 
+    @Test
+    public void tiledSpatialFlagDoesNotClaimTheSingleActorLayerSlot() {
+        assertFalse(LayerService.isSpatialActorLayer(LayerComponent.TYPE_TILED, true));
+        assertTrue(LayerService.isSpatialActorLayer(LayerComponent.TYPE_CLASSIC, true));
+    }
+
     private static void assertSpatial(LayerComponent layer) {
         assertNotNull(layer);
-        assertEquals(LayerComponent.TYPE_PHYSICS, layer.type);
+        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertTrue(layer.spatialEnabled);
     }
 
@@ -138,7 +144,7 @@ public class SpatialActorLayerCreationTest {
 
         private CreateLayerCommand spatialCommand(String name, java.util.function.IntConsumer selected) {
             return new CreateLayerCommand(service, service.count(), name,
-                    LayerComponent.TYPE_PHYSICS, true, selected);
+                    LayerComponent.TYPE_CLASSIC, true, selected);
         }
 
         private LayerComponent layer(int index) {
@@ -149,7 +155,7 @@ public class SpatialActorLayerCreationTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = index;
-            layer.type = LayerComponent.TYPE_PHYSICS;
+            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
             world.getMapper(LayerMetaComponent.class).create(entity).name = "Spatial " + index;
         }

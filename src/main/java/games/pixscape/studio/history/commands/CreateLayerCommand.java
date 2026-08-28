@@ -48,7 +48,7 @@ public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
         this.insertionIndex = insertionIndex;
         this.onLayerSelected = onLayerSelected;
         this.historyIds = layerService.historyIds();
-        this.spatialActorLayer = spatialActorLayer && type == LayerComponent.TYPE_PHYSICS;
+        this.spatialActorLayer = spatialActorLayer && type == LayerComponent.TYPE_CLASSIC;
         String effectiveName = (name != null && !name.isBlank()) ? name : "New Layer";
         this.initializer = new LayerInitializer(world, layerService.getTiledAllocatorService())
                 .configureNewLayer(effectiveName, insertionIndex, type, this.spatialActorLayer);

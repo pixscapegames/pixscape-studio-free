@@ -141,8 +141,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
     private IdentityRegistry identityRegistry;
-    private String cachedPrefabPhysicsPath;
-    private boolean cachedPrefabContainsPhysics;
 
     // tiled
     private TiledPaintService tiledPaintService;
@@ -870,12 +868,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             case LayerComponent.TYPE_TILED -> tilePayload
                     ? DropAllowedResult.allowed()
                     : DropAllowedResult.forbidden();
-            case LayerComponent.TYPE_PHYSICS -> DropAllowedResult.allowed();
             default -> {
                 if (tilePayload) {
-                    yield DropAllowedResult.forbidden();
-                }
-                if ("prefab".equals(p.type) && payloadPrefabContainsPhysics(p)) {
                     yield DropAllowedResult.forbidden();
                 }
                 yield DropAllowedResult.allowed();
@@ -896,33 +890,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         currentCursorForbidden = false;
 
         Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
-    }
-
-    private boolean payloadPrefabContainsPhysics(DragPayload p) {
-        if (p == null || p.path == null || p.path.trim().isEmpty()) {
-            return false;
-        }
-
-        if (p.path.equals(cachedPrefabPhysicsPath)) {
-            return cachedPrefabContainsPhysics;
-        }
-
-        cachedPrefabPhysicsPath = p.path;
-        cachedPrefabContainsPhysics = false;
-
-        FileHandle prefabFile = Gdx.files.absolute(p.path);
-        if (!prefabFile.exists()) {
-            return false;
-        }
-
-        try {
-            EntityGraph graph = prefabAssetService.loadPrefab(prefabFile);
-            cachedPrefabContainsPhysics = prefabContainsPhysics(graph);
-        } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to inspect prefab physics: " + p.path, ex);
-        }
-
-        return cachedPrefabContainsPhysics;
     }
 
     private void setDndCursor(DragPayload payload, boolean forbidden) {
@@ -1792,10 +1759,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        if (prefabContainsPhysics(graph) && !activeLayerAcceptsPhysicsPrefabs()) {
-            return;
-        }
-
         computePrefabOrigin(graph, tmpPrefabOrigin);
 
         int prefabInstanceId;
@@ -1852,48 +1815,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             selectionService.replaceSelection(
                     result.createdIds(), SelectionService.SelectionSource.TREE);
         }
-    }
-
-    private boolean prefabContainsPhysics(EntityGraph graph) {
-        if (graph == null || graph.isEmpty()) {
-            return false;
-        }
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            GenericEntitySnapshotData snapshot =
-                    entry.initializer().toSnapshotData(entry.sourceEntityId());
-
-            if (snapshot.hasPhysicsBody ||
-                    snapshot.shapes.size > 0 ||
-                    snapshot.hasJoint ||
-                    snapshot.hasDistanceJoint ||
-                    snapshot.hasRevoluteJoint ||
-                    snapshot.hasPrismaticJoint ||
-                    snapshot.hasWheelJoint ||
-                    snapshot.hasFrictionJoint ||
-                    snapshot.hasMotorJoint ||
-                    snapshot.hasWeldJoint ||
-                    snapshot.hasPulleyJoint ||
-                    snapshot.hasGearJoint ||
-                    snapshot.shapes.size > 0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean activeLayerAcceptsPhysicsPrefabs() {
-        if (selectionService == null || layerService == null) {
-            return false;
-        }
-
-        int activeLayerEntityId = selectionService.getActivelayerId();
-        if (activeLayerEntityId < 0) {
-            return false;
-        }
-
-        return layerService.getLayerTypeByEntity(activeLayerEntityId) == LayerComponent.TYPE_PHYSICS;
     }
 
     boolean ensurePrefabRenderAssetsInSceneAtlas(EntityGraph graph, String sceneTag) {

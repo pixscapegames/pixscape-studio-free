@@ -14,6 +14,7 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyPanel;
 import games.pixscape.studio.ui.widget.SimpleTextField;
@@ -310,7 +311,7 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isPhysicsApplicable() {
-        return scenePhysicsEnabled && isEntityInPhysicsLayer();
+        return scenePhysicsEnabled;
     }
 
     private void syncScenePhysicsEnabled() {
@@ -374,18 +375,6 @@ public class EntityProperties extends VisTable {
         }
     }
 
-    private boolean isEntityInPhysicsLayer() {
-        if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
-            return false;
-        }
-        EntityIndexComponent entityIndex = mEntityIndex.getSafe(currentEntityId, null);
-        if (entityIndex == null) {
-            return false;
-        }
-        int layerIndex = entityIndex.getLayerIndex();
-        return ctx.layerService.getLayerTypeByIndex(layerIndex) == LayerComponent.TYPE_PHYSICS;
-    }
-
     private boolean isEntityInSpatialLayer() {
         if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
             return false;
@@ -395,22 +384,13 @@ public class EntityProperties extends VisTable {
             return false;
         }
         int layerIndex = entityIndex.getLayerIndex();
-        int layerType = ctx.layerService.getLayerTypeByIndex(layerIndex);
-        if (layerType != LayerComponent.TYPE_PHYSICS) {
-            return false;
-        }
-
         int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
         if (layerEntityId < 0) {
             return false;
         }
 
         LayerComponent layer = ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        if (layer != null && layer.spatialEnabled) {
-            return true;
-        }
-
-        return false;
+        return LayerService.isSpatialActorLayer(layer);
     }
 
     private boolean hasSpatialActorState() {

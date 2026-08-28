@@ -195,7 +195,7 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void pasteResolvesValidClassicLayerAndStripsPhysics() throws Exception {
+    public void pasteResolvesValidOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
@@ -204,14 +204,14 @@ public class ClipboardServiceFlowTest {
         Assert.assertTrue(h.clipboard.paste());
         int pasted = h.selection.getFirstSelectedEntityId();
         Assert.assertEquals(0, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
-        Assert.assertFalse(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertFalse(h.world.getMapper(PhysicsShapesComponent.class).has(pasted));
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(1, h.world.getMapper(PhysicsShapesComponent.class).get(pasted).shapes.size);
     }
 
     @Test
-    public void pasteResolvesValidPhysicsLayerAndKeepsPhysics() throws Exception {
+    public void pasteResolvesSecondOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
-        int physicsLayer = h.addLayer(1, LayerComponent.TYPE_PHYSICS, false);
+        int physicsLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
@@ -225,9 +225,9 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void pasteResolvesValidSpatialPhysicsLayerAndKeepsSpatialState() throws Exception {
+    public void pasteResolvesValidSpatialEnabledLayerAndKeepsSpatialState() throws Exception {
         Harness h = new Harness();
-        int spatialLayer = h.addLayer(1, LayerComponent.TYPE_PHYSICS, true);
+        int spatialLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, true);
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;

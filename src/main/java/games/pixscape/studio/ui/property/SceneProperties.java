@@ -14,7 +14,6 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
@@ -665,7 +664,8 @@ public class SceneProperties extends VisTable {
         dialog.text(
                 """
                         Disabling physics will permanently delete all physics in this scene.
-                        This includes bodies, fixtures, attached joints and physics layers.
+                        This includes bodies, fixtures, sensors and attached joints.
+                        Layers and non-physics entities will remain unchanged.
                         
                         Do you want to continue?"""
         );
@@ -684,9 +684,7 @@ public class SceneProperties extends VisTable {
 
     private void beginPhysicsPurge(SceneMeta sceneMeta) {
         List<Integer> bodyEntityIds = entitiesWith(Aspect.all(PhysicsBodyComponent.class));
-        List<Integer> physicsLayerEntityIds = collectPhysicsLayerEntityIds();
         validateActive(bodyEntityIds);
-        validateActive(physicsLayerEntityIds);
         com.badlogic.gdx.utils.IntArray jointEntityIds =
                 new com.badlogic.gdx.utils.IntArray(false, 16);
         com.badlogic.gdx.utils.IntSet uniqueJointIds =
@@ -711,47 +709,7 @@ public class SceneProperties extends VisTable {
         for (int i = 0; i < jointEntityIds.size; i++) {
             historyManager.historyIds().unbindEntity(jointEntityIds.get(i));
         }
-        removeAllPhysicsLayers(physicsLayerEntityIds);
         pendingPhysicsPurge = sceneMeta;
-    }
-
-    private List<Integer> collectPhysicsLayerEntityIds() {
-        List<Integer> physicsLayerEntityIds = new ArrayList<>();
-        if (layerService == null) return physicsLayerEntityIds;
-        int layerCount = layerService.count();
-        for (int i = 0; i < layerCount; i++) {
-            int layerEntityId = layerService.getLayerEntity(i);
-            if (layerEntityId == -1) {
-                continue;
-            }
-
-            if (layerService.getLayerTypeByEntity(layerEntityId) == LayerComponent.TYPE_PHYSICS) {
-                physicsLayerEntityIds.add(layerEntityId);
-            }
-        }
-        return physicsLayerEntityIds;
-    }
-
-    private void removeAllPhysicsLayers(List<Integer> physicsLayerEntityIds) {
-        int activeLayerId = selectionService != null ? selectionService.getActivelayerId() : -1;
-        boolean activeLayerWasRemoved = false;
-
-        for (int i = physicsLayerEntityIds.size() - 1; i >= 0; i--) {
-            int layerEntityId = physicsLayerEntityIds.get(i);
-
-            if (layerEntityId == activeLayerId) {
-                activeLayerWasRemoved = true;
-            }
-
-            int index = layerService.indexOfLayerEntity(layerEntityId);
-            if (index >= 0) {
-                layerService.removeLayerCascade(index);
-            }
-        }
-
-        if (selectionService != null && activeLayerWasRemoved) {
-            selectionService.setActivelayerId(layerService.getFirstLayerEntity());
-        }
     }
 
     private void completePendingPhysicsPurge() {
