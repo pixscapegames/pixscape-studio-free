@@ -5,6 +5,7 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
 import org.junit.Test;
@@ -55,6 +56,102 @@ public class StudioDisplayOffsetResolverTest {
 
             assertEquals(50f, actual.x, 0f);
             assertEquals(50f, actual.y, 0f);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void nonRenderedPhysicalEntityUsesScenePhysicsParallaxFallback() {
+        World world = new World(new WorldConfiguration());
+        try {
+            int entity = world.create();
+            world.getMapper(EntityIndexComponent.class).create(entity).layerIndex = 2;
+            world.getMapper(PhysicsBodyComponent.class).create(entity);
+            LayerStateSOA layers = new LayerStateSOA(4);
+            layers.enabled[2] = true;
+            layers.parallaxX[2] = 0.25f;
+            layers.parallaxY[2] = 0.5f;
+            layers.physicsParallaxX = 0.8f;
+            layers.physicsParallaxY = 0.6f;
+            OrthographicCamera camera = new OrthographicCamera();
+            camera.position.set(100f, 200f, 0f);
+
+            StudioDisplayOffsetResolver resolver = new StudioDisplayOffsetResolver(
+                    world, new DynamicEntityRenderState(), layers, camera);
+            Vector2 actual = new Vector2();
+            resolver.resolve(entity, actual);
+
+            assertEquals(20f, actual.x, 0.0001f);
+            assertEquals(80f, actual.y, 0.0001f);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void physicalEntityRenderSlotStillUsesExactRuntimeOffset() {
+        World world = new World(new WorldConfiguration());
+        try {
+            int entity = world.create();
+            world.getMapper(EntityIndexComponent.class).create(entity).layerIndex = 0;
+            world.getMapper(PhysicsBodyComponent.class).create(entity);
+            LayerStateSOA layers = new LayerStateSOA(1);
+            layers.enabled[0] = true;
+            layers.physicsParallaxX = 0.8f;
+            layers.physicsParallaxY = 0.6f;
+            DynamicEntityRenderState renderState = new DynamicEntityRenderState();
+            int slot = renderState.acquireSlotForEntity(entity);
+            renderState.offsetX[slot] = 37f;
+            renderState.offsetY[slot] = -11f;
+            OrthographicCamera camera = new OrthographicCamera();
+            camera.position.set(100f, 200f, 0f);
+
+            StudioDisplayOffsetResolver resolver = new StudioDisplayOffsetResolver(
+                    world, renderState, layers, camera);
+            Vector2 actual = new Vector2();
+            resolver.resolve(entity, actual);
+
+            assertEquals(37f, actual.x, 0f);
+            assertEquals(-11f, actual.y, 0f);
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void physicalFallbackDoesNotChangeWhenOwningLayerChanges() {
+        World world = new World(new WorldConfiguration());
+        try {
+            int entity = world.create();
+            EntityIndexComponent index =
+                    world.getMapper(EntityIndexComponent.class).create(entity);
+            index.layerIndex = 0;
+            world.getMapper(PhysicsBodyComponent.class).create(entity);
+            LayerStateSOA layers = new LayerStateSOA(2);
+            layers.enabled[0] = true;
+            layers.enabled[1] = true;
+            layers.parallaxX[0] = 0.1f;
+            layers.parallaxY[0] = 0.2f;
+            layers.parallaxX[1] = 0.9f;
+            layers.parallaxY[1] = 0.95f;
+            layers.physicsParallaxX = 0.8f;
+            layers.physicsParallaxY = 0.6f;
+            OrthographicCamera camera = new OrthographicCamera();
+            camera.position.set(100f, 200f, 0f);
+            StudioDisplayOffsetResolver resolver = new StudioDisplayOffsetResolver(
+                    world, new DynamicEntityRenderState(), layers, camera);
+            Vector2 first = new Vector2();
+            Vector2 second = new Vector2();
+
+            resolver.resolve(entity, first);
+            index.layerIndex = 1;
+            resolver.resolve(entity, second);
+
+            assertEquals(first.x, second.x, 0f);
+            assertEquals(first.y, second.y, 0f);
+            assertEquals(20f, second.x, 0.0001f);
+            assertEquals(80f, second.y, 0.0001f);
         } finally {
             world.dispose();
         }

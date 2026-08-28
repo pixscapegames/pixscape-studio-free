@@ -201,7 +201,7 @@ public class HistoryIdentityRegressionTest {
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB, sourceC));
         EntityGraphInstantiationService service = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()));
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true);
 
         EntityGraphInstantiationResult first = service.instantiate(graph, 0, 10f, 0f, "Instantiate Prefab");
         world.process();
@@ -229,7 +229,7 @@ public class HistoryIdentityRegressionTest {
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(sourceA, sourceB));
         EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(graph, 0, 10f, 10f, "Instantiate Prefab");
         world.process();
 

@@ -96,7 +96,8 @@ public class WorldCanvasChainPrefabPlacementTest {
                     world,
                     history,
                     identities,
-                    new PhysicsService(world, box2d, meta))
+                    new PhysicsService(world, box2d, meta),
+                    () -> true)
                     .instantiatePrefab(
                             graph, 0, dx, dy,
                             "Drop real chain geometry", 41, "chain");

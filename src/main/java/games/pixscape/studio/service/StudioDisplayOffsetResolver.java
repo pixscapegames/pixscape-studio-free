@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.helper.ParallaxHelper;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
@@ -16,6 +17,7 @@ public final class StudioDisplayOffsetResolver {
     private final LayerStateSOA layerState;
     private final OrthographicCamera camera;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private final ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
     private final Vector2 scratchOffset = new Vector2();
 
     public StudioDisplayOffsetResolver(World world,
@@ -27,6 +29,7 @@ public final class StudioDisplayOffsetResolver {
         this.layerState = layerState;
         this.camera = camera;
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
+        this.mPhysicsBody = world.getMapper(PhysicsBodyComponent.class);
     }
 
     public void resolve(int entityId, Vector2 out) {
@@ -48,8 +51,13 @@ public final class StudioDisplayOffsetResolver {
         int layerIndex = mEntityIndex.get(entityId).getLayerIndex();
         if (layerIndex < 0 || layerIndex >= layerState.capacity() || !layerState.enabled[layerIndex]) return;
 
-        float factorX = layerState.parallaxX[layerIndex];
-        float factorY = layerState.parallaxY[layerIndex];
+        boolean physical = mPhysicsBody.has(entityId);
+        float factorX = physical
+                ? layerState.physicsParallaxX
+                : layerState.parallaxX[layerIndex];
+        float factorY = physical
+                ? layerState.physicsParallaxY
+                : layerState.parallaxY[layerIndex];
         ParallaxHelper.computeParallaxOffset(
                 camera.position.x,
                 camera.position.y,

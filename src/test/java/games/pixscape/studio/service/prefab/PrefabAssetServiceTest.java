@@ -100,7 +100,7 @@ public class PrefabAssetServiceTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         Assert.assertTrue(result.createdIds().size > 0);
@@ -141,7 +141,7 @@ public class PrefabAssetServiceTest {
                 .create(targetLayer).name = "Target";
         EntityGraphInstantiationResult dropped = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiatePrefab(loaded, 0, 0f, 0f, "Drop Fortress", 13, "Fortress");
         PrefabInstanceComponent fresh = world.getMapper(PrefabInstanceComponent.class)
                 .get(dropped.createdIds().first());
@@ -186,7 +186,7 @@ public class PrefabAssetServiceTest {
         registry.rebuild();
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, history, registry, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Quad Prefab");
 
         Assert.assertEquals(1, result.createdIds().size);
@@ -276,7 +276,7 @@ public class PrefabAssetServiceTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
         Assert.assertTrue(result.createdIds().size > 0);
 
@@ -321,7 +321,7 @@ public class PrefabAssetServiceTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -368,7 +368,7 @@ public class PrefabAssetServiceTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -423,7 +423,7 @@ public class PrefabAssetServiceTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int pastedG = result.sourceToCreated().get(g, -1);
@@ -601,7 +601,8 @@ public class PrefabAssetServiceTest {
                         history,
                         identities,
                         new games.pixscape.runtime.service.PhysicsService(
-                                world, null, sceneMeta))
+                                world, null, sceneMeta),
+                        () -> true)
                         .instantiate(
                                 loaded,
                                 0,
@@ -823,7 +824,7 @@ public class PrefabAssetServiceTest {
         reg.rebuild();
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(loaded, 0, 0f, 0f, "Instantiate Prefab");
 
         int created = result.createdIds().get(0);

@@ -182,7 +182,7 @@ public class ClipboardServiceFlowTest {
                 .capture(new IntArray(new int[]{source}));
         EntityGraphInstantiationResult directResult =
                 new EntityGraphInstantiationService(
-                        h.world, h.history, h.identities, h.physicsService)
+                        h.world, h.history, h.identities, h.physicsService, () -> true)
                         .instantiate(graph, 0, 4f, 4f, "Direct graph path");
         int directEntity = directResult.createdIds().first();
         int directStableId = h.world.getMapper(PixscapeIdentityComponent.class)
@@ -222,6 +222,52 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals(1, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
         Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
         Assert.assertEquals(1, h.world.getMapper(PhysicsShapesComponent.class).get(pasted).shapes.size);
+    }
+
+    @Test
+    public void pasteRejectsRetainedPhysicsGraphWhileScenePhysicsIsDisabled() throws Exception {
+        Harness h = new Harness();
+        int source = physicalEntity(h.world, 0, false);
+        h.selection.selectOnly(source);
+        Assert.assertTrue(h.clipboard.copySelection());
+        h.world.delete(source);
+        h.world.process();
+        h.selection.clearSelection();
+        h.sceneMeta.physicsEnabled = false;
+        int entitiesBefore = countAll(h.world);
+        int historyCursorBefore = h.history.getCursor();
+        int nextStableIdBefore = h.sceneMeta.nextEntityStableId;
+
+        Assert.assertFalse(h.clipboard.paste());
+
+        Assert.assertTrue(h.clipboard.hasContent());
+        Assert.assertEquals(entitiesBefore, countAll(h.world));
+        Assert.assertEquals(historyCursorBefore, h.history.getCursor());
+        Assert.assertEquals(nextStableIdBefore, h.sceneMeta.nextEntityStableId);
+
+        h.sceneMeta.physicsEnabled = true;
+        Assert.assertTrue(h.clipboard.paste());
+        int pasted = h.selection.getFirstSelectedEntityId();
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(
+                1,
+                h.world.getMapper(PhysicsShapesComponent.class).get(pasted).shapes.size);
+    }
+
+    @Test
+    public void ordinaryClipboardGraphPastesWhileScenePhysicsIsDisabled() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 3f, 7f, 0);
+        h.selection.selectOnly(source);
+        Assert.assertTrue(h.clipboard.copySelection());
+        h.sceneMeta.physicsEnabled = false;
+
+        Assert.assertTrue(h.clipboard.paste());
+
+        int pasted = h.selection.getFirstSelectedEntityId();
+        Assert.assertFalse(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(19f,
+                h.world.getMapper(TransformComponent.class).get(pasted).x, 0f);
     }
 
     @Test
@@ -379,6 +425,7 @@ public class ClipboardServiceFlowTest {
             config.createSceneMeta("Main");
             ProjectConfig.setInstance(config);
             sceneMeta = config.getCurrentSceneMeta();
+            sceneMeta.physicsEnabled = true;
             identities.bind(world, sceneMeta);
             identities.rebuild();
             physicsService = new PhysicsService(world, null, sceneMeta);

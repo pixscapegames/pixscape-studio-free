@@ -43,7 +43,8 @@ public class ClipboardLayerCompatibilityTest {
         identities.bind(world, sceneMeta);
         identities.rebuild();
         service = new EntityGraphInstantiationService(
-                world, history, identities, new PhysicsService(world, null, sceneMeta));
+                world, history, identities, new PhysicsService(world, null, sceneMeta),
+                () -> true);
     }
 
     @Test

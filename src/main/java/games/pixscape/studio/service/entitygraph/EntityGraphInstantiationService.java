@@ -22,6 +22,7 @@ import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
 public final class EntityGraphInstantiationService {
@@ -40,23 +41,31 @@ public final class EntityGraphInstantiationService {
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
     private final PhysicsService physicsService;
+    private final BooleanSupplier scenePhysicsEnabled;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final IntConsumer onCreatedEntity;
 
     public EntityGraphInstantiationService(
             World world, HistoryManager historyManager,
-            IdentityRegistry identityRegistry, PhysicsService physicsService) {
-        this(world, historyManager, identityRegistry, physicsService, null);
+            IdentityRegistry identityRegistry, PhysicsService physicsService,
+            BooleanSupplier scenePhysicsEnabled) {
+        this(world, historyManager, identityRegistry, physicsService,
+                scenePhysicsEnabled, null);
     }
 
     public EntityGraphInstantiationService(
             World world, HistoryManager historyManager,
             IdentityRegistry identityRegistry, PhysicsService physicsService,
+            BooleanSupplier scenePhysicsEnabled,
             IntConsumer onCreatedEntity) {
         this.world = world;
         this.historyManager = historyManager;
         this.identityRegistry = identityRegistry;
         this.physicsService = physicsService;
+        if (scenePhysicsEnabled == null) {
+            throw new IllegalArgumentException("scenePhysicsEnabled must not be null.");
+        }
+        this.scenePhysicsEnabled = scenePhysicsEnabled;
         this.onCreatedEntity = onCreatedEntity;
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
     }
@@ -101,6 +110,11 @@ public final class EntityGraphInstantiationService {
         return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer, -1, null);
     }
 
+    public boolean isInstantiationAllowed(EntityGraph graph) {
+        return scenePhysicsEnabled.getAsBoolean()
+                || !EntityGraphPhysicsSupport.containsAuthoredPhysics(graph);
+    }
+
     private EntityGraphInstantiationResult instantiate(
             EntityGraph graph,
             int activeLayerIndex,
@@ -111,6 +125,9 @@ public final class EntityGraphInstantiationService {
             int prefabInstanceId,
             String prefabId) {
         if (graph == null || graph.isEmpty()) {
+            return EntityGraphInstantiationResult.empty();
+        }
+        if (!isInstantiationAllowed(graph)) {
             return EntityGraphInstantiationResult.empty();
         }
 

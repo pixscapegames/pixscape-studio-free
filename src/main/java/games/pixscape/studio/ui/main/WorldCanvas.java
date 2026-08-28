@@ -449,6 +449,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 historyManager,
                 identityRegistry,
                 physicsService,
+                this::isScenePhysicsEnabled,
                 this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
         );
 
@@ -1758,6 +1759,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             Gdx.app.error("PrefabDrop", "Prefab graph is empty: " + p.path);
             return;
         }
+        if (!entityGraphInstantiationService.isInstantiationAllowed(graph)) {
+            Gdx.app.error(
+                    "PrefabDrop",
+                    "Cannot instantiate authored Physics while scene Physics is disabled: "
+                            + p.path);
+            return;
+        }
 
         computePrefabOrigin(graph, tmpPrefabOrigin);
 
@@ -2192,6 +2200,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public PhysicsService getPhysicsService() {
         return physicsService;
+    }
+
+    public boolean isScenePhysicsEnabled() {
+        ProjectConfig config = ProjectConfig.getInstance();
+        SceneMeta meta = config != null ? config.getCurrentSceneMeta() : null;
+        return meta != null && meta.physicsEnabled;
     }
 
     public PhysicsSelectionService getPhysicsSelectionService() {

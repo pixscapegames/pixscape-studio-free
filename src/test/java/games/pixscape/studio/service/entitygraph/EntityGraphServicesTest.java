@@ -80,7 +80,7 @@ public class EntityGraphServicesTest {
 
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(graph, 0, 0f, 0f, "Test Instantiate");
 
         int pastedJ = result.sourceToCreated().get(j, -1);
@@ -104,7 +104,7 @@ public class EntityGraphServicesTest {
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b, c));
         EntityGraphInstantiationResult result = new EntityGraphInstantiationService(
                 world, hm, reg, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiate(graph, 0, 0f, 0f, "Test Instantiate");
 
         int pastedG = result.sourceToCreated().get(g, -1);
@@ -140,7 +140,7 @@ public class EntityGraphServicesTest {
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
         EntityGraphInstantiationService service = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()));
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true);
 
         EntityGraphInstantiationResult result = service.instantiatePrefab(
                 graph, 7, 0f, 0f, "Drop Castle", 41, "Castle");
@@ -218,7 +218,7 @@ public class EntityGraphServicesTest {
 
         EntityGraphInstantiationService service = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()));
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true);
         EntityGraphInstantiationResult result = service.instantiatePrefab(
                 graph, 7, 0f, 0f, "Drop Observed Prefab", 41, "Observed");
 
@@ -263,7 +263,7 @@ public class EntityGraphServicesTest {
         EntityGraph graph = new EntityGraphCaptureService(world).capture(arr(a, b));
         EntityGraphInstantiationResult pasted = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiateForClipboard(
                         graph, 3, 0f, 0f, "Paste",
                         EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
@@ -310,7 +310,7 @@ public class EntityGraphServicesTest {
         try {
             new EntityGraphInstantiationService(
                     world, history, identities, new games.pixscape.runtime.service.PhysicsService(
-                    world, null, new games.pixscape.studio.configuration.SceneMeta()))
+                world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                     .instantiate(incomplete, 0, 0f, 0f, "Invalid graph");
             Assert.fail("Missing joint endpoint mapping must reject the graph.");
         } catch (IllegalArgumentException expected) {

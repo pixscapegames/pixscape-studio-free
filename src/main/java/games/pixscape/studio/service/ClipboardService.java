@@ -1,6 +1,7 @@
 package games.pixscape.studio.service;
 
 import com.artemis.World;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -42,6 +43,7 @@ public final class ClipboardService {
         this.graphCaptureService = new EntityGraphCaptureService(world);
         this.graphInstantiationService = new EntityGraphInstantiationService(
                 world, historyManager, identityRegistry, canvas.getPhysicsService(),
+                canvas::isScenePhysicsEnabled,
                 canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity);
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
@@ -89,6 +91,14 @@ public final class ClipboardService {
 
     public boolean paste() {
         if (graph.isEmpty()) {
+            return false;
+        }
+        if (!graphInstantiationService.isInstantiationAllowed(graph)) {
+            if (Gdx.app != null) {
+                Gdx.app.error(
+                        "Clipboard",
+                        "Cannot paste authored Physics while scene Physics is disabled.");
+            }
             return false;
         }
 
