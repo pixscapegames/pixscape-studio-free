@@ -1,8 +1,21 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
+import games.pixscape.studio.model.EntityKind;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,6 +44,63 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
     public void handlesNegativeVerticalFlipAndKeepsCircleTangentToBottom() {
         assertFootprint(100f, 60f, 0f, 0f, 1f, -1f,
                 0.5f, 0.25f, 0.5f, -0.35f, -0.6f);
+    }
+
+    @Test
+    public void physicsDisabledBlocksActivationButDormantStateCanBeRemoved() {
+        SceneMeta scene = new SceneMeta();
+        scene.physicsEnabled = false;
+        EntityIndexComponent index = new EntityIndexComponent();
+        index.layerIndex = 0;
+        LayerComponent layer = new LayerComponent();
+        layer.type = LayerComponent.TYPE_CLASSIC;
+        layer.spatialEnabled = true;
+
+        boolean eligible = SpatialPhysicsPanel.canActivateSpatialPhysics(
+                scene, EntityKind.SPRITE, index, layer);
+
+        Assert.assertFalse(eligible);
+
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsService physics = new PhysicsService(world, null, scene);
+        int entityId = world.create();
+        PhysicsShapeData footprint = new PhysicsShapeData();
+        footprint.geometry = new PhysicsGeometryData();
+        footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        footprint.geometry.radius = 0.5f;
+
+        ToggleSpatialActorCommand blockedActivation = new ToggleSpatialActorCommand(
+                world,
+                history.historyIds(),
+                physics,
+                entityId,
+                true,
+                eligible,
+                footprint);
+        history.execute(blockedActivation);
+
+        Assert.assertTrue(blockedActivation.isNoop());
+        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entityId));
+
+        world.getMapper(SpatialHeightComponent.class).create(entityId);
+        ToggleSpatialActorCommand removeDormantState = new ToggleSpatialActorCommand(
+                world,
+                history.historyIds(),
+                physics,
+                entityId,
+                false,
+                false,
+                null);
+        history.execute(removeDormantState);
+
+        Assert.assertFalse(removeDormantState.isNoop());
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entityId));
+        world.dispose();
     }
 
     private static void assertFootprint(

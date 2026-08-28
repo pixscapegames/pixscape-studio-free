@@ -1608,7 +1608,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         return this;
     }
 
-    /** Removes Spatial-only actor state when copying into an ordinary layer. */
+    /** Removes Spatial-only actor state when copying into a non-Spatial-enabled layer. */
     public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
             hasSpatialHeight = false;

@@ -51,7 +51,7 @@ public class ClipboardLayerCompatibilityTest {
     public void spatialActorToOrdinaryLayerKeepsOrdinaryPhysicsWithoutSpatialState() {
         int source = spatialActor(true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 7, EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
+                capture(source), 7, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
         int pasted = result.createdIds().first();
 
         Assert.assertEquals(7, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
@@ -66,7 +66,7 @@ public class ClipboardLayerCompatibilityTest {
     public void soleSpatialFootprintToOrdinaryLayerRemovesOrphanedBody() {
         int source = spatialActor(false);
         int pasted = paste(capture(source), 7,
-                EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
         Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
@@ -78,7 +78,7 @@ public class ClipboardLayerCompatibilityTest {
     public void spatialActorToSpatialLayerPreservesHeightAndFootprint() {
         int source = spatialActor(true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL);
+                capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
         int pasted = result.createdIds().first();
 
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(pasted);
@@ -94,7 +94,7 @@ public class ClipboardLayerCompatibilityTest {
     public void physicsActorToOrdinaryLayerKeepsPhysics() {
         int source = physicalActor(false, true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 2, EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
+                capture(source), 2, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
         int pasted = result.createdIds().first();
 
         Assert.assertTrue(world.getMapper(TransformComponent.class).has(pasted));
@@ -115,7 +115,7 @@ public class ClipboardLayerCompatibilityTest {
         int nextStableIdBefore = sceneMeta.nextEntityStableId;
         int nextShapeIdBefore = sceneMeta.nextPhysicsShapeId;
         EntityGraphInstantiationResult result = paste(
-                graph, 3, EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
+                graph, 3, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
         world.process();
 
         Assert.assertEquals(3, result.createdIds().size);
@@ -163,7 +163,7 @@ public class ClipboardLayerCompatibilityTest {
                 .get(source).shapes.first().copy();
 
         int pasted = paste(capture(source), 4,
-                EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
@@ -181,10 +181,10 @@ public class ClipboardLayerCompatibilityTest {
         EntityGraph clipboardGraph = capture(source);
 
         int classicPaste = paste(clipboardGraph, 1,
-                EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
         int spatialPaste = paste(clipboardGraph, 9,
-                EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL)
+                EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED)
                 .createdIds().first();
 
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(classicPaste));
@@ -203,7 +203,7 @@ public class ClipboardLayerCompatibilityTest {
     public void normalizedPasteUndoRedoRemainsOneAtomicHistoryOperation() {
         int source = spatialActor(true);
         int pasted = paste(capture(source), 5,
-                EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
         Assert.assertTrue(history.canUndo());
         Assert.assertTrue(world.getEntityManager().isActive(pasted));

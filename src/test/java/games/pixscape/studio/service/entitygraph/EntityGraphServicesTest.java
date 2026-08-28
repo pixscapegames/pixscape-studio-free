@@ -266,7 +266,7 @@ public class EntityGraphServicesTest {
                 world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
                 .instantiateForClipboard(
                         graph, 3, 0f, 0f, "Paste",
-                        EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY);
+                        EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
 
         Assert.assertEquals(2, pasted.createdIds().size);
         for (int i = 0; i < pasted.createdIds().size; i++) {

@@ -1,7 +1,5 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.World;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.LayerInitializer;
 import games.pixscape.studio.service.LayerService;
@@ -11,7 +9,6 @@ import java.util.function.IntConsumer;
 public final class CreateLayerCommand implements Command {
 
     private final LayerService layerService;
-    private final World world;
     private final int insertionIndex;
     private final LayerInitializer initializer;
     private final HistoryIdRegistry historyIds;
@@ -24,22 +21,14 @@ public final class CreateLayerCommand implements Command {
                               int insertionIndex,
                               String name,
                               IntConsumer onLayerSelected) {
-        this(layerService, insertionIndex, name, LayerComponent.TYPE_CLASSIC, onLayerSelected);
-    }
-
-    public CreateLayerCommand(LayerService layerService,
-                              int insertionIndex,
-                              String name,
-                              int type,
-                              IntConsumer onLayerSelected) {
         this.layerService = layerService;
-        this.world = layerService.getWorld();
         this.insertionIndex = insertionIndex;
         this.onLayerSelected = onLayerSelected;
         this.historyIds = layerService.historyIds();
         String effectiveName = (name != null && !name.isBlank()) ? name : "New Layer";
-        this.initializer = new LayerInitializer(world, layerService.getTiledAllocatorService())
-                .configureNewLayer(effectiveName, insertionIndex, type);
+        this.initializer = new LayerInitializer(
+                layerService.getWorld(), layerService.getTiledAllocatorService())
+                .configureNewLayer(effectiveName, insertionIndex);
     }
 
     @Override

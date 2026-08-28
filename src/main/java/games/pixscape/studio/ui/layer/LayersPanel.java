@@ -151,19 +151,17 @@ public class LayersPanel extends DockablePanel {
                         request -> {
 
                             if (request.type() == LayerComponent.TYPE_TILED) {
-                                if (tiledMemoryOK(request.width(), request.height())) {
-                                    historyManager.execute(new CreateTiledLayerCommand(
-                                            layerService,
-                                            request.name(),
-                                            request.width(),
-                                            request.height(),
-                                            layerId -> {
-                                                if (selectionService != null) {
-                                                    selectionService.setActivelayerId(layerId);
-                                                }
+                                historyManager.execute(new CreateTiledLayerCommand(
+                                        layerService,
+                                        request.name(),
+                                        request.width(),
+                                        request.height(),
+                                        layerId -> {
+                                            if (selectionService != null) {
+                                                selectionService.setActivelayerId(layerId);
                                             }
-                                    ));
-                                }
+                                        }
+                                ));
 
                             } else {
 
@@ -171,7 +169,6 @@ public class LayersPanel extends DockablePanel {
                                         layerService,
                                         layerService.count(),
                                         request.name(),
-                                        request.type(),
                                         layerId -> {
                                             if (selectionService != null) {
                                                 selectionService.setActivelayerId(layerId);
@@ -330,10 +327,6 @@ public class LayersPanel extends DockablePanel {
             return;
         }
         historyManager.execute(command);
-    }
-
-    private boolean tiledMemoryOK(int width, int height) {
-        return true;
     }
 
     private void markDirty() {

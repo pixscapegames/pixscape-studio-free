@@ -267,7 +267,7 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     @Test
-    public void disablingLayerSpatialDepth_removesEntitySpatialDataAndUndoRestoresIt() {
+    public void toggleLayerSpatialDepth_rejectsClassicLayerWithoutTouchingActorState() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int layerId = createLayer(world, 2, LayerComponent.TYPE_CLASSIC);
@@ -275,24 +275,24 @@ public class LayerSpatialDepthCommandsTest {
         int actorId = createActor(world, 2, 4f, 10f);
         history.historyIds().ensureForEntity(layerId);
         history.historyIds().ensureForEntity(actorId);
+        int cursorBefore = history.getCursor();
 
-        history.execute(new ToggleLayerSpatialDepthCommand(
+        ToggleLayerSpatialDepthCommand command = new ToggleLayerSpatialDepthCommand(
                 world,
                 history.historyIds(),
                 layerId,
                 false,
                 0f,
                 0f
-        ));
+        );
 
-        Assert.assertFalse(world.getMapper(LayerComponent.class).get(layerId).spatialEnabled);
-        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(actorId));
-
-        history.undo();
-        SpatialHeightComponent restored = world.getMapper(SpatialHeightComponent.class).get(actorId);
+        Assert.assertTrue(command.isNoop());
+        command.redo();
+        Assert.assertEquals(cursorBefore, history.getCursor());
         Assert.assertTrue(world.getMapper(LayerComponent.class).get(layerId).spatialEnabled);
-        Assert.assertEquals(4f, restored.altitude, 0.0001f);
-        Assert.assertEquals(10f, restored.height, 0.0001f);
+        SpatialHeightComponent untouched = world.getMapper(SpatialHeightComponent.class).get(actorId);
+        Assert.assertEquals(4f, untouched.altitude, 0.0001f);
+        Assert.assertEquals(10f, untouched.height, 0.0001f);
     }
 
     @Test

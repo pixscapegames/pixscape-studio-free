@@ -66,7 +66,7 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
         assertTrue(source.contains("boolean isSprite = kind == EntityKind.SPRITE;"));
         assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
-        assertTrue(source.contains("&& isEntityInSpatialLayer()) || hasSpatialActorState();"));
+        assertTrue(source.contains("&& isEntityInSpatialEnabledLayer())"));
         assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
         assertTrue(source.contains("EventFlow.SpatialHeightChanged.class"));
     }

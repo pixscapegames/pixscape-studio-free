@@ -244,10 +244,10 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     }
 
     public LayerInitializer configureNewLayer(String name, int index) {
-        return configureNewLayer(name, index, LayerComponent.TYPE_CLASSIC);
+        return configureLayerDefaults(name, index, LayerComponent.TYPE_CLASSIC);
     }
 
-    public LayerInitializer configureNewLayer(String name, int index, int type) {
+    private LayerInitializer configureLayerDefaults(String name, int index, int type) {
         hasLayerIndex = true;
         layerIndex = index;
 
@@ -277,42 +277,12 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             int width,
             int height
     ) {
-        configureNewLayer(name, index, LayerComponent.TYPE_TILED);
+        configureLayerDefaults(name, index, LayerComponent.TYPE_TILED);
 
         hasTiledDimensions = true;
         tiledWidthCells = width;
         tiledHeightCells = height;
 
         return this;
-    }
-
-    public LayerInitializer setLayerMeta(String name, String description, boolean locked) {
-        hasLayerMeta = true;
-        layerName = name;
-        layerDescription = description;
-        layerLocked = locked;
-        return this;
-    }
-
-    public LayerInitializer setParallax(float factorX, float factorY) {
-        hasParallax = true;
-        parallaxX = factorX;
-        parallaxY = factorY;
-        return this;
-    }
-
-    public LayerInitializer clearParallax() {
-        hasParallax = false;
-        return this;
-    }
-
-    public LayerInitializer setLayerType(int type) {
-        hasLayerType = true;
-        layerType = type;
-        return this;
-    }
-
-    public int getLayerTypeOrDefault() {
-        return hasLayerType ? layerType : LayerComponent.TYPE_CLASSIC;
     }
 }

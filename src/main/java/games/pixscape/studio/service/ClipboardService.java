@@ -150,8 +150,8 @@ public final class ClipboardService {
 
         EntityGraphInstantiationService.ClipboardTargetLayer targetLayer =
                 LayerService.isSpatialActorLayer(layer)
-                        ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL
-                        : EntityGraphInstantiationService.ClipboardTargetLayer.ORDINARY;
+                        ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED
+                        : EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL;
         return new ResolvedClipboardDestination(layerIndex, targetLayer);
     }
 

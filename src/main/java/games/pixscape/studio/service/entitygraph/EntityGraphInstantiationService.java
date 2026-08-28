@@ -27,8 +27,8 @@ import java.util.function.IntConsumer;
 
 public final class EntityGraphInstantiationService {
     public enum ClipboardTargetLayer {
-        ORDINARY(false),
-        SPATIAL(true);
+        NON_SPATIAL(false),
+        SPATIAL_ENABLED(true);
 
         final boolean spatialEnabled;
 
@@ -137,7 +137,7 @@ public final class EntityGraphInstantiationService {
         List<PreparedEntity> preparedEntities = prepareEntities(
                 graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer,
                 prefabInstanceId, prefabId);
-        if (clipboardTargetLayer == ClipboardTargetLayer.ORDINARY) {
+        if (clipboardTargetLayer == ClipboardTargetLayer.NON_SPATIAL) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
         prepareJointRemaps(snapshots);

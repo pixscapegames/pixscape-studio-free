@@ -67,14 +67,15 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                 if (internalRefresh || entityId < 0) return;
 
                 boolean enable = enabledBox.isChecked();
+                boolean eligibleForActivation = isEligibleForActivation(entityId);
                 ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
                         ctx.world,
                         ctx.history.historyIds(),
                         ctx.physicsService,
                         entityId,
                         enable,
-                        isEligibleForActivation(entityId),
-                        enable ? createDefaultFootprint(entityId) : null
+                        eligibleForActivation,
+                        enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
                 if (command.isNoop()) {
                     validationLabel.setText(enable
@@ -158,15 +159,28 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         if (eid < 0 || ctx.layerService == null) return false;
         EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
         EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
-        if (kind != EntityKind.SPRITE && kind != EntityKind.ANIMATION) return false;
         EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
-        if (index == null) return false;
-        int layerIndex = index.getLayerIndex();
-        int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
+        int layerEntityId = index != null
+                ? ctx.layerService.getLayerEntity(index.getLayerIndex())
+                : -1;
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
-        return LayerService.isSpatialActorLayer(layer);
+        ProjectConfig config = ProjectConfig.getInstance();
+        SceneMeta scene = config != null ? config.getCurrentSceneMeta() : null;
+        return canActivateSpatialPhysics(scene, kind, index, layer);
+    }
+
+    static boolean canActivateSpatialPhysics(
+            SceneMeta scene,
+            EntityKind kind,
+            EntityIndexComponent index,
+            LayerComponent layer) {
+        return scene != null
+                && scene.physicsEnabled
+                && (kind == EntityKind.SPRITE || kind == EntityKind.ANIMATION)
+                && index != null
+                && LayerService.isSpatialActorLayer(layer);
     }
 
     private PhysicsShapeData createDefaultFootprint(int eid) {

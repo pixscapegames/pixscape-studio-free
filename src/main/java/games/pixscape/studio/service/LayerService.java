@@ -180,11 +180,9 @@ public final class LayerService {
     }
 
     public static boolean isSpatialActorLayer(LayerComponent layer) {
-        return layer != null && isSpatialActorLayer(layer.type, layer.spatialEnabled);
-    }
-
-    public static boolean isSpatialActorLayer(int type, boolean spatialEnabled) {
-        return type == LayerComponent.TYPE_CLASSIC && spatialEnabled;
+        return layer != null
+                && layer.type == LayerComponent.TYPE_CLASSIC
+                && layer.spatialEnabled;
     }
 
     public LayerMetaComponent meta(int index) {
@@ -230,13 +228,10 @@ public final class LayerService {
      * Adds a layer at the top, returns its index.
      */
     public int addLayerTop(String name) {
-        return addLayerTop(name, LayerComponent.TYPE_CLASSIC);
-    }
-
-    public int addLayerTop(String name, int type) {
         int idx = layerEntities.size;
         String effectiveName = (name != null ? name : "Layer " + idx);
-        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService).configureNewLayer(effectiveName, idx, type);
+        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService)
+                .configureNewLayer(effectiveName, idx);
         insertLayerAt(idx, initializer);
         return idx;
     }
@@ -706,7 +701,7 @@ public final class LayerService {
     }
 
     public static String typeSuffixLabel(int type, boolean spatialEnabled) {
-        if (isSpatialActorLayer(type, spatialEnabled)) return "(Spatial)";
+        if (type == LayerComponent.TYPE_CLASSIC && spatialEnabled) return "(Spatial)";
         return switch (type) {
             case LayerComponent.TYPE_TILED -> "(Tiled)";
             default -> "";

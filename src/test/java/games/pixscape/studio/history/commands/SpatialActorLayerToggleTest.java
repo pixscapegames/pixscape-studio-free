@@ -143,9 +143,17 @@ public class SpatialActorLayerToggleTest {
         Fixture fixture = new Fixture();
 
         fixture.history.execute(new CreateLayerCommand(
-                fixture.service, 0, "Ordinary", LayerComponent.TYPE_CLASSIC, null));
+                fixture.service, 0, "Ordinary", null));
 
         LayerComponent layer = fixture.layer(fixture.service.getLayerEntity(0));
+        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
+        assertFalse(layer.spatialEnabled);
+
+        fixture.history.undo();
+        assertEquals(0, fixture.service.count());
+
+        fixture.history.redo();
+        layer = fixture.layer(fixture.service.getLayerEntity(0));
         assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
     }

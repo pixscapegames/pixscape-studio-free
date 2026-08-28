@@ -307,7 +307,8 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return ((isSprite || isAnim) && isEntityInSpatialLayer()) || hasSpatialActorState();
+        return ((isSprite || isAnim) && isEntityInSpatialEnabledLayer())
+                || hasSpatialActorState();
     }
 
     private boolean isPhysicsApplicable() {
@@ -375,7 +376,7 @@ public class EntityProperties extends VisTable {
         }
     }
 
-    private boolean isEntityInSpatialLayer() {
+    private boolean isEntityInSpatialEnabledLayer() {
         if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
             return false;
         }

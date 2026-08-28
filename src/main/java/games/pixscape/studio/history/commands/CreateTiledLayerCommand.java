@@ -14,8 +14,6 @@ public final class CreateTiledLayerCommand implements Command {
     private final IntConsumer onLayerSelected;
 
     private final int insertionIndex;
-    private final int mapWidth;
-    private final int mapHeight;
 
     private long historyId = -1L;
     private LayerService.LayerSnapshot snapshot;
@@ -31,8 +29,6 @@ public final class CreateTiledLayerCommand implements Command {
         this.historyIds = layerService.historyIds();
 
         this.insertionIndex = layerService.count();
-        this.mapWidth = mapWidth;
-        this.mapHeight = mapHeight;
 
         String effectiveName =
                 (name != null && !name.isBlank())
