@@ -3683,26 +3683,6 @@ atlasData: {
 			hidden: false
 		}
 		{
-			file: C:/Users/lauro/IdeaProjects/pixscape-studio-free/assets/ui/scpm/pixscape_data/cube.png
-			bgColor: {
-				r: 1
-				g: 1
-				b: 1
-				a: 1
-			}
-			tint: null
-			tintName: null
-			name: cube
-			tiled: false
-			minWidth: -1
-			minHeight: -1
-			customized: false
-			tenPatchData: null
-			tvgData: null
-			type: TEXTURE
-			hidden: false
-		}
-		{
 			file: C:/Users/lauro/Downloads/joint.png
 			bgColor: {
 				r: 1
@@ -3713,6 +3693,26 @@ atlasData: {
 			tint: null
 			tintName: null
 			name: joint
+			tiled: false
+			minWidth: -1
+			minHeight: -1
+			customized: false
+			tenPatchData: null
+			tvgData: null
+			type: TEXTURE
+			hidden: false
+		}
+		{
+			file: C:/Users/lauro/Desktop/cube.png
+			bgColor: {
+				r: 1
+				g: 1
+				b: 1
+				a: 1
+			}
+			tint: null
+			tintName: null
+			name: cube
 			tiled: false
 			minWidth: -1
 			minHeight: -1

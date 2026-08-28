@@ -33,6 +33,7 @@ public class LayerProperties extends VisTable {
     private final World world;
     private final HistoryManager history;
     private final PhysicsService physicsService;
+    private final LayerService layerService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
@@ -70,11 +71,13 @@ public class LayerProperties extends VisTable {
 
     public LayerProperties(
             World world, HistoryManager history, PhysicsService physicsService,
+            LayerService layerService,
             Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.physicsService = physicsService;
+        this.layerService = layerService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
@@ -246,8 +249,18 @@ public class LayerProperties extends VisTable {
                     return;
                 }
 
+                if (!isTiledLayer(layerEntityId)) {
+                    if (requestedActive && !isScenePhysicsEnabled()) {
+                        refreshFromModel(layerEntityId);
+                        return;
+                    }
+                    executeOrdinarySpatialToggle(layerEntityId, requestedActive);
+                    refreshFromModel(layerEntityId);
+                    return;
+                }
+
                 if (requestedActive) {
-                    executeSpatialToggle(layerEntityId, true);
+                    executeTiledSpatialToggle(layerEntityId, true);
                     refreshFromModel(layerEntityId);
                     return;
                 }
@@ -347,13 +360,18 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        typeValueLabel.setText(buildLayerTypeLabel(lic.type, lic.spatialEnabled));
+        typeValueLabel.setText(buildLayerTypeLabel(lic.type));
 
         boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
         boolean collisionsSupported = isTiled && scenePhysicsEnabled;
         boolean collisionsActive = collisionsSupported && mPhysBody.has(layerEntityId);
-        boolean spatialSupported = isTiled;
+        boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC && !mTiled.has(layerEntityId);
+        boolean ordinarySpatialVisible = isOrdinary && shouldShowOrdinarySpatialProperty(
+                lic.spatialEnabled,
+                scenePhysicsEnabled,
+                layerService.hasOtherSpatialActorLayer(layerEntityId));
+        boolean spatialSupported = isTiled || ordinarySpatialVisible;
         boolean spatialActive = isLayerSpatialEnabled(layerEntityId);
         boolean supportsParallax = supportsEditableParallax(layerEntityId, lic);
         boolean hasParallax = mParallax.has(layerEntityId);
@@ -385,6 +403,7 @@ public class LayerProperties extends VisTable {
 
         internalSpatialRefresh = true;
         try {
+            spatialCheckBox.setText(isTiled ? "Spatial Depth" : "Spatial");
             spatialCheckBox.setChecked(spatialActive);
             spatialSection.show(spatialSupported);
             spatialBlock.show(isTiled && spatialActive);
@@ -406,9 +425,9 @@ public class LayerProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    private String buildLayerTypeLabel(int type, boolean spatialEnabled) {
+    private String buildLayerTypeLabel(int type) {
         if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeDisplayName(type, spatialEnabled);
+            return LayerService.typeDisplayName(type);
         }
         return buildTiledTypeLabel(currentSceneMeta());
     }
@@ -517,7 +536,7 @@ public class LayerProperties extends VisTable {
         flagPreviewSaveRequired();
     }
 
-    private void executeSpatialToggle(int layerEntityId, boolean enabled) {
+    private void executeTiledSpatialToggle(int layerEntityId, boolean enabled) {
         Command command = new ToggleLayerSpatialDepthCommand(
                 world,
                 history.historyIds(),
@@ -527,6 +546,23 @@ public class LayerProperties extends VisTable {
                 defaultTiledSpatialHeight(layerEntityId)
         );
         executeCommand(command);
+    }
+
+    static boolean shouldShowOrdinarySpatialProperty(
+            boolean currentlyEnabled,
+            boolean scenePhysicsEnabled,
+            boolean anotherOrdinaryLayerEnabled) {
+        return currentlyEnabled || (scenePhysicsEnabled && !anotherOrdinaryLayerEnabled);
+    }
+
+    private void executeOrdinarySpatialToggle(int layerEntityId, boolean enabled) {
+        executeCommand(new ToggleSpatialActorLayerCommand(
+                world,
+                history.historyIds(),
+                layerService,
+                layerEntityId,
+                enabled
+        ));
     }
 
     private boolean isLayerSpatialEnabled(int layerEntityId) {
@@ -587,7 +623,7 @@ public class LayerProperties extends VisTable {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object)) {
-                    executeSpatialToggle(layerEntityId, false);
+                    executeTiledSpatialToggle(layerEntityId, false);
                 }
                 refreshFromModel(layerEntityId);
             }

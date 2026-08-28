@@ -9,21 +9,20 @@ import static org.junit.Assert.assertEquals;
 public class NewLayerDialogChoicesTest {
 
     @Test
-    public void choicesFollowSceneFeaturesAndSpatialUniqueness() {
+    public void choicesContainOnlyClassicAndOptionalTiled() {
         SceneMeta meta = new SceneMeta();
 
-        assertChoices(meta, false, "Classic");
+        assertChoices(meta, "Classic");
 
         meta.tiledEnabled = true;
-        assertChoices(meta, false, "Classic", "Tiled");
+        assertChoices(meta, "Classic", "Tiled");
 
         meta.physicsEnabled = true;
-        assertChoices(meta, false, "Classic", "Spatial", "Tiled");
-        assertChoices(meta, true, "Classic", "Tiled");
+        assertChoices(meta, "Classic", "Tiled");
     }
 
-    private static void assertChoices(SceneMeta meta, boolean hasSpatialActorLayer, String... expected) {
-        Array<String> actual = NewLayerDialog.availableLayerTypes(meta, hasSpatialActorLayer);
+    private static void assertChoices(SceneMeta meta, String... expected) {
+        Array<String> actual = NewLayerDialog.availableLayerTypes(meta);
         assertEquals(Array.with(expected), actual);
     }
 }

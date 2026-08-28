@@ -109,6 +109,10 @@ public class LayersPanel extends DockablePanel {
             if (evt.sourceTag() == MY_TAG) return;
             markDirty();
         });
+        EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> {
+            if (evt.sourceTag() == MY_TAG) return;
+            markDirty();
+        });
         EventFlow.i().subscribe(EventFlow.LayerLockChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             markDirty();
@@ -144,7 +148,6 @@ public class LayersPanel extends DockablePanel {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 NewLayerDialog dialog = new NewLayerDialog(
-                        layerService,
                         request -> {
 
                             if (request.type() == LayerComponent.TYPE_TILED) {
@@ -169,7 +172,6 @@ public class LayersPanel extends DockablePanel {
                                         layerService.count(),
                                         request.name(),
                                         request.type(),
-                                        request.spatialActorLayer(),
                                         layerId -> {
                                             if (selectionService != null) {
                                                 selectionService.setActivelayerId(layerId);
@@ -177,10 +179,6 @@ public class LayersPanel extends DockablePanel {
                                         }
                                 );
                                 historyManager.execute(command);
-                                if (command.wasRejected()) {
-                                    showSpatialLayerUnavailableMessage();
-                                    return;
-                                }
                             }
 
                             markDirty();
@@ -473,18 +471,6 @@ public class LayersPanel extends DockablePanel {
             case ORTHO -> "(Tiled orthogonal)";
             case null -> "(Tiled)";
         };
-    }
-
-    private void showSpatialLayerUnavailableMessage() {
-        VisDialog dialog = new StudioDialog("Spatial layer unavailable");
-        dialog.text("This scene already has its single actor Spatial layer.");
-        dialog.button("OK");
-        dialog.setModal(true);
-        dialog.setResizable(false);
-        dialog.pack();
-        if (getStage() != null) {
-            dialog.show(getStage());
-        }
     }
 
     private games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection currentTiledProjection() {

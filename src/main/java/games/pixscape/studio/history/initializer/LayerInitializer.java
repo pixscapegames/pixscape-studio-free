@@ -248,10 +248,6 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     }
 
     public LayerInitializer configureNewLayer(String name, int index, int type) {
-        return configureNewLayer(name, index, type, false);
-    }
-
-    public LayerInitializer configureNewLayer(String name, int index, int type, boolean spatialEnabled) {
         hasLayerIndex = true;
         layerIndex = index;
 
@@ -270,7 +266,7 @@ public final class LayerInitializer extends AbstractCommonInitializer {
 
         hasLayerType = true;
         layerType = type;
-        layerSpatialEnabled = spatialEnabled;
+        layerSpatialEnabled = false;
 
         return this;
     }

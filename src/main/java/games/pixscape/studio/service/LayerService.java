@@ -165,11 +165,12 @@ public final class LayerService {
         return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
     }
 
-    /** Returns whether the scene already contains its single actor Spatial layer. */
-    public boolean hasSpatialActorLayer() {
+    /** Returns whether another ordinary layer already owns the Spatial actor slot. */
+    public boolean hasOtherSpatialActorLayer(int currentLayerEntityId) {
         rebuildIfDirty();
         for (int i = 0; i < layerEntities.size; i++) {
             int layerEntity = layerEntities.get(i);
+            if (layerEntity == currentLayerEntityId) continue;
             LayerComponent layer = mL.getSafe(layerEntity, null);
             if (isSpatialActorLayer(layer)) {
                 return true;
@@ -697,10 +698,7 @@ public final class LayerService {
         dirty = true;
     }
 
-    public static String typeDisplayName(int type, boolean spatialEnabled) {
-        if (isSpatialActorLayer(type, spatialEnabled)) {
-            return "Spatial";
-        }
+    public static String typeDisplayName(int type) {
         return switch (type) {
             case LayerComponent.TYPE_TILED -> "Tiled";
             default -> "Classic";

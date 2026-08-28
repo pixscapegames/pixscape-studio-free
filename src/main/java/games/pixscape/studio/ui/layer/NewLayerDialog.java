@@ -12,7 +12,6 @@ import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 
@@ -36,15 +35,13 @@ public final class NewLayerDialog extends StudioDialog {
     private final CollapsibleVisTable tiledOptions = new CollapsibleVisTable(true, true);
 
     private final String fallbackName;
-    private final LayerService layerService;
     private final Consumer<NewLayerRequest> onCreate;
 
-    public NewLayerDialog(LayerService layerService, Consumer<NewLayerRequest> onCreate) {
+    public NewLayerDialog(Consumer<NewLayerRequest> onCreate) {
         super("New layer");
 
         this.fallbackName = "New Layer";
-        this.layerService = Objects.requireNonNull(layerService, "layerService");
-        this.onCreate = onCreate;
+        this.onCreate = Objects.requireNonNull(onCreate, "onCreate");
 
         TableUtils.setSpacingDefaults(this);
         setModal(true);
@@ -72,10 +69,7 @@ public final class NewLayerDialog extends StudioDialog {
         int width = parseIntSafe(tiledWidthField.getText(), 256);
         int height = parseIntSafe(tiledHeightField.getText(), 256);
 
-        if (onCreate != null) {
-            onCreate.accept(new NewLayerRequest(
-                    name, type, isSpatialSelection(typeBox.getSelected()), width, height));
-        }
+        onCreate.accept(new NewLayerRequest(name, type, width, height));
     }
 
     private int parseIntSafe(String text, int def) {
@@ -92,8 +86,7 @@ public final class NewLayerDialog extends StudioDialog {
     private void rebuildLayerTypes() {
 
         SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        boolean hasSpatialActorLayer = layerService.hasSpatialActorLayer();
-        Array<String> types = availableLayerTypes(meta, hasSpatialActorLayer);
+        Array<String> types = availableLayerTypes(meta);
 
         String previous = typeBox.getSelected();
         typeBox.setItems(types);
@@ -157,11 +150,6 @@ public final class NewLayerDialog extends StudioDialog {
 
     private void updateInfoLabel() {
 
-        if (isSpatialSelection(typeBox.getSelected())) {
-            infoLabel.setText("Single actor layer with Spatial depth ordering");
-            return;
-        }
-
         int type = resolveLayerType(typeBox.getSelected());
 
         String info = switch (type) {
@@ -194,10 +182,6 @@ public final class NewLayerDialog extends StudioDialog {
 
     private int resolveLayerType(String selected) {
 
-        if (isSpatialSelection(selected)) {
-            return LayerComponent.TYPE_CLASSIC;
-        }
-
         if ("Tiled".equals(selected)) {
             return LayerComponent.TYPE_TILED;
         }
@@ -205,22 +189,13 @@ public final class NewLayerDialog extends StudioDialog {
         return LayerComponent.TYPE_CLASSIC;
     }
 
-    static Array<String> availableLayerTypes(SceneMeta meta, boolean hasSpatialActorLayer) {
+    static Array<String> availableLayerTypes(SceneMeta meta) {
         Array<String> types = new Array<>();
         types.add("Classic");
-        if (meta != null && meta.physicsEnabled) {
-            if (!hasSpatialActorLayer) {
-                types.add("Spatial");
-            }
-        }
         if (meta != null && meta.tiledEnabled) {
             types.add("Tiled");
         }
         return types;
-    }
-
-    private static boolean isSpatialSelection(String selected) {
-        return "Spatial".equals(selected);
     }
 
     private String normalizeName(String raw) {

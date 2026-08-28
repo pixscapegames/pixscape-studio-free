@@ -22,17 +22,32 @@ public class LayerPropertiesCollisionVisibilityContractTest {
     }
 
     @Test
-    public void spatialSectionIsOnlyAvailableForTiledLayers() throws Exception {
+    public void ordinaryAndTiledSpatialPropertiesRemainDistinct() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean spatialSupported = isTiled;"));
+        assertTrue(refresh.contains("boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC"));
+        assertTrue(refresh.contains("boolean ordinarySpatialVisible = isOrdinary && shouldShowOrdinarySpatialProperty("));
+        assertTrue(refresh.contains("layerService.hasOtherSpatialActorLayer(layerEntityId)"));
+        assertTrue(refresh.contains("boolean spatialSupported = isTiled || ordinarySpatialVisible;"));
         assertTrue(refresh.contains("boolean spatialActive = isLayerSpatialEnabled(layerEntityId);"));
         assertTrue(refresh.contains("spatialSection.show(spatialSupported);"));
         assertTrue(refresh.contains("spatialBlock.show(isTiled && spatialActive);"));
         assertTrue(source.contains("Default Altitude:"));
         assertTrue(source.contains("Default Height:"));
         assertTrue(source.contains("new VisCheckBox(\"Spatial Depth\")"));
+        assertTrue(source.contains("spatialCheckBox.setText(isTiled ? \"Spatial Depth\" : \"Spatial\")"));
+        assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
+        assertTrue(source.contains("new ToggleLayerSpatialDepthCommand("));
+        assertFalse(source.contains("StudioEditingMode.SPATIAL"));
+    }
+
+    @Test
+    public void ordinarySpatialVisibilityHonorsEligibilityUniquenessAndAuthoredState() {
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, false));
+        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, true));
+        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, false, false));
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(true, false, true));
     }
 
     @Test
