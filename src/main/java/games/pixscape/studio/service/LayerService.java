@@ -159,13 +159,6 @@ public final class LayerService {
         return li != null ? li.layerIndex : 0;
     }
 
-    public int getLayerTypeByIndex(int index) {
-        int e = getLayerEntity(index);
-        if (e == -1) return LayerComponent.TYPE_CLASSIC;
-        LayerComponent lc = mL.getSafe(e, null);
-        return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
-    }
-
     public int getLayerTypeByEntity(int layerEntityId) {
         if (layerEntityId == -1) return LayerComponent.TYPE_CLASSIC;
         LayerComponent lc = mL.getSafe(layerEntityId, null);
@@ -699,43 +692,9 @@ public final class LayerService {
         return meta.locked;
     }
 
-    public void setLayerType(int layerEntityId, int type) {
-        if (layerEntityId == -1) return;
-
-        LayerComponent lc = mL.getSafe(layerEntityId, null);
-        if (lc == null) return;
-
-        int norm = normalizeLayerType(type);
-        if (lc.type == norm) return;
-
-        lc.type = norm;
-
-        if (dirtyTracker != null) {
-            dirtyTracker.layer(layerEntityId);
-            dirtyTracker.order(layerEntityId);
-        }
-
-        dirty = true;
-
-        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-    }
-
-    private static int normalizeLayerType(int type) {
-        return switch (type) {
-            case LayerComponent.TYPE_CLASSIC,
-                 LayerComponent.TYPE_TILED -> type;
-            default -> LayerComponent.TYPE_CLASSIC;
-        };
-    }
-
-
     public void reset() {
         layerEntities.clear();
         dirty = true;
-    }
-
-    public static String typeDisplayName(int type) {
-        return typeDisplayName(type, false);
     }
 
     public static String typeDisplayName(int type, boolean spatialEnabled) {
@@ -746,10 +705,6 @@ public final class LayerService {
             case LayerComponent.TYPE_TILED -> "Tiled";
             default -> "Classic";
         };
-    }
-
-    public static String typeSuffixLabel(int type) {
-        return typeSuffixLabel(type, false);
     }
 
     public static String typeSuffixLabel(int type, boolean spatialEnabled) {

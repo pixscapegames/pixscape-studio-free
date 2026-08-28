@@ -3016,7 +3016,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private boolean isExplicitPhysicsEditMode() {
-        return physicsSelectionService.getFocusedBodyEid() >= 0;
+        return physicsSelectionService.isPhysicsEditingActive();
     }
 
     static boolean isFixtureGeometryEditable(World world, int bodyEid, int physicsShapeId) {

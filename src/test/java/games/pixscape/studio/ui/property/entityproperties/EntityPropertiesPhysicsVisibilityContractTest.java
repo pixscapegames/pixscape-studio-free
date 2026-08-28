@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class EntityPropertiesPhysicsVisibilityContractTest {
@@ -28,7 +27,6 @@ public class EntityPropertiesPhysicsVisibilityContractTest {
 
         String applicable = methodBody(source, "private boolean isPhysicsApplicable()");
         assertTrue(applicable.contains("return scenePhysicsEnabled;"));
-        assertFalse(applicable.contains("getLayerTypeByIndex"));
     }
 
     private static String read(String path) throws Exception {

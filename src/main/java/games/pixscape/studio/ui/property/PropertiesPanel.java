@@ -441,7 +441,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private boolean isExplicitPhysicsContextActive() {
-        return physicsSelectionService.getFocusedBodyEid() >= 0;
+        return physicsSelectionService.isPhysicsEditingActive();
     }
 
     public void markDirty() {

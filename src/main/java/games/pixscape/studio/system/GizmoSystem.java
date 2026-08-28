@@ -1661,7 +1661,7 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private boolean isExplicitPhysicsEditMode() {
-        return physicsSelectionService.getFocusedBodyEid() >= 0;
+        return physicsSelectionService.isPhysicsEditingActive();
     }
 
     private void drawHoveredEntityGizmo(boolean physicsEditMode) {

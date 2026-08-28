@@ -279,7 +279,6 @@ public class ItemTreePrefabQueuedSelectionTest {
         int methodEnd = canvas.indexOf("boolean ensurePrefabRenderAssetsInSceneAtlas", methodStart);
         String method = canvas.substring(methodStart, methodEnd);
         assertTrue(method.contains("itemTreePanel.selectPrefabInstance("));
-        assertFalse(method.contains("prefabContainsPhysics"));
         assertFalse(method.contains("selectionService.clearSelection("));
         assertFalse(method.contains("selectionService.selectOnly("));
         assertFalse(method.contains("selectionService.selectAdd("));

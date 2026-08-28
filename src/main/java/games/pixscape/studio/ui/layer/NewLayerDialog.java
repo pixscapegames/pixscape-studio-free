@@ -165,7 +165,7 @@ public final class NewLayerDialog extends StudioDialog {
         int type = resolveLayerType(typeBox.getSelected());
 
         String info = switch (type) {
-            case LayerComponent.TYPE_TILED -> "Tiled Map only with parallax";
+            case LayerComponent.TYPE_TILED -> "Tiled map with specialized editing";
 
             default -> "Classic layer with parallax";
         };

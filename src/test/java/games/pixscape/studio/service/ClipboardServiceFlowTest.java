@@ -211,11 +211,11 @@ public class ClipboardServiceFlowTest {
     @Test
     public void pasteResolvesSecondOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
-        int physicsLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
+        int ordinaryLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
-        h.selection.setActivelayerId(physicsLayer);
+        h.selection.setActivelayerId(ordinaryLayer);
 
         Assert.assertTrue(h.clipboard.paste());
         int pasted = h.selection.getFirstSelectedEntityId();
