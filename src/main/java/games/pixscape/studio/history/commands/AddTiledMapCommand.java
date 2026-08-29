@@ -29,7 +29,7 @@ public final class AddTiledMapCommand implements Command {
         this.layerService = layerService;
         World world = layerService.getWorld();
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(targetLayerEntityId, null);
-        if (layer == null || !layerService.isUniversalLayerEntity(targetLayerEntityId)) {
+        if (layer == null || !layerService.isLayerEntity(targetLayerEntityId)) {
             throw new IllegalArgumentException("Add Tiled Map requires an ordinary Pixscape Layer.");
         }
         this.targetLayerIndex = layer.layerIndex;

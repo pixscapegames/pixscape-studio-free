@@ -60,6 +60,7 @@ public class SceneProperties extends VisTable {
     private final VisLabel projection;
     private final VisLabel tileWidthField;
     private final VisLabel tileHeightField;
+    private final VisLabel chunkSizeField;
 
     private final int MY_TAG = EventFlow.tag(this);
     private boolean dirtyUi = false;
@@ -337,8 +338,9 @@ public class SceneProperties extends VisTable {
         projection = new VisLabel();
         tileWidthField = new VisLabel();
         tileHeightField = new VisLabel();
+        chunkSizeField = new VisLabel();
         tiledBlock.content().addSeparator().colspan(2).growX().padTop(6).row();
-        tiledBlock.content().add(new VisLabel("Tiled map creation defaults"))
+        tiledBlock.content().add(new VisLabel("Tiled Map Creation Defaults"))
                 .colspan(2).center().row();
 
         tiledBlock.content().add(new VisLabel("Projection:")).left();
@@ -349,6 +351,9 @@ public class SceneProperties extends VisTable {
 
         tiledBlock.content().add(new VisLabel("Tile Height:")).left();
         tiledBlock.content().add(tileHeightField).width(100).left().growX().row();
+
+        tiledBlock.content().add(new VisLabel("Chunk Size:")).left();
+        tiledBlock.content().add(chunkSizeField).width(100).left().growX().row();
 
         add(tiledBlock).colspan(2).growX().row();
         tiledBlock.show(false);
@@ -586,13 +591,15 @@ public class SceneProperties extends VisTable {
             projection.setText("");
             tileWidthField.setText("");
             tileHeightField.setText("");
+            chunkSizeField.setText("");
             return;
         }
 
-        tiledBlock.show(m.tiledEnabled);
+        tiledBlock.show(true);
         projection.setText(m.tiledProjection.name());
         tileWidthField.setText(Float.toString(m.tileWidth));
         tileHeightField.setText(Float.toString(m.tileHeight));
+        chunkSizeField.setText(Integer.toString(m.chunkSize));
     }
 
     private void refreshPhysicsParallaxFromMeta(SceneMeta m) {

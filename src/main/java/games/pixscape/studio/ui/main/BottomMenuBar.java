@@ -406,32 +406,21 @@ public class BottomMenuBar extends VisTable {
             getTitleLabel().setAlignment(Align.center);
             ok.setColor(CommonLayout.BUTTON_COLOR);
 
-            // --- Default Scene (Tiled) ---
-            projectionBox.setItems("None", "Orthogonal", "Isometric");
+            // Optional defaults for Tiled Maps created later in this scene.
+            projectionBox.setItems("Orthogonal", "Isometric");
             projectionBox.setSelected("Orthogonal");
-            projectionBox.addListener(new ChangeListener() {
-                @Override
-                public void changed(ChangeEvent event, Actor actor) {
-                    boolean tiledEnabled = !"None".equals(projectionBox.getSelected());
-
-                    tfTileWidth.setDisabled(!tiledEnabled);
-                    tfTileHeight.setDisabled(!tiledEnabled);
-
-                    if (!tiledEnabled) {
-                        tfTileWidth.setText("32");
-                        tfTileHeight.setText("32");
-                    }
-                }
-            });
             defaults().pad(4).left();
             setWidth(280);
-            setHeight(250);
+            setHeight(280);
             addCloseButton();
 
             add(new VisLabel("Scene name: ")).left();
             add(sceneName).left().growX().row();
 
-            add(new VisLabel("Tiled projection:")).left();
+            add(new VisLabel("Tiled Map Creation Defaults"))
+                    .left().colspan(2).padTop(6).row();
+
+            add(new VisLabel("Projection:")).left();
             add(projectionBox).growX().row();
 
             add(new VisLabel("Tile Width (px):")).left();

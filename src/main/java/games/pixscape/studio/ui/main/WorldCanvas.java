@@ -864,7 +864,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (activeLayerId < 0) return DropAllowedResult.forbidden();
 
         return isAssetPayloadAllowedForEditingContext(
-                layerService.isUniversalLayerEntity(activeLayerId),
+                layerService.isLayerEntity(activeLayerId),
                 selectionService.isTiledMapEditingTargetActive(), p.type)
                 ? DropAllowedResult.allowed() : DropAllowedResult.forbidden();
     }

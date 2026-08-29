@@ -37,7 +37,6 @@ public final class RuntimeExport {
         RUNTIME_EXCLUDED_COMPONENTS.add("EntityMetaComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("LayerMetaComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("CameraMetaComponent");
-        RUNTIME_EXCLUDED_COMPONENTS.add("TiledObjectLayerComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsRuntimeBodyComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsRuntimeJointComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsCompiledFixturesComponent");

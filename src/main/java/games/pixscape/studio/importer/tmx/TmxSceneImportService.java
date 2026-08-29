@@ -15,7 +15,6 @@ import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
@@ -436,7 +435,6 @@ public final class TmxSceneImportService {
         parallax.factorX = objectLayer.parallaxX();
         parallax.factorY = objectLayer.parallaxY();
 
-        world.getMapper(TiledObjectLayerComponent.class).create(layerEntity);
     }
 
     private void populateObjects(World world,

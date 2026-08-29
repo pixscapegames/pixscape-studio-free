@@ -575,17 +575,12 @@ public final class SceneService {
             cfg.createSceneMeta("MainScene");
             SceneMeta meta = cfg.getCurrentSceneMeta();
 
-            if ("None".equals(projection)) {
-                meta.tiledEnabled = false;
-            } else {
-                meta.tiledEnabled = true;
-                meta.tileWidth = tileWidth;
-                meta.tileHeight = tileHeight;
-                meta.tiledProjection =
-                        "Isometric".equals(projection)
-                                ? TiledProjection.ISO
-                                : TiledProjection.ORTHO;
-            }
+            meta.tileWidth = tileWidth;
+            meta.tileHeight = tileHeight;
+            meta.tiledProjection =
+                    "Isometric".equals(projection)
+                            ? TiledProjection.ISO
+                            : TiledProjection.ORTHO;
 
             ProjectConfig.setInstance(cfg);
             bindSceneIdentityAuthorities(meta);
@@ -1988,17 +1983,12 @@ public final class SceneService {
             SceneMeta meta = cfg.getSceneMeta(sceneName);
             createdSceneFileName = (meta != null) ? meta.getFile() : null;
 
-            if ("None".equals(projection)) {
-                meta.tiledEnabled = false;
-            } else {
-                meta.tiledEnabled = true;
-                meta.tileWidth = tileWidth;
-                meta.tileHeight = tileHeight;
-                meta.tiledProjection =
-                        "Isometric".equals(projection)
-                                ? TiledProjection.ISO
-                                : TiledProjection.ORTHO;
-            }
+            meta.tileWidth = tileWidth;
+            meta.tileHeight = tileHeight;
+            meta.tiledProjection =
+                    "Isometric".equals(projection)
+                            ? TiledProjection.ISO
+                            : TiledProjection.ORTHO;
 
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
             atlasesDir.mkdirs();

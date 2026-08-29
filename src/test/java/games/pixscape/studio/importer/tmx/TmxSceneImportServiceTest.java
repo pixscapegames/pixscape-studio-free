@@ -38,7 +38,6 @@ import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -119,7 +118,6 @@ public class TmxSceneImportServiceTest {
 
         assertTrue(result.imported());
         SceneMeta meta = h.cfg.getSceneMeta(result.sceneName());
-        assertFalse(meta.tiledEnabled);
         assertEquals(32f, meta.tileWidth, 0.0001f);
         assertEquals(32f, meta.tileHeight, 0.0001f);
         assertEquals(TiledProjection.ORTHO, meta.tiledProjection);
@@ -234,7 +232,7 @@ public class TmxSceneImportServiceTest {
         HistoryManager history = new HistoryManager(16);
         LayerService layers = new LayerService(world, null, history.historyIds(), identities);
         assertEquals(1, layers.count());
-        assertTrue(layers.isUniversalLayerEntity(layerEntity));
+        assertTrue(layers.isLayerEntity(layerEntity));
 
         int sprite = world.create();
         world.getMapper(EntityIndexComponent.class).create(sprite).layerIndex = 0;
@@ -351,9 +349,6 @@ public class TmxSceneImportServiceTest {
         assertEquals("Below", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, true)).name);
         int objectLayer = layerEntity(world, 1, false);
         assertEquals("Gameplay", world.getMapper(LayerMetaComponent.class).get(objectLayer).name);
-        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(objectLayer));
-        assertFalse(world.getMapper(TiledObjectLayerComponent.class)
-                .has(layerEntity(world, 0, true)));
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
         assertEquals(0, objectCountInLayer(world, 1));
     }
@@ -398,7 +393,6 @@ public class TmxSceneImportServiceTest {
         int layerEntity = layerEntity(world, 0, false);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
         assertFalse(layer.spatialEnabled);
-        assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity));
         assertEquals("World/Gameplay", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
         assertEquals(1f, world.getMapper(LayerParallaxComponent.class).get(layerEntity).factorX, 0.0001f);
@@ -780,9 +774,6 @@ public class TmxSceneImportServiceTest {
         assertEquals("jungle", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 1, false)).name);
         assertEquals("ground", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
         assertEquals("props", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 3, true)).name);
-        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 0, false)));
-        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 1, false)));
-        assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 2, true)));
     }
 
     @Test

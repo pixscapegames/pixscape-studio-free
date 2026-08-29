@@ -40,7 +40,6 @@ public class NewLayerDialogChoicesTest {
             config.createSceneMeta("Main");
             ProjectConfig.setInstance(config);
             SceneMeta meta = config.getCurrentSceneMeta();
-            meta.tiledEnabled = true;
             IdentityRegistry identities = new IdentityRegistry();
             identities.bind(world, meta);
             LayerService layers = new LayerService(world, null, new HistoryIdRegistry(), identities);

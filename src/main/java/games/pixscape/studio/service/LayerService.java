@@ -188,8 +188,8 @@ public final class LayerService {
         return li != null ? li.layerIndex : 0;
     }
 
-    /** Current user-authored universal Layer capability. Content never changes this result. */
-    public boolean isUniversalLayerEntity(int layerEntityId) {
+    /** Returns whether the entity is a real Pixscape Layer. */
+    public boolean isLayerEntity(int layerEntityId) {
         return mL.getSafe(layerEntityId, null) != null;
     }
 

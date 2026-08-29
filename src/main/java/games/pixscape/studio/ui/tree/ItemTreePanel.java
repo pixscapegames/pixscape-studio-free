@@ -24,7 +24,6 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
@@ -614,9 +613,7 @@ public class ItemTreePanel extends DockablePanel {
                 EntityNode node = tree.getNodeAt(y);
                 if (node == null || !node.isLayerNode()) return false;
                 int layerEntityId = node.getEntityId();
-                if (!layerService.isUniversalLayerEntity(layerEntityId)) return false;
-                boolean tiledEnabled = ProjectConfig.getInstance().getCurrentSceneMeta() != null
-                        && ProjectConfig.getInstance().getCurrentSceneMeta().tiledEnabled;
+                if (!layerService.isLayerEntity(layerEntityId)) return false;
 
                 selectionService.setActivelayerId(
                         layerEntityId, SelectionService.SelectionSource.TREE);
@@ -676,7 +673,7 @@ public class ItemTreePanel extends DockablePanel {
                         click.handle();
                     }
                 });
-                if (tiledEnabled) addMenu.addItem(addMap);
+                addMenu.addItem(addMap);
 
                 PopupMenu lights = new PopupMenu();
                 MenuItem point = new MenuItem("Point Light");

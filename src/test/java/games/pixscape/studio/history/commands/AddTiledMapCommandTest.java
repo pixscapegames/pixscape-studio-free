@@ -75,14 +75,14 @@ public class AddTiledMapCommandTest {
         int orthoId = selected.get();
         world.process();
 
-        assertTrue(layers.isUniversalLayerEntity(layerEntity));
+        assertTrue(layers.isLayerEntity(layerEntity));
         assertNotEquals(isoId, orthoId);
         assertEquals("scene1", world.getMapper(TiledLayerComponent.class).get(isoId).atlasTag);
         assertEquals("scene1", world.getMapper(TiledLayerComponent.class).get(orthoId).atlasTag);
         assertMap(isoId, 0, 0, 64, 32, TiledProjection.ISO, 64, 32);
         assertMap(orthoId, 0, 1, 20, 10, TiledProjection.ORTHO, 32, 32);
         assertTrue("Map content must not consume the Layer's add capability",
-                layers.isUniversalLayerEntity(layerEntity));
+                layers.isLayerEntity(layerEntity));
     }
 
     @Test
@@ -346,7 +346,7 @@ public class AddTiledMapCommandTest {
 
         assertEquals(0, spriteIndex.layerIndex);
         assertEquals(2, mapCount());
-        assertTrue(layers.isUniversalLayerEntity(layerEntity));
+        assertTrue(layers.isLayerEntity(layerEntity));
 
         move.undo();
         assertEquals(1, spriteIndex.layerIndex);

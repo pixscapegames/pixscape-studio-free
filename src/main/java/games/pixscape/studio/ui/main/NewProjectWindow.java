@@ -114,22 +114,8 @@ public final class NewProjectWindow extends StudioModalWindow {
         samplesBox.setItems(0, 2, 4, 8);
         samplesBox.setSelected(0);
 
-        projectionBox.setItems("None", "Orthogonal", "Isometric");
+        projectionBox.setItems("Orthogonal", "Isometric");
         projectionBox.setSelected("Orthogonal");
-
-        projectionBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                boolean tiledEnabled = !"None".equals(projectionBox.getSelected());
-                tfTileWidth.setDisabled(!tiledEnabled);
-                tfTileHeight.setDisabled(!tiledEnabled);
-
-                if (!tiledEnabled) {
-                    tfTileWidth.setText("32");
-                    tfTileHeight.setText("32");
-                }
-            }
-        });
 
         VisTable content = new VisTable(true);
         content.defaults().pad(4).left();
@@ -163,8 +149,10 @@ public final class NewProjectWindow extends StudioModalWindow {
         content.addSeparator().colspan(2).padTop(6).row();
 
         content.add(new VisLabel("Default Scene")).colspan(2).left().padTop(4).row();
+        content.add(new VisLabel("Tiled Map Creation Defaults"))
+                .colspan(2).left().padTop(4).row();
 
-        content.add(new VisLabel("Tiled projection:")).left();
+        content.add(new VisLabel("Projection:")).left();
         content.add(projectionBox).growX().row();
 
         content.add(new VisLabel("Tile Width (px):")).left();

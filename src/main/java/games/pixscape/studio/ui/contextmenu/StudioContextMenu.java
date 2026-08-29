@@ -325,7 +325,7 @@ public final class StudioContextMenu extends InputListener {
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasJointSelected = selection.size == 1 && mJointBase.has(selection.get(0));
         boolean hasActiveLayer = layerService != null
-                && layerService.isUniversalLayerEntity(selectionService.getActivelayerId());
+                && layerService.isLayerEntity(selectionService.getActivelayerId());
 
         if (!hasJointSelected && hasActiveLayer) {
             PopupMenu addLightSub = new PopupMenu();
@@ -363,9 +363,7 @@ public final class StudioContextMenu extends InputListener {
 
     private void showAddTiledMapMenu() {
         int layerEntityId = selectionService.getActivelayerId();
-        if (!layerService.isUniversalLayerEntity(layerEntityId)) return;
-        if (ProjectConfig.getInstance().getCurrentSceneMeta() == null
-                || !ProjectConfig.getInstance().getCurrentSceneMeta().tiledEnabled) return;
+        if (!layerService.isLayerEntity(layerEntityId)) return;
         MenuItem addMap = new MenuItem("Add Tiled Map");
         addMap.addListener(new ClickListener() {
             @Override

@@ -23,8 +23,7 @@ public final class SceneMeta extends SceneMetaRuntime {
     public SceneRuntimeAvailabilityData runtimeAvailability = new SceneRuntimeAvailabilityData();
     public int nextPrefabInstanceId = 1;
 
-    // Temporary creation defaults. Existing Tiled maps never read these values.
-    public boolean tiledEnabled = false;
+    // Creation defaults only. Existing Tiled Maps own independent configuration.
     public TiledProjection tiledProjection = TiledProjection.ORTHO;
     public float tileWidth = 32f;
     public float tileHeight = 32f;

@@ -245,6 +245,50 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
+    public void saveProject_tiledMapCreationDefaultsRemainPersistentWithoutCapabilityFlag() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-tiled-map-defaults");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Map Defaults";
+        cfg.projectFileName = "map-defaults";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.previewTarget = PreviewTarget.DESKTOP;
+        cfg.glSamples = 0;
+        cfg.createSceneMeta("Main");
+        SceneMeta main = cfg.getCurrentSceneMeta();
+        main.tiledProjection = games.pixscape.runtime.tiled.TiledProjection.ISO;
+        main.tileWidth = 64f;
+        main.tileHeight = 32f;
+        main.chunkSize = 8;
+
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        String saved = projectFile.readString("UTF-8");
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+        SceneMeta restored = loaded.getCurrentSceneMeta();
+
+        assertFalse(saved.contains("tiledEnabled"));
+        assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO, restored.tiledProjection);
+        assertEquals(64f, restored.tileWidth, 0f);
+        assertEquals(32f, restored.tileHeight, 0f);
+        assertEquals(8, restored.chunkSize);
+    }
+
+    @Test
+    public void loadProject_ignoresIntermediateSchema3TiledEnabledField() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-stale-tiled-enabled");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"name\":\"Main\"", "\"tiledEnabled\":true,\"name\":\"Main\"");
+        FileHandle projectFile = writeProjectFile(dir, json);
+
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+
+        assertNotNull(loaded.getCurrentSceneMeta());
+        ProjectConfig.ProjectIO.saveProject(loaded, projectFile);
+        assertFalse(projectFile.readString("UTF-8").contains("tiledEnabled"));
+    }
+
+    @Test
     public void saveProject_purgedScenePhysicsRemainsDisabledAfterReload() throws Exception {
         Path dir = Files.createTempDirectory("project-config-purged-physics");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
