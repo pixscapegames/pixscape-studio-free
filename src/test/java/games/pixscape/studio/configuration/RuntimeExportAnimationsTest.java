@@ -117,6 +117,10 @@ public class RuntimeExportAnimationsTest {
         scene.runtimeAvailability.particleEffectPaths.add("impact.p");
         scene.runtimeAvailability.prefabIds.add("enemy");
         scene.runtimeAvailability.tiledAnimationIds.add(13);
+        scene.ambientColorR = 0f;
+        scene.ambientColorG = 0f;
+        scene.ambientColorB = 0f;
+        scene.ambientIntensity = 1f;
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
@@ -142,10 +146,10 @@ public class RuntimeExportAnimationsTest {
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
         FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve(RuntimeExport.PROJECT_JSON).toFile());
-        JsonValue availability = new JsonReader().parse(out)
+        JsonValue exportedScene = new JsonReader().parse(out)
                 .get("scenes")
-                .get("Main")
-                .get("runtimeAvailability");
+                .get("Main");
+        JsonValue availability = exportedScene.get("runtimeAvailability");
 
         assertEquals(10, availability.get("sprites").get(0).asInt());
         assertEquals(11, availability.get("animations").get(0).asInt());
@@ -153,6 +157,10 @@ public class RuntimeExportAnimationsTest {
         assertEquals("enemy", availability.get("prefabs").get(0).asString());
         assertEquals(tile.id(), availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
+        assertFalse(exportedScene.has("mainCameraOffscreen"));
+        assertEquals(0f, exportedScene.getFloat("ambientMulR"), 0.0001f);
+        assertEquals(0f, exportedScene.getFloat("ambientMulG"), 0.0001f);
+        assertEquals(0f, exportedScene.getFloat("ambientMulB"), 0.0001f);
     }
 
     @Test

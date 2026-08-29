@@ -19,6 +19,7 @@ import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneAmbientLighting;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -356,13 +357,7 @@ public class SceneProperties extends VisTable {
         m.ambientColorG = g;
         m.ambientColorB = b;
 
-        float mr = 1f + (r - 1f) * t;
-        float mg = 1f + (g - 1f) * t;
-        float mb = 1f + (b - 1f) * t;
-
-        m.ambientMulR = mr;
-        m.ambientMulG = mg;
-        m.ambientMulB = mb;
+        SceneAmbientLighting.deriveRuntimeMultipliers(m);
 
         publishAmbient(m);
         flagPreviewSaveRequired();

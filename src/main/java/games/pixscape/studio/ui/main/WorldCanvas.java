@@ -1096,11 +1096,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return true;
                 }
 
-                SceneMeta currentMeta = ProjectConfig.getInstance().getCurrentSceneMeta();
-                if (currentMeta == null) {
-                    return false;
-                }
-                boolean isTileMode = currentMeta.editorMode == SceneMeta.EditorMode.TILE;
+                boolean isTileMode = selectionService.isTiledMapEditingTargetActive();
 
                 if (!isTileMode || button != Input.Buttons.LEFT) {
                     return false;
@@ -2038,8 +2034,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        if (meta == null || meta.editorMode != SceneMeta.EditorMode.TILE) {
+        if (!selectionService.isTiledMapEditingTargetActive()) {
             tiledPreviewService.clear();
             return;
         }

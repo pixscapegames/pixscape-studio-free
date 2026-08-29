@@ -25,6 +25,16 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
+    public void sceneMetaDeclaresNoTransientEditorState() {
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("editorMode"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("showPhysicsFixtures"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("showPhysicsJoints"));
+    }
+
+    @Test
     public void uniqueSceneNameUsesEstablishedNumberedSuffixes() {
         ProjectConfig cfg = new ProjectConfig();
 
@@ -307,6 +317,54 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
+    public void loadProject_ignoresAndDropsRemovedSceneMetadata() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-removed-scene-metadata");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"name\":\"Main\"",
+                        "\"editorMode\":\"TILE\"," +
+                        "\"showPhysicsFixtures\":true," +
+                        "\"showPhysicsJoints\":true," +
+                        "\"mainCameraOffscreen\":true," +
+                        "\"name\":\"Main\"");
+        FileHandle projectFile = writeProjectFile(dir, json);
+
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+        ProjectConfig.ProjectIO.saveProject(loaded, projectFile);
+        String saved = projectFile.readString("UTF-8");
+
+        assertFalse(saved.contains("editorMode"));
+        assertFalse(saved.contains("showPhysicsFixtures"));
+        assertFalse(saved.contains("showPhysicsJoints"));
+        assertFalse(saved.contains("mainCameraOffscreen"));
+    }
+
+    @Test
+    public void saveProject_fullIntensityBlackAmbientRoundTripsWithoutBeingDefaulted() throws Exception {
+        SceneMeta restored = roundTripAmbient(0f, 0f, 0f, 1f);
+
+        assertEquals(0f, restored.ambientColorR, 0.0001f);
+        assertEquals(0f, restored.ambientColorG, 0.0001f);
+        assertEquals(0f, restored.ambientColorB, 0.0001f);
+        assertEquals(1f, restored.ambientIntensity, 0.0001f);
+        assertEquals(0f, restored.ambientMulR, 0.0001f);
+        assertEquals(0f, restored.ambientMulG, 0.0001f);
+        assertEquals(0f, restored.ambientMulB, 0.0001f);
+    }
+
+    @Test
+    public void saveProject_ambientMultipliersAreDerivedFromAuthoredValues() throws Exception {
+        SceneMeta restored = roundTripAmbient(0.2f, 0.4f, 0.6f, 0.5f);
+
+        assertEquals(0.2f, restored.ambientColorR, 0.0001f);
+        assertEquals(0.4f, restored.ambientColorG, 0.0001f);
+        assertEquals(0.6f, restored.ambientColorB, 0.0001f);
+        assertEquals(0.5f, restored.ambientIntensity, 0.0001f);
+        assertEquals(0.6f, restored.ambientMulR, 0.0001f);
+        assertEquals(0.7f, restored.ambientMulG, 0.0001f);
+        assertEquals(0.8f, restored.ambientMulB, 0.0001f);
+    }
+
+    @Test
     public void saveProject_purgedScenePhysicsRemainsDisabledAfterReload() throws Exception {
         Path dir = Files.createTempDirectory("project-config-purged-physics");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
@@ -417,6 +475,28 @@ public class ProjectConfigProjectIOValidationTest {
     private static FileHandle writeProjectFile(Path dir, String json) throws Exception {
         Files.writeString(dir.resolve("project.json"), json, StandardCharsets.UTF_8);
         return new FileHandle(dir.resolve("project.json").toFile());
+    }
+
+    private static SceneMeta roundTripAmbient(
+            float red, float green, float blue, float intensity) throws Exception {
+        Path dir = Files.createTempDirectory("project-config-ambient-round-trip");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Ambient";
+        cfg.projectFileName = "ambient";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.createSceneMeta("Main");
+        SceneMeta scene = cfg.getCurrentSceneMeta();
+        scene.ambientColorR = red;
+        scene.ambientColorG = green;
+        scene.ambientColorB = blue;
+        scene.ambientIntensity = intensity;
+        scene.ambientMulR = 1f;
+        scene.ambientMulG = 1f;
+        scene.ambientMulB = 1f;
+
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        return ProjectConfig.ProjectIO.loadProject(projectFile).getCurrentSceneMeta();
     }
 
     private static String validProjectJson(String currentSceneName, String currentSceneFile) {

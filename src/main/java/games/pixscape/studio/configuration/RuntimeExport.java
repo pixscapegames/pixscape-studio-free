@@ -122,13 +122,14 @@ public final class RuntimeExport {
             SceneMeta studioMeta = studioScenes.get(sceneName);
             if (studioMeta == null) continue;
 
+            SceneAmbientLighting.applyDefaultsAndDerive(studioMeta);
+
             String file = RuntimeFs.filenameOnly(studioMeta.file);
             if (file == null || file.isBlank()) {
                 throw new GdxRuntimeException("Scene '" + sceneName + "' has no file; cannot export.");
             }
 
             SceneMetaRuntime runtimeMeta = new SceneMetaRuntime(studioMeta);
-            runtimeMeta.mainCameraOffscreen = studioMeta.mainCameraOffscreen;
             runtimeMeta.name = (studioMeta.name != null && !studioMeta.name.isBlank())
                     ? studioMeta.name
                     : sceneName;

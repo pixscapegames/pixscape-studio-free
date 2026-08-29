@@ -9,8 +9,6 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 
 public final class SelectionService {
@@ -125,15 +123,6 @@ public final class SelectionService {
         this.tiledMapEditingTargetEntityId = mapEntityId;
         boolean isTiled = isValidTiledMapTarget(mapEntityId, true);
         if (!isTiled) this.tiledMapEditingTargetEntityId = -1;
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-
-        if (isTiled) {
-            meta.editorMode = SceneMeta.EditorMode.TILE;
-        } else {
-            meta.editorMode = SceneMeta.EditorMode.ENTITY;
-        }
-
         EventFlow.i().publish(new EventFlow.CurrentLayerChanged(layer, source, MY_TAG));
         if (previousTiledMapTarget != tiledMapEditingTargetEntityId) {
             EventFlow.i().publish(new EventFlow.TiledMapEditingTargetChanged(

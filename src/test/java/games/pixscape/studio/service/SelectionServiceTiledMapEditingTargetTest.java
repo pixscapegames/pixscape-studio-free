@@ -171,7 +171,6 @@ public class SelectionServiceTiledMapEditingTargetTest {
     }
 
     private void assertTiledTargetActive() {
-        assertEquals(SceneMeta.EditorMode.TILE, sceneMeta.editorMode);
         assertEquals(StudioEditingMode.TILED, editingModes.getCurrentMode());
         assertEquals(tiledMap, selection.getTiledMapEditingTargetEntityId());
         assertTrue(selection.isTiledMapEditingTargetActive());
@@ -179,7 +178,6 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
     private void assertEntityTargetActive(int entity) {
         assertEquals(entity, selection.getFirstSelectedEntityId());
-        assertEquals(SceneMeta.EditorMode.ENTITY, sceneMeta.editorMode);
         assertEquals(StudioEditingMode.NORMAL, editingModes.getCurrentMode());
         assertEquals(-1, selection.getTiledMapEditingTargetEntityId());
         assertFalse(selection.isTiledMapEditingTargetActive());

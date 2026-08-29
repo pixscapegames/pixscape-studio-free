@@ -212,50 +212,8 @@ public class ProjectConfig {
             if (m.runtimeAvailability.tiledAnimationIds == null) m.runtimeAvailability.tiledAnimationIds = new java.util.ArrayList<>();
             if (m.pixelsPerMeter <= 0f) m.pixelsPerMeter = 100f;
 
-            if (m.ambientMulR <= 0f) m.ambientMulR = 1f;
-            if (m.ambientMulG <= 0f) m.ambientMulG = 1f;
-            if (m.ambientMulB <= 0f) m.ambientMulB = 1f;
-
-            if (Float.isNaN(m.ambientIntensity)) {
-                boolean defaultMul = approx1(m.ambientMulR)
-                        && approx1(m.ambientMulG)
-                        && approx1(m.ambientMulB);
-
-                if (defaultMul) {
-                    m.ambientIntensity = 0f;
-                    m.ambientColorR = defaultAmbientColor();
-                    m.ambientColorG = defaultAmbientColor();
-                    m.ambientColorB = defaultAmbientColorBlue();
-                } else {
-                    m.ambientIntensity = 1f;
-                    m.ambientColorR = clamp01(m.ambientMulR);
-                    m.ambientColorG = clamp01(m.ambientMulG);
-                    m.ambientColorB = clamp01(m.ambientMulB);
-                }
-            }
-
-            if (Float.isNaN(m.ambientColorR)) m.ambientColorR = defaultAmbientColor();
-            if (Float.isNaN(m.ambientColorG)) m.ambientColorG = defaultAmbientColor();
-            if (Float.isNaN(m.ambientColorB)) m.ambientColorB = defaultAmbientColorBlue();
+            SceneAmbientLighting.applyDefaultsAndDerive(m);
         }
-    }
-
-    private static float clamp01(float v) {
-        if (v < 0f) return 0f;
-        if (v > 1f) return 1f;
-        return v;
-    }
-
-    private static boolean approx1(float v) {
-        return Math.abs(v - 1f) < 0.0001f;
-    }
-
-    private static float defaultAmbientColor() {
-        return 0.20f;
-    }
-
-    private static float defaultAmbientColorBlue() {
-        return 0.35f;
     }
 
     // --- IO ---------------------------------------------------------------
