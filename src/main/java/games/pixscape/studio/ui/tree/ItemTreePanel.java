@@ -544,9 +544,10 @@ public class ItemTreePanel extends DockablePanel {
 
             LayerComponent layerComp = world.getMapper(LayerComponent.class).get(eLayer);
             EntityNode mapNode = null;
+            int mapEntityId = -1;
 
             if (layerComp.type == LayerComponent.TYPE_TILED) {
-                int mapEntityId = layerService.findTiledMapForHost(eLayer);
+                mapEntityId = layerService.findTiledMapForHost(eLayer);
                 TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
                 if (tiled != null) {
                     mapNode = new EntityNode(
@@ -561,9 +562,6 @@ public class ItemTreePanel extends DockablePanel {
                     } else {
                         mapNode.getLabel().setColor(Color.WHITE);
                     }
-                    layerNode.add(mapNode);
-                    tree.registerMapNode(mapNode, mapEntityId);
-
                     if (mBody.has(mapEntityId)) {
                         boolean selectableBody = !meta.locked;
 
@@ -634,7 +632,12 @@ public class ItemTreePanel extends DockablePanel {
                         prefabNode.add(createEntityNode(members.get(i), meta.locked));
                     }
                 } else {
-                    layerNode.add(createEntityNode(item.entityId(), meta.locked));
+                    if (mapNode != null && item.entityId() == mapEntityId) {
+                        layerNode.add(mapNode);
+                        tree.registerMapNode(mapNode, mapEntityId);
+                    } else {
+                        layerNode.add(createEntityNode(item.entityId(), meta.locked));
+                    }
                 }
             }
         }

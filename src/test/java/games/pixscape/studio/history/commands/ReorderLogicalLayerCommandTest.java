@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.render.DirtyBits;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -21,6 +22,34 @@ import java.util.List;
 import static org.junit.Assert.*;
 
 public class ReorderLogicalLayerCommandTest {
+    @Test
+    public void tiledMapParticipatesAsStandaloneItemWithGenericUndoRedo() {
+        Harness h = new Harness();
+        try {
+            int sprite = h.entity(1);
+            int map = h.map(0);
+            h.process();
+
+            assertEquals(new IntArray(new int[]{sprite, map}),
+                    h.order().flattenedTopToBottom());
+            h.execute(h.order().moveEntity(map, -1));
+            assertEquals(new IntArray(new int[]{map, sprite}),
+                    h.order().flattenedTopToBottom());
+            h.assertZ(map, 1);
+            h.assertZ(sprite, 0);
+            assertTrue(h.dirty().isDirty(map, DirtyBits.ORDER));
+
+            h.history.undo();
+            assertEquals(new IntArray(new int[]{sprite, map}),
+                    h.order().flattenedTopToBottom());
+            h.history.redo();
+            assertEquals(new IntArray(new int[]{map, sprite}),
+                    h.order().flattenedTopToBottom());
+        } finally {
+            h.dispose();
+        }
+    }
+
     @Test
     public void originalInterleavingNormalizesToOneContiguousPrefabBlock() {
         Harness h = new Harness();
@@ -307,6 +336,12 @@ public class ReorderLogicalLayerCommandTest {
                     world.getMapper(PrefabInstanceComponent.class).create(entity);
             prefab.instanceId = instanceId;
             prefab.prefabId = prefabId;
+            return entity;
+        }
+
+        int map(int z) {
+            int entity = entity(z);
+            world.getMapper(TiledLayerComponent.class).create(entity);
             return entity;
         }
 

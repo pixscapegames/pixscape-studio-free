@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager.SupportsNoop;
@@ -32,10 +33,20 @@ public final class ChangeZIndexCommand implements Command, SupportsNoop {
     }
 
     public void addEntry(long historyId, int before, int after) {
+        validateZIndex(before);
+        validateZIndex(after);
         if (before == after) {
             return;
         }
         entries.add(new Entry(historyId, before, after));
+    }
+
+    private static void validateZIndex(int value) {
+        if (value < SortKey64.MIN_Z || value > SortKey64.MAX_Z) {
+            throw new IllegalArgumentException("zIndex " + value
+                    + " is outside the supported range [" + SortKey64.MIN_Z
+                    + ", " + SortKey64.MAX_Z + "].");
+        }
     }
 
     @Override
