@@ -5,37 +5,39 @@ import com.kotcrab.vis.ui.widget.VisSelectBox;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Per-operation Tiled Map configuration; SceneMeta supplies defaults only. */
+/** Per-operation Tiled Map configuration. */
 public final class AddTiledMapDialog extends StudioDialog {
+    static final TiledProjection DEFAULT_PROJECTION = TiledProjection.ORTHO;
+    static final int DEFAULT_TILE_WIDTH = 32;
+    static final int DEFAULT_TILE_HEIGHT = 32;
+    static final int DEFAULT_MAP_WIDTH = 256;
+    static final int DEFAULT_MAP_HEIGHT = 256;
+    static final int DEFAULT_CHUNK_SIZE = 16;
+
     public record Request(int mapWidth, int mapHeight, TiledProjection projection,
                           int tileWidth, int tileHeight, int chunkSize) {}
 
     private final VisSelectBox<String> projection = new VisSelectBox<>();
     private final VisTextField tileWidth = new VisTextField();
     private final VisTextField tileHeight = new VisTextField();
-    private final VisTextField mapWidth = new VisTextField("256");
-    private final VisTextField mapHeight = new VisTextField("256");
+    private final VisTextField mapWidth = new VisTextField(Integer.toString(DEFAULT_MAP_WIDTH));
+    private final VisTextField mapHeight = new VisTextField(Integer.toString(DEFAULT_MAP_HEIGHT));
     private final VisTextField chunkSize = new VisTextField();
     private final Consumer<Request> onCreate;
 
     public AddTiledMapDialog(Consumer<Request> onCreate) {
         super("Add Tiled Map");
         this.onCreate = Objects.requireNonNull(onCreate, "onCreate");
-        SceneMeta defaults = ProjectConfig.getInstance().getCurrentSceneMeta();
         projection.setItems("Orthogonal", "Isometric");
-        TiledProjection defaultProjection = defaults != null
-                ? defaults.tiledProjection : TiledProjection.ORTHO;
-        projection.setSelected(defaultProjection == TiledProjection.ISO ? "Isometric" : "Orthogonal");
-        tileWidth.setText(Integer.toString(defaults != null ? (int) defaults.tileWidth : 32));
-        tileHeight.setText(Integer.toString(defaults != null ? (int) defaults.tileHeight : 32));
-        chunkSize.setText(Integer.toString(defaults != null ? defaults.chunkSize : 16));
+        projection.setSelected(DEFAULT_PROJECTION == TiledProjection.ISO ? "Isometric" : "Orthogonal");
+        tileWidth.setText(Integer.toString(DEFAULT_TILE_WIDTH));
+        tileHeight.setText(Integer.toString(DEFAULT_TILE_HEIGHT));
+        chunkSize.setText(Integer.toString(DEFAULT_CHUNK_SIZE));
 
         VisTable form = new VisTable(true);
         row(form, "Projection", projection);
@@ -61,9 +63,10 @@ public final class AddTiledMapDialog extends StudioDialog {
     protected void result(Object object) {
         if (!Boolean.TRUE.equals(object)) return;
         onCreate.accept(new Request(
-                positive(mapWidth, 256), positive(mapHeight, 256),
+                positive(mapWidth, DEFAULT_MAP_WIDTH), positive(mapHeight, DEFAULT_MAP_HEIGHT),
                 "Isometric".equals(projection.getSelected()) ? TiledProjection.ISO : TiledProjection.ORTHO,
-                positive(tileWidth, 32), positive(tileHeight, 32), positive(chunkSize, 16)));
+                positive(tileWidth, DEFAULT_TILE_WIDTH), positive(tileHeight, DEFAULT_TILE_HEIGHT),
+                positive(chunkSize, DEFAULT_CHUNK_SIZE)));
     }
 
     private static int positive(VisTextField field, int fallback) {

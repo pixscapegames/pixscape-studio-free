@@ -11,16 +11,16 @@ import static org.junit.Assert.assertTrue;
 
 public class UniversalLayerTiledUiCleanupTest {
     @Test
-    public void sceneCreationPresentsMapDefaultsWithoutSceneTypeChoice() throws Exception {
+    public void sceneAndProjectCreationExposeNoTiledMapDefaults() throws Exception {
         String newProject = source("src/main/java/games/pixscape/studio/ui/main/NewProjectWindow.java");
         String newScene = source("src/main/java/games/pixscape/studio/ui/main/BottomMenuBar.java");
 
-        assertTrue(newProject.contains("Tiled Map Creation Defaults"));
-        assertTrue(newScene.contains("Tiled Map Creation Defaults"));
-        assertFalse(newProject.contains("projectionBox.setItems(\"None\""));
-        assertFalse(newScene.contains("projectionBox.setItems(\"None\""));
-        assertFalse(newProject.contains("tiledEnabled"));
-        assertFalse(newScene.contains("tiledEnabled"));
+        assertFalse(newProject.contains("Tiled Map Creation Defaults"));
+        assertFalse(newScene.contains("Tiled Map Creation Defaults"));
+        assertFalse(newProject.contains("projectionBox"));
+        assertFalse(newProject.contains("tfTileWidth"));
+        assertFalse(newProject.contains("tfTileHeight"));
+        assertFalse(newScene.contains("NewSceneWindow"));
     }
 
     @Test
@@ -36,22 +36,28 @@ public class UniversalLayerTiledUiCleanupTest {
     }
 
     @Test
-    public void scenePropertiesLabelsValuesAsCreationDefaults() throws Exception {
+    public void scenePropertiesExposeNoTiledMapDefaults() throws Exception {
         String properties = source("src/main/java/games/pixscape/studio/ui/property/SceneProperties.java");
 
-        assertTrue(properties.contains("Tiled Map Creation Defaults"));
-        assertTrue(properties.contains("Chunk Size:"));
-        assertFalse(properties.contains("tiledEnabled"));
+        assertFalse(properties.contains("Tiled Map Creation Defaults"));
+        assertFalse(properties.contains("tiledProjection"));
+        assertFalse(properties.contains("tileWidth"));
+        assertFalse(properties.contains("tileHeight"));
+        assertFalse(properties.contains("chunkSize"));
     }
 
     @Test
-    public void addMapDialogReadsCreationDefaultsWithoutRetainingSceneState() throws Exception {
+    public void addMapDialogOwnsEstablishedDefaultsWithoutReadingSceneMeta() throws Exception {
         String dialog = source("src/main/java/games/pixscape/studio/ui/layer/AddTiledMapDialog.java");
 
-        assertTrue(dialog.contains("defaults.tiledProjection"));
-        assertTrue(dialog.contains("defaults.tileWidth"));
-        assertTrue(dialog.contains("defaults.tileHeight"));
-        assertTrue(dialog.contains("defaults.chunkSize"));
+        assertTrue(dialog.contains("DEFAULT_PROJECTION = TiledProjection.ORTHO"));
+        assertTrue(dialog.contains("DEFAULT_TILE_WIDTH = 32"));
+        assertTrue(dialog.contains("DEFAULT_TILE_HEIGHT = 32"));
+        assertTrue(dialog.contains("DEFAULT_MAP_WIDTH = 256"));
+        assertTrue(dialog.contains("DEFAULT_MAP_HEIGHT = 256"));
+        assertTrue(dialog.contains("DEFAULT_CHUNK_SIZE = 16"));
+        assertFalse(dialog.contains("ProjectConfig"));
+        assertFalse(dialog.contains("SceneMeta"));
         assertTrue(dialog.contains("new Request("));
     }
 

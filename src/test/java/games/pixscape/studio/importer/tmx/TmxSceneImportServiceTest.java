@@ -117,10 +117,6 @@ public class TmxSceneImportServiceTest {
         TmxSceneImportResult result = h.importer().importScene(request(tmx, null));
 
         assertTrue(result.imported());
-        SceneMeta meta = h.cfg.getSceneMeta(result.sceneName());
-        assertEquals(32f, meta.tileWidth, 0.0001f);
-        assertEquals(32f, meta.tileHeight, 0.0001f);
-        assertEquals(TiledProjection.ORTHO, meta.tiledProjection);
 
         TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
         assertEquals(TiledProjection.ISO, tiled.projection);

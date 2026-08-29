@@ -11,7 +11,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.studio.ui.modal.Dialogs;
@@ -29,7 +28,6 @@ import java.io.IOException;
 public class BottomMenuBar extends VisTable {
     private final StudioApplicationAdapter app;
     private final VisSelectBox<String> sceneSelectBox;
-    private final NewSceneWindow newSceneWindow;
     private final Array<String> items = new Array<>();
     private final VisLabel zoomValue;
     private final VisLabel panFieldX;
@@ -61,7 +59,7 @@ public class BottomMenuBar extends VisTable {
         btnAddScene.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                openNewSceneWindow();
+                createNewScene();
             }
         });
         btnDeleteScene = new Button(VisUI.getSkin(), "delete");
@@ -74,7 +72,6 @@ public class BottomMenuBar extends VisTable {
             }
         });
         VisLabel sceneLabel = new VisLabel("Scene:");
-        newSceneWindow = new NewSceneWindow("New Scene");
         VisLabel zoomLabel = new VisLabel("Zoom:  ");
         zoomValue = new VisLabel();
         VisLabel panLabel = new VisLabel("Pan:  ");
@@ -156,30 +153,6 @@ public class BottomMenuBar extends VisTable {
                 sceneSwitchWorkflow.request(cur);
             }
         });
-
-        newSceneWindow.getOKButton().addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                String name = newSceneWindow.getSceneName();
-
-                if (name != null && !name.isBlank()) {
-                    try {
-                        app.getSceneService().createNewScene(
-                                name,
-                                newSceneWindow.getTileWidth(),
-                                newSceneWindow.getTileHeight(),
-                                newSceneWindow.getProjection()
-                        );
-                        newSceneWindow.fadeOut();
-                        refreshSelectBox();
-                    } catch (RuntimeException ex) {
-                        Dialogs.showOKDialog(getStage(), "Scene creation failed", ex.getMessage());
-                        refreshSelectBox();
-                    }
-                }
-            }
-        });
-
 
         left();
         add(sceneLabel).padLeft(10).padRight(3);
@@ -325,10 +298,13 @@ public class BottomMenuBar extends VisTable {
         return cfg.getCurrentSceneName();
     }
 
-    private void openNewSceneWindow() {
-        newSceneWindow.resetSceneName();
-        app.getUiStage().addActor(newSceneWindow.fadeIn());
-        newSceneWindow.centerWindow();
+    private void createNewScene() {
+        try {
+            app.getSceneService().createNewScene("New Scene");
+        } catch (RuntimeException ex) {
+            Dialogs.showOKDialog(getStage(), "Scene creation failed", ex.getMessage());
+        }
+        refreshSelectBox();
     }
 
     private void setSceneControlsBusy(boolean busy) {
@@ -392,79 +368,6 @@ public class BottomMenuBar extends VisTable {
         panFieldY.setText(String.format("%.0f)", y));
     }
 
-
-    private final class NewSceneWindow extends VisWindow {
-        private final VisTextButton ok = new VisTextButton("OK");
-        private final VisTextField sceneName = new VisTextField();
-        private final VisSelectBox<String> projectionBox = new VisSelectBox<>();
-        private final VisTextField tfTileWidth = new VisTextField("32");
-        private final VisTextField tfTileHeight = new VisTextField("32");
-
-
-        public NewSceneWindow(String title) {
-            super(title);
-            getTitleLabel().setAlignment(Align.center);
-            ok.setColor(CommonLayout.BUTTON_COLOR);
-
-            // Optional defaults for Tiled Maps created later in this scene.
-            projectionBox.setItems("Orthogonal", "Isometric");
-            projectionBox.setSelected("Orthogonal");
-            defaults().pad(4).left();
-            setWidth(280);
-            setHeight(280);
-            addCloseButton();
-
-            add(new VisLabel("Scene name: ")).left();
-            add(sceneName).left().growX().row();
-
-            add(new VisLabel("Tiled Map Creation Defaults"))
-                    .left().colspan(2).padTop(6).row();
-
-            add(new VisLabel("Projection:")).left();
-            add(projectionBox).growX().row();
-
-            add(new VisLabel("Tile Width (px):")).left();
-            add(tfTileWidth).growX().row();
-
-            add(new VisLabel("Tile Height (px):")).left();
-            add(tfTileHeight).growX().row();
-
-            add(ok).padTop(15).center().colspan(2);
-        }
-
-        public VisTextButton getOKButton() {
-            return ok;
-        }
-
-        public String getSceneName() {
-            return sceneName.getText();
-        }
-
-        public void resetSceneName() {
-            sceneName.setText("");
-        }
-
-        public String getProjection() {
-            return projectionBox.getSelected();
-        }
-
-        public int getTileWidth() {
-            return parseIntSafe(tfTileWidth.getText(), 32);
-        }
-
-        public int getTileHeight() {
-            return parseIntSafe(tfTileHeight.getText(), 32);
-        }
-
-        private int parseIntSafe(String value, int def) {
-            try {
-                int v = Integer.parseInt(value.trim());
-                return v > 0 ? v : def;
-            } catch (Exception e) {
-                return def;
-            }
-        }
-    }
 
     public void setPreviewRunning(boolean running) {
         btnPreview.setText(running ? "Preview (open)" : "Preview");

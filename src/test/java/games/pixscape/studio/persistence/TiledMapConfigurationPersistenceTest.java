@@ -24,44 +24,34 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 
-public class TiledMapCreationDefaultsPersistenceTest {
+public class TiledMapConfigurationPersistenceTest {
     @After
     public void tearDown() {
         ProjectConfig.setInstance(null);
     }
 
     @Test
-    public void changingCreationDefaultsDoesNotMutateExistingMapsAndBothConfigsRoundTrip() {
+    public void mapsOwnIndependentConfigurationAndBothConfigsRoundTrip() {
         World world = worldWithSerialization();
         World loaded = null;
         try {
             ProjectConfig cfg = new ProjectConfig();
             cfg.createSceneMeta("Main");
             ProjectConfig.setInstance(cfg);
-            SceneMeta defaults = cfg.getCurrentSceneMeta();
+            SceneMeta sceneMeta = cfg.getCurrentSceneMeta();
             IdentityRegistry identities = new IdentityRegistry();
-            identities.bind(world, defaults);
+            identities.bind(world, sceneMeta);
             LayerService layers = new LayerService(
                     world, null, new HistoryIdRegistry(), identities);
             int layerEntity = layers.getLayerEntity(layers.addLayerTop("Layer"));
             AtomicInteger selected = new AtomicInteger(-1);
 
-            defaults.tiledProjection = TiledProjection.ISO;
-            defaults.tileWidth = 64f;
-            defaults.tileHeight = 32f;
-            defaults.chunkSize = 8;
             new AddTiledMapCommand(layers, layerEntity, 12, 9,
-                    defaults.tiledProjection, (int) defaults.tileWidth,
-                    (int) defaults.tileHeight, defaults.chunkSize, selected::set).redo();
+                    TiledProjection.ISO, 64, 32, 8, selected::set).redo();
             int mapA = selected.get();
 
-            defaults.tiledProjection = TiledProjection.ORTHO;
-            defaults.tileWidth = 32f;
-            defaults.tileHeight = 32f;
-            defaults.chunkSize = 16;
             new AddTiledMapCommand(layers, layerEntity, 7, 5,
-                    defaults.tiledProjection, (int) defaults.tileWidth,
-                    (int) defaults.tileHeight, defaults.chunkSize, selected::set).redo();
+                    TiledProjection.ORTHO, 32, 32, 16, selected::set).redo();
             int mapB = selected.get();
             world.process();
 
@@ -70,19 +60,10 @@ public class TiledMapCreationDefaultsPersistenceTest {
             assertMap(world.getMapper(TiledLayerComponent.class).get(mapB),
                     TiledProjection.ORTHO, 32, 32, 16);
 
-            defaults.tiledProjection = TiledProjection.ISO;
-            defaults.tileWidth = 96f;
-            defaults.tileHeight = 48f;
-            defaults.chunkSize = 4;
-            assertMap(world.getMapper(TiledLayerComponent.class).get(mapA),
-                    TiledProjection.ISO, 64, 32, 8);
-            assertMap(world.getMapper(TiledLayerComponent.class).get(mapB),
-                    TiledProjection.ORTHO, 32, 32, 16);
-
             FileHandle file = tempSceneFile();
             SceneService.saveScene(world, file, false);
             loaded = worldWithSerialization();
-            SceneLoader.loadScene(loaded, file, false, defaults);
+            SceneLoader.loadScene(loaded, file, false, sceneMeta);
             loaded.process();
 
             IntBag maps = loaded.getAspectSubscriptionManager()
@@ -126,6 +107,6 @@ public class TiledMapCreationDefaultsPersistenceTest {
         if (!dir.exists() && !dir.mkdirs()) {
             throw new IllegalStateException("Could not create test directory: " + dir);
         }
-        return new FileHandle(new File(dir, "tiled-map-creation-defaults-roundtrip.json"));
+        return new FileHandle(new File(dir, "tiled-map-configuration-roundtrip.json"));
     }
 }

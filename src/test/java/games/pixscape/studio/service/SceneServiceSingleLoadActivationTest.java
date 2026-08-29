@@ -405,10 +405,6 @@ public class SceneServiceSingleLoadActivationTest {
         for (String sceneName : sceneNames) {
             cfg.createSceneMeta(sceneName);
             SceneMeta meta = cfg.getSceneMeta(sceneName);
-            meta.tileWidth = 16;
-            meta.tileHeight = 16;
-            meta.chunkSize = 8;
-            meta.tiledProjection = TiledProjection.ORTHO;
             meta.nextEntityStableId = 1000;
         }
         return new Fixture(cfg, projectDir);

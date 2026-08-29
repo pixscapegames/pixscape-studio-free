@@ -1,7 +1,6 @@
 package games.pixscape.studio.configuration;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class SceneMeta extends SceneMetaRuntime {
 
@@ -23,15 +22,8 @@ public final class SceneMeta extends SceneMetaRuntime {
     public SceneRuntimeAvailabilityData runtimeAvailability = new SceneRuntimeAvailabilityData();
     public int nextPrefabInstanceId = 1;
 
-    // Creation defaults only. Existing Tiled Maps own independent configuration.
-    public TiledProjection tiledProjection = TiledProjection.ORTHO;
-    public float tileWidth = 32f;
-    public float tileHeight = 32f;
-    public int chunkSize = 16;
-
     public SceneMeta(String name, String file) {
         super(name, file);
-        chunkSize = 16;
     }
 
     public SceneMeta() {

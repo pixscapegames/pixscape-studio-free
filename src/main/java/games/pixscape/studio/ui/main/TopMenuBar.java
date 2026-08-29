@@ -573,10 +573,7 @@ public class TopMenuBar extends MenuBar {
                             projectDirectory,
                             root,
                             PlatformTarget.DESKTOP_GL30,
-                            w.getGlSamples(),
-                            w.getTileWidth(),
-                            w.getTileHeight(),
-                            w.getProjection()
+                            w.getGlSamples()
                     );
                 } catch (RuntimeException ex) {
                     Dialogs.showOKDialog(

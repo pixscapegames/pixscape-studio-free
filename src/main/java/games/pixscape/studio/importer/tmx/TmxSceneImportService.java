@@ -120,15 +120,8 @@ public final class TmxSceneImportService {
     }
 
     String uniqueSceneName(String desired) {
-        String base = desired != null && !desired.isBlank() ? desired.trim() : "Imported TMX";
-        if (cfg.getSceneMeta(base) == null) {
-            return base;
-        }
-        int suffix = 2;
-        while (cfg.getSceneMeta(base + " " + suffix) != null) {
-            suffix++;
-        }
-        return base + " " + suffix;
+        String base = desired != null && !desired.isBlank() ? desired : "Imported TMX";
+        return cfg.uniqueSceneName(base);
     }
 
     void initializeSceneRuntimeAvailability(SceneMeta meta) {

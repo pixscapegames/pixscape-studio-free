@@ -49,10 +49,6 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         meta = config.getCurrentSceneMeta();
         meta.pixelsPerMeter = 32f;
         meta.physicsEnabled = true;
-        meta.tileWidth = 16f;
-        meta.tileHeight = 8f;
-        meta.chunkSize = 2;
-        meta.tiledProjection = TiledProjection.ISO;
         meta.nextEntityStableId = 2;
         ProjectConfig.setInstance(config);
     }

@@ -13,6 +13,29 @@ import static org.junit.Assert.*;
 public class ProjectConfigProjectIOValidationTest {
 
     @Test
+    public void sceneMetaDeclaresNoTiledMapCreationDefaults() {
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tiledProjection"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tileWidth"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tileHeight"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("chunkSize"));
+    }
+
+    @Test
+    public void uniqueSceneNameUsesEstablishedNumberedSuffixes() {
+        ProjectConfig cfg = new ProjectConfig();
+
+        assertEquals("New Scene", cfg.uniqueSceneName("New Scene"));
+        cfg.createSceneMeta("New Scene");
+        assertEquals("New Scene 2", cfg.uniqueSceneName("New Scene"));
+        cfg.createSceneMeta("New Scene 2");
+        assertEquals("New Scene 3", cfg.uniqueSceneName("New Scene"));
+    }
+
+    @Test
     public void loadProject_validProject_loadsSuccessfully() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
@@ -245,8 +268,8 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void saveProject_tiledMapCreationDefaultsRemainPersistentWithoutCapabilityFlag() throws Exception {
-        Path dir = Files.createTempDirectory("project-config-tiled-map-defaults");
+    public void saveProject_sceneMetadataContainsNoTiledMapCreationDefaults() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-no-tiled-map-defaults");
         FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
 
         ProjectConfig cfg = new ProjectConfig();
@@ -256,22 +279,17 @@ public class ProjectConfigProjectIOValidationTest {
         cfg.previewTarget = PreviewTarget.DESKTOP;
         cfg.glSamples = 0;
         cfg.createSceneMeta("Main");
-        SceneMeta main = cfg.getCurrentSceneMeta();
-        main.tiledProjection = games.pixscape.runtime.tiled.TiledProjection.ISO;
-        main.tileWidth = 64f;
-        main.tileHeight = 32f;
-        main.chunkSize = 8;
-
         ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
         String saved = projectFile.readString("UTF-8");
         ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
         SceneMeta restored = loaded.getCurrentSceneMeta();
 
+        assertNotNull(restored);
         assertFalse(saved.contains("tiledEnabled"));
-        assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO, restored.tiledProjection);
-        assertEquals(64f, restored.tileWidth, 0f);
-        assertEquals(32f, restored.tileHeight, 0f);
-        assertEquals(8, restored.chunkSize);
+        assertFalse(saved.contains("tiledProjection"));
+        assertFalse(saved.contains("tileWidth"));
+        assertFalse(saved.contains("tileHeight"));
+        assertFalse(saved.contains("chunkSize"));
     }
 
     @Test

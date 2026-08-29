@@ -20,7 +20,6 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
@@ -552,10 +551,7 @@ public final class SceneService {
                            String projectDirectoryPath,
                            String exportDir,
                            PlatformTarget platformTarget,
-                           int glSamples,
-                           int tileWidth,
-                           int tileHeight,
-                           String projection) {
+                           int glSamples) {
         FileHandle projectDir = null;
         boolean projectDirExistedBeforeAttempt = false;
         ProjectConfig cfg = new ProjectConfig();
@@ -574,13 +570,6 @@ public final class SceneService {
 
             cfg.createSceneMeta("MainScene");
             SceneMeta meta = cfg.getCurrentSceneMeta();
-
-            meta.tileWidth = tileWidth;
-            meta.tileHeight = tileHeight;
-            meta.tiledProjection =
-                    "Isometric".equals(projection)
-                            ? TiledProjection.ISO
-                            : TiledProjection.ORTHO;
 
             ProjectConfig.setInstance(cfg);
             bindSceneIdentityAuthorities(meta);
@@ -1956,12 +1945,7 @@ public final class SceneService {
         }
     }
 
-    public void createNewScene(
-            String sceneName,
-            int tileWidth,
-            int tileHeight,
-            String projection
-    ) {
+    public void createNewScene(String desiredSceneName) {
         clipboardService.clear();
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) {
@@ -1974,6 +1958,7 @@ public final class SceneService {
             saveCurrentSceneOnly(cfg);
         }
 
+        String sceneName = cfg.uniqueSceneName(desiredSceneName);
         String previousSceneName = cfg.getCurrentSceneName();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         String createdSceneFileName = null;
@@ -1982,13 +1967,6 @@ public final class SceneService {
             cfg.createSceneMeta(sceneName);
             SceneMeta meta = cfg.getSceneMeta(sceneName);
             createdSceneFileName = (meta != null) ? meta.getFile() : null;
-
-            meta.tileWidth = tileWidth;
-            meta.tileHeight = tileHeight;
-            meta.tiledProjection =
-                    "Isometric".equals(projection)
-                            ? TiledProjection.ISO
-                            : TiledProjection.ORTHO;
 
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
             atlasesDir.mkdirs();

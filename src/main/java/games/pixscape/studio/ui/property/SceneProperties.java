@@ -56,12 +56,6 @@ public class SceneProperties extends VisTable {
     private boolean internalLightingRefresh = false;
     private boolean internalPhysicsRefresh = false;
 
-    private final CollapsibleVisTable tiledBlock;
-    private final VisLabel projection;
-    private final VisLabel tileWidthField;
-    private final VisLabel tileHeightField;
-    private final VisLabel chunkSizeField;
-
     private final int MY_TAG = EventFlow.tag(this);
     private boolean dirtyUi = false;
     private String pendingSceneName;
@@ -333,31 +327,6 @@ public class SceneProperties extends VisTable {
         });
 
 
-        tiledBlock = new CollapsibleVisTable(true, true);
-
-        projection = new VisLabel();
-        tileWidthField = new VisLabel();
-        tileHeightField = new VisLabel();
-        chunkSizeField = new VisLabel();
-        tiledBlock.content().addSeparator().colspan(2).growX().padTop(6).row();
-        tiledBlock.content().add(new VisLabel("Tiled Map Creation Defaults"))
-                .colspan(2).center().row();
-
-        tiledBlock.content().add(new VisLabel("Projection:")).left();
-        tiledBlock.content().add(projection).left().row();
-
-        tiledBlock.content().add(new VisLabel("Tile Width:")).left();
-        tiledBlock.content().add(tileWidthField).width(100).left().row();
-
-        tiledBlock.content().add(new VisLabel("Tile Height:")).left();
-        tiledBlock.content().add(tileHeightField).width(100).left().growX().row();
-
-        tiledBlock.content().add(new VisLabel("Chunk Size:")).left();
-        tiledBlock.content().add(chunkSizeField).width(100).left().growX().row();
-
-        add(tiledBlock).colspan(2).growX().row();
-        tiledBlock.show(false);
-
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
         postProcess.add(this::completePendingPhysicsPurge);
@@ -497,7 +466,6 @@ public class SceneProperties extends VisTable {
 
         refreshPhysicsFromMeta();
         refreshLightingFromMeta();
-        refreshTiledFromMeta();
     }
 
     private void refreshPhysicsFromMeta() {
@@ -582,24 +550,6 @@ public class SceneProperties extends VisTable {
         } finally {
             internalLightingRefresh = false;
         }
-    }
-
-    private void refreshTiledFromMeta() {
-        SceneMeta m = currentMeta();
-        if (m == null) {
-            tiledBlock.show(false);
-            projection.setText("");
-            tileWidthField.setText("");
-            tileHeightField.setText("");
-            chunkSizeField.setText("");
-            return;
-        }
-
-        tiledBlock.show(true);
-        projection.setText(m.tiledProjection.name());
-        tileWidthField.setText(Float.toString(m.tileWidth));
-        tileHeightField.setText(Float.toString(m.tileHeight));
-        chunkSizeField.setText(Integer.toString(m.chunkSize));
     }
 
     private void refreshPhysicsParallaxFromMeta(SceneMeta m) {

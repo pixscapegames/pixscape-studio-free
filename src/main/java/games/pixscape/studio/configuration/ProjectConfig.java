@@ -73,6 +73,15 @@ public class ProjectConfig {
         return scenes.get(name);
     }
 
+    public String uniqueSceneName(String desiredName) {
+        String base = desiredName != null && !desiredName.isBlank() ? desiredName.trim() : "New Scene";
+        if (scenes.get(base) == null) return base;
+
+        int suffix = 2;
+        while (scenes.get(base + " " + suffix) != null) suffix++;
+        return base + " " + suffix;
+    }
+
     public ObjectMap<String, SceneMeta> getScenesMap() {
         return scenes;
     }
