@@ -286,7 +286,7 @@ public final class TmxSceneImportService {
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
-                createTileHostLayerComponents(world, layerEntity, layerIndex, tileLayer);
+                createTileLayerComponents(world, layerEntity, layerIndex, tileLayer);
                 identityRegistry.ensureStableId(layerEntity);
                 int mapEntity = world.create();
                 createTileMapComponents(world, mapEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
@@ -321,13 +321,13 @@ public final class TmxSceneImportService {
         world.process();
     }
 
-    private void createTileHostLayerComponents(World world,
-                                               int layerEntity,
-                                               int layerIndex,
-                                               TmxTileLayerPlan tileLayer) {
+    private void createTileLayerComponents(World world,
+                                           int layerEntity,
+                                           int layerIndex,
+                                           TmxTileLayerPlan tileLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_TILED;
+        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -385,7 +385,7 @@ public final class TmxSceneImportService {
         tiled.defaultTileHeight = 0f;
         tiled.atlasTag = sceneTag;
         tiled.data = tiled.createMapData();
-        // The temporary host layer remains the visibility authority during Stage 1.
+        // The owning Pixscape Layer remains the imported visibility authority.
         tiled.data.visible = true;
         tiled.data.spatialEnabled = tiled.spatialEnabled;
         tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;

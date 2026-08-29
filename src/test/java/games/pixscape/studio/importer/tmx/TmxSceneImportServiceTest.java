@@ -19,6 +19,9 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.api.ClassProperty;
+import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
@@ -28,6 +31,7 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.TagRegistry;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -41,9 +45,15 @@ import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.AddTiledMapCommand;
 import games.pixscape.studio.history.commands.GizmoTransformCommand;
+import games.pixscape.studio.history.commands.ToggleTiledMapSpatialDepthCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioEditingModeService;
+import games.pixscape.studio.service.TiledMapHostResolver;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -52,6 +62,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
@@ -140,7 +151,7 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
-    public void importSceneCreatesTiledLayersInRenderOrder() throws Exception {
+    public void importSceneCreatesUniversalMapLayersInRenderOrder() throws Exception {
         Harness h = harness("tmx-import-layer-order");
         FileHandle tmx = writeTmx(h.root.resolve("layers.tmx"), """
                 <map orientation="orthogonal" width="1" height="1" tilewidth="16" tileheight="16">
@@ -157,6 +168,10 @@ public class TmxSceneImportServiceTest {
 
         int ground = layerEntity(world, 0, true);
         int above = layerEntity(world, 1, true);
+        assertEquals(LayerComponent.TYPE_CLASSIC,
+                world.getMapper(LayerComponent.class).get(ground).type);
+        assertEquals(LayerComponent.TYPE_CLASSIC,
+                world.getMapper(LayerComponent.class).get(above).type);
         assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(above).visible);
@@ -165,6 +180,108 @@ public class TmxSceneImportServiceTest {
         int aboveMap = tiledMapEntity(world, 1);
         assertEquals(3f, world.getMapper(TiledLayerComponent.class).get(aboveMap).originX, 0.0001f);
         assertEquals(4f, world.getMapper(TiledLayerComponent.class).get(aboveMap).originY, 0.0001f);
+    }
+
+    @Test
+    public void importedTileLayerUsesUniversalOwnershipAndCurrentMapEditingPaths() throws Exception {
+        Harness h = harness("tmx-import-universal-map-layer");
+        writePng(h.projectDir.child("terrain.png"), 64, 32);
+        FileHandle tmx = writeTmx(h.root.resolve("universal-map.tmx"), """
+                <map orientation="isometric" width="2" height="2" tilewidth="32" tileheight="16">
+                  <tileset firstgid="1" name="terrain" tilewidth="32" tileheight="16" tilecount="4" columns="2">
+                    <image source="terrain.png" width="64" height="32"/>
+                  </tileset>
+                  <layer name="Ground" visible="0" parallaxx="1.5" parallaxy="0.75"
+                         offsetx="6" offsety="9" width="2" height="2">
+                    <data encoding="csv">1,0,2,4</data>
+                  </layer>
+                </map>
+                """);
+
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Universal Import"));
+        assertTrue("import failed: " + result.failure() + " " + result.diagnostics(),
+                result.imported());
+        World world = loadImportedWorld(h, result);
+        int layerEntity = layerEntity(world, 0, true);
+        int mapEntity = tiledMapEntity(world, 0);
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapEntity);
+        EntityIndexComponent mapIndex = world.getMapper(EntityIndexComponent.class).get(mapEntity);
+
+        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
+        assertFalse(layer.spatialEnabled);
+        assertFalse(world.getMapper(LayerComponent.class).has(mapEntity));
+        assertEquals(0, mapIndex.layerIndex);
+        assertEquals(0, mapIndex.zIndex);
+        assertEquals(TiledProjection.ISO, tiled.projection);
+        assertEquals(32, tiled.tileWidth);
+        assertEquals(16, tiled.tileHeight);
+        assertEquals(2, tiled.mapWidthCells);
+        assertEquals(2, tiled.mapHeightCells);
+        assertEquals(6f, tiled.originX, 0f);
+        assertEquals(9f, tiled.originY, 0f);
+        assertFalse(world.getMapper(VisibilityComponent.class).get(layerEntity).visible);
+        assertTrue(world.getMapper(VisibilityComponent.class).get(mapEntity).visible);
+        assertEquals(1.5f, world.getMapper(LayerParallaxComponent.class)
+                .get(layerEntity).factorX, 0f);
+        assertEquals(0.75f, world.getMapper(LayerParallaxComponent.class)
+                .get(layerEntity).factorY, 0f);
+        assertFalse(tiled.spatialEnabled);
+        tiled.data = tiled.createMapData();
+        assertFalse(tiled.data.spatialEnabled);
+        assertFalse(world.getMapper(PhysicsBodyComponent.class).has(layerEntity));
+        assertFalse(world.getMapper(PhysicsShapesComponent.class).has(layerEntity));
+        assertFalse(world.getMapper(PhysicsBodyComponent.class).has(mapEntity));
+        assertFalse(world.getMapper(PhysicsShapesComponent.class).has(mapEntity));
+
+        TiledMapHostResolver resolver = new TiledMapHostResolver(world);
+        resolver.validateWorld();
+        assertEquals(-1, resolver.findForHost(layerEntity));
+
+        SceneMeta importedMeta = h.cfg.getSceneMeta(result.sceneName());
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, importedMeta);
+        HistoryManager history = new HistoryManager(16);
+        LayerService layers = new LayerService(world, null, history.historyIds(), identities);
+        assertEquals(1, layers.count());
+        assertTrue(layers.isUniversalLayerEntity(layerEntity));
+
+        int sprite = world.create();
+        world.getMapper(EntityIndexComponent.class).create(sprite).layerIndex = 0;
+        world.getMapper(TextureRegionComponent.class).create(sprite);
+        int light = world.create();
+        world.getMapper(EntityIndexComponent.class).create(light).layerIndex = 0;
+        world.getMapper(PointLightComponent.class).create(light);
+
+        AtomicInteger selectedMap = new AtomicInteger(-1);
+        history.execute(new AddTiledMapCommand(
+                layers, layerEntity, 3, 3, TiledProjection.ORTHO,
+                16, 16, 4, selectedMap::set));
+        world.process();
+        assertTrue(selectedMap.get() >= 0);
+        assertEquals(2, world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
+                        .exclude(LayerComponent.class))
+                .getEntities().size());
+        assertEquals(0, world.getMapper(EntityIndexComponent.class)
+                .get(selectedMap.get()).layerIndex);
+        assertEquals(0, world.getMapper(EntityIndexComponent.class).get(sprite).layerIndex);
+        assertEquals(0, world.getMapper(EntityIndexComponent.class).get(light).layerIndex);
+        assertEquals(-1, layers.findTiledMapForHost(layerEntity));
+
+        history.execute(new ToggleTiledMapSpatialDepthCommand(
+                world, history.historyIds(), layerEntity, mapEntity,
+                true, 3f, 12f));
+        assertTrue(tiled.spatialEnabled);
+        assertTrue(tiled.data.spatialEnabled);
+        assertFalse(layer.spatialEnabled);
+
+        StudioEditingModeService editingModes = new StudioEditingModeService();
+        SelectionService selection = new SelectionService(world, layers, editingModes);
+        selection.setTiledMapEditingTarget(mapEntity, SelectionService.SelectionSource.TREE);
+        assertTrue(selection.isTiledMapEditingTargetActive());
+        assertEquals(mapEntity, selection.getTiledMapEditingTargetEntityId());
+        assertEquals(layerEntity, selection.getActivelayerId());
     }
 
     @Test
@@ -681,8 +798,8 @@ public class TmxSceneImportServiceTest {
         assertEquals("props", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 3, true)).name);
         assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 0, false)).type);
         assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 1, false)).type);
-        assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
-        assertEquals(LayerComponent.TYPE_TILED, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
+        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
+        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 0, false)));
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 1, false)));
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 2, true)));
@@ -1690,7 +1807,7 @@ public class TmxSceneImportServiceTest {
         return world.getMapper(TiledLayerComponent.class).get(entities.get(0));
     }
 
-    private static int layerEntity(World world, int index, boolean requireTiled) {
+    private static int layerEntity(World world, int index, boolean requireMap) {
         ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
         Aspect.Builder aspect = Aspect.all(LayerComponent.class);
         IntBag entities = world.getAspectSubscriptionManager()
@@ -1699,8 +1816,8 @@ public class TmxSceneImportServiceTest {
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
             if (layers.get(entity).layerIndex == index) {
-                if (requireTiled) {
-                    assertEquals(LayerComponent.TYPE_TILED, layers.get(entity).type);
+                assertEquals(LayerComponent.TYPE_CLASSIC, layers.get(entity).type);
+                if (requireMap) {
                     tiledMapEntity(world, index);
                 }
                 return entity;
