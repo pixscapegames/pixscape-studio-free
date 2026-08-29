@@ -69,7 +69,7 @@ public class ItemTreePanel extends DockablePanel {
     private boolean suppressTreeSelectionEvents = false;
     private boolean handlingTreeSelection = false;
 
-    private int explicitTiledMapLayerEid = -1;
+    private int explicitTiledMapEntityId = -1;
     private int explicitPrefabInstanceId = -1;
 
     enum ExplicitPrefabSyncResult {
@@ -155,7 +155,7 @@ public class ItemTreePanel extends DockablePanel {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
-                explicitTiledMapLayerEid = -1;
+                explicitTiledMapEntityId = -1;
                 explicitPrefabInstanceId = -1;
                 if (propertiesPanel != null) {
                     propertiesPanel.clearTiledMapMode();
@@ -194,7 +194,7 @@ public class ItemTreePanel extends DockablePanel {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
-                explicitTiledMapLayerEid = -1;
+                explicitTiledMapEntityId = -1;
                 explicitPrefabInstanceId = -1;
             }
 
@@ -358,7 +358,7 @@ public class ItemTreePanel extends DockablePanel {
                         handleSpatialBlocksNodeSelection(spatialNode);
                     } else {
                         explicitPrefabInstanceId = -1;
-                        explicitTiledMapLayerEid = -1;
+                        explicitTiledMapEntityId = -1;
                         if (propertiesPanel != null) {
                             propertiesPanel.clearTiledMapMode();
                         }
@@ -426,7 +426,7 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
         exitExplicitPhysicsEditMode();
         exitExplicitSpatialBlockMode();
@@ -474,10 +474,14 @@ public class ItemTreePanel extends DockablePanel {
     private void handleTiledMapNodeSelection(EntityNode mapNode) {
         if (mapNode == null || !mapNode.isTiledMapNode()) return;
 
-        int layerEid = mapNode.getEntityId();
-        if (layerEid < 0) return;
+        int mapEntityId = mapNode.getEntityId();
+        if (mapEntityId < 0) return;
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        if (index == null) return;
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        if (hostLayerEntityId < 0) return;
 
-        explicitTiledMapLayerEid = layerEid;
+        explicitTiledMapEntityId = mapEntityId;
 
         forceSingleTreeSelection(mapNode);
         exitExplicitPhysicsEditMode();
@@ -485,20 +489,24 @@ public class ItemTreePanel extends DockablePanel {
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
         selectionService.setActivelayerIdForTiledMapContext(
-                layerEid, SelectionService.SelectionSource.TREE);
+                hostLayerEntityId, SelectionService.SelectionSource.TREE);
 
         if (propertiesPanel != null) {
-            propertiesPanel.requestTiledMapProperties(layerEid);
+            propertiesPanel.requestTiledMapProperties(mapEntityId);
         }
     }
 
     private void handleSpatialBlocksNodeSelection(EntityNode spatialNode) {
         if (spatialNode == null || !spatialNode.isSpatialBlocksNode()) return;
 
-        int layerEid = spatialNode.getEntityId();
-        if (layerEid < 0) return;
+        int mapEntityId = spatialNode.getEntityId();
+        if (mapEntityId < 0) return;
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        if (index == null) return;
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        if (hostLayerEntityId < 0) return;
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) {
             propertiesPanel.clearTiledMapMode();
         }
@@ -507,8 +515,8 @@ public class ItemTreePanel extends DockablePanel {
         exitExplicitPhysicsEditMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerId(layerEid, SelectionService.SelectionSource.TREE);
-        spatialBlockSelectionService.enterLayer(layerEid);
+        selectionService.setActivelayerId(hostLayerEntityId, SelectionService.SelectionSource.TREE);
+        spatialBlockSelectionService.enterLayer(mapEntityId);
     }
 
     private void rebuildTreeFromWorld() {
@@ -537,12 +545,13 @@ public class ItemTreePanel extends DockablePanel {
             EntityNode mapNode = null;
 
             if (layerComp.type == LayerComponent.TYPE_TILED) {
-                TiledLayerComponent tiled = mTiled.getSafe(eLayer, null);
+                int mapEntityId = layerService.findTiledMapForHost(eLayer);
+                TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
                 if (tiled != null) {
                     mapNode = new EntityNode(
                             "Map (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
                             IconResolver.getDrawable(EntityKind.TILED_MAP),
-                            eLayer,
+                            mapEntityId,
                             true,
                             EntityNode.NodeKind.TILED_MAP
                     );
@@ -555,15 +564,15 @@ public class ItemTreePanel extends DockablePanel {
                         mapNode.getLabel().setColor(Color.WHITE);
                     }
                     layerNode.add(mapNode);
-                    tree.registerMapNode(mapNode, eLayer);
+                    tree.registerMapNode(mapNode, mapEntityId);
 
-                    if (mBody.has(eLayer)) {
+                    if (mBody.has(mapEntityId)) {
                         boolean selectableBody = !meta.locked;
 
                         EntityNode bodyNode = new EntityNode(
                                 "Static body",
                                 null,
-                                eLayer,
+                                mapEntityId,
                                 selectableBody,
                                 EntityNode.NodeKind.BODY
                         );
@@ -577,7 +586,7 @@ public class ItemTreePanel extends DockablePanel {
                         }
 
                         mapNode.add(bodyNode);
-                        tree.registerNode(bodyNode, eLayer);
+                        tree.registerNode(bodyNode, mapEntityId);
                     }
 
                     if (isLayerSpatialEnabled(eLayer, layerComp, tiled)) {
@@ -585,7 +594,7 @@ public class ItemTreePanel extends DockablePanel {
                         EntityNode spatialNode = new EntityNode(
                                 "Spatial volumes",
                                 null,
-                                eLayer,
+                                mapEntityId,
                                 selectableSpatial,
                                 selectableSpatial ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO
                         );
@@ -600,7 +609,7 @@ public class ItemTreePanel extends DockablePanel {
 
                         mapNode.add(spatialNode);
                         if (selectableSpatial) {
-                            tree.registerNode(spatialNode, eLayer);
+                            tree.registerNode(spatialNode, mapEntityId);
                         }
                     }
                 }
@@ -741,8 +750,8 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
-        if (explicitTiledMapLayerEid >= 0) {
-            EntityNode mapNode = tree.findMapNode(explicitTiledMapLayerEid);
+        if (explicitTiledMapEntityId >= 0) {
+            EntityNode mapNode = tree.findMapNode(explicitTiledMapEntityId);
             if (mapNode != null) {
                 tree.getSelection().add(mapNode);
                 if (applyFocus) {
@@ -751,7 +760,7 @@ public class ItemTreePanel extends DockablePanel {
                 tree.getSelection().setProgrammaticChangeEvents(true);
                 return;
             }
-            explicitTiledMapLayerEid = -1;
+            explicitTiledMapEntityId = -1;
         }
 
         int activeLayerId = selectionService.getActivelayerId();
@@ -867,7 +876,7 @@ public class ItemTreePanel extends DockablePanel {
     private void handleBodyNodeSelection(EntityNode bodyNode) {
         if (bodyNode == null || !bodyNode.isBodyNode()) return;
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) {
             propertiesPanel.clearTiledMapMode();
         }
@@ -903,7 +912,7 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
         exitExplicitSpatialBlockMode();
         activateLayerForEntity(jointEntityId, SelectionService.SelectionSource.TREE);

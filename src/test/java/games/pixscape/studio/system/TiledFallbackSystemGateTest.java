@@ -5,6 +5,7 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.TiledMapRenderState;
@@ -295,9 +296,13 @@ public class TiledFallbackSystemGateTest {
                 .getMapper(LayerComponent.class)
                 .create(secondLayerEntity);
         secondLayer.type = LayerComponent.TYPE_TILED;
+        secondLayer.layerIndex = 1;
+        int secondMapEntity = fixture.world.create();
+        fixture.world.getMapper(EntityIndexComponent.class)
+                .create(secondMapEntity).layerIndex = 1;
         TiledLayerComponent secondTiled = fixture.world
                 .getMapper(TiledLayerComponent.class)
-                .create(secondLayerEntity);
+                .create(secondMapEntity);
         secondTiled.atlasTag = "secondary";
         secondTiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
         secondTiled.data.setTile(0, 0, 100);
@@ -325,8 +330,10 @@ public class TiledFallbackSystemGateTest {
         LayerComponent layer =
                 world.getMapper(LayerComponent.class).create(entityId);
         layer.type = LayerComponent.TYPE_TILED;
+        int mapEntityId = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;
         TiledLayerComponent tiled =
-                world.getMapper(TiledLayerComponent.class).create(entityId);
+                world.getMapper(TiledLayerComponent.class).create(mapEntityId);
         tiled.atlasTag = "main";
         tiled.data = new TiledMapLayerData(width, height, 16, 16, 32);
         return new Fixture(world, system, tiledState, tiled.data);

@@ -153,8 +153,9 @@ public class TmxSceneImportServiceTest {
         assertFalse(world.getMapper(VisibilityComponent.class).get(above).visible);
         assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(above).factorX, 0.0001f);
         assertEquals(0.5f, world.getMapper(LayerParallaxComponent.class).get(above).factorY, 0.0001f);
-        assertEquals(3f, world.getMapper(TiledLayerComponent.class).get(above).originX, 0.0001f);
-        assertEquals(4f, world.getMapper(TiledLayerComponent.class).get(above).originY, 0.0001f);
+        int aboveMap = tiledMapEntity(world, 1);
+        assertEquals(3f, world.getMapper(TiledLayerComponent.class).get(aboveMap).originX, 0.0001f);
+        assertEquals(4f, world.getMapper(TiledLayerComponent.class).get(aboveMap).originY, 0.0001f);
     }
 
     @Test
@@ -1682,19 +1683,34 @@ public class TmxSceneImportServiceTest {
 
     private static int layerEntity(World world, int index, boolean requireTiled) {
         ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-        Aspect.Builder aspect = requireTiled
-                ? Aspect.all(LayerComponent.class, TiledLayerComponent.class)
-                : Aspect.all(LayerComponent.class);
+        Aspect.Builder aspect = Aspect.all(LayerComponent.class);
         IntBag entities = world.getAspectSubscriptionManager()
                 .get(aspect)
                 .getEntities();
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
             if (layers.get(entity).layerIndex == index) {
+                if (requireTiled) {
+                    assertEquals(LayerComponent.TYPE_TILED, layers.get(entity).type);
+                    tiledMapEntity(world, index);
+                }
                 return entity;
             }
         }
         throw new AssertionError("Missing layer index " + index);
+    }
+
+    private static int tiledMapEntity(World world, int layerIndex) {
+        ComponentMapper<EntityIndexComponent> indexes = world.getMapper(EntityIndexComponent.class);
+        IntBag entities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)
+                        .exclude(LayerComponent.class))
+                .getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entity = entities.get(i);
+            if (indexes.get(entity).layerIndex == layerIndex) return entity;
+        }
+        throw new AssertionError("Missing Tiled map in layer index " + layerIndex);
     }
 
     private static int drawableInLayer(World world, int layerIndex) {

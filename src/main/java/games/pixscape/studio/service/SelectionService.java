@@ -95,6 +95,12 @@ public final class SelectionService {
         setActivelayerIdInternal(layer, false, source);
     }
 
+    /** Returns the real map owner for the temporary active TYPE_TILED host. */
+    public int getActiveTiledMapEntityId() {
+        if (!world.getEntityManager().isActive(activelayerId)) return -1;
+        return layerService.findTiledMapForHost(activelayerId);
+    }
+
     public void setActivelayerIdForTiledMapContext(int layer, SelectionSource source) {
         setActivelayerIdInternal(layer, true, source);
     }
@@ -104,9 +110,13 @@ public final class SelectionService {
         this.activelayerId = layer;
 
         int type = layerService.getLayerTypeByEntity(layer);
+        int tiledMapEntityId = tiledMapEditingTarget
+                ? layerService.findTiledMapForHost(layer)
+                : -1;
         boolean isTiled = tiledMapEditingTarget
                 && type == LayerComponent.TYPE_TILED
-                && mTiledLayer.has(layer);
+                && tiledMapEntityId >= 0
+                && mTiledLayer.has(tiledMapEntityId);
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg.getCurrentSceneMeta();
 
@@ -139,9 +149,12 @@ public final class SelectionService {
             return false;
         }
         LayerComponent layer = mLayer.getSafe(activelayerId, null);
+        int tiledMapEntityId = layerService.findTiledMapForHost(activelayerId);
         return layer != null
                 && layer.type == LayerComponent.TYPE_TILED
-                && mTiledLayer.has(activelayerId);
+                && tiledMapEntityId >= 0
+                && world.getEntityManager().isActive(tiledMapEntityId)
+                && mTiledLayer.has(tiledMapEntityId);
     }
 
     public IntSet getSelectionSet() {

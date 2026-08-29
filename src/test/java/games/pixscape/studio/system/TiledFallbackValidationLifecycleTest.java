@@ -7,6 +7,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
@@ -196,7 +197,9 @@ public class TiledFallbackValidationLifecycleTest {
 
         int layerEntity = world.create();
         world.getMapper(LayerComponent.class).create(layerEntity).type = LayerComponent.TYPE_TILED;
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerEntity);
+        int mapEntity = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
         tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
         tiled.data.setTile(0, 0, 42);
         TileChunk chunk = tiled.data.getChunk(0, 0);

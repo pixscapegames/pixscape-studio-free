@@ -7,6 +7,8 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -62,7 +64,9 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     @Test
     public void commandRelationSurvivesStudioSaveAndActivationRebuild() {
         World source = serializationWorld();
+        createTiledHost(source);
         int layer = source.create();
+        source.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
         source.getMapper(PixscapeIdentityComponent.class)
                 .create(layer).stableId = 1;
         TiledLayerComponent tiled =
@@ -197,7 +201,9 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     @Test
     public void activationCreatesIdentityTransformForAuthoredTiledPhysics() {
         World world = serializationWorld();
+        createTiledHost(world);
         int layer = world.create();
+        world.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class).create(layer);
         tiled.mapWidthCells = 4;
@@ -250,6 +256,13 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     private static World serializationWorld() {
         return new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+    }
+
+    private static void createTiledHost(World world) {
+        int host = world.create();
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
+        layer.type = LayerComponent.TYPE_TILED;
+        layer.layerIndex = 0;
     }
 
     private static void assertIdentityTransform(TransformComponent transform) {

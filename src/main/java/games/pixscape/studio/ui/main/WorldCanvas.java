@@ -415,7 +415,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledMutationController = new TiledMutationController(
                 world, historyManager, () -> app != null ? app.getSceneService() : null);
 
-        tiledAllocatorService = new TiledAllocatorService();
+        tiledAllocatorService = new TiledAllocatorService(tileAnimationRegistry);
 
         tiledPaintService = new TiledPaintService();
         tiledToolService = new TiledToolService();
@@ -725,8 +725,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     private void configureTileMode(SceneMeta meta) {
         gridActor.setTiledMode(meta.tiledProjection, meta.tileWidth, meta.tileHeight);
-        int layerEntity = selectionService.getActivelayerId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntity, null);
+        int mapEntity = selectionService.getActiveTiledMapEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntity, null);
 
         if (tiled != null && tiled.data != null) {
             TiledMapLayerData map = tiled.data;
@@ -1122,7 +1122,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return true;
                 }
 
-                int layerEntityId = selectionService.getActivelayerId();
+                int layerEntityId = selectionService.getActiveTiledMapEntityId();
                 if (layerEntityId == -1) {
                     return false;
                 }
@@ -1229,7 +1229,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean handleTiledOutsideMapClick() {
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
         if (tiled == null || tiled.data == null) return false;
 
@@ -1258,7 +1258,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         if (layerEntityId == -1) {
             return false;
         }
@@ -1286,7 +1286,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         applyBrushAtMouse(layerEntityId);
     }
 
@@ -1298,7 +1298,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         if (layerEntityId == -1) {
             return false;
         }
@@ -1328,7 +1328,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(selectionService.getActivelayerId(), null);
+                        .getSafe(selectionService.getActiveTiledMapEntityId(), null);
 
         if (tiled == null || tiled.data == null) {
             return;
@@ -1365,7 +1365,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         rectActive = false;
         gizmoSystem.hideRectPreview();
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         if (layerEntityId == -1) {
             return;
         }
@@ -2052,7 +2052,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         if (layerEntityId == -1) {
             tiledPreviewService.clear();
             return;
@@ -2116,7 +2116,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
+        int layerEntityId = selectionService.getActiveTiledMapEntityId();
         TiledLayerComponent tiled = layerEntityId < 0
                 ? null
                 : world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);

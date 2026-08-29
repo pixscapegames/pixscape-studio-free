@@ -23,7 +23,9 @@ public class ItemTreeTiledEditingTargetContractTest {
         assertTrue(mapSelection.contains("setActivelayerIdForTiledMapContext("));
         assertTrue(entityLayerActivation.contains("selectionService.setActivelayerId(layerEntity, source);"));
         assertEquals(1, countOccurrences(source, "setActivelayerIdForTiledMapContext("));
-        assertTrue(source.contains("explicitTiledMapLayerEid = -1;"));
+        assertTrue(source.contains("explicitTiledMapEntityId = -1;"));
+        assertTrue(source.contains("tree.registerMapNode(mapNode, mapEntityId);"));
+        assertTrue(mapSelection.contains("int mapEntityId = mapNode.getEntityId();"));
     }
 
     @Test

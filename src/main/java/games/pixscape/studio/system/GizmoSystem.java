@@ -227,7 +227,9 @@ public final class GizmoSystem extends BaseSystem {
                     && (spatialTileSelectionService == null || !spatialTileSelectionService.hasSelection())) {
                 readMouseWorld(tmpMouseWorld);
 
-                int layerEntityId = selectionService != null ? selectionService.getActivelayerId() : -1;
+                int layerEntityId = selectionService != null
+                        ? selectionService.getActiveTiledMapEntityId()
+                        : -1;
                 TiledLayerComponent tiled = layerEntityId >= 0
                         ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null)
                         : null;

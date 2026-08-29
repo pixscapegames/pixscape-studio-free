@@ -219,12 +219,11 @@ public final class StudioContextMenu extends InputListener {
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
 
-        // Useful fallback for the static body of a Tiled layer:
-        // if no body is focused yet, use the active layer if it has a body.
+        // Useful fallback for the static body owned by the active Tiled map.
         if (bodyEid < 0) {
-            int activeLayerId = selectionService.getActivelayerId();
-            if (activeLayerId >= 0 && mBody.has(activeLayerId)) {
-                bodyEid = activeLayerId;
+            int activeMapId = selectionService.getActiveTiledMapEntityId();
+            if (activeMapId >= 0 && mBody.has(activeMapId)) {
+                bodyEid = activeMapId;
             }
         }
 

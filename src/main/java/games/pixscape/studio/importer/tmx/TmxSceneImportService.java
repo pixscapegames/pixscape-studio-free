@@ -294,9 +294,13 @@ public final class TmxSceneImportService {
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
-                createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                createTileHostLayerComponents(world, layerEntity, layerIndex, tileLayer);
                 identityRegistry.ensureStableId(layerEntity);
-                populateTiles(world, layerEntity, tileLayer, cellLogicalIdsByTileset);
+                int mapEntity = world.create();
+                createTileMapComponents(world, mapEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                identityRegistry.setName(mapEntity, "Map");
+                identityRegistry.ensureStableId(mapEntity);
+                populateTiles(world, mapEntity, tileLayer, cellLogicalIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
                 ImportedImageAsset imageAsset = imageAssetsBySourceLayer.get(imageLayer.sourceLayerIndex());
@@ -325,12 +329,10 @@ public final class TmxSceneImportService {
         world.process();
     }
 
-    private void createTileLayerComponents(World world,
-                                           int layerEntity,
-                                           int layerIndex,
-                                           TmxTileLayerPlan tileLayer,
-                                           TmxScenePlan scene,
-                                           String sceneTag) {
+    private void createTileHostLayerComponents(World world,
+                                               int layerEntity,
+                                               int layerIndex,
+                                               TmxTileLayerPlan tileLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
         layer.type = LayerComponent.TYPE_TILED;
@@ -350,7 +352,32 @@ public final class TmxSceneImportService {
         parallax.factorX = tileLayer.parallaxX();
         parallax.factorY = tileLayer.parallaxY();
 
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerEntity);
+    }
+
+    private void createTileMapComponents(World world,
+                                         int mapEntity,
+                                         int layerIndex,
+                                         TmxTileLayerPlan tileLayer,
+                                         TmxScenePlan scene,
+                                         String sceneTag) {
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(mapEntity);
+        index.layerIndex = layerIndex;
+        index.zIndex = 0;
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(mapEntity);
+        transform.x = tileLayer.offsetX();
+        transform.y = tileLayer.offsetY();
+        transform.rotationRad = 0f;
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+        transform.refreshCaches();
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(mapEntity);
+        visibility.visible = true;
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+        EntityMetaComponent entityMeta = world.getMapper(EntityMetaComponent.class).create(mapEntity);
+        entityMeta.kind = EntityKind.TILED_MAP;
+
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
         tiled.mapWidthCells = tileLayer.width();
         tiled.mapHeightCells = tileLayer.height();
         tiled.originX = tileLayer.offsetX();
@@ -371,7 +398,8 @@ public final class TmxSceneImportService {
         );
         tiled.data.originX = tiled.originX;
         tiled.data.originY = tiled.originY;
-        tiled.data.visible = tileLayer.visible();
+        // The temporary host layer remains the visibility authority during Stage 1.
+        tiled.data.visible = true;
         tiled.data.spatialEnabled = tiled.spatialEnabled;
         tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
         tiled.data.defaultTileHeight = tiled.defaultTileHeight;

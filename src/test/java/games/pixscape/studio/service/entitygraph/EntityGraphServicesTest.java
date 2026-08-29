@@ -5,6 +5,7 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.*;
@@ -66,6 +67,19 @@ public class EntityGraphServicesTest {
         assertContains(generic, cone);
         assertNotContains(prefab, point);
         assertNotContains(prefab, cone);
+    }
+
+    @Test
+    public void genericAndPrefabCaptureExcludeTiledMapRoots() {
+        World world = new World(new WorldConfiguration());
+        int map = world.create();
+        world.getMapper(EntityIndexComponent.class).create(map).layerIndex = 0;
+        world.getMapper(TransformComponent.class).create(map);
+        world.getMapper(TiledLayerComponent.class).create(map);
+        EntityGraphCaptureService service = new EntityGraphCaptureService(world);
+
+        Assert.assertTrue(service.capture(arr(map)).isEmpty());
+        Assert.assertTrue(service.captureForPrefab(arr(map)).isEmpty());
     }
 
     @Test

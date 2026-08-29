@@ -12,6 +12,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.LayerInitializer;
+import games.pixscape.studio.history.initializer.TiledMapInitializer;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 
 import java.util.ArrayList;
@@ -38,6 +39,7 @@ public final class LayerService {
     private final HistoryIdRegistry historyIds;
     private final IdentityRegistry identityRegistry;
     private final TiledAllocatorService tiledAllocatorService;
+    private final TiledMapHostResolver tiledMapResolver;
     private boolean dirty = true;
 
     /**
@@ -50,6 +52,7 @@ public final class LayerService {
                         HistoryIdRegistry historyIds, IdentityRegistry identityRegistry) {
         this.world = world;
         this.tiledAllocatorService = tiledAllocatorService;
+        this.tiledMapResolver = new TiledMapHostResolver(world);
         this.historyIds = historyIds;
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.mL = world.getMapper(LayerComponent.class);
@@ -120,6 +123,14 @@ public final class LayerService {
 
     public TiledAllocatorService getTiledAllocatorService() {
         return tiledAllocatorService;
+    }
+
+    public int findTiledMapForHost(int hostLayerEntityId) {
+        return tiledMapResolver.findForHost(hostLayerEntityId);
+    }
+
+    public int requireTiledMapForHost(int hostLayerEntityId) {
+        return tiledMapResolver.requireForHost(hostLayerEntityId);
     }
 
     public void rebuildFromWorld() {
@@ -259,6 +270,27 @@ public final class LayerService {
 
         layerEntities.insert(clampedIndex, e);
         renumberLayerIndices();
+        tiledMapResolver.invalidate();
+
+        TiledMapInitializer tiledMapInitializer = initializer.tiledMapInitializer();
+        if (tiledMapInitializer != null) {
+            tiledMapInitializer.overrideLayerIndex(clampedIndex);
+            int mapEntityId = world.create();
+            try {
+                historyIds.ensureForEntity(mapEntityId);
+                tiledMapInitializer.init(mapEntityId);
+                identityRegistry.ensureStableId(mapEntityId);
+            } catch (RuntimeException failure) {
+                TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
+                if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+                IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
+                historyIds.unbindEntity(mapEntityId);
+                world.delete(mapEntityId);
+                removeLayerCascade(clampedIndex);
+                throw failure;
+            }
+            tiledMapResolver.register(mapEntityId);
+        }
 
         // IMPORTANT : a coherent cache has just been built manually.
         // Do not let rebuildIfDirty() discard it before the subscription is up to date.
@@ -275,6 +307,11 @@ public final class LayerService {
         }
         int layerEntityId = insertLayerAt(index, snapshot.layerInitializer);
         historyIds.bind(layerEntityId, snapshot.layerHistoryId);
+        if (snapshot.tiledMapInitializer != null) {
+            int mapEntityId = requireTiledMapForHost(layerEntityId);
+            historyIds.unbindEntity(mapEntityId);
+            historyIds.bind(mapEntityId, snapshot.tiledMapHistoryId);
+        }
 
         for (DrawableSnapshot drawable : snapshot.drawables) {
             GenericEntityInitializer init = drawable.initializer;
@@ -298,6 +335,15 @@ public final class LayerService {
 
         LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService);
         initializer.syncFrom(layerEntityId);
+        long tiledMapHistoryId = -1L;
+        TiledMapInitializer tiledMapInitializer = null;
+        int tiledMapEntityId = findTiledMapForHost(layerEntityId);
+        if (tiledMapEntityId >= 0) {
+            tiledMapHistoryId = historyIds.ensureForEntity(tiledMapEntityId);
+            tiledMapInitializer = new TiledMapInitializer(world, tiledAllocatorService);
+            tiledMapInitializer.syncFrom(tiledMapEntityId);
+            initializer.setTiledMapInitializer(tiledMapInitializer);
+        }
 
         List<DrawableSnapshot> drawables = new ArrayList<>();
 
@@ -316,6 +362,7 @@ public final class LayerService {
             if (ei == null || ei.getLayerIndex() != index) {
                 continue;
             }
+            if (mTiled.has(e)) continue;
 
             long drawableHistoryId = historyIds.ensureForEntity(e); // ✅ e, not layerEntityId
 
@@ -331,7 +378,8 @@ public final class LayerService {
                 .thenComparingLong(d -> d.historyId)
                 .thenComparingInt(d -> d.entityId));
 
-        return new LayerSnapshot(index, layerHistoryId, initializer, drawables);
+        return new LayerSnapshot(index, layerHistoryId, initializer,
+                tiledMapHistoryId, tiledMapInitializer, drawables);
     }
 
 
@@ -346,9 +394,11 @@ public final class LayerService {
 
         int eLayer = layerEntities.get(index);
 
-        // 0) If this is a tiled layer -> release BEFORE deletion
-        if (mTiled.has(eLayer)) {
-            TiledLayerComponent tiled = mTiled.get(eLayer);
+        // 0) Release the hosted Tiled map before deleting its owning layer.
+        int tiledMapEntityId = findTiledMapForHost(eLayer);
+        if (tiledAllocatorService != null
+                && tiledMapEntityId >= 0 && mTiled.has(tiledMapEntityId)) {
+            TiledLayerComponent tiled = mTiled.get(tiledMapEntityId);
             // Allocator release + slot deactivation
             tiledAllocatorService.freeLayer(tiled);
         }
@@ -365,6 +415,7 @@ public final class LayerService {
         layerEntities.removeIndex(index);
         shiftItemsForRemove(index);
         renumberLayerIndices();
+        tiledMapResolver.invalidate();
 
         // 4) Forcer rebuild GPU des autres tiled layers
         IntBag bag = world.getAspectSubscriptionManager()
@@ -455,18 +506,21 @@ public final class LayerService {
             }
         }
         if (li.type == LayerComponent.TYPE_TILED) {
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(eI);
+            int mapEntityId = findTiledMapForHost(eI);
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
             if (tiled != null && tiled.data != null)
                 tiled.data.markAllChunksContentDirty();
         }
 
         if (lj.type == LayerComponent.TYPE_TILED) {
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(eJ);
+            int mapEntityId = findTiledMapForHost(eJ);
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
             if (tiled != null && tiled.data != null)
                 tiled.data.markAllChunksContentDirty();
         }
 
         swapItemsLayerIndices(idxI, idxJ);
+        tiledMapResolver.invalidate();
         markLayerContentsDirty(idxI);
         markLayerContentsDirty(idxJ);
 
@@ -713,11 +767,16 @@ public final class LayerService {
     }
 
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
+                                long tiledMapHistoryId, TiledMapInitializer tiledMapInitializer,
                                 List<DrawableSnapshot> drawables) {
-        public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer, List<DrawableSnapshot> drawables) {
+        public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
+                             long tiledMapHistoryId, TiledMapInitializer tiledMapInitializer,
+                             List<DrawableSnapshot> drawables) {
             this.index = index;
             this.layerHistoryId = layerHistoryId;
             this.layerInitializer = layerInitializer;
+            this.tiledMapHistoryId = tiledMapHistoryId;
+            this.tiledMapInitializer = tiledMapInitializer;
             this.drawables = List.copyOf(drawables);
         }
     }

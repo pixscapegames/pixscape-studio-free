@@ -1,6 +1,5 @@
 package games.pixscape.studio.system;
 
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -23,7 +22,7 @@ public class TiledFallbackSystemTiledStateTest {
         int tiledRenderRef = map.tiledRenderRefForTile(0, 0);
 
         system.writeTileSlot(
-                layer(3),
+                3,
                 map,
                 tiledRenderRef,
                 0,
@@ -55,9 +54,9 @@ public class TiledFallbackSystemTiledStateTest {
         int tiledRenderRef = map.tiledRenderRefForTile(0, 0);
         RuntimeTilesetProfile profile = profile(1);
 
-        system.writeTileSlot(layer(0), map, tiledRenderRef, 0, 0,
+        system.writeTileSlot(0, map, tiledRenderRef, 0, 0,
                 16, 16, profile, TileTransformFlags.NONE, 77, 0f, 0f, 1f, 1f);
-        system.writeTileSlot(layer(0), map, tiledRenderRef, 0, 0,
+        system.writeTileSlot(0, map, tiledRenderRef, 0, 0,
                 16, 16, profile, TileTransformFlags.NONE, 501, 0.25f, 0.5f, 0.75f, 1f);
 
         Assert.assertTrue(tiledState.isRenderableRef(tiledRenderRef));
@@ -74,13 +73,6 @@ public class TiledFallbackSystemTiledStateTest {
         chunk.renderRefStartIndex = tiledState.registerRefs(chunk.cellCount());
         chunk.renderRefCount = chunk.cellCount();
         return map;
-    }
-
-    private static LayerComponent layer(int layerIndex) {
-        LayerComponent layer = new LayerComponent();
-        layer.type = LayerComponent.TYPE_TILED;
-        layer.layerIndex = layerIndex;
-        return layer;
     }
 
     private static RuntimeTilesetProfile profile(int tileAssetId) {

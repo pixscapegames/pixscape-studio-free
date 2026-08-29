@@ -25,6 +25,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
     private StudioEditingModeService editingModes;
     private SelectionService selection;
     private int tiledLayer;
+    private int tiledMap;
 
     @Before
     public void setUp() {
@@ -45,8 +46,10 @@ public class SelectionServiceTiledMapEditingTargetTest {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(tiledLayer);
         layer.type = LayerComponent.TYPE_TILED;
         layer.layerIndex = 0;
-        world.getMapper(TiledLayerComponent.class).create(tiledLayer);
         world.getMapper(LayerMetaComponent.class).create(tiledLayer).name = "Tiled";
+        tiledMap = world.create();
+        world.getMapper(EntityIndexComponent.class).create(tiledMap).layerIndex = 0;
+        world.getMapper(TiledLayerComponent.class).create(tiledMap);
         world.process();
     }
 
@@ -83,7 +86,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
                 tiledLayer, SelectionService.SelectionSource.TREE);
         assertTrue(selection.isTiledMapEditingTargetActive());
 
-        world.delete(tiledLayer);
+        world.delete(tiledMap);
         world.process();
 
         assertFalse(selection.isTiledMapEditingTargetActive());

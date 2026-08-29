@@ -115,13 +115,13 @@ public class LayerProperties extends VisTable {
 
         defaultAltitudeField = new FloatField(
                 world,
-                eid -> mTiled.get(eid).defaultTileAltitude,
+                eid -> mTiled.get(tiledMapEntityId(eid)).defaultTileAltitude,
                 this::hasTiledSpatialDefaults
         ).setDisplayDecimals(2);
 
         defaultHeightField = new FloatField(
                 world,
-                eid -> mTiled.get(eid).defaultTileHeight,
+                eid -> mTiled.get(tiledMapEntityId(eid)).defaultTileHeight,
                 this::hasTiledSpatialDefaults
         ).setDisplayDecimals(2);
 
@@ -216,7 +216,7 @@ public class LayerProperties extends VisTable {
                     return;
                 }
 
-                boolean currentlyActive = mPhysBody.has(layerEntityId);
+                boolean currentlyActive = mPhysBody.has(tiledMapEntityId(layerEntityId));
                 boolean requestedActive = collisionsCheckBox.isChecked();
 
                 if (requestedActive == currentlyActive) {
@@ -365,8 +365,9 @@ public class LayerProperties extends VisTable {
         boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
         boolean collisionsSupported = isTiled && scenePhysicsEnabled;
-        boolean collisionsActive = collisionsSupported && mPhysBody.has(layerEntityId);
-        boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC && !mTiled.has(layerEntityId);
+        int mapEntityId = isTiled ? tiledMapEntityId(layerEntityId) : -1;
+        boolean collisionsActive = collisionsSupported && mPhysBody.has(mapEntityId);
+        boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC;
         boolean ordinarySpatialVisible = isOrdinary && shouldShowOrdinarySpatialProperty(
                 lic.spatialEnabled,
                 scenePhysicsEnabled,
@@ -419,7 +420,7 @@ public class LayerProperties extends VisTable {
 
         tiledSection.show(isTiled);
         if (isTiled) {
-            tiledMapProperties.setLayerEntityId(layerEntityId);
+            tiledMapProperties.setLayerEntityId(mapEntityId);
         }
 
         invalidateHierarchy();
@@ -458,6 +459,10 @@ public class LayerProperties extends VisTable {
         return lic != null && lic.type == LayerComponent.TYPE_TILED;
     }
 
+    private int tiledMapEntityId(int layerEntityId) {
+        return layerService.findTiledMapForHost(layerEntityId);
+    }
+
     private boolean supportsEditableParallax(int layerEntityId) {
         LayerComponent lic = mIndex.getSafe(layerEntityId, null);
         return supportsEditableParallax(layerEntityId, lic);
@@ -471,7 +476,7 @@ public class LayerProperties extends VisTable {
         }
 
         if (lic.type == LayerComponent.TYPE_TILED) {
-            return !mPhysBody.has(layerEntityId);
+            return !mPhysBody.has(tiledMapEntityId(layerEntityId));
         }
 
         return false;
@@ -483,11 +488,13 @@ public class LayerProperties extends VisTable {
             return;
         }
 
+        int mapEntityId = tiledMapEntityId(layerEntityId);
+        if (mapEntityId < 0) return;
         Command command = new AddPhysicsBodyCommand(
                 world,
                 history.historyIds(),
                 physicsService,
-                layerEntityId,
+                mapEntityId,
                 PhysicsBodyComponent.STATIC,
                 false
         );
@@ -500,14 +507,16 @@ public class LayerProperties extends VisTable {
     ) {
         if (layerEntityId < 0 || !hasTiledSpatialDefaults(layerEntityId) || edit == null) return;
 
-        TiledLayerComponent component = mTiled.get(layerEntityId);
+        int mapEntityId = tiledMapEntityId(layerEntityId);
+        if (mapEntityId < 0) return;
+        TiledLayerComponent component = mTiled.get(mapEntityId);
         EditTiledLayerSpatialDefaultsCommand.Snapshot before =
                 EditTiledLayerSpatialDefaultsCommand.Snapshot.capture(component);
         EditTiledLayerSpatialDefaultsCommand.Snapshot after = edit.apply(before);
         executeCommand(new EditTiledLayerSpatialDefaultsCommand(
                 world,
                 history.historyIds(),
-                layerEntityId,
+                mapEntityId,
                 before,
                 after
         ));
@@ -519,7 +528,7 @@ public class LayerProperties extends VisTable {
     }
 
     private float defaultTiledSpatialHeight(int layerEntityId) {
-        TiledLayerComponent tiled = mTiled.getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = mTiled.getSafe(tiledMapEntityId(layerEntityId), null);
         if (tiled != null && tiled.data != null && tiled.data.tileHeight > 0) {
             return tiled.data.tileHeight;
         }
@@ -537,10 +546,13 @@ public class LayerProperties extends VisTable {
     }
 
     private void executeTiledSpatialToggle(int layerEntityId, boolean enabled) {
+        int mapEntityId = tiledMapEntityId(layerEntityId);
+        if (mapEntityId < 0) return;
         Command command = new ToggleLayerSpatialDepthCommand(
                 world,
                 history.historyIds(),
                 layerEntityId,
+                mapEntityId,
                 enabled,
                 0f,
                 defaultTiledSpatialHeight(layerEntityId)
@@ -570,22 +582,24 @@ public class LayerProperties extends VisTable {
         if (layer == null) return false;
         if (layer.spatialEnabled) return true;
 
-        TiledLayerComponent tiled = mTiled.getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = mTiled.getSafe(tiledMapEntityId(layerEntityId), null);
         return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
     }
 
     private void removePhysicsFromTiledLayer(int layerEntityId) {
+        int mapEntityId = tiledMapEntityId(layerEntityId);
+        if (mapEntityId < 0) return;
         history.execute(new RemovePhysicsBodyCommand(
                 world,
                 history.historyIds(),
                 physicsService,
-                layerEntityId
+                mapEntityId
         ));
         flagPreviewSaveRequired();
     }
 
     private void showRemoveCollisionsDialog(int layerEntityId) {
-        if (!mPhysBody.has(layerEntityId)) {
+        if (!mPhysBody.has(tiledMapEntityId(layerEntityId))) {
             refreshFromModel(layerEntityId);
             return;
         }

@@ -35,19 +35,26 @@ public class LayerSpatialDepthCommandsTest {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int layerId = createTiledLayer(world, 0);
+        TiledLayerComponent authored = world.getMapper(TiledLayerComponent.class).get(layerId);
+        int mapId = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = 0;
+        world.getMapper(TiledLayerComponent.class).create(mapId).data = authored.data;
+        world.getMapper(TiledLayerComponent.class).remove(layerId);
         history.historyIds().ensureForEntity(layerId);
+        history.historyIds().ensureForEntity(mapId);
 
         history.execute(new ToggleLayerSpatialDepthCommand(
                 world,
                 history.historyIds(),
                 layerId,
+                mapId,
                 true,
                 0f,
                 32f
         ));
 
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerId);
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapId);
         Assert.assertTrue(layer.spatialEnabled);
         Assert.assertTrue(tiled.spatialEnabled);
         Assert.assertTrue(tiled.data.spatialEnabled);
@@ -280,6 +287,7 @@ public class LayerSpatialDepthCommandsTest {
         ToggleLayerSpatialDepthCommand command = new ToggleLayerSpatialDepthCommand(
                 world,
                 history.historyIds(),
+                layerId,
                 layerId,
                 false,
                 0f,

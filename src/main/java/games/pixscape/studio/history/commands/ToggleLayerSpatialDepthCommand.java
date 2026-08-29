@@ -12,6 +12,7 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final long layerHistoryId;
+    private final long mapHistoryId;
     private final LayerSnapshot beforeLayer;
     private final LayerSnapshot afterLayer;
     private final boolean enable;
@@ -20,15 +21,19 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
     public ToggleLayerSpatialDepthCommand(World world,
                                           HistoryIdRegistry historyIds,
                                           int layerEntityId,
+                                          int mapEntityId,
                                           boolean enable,
                                           float defaultAltitude,
                                           float defaultHeight) {
         this.world = world;
         this.historyIds = historyIds;
         this.enable = enable;
-        this.beforeLayer = captureLayer(layerEntityId);
+        this.beforeLayer = captureLayer(layerEntityId, mapEntityId);
         this.layerHistoryId = historyIds != null && beforeLayer != null
                 ? historyIds.ensureForEntity(layerEntityId)
+                : -1L;
+        this.mapHistoryId = historyIds != null && beforeLayer != null
+                ? historyIds.ensureForEntity(mapEntityId)
                 : -1L;
         this.afterLayer = beforeLayer != null
                 ? beforeLayer.withSpatialEnabled(enable, defaultAltitude, Math.max(0f, defaultHeight))
@@ -36,6 +41,7 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
         this.noop = world == null
                 || historyIds == null
                 || layerHistoryId <= 0L
+                || mapHistoryId <= 0L
                 || beforeLayer == null
                 || afterLayer == null
                 || beforeLayer.sameSpatialState(afterLayer);
@@ -63,13 +69,13 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
         applyLayer(beforeLayer);
     }
 
-    private LayerSnapshot captureLayer(int layerEntityId) {
-        if (world == null || layerEntityId < 0) return null;
+    private LayerSnapshot captureLayer(int layerEntityId, int mapEntityId) {
+        if (world == null || layerEntityId < 0 || mapEntityId < 0) return null;
 
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
         if (layer == null || layer.type != LayerComponent.TYPE_TILED) return null;
 
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (tiled == null) return null;
 
         return new LayerSnapshot(
@@ -84,10 +90,11 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
         if (snapshot == null) return;
 
         int layerEntityId = resolveEntityId(layerHistoryId);
-        if (layerEntityId < 0) return;
+        int mapEntityId = resolveEntityId(mapHistoryId);
+        if (layerEntityId < 0 || mapEntityId < 0) return;
 
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (layer == null || layer.type != LayerComponent.TYPE_TILED || tiled == null) return;
 
         layer.spatialEnabled = snapshot.layerSpatialEnabled;
@@ -102,6 +109,7 @@ public final class ToggleLayerSpatialDepthCommand implements Command, HistoryMan
         }
 
         markLayerDirty(layerEntityId);
+        markLayerDirty(mapEntityId);
         EventFlow.i().publish(new EventFlow.LayerSpatialDepthChanged(layerEntityId, EventFlow.tag(this)));
     }
 

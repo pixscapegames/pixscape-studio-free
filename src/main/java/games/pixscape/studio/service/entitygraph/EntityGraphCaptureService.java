@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -21,6 +22,7 @@ public final class EntityGraphCaptureService {
     private final ComponentMapper<PointLightComponent> mPointLight;
     private final ComponentMapper<ConeLightComponent> mConeLight;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private final ComponentMapper<TiledLayerComponent> mTiled;
 
     public EntityGraphCaptureService(World world) {
         this.world = world;
@@ -29,6 +31,7 @@ public final class EntityGraphCaptureService {
         this.mPointLight = world.getMapper(PointLightComponent.class);
         this.mConeLight = world.getMapper(ConeLightComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
+        this.mTiled = world.getMapper(TiledLayerComponent.class);
     }
 
     public EntityGraph capture(IntArray selection) {
@@ -78,6 +81,8 @@ public final class EntityGraphCaptureService {
 
     private boolean isCaptureSupported(int entityId) {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return false;
+        // Tiled maps require their dedicated deep snapshot; generic capture would be partial.
+        if (mTiled.has(entityId)) return false;
         if (mJointBase.has(entityId)) return true;
         if (!mEntityIndex.has(entityId)) return false;
         return mTransform.has(entityId);

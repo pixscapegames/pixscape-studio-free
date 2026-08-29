@@ -102,7 +102,19 @@ final class ResolvedSceneActivationPipeline {
                                                 String projectTitle,
                                                 String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
+        new TiledMapHostResolver(world).validateWorld();
+        ComponentMapper<EntityIndexComponent> mEntityIndex = world.getMapper(EntityIndexComponent.class);
         ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
+        com.badlogic.gdx.utils.IntIntMap hostSpatialByLayer = new com.badlogic.gdx.utils.IntIntMap();
+        IntBag hosts = world.getAspectSubscriptionManager()
+                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class)).getEntities();
+        int[] hostData = hosts.getData();
+        for (int i = 0; i < hosts.size(); i++) {
+            LayerComponent host = mLayer.get(hostData[i]);
+            if (host.type == LayerComponent.TYPE_TILED && host.spatialEnabled) {
+                hostSpatialByLayer.put(host.layerIndex, 1);
+            }
+        }
         ComponentMapper<PhysicsBodyComponent> mBody =
                 world.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsShapesComponent> mShapes =
@@ -124,6 +136,11 @@ final class ResolvedSceneActivationPipeline {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+            EntityIndexComponent index = mEntityIndex.getSafe(e, null);
+            if (index == null) {
+                throw unresolvedTiledMap(projectTitle, sceneName, e,
+                        "the Tiled map has no EntityIndexComponent");
+            }
             PhysicsBodyComponent body = mBody.getSafe(e, null);
             if (body != null) body.type = PhysicsBodyComponent.STATIC;
             PhysicsShapesComponent shapes = mShapes.getSafe(e, null);
@@ -150,8 +167,8 @@ final class ResolvedSceneActivationPipeline {
 
             tiled.data.originX = tiled.originX;
             tiled.data.originY = tiled.originY;
-            LayerComponent layer = mLayer.getSafe(e, null);
-            tiled.spatialEnabled = (layer != null && layer.spatialEnabled) || tiled.spatialEnabled;
+            tiled.spatialEnabled = hostSpatialByLayer.get(index.layerIndex, 0) != 0
+                    || tiled.spatialEnabled;
             tiled.data.spatialEnabled = tiled.spatialEnabled;
             tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
             tiled.data.defaultTileHeight = tiled.defaultTileHeight;

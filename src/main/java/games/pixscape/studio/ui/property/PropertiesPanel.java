@@ -17,6 +17,7 @@ import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
@@ -68,6 +69,7 @@ public class PropertiesPanel extends DockablePanel {
 
     private final World world;
     private final SelectionService selectionService;
+    private final LayerService layerService;
     private final PhysicsSelectionService physicsSelectionService;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
@@ -103,6 +105,7 @@ public class PropertiesPanel extends DockablePanel {
         var layerService = canvas.getLayerService();
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
+        this.layerService = layerService;
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
         this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         this.mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
@@ -288,11 +291,14 @@ public class PropertiesPanel extends DockablePanel {
         showBodyProperties(bodyEntityId);
     }
 
-    public void requestTiledMapProperties(int layerEntityId) {
-        tiledMapContextLayer = layerEntityId;
-        pendingTiledMap = layerEntityId;
+    public void requestTiledMapProperties(int mapEntityId) {
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        tiledMapContextLayer = index != null
+                ? layerService.getLayerEntity(index.layerIndex)
+                : -1;
+        pendingTiledMap = mapEntityId;
         pendingView = PendingView.TILED_MAP;
-        showTiledMapProperties(layerEntityId);
+        showTiledMapProperties(mapEntityId);
     }
 
     public void clearTiledMapMode() {
@@ -398,13 +404,13 @@ public class PropertiesPanel extends DockablePanel {
         clearTiledMapContext();
     }
 
-    private void showTiledMapProperties(int layerEntityId) {
+    private void showTiledMapProperties(int mapEntityId) {
         contentHolder.clearChildren();
-        tiledMapProperties.setLayerEntityId(layerEntityId);
+        tiledMapProperties.setLayerEntityId(mapEntityId);
         contentHolder.add(tiledMapProperties).growX().top().left().row();
         clearBindings();
         clearPhysicsContext();
-        boundTiledMap = layerEntityId;
+        boundTiledMap = mapEntityId;
     }
 
     private void clearBindings() {
@@ -465,8 +471,9 @@ public class PropertiesPanel extends DockablePanel {
 
     public void onActiveLayerChanged(int newLayerEntityId) {
         if (newLayerEntityId == tiledMapContextLayer) {
-            if (newLayerEntityId != boundTiledMap) {
-                showTiledMapProperties(newLayerEntityId);
+            int mapEntityId = layerService.findTiledMapForHost(newLayerEntityId);
+            if (mapEntityId != boundTiledMap) {
+                showTiledMapProperties(mapEntityId);
             }
             return;
         }
@@ -545,8 +552,9 @@ public class PropertiesPanel extends DockablePanel {
             }
 
             if (tiledMapContextLayer >= 0 && selectionService.getActivelayerId() == tiledMapContextLayer) {
-                if (tiledMapContextLayer != boundTiledMap) {
-                    showTiledMapProperties(tiledMapContextLayer);
+                int mapEntityId = layerService.findTiledMapForHost(tiledMapContextLayer);
+                if (mapEntityId != boundTiledMap) {
+                    showTiledMapProperties(mapEntityId);
                 }
                 return;
             }

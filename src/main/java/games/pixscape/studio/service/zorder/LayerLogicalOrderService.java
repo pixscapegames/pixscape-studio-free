@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
 
@@ -25,12 +26,14 @@ public final class LayerLogicalOrderService {
     private final ComponentMapper<EntityIndexComponent> indexes;
     private final ComponentMapper<PrefabInstanceComponent> prefabs;
     private final ComponentMapper<PhysicsJointComponent> joints;
+    private final ComponentMapper<TiledLayerComponent> tiledMaps;
 
     public LayerLogicalOrderService(World world) {
         this.world = world;
         this.indexes = world.getMapper(EntityIndexComponent.class);
         this.prefabs = world.getMapper(PrefabInstanceComponent.class);
         this.joints = world.getMapper(PhysicsJointComponent.class);
+        this.tiledMaps = world.getMapper(TiledLayerComponent.class);
     }
 
     public LayerOrder derive(int layerIndex) {
@@ -44,7 +47,8 @@ public final class LayerLogicalOrderService {
     public LayerOrder derive(int layerIndex, IntArray additionalEntityIds) {
         IntBag bag = world.getAspectSubscriptionManager().get(
                 Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class)
-                        .exclude(LayerComponent.class, PhysicsJointComponent.class)).getEntities();
+                        .exclude(LayerComponent.class, PhysicsJointComponent.class,
+                                TiledLayerComponent.class)).getEntities();
         int[] data = bag.getData();
         IntArray candidates = new IntArray(false,
                 bag.size() + (additionalEntityIds != null ? additionalEntityIds.size : 0));
@@ -66,6 +70,7 @@ public final class LayerLogicalOrderService {
                         && identities.has(entityId)
                         && !layers.has(entityId)
                         && !joints.has(entityId)
+                        && !tiledMaps.has(entityId)
                         && included.add(entityId)) {
                     candidates.add(entityId);
                 }
