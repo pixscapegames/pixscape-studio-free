@@ -150,7 +150,7 @@ public final class AssetsPanel extends DockablePanel {
                 runtimeAvailabilityPanel,
                 false
         );
-        browserSplit.setSplitAmount(0.5f);
+        browserSplit.setSplitAmount(0.65f);
 
         add(browserSplit).grow();
     }
