@@ -166,7 +166,7 @@ public final class SelectionService {
         return true;
     }
 
-    private boolean isValidTiledMapTarget(int mapEntityId, boolean requireActiveHost) {
+    private boolean isValidTiledMapTarget(int mapEntityId, boolean requireActiveLayer) {
         if (mapEntityId < 0
                 || !world.getEntityManager().isActive(mapEntityId)
                 || !mTiledLayer.has(mapEntityId)) {
@@ -176,10 +176,9 @@ public final class SelectionService {
         if (index == null) return false;
         int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
         if (hostLayerEntityId < 0 || !world.getEntityManager().isActive(hostLayerEntityId)) return false;
-        LayerComponent host = mLayer.getSafe(hostLayerEntityId, null);
-        return host != null
-                && host.type == LayerComponent.TYPE_TILED
-                && (!requireActiveHost || hostLayerEntityId == activeLayerEntityId);
+        LayerComponent owningLayer = mLayer.getSafe(hostLayerEntityId, null);
+        return owningLayer != null
+                && (!requireActiveLayer || hostLayerEntityId == activeLayerEntityId);
     }
 
     public IntSet getSelectionSet() {

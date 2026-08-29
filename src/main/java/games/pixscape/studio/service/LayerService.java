@@ -133,6 +133,38 @@ public final class LayerService {
         return tiledMapResolver.requireForHost(hostLayerEntityId);
     }
 
+    /** Materializes one map as normal content of an existing Pixscape layer. */
+    public int insertTiledMap(TiledMapInitializer initializer, long historyId) {
+        Objects.requireNonNull(initializer, "initializer");
+        int mapEntityId = world.create();
+        try {
+            initializer.init(mapEntityId);
+            identityRegistry.ensureStableId(mapEntityId);
+            if (historyId > 0L) historyIds.bind(mapEntityId, historyId);
+            else historyIds.ensureForEntity(mapEntityId);
+            tiledMapResolver.register(mapEntityId);
+            return mapEntityId;
+        } catch (RuntimeException failure) {
+            TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
+            if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+            IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
+            historyIds.unbindEntity(mapEntityId);
+            world.delete(mapEntityId);
+            throw failure;
+        }
+    }
+
+    /** Deletes one map without affecting its owning Pixscape layer or sibling maps. */
+    public void removeTiledMap(int mapEntityId) {
+        if (mapEntityId < 0 || !world.getEntityManager().isActive(mapEntityId) || !mTiled.has(mapEntityId)) return;
+        TiledLayerComponent tiled = mTiled.get(mapEntityId);
+        if (tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+        IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
+        historyIds.unbindEntity(mapEntityId);
+        world.delete(mapEntityId);
+        tiledMapResolver.invalidate();
+    }
+
     public void rebuildFromWorld() {
         dirty = true;
         rebuildIfDirty();
@@ -174,6 +206,12 @@ public final class LayerService {
         if (layerEntityId == -1) return LayerComponent.TYPE_CLASSIC;
         LayerComponent lc = mL.getSafe(layerEntityId, null);
         return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
+    }
+
+    /** Current user-authored universal Layer capability. Content never changes this result. */
+    public boolean isUniversalLayerEntity(int layerEntityId) {
+        LayerComponent layer = mL.getSafe(layerEntityId, null);
+        return layer != null && layer.type == LayerComponent.TYPE_CLASSIC;
     }
 
     /** Returns whether another ordinary layer already owns the Spatial actor slot. */
@@ -307,10 +345,9 @@ public final class LayerService {
         }
         int layerEntityId = insertLayerAt(index, snapshot.layerInitializer);
         historyIds.bind(layerEntityId, snapshot.layerHistoryId);
-        if (snapshot.tiledMapInitializer != null) {
-            int mapEntityId = requireTiledMapForHost(layerEntityId);
-            historyIds.unbindEntity(mapEntityId);
-            historyIds.bind(mapEntityId, snapshot.tiledMapHistoryId);
+        for (TiledMapSnapshot map : snapshot.tiledMaps) {
+            map.initializer.overrideLayerIndex(index);
+            insertTiledMap(map.initializer, map.historyId);
         }
 
         for (DrawableSnapshot drawable : snapshot.drawables) {
@@ -335,15 +372,7 @@ public final class LayerService {
 
         LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService);
         initializer.syncFrom(layerEntityId);
-        long tiledMapHistoryId = -1L;
-        TiledMapInitializer tiledMapInitializer = null;
-        int tiledMapEntityId = findTiledMapForHost(layerEntityId);
-        if (tiledMapEntityId >= 0) {
-            tiledMapHistoryId = historyIds.ensureForEntity(tiledMapEntityId);
-            tiledMapInitializer = new TiledMapInitializer(world, tiledAllocatorService);
-            tiledMapInitializer.syncFrom(tiledMapEntityId);
-            initializer.setTiledMapInitializer(tiledMapInitializer);
-        }
+        List<TiledMapSnapshot> tiledMaps = new ArrayList<>();
 
         List<DrawableSnapshot> drawables = new ArrayList<>();
 
@@ -362,7 +391,12 @@ public final class LayerService {
             if (ei == null || ei.getLayerIndex() != index) {
                 continue;
             }
-            if (mTiled.has(e)) continue;
+            if (mTiled.has(e)) {
+                TiledMapInitializer mapInitializer = new TiledMapInitializer(world, tiledAllocatorService);
+                mapInitializer.syncFrom(e);
+                tiledMaps.add(new TiledMapSnapshot(historyIds.ensureForEntity(e), mapInitializer));
+                continue;
+            }
 
             long drawableHistoryId = historyIds.ensureForEntity(e); // ✅ e, not layerEntityId
 
@@ -378,8 +412,7 @@ public final class LayerService {
                 .thenComparingLong(d -> d.historyId)
                 .thenComparingInt(d -> d.entityId));
 
-        return new LayerSnapshot(index, layerHistoryId, initializer,
-                tiledMapHistoryId, tiledMapInitializer, drawables);
+        return new LayerSnapshot(index, layerHistoryId, initializer, tiledMaps, drawables);
     }
 
 
@@ -394,13 +427,16 @@ public final class LayerService {
 
         int eLayer = layerEntities.get(index);
 
-        // 0) Release the hosted Tiled map before deleting its owning layer.
-        int tiledMapEntityId = findTiledMapForHost(eLayer);
-        if (tiledAllocatorService != null
-                && tiledMapEntityId >= 0 && mTiled.has(tiledMapEntityId)) {
-            TiledLayerComponent tiled = mTiled.get(tiledMapEntityId);
-            // Allocator release + slot deactivation
-            tiledAllocatorService.freeLayer(tiled);
+        // 0) Release every map owned by the layer before cascading its entities.
+        IntBag owned = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        int[] ownedData = owned.getData();
+        for (int i = 0; i < owned.size(); i++) {
+            int mapEntityId = ownedData[i];
+            EntityIndexComponent mapIndex = mEntityIndex.get(mapEntityId);
+            if (mapIndex.layerIndex == index && tiledAllocatorService != null) {
+                tiledAllocatorService.freeLayer(mTiled.get(mapEntityId));
+            }
         }
 
         // 1) Delete all entities drawables de ce layer
@@ -766,17 +802,18 @@ public final class LayerService {
                           boolean spatialEnabled, boolean visible, boolean locked) {
     }
 
+    public record TiledMapSnapshot(long historyId, TiledMapInitializer initializer) {}
+
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
-                                long tiledMapHistoryId, TiledMapInitializer tiledMapInitializer,
+                                List<TiledMapSnapshot> tiledMaps,
                                 List<DrawableSnapshot> drawables) {
         public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
-                             long tiledMapHistoryId, TiledMapInitializer tiledMapInitializer,
+                             List<TiledMapSnapshot> tiledMaps,
                              List<DrawableSnapshot> drawables) {
             this.index = index;
             this.layerHistoryId = layerHistoryId;
             this.layerInitializer = layerInitializer;
-            this.tiledMapHistoryId = tiledMapHistoryId;
-            this.tiledMapInitializer = tiledMapInitializer;
+            this.tiledMaps = List.copyOf(tiledMaps);
             this.drawables = List.copyOf(drawables);
         }
     }

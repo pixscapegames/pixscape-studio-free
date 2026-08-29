@@ -139,6 +139,10 @@ public final class AssetsPanel extends DockablePanel {
                 : -1;
     }
 
+    public AssetNode getSelectedAssetNode() {
+        return thumbsView.getSelectedNode();
+    }
+
     private void buildLayout() {
         AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project Assets", treeView, thumbsView);
         VisSplitPane browserSplit = new VisSplitPane(

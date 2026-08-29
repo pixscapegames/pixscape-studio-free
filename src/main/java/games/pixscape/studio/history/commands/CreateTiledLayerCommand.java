@@ -123,8 +123,8 @@ public final class CreateTiledLayerCommand implements Command {
         if (snap == null) return;
 
         historyIds.unbindHistoryId(snap.layerHistoryId());
-        if (snap.tiledMapHistoryId() > 0L) {
-            historyIds.unbindHistoryId(snap.tiledMapHistoryId());
+        for (LayerService.TiledMapSnapshot map : snap.tiledMaps()) {
+            historyIds.unbindHistoryId(map.historyId());
         }
 
         for (LayerService.DrawableSnapshot drawable : snap.drawables()) {

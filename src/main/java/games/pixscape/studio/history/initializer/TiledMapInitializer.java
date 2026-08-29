@@ -303,6 +303,10 @@ public final class TiledMapInitializer implements Initializer {
         layerIndex = value;
     }
 
+    public void overrideZIndex(int value) {
+        zIndex = value;
+    }
+
     @Override
     public String label() {
         return "TiledMap";

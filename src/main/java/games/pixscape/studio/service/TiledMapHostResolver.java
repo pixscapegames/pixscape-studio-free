@@ -11,7 +11,7 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 
-/** Indexed resolver for the temporary one-Tiled-map-per-Tiled-host invariant. */
+/** Indexed resolver for map ownership and the temporary TYPE_TILED compatibility host. */
 public final class TiledMapHostResolver {
     private final World world;
     private final ComponentMapper<LayerComponent> layers;
@@ -86,33 +86,29 @@ public final class TiledMapHostResolver {
         return matches.get(0);
     }
 
-    /** Validates the temporary Stage 1 one-host/one-map scene shape. */
+    /** Validates mixed ownership: ordinary layers own zero/many maps, TYPE_TILED owns exactly one. */
     public void validateWorld() {
         rebuildIfDirty();
         IntBag hosts = world.getAspectSubscriptionManager().get(
                 Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class)).getEntities();
         int[] hostData = hosts.getData();
+        IntMap<Integer> layersByIndex = new IntMap<>();
         IntMap<Integer> tiledHosts = new IntMap<>();
         for (int i = 0; i < hosts.size(); i++) {
             int entityId = hostData[i];
             LayerComponent layer = layers.get(entityId);
-            if (layer.type != LayerComponent.TYPE_TILED) continue;
-            if (tiledHosts.containsKey(layer.layerIndex)) {
+            if (layersByIndex.containsKey(layer.layerIndex)) {
                 throw new IllegalStateException(
-                        "Multiple TYPE_TILED hosts use layerIndex=" + layer.layerIndex + ".");
+                        "Multiple Pixscape Layers use layerIndex=" + layer.layerIndex + ".");
             }
-            tiledHosts.put(layer.layerIndex, entityId);
+            layersByIndex.put(layer.layerIndex, entityId);
+            if (layer.type == LayerComponent.TYPE_TILED) tiledHosts.put(layer.layerIndex, entityId);
         }
 
         for (IntMap.Entry<IntArray> entry : mapsByLayerIndex) {
-            if (!tiledHosts.containsKey(entry.key)) {
+            if (!layersByIndex.containsKey(entry.key)) {
                 throw new IllegalStateException(
-                        "Tiled map does not belong to a TYPE_TILED host layerIndex=" + entry.key + ".");
-            }
-            if (entry.value.size != 1) {
-                throw new IllegalStateException(
-                        "TYPE_TILED host layerIndex=" + entry.key + " owns "
-                                + entry.value.size + " Tiled maps; expected exactly one.");
+                        "Tiled map does not belong to a Pixscape Layer layerIndex=" + entry.key + ".");
             }
         }
         for (IntMap.Entry<Integer> host : tiledHosts) {

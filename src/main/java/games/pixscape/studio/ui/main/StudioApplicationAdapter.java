@@ -56,6 +56,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private BottomMenuBar bottomMenuBar;
     private DockManager dockManager;
     private ItemTreePanel itemTreePanel;
+    private AssetsPanel assetsPanel;
     private SceneService sceneService;
     private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
@@ -141,7 +142,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         layersPanel.setPreferredWindowSize(362, 500);
         dockManager.register(layersPanel, DockSlot.RIGHT_BOTTOM, true);
 
-        AssetsPanel assetsPanel = new AssetsPanel(this);
+        assetsPanel = new AssetsPanel(this);
         assetsPanel.setPreferredWindowSize(900, 500);
         assetsPanel.reloadFromProject(cfg);
         dockManager.register(assetsPanel, DockSlot.BOTTOM, true);
@@ -356,6 +357,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public ItemTreePanel getItemTreePanel() {
         return itemTreePanel;
+    }
+
+    public AssetsPanel getAssetsPanel() {
+        return assetsPanel;
     }
 
     public SceneService getSceneService() {

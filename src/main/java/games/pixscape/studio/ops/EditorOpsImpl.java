@@ -25,6 +25,7 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.InternalTextures;
 import games.pixscape.runtime.service.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.asset.AssetMeta;
@@ -487,6 +488,41 @@ public class EditorOpsImpl implements EditorOps {
 
         DeleteEntitiesCommand cmd = new DeleteEntitiesCommand(world, historyIds, entities, onRestoredEntity);
         execute(cmd);
+    }
+
+    @Override
+    public int addTiledMap(int layerEntityId, int mapWidth, int mapHeight,
+                           TiledProjection projection, int tileWidth, int tileHeight, int chunkSize) {
+        AddTiledMapCommand command = new AddTiledMapCommand(
+                canvas.getLayerService(), layerEntityId, mapWidth, mapHeight, projection,
+                tileWidth, tileHeight, chunkSize,
+                mapEntityId -> {
+                    if (mapEntityId >= 0) {
+                        selectionService.clearSelection();
+                        selectionService.setTiledMapEditingTarget(
+                                mapEntityId, SelectionService.SelectionSource.TREE);
+                    } else {
+                        selectionService.clearTiledMapEditingTarget();
+                    }
+                });
+        historyManager.execute(command);
+        return selectionService.getTiledMapEditingTargetEntityId();
+    }
+
+    @Override
+    public void deleteTiledMap(int mapEntityId) {
+        if (mapEntityId < 0 || !world.getMapper(TiledLayerComponent.class).has(mapEntityId)) return;
+        historyManager.execute(new DeleteTiledMapCommand(
+                canvas.getLayerService(), mapEntityId,
+                restoredMapEntityId -> {
+                    selectionService.clearSelection();
+                    if (restoredMapEntityId >= 0) {
+                        selectionService.setTiledMapEditingTarget(
+                                restoredMapEntityId, SelectionService.SelectionSource.TREE);
+                    } else {
+                        selectionService.clearTiledMapEditingTarget();
+                    }
+                }));
     }
 
     @Override

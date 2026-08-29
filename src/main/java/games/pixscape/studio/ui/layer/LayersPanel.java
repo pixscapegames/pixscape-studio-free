@@ -16,7 +16,6 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.event.GetScrollListener;
@@ -25,7 +24,6 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.HistoryManager.SupportsNoop;
 import games.pixscape.studio.history.commands.ChangeLayerOrderCommand;
 import games.pixscape.studio.history.commands.CreateLayerCommand;
-import games.pixscape.studio.history.commands.CreateTiledLayerCommand;
 import games.pixscape.studio.history.commands.DeleteLayerCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.LayerService.LayerUI;
@@ -152,39 +150,17 @@ public class LayersPanel extends DockablePanel {
             public void changed(ChangeEvent event, Actor actor) {
                 NewLayerDialog dialog = new NewLayerDialog(
                         request -> {
-
-                            if (request.type() == LayerComponent.TYPE_TILED) {
-                                var sceneMeta = ProjectConfig.getInstance().getCurrentSceneMeta();
-                                historyManager.execute(new CreateTiledLayerCommand(
-                                        layerService,
-                                        request.name(),
-                                        request.width(),
-                                        request.height(),
-                                        sceneMeta.tiledProjection,
-                                        (int) sceneMeta.tileWidth,
-                                        (int) sceneMeta.tileHeight,
-                                        sceneMeta.chunkSize,
-                                        layerId -> {
-                                            if (selectionService != null) {
-                                                selectionService.setActivelayerId(layerId);
-                                            }
+                            CreateLayerCommand command = new CreateLayerCommand(
+                                    layerService,
+                                    layerService.count(),
+                                    request.name(),
+                                    layerId -> {
+                                        if (selectionService != null) {
+                                            selectionService.setActivelayerId(layerId);
                                         }
-                                ));
-
-                            } else {
-
-                                CreateLayerCommand command = new CreateLayerCommand(
-                                        layerService,
-                                        layerService.count(),
-                                        request.name(),
-                                        layerId -> {
-                                            if (selectionService != null) {
-                                                selectionService.setActivelayerId(layerId);
-                                            }
-                                        }
-                                );
-                                historyManager.execute(command);
-                            }
+                                    }
+                            );
+                            historyManager.execute(command);
 
                             markDirty();
                         }

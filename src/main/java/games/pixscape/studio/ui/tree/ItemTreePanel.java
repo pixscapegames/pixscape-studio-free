@@ -3,14 +3,20 @@ package games.pixscape.studio.ui.tree;
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
+import com.kotcrab.vis.ui.widget.MenuItem;
+import com.kotcrab.vis.ui.widget.PopupMenu;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -18,12 +24,15 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
+import games.pixscape.studio.history.commands.AddTiledMapCommand;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
@@ -31,8 +40,11 @@ import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
+import games.pixscape.studio.ui.asset.AssetNode;
+import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.layer.AddTiledMapDialog;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 
 import java.util.HashSet;
@@ -42,6 +54,7 @@ import static games.pixscape.runtime.component.physics.PhysicsBodyComponent.*;
 
 public class ItemTreePanel extends DockablePanel {
 
+    private final StudioApplicationAdapter app;
     private final World world;
     private final LayerService layerService;
     private final PhysicsSelectionService physicsSelectionService;
@@ -49,6 +62,7 @@ public class ItemTreePanel extends DockablePanel {
     private final SelectionService selectionService;
     private final LayerLogicalOrderService logicalOrderService;
     private final HistoryManager historyManager;
+    private final EditorOps editorOps;
 
     private final ComponentMapper<EntityMetaComponent> mMeta;
     private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -85,6 +99,7 @@ public class ItemTreePanel extends DockablePanel {
     public ItemTreePanel(StudioApplicationAdapter app) {
         super("Items");
 
+        this.app = app;
         var canvas = app.getCanvas();
         this.world = canvas.getEcsWorld();
         this.layerService = canvas.getLayerService();
@@ -93,6 +108,7 @@ public class ItemTreePanel extends DockablePanel {
         this.selectionService = canvas.getSelectionService();
         this.logicalOrderService = new LayerLogicalOrderService(world);
         this.historyManager = canvas.getHistoryManager();
+        this.editorOps = canvas.getEditorOps();
 
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
@@ -116,6 +132,7 @@ public class ItemTreePanel extends DockablePanel {
         tree = new IdVisTree();
         tree.setIndentSpacing(25);
         tree.getSelection().setMultiple(true);
+        hookLayerContextMenu();
 
         scroller = new VisScrollPane(tree);
         scroller.setFadeScrollBars(false);
@@ -542,75 +559,6 @@ public class ItemTreePanel extends DockablePanel {
                 layerNode.getLabel().setColor(Color.WHITE);
             }
 
-            LayerComponent layerComp = world.getMapper(LayerComponent.class).get(eLayer);
-            EntityNode mapNode = null;
-            int mapEntityId = -1;
-
-            if (layerComp.type == LayerComponent.TYPE_TILED) {
-                mapEntityId = layerService.findTiledMapForHost(eLayer);
-                TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
-                if (tiled != null) {
-                    mapNode = new EntityNode(
-                            "Map (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
-                            IconResolver.getDrawable(EntityKind.TILED_MAP),
-                            mapEntityId,
-                            true,
-                            EntityNode.NodeKind.TILED_MAP
-                    );
-                    if (meta.locked) {
-                        mapNode.getLabel().setColor(Color.DARK_GRAY);
-                    } else {
-                        mapNode.getLabel().setColor(Color.WHITE);
-                    }
-                    if (mBody.has(mapEntityId)) {
-                        boolean selectableBody = !meta.locked;
-
-                        EntityNode bodyNode = new EntityNode(
-                                "Static body",
-                                null,
-                                mapEntityId,
-                                selectableBody,
-                                EntityNode.NodeKind.BODY
-                        );
-
-                        if (meta.locked) {
-                            bodyNode.getLabel().setColor(Color.DARK_GRAY);
-                        } else if (selectableBody) {
-                            bodyNode.getLabel().setColor(Color.WHITE);
-                        } else {
-                            bodyNode.getLabel().setColor(0.65f, 0.65f, 0.65f, 1f);
-                        }
-
-                        mapNode.add(bodyNode);
-                        tree.registerNode(bodyNode, mapEntityId);
-                    }
-
-                    if (isLayerSpatialEnabled(eLayer, layerComp, tiled)) {
-                        boolean selectableSpatial = !meta.locked;
-                        EntityNode spatialNode = new EntityNode(
-                                "Spatial volumes",
-                                null,
-                                mapEntityId,
-                                selectableSpatial,
-                                selectableSpatial ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO
-                        );
-
-                        if (meta.locked) {
-                            spatialNode.getLabel().setColor(Color.DARK_GRAY);
-                        } else if (selectableSpatial) {
-                            spatialNode.getLabel().setColor(Color.WHITE);
-                        } else {
-                            spatialNode.getLabel().setColor(0.65f, 0.65f, 0.65f, 1f);
-                        }
-
-                        mapNode.add(spatialNode);
-                        if (selectableSpatial) {
-                            tree.registerNode(spatialNode, mapEntityId);
-                        }
-                    }
-                }
-            }
-
             LayerLogicalOrderService.LayerOrder logicalOrder = logicalOrderService.derive(li);
             for (LayerLogicalOrderService.LogicalItem item : logicalOrder.items()) {
                 if (item.isPrefab()) {
@@ -632,7 +580,9 @@ public class ItemTreePanel extends DockablePanel {
                         prefabNode.add(createEntityNode(members.get(i), meta.locked));
                     }
                 } else {
-                    if (mapNode != null && item.entityId() == mapEntityId) {
+                    if (mTiled.has(item.entityId())) {
+                        int mapEntityId = item.entityId();
+                        EntityNode mapNode = createTiledMapNode(mapEntityId, meta.locked);
                         layerNode.add(mapNode);
                         tree.registerMapNode(mapNode, mapEntityId);
                     } else {
@@ -654,6 +604,158 @@ public class ItemTreePanel extends DockablePanel {
 
         suppressTreeSelectionEvents = false;
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+    }
+
+    private void hookLayerContextMenu() {
+        tree.addListener(new InputListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                if (button != Input.Buttons.RIGHT || getStage() == null) return false;
+                EntityNode node = tree.getNodeAt(y);
+                if (node == null || !node.isLayerNode()) return false;
+                int layerEntityId = node.getEntityId();
+                if (!layerService.isUniversalLayerEntity(layerEntityId)) return false;
+                boolean tiledEnabled = ProjectConfig.getInstance().getCurrentSceneMeta() != null
+                        && ProjectConfig.getInstance().getCurrentSceneMeta().tiledEnabled;
+
+                selectionService.setActivelayerId(
+                        layerEntityId, SelectionService.SelectionSource.TREE);
+                PopupMenu addMenu = new PopupMenu();
+
+                AssetNode selectedAsset = selectedAssetNode();
+                MenuItem addSprite = new MenuItem("Sprite");
+                addSprite.setDisabled(!isSpriteAsset(selectedAsset));
+                addSprite.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        if (addSprite.isDisabled()) return;
+                        int entityId = editorOps.createStandaloneSprite(
+                                selectedAsset.path, 0f, 0f, selectedAsset.name);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addSprite);
+
+                MenuItem addAnimation = new MenuItem("Animation");
+                addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
+                addAnimation.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        if (addAnimation.isDisabled()) return;
+                        int entityId = editorOps.createAnimationSprite(
+                                selectedAsset.path, 0f, 0f, selectedAsset.name);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addAnimation);
+
+                MenuItem addMap = new MenuItem("Tiled Map");
+                addMap.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        new AddTiledMapDialog(request -> historyManager.execute(
+                                new AddTiledMapCommand(layerService, layerEntityId,
+                                        request.mapWidth(), request.mapHeight(), request.projection(),
+                                        request.tileWidth(), request.tileHeight(), request.chunkSize(),
+                                        mapEntityId -> {
+                                            if (mapEntityId >= 0) {
+                                                selectionService.clearSelection(
+                                                        SelectionService.SelectionSource.TREE);
+                                                selectionService.setTiledMapEditingTarget(mapEntityId,
+                                                        SelectionService.SelectionSource.TREE);
+                                            } else {
+                                                selectionService.clearTiledMapEditingTarget();
+                                            }
+                                        }))).show(getStage());
+                        click.handle();
+                    }
+                });
+                if (tiledEnabled) addMenu.addItem(addMap);
+
+                PopupMenu lights = new PopupMenu();
+                MenuItem point = new MenuItem("Point Light");
+                point.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createPointLight(0f, 0f);
+                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        click.handle();
+                    }
+                });
+                lights.addItem(point);
+                MenuItem cone = new MenuItem("Cone Light");
+                cone.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createConeLight(0f, 0f);
+                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        click.handle();
+                    }
+                });
+                lights.addItem(cone);
+                MenuItem light = new MenuItem("Light");
+                light.setSubMenu(lights);
+                addMenu.addItem(light);
+
+                PopupMenu menu = new PopupMenu();
+                MenuItem add = new MenuItem("Add");
+                add.setSubMenu(addMenu);
+                menu.addItem(add);
+                menu.showMenu(getStage(), event.getStageX(), event.getStageY());
+                event.handle();
+                return true;
+            }
+        });
+    }
+
+    private AssetNode selectedAssetNode() {
+        AssetsPanel assetsPanel = app.getAssetsPanel();
+        return assetsPanel != null ? assetsPanel.getSelectedAssetNode() : null;
+    }
+
+    static boolean isSpriteAsset(AssetNode node) {
+        return node != null
+                && node.kind == AssetNode.Kind.IMAGE
+                && node.root == AssetNode.Root.IMAGES;
+    }
+
+    static boolean isAnimationAsset(AssetNode node) {
+        return node != null
+                && node.kind == AssetNode.Kind.ANIMATION
+                && node.root == AssetNode.Root.ANIMATIONS;
+    }
+
+    private EntityNode createTiledMapNode(int mapEntityId, boolean layerLocked) {
+        TiledLayerComponent tiled = mTiled.get(mapEntityId);
+        PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
+        String mapName = identity != null && identity.name != null && !identity.name.isBlank()
+                ? identity.name : "Map";
+        EntityNode mapNode = new EntityNode(
+                mapName + " (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
+                IconResolver.getDrawable(EntityKind.TILED_MAP), mapEntityId, !layerLocked,
+                EntityNode.NodeKind.TILED_MAP);
+        mapNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+
+        if (mBody.has(mapEntityId)) {
+            EntityNode bodyNode = new EntityNode("Static body", null, mapEntityId, !layerLocked,
+                    EntityNode.NodeKind.BODY);
+            bodyNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+            mapNode.add(bodyNode);
+            tree.registerNode(bodyNode, mapEntityId);
+        }
+        if (isMapSpatialEnabled(tiled)) {
+            EntityNode spatialNode = new EntityNode("Spatial volumes", null, mapEntityId,
+                    !layerLocked, !layerLocked
+                    ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO);
+            spatialNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+            mapNode.add(spatialNode);
+            if (!layerLocked) tree.registerNode(spatialNode, mapEntityId);
+        }
+        return mapNode;
     }
 
     private EntityNode createEntityNode(int entityId, boolean layerLocked) {
@@ -987,8 +1089,7 @@ public class ItemTreePanel extends DockablePanel {
         return null;
     }
 
-    private boolean isLayerSpatialEnabled(int layerEntityId, LayerComponent layer, TiledLayerComponent tiled) {
-        if (layer != null && layer.spatialEnabled) return true;
+    private boolean isMapSpatialEnabled(TiledLayerComponent tiled) {
         return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
     }
 

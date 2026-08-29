@@ -19,7 +19,7 @@ public class StudioContextMenuLightContractTest {
         String lights = methodBody(source, "private void showAddLightMenu()");
         String edit = methodBody(source, "private void showEditMenu()");
 
-        assertTrue(lights.contains("layerService.getLayerEntity(selectionService.getActiveLayerIndex()) >= 0"));
+        assertTrue(lights.contains("layerService.isUniversalLayerEntity(selectionService.getActivelayerId())"));
         assertTrue(lights.contains("ops.createPointLight("));
         assertTrue(lights.contains("ops.createConeLight("));
         assertFalse(lights.contains("deleteEntities("));

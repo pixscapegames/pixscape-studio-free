@@ -1,6 +1,7 @@
 package games.pixscape.studio.ops;
 
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 
 public interface EditorOps {
@@ -66,6 +67,11 @@ public interface EditorOps {
     }
 
     void deleteEntities(IntArray entities);
+
+    int addTiledMap(int layerEntityId, int mapWidth, int mapHeight,
+                    TiledProjection projection, int tileWidth, int tileHeight, int chunkSize);
+
+    void deleteTiledMap(int mapEntityId);
 
     void applyTransform(IntArray entities,
                         Float x, Float y, Float dx, Float dy,

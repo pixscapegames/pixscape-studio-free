@@ -123,6 +123,10 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         TiledMapLayerData map = tiled.data;
         if (tiledState == null) return;
 
+        EntityIndexComponent index = mEntityIndex.get(e);
+        boolean publishMap = map.visible;
+        int fallbackVisibleRefStart = tiledState.getVisibleRefCount();
+
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
             TileChunk chunk = values.next();
@@ -182,7 +186,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     }
 
                     writeTileSlot(
-                            mEntityIndex.get(e).layerIndex,
+                            index.layerIndex,
                             map,
                             tiledRenderRef,
                             gx,
@@ -197,8 +201,31 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                             visual.u2(),
                             visual.v2()
                     );
+                    chunk.setRenderableLocalIndex(localIndex, true);
+                    chunk.markRenderMetadataDirty();
                 }
             }
+        }
+
+        int fallbackVisibleRefCount = tiledState.getVisibleRefCount()
+                - fallbackVisibleRefStart;
+        if (publishMap && fallbackVisibleRefCount > 0) {
+            long compositionKey = SortKey64.packForBlend(
+                    0,
+                    BlendMode.ALPHA.id,
+                    0,
+                    index.layerIndex,
+                    index.zIndex,
+                    e
+            );
+            tiledState.addVisibleMap(
+                    e,
+                    index.layerIndex,
+                    index.zIndex,
+                    compositionKey,
+                    fallbackVisibleRefStart,
+                    fallbackVisibleRefCount
+            );
         }
     }
 

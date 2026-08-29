@@ -71,6 +71,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
         int light = ordinaryEntity(true);
         selection.selectOnly(light, SelectionService.SelectionSource.TREE);
         assertEntityTargetActive(light);
+        assertEquals(tiledLayer, selection.getActivelayerId());
 
         int ordinary = ordinaryEntity(false);
         selection.setActivelayerId(tiledLayer, SelectionService.SelectionSource.TREE);
@@ -132,6 +133,24 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
         assertEquals(otherHost, selection.getActivelayerId());
         assertEquals(otherMap, selection.getTiledMapEditingTargetEntityId());
+        assertTrue(selection.isTiledMapEditingTargetActive());
+    }
+
+    @Test
+    public void twoMapsInSameOrdinaryLayerSwitchByExactMapIdentity() {
+        world.getMapper(LayerComponent.class).get(tiledLayer).type = LayerComponent.TYPE_CLASSIC;
+        int secondMap = world.create();
+        world.getMapper(EntityIndexComponent.class).create(secondMap).layerIndex = 0;
+        world.getMapper(TiledLayerComponent.class).create(secondMap);
+        world.process();
+
+        selection.setTiledMapEditingTarget(tiledMap, SelectionService.SelectionSource.TREE);
+        assertEquals(tiledMap, selection.getTiledMapEditingTargetEntityId());
+
+        selection.setTiledMapEditingTarget(secondMap, SelectionService.SelectionSource.TREE);
+
+        assertEquals(tiledLayer, selection.getActivelayerId());
+        assertEquals(secondMap, selection.getTiledMapEditingTargetEntityId());
         assertTrue(selection.isTiledMapEditingTargetActive());
     }
 

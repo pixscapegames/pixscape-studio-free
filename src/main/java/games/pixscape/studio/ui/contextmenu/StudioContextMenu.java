@@ -16,7 +16,6 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
@@ -41,6 +40,7 @@ import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.ui.layer.AddTiledMapDialog;
 
 public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");
@@ -128,6 +128,7 @@ public final class StudioContextMenu extends InputListener {
         }
         showEditMenu();
         showShapeMenu();
+        showAddTiledMapMenu();
         showAddLightMenu();
         showJointsMenu();
     }
@@ -324,7 +325,7 @@ public final class StudioContextMenu extends InputListener {
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasJointSelected = selection.size == 1 && mJointBase.has(selection.get(0));
         boolean hasActiveLayer = layerService != null
-                && layerService.getLayerEntity(selectionService.getActiveLayerIndex()) >= 0;
+                && layerService.isUniversalLayerEntity(selectionService.getActivelayerId());
 
         if (!hasJointSelected && hasActiveLayer) {
             PopupMenu addLightSub = new PopupMenu();
@@ -358,6 +359,26 @@ public final class StudioContextMenu extends InputListener {
             menu.addItem(addRoot);
         }
 
+    }
+
+    private void showAddTiledMapMenu() {
+        int layerEntityId = selectionService.getActivelayerId();
+        if (!layerService.isUniversalLayerEntity(layerEntityId)) return;
+        if (ProjectConfig.getInstance().getCurrentSceneMeta() == null
+                || !ProjectConfig.getInstance().getCurrentSceneMeta().tiledEnabled) return;
+        MenuItem addMap = new MenuItem("Add Tiled Map");
+        addMap.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                AddTiledMapDialog dialog = new AddTiledMapDialog(request ->
+                        ops.addTiledMap(layerEntityId, request.mapWidth(), request.mapHeight(),
+                                request.projection(), request.tileWidth(), request.tileHeight(),
+                                request.chunkSize()));
+                dialog.show(stage);
+                event.handle();
+            }
+        });
+        menu.addItem(addMap);
     }
 
     private void showJointsMenu() {
@@ -523,7 +544,9 @@ public final class StudioContextMenu extends InputListener {
 
     private void showEditMenu() {
         IntArray selection = selectionService.getSelectionSnapshot();
+        int selectedMap = selectionService.getTiledMapEditingTargetEntityId();
         boolean hasSelection = selection.size > 0;
+        boolean hasDeletableTarget = hasSelection || selectedMap >= 0;
 
         boolean canPaste = clipboardService != null && clipboardService.hasContent();
 
@@ -578,12 +601,15 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(createPrefab);
 
         MenuItem delete = new MenuItem("Delete");
-        delete.setDisabled(!hasSelection);
+        delete.setDisabled(!hasDeletableTarget);
         delete.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                ops.deleteEntities(selectionService.getSelectionSnapshot());
-                selectionService.clearSelection();
+                if (selectedMap >= 0) ops.deleteTiledMap(selectedMap);
+                else {
+                    ops.deleteEntities(selectionService.getSelectionSnapshot());
+                    selectionService.clearSelection();
+                }
                 event.handle();
             }
         });

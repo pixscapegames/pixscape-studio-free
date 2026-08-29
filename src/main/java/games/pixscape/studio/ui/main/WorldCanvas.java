@@ -866,22 +866,18 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         int layerType = layerService.getLayerTypeByEntity(activeLayerId);
 
-        boolean tilePayload = switch (p.type) {
-            case "tile-asset", "tiled-animation" -> true;
-            default -> false;
-        };
+        return isAssetPayloadAllowedForEditingContext(
+                layerType, selectionService.isTiledMapEditingTargetActive(), p.type)
+                ? DropAllowedResult.allowed() : DropAllowedResult.forbidden();
+    }
 
-        return switch (layerType) {
-            case LayerComponent.TYPE_TILED -> tilePayload
-                    ? DropAllowedResult.allowed()
-                    : DropAllowedResult.forbidden();
-            default -> {
-                if (tilePayload) {
-                    yield DropAllowedResult.forbidden();
-                }
-                yield DropAllowedResult.allowed();
-            }
-        };
+    /** Layer capability and explicit Map editing target are independent axes. */
+    static boolean isAssetPayloadAllowedForEditingContext(
+            int layerType, boolean tiledMapTargetActive, String payloadType) {
+        boolean tilePayload = "tile-asset".equals(payloadType)
+                || "tiled-animation".equals(payloadType);
+        if (tilePayload) return tiledMapTargetActive;
+        return layerType == LayerComponent.TYPE_CLASSIC;
     }
 
     private void cleanupDndPayload(DragPayload p) {
