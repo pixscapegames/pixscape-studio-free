@@ -7,12 +7,15 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TextureRegionComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.component.LayerMetaComponent;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.tiled.TiledPaintService;
 import org.junit.After;
@@ -237,6 +240,13 @@ public class AddTiledMapCommandTest {
         assertEquals(projection, tiled.projection);
         assertEquals(tileWidth, tiled.tileWidth);
         assertEquals(tileHeight, tiled.tileHeight);
+        assertTrue(tiled.chunkSize > 0);
+        assertNotNull(tiled.data);
+        assertFalse(tiled.spatialEnabled);
+        assertFalse(tiled.data.spatialEnabled);
+        assertFalse(world.getMapper(PhysicsBodyComponent.class).has(id));
+        assertEquals(EntityKind.TILED_MAP,
+                world.getMapper(EntityMetaComponent.class).get(id).kind);
     }
 
     private int mapCount() {

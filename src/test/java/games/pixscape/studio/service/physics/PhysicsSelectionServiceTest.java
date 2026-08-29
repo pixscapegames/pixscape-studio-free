@@ -51,4 +51,15 @@ public class PhysicsSelectionServiceTest {
         Assert.assertEquals(PhysicsSelectionService.NO_BODY, selection.getFocusedBodyEid());
         Assert.assertEquals(PhysicsSelectionService.NO_SHAPE, selection.getSelectedPhysicsShapeId());
     }
+
+    @Test
+    public void clearingTiledMapTargetDoesNotClearNewlyFocusedMapBody() {
+        PhysicsSelectionService selection = new PhysicsSelectionService();
+        selection.focusBody(17);
+
+        EventFlow.i().publish(new EventFlow.TiledMapEditingTargetChanged(-1, 0));
+        EventFlow.i().flush();
+
+        Assert.assertEquals(17, selection.getFocusedBodyEid());
+    }
 }

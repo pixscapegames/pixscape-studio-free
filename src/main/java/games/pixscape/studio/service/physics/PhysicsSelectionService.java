@@ -31,7 +31,9 @@ public final class PhysicsSelectionService {
     public PhysicsSelectionService(StudioEditingModeService studioEditingModeService) {
         this.studioEditingModeService = studioEditingModeService;
         EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
-            if (focusedBodyEid >= 0 && focusedBodyEid != evt.mapEntityId()) {
+            if (evt.mapEntityId() >= 0
+                    && focusedBodyEid >= 0
+                    && focusedBodyEid != evt.mapEntityId()) {
                 clear();
             }
         });

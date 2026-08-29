@@ -10,10 +10,12 @@ import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
@@ -32,6 +34,41 @@ import java.nio.file.Path;
 
 public class LayerSpatialDepthCommandsTest {
     @Test
+    public void ordinaryHostedMapSpatialDepthNeverChangesOwningLayer() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        int layerId = createLayer(world, 0, LayerComponent.TYPE_CLASSIC);
+        LayerComponent layer = world.getMapper(LayerComponent.class).get(layerId);
+        layer.spatialEnabled = false;
+        int mapId = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = 0;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapId);
+        tiled.projection = TiledProjection.ORTHO;
+        tiled.tileWidth = 16;
+        tiled.tileHeight = 32;
+        tiled.mapWidthCells = 4;
+        tiled.mapHeightCells = 4;
+        tiled.chunkSize = 4;
+        tiled.data = tiled.createMapData();
+
+        history.execute(new ToggleTiledMapSpatialDepthCommand(
+                world, history.historyIds(), layerId, mapId, true, 2f, 32f));
+
+        Assert.assertFalse(layer.spatialEnabled);
+        Assert.assertTrue(tiled.spatialEnabled);
+        Assert.assertTrue(tiled.data.spatialEnabled);
+
+        history.undo();
+        Assert.assertFalse(layer.spatialEnabled);
+        Assert.assertFalse(tiled.spatialEnabled);
+        Assert.assertFalse(tiled.data.spatialEnabled);
+
+        history.redo();
+        Assert.assertFalse(layer.spatialEnabled);
+        Assert.assertTrue(tiled.spatialEnabled);
+    }
+
+    @Test
     public void toggleLayerSpatialDepth_updatesLayerAndTiledRuntimeState() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
@@ -44,7 +81,7 @@ public class LayerSpatialDepthCommandsTest {
         history.historyIds().ensureForEntity(layerId);
         history.historyIds().ensureForEntity(mapId);
 
-        history.execute(new ToggleLayerSpatialDepthCommand(
+        history.execute(new ToggleTiledMapSpatialDepthCommand(
                 world,
                 history.historyIds(),
                 layerId,
@@ -285,7 +322,7 @@ public class LayerSpatialDepthCommandsTest {
         history.historyIds().ensureForEntity(actorId);
         int cursorBefore = history.getCursor();
 
-        ToggleLayerSpatialDepthCommand command = new ToggleLayerSpatialDepthCommand(
+        ToggleTiledMapSpatialDepthCommand command = new ToggleTiledMapSpatialDepthCommand(
                 world,
                 history.historyIds(),
                 layerId,
@@ -340,6 +377,49 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     @Test
+    public void ordinaryHostedMapsPersistIndependentSpatialAndCollisionState() throws Exception {
+        World world = serializableWorld();
+        createLayer(world, 0, LayerComponent.TYPE_CLASSIC);
+        int mapA = createOrdinaryHostedMap(world, 0, 4, false);
+        int mapB = createOrdinaryHostedMap(world, 0, 8, true);
+        PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class)
+                .create(mapA);
+        PhysicsService.initDefaultBody(body);
+        body.type = PhysicsBodyComponent.STATIC;
+        world.process();
+
+        Path scenePath = Files.createTempFile("independent-map-properties", ".json");
+        FileHandle sceneFile = new FileHandle(scenePath.toFile());
+        SceneService.saveScene(world, sceneFile, false);
+
+        World loaded = serializableWorld();
+        SceneMetaRuntime sceneMeta = new SceneMetaRuntime();
+        sceneMeta.physicsEnabled = true;
+        SceneLoader.loadScene(loaded, sceneFile, false, sceneMeta);
+
+        IntBag maps = loaded.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class))
+                .getEntities();
+        Assert.assertEquals(2, maps.size());
+        for (int i = 0; i < maps.size(); i++) {
+            int mapEntity = maps.get(i);
+            TiledLayerComponent tiled = loaded.getMapper(TiledLayerComponent.class)
+                    .get(mapEntity);
+            if (tiled.mapWidthCells == 4) {
+                Assert.assertFalse(tiled.spatialEnabled);
+                Assert.assertTrue(loaded.getMapper(PhysicsBodyComponent.class)
+                        .has(mapEntity));
+            } else if (tiled.mapWidthCells == 8) {
+                Assert.assertTrue(tiled.spatialEnabled);
+                Assert.assertFalse(loaded.getMapper(PhysicsBodyComponent.class)
+                        .has(mapEntity));
+            } else {
+                Assert.fail("Unexpected map width " + tiled.mapWidthCells);
+            }
+        }
+    }
+
+    @Test
     public void saveScene_omitsRuntimeOnlyTiledAndVisibilityState() throws Exception {
         World world = serializableWorld();
         int layerId = createTiledLayer(world, 0);
@@ -383,6 +463,25 @@ public class LayerSpatialDepthCommandsTest {
         layer.type = type;
         layer.spatialEnabled = false;
         return layerId;
+    }
+
+    private static int createOrdinaryHostedMap(World world,
+                                               int layerIndex,
+                                               int mapWidth,
+                                               boolean spatialEnabled) {
+        int mapId = world.create();
+        world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = layerIndex;
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapId);
+        tiled.projection = TiledProjection.ORTHO;
+        tiled.tileWidth = 16;
+        tiled.tileHeight = 32;
+        tiled.mapWidthCells = mapWidth;
+        tiled.mapHeightCells = 4;
+        tiled.chunkSize = 4;
+        tiled.spatialEnabled = spatialEnabled;
+        tiled.defaultTileHeight = spatialEnabled ? 32f : 0f;
+        tiled.data = tiled.createMapData();
+        return mapId;
     }
 
     private static int createActor(World world, int layerIndex, float altitude, float height) {

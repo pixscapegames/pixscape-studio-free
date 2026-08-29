@@ -783,13 +783,6 @@ public final class LayerService {
         dirty = true;
     }
 
-    public static String typeDisplayName(int type) {
-        return switch (type) {
-            case LayerComponent.TYPE_TILED -> "Tiled";
-            default -> "Classic";
-        };
-    }
-
     public static String typeSuffixLabel(int type, boolean spatialEnabled) {
         if (type == LayerComponent.TYPE_CLASSIC && spatialEnabled) return "(Spatial)";
         return switch (type) {
