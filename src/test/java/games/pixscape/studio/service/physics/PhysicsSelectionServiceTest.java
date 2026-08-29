@@ -1,5 +1,6 @@
 package games.pixscape.studio.service.physics;
 
+import games.pixscape.studio.event.EventFlow;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -37,5 +38,17 @@ public class PhysicsSelectionServiceTest {
                 selection.getSelectedPhysicsShapeId());
         Assert.assertFalse(selection.hasHoveredShape());
         Assert.assertTrue(selection.isFocusedBody(17));
+    }
+
+    @Test
+    public void changingTiledMapTargetClearsFocusedMapPhysicsContext() {
+        PhysicsSelectionService selection = new PhysicsSelectionService();
+        selection.setSelectedShape(17, 23);
+
+        EventFlow.i().publish(new EventFlow.TiledMapEditingTargetChanged(18, 0));
+        EventFlow.i().flush();
+
+        Assert.assertEquals(PhysicsSelectionService.NO_BODY, selection.getFocusedBodyEid());
+        Assert.assertEquals(PhysicsSelectionService.NO_SHAPE, selection.getSelectedPhysicsShapeId());
     }
 }

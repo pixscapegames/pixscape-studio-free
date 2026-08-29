@@ -67,7 +67,7 @@ public class StudioEditingModeServiceTest {
 
         physics.focusBody(7);
         Assert.assertEquals(StudioEditingMode.PHYSICS, service.getCurrentMode());
-        spatial.enterLayer(12);
+        spatial.enterMap(12);
         Assert.assertEquals(StudioEditingMode.SPATIAL, service.getCurrentMode());
         spatial.clear();
         Assert.assertEquals(StudioEditingMode.PHYSICS, service.getCurrentMode());

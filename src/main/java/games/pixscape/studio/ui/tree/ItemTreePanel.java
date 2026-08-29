@@ -488,8 +488,8 @@ public class ItemTreePanel extends DockablePanel {
         exitExplicitSpatialBlockMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerIdForTiledMapContext(
-                hostLayerEntityId, SelectionService.SelectionSource.TREE);
+        selectionService.setTiledMapEditingTarget(
+                mapEntityId, SelectionService.SelectionSource.TREE);
 
         if (propertiesPanel != null) {
             propertiesPanel.requestTiledMapProperties(mapEntityId);
@@ -515,8 +515,9 @@ public class ItemTreePanel extends DockablePanel {
         exitExplicitPhysicsEditMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerId(hostLayerEntityId, SelectionService.SelectionSource.TREE);
-        spatialBlockSelectionService.enterLayer(mapEntityId);
+        selectionService.setTiledMapEditingTarget(
+                mapEntityId, SelectionService.SelectionSource.TREE);
+        spatialBlockSelectionService.enterMap(mapEntityId);
     }
 
     private void rebuildTreeFromWorld() {
@@ -555,9 +556,6 @@ public class ItemTreePanel extends DockablePanel {
                             true,
                             EntityNode.NodeKind.TILED_MAP
                     );
-                    if (layerNode.getActor() != null && mapNode.getActor() != null) {
-                        mapNode.getActor().setUserObject(layerNode.getActor().getUserObject());
-                    }
                     if (meta.locked) {
                         mapNode.getLabel().setColor(Color.DARK_GRAY);
                     } else {
@@ -868,9 +866,9 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private EntityNode resolveSpatialBlockContextNode() {
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
-        if (layerEntityId < 0) return null;
-        return tree.findSpatialBlocksNode(layerEntityId);
+        int mapEntityId = spatialBlockSelectionService.getEditingMapEntityId();
+        if (mapEntityId < 0) return null;
+        return tree.findSpatialBlocksNode(mapEntityId);
     }
 
     private void handleBodyNodeSelection(EntityNode bodyNode) {

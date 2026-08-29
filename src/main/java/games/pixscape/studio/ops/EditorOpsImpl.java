@@ -893,7 +893,7 @@ public class EditorOpsImpl implements EditorOps {
     @Override
     public void deleteSelectedSpatialBlock() {
         if (spatialBlockSelectionService == null || !spatialBlockSelectionService.hasSelectedBlock()) return;
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         int blockId = spatialBlockSelectionService.getSelectedBlockId();
         DeleteSpatialBlockCommand command = new DeleteSpatialBlockCommand(
                 world,

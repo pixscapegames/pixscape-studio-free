@@ -107,7 +107,7 @@ public final class AddSpatialBlockCommand implements Command, HistoryManager.Sup
         CommandOutcome outcome = SpatialBlockCommandSupport.replaceAllValidated(
                 world, layer, before);
         if (outcome != CommandOutcome.APPLIED) return outcome;
-        if (selection != null) selection.enterLayer(layer);
+        if (selection != null) selection.enterMap(layer);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }

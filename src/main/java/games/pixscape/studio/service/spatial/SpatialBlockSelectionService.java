@@ -5,10 +5,10 @@ import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.StudioEditingModeService;
 
 public final class SpatialBlockSelectionService {
-    public static final int NO_LAYER = -1;
+    public static final int NO_MAP = -1;
     public static final int NO_BLOCK = -1;
 
-    private int editingLayerEntityId = NO_LAYER;
+    private int editingMapEntityId = NO_MAP;
     private int selectedBlockId = NO_BLOCK;
     private int hoveredBlockId = NO_BLOCK;
     private SpatialBlockInteractiveEditSupport.ResizeHandle hoveredResizeHandle;
@@ -27,15 +27,15 @@ public final class SpatialBlockSelectionService {
 
     public SpatialBlockSelectionService(StudioEditingModeService studioEditingModeService) {
         this.studioEditingModeService = studioEditingModeService;
-        EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, evt -> {
-            if (evt.layerEntityId() != editingLayerEntityId) {
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
+            if (evt.mapEntityId() != editingMapEntityId) {
                 clear();
             }
         });
     }
 
-    public int getEditingLayerEntityId() {
-        return editingLayerEntityId;
+    public int getEditingMapEntityId() {
+        return editingMapEntityId;
     }
 
     public int getSelectedBlockId() {
@@ -59,7 +59,7 @@ public final class SpatialBlockSelectionService {
     }
 
     public boolean isEditingActive() {
-        return editingLayerEntityId >= 0;
+        return editingMapEntityId >= 0;
     }
 
     public boolean hasSelectedBlock() {
@@ -81,10 +81,10 @@ public final class SpatialBlockSelectionService {
         wallEditSession.cancel();
     }
 
-    public void enterLayer(int layerEntityId) {
-        if (editingLayerEntityId == layerEntityId && selectedBlockId == NO_BLOCK) return;
-        editingLayerEntityId = layerEntityId;
-        setSpatialModeActive(layerEntityId >= 0);
+    public void enterMap(int mapEntityId) {
+        if (editingMapEntityId == mapEntityId && selectedBlockId == NO_BLOCK) return;
+        editingMapEntityId = mapEntityId;
+        setSpatialModeActive(mapEntityId >= 0);
         selectedBlockId = NO_BLOCK;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
@@ -94,12 +94,12 @@ public final class SpatialBlockSelectionService {
         publishSelectionChanged();
     }
 
-    public void selectBlock(int layerEntityId, int blockId) {
-        if (layerEntityId < 0 || blockId <= 0) {
+    public void selectBlock(int mapEntityId, int blockId) {
+        if (mapEntityId < 0 || blockId <= 0) {
             clearSelectionOnly();
             return;
         }
-        editingLayerEntityId = layerEntityId;
+        editingMapEntityId = mapEntityId;
         setSpatialModeActive(true);
         selectedBlockId = blockId;
         hoveredBlockId = blockId;
@@ -151,8 +151,8 @@ public final class SpatialBlockSelectionService {
     }
 
     public void clear() {
-        if (editingLayerEntityId == NO_LAYER && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
-        editingLayerEntityId = NO_LAYER;
+        if (editingMapEntityId == NO_MAP && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
+        editingMapEntityId = NO_MAP;
         setSpatialModeActive(false);
         selectedBlockId = NO_BLOCK;
         hoveredBlockId = NO_BLOCK;
@@ -170,7 +170,7 @@ public final class SpatialBlockSelectionService {
 
     private void publishSelectionChanged() {
         EventFlow.i().publish(new EventFlow.SpatialBlockSelectionChanged(
-                editingLayerEntityId,
+                editingMapEntityId,
                 selectedBlockId,
                 eventTag
         ));

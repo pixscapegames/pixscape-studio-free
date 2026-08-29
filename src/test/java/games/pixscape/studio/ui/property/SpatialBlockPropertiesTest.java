@@ -117,7 +117,7 @@ public class SpatialBlockPropertiesTest {
         properties.refreshNow();
 
         Assert.assertNull(properties.activeBlock());
-        Assert.assertEquals(layerId, fixture.selection.getEditingLayerEntityId());
+        Assert.assertEquals(layerId, fixture.selection.getEditingMapEntityId());
         Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, fixture.selection.getSelectedBlockId());
     }
 
@@ -137,7 +137,7 @@ public class SpatialBlockPropertiesTest {
         properties.refreshNow();
 
         Assert.assertNull(properties.activeBlock());
-        Assert.assertEquals(SpatialBlockSelectionService.NO_LAYER, fixture.selection.getEditingLayerEntityId());
+        Assert.assertEquals(SpatialBlockSelectionService.NO_MAP, fixture.selection.getEditingMapEntityId());
         Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, fixture.selection.getSelectedBlockId());
     }
 

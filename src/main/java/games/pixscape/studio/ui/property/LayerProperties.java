@@ -420,7 +420,7 @@ public class LayerProperties extends VisTable {
 
         tiledSection.show(isTiled);
         if (isTiled) {
-            tiledMapProperties.setLayerEntityId(mapEntityId);
+            tiledMapProperties.setMapEntityId(mapEntityId);
         }
 
         invalidateHierarchy();

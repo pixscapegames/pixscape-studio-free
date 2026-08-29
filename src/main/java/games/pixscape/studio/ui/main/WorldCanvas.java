@@ -158,6 +158,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final TileAnimationRegistry tileAnimationRegistry;
     // tiled rect
     private boolean rectActive = false;
+    private int rectMapEntityId = -1;
     private int rectStartGX;
     private int rectStartGY;
 
@@ -712,12 +713,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private void bindTiledMutationContextChanges() {
         EventFlow.i().subscribe(EventFlow.TiledToolChanged.class, ev -> cancelTiledGesture());
         EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, ev -> cancelTiledGesture());
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, ev -> cancelTiledGesture());
     }
 
     private void cancelTiledGesture() {
         if (tiledMutationController != null) tiledMutationController.reset();
         if (rectActive) {
             rectActive = false;
+            rectMapEntityId = -1;
             if (gizmoSystem != null) gizmoSystem.hideRectPreview();
         }
         if (tiledPreviewService != null) tiledPreviewService.clear();
@@ -725,7 +728,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     private void configureTileMode(SceneMeta meta) {
         gridActor.setTiledMode(meta.tiledProjection, meta.tileWidth, meta.tileHeight);
-        int mapEntity = selectionService.getActiveTiledMapEntityId();
+        int mapEntity = selectionService.getTiledMapEditingTargetEntityId();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntity, null);
 
         if (tiled != null && tiled.data != null) {
@@ -1122,13 +1125,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return true;
                 }
 
-                int layerEntityId = selectionService.getActiveTiledMapEntityId();
-                if (layerEntityId == -1) {
+                int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+                if (mapEntityId == -1) {
                     return false;
                 }
 
                 if (tiledToolService.is(TiledToolService.Mode.FILL)) {
-                    performFill(layerEntityId);
+                    performFill(mapEntityId);
                     return true;
                 }
 
@@ -1170,7 +1173,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
 
                 if (tiledMutationController.isActive()) {
-                    consumeTiledMutationResult(tiledMutationController.commitStroke());
+                    int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+                    if (isTiledToolInputEnabled()
+                            && tiledMutationController.activeMapEntityId() == mapEntityId) {
+                        consumeTiledMutationResult(tiledMutationController.commitStroke());
+                    } else {
+                        tiledMutationController.cancel();
+                    }
                 }
                 if (isTiledToolInputEnabled() && tiledToolService.is(TiledToolService.Mode.ERASE)) {
                     gizmoSystem.refreshOverlayMouse();
@@ -1229,8 +1238,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean handleTiledOutsideMapClick() {
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (tiled == null || tiled.data == null) return false;
 
         computeTileUnderMouse(tiled, tmpWorldPos);
@@ -1258,14 +1267,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             return false;
         }
 
-        tiledMutationController.beginStroke(layerEntityId);
+        tiledMutationController.beginStroke(mapEntityId);
 
-        applyBrushAtMouse(layerEntityId);
+        applyBrushAtMouse(mapEntityId);
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
             gizmoSystem.disableTiledOverlay();
@@ -1286,8 +1295,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        applyBrushAtMouse(layerEntityId);
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        applyBrushAtMouse(mapEntityId);
     }
 
     private boolean handleRectDown() {
@@ -1298,12 +1307,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             return false;
         }
 
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             return false;
@@ -1314,6 +1323,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         rectStartGX = tiled.data.worldToTileX(tmpWorldPos.x, tmpWorldPos.y);
         rectStartGY = tiled.data.worldToTileY(tmpWorldPos.x, tmpWorldPos.y);
 
+        rectMapEntityId = mapEntityId;
         rectActive = true;
         return true;
     }
@@ -1322,13 +1332,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (!rectActive) {
             return;
         }
+        if (selectionService.getTiledMapEditingTargetEntityId() != rectMapEntityId) {
+            cancelTiledGesture();
+            return;
+        }
         if (!isTiledToolInputEnabled()) {
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(selectionService.getActiveTiledMapEntityId(), null);
+                        .getSafe(selectionService.getTiledMapEditingTargetEntityId(), null);
 
         if (tiled == null || tiled.data == null) {
             return;
@@ -1362,17 +1376,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
+        int startedMapEntityId = rectMapEntityId;
         rectActive = false;
+        rectMapEntityId = -1;
         gizmoSystem.hideRectPreview();
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1 || mapEntityId != startedMapEntityId) {
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             return;
@@ -1407,21 +1423,21 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         consumeTiledMutationResult(tiledMutationController.commitRectangle(
-                layerEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
+                mapEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
     }
 
-    private void applyBrushAtMouse(int layerEntityId) {
+    private void applyBrushAtMouse(int mapEntityId) {
 
-        if (layerEntityId == -1)
+        if (mapEntityId == -1)
             return;
-        if (tiledMutationController.activeLayerEntityId() != layerEntityId) {
+        if (tiledMutationController.activeMapEntityId() != mapEntityId) {
             tiledMutationController.cancel();
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null)
             return;
@@ -1456,11 +1472,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledMutationController.updateStroke(tiled, gx, gy, assetId, flags);
     }
 
-    private void performFill(int layerEntityId) {
+    private void performFill(int mapEntityId) {
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null)
             return;
@@ -1486,22 +1502,22 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         consumeTiledMutationResult(tiledMutationController.commitFill(
-                layerEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
+                mapEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
     }
 
     private void consumeTiledMutationResult(TiledMutationController.Result result) {
         if (result.status() == TiledMutationController.Status.REJECTED) {
-            showTiledSpatialRejection(result.layerEntityId(), result.rejection());
+            showTiledSpatialRejection(result.mapEntityId(), result.rejection());
         }
     }
 
-    void showTiledSpatialRejection(int layerEntityId, TiledSpatialMutationRejection rejection) {
+    void showTiledSpatialRejection(int mapEntityId, TiledSpatialMutationRejection rejection) {
         if (rejection == null) return;
         VisDialog dialog = new StudioDialog("Spatial authoring conflict") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object) && rejection.firstBlockId() > 0) {
-                    spatialBlockSelectionService.selectBlock(layerEntityId, rejection.firstBlockId());
+                    spatialBlockSelectionService.selectBlock(mapEntityId, rejection.firstBlockId());
                 }
             }
         };
@@ -2045,21 +2061,21 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         TiledBrushSession activeStroke = tiledMutationController.activePreviewSession();
         if (activeStroke != null) {
             TiledLayerComponent pendingLayer = world.getMapper(TiledLayerComponent.class)
-                    .getSafe(activeStroke.getLayerEntityId(), null);
+                    .getSafe(activeStroke.getMapEntityId(), null);
             if (pendingLayer == null || pendingLayer.data == null) tiledPreviewService.clear();
             else tiledPreviewService.showBrushSession(
                     pendingLayer.data, pendingLayer.atlasTag, activeStroke);
             return;
         }
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             tiledPreviewService.clear();
             return;
         }
 
         TiledLayerComponent tiled =
-                world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+                world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             tiledPreviewService.clear();
@@ -2116,10 +2132,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActiveTiledMapEntityId();
-        TiledLayerComponent tiled = layerEntityId < 0
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = mapEntityId < 0
                 ? null
-                : world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+                : world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (tiled == null || tiled.data == null) {
             publishTiledCursor(false, 0, 0);
             return;
@@ -2217,6 +2233,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void resetEditingContexts() {
+        selectionService.clearTiledMapEditingTarget();
         studioEditingModeService.reset(EventFlow.tag(this));
         physicsSelectionService.clear();
         spatialBlockSelectionService.clear();

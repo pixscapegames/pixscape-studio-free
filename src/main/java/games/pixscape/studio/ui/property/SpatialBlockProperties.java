@@ -320,16 +320,16 @@ public final class SpatialBlockProperties extends VisTable {
 
     private void clearStaleSelection() {
         if (activeLayerEntity() < 0) {
-            if (selection != null && selection.getEditingLayerEntityId() == layerEntityId) {
+            if (selection != null && selection.getEditingMapEntityId() == layerEntityId) {
                 selection.clear();
             }
-            layerEntityId = SpatialBlockSelectionService.NO_LAYER;
+            layerEntityId = SpatialBlockSelectionService.NO_MAP;
             blockId = SpatialBlockSelectionService.NO_BLOCK;
             return;
         }
 
-        if (selection != null && selection.getEditingLayerEntityId() == layerEntityId) {
-            selection.enterLayer(layerEntityId);
+        if (selection != null && selection.getEditingMapEntityId() == layerEntityId) {
+            selection.enterMap(layerEntityId);
         }
         blockId = SpatialBlockSelectionService.NO_BLOCK;
     }

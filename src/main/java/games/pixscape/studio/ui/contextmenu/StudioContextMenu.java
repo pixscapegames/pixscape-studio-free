@@ -137,7 +137,7 @@ public final class StudioContextMenu extends InputListener {
             return false;
         }
 
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         if (layerEntityId < 0) return false;
 
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) {
@@ -221,7 +221,7 @@ public final class StudioContextMenu extends InputListener {
 
         // Useful fallback for the static body owned by the active Tiled map.
         if (bodyEid < 0) {
-            int activeMapId = selectionService.getActiveTiledMapEntityId();
+            int activeMapId = selectionService.getTiledMapEditingTargetEntityId();
             if (activeMapId >= 0 && mBody.has(activeMapId)) {
                 bodyEid = activeMapId;
             }

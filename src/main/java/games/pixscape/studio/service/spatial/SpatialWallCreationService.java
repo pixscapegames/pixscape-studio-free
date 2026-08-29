@@ -18,7 +18,7 @@ public final class SpatialWallCreationService {
                                                    SpatialTileSelectionService tileSelection) {
         if (world == null || history == null || tileSelection == null || !tileSelection.hasSelection()) return false;
         try {
-            int layerEntityId = tileSelection.getLayerEntityId();
+            int layerEntityId = tileSelection.getMapEntityId();
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
             if (tiled == null || tiled.data == null) return false;
             SpatialBlocksComponent walls = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);

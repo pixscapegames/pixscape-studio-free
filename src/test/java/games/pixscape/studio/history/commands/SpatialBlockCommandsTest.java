@@ -52,12 +52,12 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(3, component.blocks.first().linkedTileRefs.get(0).gy);
         Assert.assertEquals(1001, component.blocks.first().linkedTileRefs.get(0).tileAssetId);
         Assert.assertEquals(1, command.getBlockId());
-        Assert.assertEquals(layerId, selection.getEditingLayerEntityId());
+        Assert.assertEquals(layerId, selection.getEditingMapEntityId());
         Assert.assertEquals(1, selection.getSelectedBlockId());
 
         history.undo();
         Assert.assertEquals(0, component.blocks.size);
-        Assert.assertEquals(layerId, selection.getEditingLayerEntityId());
+        Assert.assertEquals(layerId, selection.getEditingMapEntityId());
         Assert.assertEquals(SpatialBlockSelectionService.NO_BLOCK, selection.getSelectedBlockId());
 
         history.redo();
@@ -125,7 +125,7 @@ public class SpatialBlockCommandsTest {
         Assert.assertEquals(7, component.revision);
         Assert.assertEquals(2, component.nextSpatialBlockId);
         Assert.assertEquals(0, history.getCursor());
-        Assert.assertEquals(layerId, selection.getEditingLayerEntityId());
+        Assert.assertEquals(layerId, selection.getEditingMapEntityId());
         Assert.assertEquals(41, selection.getSelectedBlockId());
     }
 

@@ -228,7 +228,7 @@ public final class GizmoSystem extends BaseSystem {
                 readMouseWorld(tmpMouseWorld);
 
                 int layerEntityId = selectionService != null
-                        ? selectionService.getActiveTiledMapEntityId()
+                        ? selectionService.getTiledMapEditingTargetEntityId()
                         : -1;
                 TiledLayerComponent tiled = layerEntityId >= 0
                         ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null)
@@ -339,7 +339,7 @@ public final class GizmoSystem extends BaseSystem {
     private void drawSpatialBlockOverlays() {
         if (!hasSpatialBlockOverlayWork()) return;
 
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (component == null || component.blocks == null || tiled == null || tiled.data == null) return;
@@ -517,9 +517,9 @@ public final class GizmoSystem extends BaseSystem {
         if (spatialBlockSelectionService == null || !spatialBlockSelectionService.isEditingActive()) return;
 
         int layerEntityId = spatialTileSelectionService.hasSelection()
-                ? spatialTileSelectionService.getLayerEntityId()
-                : spatialTileSelectionService.getHoverLayerEntityId();
-        if (layerEntityId != spatialBlockSelectionService.getEditingLayerEntityId()) return;
+                ? spatialTileSelectionService.getMapEntityId()
+                : spatialTileSelectionService.getHoverMapEntityId();
+        if (layerEntityId != spatialBlockSelectionService.getEditingMapEntityId()) return;
         if (!isLayerEntityVisible(layerEntityId)) return;
 
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
@@ -572,7 +572,7 @@ public final class GizmoSystem extends BaseSystem {
         if (spatialBlockSelectionService == null || !spatialBlockSelectionService.hasSelectedBlock()) return;
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) return;
 
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         if (!isLayerEntityVisible(layerEntityId)) return;
 
         SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);

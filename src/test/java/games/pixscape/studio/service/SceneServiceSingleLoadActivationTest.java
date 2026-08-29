@@ -81,7 +81,7 @@ public class SceneServiceSingleLoadActivationTest {
 
         fixture.cfg.setCurrentSceneByName("Main");
         ProjectConfig.setInstance(fixture.cfg);
-        new TiledMapProperties(active, () -> { }).setLayerEntityId(tiledLayers[0]);
+        new TiledMapProperties(active, () -> { }).setMapEntityId(tiledLayers[0]);
         active.dispose();
     }
 

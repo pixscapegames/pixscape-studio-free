@@ -81,7 +81,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         CommandOutcome outcome = applySnapshot(
                 layer, after, physicsAfter, removesLinkedCollision);
         if (outcome != CommandOutcome.APPLIED) return outcome;
-        if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterLayer(layer);
+        if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterMap(layer);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
         return CommandOutcome.APPLIED;
     }

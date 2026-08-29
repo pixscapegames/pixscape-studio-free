@@ -112,8 +112,8 @@ public final class TiledMapProperties extends VisTable {
         add(tiledHeightValue).left().row();
     }
 
-    public void setLayerEntityId(int layerEntityId) {
-        TiledLayerComponent t = mTiled.getSafe(layerEntityId, null);
+    public void setMapEntityId(int mapEntityId) {
+        TiledLayerComponent t = mTiled.getSafe(mapEntityId, null);
         SceneMeta sceneMeta = currentSceneMeta();
 
         if (t != null) {
@@ -127,8 +127,8 @@ public final class TiledMapProperties extends VisTable {
             originXModel.setStep(Math.max(1, t.data.tileWidth));
             originYModel.setStep(Math.max(1, t.data.tileHeight));
 
-            tiledOriginXBinder.setEntityId(layerEntityId);
-            tiledOriginYBinder.setEntityId(layerEntityId);
+            tiledOriginXBinder.setEntityId(mapEntityId);
+            tiledOriginYBinder.setEntityId(mapEntityId);
         } else {
             tiledWidthValue.setText("?");
             tiledHeightValue.setText("?");

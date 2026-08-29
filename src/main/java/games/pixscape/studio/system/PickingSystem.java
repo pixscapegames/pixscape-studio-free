@@ -535,7 +535,7 @@ public final class PickingSystem extends BaseSystem {
                                         boolean leftPressed,
                                         boolean leftDown,
                                         boolean leftReleased) {
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
 
         if (resizingSpatialBlockActive) {
             if (leftDown) {
