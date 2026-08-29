@@ -53,7 +53,6 @@ import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioEditingModeService;
-import games.pixscape.studio.service.TiledMapHostResolver;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -234,10 +233,6 @@ public class TmxSceneImportServiceTest {
         assertFalse(world.getMapper(PhysicsBodyComponent.class).has(mapEntity));
         assertFalse(world.getMapper(PhysicsShapesComponent.class).has(mapEntity));
 
-        TiledMapHostResolver resolver = new TiledMapHostResolver(world);
-        resolver.validateWorld();
-        assertEquals(-1, resolver.findForHost(layerEntity));
-
         SceneMeta importedMeta = h.cfg.getSceneMeta(result.sceneName());
         IdentityRegistry identities = new IdentityRegistry();
         identities.bind(world, importedMeta);
@@ -267,10 +262,8 @@ public class TmxSceneImportServiceTest {
                 .get(selectedMap.get()).layerIndex);
         assertEquals(0, world.getMapper(EntityIndexComponent.class).get(sprite).layerIndex);
         assertEquals(0, world.getMapper(EntityIndexComponent.class).get(light).layerIndex);
-        assertEquals(-1, layers.findTiledMapForHost(layerEntity));
-
         history.execute(new ToggleTiledMapSpatialDepthCommand(
-                world, history.historyIds(), layerEntity, mapEntity,
+                world, history.historyIds(), mapEntity,
                 true, 3f, 12f));
         assertTrue(tiled.spatialEnabled);
         assertTrue(tiled.data.spatialEnabled);

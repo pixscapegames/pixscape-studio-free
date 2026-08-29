@@ -82,7 +82,7 @@ public class SceneServiceSingleLoadActivationTest {
 
         fixture.cfg.setCurrentSceneByName("Main");
         ProjectConfig.setInstance(fixture.cfg);
-        new TiledMapProperties(active, null, null, null, () -> { })
+        new TiledMapProperties(active, null, null, () -> { })
                 .setMapEntityId(tiledLayers[0]);
         active.dispose();
     }
@@ -259,7 +259,7 @@ public class SceneServiceSingleLoadActivationTest {
             authored.getMapper(PixscapeIdentityComponent.class)
                     .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
-            layer.type = LayerComponent.TYPE_TILED;
+            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.layerIndex = i;
             layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
@@ -324,7 +324,7 @@ public class SceneServiceSingleLoadActivationTest {
             authored.getMapper(PixscapeIdentityComponent.class)
                     .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
-            layer.type = LayerComponent.TYPE_TILED;
+            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.layerIndex = i;
             layer.spatialEnabled = false;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;

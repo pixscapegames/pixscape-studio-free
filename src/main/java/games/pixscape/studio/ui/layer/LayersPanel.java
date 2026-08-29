@@ -2,8 +2,6 @@ package games.pixscape.studio.ui.layer;
 
 import games.pixscape.studio.ui.modal.StudioDialog;
 
-import com.artemis.World;
-import com.artemis.ComponentMapper;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -13,11 +11,7 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.history.HistoryManager;
@@ -42,8 +36,6 @@ public class LayersPanel extends DockablePanel {
     private final SelectionService selectionService;
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
-    private final World world;
-    private final ComponentMapper<TiledObjectLayerComponent> mTiledObjectLayer;
     private final Runnable markCurrentSceneSaveRequired;
 
     private final VisTable listTable;
@@ -70,8 +62,6 @@ public class LayersPanel extends DockablePanel {
         this.selectionService = canvas.getSelectionService();
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
-        this.world = canvas.getEcsWorld();
-        this.mTiledObjectLayer = world.getMapper(TiledObjectLayerComponent.class);
         this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -180,52 +170,6 @@ public class LayersPanel extends DockablePanel {
                         : -1;
 
                 if (activeLayerId == -1) return;
-                int type = layerService.getLayerTypeByEntity(activeLayerId);
-
-                // ---------------------------------------------------
-                // TILED = permanent deletion
-                // ---------------------------------------------------
-                if (type == LayerComponent.TYPE_TILED) {
-
-                    VisDialog dialog = new StudioDialog("Warning") {
-                        @Override
-                        protected void result(Object object) {
-                            if (!Boolean.TRUE.equals(object)) return;
-
-                            int index = layerService.indexOfLayerEntity(activeLayerId);
-                            layerService.removeLayerCascade(index);
-
-                            if (selectionService != null) {
-                                int fallback = layerService.getFirstLayerEntity();
-                                selectionService.setActivelayerId(fallback);
-                            }
-                            markDirty();
-                        }
-                    };
-
-                    dialog.text(
-                            "Deleting a tiled layer is permanent.\n\n" +
-                                    "This action cannot be undone.\n\n" +
-                                    "Are you sure?"
-                    );
-
-                    dialog.button("Delete", true);
-                    dialog.button("Cancel", false);
-
-                    dialog.setModal(true);
-                    dialog.setResizable(false);
-                    dialog.pack();
-
-                    if (getStage() != null) {
-                        dialog.show(getStage());
-                    }
-
-                    return;
-                }
-
-                // ---------------------------------------------------
-                // AUTRES TYPES = historisation normale
-                // ---------------------------------------------------
                 historyManager.execute(new DeleteLayerCommand(
                         layerService,
                         activeLayerId,
@@ -370,7 +314,6 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    buildLayerTypeSuffix(ui.layerEntityId(), ui.type(), ui.spatialEnabled()),
                     ui.visible(),
                     ui.locked()
             );
@@ -421,45 +364,6 @@ public class LayersPanel extends DockablePanel {
         if (shouldFocus && selectedRow != null) {
             focusRow(selectedRow);
         }
-    }
-
-    private String buildLayerTypeSuffix(int layerEntityId, int type, boolean spatialEnabled) {
-        int mapEntityId = type == LayerComponent.TYPE_TILED
-                ? layerService.findTiledMapForHost(layerEntityId)
-                : -1;
-        return layerTypeSuffix(
-                type,
-                spatialEnabled,
-                mTiledObjectLayer.has(layerEntityId),
-                tiledProjectionForMapEntity(
-                        world.getMapper(TiledLayerComponent.class), mapEntityId)
-        );
-    }
-
-    static TiledProjection tiledProjectionForMapEntity(
-            ComponentMapper<TiledLayerComponent> tiledMapper,
-            int mapEntityId) {
-        if (mapEntityId < 0) return null;
-        TiledLayerComponent tiled = tiledMapper.getSafe(mapEntityId, null);
-        return tiled != null ? tiled.projection : null;
-    }
-
-    static String layerTypeSuffix(int type,
-                                  boolean spatialEnabled,
-                                  boolean tiledObjectLayer,
-                                  TiledProjection projection) {
-        if (tiledObjectLayer) {
-            return "(Tiled Object)";
-        }
-        if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeSuffixLabel(type, spatialEnabled);
-        }
-
-        return switch (projection) {
-            case ISO -> "(Tiled isometric)";
-            case ORTHO -> "(Tiled orthogonal)";
-            case null -> "(Tiled)";
-        };
     }
 
 }

@@ -13,9 +13,6 @@ import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -29,19 +26,14 @@ public class LayerProperties extends VisTable {
 
     private final World world;
     private final HistoryManager history;
-    private final PhysicsService physicsService;
     private final LayerService layerService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
-    private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
-    private final ComponentMapper<TiledLayerComponent> mTiled;
 
     public final VisLabel indexValueLabel;
     public final TextField nameField;
     public final TextField descriptionField;
-
-    private final TiledMapProperties tiledMapProperties;
 
     private final UiBinders.FloatSpinnerBinder parallaxXBinder;
     private final UiBinders.FloatSpinnerBinder parallaxYBinder;
@@ -52,7 +44,6 @@ public class LayerProperties extends VisTable {
     private final CollapsibleVisTable parallaxSection = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable parallaxBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable spatialSection = new CollapsibleVisTable(true, true);
-    private final CollapsibleVisTable tiledSection = new CollapsibleVisTable(true, true);
 
     private final int MY_TAG = EventFlow.tag(this);
     private boolean internalParallaxRefresh = false;
@@ -60,22 +51,17 @@ public class LayerProperties extends VisTable {
     private final Runnable markCurrentSceneSaveRequired;
 
     public LayerProperties(
-            World world, HistoryManager history, PhysicsService physicsService,
+            World world, HistoryManager history,
             LayerService layerService,
             Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
-        this.physicsService = physicsService;
         this.layerService = layerService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
         this.mParallax = world.getMapper(LayerParallaxComponent.class);
-        this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.tiledMapProperties = new TiledMapProperties(
-                world, history, physicsService, layerService, markCurrentSceneSaveRequired);
 
         UiFieldFactory factory = new UiFieldFactory(world);
 
@@ -234,13 +220,8 @@ public class LayerProperties extends VisTable {
         spatialSection.content().add(spatialCheckBox).left().growX().row();
         spatialSection.show(false);
 
-        tiledSection.content().addSeparator().growX().row();
-        tiledSection.content().add(tiledMapProperties).growX().row();
-        tiledSection.show(false);
-
         add(parallaxSection).colspan(2).left().growX().row();
         add(spatialSection).colspan(2).left().growX().row();
-        add(tiledSection).colspan(2).left().growX().row();
     }
 
     private void flagPreviewSaveRequired() {
@@ -268,17 +249,14 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
-        int mapEntityId = isTiled ? tiledMapEntityId(layerEntityId) : -1;
-        boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC;
-        boolean ordinarySpatialVisible = isOrdinary && shouldShowOrdinarySpatialProperty(
+        boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty(
                 lic.spatialEnabled,
                 scenePhysicsEnabled,
                 layerService.hasOtherSpatialActorLayer(layerEntityId));
         boolean spatialSupported = ordinarySpatialVisible;
         boolean spatialActive = lic.spatialEnabled;
-        boolean supportsParallax = supportsEditableParallax(layerEntityId, lic);
+        boolean supportsParallax = supportsEditableParallax(lic);
         boolean hasParallax = mParallax.has(layerEntityId);
 
         internalParallaxRefresh = true;
@@ -307,11 +285,6 @@ public class LayerProperties extends VisTable {
             internalSpatialRefresh = false;
         }
 
-        tiledSection.show(isTiled);
-        if (isTiled) {
-            tiledMapProperties.setMapEntityId(mapEntityId);
-        }
-
         invalidateHierarchy();
     }
 
@@ -325,27 +298,13 @@ public class LayerProperties extends VisTable {
         return meta != null && meta.physicsEnabled;
     }
 
-    private int tiledMapEntityId(int layerEntityId) {
-        return layerService.findTiledMapForHost(layerEntityId);
-    }
-
     private boolean supportsEditableParallax(int layerEntityId) {
         LayerComponent lic = mIndex.getSafe(layerEntityId, null);
-        return supportsEditableParallax(layerEntityId, lic);
+        return supportsEditableParallax(lic);
     }
 
-    private boolean supportsEditableParallax(int layerEntityId, LayerComponent lic) {
-        if (lic == null) return false;
-
-        if (lic.type == LayerComponent.TYPE_CLASSIC) {
-            return true;
-        }
-
-        if (lic.type == LayerComponent.TYPE_TILED) {
-            return !mPhysBody.has(tiledMapEntityId(layerEntityId));
-        }
-
-        return false;
+    private boolean supportsEditableParallax(LayerComponent lic) {
+        return lic != null;
     }
 
     private void executeCommand(Command command) {

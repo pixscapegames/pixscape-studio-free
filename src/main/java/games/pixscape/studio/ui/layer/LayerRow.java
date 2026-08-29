@@ -26,7 +26,6 @@ public class LayerRow extends VisTable {
     private final CheckBox cbVisible;
     private final CheckBox cbLocked;
     private final VisLabel label;
-    private final VisLabel typeLabel;
 
     private Listener listener;
     private int entityId = -1;
@@ -39,14 +38,11 @@ public class LayerRow extends VisTable {
         cbVisible = new CheckBox("", VisUI.getSkin(), "eye");
         cbLocked = new CheckBox("", VisUI.getSkin(), "padlock");
         label = new VisLabel("");
-        typeLabel = new VisLabel("");
         label.setColor(Color.WHITE);
-        typeLabel.setColor(Color.LIGHT_GRAY);
 
         add(cbVisible).padLeft(4).padRight(4);
         add(cbLocked).padRight(15);
         add(label).left().growX();
-        add(typeLabel).right();
 
         cbVisible.addListener(new ChangeListener() {
             @Override
@@ -86,14 +82,12 @@ public class LayerRow extends VisTable {
     public void setData(int entityId,
                         int layerIndex,
                         String labelText,
-                        String typeText,
                         boolean visible,
                         boolean locked) {
         this.entityId = entityId;
         this.layerIndex = layerIndex;
 
         label.setText(labelText != null ? labelText : "");
-        typeLabel.setText(typeText != null ? typeText : "");
         cbVisible.setChecked(visible);
         cbLocked.setChecked(locked);
 

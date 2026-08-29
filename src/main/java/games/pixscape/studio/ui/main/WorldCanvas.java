@@ -25,7 +25,6 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
@@ -864,20 +863,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int activeLayerId = selectionService.getActivelayerId();
         if (activeLayerId < 0) return DropAllowedResult.forbidden();
 
-        int layerType = layerService.getLayerTypeByEntity(activeLayerId);
-
         return isAssetPayloadAllowedForEditingContext(
-                layerType, selectionService.isTiledMapEditingTargetActive(), p.type)
+                layerService.isUniversalLayerEntity(activeLayerId),
+                selectionService.isTiledMapEditingTargetActive(), p.type)
                 ? DropAllowedResult.allowed() : DropAllowedResult.forbidden();
     }
 
     /** Layer capability and explicit Map editing target are independent axes. */
     static boolean isAssetPayloadAllowedForEditingContext(
-            int layerType, boolean tiledMapTargetActive, String payloadType) {
+            boolean layerTarget, boolean tiledMapTargetActive, String payloadType) {
         boolean tilePayload = "tile-asset".equals(payloadType)
                 || "tiled-animation".equals(payloadType);
         if (tilePayload) return tiledMapTargetActive;
-        return layerType == LayerComponent.TYPE_CLASSIC;
+        return layerTarget;
     }
 
     private void cleanupDndPayload(DragPayload p) {

@@ -1,6 +1,5 @@
 package games.pixscape.studio.ui.main;
 
-import games.pixscape.runtime.component.LayerComponent;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
@@ -10,34 +9,34 @@ public class UniversalLayerAssetDropCapabilityTest {
     @Test
     public void ordinaryContentIsAllowedWithoutAMapTarget() {
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, false, "image-file"));
+                true, false, "image-file"));
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, false, "anim-sheet"));
+                true, false, "anim-sheet"));
     }
 
     @Test
     public void ordinaryContentRemainsAllowedWhenMapEditingTargetIsActive() {
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, true, "image-file"));
+                true, true, "image-file"));
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, true, "anim-sheet"));
+                true, true, "anim-sheet"));
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, true, "particle"));
+                true, true, "particle"));
     }
 
     @Test
     public void tiledAssetsDependOnExplicitMapTargetNotOwningLayerType() {
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, true, "tile-asset"));
+                true, true, "tile-asset"));
         assertFalse(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_CLASSIC, false, "tile-asset"));
+                true, false, "tile-asset"));
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_TILED, true, "tiled-animation"));
+                true, true, "tiled-animation"));
     }
 
     @Test
-    public void legacyHostStillRejectsOrdinaryContent() {
+    public void nonLayerTargetRejectsOrdinaryContent() {
         assertFalse(WorldCanvas.isAssetPayloadAllowedForEditingContext(
-                LayerComponent.TYPE_TILED, true, "atlas-region"));
+                false, true, "atlas-region"));
     }
 }

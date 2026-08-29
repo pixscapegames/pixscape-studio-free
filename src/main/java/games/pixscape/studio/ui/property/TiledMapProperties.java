@@ -11,8 +11,6 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.PhysicsService;
@@ -25,7 +23,6 @@ import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditTiledLayerSpatialDefaultsCommand;
 import games.pixscape.studio.history.commands.RemovePhysicsBodyCommand;
 import games.pixscape.studio.history.commands.ToggleTiledMapSpatialDepthCommand;
-import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -38,11 +35,8 @@ public final class TiledMapProperties extends VisTable {
     private final World world;
     private final HistoryManager history;
     private final PhysicsService physicsService;
-    private final LayerService layerService;
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
-    private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<LayerComponent> mLayer;
     private final Runnable markCurrentSceneSaveRequired;
 
     private final VisLabel tiledWidthValue = new VisLabel();
@@ -72,18 +66,14 @@ public final class TiledMapProperties extends VisTable {
     public TiledMapProperties(World world,
                               HistoryManager history,
                               PhysicsService physicsService,
-                              LayerService layerService,
                               Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
         this.physicsService = physicsService;
-        this.layerService = layerService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mPhysicsBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mLayer = world.getMapper(LayerComponent.class);
 
         top().left();
         defaults().left().top().pad(1);
@@ -155,7 +145,6 @@ public final class TiledMapProperties extends VisTable {
                 execute(new ToggleTiledMapSpatialDepthCommand(
                         world,
                         history.historyIds(),
-                        hostLayerEntityId(mapEntityId),
                         mapEntityId,
                         requested,
                         tiled.defaultTileAltitude,
@@ -378,15 +367,6 @@ public final class TiledMapProperties extends VisTable {
         return entityId >= 0
                 && world.getEntityManager().isActive(entityId)
                 && mTiled.has(entityId);
-    }
-
-    private int hostLayerEntityId(int entityId) {
-        if (layerService == null) return -1;
-        EntityIndexComponent index = mEntityIndex.getSafe(entityId, null);
-        if (index == null) return -1;
-        int host = layerService.getLayerEntity(index.layerIndex);
-        LayerComponent layer = mLayer.getSafe(host, null);
-        return layer != null ? host : -1;
     }
 
     private boolean isScenePhysicsEnabled() {

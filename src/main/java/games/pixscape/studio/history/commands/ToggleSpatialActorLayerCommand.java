@@ -2,7 +2,6 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -103,10 +102,6 @@ public final class ToggleSpatialActorLayerCommand
             return null;
         }
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(entityId, null);
-        if (layer == null || layer.type != LayerComponent.TYPE_CLASSIC
-                || world.getMapper(TiledLayerComponent.class).has(entityId)) {
-            return null;
-        }
         return layer;
     }
 

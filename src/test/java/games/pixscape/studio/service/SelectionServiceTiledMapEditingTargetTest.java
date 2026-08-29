@@ -45,7 +45,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
         tiledLayer = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(tiledLayer);
-        layer.type = LayerComponent.TYPE_TILED;
+        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
         world.getMapper(LayerMetaComponent.class).create(tiledLayer).name = "Tiled";
         tiledMap = world.create();
@@ -122,7 +122,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
     @Test
     public void selectingAnotherMapReplacesTargetAndActivatesItsOwningHost() {
-        int otherHost = layer(1, LayerComponent.TYPE_TILED);
+        int otherHost = layer(1, LayerComponent.TYPE_CLASSIC);
         int otherMap = world.create();
         world.getMapper(EntityIndexComponent.class).create(otherMap).layerIndex = 1;
         world.getMapper(TiledLayerComponent.class).create(otherMap);

@@ -1,7 +1,6 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
@@ -14,14 +13,12 @@ public final class ToggleTiledMapSpatialDepthCommand
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final long mapHistoryId;
-    private final long legacyHostHistoryId;
     private final Snapshot before;
     private final Snapshot after;
     private final boolean noop;
 
     public ToggleTiledMapSpatialDepthCommand(World world,
                                              HistoryIdRegistry historyIds,
-                                             int hostLayerEntityId,
                                              int mapEntityId,
                                              boolean enabled,
                                              float defaultAltitude,
@@ -34,15 +31,9 @@ public final class ToggleTiledMapSpatialDepthCommand
                 ? historyIds.ensureForEntity(mapEntityId)
                 : -1L;
 
-        LayerComponent legacyHost = validLegacyHost(hostLayerEntityId);
-        this.legacyHostHistoryId = legacyHost != null
-                ? historyIds.ensureForEntity(hostLayerEntityId)
-                : -1L;
-
         this.before = tiled != null
                 ? new Snapshot(
                         tiled.spatialEnabled,
-                        legacyHost != null && legacyHost.spatialEnabled,
                         tiled.defaultTileAltitude,
                         tiled.defaultTileHeight)
                 : null;
@@ -50,8 +41,7 @@ public final class ToggleTiledMapSpatialDepthCommand
                 ? before.withSpatialEnabled(
                         enabled,
                         defaultAltitude,
-                        Math.max(0f, defaultHeight),
-                        legacyHost != null)
+                        Math.max(0f, defaultHeight))
                 : null;
         this.noop = world == null
                 || historyIds == null
@@ -97,13 +87,6 @@ public final class ToggleTiledMapSpatialDepthCommand
             tiled.data.markAllChunksContentDirty();
         }
 
-        int legacyHostEntityId = resolve(legacyHostHistoryId);
-        LayerComponent legacyHost = validLegacyHost(legacyHostEntityId);
-        if (legacyHost != null) {
-            legacyHost.spatialEnabled = snapshot.legacyHostSpatialEnabled;
-            markDirty(legacyHostEntityId);
-        }
-
         markDirty(mapEntityId);
         EventFlow.i().publish(new EventFlow.LayerSpatialDepthChanged(
                 mapEntityId, EventFlow.tag(this)));
@@ -115,18 +98,6 @@ public final class ToggleTiledMapSpatialDepthCommand
             return null;
         }
         return world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
-    }
-
-    private LayerComponent validLegacyHost(int entityId) {
-        if (world == null || entityId < 0
-                || !world.getEntityManager().isActive(entityId)) {
-            return null;
-        }
-        LayerComponent layer = world.getMapper(LayerComponent.class)
-                .getSafe(entityId, null);
-        return layer != null && layer.type == LayerComponent.TYPE_TILED
-                ? layer
-                : null;
     }
 
     private int resolve(long historyId) {
@@ -146,16 +117,13 @@ public final class ToggleTiledMapSpatialDepthCommand
     }
 
     private record Snapshot(boolean mapSpatialEnabled,
-                            boolean legacyHostSpatialEnabled,
                             float defaultAltitude,
                             float defaultHeight) {
         Snapshot withSpatialEnabled(boolean enabled,
                                    float defaultAltitude,
-                                   float defaultHeight,
-                                   boolean mirrorLegacyHost) {
+                                   float defaultHeight) {
             return new Snapshot(
                     enabled,
-                    mirrorLegacyHost ? enabled : legacyHostSpatialEnabled,
                     defaultAltitude,
                     defaultHeight);
         }
@@ -163,7 +131,6 @@ public final class ToggleTiledMapSpatialDepthCommand
         boolean sameState(Snapshot other) {
             return other != null
                     && mapSpatialEnabled == other.mapSpatialEnabled
-                    && legacyHostSpatialEnabled == other.legacyHostSpatialEnabled
                     && Float.compare(defaultAltitude, other.defaultAltitude) == 0
                     && Float.compare(defaultHeight, other.defaultHeight) == 0;
         }

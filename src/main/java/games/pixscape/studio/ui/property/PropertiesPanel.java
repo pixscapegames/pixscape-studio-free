@@ -151,7 +151,7 @@ public class PropertiesPanel extends DockablePanel {
 
         Runnable markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         layerProperties = new LayerProperties(
-                world, canvas.getHistoryManager(), canvas.getPhysicsService(), layerService,
+                world, canvas.getHistoryManager(), layerService,
                 markCurrentSceneSaveRequired);
         sceneProperties = new SceneProperties(
                 world, canvas.getHistoryManager(), canvas.getPhysicsService(),
@@ -163,7 +163,6 @@ public class PropertiesPanel extends DockablePanel {
                 world,
                 canvas.getHistoryManager(),
                 canvas.getPhysicsService(),
-                layerService,
                 markCurrentSceneSaveRequired);
 
         contentHolder = new VisTable(true);

@@ -91,54 +91,6 @@ public class LayerServiceTiledSwapDirtyTest {
         }
     }
 
-    @Test
-    public void legacyTiledHostSwapKeepsResolutionAndSpatialStateWithoutRebuildingMap() {
-        Harness h = new Harness();
-        try {
-            int host = h.layer("Legacy", LayerComponent.TYPE_TILED, true, 0.5f, true);
-            int other = h.layer("Other", LayerComponent.TYPE_CLASSIC, false, 1f, false);
-            int map = h.map(0, 6, true);
-            TiledLayerComponent tiled = h.tiled(map);
-            tiled.defaultTileAltitude = 4f;
-            tiled.defaultTileHeight = 18f;
-            tiled.data.defaultTileAltitude = 4f;
-            tiled.data.defaultTileHeight = 18f;
-            h.prepareForSwap();
-            assertEquals(map, h.layers.findTiledMapForHost(host));
-
-            h.history.execute(new ChangeLayerOrderCommand(h.layers, host, 1));
-
-            h.assertLayerIndex(host, 1);
-            h.assertLayerIndex(other, 0);
-            h.assertContent(map, 1, 6);
-            assertEquals(map, h.layers.findTiledMapForHost(host));
-            h.assertOrderDirty(host, other, map);
-            h.assertCleanChunks(map);
-            h.assertCompositionLayer(map, 1);
-            assertTrue(h.layer(host).spatialEnabled);
-            assertTrue(tiled.spatialEnabled);
-            assertTrue(tiled.data.spatialEnabled);
-            assertEquals(4f, tiled.defaultTileAltitude, 0f);
-            assertEquals(18f, tiled.defaultTileHeight, 0f);
-
-            h.dirty.clearAll();
-            h.history.undo();
-            h.assertContent(map, 0, 6);
-            assertEquals(map, h.layers.findTiledMapForHost(host));
-            h.assertOrderDirty(map);
-            h.assertCleanChunks(map);
-
-            h.dirty.clearAll();
-            h.history.redo();
-            h.assertContent(map, 1, 6);
-            assertEquals(map, h.layers.findTiledMapForHost(host));
-            h.assertOrderDirty(map);
-            h.assertCleanChunks(map);
-        } finally {
-            h.dispose();
-        }
-    }
-
     private static final class Harness {
         final DirtyTrackerSystem dirty = new DirtyTrackerSystem(128);
         final World world = new World(new WorldConfiguration().setSystem(dirty));

@@ -33,7 +33,6 @@ public class SpatialActorLayerToggleTest {
         fixture.history.execute(fixture.toggle(layerEntity, true));
         assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertTrue(layer.spatialEnabled);
-        assertEquals("(Spatial)", LayerService.typeSuffixLabel(layer.type, layer.spatialEnabled));
         assertTrue(fixture.dirty.isDirty(layerEntity, DirtyBits.LAYER));
         assertTrue(fixture.dirty.isDirty(layerEntity, DirtyBits.ORDER));
 
@@ -113,50 +112,25 @@ public class SpatialActorLayerToggleTest {
     }
 
     @Test
-    public void tiledSpatialDoesNotOccupyOrdinarySpatialSlot() {
-        Fixture fixture = new Fixture();
-        int tiled = fixture.addTiledSpatialLayer();
-        int ordinary = fixture.addOrdinaryLayer("Actors");
-
-        assertFalse(fixture.service.hasOtherSpatialActorLayer(ordinary));
-        fixture.history.execute(fixture.toggle(ordinary, true));
-
-        assertTrue(fixture.layer(tiled).spatialEnabled);
-        assertTrue(fixture.layer(ordinary).spatialEnabled);
-    }
-
-    @Test
     public void spatialDepthMapOnOrdinaryLayerDoesNotOccupyActorLayerSlot() {
         Fixture fixture = new Fixture();
-        int mapHost = fixture.addOrdinaryLayer("Map Host");
+        int owningLayer = fixture.addOrdinaryLayer("Maps");
         int actors = fixture.addOrdinaryLayer("Actors");
         int map = fixture.world.create();
         fixture.world.getMapper(EntityIndexComponent.class)
-                .create(map).layerIndex = fixture.layer(mapHost).layerIndex;
+                .create(map).layerIndex = fixture.layer(owningLayer).layerIndex;
         TiledLayerComponent tiled = fixture.world.getMapper(TiledLayerComponent.class)
                 .create(map);
         tiled.spatialEnabled = true;
 
-        assertFalse(fixture.layer(mapHost).spatialEnabled);
+        assertFalse(fixture.layer(owningLayer).spatialEnabled);
         assertFalse(fixture.service.hasOtherSpatialActorLayer(actors));
 
         fixture.history.execute(fixture.toggle(actors, true));
 
         assertTrue(fixture.layer(actors).spatialEnabled);
-        assertFalse(fixture.layer(mapHost).spatialEnabled);
+        assertFalse(fixture.layer(owningLayer).spatialEnabled);
         assertTrue(tiled.spatialEnabled);
-    }
-
-    @Test
-    public void commandDoesNotOperateOnTiledLayer() {
-        Fixture fixture = new Fixture();
-        int tiled = fixture.addTiledSpatialLayer();
-        int cursorBefore = fixture.history.getCursor();
-
-        fixture.history.execute(fixture.toggle(tiled, false));
-
-        assertTrue(fixture.layer(tiled).spatialEnabled);
-        assertEquals(cursorBefore, fixture.history.getCursor());
     }
 
     @Test
@@ -192,24 +166,12 @@ public class SpatialActorLayerToggleTest {
         }
 
         private int addOrdinaryLayer(String name) {
-            return addLayer(name, LayerComponent.TYPE_CLASSIC, false, false);
-        }
-
-        private int addTiledSpatialLayer() {
-            return addLayer("Tiled", LayerComponent.TYPE_TILED, true, true);
-        }
-
-        private int addLayer(String name, int type, boolean spatialEnabled, boolean tiled) {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = service.count();
-            layer.type = type;
-            layer.spatialEnabled = spatialEnabled;
+            layer.type = LayerComponent.TYPE_CLASSIC;
+            layer.spatialEnabled = false;
             world.getMapper(LayerMetaComponent.class).create(entity).name = name;
-            if (tiled) {
-                TiledLayerComponent tiledLayer = world.getMapper(TiledLayerComponent.class).create(entity);
-                tiledLayer.spatialEnabled = spatialEnabled;
-            }
             world.process();
             return entity;
         }

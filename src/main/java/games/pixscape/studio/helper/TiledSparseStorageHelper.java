@@ -50,7 +50,7 @@ public final class TiledSparseStorageHelper {
     }
 
     /**
-     * Starts linear sparse construction for a brand-new tiled layer.
+     * Starts linear sparse construction for a brand-new Tiled Map.
      * <p>
      * The caller must append each source coordinate at most once. General editing and replacement
      * must continue to use {@link #setTile(TiledLayerComponent, int, int, int, byte)}.
@@ -66,7 +66,7 @@ public final class TiledSparseStorageHelper {
                 || comp.tileYs.size != 0
                 || comp.tileAssetIds.size != 0
                 || comp.tileTransformFlags.size != 0) {
-            throw new IllegalStateException("New tiled layer sparse storage must be empty.");
+            throw new IllegalStateException("New Tiled Map sparse storage must be empty.");
         }
 
         int capacity = Math.max(0, expectedCellCount);

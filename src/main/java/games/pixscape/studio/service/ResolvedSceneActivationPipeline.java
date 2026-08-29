@@ -13,6 +13,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
@@ -99,19 +100,8 @@ final class ResolvedSceneActivationPipeline {
                                                 String projectTitle,
                                                 String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
-        new TiledMapHostResolver(world).validateWorld();
+        TiledMapOwnership.validateWorld(world);
         ComponentMapper<EntityIndexComponent> mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
-        com.badlogic.gdx.utils.IntIntMap hostSpatialByLayer = new com.badlogic.gdx.utils.IntIntMap();
-        IntBag hosts = world.getAspectSubscriptionManager()
-                .get(Aspect.all(LayerComponent.class).exclude(EntityIndexComponent.class)).getEntities();
-        int[] hostData = hosts.getData();
-        for (int i = 0; i < hosts.size(); i++) {
-            LayerComponent host = mLayer.get(hostData[i]);
-            if (host.type == LayerComponent.TYPE_TILED && host.spatialEnabled) {
-                hostSpatialByLayer.put(host.layerIndex, 1);
-            }
-        }
         ComponentMapper<PhysicsBodyComponent> mBody =
                 world.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsShapesComponent> mShapes =
@@ -148,8 +138,6 @@ final class ResolvedSceneActivationPipeline {
                         "the serialized Tiled map configuration is incomplete");
             }
 
-            tiled.spatialEnabled = hostSpatialByLayer.get(index.layerIndex, 0) != 0
-                    || tiled.spatialEnabled;
             tiled.data = tiled.createMapData();
 
             if (allocator != null) {

@@ -242,7 +242,7 @@ public class TiledMapPropertiesTest {
 
         TiledMapProperties properties() {
             return new TiledMapProperties(
-                    world, history, physics, null, () -> { });
+                    world, history, physics, () -> { });
         }
     }
 }

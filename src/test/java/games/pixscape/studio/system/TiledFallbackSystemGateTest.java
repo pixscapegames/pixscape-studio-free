@@ -410,7 +410,7 @@ public class TiledFallbackSystemGateTest {
         LayerComponent secondLayer = fixture.world
                 .getMapper(LayerComponent.class)
                 .create(secondLayerEntity);
-        secondLayer.type = LayerComponent.TYPE_TILED;
+        secondLayer.type = LayerComponent.TYPE_CLASSIC;
         secondLayer.layerIndex = 1;
         int secondMapEntity = fixture.world.create();
         fixture.world.getMapper(EntityIndexComponent.class)
@@ -444,7 +444,7 @@ public class TiledFallbackSystemGateTest {
         int entityId = world.create();
         LayerComponent layer =
                 world.getMapper(LayerComponent.class).create(entityId);
-        layer.type = LayerComponent.TYPE_TILED;
+        layer.type = LayerComponent.TYPE_CLASSIC;
         int mapEntityId = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;
         TiledLayerComponent tiled =

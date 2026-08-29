@@ -38,7 +38,6 @@ public final class LayerService {
     private final HistoryIdRegistry historyIds;
     private final IdentityRegistry identityRegistry;
     private final TiledAllocatorService tiledAllocatorService;
-    private final TiledMapHostResolver tiledMapResolver;
     private boolean dirty = true;
 
     /**
@@ -51,7 +50,6 @@ public final class LayerService {
                         HistoryIdRegistry historyIds, IdentityRegistry identityRegistry) {
         this.world = world;
         this.tiledAllocatorService = tiledAllocatorService;
-        this.tiledMapResolver = new TiledMapHostResolver(world);
         this.historyIds = historyIds;
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.mL = world.getMapper(LayerComponent.class);
@@ -123,10 +121,6 @@ public final class LayerService {
         return tiledAllocatorService;
     }
 
-    public int findTiledMapForHost(int hostLayerEntityId) {
-        return tiledMapResolver.findForHost(hostLayerEntityId);
-    }
-
     /** Materializes one map as normal content of an existing Pixscape layer. */
     public int insertTiledMap(TiledMapInitializer initializer, long historyId) {
         Objects.requireNonNull(initializer, "initializer");
@@ -136,7 +130,6 @@ public final class LayerService {
             identityRegistry.ensureStableId(mapEntityId);
             if (historyId > 0L) historyIds.bind(mapEntityId, historyId);
             else historyIds.ensureForEntity(mapEntityId);
-            tiledMapResolver.register(mapEntityId);
             return mapEntityId;
         } catch (RuntimeException failure) {
             TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
@@ -156,7 +149,6 @@ public final class LayerService {
         IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
         historyIds.unbindEntity(mapEntityId);
         world.delete(mapEntityId);
-        tiledMapResolver.invalidate();
     }
 
     void rebuildFromWorld() {
@@ -196,16 +188,9 @@ public final class LayerService {
         return li != null ? li.layerIndex : 0;
     }
 
-    public int getLayerTypeByEntity(int layerEntityId) {
-        if (layerEntityId == -1) return LayerComponent.TYPE_CLASSIC;
-        LayerComponent lc = mL.getSafe(layerEntityId, null);
-        return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
-    }
-
     /** Current user-authored universal Layer capability. Content never changes this result. */
     public boolean isUniversalLayerEntity(int layerEntityId) {
-        LayerComponent layer = mL.getSafe(layerEntityId, null);
-        return layer != null && layer.type == LayerComponent.TYPE_CLASSIC;
+        return mL.getSafe(layerEntityId, null) != null;
     }
 
     /** Returns whether another ordinary layer already owns the Spatial actor slot. */
@@ -223,9 +208,7 @@ public final class LayerService {
     }
 
     public static boolean isSpatialActorLayer(LayerComponent layer) {
-        return layer != null
-                && layer.type == LayerComponent.TYPE_CLASSIC
-                && layer.spatialEnabled;
+        return layer != null && layer.spatialEnabled;
     }
 
     public LayerMetaComponent meta(int index) {
@@ -295,7 +278,6 @@ public final class LayerService {
 
         layerEntities.insert(clampedIndex, e);
         renumberLayerIndices();
-        tiledMapResolver.invalidate();
 
         // IMPORTANT : a coherent cache has just been built manually.
         // Do not let rebuildIfDirty() discard it before the subscription is up to date.
@@ -418,9 +400,8 @@ public final class LayerService {
         layerEntities.removeIndex(index);
         shiftItemsForRemove(index);
         renumberLayerIndices();
-        tiledMapResolver.invalidate();
 
-        // 4) Forcer rebuild GPU des autres tiled layers
+        // 4) Force the GPU rebuild of the other Tiled Maps.
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -495,7 +476,6 @@ public final class LayerService {
             }
         }
         swapItemsLayerIndices(idxI, idxJ);
-        tiledMapResolver.invalidate();
         markLayerContentsDirty(idxI);
         markLayerContentsDirty(idxJ);
 
@@ -658,9 +638,8 @@ public final class LayerService {
             String description = (meta != null && meta.description != null) ? meta.description : "";
             boolean visible = visibleC != null && visibleC.isVisible();
             boolean locked = meta != null && meta.locked;
-            int type = lc != null ? lc.type : LayerComponent.TYPE_CLASSIC;
             boolean spatialEnabled = lc != null && lc.spatialEnabled;
-            list.add(new LayerUI(e, name, description, i, type, spatialEnabled, visible, locked));
+            list.add(new LayerUI(e, name, description, i, spatialEnabled, visible, locked));
         }
         return list;
     }
@@ -717,15 +696,7 @@ public final class LayerService {
         dirty = true;
     }
 
-    public static String typeSuffixLabel(int type, boolean spatialEnabled) {
-        if (type == LayerComponent.TYPE_CLASSIC && spatialEnabled) return "(Spatial)";
-        return switch (type) {
-            case LayerComponent.TYPE_TILED -> "(Tiled)";
-            default -> "";
-        };
-    }
-
-    public record LayerUI(int layerEntityId, String name, String description, int index, int type,
+    public record LayerUI(int layerEntityId, String name, String description, int index,
                           boolean spatialEnabled, boolean visible, boolean locked) {
     }
 

@@ -28,12 +28,11 @@ public class LayerPropertiesCollisionVisibilityContractTest {
     }
 
     @Test
-    public void ordinaryAndTiledSpatialPropertiesRemainDistinct() throws Exception {
+    public void layerAndMapSpatialPropertiesRemainDistinct() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean isOrdinary = lic.type == LayerComponent.TYPE_CLASSIC"));
-        assertTrue(refresh.contains("boolean ordinarySpatialVisible = isOrdinary && shouldShowOrdinarySpatialProperty("));
+        assertTrue(refresh.contains("boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty("));
         assertTrue(refresh.contains("layerService.hasOtherSpatialActorLayer(layerEntityId)"));
         assertTrue(refresh.contains("boolean spatialSupported = ordinarySpatialVisible;"));
         assertTrue(refresh.contains("boolean spatialActive = lic.spatialEnabled;"));
@@ -42,6 +41,8 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new VisCheckBox(\"Spatial\")"));
         assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
         assertFalse(source.contains("ToggleTiledMapSpatialDepthCommand"));
+        assertFalse(source.contains("TiledMapProperties"));
+        assertFalse(source.contains("LayerComponent.TYPE_TILED"));
         assertFalse(source.contains("StudioEditingMode.SPATIAL"));
         assertFalse(source.contains("new VisLabel(\"Type:\")"));
         assertFalse(source.contains("typeDisplayName("));

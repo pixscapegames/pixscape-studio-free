@@ -144,7 +144,7 @@ public final class ClipboardService {
         }
 
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        if (layer == null || layer.layerIndex != layerIndex || !isKnownLayerType(layer.type)) {
+        if (layer == null || layer.layerIndex != layerIndex) {
             return null;
         }
 
@@ -153,11 +153,6 @@ public final class ClipboardService {
                         ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED
                         : EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL;
         return new ResolvedClipboardDestination(layerIndex, targetLayer);
-    }
-
-    private static boolean isKnownLayerType(int type) {
-        return type == LayerComponent.TYPE_CLASSIC
-                || type == LayerComponent.TYPE_TILED;
     }
 
     private record ResolvedClipboardDestination(

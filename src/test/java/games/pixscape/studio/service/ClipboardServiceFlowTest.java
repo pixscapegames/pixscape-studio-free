@@ -339,24 +339,6 @@ public class ClipboardServiceFlowTest {
         Assert.assertEquals(source, h.selection.getFirstSelectedEntityId());
     }
 
-    @Test
-    public void pasteRejectsUnknownLayerType() throws Exception {
-        Harness h = new Harness();
-        int unknownLayer = h.addLayer(1, 999, false);
-        int source = createEntity(h.world, 2f, 3f, 0);
-        h.selection.selectOnly(source);
-        Assert.assertTrue(h.clipboard.copySelection());
-        h.selection.setActivelayerId(unknownLayer);
-
-        int entitiesBefore = countAll(h.world);
-        int nextStableIdBefore = h.sceneMeta.nextEntityStableId;
-        Assert.assertFalse(h.clipboard.paste());
-        Assert.assertEquals(entitiesBefore, countAll(h.world));
-        Assert.assertEquals(nextStableIdBefore, h.sceneMeta.nextEntityStableId);
-        Assert.assertFalse(h.history.canUndo());
-        Assert.assertEquals(source, h.selection.getFirstSelectedEntityId());
-    }
-
     private static int createEntity(World world, float x, float y, int layerIndex) {
         int entity = world.create();
         TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
