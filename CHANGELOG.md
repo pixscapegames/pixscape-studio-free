@@ -1,6 +1,67 @@
 # Changelog
 
 
+## 0.2.4 - Universal Layers and Tiled Maps
+
+### Breaking changes
+
+* Pixscape Studio Free 0.2.4 requires Pixscape Runtime 0.1.11.
+* Removed the legacy Layer type system. Layers are now universal composition containers instead of Classic, Tiled, Physics, Light or Spatial-specific Layer types.
+* Existing schema 3 scenes using the obsolete typed-Layer representation are no longer supported and must be recreated or migrated with a future migration tool.
+* Tiled Maps are no longer represented by special Tiled Layers. They are now first-class scene entities placed inside ordinary Layers.
+* Tiled Map configuration is no longer stored at Scene level. Projection, tile size, map size and chunk size belong to each Map.
+
+### Added
+
+* Added first-class Tiled Map entities that can be selected and edited independently from their owning Layer.
+* Added support for multiple Tiled Maps in the same Scene, including multiple Maps inside the same Layer.
+* Added `Add Tiled Map` to create a Map inside an ordinary Layer with its own projection, grid and dimensions.
+* Added dedicated Tiled Map properties for Map configuration, Spatial Depth and collision authoring.
+* Added independent z-ordering for Tiled Maps alongside sprites, animations, lights and other scene entities.
+
+### Changed
+
+* Layers can now freely contain mixed content such as sprites, animations, lights, physical entities and Tiled Maps.
+* Lights are now ordinary entities and no longer require a dedicated Light Layer.
+* Physics authoring is now based on Scene Physics configuration and entity components instead of dedicated Physics Layers.
+* Spatial Actor participation is now an optional property of an ordinary Layer rather than a separate Layer type.
+* Layer Spatial Actors and Tiled Map Spatial Depth are now completely independent.
+* Tiled editing now targets an explicit Map entity instead of relying on the active Layer.
+* Tiled Maps now participate in normal Layer and z-order composition while preserving their own internal tile ordering.
+* TMX import now materializes imported Tiled content using universal Layers and first-class Tiled Map entities.
+* New Layers are created immediately as ordinary Layers without a type-selection dialog.
+* New Scenes are created immediately as `New Scene` without a creation dialog or Tiled defaults.
+* Removed Scene-level `Tiled Map Creation Defaults`; Map creation settings are now chosen when adding each Tiled Map.
+* Simplified Scene metadata by removing obsolete persisted editor-mode and Physics debug state.
+
+### Improved
+
+* Simplified Layer Properties around universal Layer behavior, visibility, parallax and optional Spatial Actor participation.
+* Simplified Scene Properties by removing Tiled creation settings and transient editor state.
+* Improved Item Tree handling for Tiled Maps as real selectable scene content.
+* Improved mixed-content Layer workflows and Map selection when several Maps share the same Layer.
+* Simplified asset-drop and clipboard compatibility rules now that content is no longer restricted by Layer type.
+* Simplified scene and Layer creation workflows by removing unnecessary dialogs.
+
+### Fixed
+
+* Fixed Tiled Map Spatial Depth incorrectly affecting ordinary Layer Spatial Actor state.
+* Fixed Map collision controls so authored Physics state is preserved correctly.
+* Fixed Tiled editing state when switching between Maps or leaving a Map editing context.
+* Fixed Layer deletion/history handling for Layers containing Tiled Maps.
+* Fixed ambient-light normalization so valid zero color channels remain zero.
+
+### Tests
+
+* Added regression coverage for universal Layers and removal of legacy Layer types.
+* Added coverage for multiple Tiled Maps per Scene and per Layer.
+* Added persistence and history coverage for Tiled Map configuration, creation and deletion.
+* Added coverage for independent Layer Spatial Actors and Map Spatial Depth.
+* Added coverage for explicit Tiled Map editing targets and Item Tree integration.
+* Added regression coverage for immediate Layer creation and simplified Scene creation.
+* Added compatibility coverage for the new schema 3 universal-Layer representation.
+
+
 ## 0.2.3 - Tiled Objects, Quad Editing and Prefab Instances
 
 ### Added
