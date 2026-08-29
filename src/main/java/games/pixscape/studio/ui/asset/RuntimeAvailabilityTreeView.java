@@ -50,18 +50,13 @@ public final class RuntimeAvailabilityTreeView extends VisTable {
     private void buildTree() {
         tree.clearChildren();
 
-        tree.add(folderNode("Sprites", RuntimeAvailabilityCategory.SPRITES));
-        tree.add(folderNode("Animations", RuntimeAvailabilityCategory.ANIMATIONS));
+        tree.add(folderNode("Game objects", RuntimeAvailabilityCategory.PREFABS));
+        tree.add(folderNode("Images", RuntimeAvailabilityCategory.SPRITES));
         tree.add(folderNode("Particles", RuntimeAvailabilityCategory.PARTICLES));
-        tree.add(folderNode("Prefabs", RuntimeAvailabilityCategory.PREFABS));
+        tree.add(folderNode("Animations", RuntimeAvailabilityCategory.ANIMATIONS));
 
-        VisTree.Node tiled = folderNode("Tiled", null);
-        tiled.setSelectable(false);
-        tiled.add(folderNode("Tiles", RuntimeAvailabilityCategory.TILED_TILES));
-        tiled.add(folderNode("Animations", RuntimeAvailabilityCategory.TILED_ANIMATIONS));
-        tree.add(tiled);
-
-        tiled.expandAll();
+        tree.add(folderNode("Tiles", RuntimeAvailabilityCategory.TILED_TILES));
+        tree.add(folderNode("Tile animations", RuntimeAvailabilityCategory.TILED_ANIMATIONS));
     }
 
     private VisTree.Node folderNode(String label, RuntimeAvailabilityCategory category) {

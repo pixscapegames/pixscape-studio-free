@@ -99,14 +99,7 @@ public final class FolderTreeView extends VisTable {
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(currentCfg);
 
-        FolderTreeBuilder.buildFolders(
-                tree,
-                projectDir.child(StudioFs.DIR_ORIG_TILES),
-                "Tiles",
-                AssetNode.Root.TILES
-        );
-
-        addTiledAnimationsLogicalNode();
+        addPrefabsNode();
 
         FolderTreeBuilder.buildFolders(
                 tree,
@@ -133,7 +126,14 @@ public final class FolderTreeView extends VisTable {
                 assetSnapshot
         );
 
-        addPrefabsNode();
+        FolderTreeBuilder.buildFolders(
+                tree,
+                projectDir.child(StudioFs.DIR_ORIG_TILES),
+                "Tiles",
+                AssetNode.Root.TILES
+        );
+
+        addTiledAnimationsLogicalNode();
 
         tree.expandAll();
         updateSelectableNodes();
@@ -145,7 +145,7 @@ public final class FolderTreeView extends VisTable {
                 AssetNode.Kind.FOLDER,
                 AssetNode.Root.PREFABS,
                 "",
-                "Prefabs",
+                "Game objects",
                 null
         );
 
@@ -155,30 +155,12 @@ public final class FolderTreeView extends VisTable {
         });
     }
 
-    private VisTree.Node findRootNode(AssetNode.Root root) {
-        for (Object obj : tree.getRootNodes()) {
-            VisTree.Node node = (VisTree.Node) obj;
-            if (node == null || node.getActor() == null) continue;
-
-            Object uo = node.getActor().getUserObject();
-            if (uo instanceof AssetNode assetNode && assetNode.root == root) {
-                return node;
-            }
-        }
-        return null;
-    }
-
     private void addTiledAnimationsLogicalNode() {
-        VisTree.Node tilesRoot = findRootNode(AssetNode.Root.TILES);
-        if (tilesRoot == null) {
-            return;
-        }
-
         AssetNode folderData = new AssetNode(
                 AssetNode.Kind.TILED_ANIMATIONS_FOLDER,
                 AssetNode.Root.TILES,
                 TILED_ANIMATIONS_NODE_PATH,
-                "Animations",
+                "Tile animations",
                 null
         );
 
@@ -187,7 +169,7 @@ public final class FolderTreeView extends VisTable {
 
         VisTree.Node folderNode = new VisTree.Node(folderLabel) {
         };
-        tilesRoot.add(folderNode);
+        tree.add(folderNode);
 
         TileAnimationsMetaDatabase db = loadTileAnimationsMetaDatabase();
         if (db == null || db.animations == null) {

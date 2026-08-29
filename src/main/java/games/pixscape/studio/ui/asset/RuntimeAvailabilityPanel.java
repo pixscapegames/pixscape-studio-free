@@ -36,7 +36,7 @@ public final class RuntimeAvailabilityPanel extends VisTable {
 
         treeView.setSelectionListener(this::showCategory);
 
-        AssetBrowserPanel browserPanel = new AssetBrowserPanel("Runtime Availability", treeView, thumbsView);
+        AssetBrowserPanel browserPanel = new AssetBrowserPanel("Runtime", treeView, thumbsView);
         add(browserPanel).grow();
 
         showCategory(treeView.getSelectedCategory());

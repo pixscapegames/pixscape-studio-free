@@ -144,7 +144,7 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     private void buildLayout() {
-        AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project Assets", treeView, thumbsView);
+        AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project", treeView, thumbsView);
         VisSplitPane browserSplit = new VisSplitPane(
                 projectAssetsBrowser,
                 runtimeAvailabilityPanel,
