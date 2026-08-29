@@ -5,6 +5,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ByteArray;
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -16,6 +17,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
@@ -38,6 +40,8 @@ public final class TiledMapInitializer implements Initializer {
     private String identityName = "Map";
     private String note = "";
     private boolean visible = true;
+    private boolean hasCustomProperties;
+    private final PropertySet customProperties = new PropertySet();
 
     private String atlasTag = "main";
     private TiledProjection projection;
@@ -125,6 +129,17 @@ public final class TiledMapInitializer implements Initializer {
         note = meta != null && meta.note != null ? meta.note : "";
         VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).getSafe(entityId, null);
         visible = visibility == null || visibility.visible;
+        CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class)
+                .getSafe(entityId, null);
+        hasCustomProperties = properties != null;
+        customProperties.clear();
+        if (properties != null) {
+            if (properties.properties == null) {
+                throw new IllegalStateException(
+                        "Tiled map CustomPropertiesComponent must contain a PropertySet.");
+            }
+            customProperties.copyFrom(properties.properties);
+        }
 
         atlasTag = tiled.atlasTag;
         projection = tiled.projection;
@@ -205,6 +220,11 @@ public final class TiledMapInitializer implements Initializer {
         mapVisibility.visible = visible;
         mapVisibility.culledByFrustum = false;
         mapVisibility.inView = true;
+        if (hasCustomProperties) {
+            CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class)
+                    .create(entityId);
+            properties.properties.copyFrom(customProperties);
+        }
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
         tiled.atlasTag = atlasTag;
