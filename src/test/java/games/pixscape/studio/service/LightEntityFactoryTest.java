@@ -62,7 +62,6 @@ public class LightEntityFactoryTest {
     private static void createClassicLayer(World world, int layerIndex) {
         int layerEntity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = layerIndex;
     }
 }

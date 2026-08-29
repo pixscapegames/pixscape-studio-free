@@ -280,7 +280,6 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     private static void createTiledHost(World world) {
         int host = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
     }
 

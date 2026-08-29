@@ -20,7 +20,6 @@ public class SceneServiceSparseTiledRebuildTest {
             int layerEntity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 0;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
             world.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Universal";
 

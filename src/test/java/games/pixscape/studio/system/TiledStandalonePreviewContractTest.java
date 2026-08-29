@@ -66,7 +66,6 @@ public class TiledStandalonePreviewContractTest {
         try {
             int entityId = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.type = LayerComponent.TYPE_CLASSIC;
 
             int mapEntityId = world.create();
             world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;
@@ -138,7 +137,6 @@ public class TiledStandalonePreviewContractTest {
         try {
             int entityId = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.type = LayerComponent.TYPE_CLASSIC;
 
             int mapEntityId = world.create();
             world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;

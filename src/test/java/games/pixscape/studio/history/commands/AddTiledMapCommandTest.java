@@ -53,7 +53,6 @@ public class AddTiledMapCommandTest {
         layerEntity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = 0;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         world.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Universal";
         world.process();
         assertEquals(1, layers.count());
@@ -76,8 +75,6 @@ public class AddTiledMapCommandTest {
         int orthoId = selected.get();
         world.process();
 
-        assertEquals(LayerComponent.TYPE_CLASSIC,
-                world.getMapper(LayerComponent.class).get(layerEntity).type);
         assertTrue(layers.isUniversalLayerEntity(layerEntity));
         assertNotEquals(isoId, orthoId);
         assertEquals("scene1", world.getMapper(TiledLayerComponent.class).get(isoId).atlasTag);
@@ -223,8 +220,6 @@ public class AddTiledMapCommandTest {
 
         int restoredLayer = layers.insertLayerSnapshot(0, snapshot);
         world.process();
-        assertEquals(LayerComponent.TYPE_CLASSIC,
-                world.getMapper(LayerComponent.class).get(restoredLayer).type);
         assertEquals(2, mapCount());
     }
 
@@ -307,7 +302,6 @@ public class AddTiledMapCommandTest {
         int secondLayer = world.create();
         LayerComponent target = world.getMapper(LayerComponent.class).create(secondLayer);
         target.layerIndex = 1;
-        target.type = LayerComponent.TYPE_CLASSIC;
         target.spatialEnabled = true;
         world.getMapper(LayerMetaComponent.class).create(secondLayer).name = "Other";
         world.process();
@@ -336,7 +330,6 @@ public class AddTiledMapCommandTest {
         int sourceLayer = world.create();
         LayerComponent source = world.getMapper(LayerComponent.class).create(sourceLayer);
         source.layerIndex = 1;
-        source.type = LayerComponent.TYPE_CLASSIC;
         world.getMapper(LayerMetaComponent.class).create(sourceLayer).name = "Source";
 
         int sprite = world.create();

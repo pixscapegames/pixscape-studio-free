@@ -22,7 +22,6 @@ public class AddPhysicsBodyCommandTest {
         int layerEntity = harness.world.create();
         LayerComponent layer = harness.world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = 0;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         int entityId = harness.world.create();
         harness.world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = 0;
 

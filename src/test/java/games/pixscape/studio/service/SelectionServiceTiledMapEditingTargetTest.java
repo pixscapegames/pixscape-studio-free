@@ -45,7 +45,6 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
         tiledLayer = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(tiledLayer);
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.layerIndex = 0;
         world.getMapper(LayerMetaComponent.class).create(tiledLayer).name = "Tiled";
         tiledMap = world.create();
@@ -111,7 +110,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
     @Test
     public void selectingAnotherLayerClearsMapTargetButKeepsLayerIdentityIndependent() {
         selection.setTiledMapEditingTarget(tiledMap, SelectionService.SelectionSource.TREE);
-        int classicLayer = layer(1, LayerComponent.TYPE_CLASSIC);
+        int classicLayer = layer(1);
 
         selection.setActivelayerId(classicLayer, SelectionService.SelectionSource.TREE);
 
@@ -122,7 +121,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
     @Test
     public void selectingAnotherMapReplacesTargetAndActivatesItsOwningHost() {
-        int otherHost = layer(1, LayerComponent.TYPE_CLASSIC);
+        int otherHost = layer(1);
         int otherMap = world.create();
         world.getMapper(EntityIndexComponent.class).create(otherMap).layerIndex = 1;
         world.getMapper(TiledLayerComponent.class).create(otherMap);
@@ -138,7 +137,6 @@ public class SelectionServiceTiledMapEditingTargetTest {
 
     @Test
     public void twoMapsInSameOrdinaryLayerSwitchByExactMapIdentity() {
-        world.getMapper(LayerComponent.class).get(tiledLayer).type = LayerComponent.TYPE_CLASSIC;
         int secondMap = world.create();
         world.getMapper(EntityIndexComponent.class).create(secondMap).layerIndex = 0;
         world.getMapper(TiledLayerComponent.class).create(secondMap);
@@ -154,11 +152,10 @@ public class SelectionServiceTiledMapEditingTargetTest {
         assertTrue(selection.isTiledMapEditingTargetActive());
     }
 
-    private int layer(int layerIndex, int type) {
+    private int layer(int layerIndex) {
         int entity = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
         layer.layerIndex = layerIndex;
-        layer.type = type;
         world.getMapper(LayerMetaComponent.class).create(entity).name = "Layer " + layerIndex;
         world.process();
         layers.rebuildFromWorld();

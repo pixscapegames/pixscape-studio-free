@@ -211,7 +211,7 @@ public class ClipboardServiceFlowTest {
     @Test
     public void pasteResolvesSecondOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
-        int ordinaryLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
+        int ordinaryLayer = h.addLayer(1, false);
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
@@ -273,7 +273,7 @@ public class ClipboardServiceFlowTest {
     @Test
     public void pasteResolvesValidSpatialEnabledLayerAndKeepsSpatialState() throws Exception {
         Harness h = new Harness();
-        int spatialLayer = h.addLayer(1, LayerComponent.TYPE_CLASSIC, true);
+        int spatialLayer = h.addLayer(1, true);
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;
@@ -299,7 +299,6 @@ public class ClipboardServiceFlowTest {
         int rogueLayer = h.world.create();
         LayerComponent rogue = h.world.getMapper(LayerComponent.class).create(rogueLayer);
         rogue.layerIndex = 99;
-        rogue.type = LayerComponent.TYPE_CLASSIC;
         h.world.process();
         h.selection.setActivelayerId(rogueLayer);
 
@@ -322,7 +321,7 @@ public class ClipboardServiceFlowTest {
     @Test
     public void pasteRejectsLayerDeletedBetweenCopyAndPaste() throws Exception {
         Harness h = new Harness();
-        int target = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
+        int target = h.addLayer(1, false);
         int source = createEntity(h.world, 1f, 1f, 0);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
@@ -412,7 +411,7 @@ public class ClipboardServiceFlowTest {
             identities.rebuild();
             physicsService = new PhysicsService(world, null, sceneMeta);
             layers = new LayerService(world, null, history.historyIds(), identities);
-            classicLayer = addLayer(0, LayerComponent.TYPE_CLASSIC, false);
+            classicLayer = addLayer(0, false);
             selection = new SelectionService(world, layers);
             selection.setActivelayerId(classicLayer);
             canvas = newTestCanvas(
@@ -420,11 +419,10 @@ public class ClipboardServiceFlowTest {
             clipboard = new ClipboardService(canvas, identities);
         }
 
-        int addLayer(int index, int type, boolean spatialEnabled) {
+        int addLayer(int index, boolean spatialEnabled) {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = index;
-            layer.type = type;
             layer.spatialEnabled = spatialEnabled;
             world.getMapper(LayerMetaComponent.class).create(entity);
             world.process();

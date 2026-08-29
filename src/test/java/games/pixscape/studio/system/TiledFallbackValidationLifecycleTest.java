@@ -196,7 +196,7 @@ public class TiledFallbackValidationLifecycleTest {
                 .build());
 
         int layerEntity = world.create();
-        world.getMapper(LayerComponent.class).create(layerEntity).type = LayerComponent.TYPE_CLASSIC;
+        world.getMapper(LayerComponent.class).create(layerEntity);
         int mapEntity = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = 0;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);

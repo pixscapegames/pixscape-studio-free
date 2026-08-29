@@ -187,7 +187,6 @@ public class TiledMapPropertiesTest {
                 .create(layerEntity);
 
         Fixture() {
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.layerIndex = 0;
             layer.spatialEnabled = false;
         }

@@ -20,7 +20,6 @@ public class ToolBarContractTest {
         assertTrue(constructor.contains("EventFlow.i().subscribe(EventFlow.EditorModeChanged.class"));
         assertTrue(update.contains("selectionService.isTiledMapEditingTargetActive()"));
         assertTrue(update.contains("setAlignmentButtonsDisabled(tiledMapTarget)"));
-        assertFalse(source.contains("LayerComponent.TYPE_TILED"));
         assertFalse(source.contains("LayerService"));
     }
 

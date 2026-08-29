@@ -92,8 +92,8 @@ public class ScenePropertiesPhysicsPurgeTest {
         reconciler.bindWorld(world);
         PhysicsService physics = new PhysicsService(world, box2d, meta);
 
-        int firstLayer = layer(world, history, 0, LayerComponent.TYPE_CLASSIC);
-        int activeLayer = layer(world, history, 1, LayerComponent.TYPE_CLASSIC);
+        int firstLayer = layer(world, history, 0);
+        int activeLayer = layer(world, history, 1);
         int unrelatedEntity = world.create();
         world.getMapper(TransformComponent.class).create(unrelatedEntity).x = 42f;
         history.historyIds().ensureForEntity(unrelatedEntity);
@@ -300,11 +300,10 @@ public class ScenePropertiesPhysicsPurgeTest {
     }
 
     private static int layer(
-            World world, HistoryManager history, int index, int type) {
+            World world, HistoryManager history, int index) {
         int entityId = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
         layer.layerIndex = index;
-        layer.type = type;
         world.getMapper(LayerMetaComponent.class).create(entityId);
         history.historyIds().ensureForEntity(entityId);
         return entityId;

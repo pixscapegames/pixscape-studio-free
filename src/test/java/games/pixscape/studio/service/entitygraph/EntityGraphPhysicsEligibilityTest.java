@@ -92,7 +92,6 @@ public class EntityGraphPhysicsEligibilityTest {
             int layerEntity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
             layer.layerIndex = 0;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             world.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Ordinary";
             world.process();
             service = new EntityGraphInstantiationService(

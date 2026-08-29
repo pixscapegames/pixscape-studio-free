@@ -42,7 +42,6 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
         assertFalse(source.contains("ToggleTiledMapSpatialDepthCommand"));
         assertFalse(source.contains("TiledMapProperties"));
-        assertFalse(source.contains("LayerComponent.TYPE_TILED"));
         assertFalse(source.contains("StudioEditingMode.SPATIAL"));
         assertFalse(source.contains("new VisLabel(\"Type:\")"));
         assertFalse(source.contains("typeDisplayName("));

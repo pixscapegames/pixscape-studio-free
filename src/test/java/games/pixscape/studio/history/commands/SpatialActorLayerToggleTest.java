@@ -31,7 +31,6 @@ public class SpatialActorLayerToggleTest {
         fixture.dirty.clearAll();
 
         fixture.history.execute(fixture.toggle(layerEntity, true));
-        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertTrue(layer.spatialEnabled);
         assertTrue(fixture.dirty.isDirty(layerEntity, DirtyBits.LAYER));
         assertTrue(fixture.dirty.isDirty(layerEntity, DirtyBits.ORDER));
@@ -141,7 +140,6 @@ public class SpatialActorLayerToggleTest {
                 fixture.service, 0, "Ordinary", null));
 
         LayerComponent layer = fixture.layer(fixture.service.getLayerEntity(0));
-        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
 
         fixture.history.undo();
@@ -149,7 +147,6 @@ public class SpatialActorLayerToggleTest {
 
         fixture.history.redo();
         layer = fixture.layer(fixture.service.getLayerEntity(0));
-        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
     }
 
@@ -169,7 +166,6 @@ public class SpatialActorLayerToggleTest {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = service.count();
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = false;
             world.getMapper(LayerMetaComponent.class).create(entity).name = name;
             world.process();

@@ -37,7 +37,7 @@ public class LayerSpatialDepthCommandsTest {
     public void mapSpatialDepthNeverChangesOwningLayer() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
-        int layerId = createLayer(world, 0, LayerComponent.TYPE_CLASSIC);
+        int layerId = createLayer(world, 0);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerId);
         layer.spatialEnabled = false;
         int mapId = world.create();
@@ -247,7 +247,7 @@ public class LayerSpatialDepthCommandsTest {
     public void editTiledLayerSpatialDefaults_failedAndNoopApplicationsDoNotAdvanceRevision() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
-        int layerId = createLayer(world, 0, LayerComponent.TYPE_CLASSIC);
+        int layerId = createLayer(world, 0);
         history.historyIds().ensureForEntity(layerId);
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         EditTiledLayerSpatialDefaultsCommand.Snapshot before =
@@ -269,10 +269,10 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     @Test
-    public void toggleLayerSpatialDepth_rejectsClassicLayerWithoutTouchingActorState() {
+    public void toggleLayerSpatialDepth_rejectsLayerWithoutTouchingActorState() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
-        int layerId = createLayer(world, 2, LayerComponent.TYPE_CLASSIC);
+        int layerId = createLayer(world, 2);
         world.getMapper(LayerComponent.class).get(layerId).spatialEnabled = true;
         int actorId = createActor(world, 2, 4f, 10f);
         history.historyIds().ensureForEntity(layerId);
@@ -332,7 +332,7 @@ public class LayerSpatialDepthCommandsTest {
     @Test
     public void mapsPersistIndependentSpatialAndCollisionState() throws Exception {
         World world = serializableWorld();
-        createLayer(world, 0, LayerComponent.TYPE_CLASSIC);
+        createLayer(world, 0);
         int mapA = createMap(world, 0, 4, false);
         int mapB = createMap(world, 0, 8, true);
         PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class)
@@ -397,7 +397,7 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     private static int createTiledMap(World world, int layerIndex) {
-        createLayer(world, layerIndex, LayerComponent.TYPE_CLASSIC);
+        createLayer(world, layerIndex);
         int mapId = world.create();
         world.getMapper(EntityIndexComponent.class).create(mapId).layerIndex = layerIndex;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapId);
@@ -411,11 +411,10 @@ public class LayerSpatialDepthCommandsTest {
         return mapId;
     }
 
-    private static int createLayer(World world, int layerIndex, int type) {
+    private static int createLayer(World world, int layerIndex) {
         int layerId = world.create();
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerId);
         layer.layerIndex = layerIndex;
-        layer.type = type;
         layer.spatialEnabled = false;
         return layerId;
     }

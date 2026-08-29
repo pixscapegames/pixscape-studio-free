@@ -50,7 +50,6 @@ public class NewLayerDialogChoicesTest {
             int layerEntity = layers.getLayerEntity(0);
             LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
 
-            assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
             assertFalse(layer.spatialEnabled);
             assertEquals("Layer", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
         } finally {

@@ -32,7 +32,6 @@ public class SpatialActorLayerPersistenceTest {
             authored.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = 0;
-            layer.type = LayerComponent.TYPE_CLASSIC;
             layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(entity).name = "Spatial";
             authored.process();
@@ -46,7 +45,6 @@ public class SpatialActorLayerPersistenceTest {
             int layerEntity = loaded.getAspectSubscriptionManager()
                     .get(Aspect.all(LayerComponent.class)).getEntities().get(0);
             LayerComponent restored = loaded.getMapper(LayerComponent.class).get(layerEntity);
-            assertEquals(LayerComponent.TYPE_CLASSIC, restored.type);
             assertTrue(restored.spatialEnabled);
         } finally {
             authored.dispose();

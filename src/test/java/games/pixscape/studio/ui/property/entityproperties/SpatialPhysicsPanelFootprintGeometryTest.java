@@ -53,7 +53,6 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
         EntityIndexComponent index = new EntityIndexComponent();
         index.layerIndex = 0;
         LayerComponent layer = new LayerComponent();
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = true;
 
         boolean eligible = SpatialPhysicsPanel.canActivateSpatialPhysics(

@@ -33,8 +33,8 @@ public class LayerServiceTiledSwapDirtyTest {
     public void universalLayerSwapMovesMixedMultiMapContentsWithoutRebuildingChunks() {
         Harness h = new Harness();
         try {
-            int layerA = h.layer("A", LayerComponent.TYPE_CLASSIC, true, 0.75f, false);
-            int layerB = h.layer("B", LayerComponent.TYPE_CLASSIC, false, 1.25f, true);
+            int layerA = h.layer("A", true, 0.75f, false);
+            int layerB = h.layer("B", false, 1.25f, true);
             int sprite = h.sprite(0, 5);
             int mapA1 = h.map(0, 7, false);
             int mapA2 = h.map(0, 3, true);
@@ -103,11 +103,10 @@ public class LayerServiceTiledSwapDirtyTest {
             layers = new LayerService(world, null, history.historyIds(), identities);
         }
 
-        int layer(String name, int type, boolean spatial, float parallax, boolean visible) {
+        int layer(String name, boolean spatial, float parallax, boolean visible) {
             int index = layers.addLayerTop(name);
             int entity = layers.getLayerEntity(index);
             LayerComponent layer = layer(entity);
-            layer.type = type;
             layer.spatialEnabled = spatial;
             LayerParallaxComponent parallaxComponent = world.getMapper(
                     LayerParallaxComponent.class).create(entity);

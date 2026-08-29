@@ -167,10 +167,6 @@ public class TmxSceneImportServiceTest {
 
         int ground = layerEntity(world, 0, true);
         int above = layerEntity(world, 1, true);
-        assertEquals(LayerComponent.TYPE_CLASSIC,
-                world.getMapper(LayerComponent.class).get(ground).type);
-        assertEquals(LayerComponent.TYPE_CLASSIC,
-                world.getMapper(LayerComponent.class).get(above).type);
         assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
         assertFalse(world.getMapper(VisibilityComponent.class).get(above).visible);
@@ -207,7 +203,6 @@ public class TmxSceneImportServiceTest {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(mapEntity);
         EntityIndexComponent mapIndex = world.getMapper(EntityIndexComponent.class).get(mapEntity);
 
-        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
         assertFalse(world.getMapper(LayerComponent.class).has(mapEntity));
         assertEquals(0, mapIndex.layerIndex);
@@ -303,7 +298,6 @@ public class TmxSceneImportServiceTest {
         assertEquals("Ground", world.getMapper(LayerMetaComponent.class).get(ground).name);
         assertEquals("Backdrop", world.getMapper(LayerMetaComponent.class).get(backdrop).name);
         assertEquals("Above", world.getMapper(LayerMetaComponent.class).get(above).name);
-        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(backdrop).type);
         assertFalse(world.getMapper(VisibilityComponent.class).get(backdrop).visible);
         assertEquals(2f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorX, 0.0001f);
         assertEquals(0.25f, world.getMapper(LayerParallaxComponent.class).get(backdrop).factorY, 0.0001f);
@@ -357,8 +351,6 @@ public class TmxSceneImportServiceTest {
         assertEquals("Below", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 0, true)).name);
         int objectLayer = layerEntity(world, 1, false);
         assertEquals("Gameplay", world.getMapper(LayerMetaComponent.class).get(objectLayer).name);
-        assertEquals(LayerComponent.TYPE_CLASSIC,
-                world.getMapper(LayerComponent.class).get(objectLayer).type);
         assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(objectLayer));
         assertFalse(world.getMapper(TiledObjectLayerComponent.class)
                 .has(layerEntity(world, 0, true)));
@@ -405,7 +397,6 @@ public class TmxSceneImportServiceTest {
         assertTrue(result.imported());
         int layerEntity = layerEntity(world, 0, false);
         LayerComponent layer = world.getMapper(LayerComponent.class).get(layerEntity);
-        assertEquals(LayerComponent.TYPE_CLASSIC, layer.type);
         assertFalse(layer.spatialEnabled);
         assertTrue(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity));
         assertEquals("World/Gameplay", world.getMapper(LayerMetaComponent.class).get(layerEntity).name);
@@ -789,10 +780,6 @@ public class TmxSceneImportServiceTest {
         assertEquals("jungle", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 1, false)).name);
         assertEquals("ground", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 2, true)).name);
         assertEquals("props", world.getMapper(LayerMetaComponent.class).get(layerEntity(world, 3, true)).name);
-        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 0, false)).type);
-        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 1, false)).type);
-        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 2, true)).type);
-        assertEquals(LayerComponent.TYPE_CLASSIC, world.getMapper(LayerComponent.class).get(layerEntity(world, 3, true)).type);
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 0, false)));
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 1, false)));
         assertFalse(world.getMapper(TiledObjectLayerComponent.class).has(layerEntity(world, 2, true)));
@@ -1809,7 +1796,6 @@ public class TmxSceneImportServiceTest {
         for (int i = 0; i < entities.size(); i++) {
             int entity = entities.get(i);
             if (layers.get(entity).layerIndex == index) {
-                assertEquals(LayerComponent.TYPE_CLASSIC, layers.get(entity).type);
                 if (requireMap) {
                     tiledMapEntity(world, index);
                 }

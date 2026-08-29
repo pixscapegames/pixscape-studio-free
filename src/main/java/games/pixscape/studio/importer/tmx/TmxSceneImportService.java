@@ -327,7 +327,6 @@ public final class TmxSceneImportService {
                                            TmxTileLayerPlan tileLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -398,7 +397,6 @@ public final class TmxSceneImportService {
                                               TmxImageLayerPlan imageLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -422,7 +420,6 @@ public final class TmxSceneImportService {
                                              TmxObjectLayerPlan objectLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
