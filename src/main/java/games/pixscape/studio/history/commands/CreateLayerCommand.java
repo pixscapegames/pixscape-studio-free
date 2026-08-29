@@ -14,6 +14,7 @@ public final class CreateLayerCommand implements Command {
     private final HistoryIdRegistry historyIds;
     private long historyId = -1L;
     private final IntConsumer onLayerSelected;
+    private final long undoSelectionHistoryId;
 
     private LayerService.LayerSnapshot snapshot;
 
@@ -21,10 +22,22 @@ public final class CreateLayerCommand implements Command {
                               int insertionIndex,
                               String name,
                               IntConsumer onLayerSelected) {
+        this(layerService, insertionIndex, name, -1, onLayerSelected);
+    }
+
+    public CreateLayerCommand(LayerService layerService,
+                              int insertionIndex,
+                              String name,
+                              int undoSelectionLayerEntityId,
+                              IntConsumer onLayerSelected) {
         this.layerService = layerService;
         this.insertionIndex = insertionIndex;
         this.onLayerSelected = onLayerSelected;
         this.historyIds = layerService.historyIds();
+        this.undoSelectionHistoryId =
+                layerService.indexOfLayerEntity(undoSelectionLayerEntityId) >= 0
+                        ? historyIds.ensureForEntity(undoSelectionLayerEntityId)
+                        : -1L;
         String effectiveName = (name != null && !name.isBlank()) ? name : "New Layer";
         this.initializer = new LayerInitializer(layerService.getWorld())
                 .configureNewLayer(effectiveName, insertionIndex);
@@ -73,9 +86,18 @@ public final class CreateLayerCommand implements Command {
         unbindSnapshotHistoryIds(snapshot);
 
         if (onLayerSelected != null) {
-            int fallbackIndex = Math.min(index, layerService.count() - 1);
-            int fallbackEntity = fallbackIndex >= 0 ? layerService.getLayerEntity(fallbackIndex) : -1;
-            onLayerSelected.accept(fallbackEntity);
+            int previousSelection = undoSelectionHistoryId > 0L
+                    ? historyIds.entityOfHistoryId(undoSelectionHistoryId)
+                    : -1;
+            if (layerService.indexOfLayerEntity(previousSelection) >= 0) {
+                onLayerSelected.accept(previousSelection);
+            } else {
+                int fallbackIndex = Math.min(index, layerService.count() - 1);
+                int fallbackEntity = fallbackIndex >= 0
+                        ? layerService.getLayerEntity(fallbackIndex)
+                        : -1;
+                onLayerSelected.accept(fallbackEntity);
+            }
         }
     }
 

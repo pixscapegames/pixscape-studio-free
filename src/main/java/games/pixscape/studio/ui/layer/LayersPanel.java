@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.layer;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -138,27 +136,7 @@ public class LayersPanel extends DockablePanel {
         btnAdd.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                NewLayerDialog dialog = new NewLayerDialog(
-                        request -> {
-                            CreateLayerCommand command = new CreateLayerCommand(
-                                    layerService,
-                                    layerService.count(),
-                                    request.name(),
-                                    layerId -> {
-                                        if (selectionService != null) {
-                                            selectionService.setActivelayerId(layerId);
-                                        }
-                                    }
-                            );
-                            historyManager.execute(command);
-
-                            markDirty();
-                        }
-                );
-
-                if (getStage() != null) {
-                    dialog.show(getStage());
-                }
+                createLayerImmediately();
             }
         });
 
@@ -239,6 +217,31 @@ public class LayersPanel extends DockablePanel {
                 event.stop();
             }
         });
+    }
+
+    private void createLayerImmediately() {
+        int previousLayerId = selectionService != null
+                ? selectionService.getActivelayerId()
+                : -1;
+        int insertionIndex = insertionIndexForNewLayer(layerService, previousLayerId);
+        CreateLayerCommand command = new CreateLayerCommand(
+                layerService,
+                insertionIndex,
+                "New Layer",
+                previousLayerId,
+                layerId -> {
+                    if (selectionService != null) {
+                        selectionService.setActivelayerId(layerId);
+                    }
+                }
+        );
+        historyManager.execute(command);
+        markDirty();
+    }
+
+    static int insertionIndexForNewLayer(LayerService layerService, int activeLayerId) {
+        int activeIndex = layerService.indexOfLayerEntity(activeLayerId);
+        return activeIndex >= 0 ? activeIndex + 1 : layerService.count();
     }
 
     private void focusRow(LayerRow row) {
