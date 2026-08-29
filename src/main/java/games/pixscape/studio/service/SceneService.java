@@ -1805,13 +1805,12 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     private void rebuildSparseFromDense() {
+        rebuildSparseFromDense(canvas.getEcsWorld());
+    }
 
-        World world = canvas.getEcsWorld();
-
+    static void rebuildSparseFromDense(World world) {
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer =
-                world.getMapper(LayerComponent.class);
 
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
@@ -1825,8 +1824,7 @@ public final class SceneService {
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null || tiled.data == null) continue;
 
-            LayerComponent layer = mLayer.getSafe(e, null);
-            tiled.spatialEnabled = (layer != null && layer.spatialEnabled) || tiled.data.spatialEnabled;
+            tiled.spatialEnabled = tiled.data.spatialEnabled;
             tiled.defaultTileAltitude = tiled.data.defaultTileAltitude;
             tiled.defaultTileHeight = tiled.data.defaultTileHeight;
 

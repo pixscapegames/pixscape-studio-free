@@ -211,7 +211,6 @@ public class SpatialActorLayerToggleTest {
                 tiledLayer.spatialEnabled = spatialEnabled;
             }
             world.process();
-            service.rebuildFromWorld();
             return entity;
         }
 

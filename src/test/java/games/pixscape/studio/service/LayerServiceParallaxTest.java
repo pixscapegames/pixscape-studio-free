@@ -19,12 +19,8 @@ import static org.junit.Assert.*;
 public class LayerServiceParallaxTest {
 
     @Test
-    public void parallax_returnsParallaxComponentForClassicLayer() {
+    public void parallaxComponentStoresClassicLayerFactors() {
         World world = new World(new WorldConfiguration());
-        IdentityRegistry identities = new IdentityRegistry();
-        identities.bind(world, new SceneMetaRuntime());
-        LayerService service = new LayerService(world, null, new HistoryIdRegistry(), identities);
-
         int layerEntity = world.create();
 
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
@@ -37,10 +33,8 @@ public class LayerServiceParallaxTest {
         parallax.factorX = 0.75f;
         parallax.factorY = 1.25f;
 
-        world.process();          // important
-        service.rebuildFromWorld();
-
-        LayerParallaxComponent resolved = service.parallax(0);
+        LayerParallaxComponent resolved = world.getMapper(
+                LayerParallaxComponent.class).get(layerEntity);
         assertNotNull(resolved);
         assertEquals(0.75f, resolved.factorX, 0.0001f);
         assertEquals(1.25f, resolved.factorY, 0.0001f);

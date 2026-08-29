@@ -30,7 +30,6 @@ public final class LayerService {
 
     private final ComponentMapper<LayerComponent> mL;
     private final ComponentMapper<LayerMetaComponent> mMeta;
-    private final ComponentMapper<LayerParallaxComponent> mPar;
     private final ComponentMapper<VisibilityComponent> mVis;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
     private final ComponentMapper<TiledLayerComponent> mTiled;
@@ -57,7 +56,6 @@ public final class LayerService {
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.mL = world.getMapper(LayerComponent.class);
         this.mMeta = world.getMapper(LayerMetaComponent.class);
-        this.mPar = world.getMapper(LayerParallaxComponent.class);
         this.mVis = world.getMapper(VisibilityComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
@@ -129,10 +127,6 @@ public final class LayerService {
         return tiledMapResolver.findForHost(hostLayerEntityId);
     }
 
-    public int requireTiledMapForHost(int hostLayerEntityId) {
-        return tiledMapResolver.requireForHost(hostLayerEntityId);
-    }
-
     /** Materializes one map as normal content of an existing Pixscape layer. */
     public int insertTiledMap(TiledMapInitializer initializer, long historyId) {
         Objects.requireNonNull(initializer, "initializer");
@@ -165,7 +159,7 @@ public final class LayerService {
         tiledMapResolver.invalidate();
     }
 
-    public void rebuildFromWorld() {
+    void rebuildFromWorld() {
         dirty = true;
         rebuildIfDirty();
     }
@@ -196,7 +190,7 @@ public final class LayerService {
     /**
      * Returns the logical index of a layer from its entityId.
      */
-    public int getIndexForEntity(int layerEntityId) {
+    private int getIndexForEntity(int layerEntityId) {
         if (layerEntityId == -1) return 0;
         LayerComponent li = mL.get(layerEntityId);
         return li != null ? li.layerIndex : 0;
@@ -264,11 +258,6 @@ public final class LayerService {
             }
         }
         return -1;
-    }
-
-    public LayerParallaxComponent parallax(int index) {
-        int e = getLayerEntity(index);
-        return e != -1 ? mPar.getSafe(e, null) : null;
     }
 
     // ---------- Mutations (actions utilisateur) ----------
@@ -445,20 +434,6 @@ public final class LayerService {
         }
 
         EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-    }
-
-    /**
-     * Moves the layer up one step (swap with index+1).
-     */
-    public void moveLayerUp(int index) {
-        moveLayer(index, index + 1);
-    }
-
-    /**
-     * Moves the layer down one step (swap with index-1).
-     */
-    public void moveLayerDown(int index) {
-        moveLayer(index, index - 1);
     }
 
     /**
@@ -749,11 +724,6 @@ public final class LayerService {
         if (meta.locked == locked) return;
         meta.locked = locked;
         EventFlow.i().publish(new EventFlow.LayerLockChanged(entityId, locked, 0));
-    }
-
-    public boolean isLayerLocked(int entityId) {
-        LayerMetaComponent meta = mMeta.getSafe(entityId, null);
-        return meta.locked;
     }
 
     public void reset() {

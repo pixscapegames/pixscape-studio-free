@@ -56,7 +56,7 @@ public class AddTiledMapCommandTest {
         layer.type = LayerComponent.TYPE_CLASSIC;
         world.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Universal";
         world.process();
-        layers.rebuildFromWorld();
+        assertEquals(1, layers.count());
     }
 
     @After public void tearDown() {
@@ -311,7 +311,6 @@ public class AddTiledMapCommandTest {
         target.spatialEnabled = true;
         world.getMapper(LayerMetaComponent.class).create(secondLayer).name = "Other";
         world.process();
-        layers.rebuildFromWorld();
         assertFalse(world.getMapper(TiledLayerComponent.class).get(map).spatialEnabled);
 
         long historyId = layers.historyIds().ensureForEntity(map);
