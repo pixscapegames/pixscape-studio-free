@@ -6,13 +6,12 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -133,14 +132,7 @@ public final class TmxSceneImportService {
         return base + " " + suffix;
     }
 
-    void configureSceneMeta(SceneMeta meta, TmxScenePlan scene) {
-        meta.tiledEnabled = true;
-        meta.tileWidth = scene.tileWidth();
-        meta.tileHeight = scene.tileHeight();
-        meta.chunkSize = Math.max(1, meta.chunkSize);
-        meta.tiledProjection = scene.tiledProjection() != null
-                ? scene.tiledProjection()
-                : SceneMetaRuntime.TiledProjection.ORTHO;
+    void initializeSceneRuntimeAvailability(SceneMeta meta) {
         runtimeAvailabilityService.data(meta);
     }
 
@@ -378,26 +370,21 @@ public final class TmxSceneImportService {
         entityMeta.kind = EntityKind.TILED_MAP;
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
+        tiled.projection = scene.tiledProjection() != null
+                ? scene.tiledProjection()
+                : TiledProjection.ORTHO;
+        tiled.tileWidth = scene.tileWidth();
+        tiled.tileHeight = scene.tileHeight();
         tiled.mapWidthCells = tileLayer.width();
         tiled.mapHeightCells = tileLayer.height();
+        tiled.chunkSize = 16;
         tiled.originX = tileLayer.offsetX();
         tiled.originY = tileLayer.offsetY();
         tiled.spatialEnabled = false;
         tiled.defaultTileAltitude = 0f;
         tiled.defaultTileHeight = 0f;
         tiled.atlasTag = sceneTag;
-        tiled.data = new TiledMapLayerData(
-                tileLayer.width(),
-                tileLayer.height(),
-                scene.tileWidth(),
-                scene.tileHeight(),
-                16,
-                scene.tiledProjection() != null
-                        ? scene.tiledProjection()
-                        : SceneMetaRuntime.TiledProjection.ORTHO
-        );
-        tiled.data.originX = tiled.originX;
-        tiled.data.originY = tiled.originY;
+        tiled.data = tiled.createMapData();
         // The temporary host layer remains the visibility authority during Stage 1.
         tiled.data.visible = true;
         tiled.data.spatialEnabled = tiled.spatialEnabled;
@@ -904,7 +891,7 @@ public final class TmxSceneImportService {
                 tileHeight,
                 scene != null && scene.tiledProjection() != null
                         ? scene.tiledProjection()
-                        : SceneMetaRuntime.TiledProjection.ORTHO,
+                        : TiledProjection.ORTHO,
                 TilesetAnchor.BOTTOM_CENTER,
                 0,
                 0,

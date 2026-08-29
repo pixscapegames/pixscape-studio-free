@@ -20,7 +20,7 @@ import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -40,8 +40,12 @@ public final class TiledMapInitializer implements Initializer {
     private boolean visible = true;
 
     private String atlasTag = "main";
-    private int mapWidthCells = 100;
-    private int mapHeightCells = 100;
+    private TiledProjection projection;
+    private int tileWidth;
+    private int tileHeight;
+    private int mapWidthCells;
+    private int mapHeightCells;
+    private int chunkSize;
     private float originX;
     private float originY;
     private boolean spatialEnabled;
@@ -77,12 +81,28 @@ public final class TiledMapInitializer implements Initializer {
         this.allocator = allocator;
     }
 
-    public TiledMapInitializer configureNew(int layerIndex, int width, int height, String atlasTag) {
+    public TiledMapInitializer configureNew(int layerIndex,
+                                            int width,
+                                            int height,
+                                            String atlasTag,
+                                            TiledProjection projection,
+                                            int tileWidth,
+                                            int tileHeight,
+                                            int chunkSize) {
+        if (projection == null || width <= 0 || height <= 0
+                || tileWidth <= 0 || tileHeight <= 0 || chunkSize <= 0) {
+            throw new IllegalArgumentException(
+                    "Tiled map creation requires a projection and positive tile, map, and chunk dimensions.");
+        }
         this.layerIndex = layerIndex;
         this.zIndex = 0;
         this.mapWidthCells = width;
         this.mapHeightCells = height;
         this.atlasTag = atlasTag != null && !atlasTag.isBlank() ? atlasTag : "main";
+        this.projection = projection;
+        this.tileWidth = tileWidth;
+        this.tileHeight = tileHeight;
+        this.chunkSize = chunkSize;
         return this;
     }
 
@@ -95,6 +115,7 @@ public final class TiledMapInitializer implements Initializer {
             throw new IllegalArgumentException(
                     "Tiled map snapshot requires EntityIndex, PixscapeIdentity and TiledLayer components.");
         }
+        tiled.validateMapConfiguration();
 
         layerIndex = index.layerIndex;
         zIndex = index.zIndex;
@@ -106,8 +127,12 @@ public final class TiledMapInitializer implements Initializer {
         visible = visibility == null || visibility.visible;
 
         atlasTag = tiled.atlasTag;
+        projection = tiled.projection;
+        tileWidth = tiled.tileWidth;
+        tileHeight = tiled.tileHeight;
         mapWidthCells = tiled.mapWidthCells;
         mapHeightCells = tiled.mapHeightCells;
+        chunkSize = tiled.chunkSize;
         originX = tiled.originX;
         originY = tiled.originY;
         spatialEnabled = tiled.spatialEnabled;
@@ -183,8 +208,12 @@ public final class TiledMapInitializer implements Initializer {
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(entityId);
         tiled.atlasTag = atlasTag;
+        tiled.projection = projection;
+        tiled.tileWidth = tileWidth;
+        tiled.tileHeight = tileHeight;
         tiled.mapWidthCells = mapWidthCells;
         tiled.mapHeightCells = mapHeightCells;
+        tiled.chunkSize = chunkSize;
         tiled.originX = originX;
         tiled.originY = originY;
         tiled.spatialEnabled = spatialEnabled;
@@ -199,15 +228,7 @@ public final class TiledMapInitializer implements Initializer {
         tiled.tileSpatialFlags = tileSpatialFlags != null ? new IntArray(tileSpatialFlags) : null;
         tiled.tileSpatialOverrides = tileSpatialOverrides != null
                 ? new ByteArray(tileSpatialOverrides) : null;
-        tiled.data = new TiledMapLayerData(
-                mapWidthCells, mapHeightCells,
-                (int) sceneMeta.tileWidth, (int) sceneMeta.tileHeight,
-                sceneMeta.chunkSize, sceneMeta.tiledProjection);
-        tiled.data.originX = originX;
-        tiled.data.originY = originY;
-        tiled.data.spatialEnabled = spatialEnabled;
-        tiled.data.defaultTileAltitude = defaultTileAltitude;
-        tiled.data.defaultTileHeight = defaultTileHeight;
+        tiled.data = tiled.createMapData();
         if (allocator != null) allocator.allocateLayer(tiled);
         restoreDenseTiles(tiled);
         if (allocator != null) allocator.synchronizeAnimations(tiled);

@@ -10,7 +10,7 @@ import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -273,7 +273,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         int z = 0;
         int tie = 0;
 
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+        if (map.projection == TiledProjection.ISO) {
             z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
         }

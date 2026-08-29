@@ -14,6 +14,9 @@ import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.event.GetScrollListener;
@@ -151,11 +154,16 @@ public class LayersPanel extends DockablePanel {
                         request -> {
 
                             if (request.type() == LayerComponent.TYPE_TILED) {
+                                var sceneMeta = ProjectConfig.getInstance().getCurrentSceneMeta();
                                 historyManager.execute(new CreateTiledLayerCommand(
                                         layerService,
                                         request.name(),
                                         request.width(),
                                         request.height(),
+                                        sceneMeta.tiledProjection,
+                                        (int) sceneMeta.tileWidth,
+                                        (int) sceneMeta.tileHeight,
+                                        sceneMeta.chunkSize,
                                         layerId -> {
                                             if (selectionService != null) {
                                                 selectionService.setActivelayerId(layerId);
@@ -440,18 +448,30 @@ public class LayersPanel extends DockablePanel {
     }
 
     private String buildLayerTypeSuffix(int layerEntityId, int type, boolean spatialEnabled) {
+        int mapEntityId = type == LayerComponent.TYPE_TILED
+                ? layerService.findTiledMapForHost(layerEntityId)
+                : -1;
         return layerTypeSuffix(
                 type,
                 spatialEnabled,
                 mTiledObjectLayer.has(layerEntityId),
-                currentTiledProjection()
+                tiledProjectionForMapEntity(
+                        world.getMapper(TiledLayerComponent.class), mapEntityId)
         );
+    }
+
+    static TiledProjection tiledProjectionForMapEntity(
+            ComponentMapper<TiledLayerComponent> tiledMapper,
+            int mapEntityId) {
+        if (mapEntityId < 0) return null;
+        TiledLayerComponent tiled = tiledMapper.getSafe(mapEntityId, null);
+        return tiled != null ? tiled.projection : null;
     }
 
     static String layerTypeSuffix(int type,
                                   boolean spatialEnabled,
                                   boolean tiledObjectLayer,
-                                  games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
+                                  TiledProjection projection) {
         if (tiledObjectLayer) {
             return "(Tiled Object)";
         }
@@ -464,16 +484,6 @@ public class LayersPanel extends DockablePanel {
             case ORTHO -> "(Tiled orthogonal)";
             case null -> "(Tiled)";
         };
-    }
-
-    private games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection currentTiledProjection() {
-        var cfg = games.pixscape.studio.configuration.ProjectConfig.getInstance();
-        if (cfg == null) return null;
-
-        var meta = cfg.getCurrentSceneMeta();
-        if (meta == null || !meta.tiledEnabled) return null;
-
-        return meta.tiledProjection;
     }
 
 }

@@ -75,7 +75,7 @@ public final class TmxSceneImportSession {
         cfg.createSceneMeta(sceneName);
         SceneMeta meta = requireCreatedSceneMeta();
         createdSceneFileName = meta.getFile();
-        service.configureSceneMeta(meta, plan.scene());
+        service.initializeSceneRuntimeAvailability(meta);
         createdSceneTag = cfg.canonicalSceneTagFor(meta);
         phase = Phase.SCENE_CREATED;
     }

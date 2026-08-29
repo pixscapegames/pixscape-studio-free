@@ -1,7 +1,7 @@
 package games.pixscape.studio.helper;
 
 import com.badlogic.gdx.graphics.Color;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -147,7 +147,7 @@ public final class GizmoDrawHelper {
     ) {
         if (map == null) return;
 
-        if (map.projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (map.projection == TiledProjection.ORTHO) {
             float worldX0 = map.tileToWorldX(minGX, minGY);
             float worldY0 = map.tileToWorldY(minGX, minGY);
             float worldX1 = map.tileToWorldX(maxGX, maxGY) + map.tileWidth;
@@ -195,7 +195,7 @@ public final class GizmoDrawHelper {
                                         float b,
                                         float a,
                                         float lineW) {
-        if (map.projection == SceneMetaRuntime.TiledProjection.ORTHO) {
+        if (map.projection == TiledProjection.ORTHO) {
             float x = map.tileToWorldX(gx, gy);
             float y = map.tileToWorldY(gx, gy);
             ctx.drawer.setColor(r, g, b, Math.min(a, 0.2f));

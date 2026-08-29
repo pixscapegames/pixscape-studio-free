@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
@@ -14,7 +15,7 @@ public class TilesetProfileReferenceDefaultsTest {
                 24,
                 32,
                 24,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
 
         assertTrue(defaults.widthFollowsTile());
@@ -32,12 +33,12 @@ public class TilesetProfileReferenceDefaultsTest {
                 32,
                 32,
                 32,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
 
         TilesetProfileReferenceDefaults.ReferenceSize referenceSize =
                 defaults.referenceSizeAfterProjectionChange(
-                        SceneMetaRuntime.TiledProjection.ISO,
+                        TiledProjection.ISO,
                         256,
                         512,
                         32,
@@ -55,12 +56,12 @@ public class TilesetProfileReferenceDefaultsTest {
                 512,
                 256,
                 128,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
 
         TilesetProfileReferenceDefaults.ReferenceSize referenceSize =
                 defaults.referenceSizeAfterProjectionChange(
-                        SceneMetaRuntime.TiledProjection.ORTHO,
+                        TiledProjection.ORTHO,
                         256,
                         512,
                         256,
@@ -78,7 +79,7 @@ public class TilesetProfileReferenceDefaultsTest {
                 24,
                 32,
                 24,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
 
         defaults.markReferenceWidthEdited();
@@ -87,7 +88,7 @@ public class TilesetProfileReferenceDefaultsTest {
         assertFalse(defaults.heightFollowsTile());
         TilesetProfileReferenceDefaults.ReferenceSize referenceSize =
                 defaults.referenceSizeAfterProjectionChange(
-                        SceneMetaRuntime.TiledProjection.ISO,
+                        TiledProjection.ISO,
                         48,
                         36,
                         40,
@@ -104,7 +105,7 @@ public class TilesetProfileReferenceDefaultsTest {
                 24,
                 40,
                 44,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
 
         assertFalse(defaults.widthFollowsTile());

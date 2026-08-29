@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.LayerInitializer;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.function.IntConsumer;
 
@@ -22,6 +23,10 @@ public final class CreateTiledLayerCommand implements Command {
                                    String name,
                                    int mapWidth,
                                    int mapHeight,
+                                   TiledProjection projection,
+                                   int tileWidth,
+                                   int tileHeight,
+                                   int chunkSize,
                                    IntConsumer onLayerSelected) {
 
         this.layerService = layerService;
@@ -42,7 +47,11 @@ public final class CreateTiledLayerCommand implements Command {
                 effectiveName,
                 insertionIndex,
                 mapWidth,
-                mapHeight
+                mapHeight,
+                projection,
+                tileWidth,
+                tileHeight,
+                chunkSize
         );
     }
 

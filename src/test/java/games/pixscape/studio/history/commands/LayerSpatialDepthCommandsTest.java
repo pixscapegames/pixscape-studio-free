@@ -14,6 +14,7 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
 import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
@@ -365,6 +366,12 @@ public class LayerSpatialDepthCommandsTest {
     private static int createTiledLayer(World world, int layerIndex) {
         int layerId = createLayer(world, layerIndex, LayerComponent.TYPE_TILED);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
+        tiled.projection = TiledProjection.ORTHO;
+        tiled.tileWidth = 16;
+        tiled.tileHeight = 32;
+        tiled.mapWidthCells = 4;
+        tiled.mapHeightCells = 4;
+        tiled.chunkSize = 4;
         tiled.data = new TiledMapLayerData(4, 4, 16, 32, 4);
         return layerId;
     }
@@ -407,7 +414,7 @@ public class LayerSpatialDepthCommandsTest {
 
     private static TiledMapLayerData spatialMap() {
         TiledMapLayerData map = new TiledMapLayerData(
-                8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+                8, 8, 64, 32, 4, TiledProjection.ISO);
         for (int gy = 0; gy < 8; gy++) {
             for (int gx = 0; gx < 8; gx++) map.setTile(gx, gy, 1);
         }

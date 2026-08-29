@@ -4,8 +4,8 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.helper.GridHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 
@@ -47,10 +47,10 @@ public class GridActor extends Actor {
         clearBounds();
     }
 
-    public void setTiledMode(SceneMetaRuntime.TiledProjection projection,
+    public void setTiledMode(TiledProjection projection,
                              float tileWidth,
                              float tileHeight) {
-        mode = (projection == SceneMetaRuntime.TiledProjection.ISO)
+        mode = (projection == TiledProjection.ISO)
                 ? GridMode.TILED_ISO
                 : GridMode.TILED_ORTHO;
         this.tiledWidth = tileWidth;

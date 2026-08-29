@@ -9,8 +9,6 @@ import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.UiBinders;
 
@@ -114,27 +112,25 @@ public final class TiledMapProperties extends VisTable {
 
     public void setMapEntityId(int mapEntityId) {
         TiledLayerComponent t = mTiled.getSafe(mapEntityId, null);
-        SceneMeta sceneMeta = currentSceneMeta();
-
         if (t != null) {
             tiledWidthValue.setText(String.valueOf(t.mapWidthCells));
             tiledHeightValue.setText(String.valueOf(t.mapHeightCells));
 
-            tiledProjectionValue.setText(buildTiledProjectionLabel(sceneMeta));
-            tiledTileWidthValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileWidth) : "?");
-            tiledTileHeightValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileHeight) : "?");
+            tiledProjectionValue.setText(buildTiledProjectionLabel(t));
+            tiledTileWidthValue.setText(Integer.toString(t.tileWidth));
+            tiledTileHeightValue.setText(Integer.toString(t.tileHeight));
 
-            originXModel.setStep(Math.max(1, t.data.tileWidth));
-            originYModel.setStep(Math.max(1, t.data.tileHeight));
+            originXModel.setStep(Math.max(1, t.tileWidth));
+            originYModel.setStep(Math.max(1, t.tileHeight));
 
             tiledOriginXBinder.setEntityId(mapEntityId);
             tiledOriginYBinder.setEntityId(mapEntityId);
         } else {
             tiledWidthValue.setText("?");
             tiledHeightValue.setText("?");
-            tiledProjectionValue.setText(buildTiledProjectionLabel(sceneMeta));
-            tiledTileWidthValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileWidth) : "?");
-            tiledTileHeightValue.setText(sceneMeta != null ? Integer.toString((int) sceneMeta.tileHeight) : "?");
+            tiledProjectionValue.setText("Unknown");
+            tiledTileWidthValue.setText("?");
+            tiledTileHeightValue.setText("?");
 
             originXModel.setStep(1);
             originYModel.setStep(1);
@@ -152,17 +148,12 @@ public final class TiledMapProperties extends VisTable {
         }
     }
 
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
-    }
-
-    private String buildTiledProjectionLabel(SceneMeta sceneMeta) {
-        if (sceneMeta == null || !sceneMeta.tiledEnabled || sceneMeta.tiledProjection == null) {
+    private String buildTiledProjectionLabel(TiledLayerComponent tiled) {
+        if (tiled == null || tiled.projection == null) {
             return "Unknown";
         }
 
-        return switch (sceneMeta.tiledProjection) {
+        return switch (tiled.projection) {
             case ISO -> "Isometric";
             case ORTHO -> "Orthogonal";
         };

@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -178,7 +179,7 @@ public class SpatialBlockPlacementTargetTest {
     }
 
     private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 100f;
         map.originY = 50f;
         return map;

@@ -2,6 +2,7 @@ package games.pixscape.studio.importer.tmx;
 
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
 
@@ -35,7 +36,7 @@ public class TmxImportPlannerTest {
 
         TmxImportPlan plan = result.plan();
         assertEquals("Simple_map", plan.scene().proposedSceneName());
-        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, plan.scene().tiledProjection());
+        assertEquals(TiledProjection.ORTHO, plan.scene().tiledProjection());
         assertEquals(2, plan.scene().mapWidthCells());
         assertEquals(2, plan.scene().mapHeightCells());
         assertEquals(16, plan.scene().tileWidth());

@@ -3,7 +3,7 @@ package games.pixscape.studio.service.asset;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
@@ -170,7 +170,7 @@ public final class TilesetAssetImportService {
 
     public record TilesetProfileImportSettings(int referenceCellWidth,
                                                int referenceCellHeight,
-                                               SceneMetaRuntime.TiledProjection projection,
+                                               TiledProjection projection,
                                                TilesetAnchor anchor,
                                                int offsetX,
                                                int offsetY,
@@ -179,7 +179,7 @@ public final class TilesetAssetImportService {
             return new TilesetProfileImportSettings(
                     tileWidth > 0 ? tileWidth : 32,
                     tileHeight > 0 ? tileHeight : 32,
-                    SceneMetaRuntime.TiledProjection.ORTHO,
+                    TiledProjection.ORTHO,
                     TilesetAnchor.TOP_CENTER,
                     0,
                     0,

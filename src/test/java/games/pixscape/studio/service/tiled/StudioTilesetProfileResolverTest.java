@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -20,7 +21,7 @@ public class StudioTilesetProfileResolverTest {
         tileset.tileHeight = 512;
         tileset.referenceCellWidth = 256;
         tileset.referenceCellHeight = 128;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.offsetX = 12;
         tileset.offsetY = -8;
@@ -37,7 +38,7 @@ public class StudioTilesetProfileResolverTest {
         assertEquals(512, profile.tileHeight);
         assertEquals(256, profile.referenceCellWidth);
         assertEquals(128, profile.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ISO, profile.projection);
+        assertEquals(TiledProjection.ISO, profile.projection);
         assertSame(RuntimeTilesetAnchor.BOTTOM_CENTER, profile.anchor);
         assertEquals(12, profile.offsetX);
         assertEquals(-8, profile.offsetY);
@@ -83,7 +84,7 @@ public class StudioTilesetProfileResolverTest {
         tileset.tileHeight = 512;
         tileset.referenceCellWidth = 256;
         tileset.referenceCellHeight = 128;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.offsetX = 6;
         tileset.offsetY = -10;

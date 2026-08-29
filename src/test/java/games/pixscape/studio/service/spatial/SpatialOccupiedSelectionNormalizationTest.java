@@ -5,6 +5,7 @@ import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.history.HistoryManager;
@@ -226,7 +227,7 @@ public class SpatialOccupiedSelectionNormalizationTest {
     }
 
     private static TiledMapLayerData map() {
-        return new TiledMapLayerData(8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(8, 8, 64, 32, 4, TiledProjection.ISO);
     }
 
     private static void fill(TiledMapLayerData map, int minX, int minY, int maxX, int maxY) {

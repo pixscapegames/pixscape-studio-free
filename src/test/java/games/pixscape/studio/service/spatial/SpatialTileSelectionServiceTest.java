@@ -2,6 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
@@ -342,11 +343,11 @@ public class SpatialTileSelectionServiceTest {
     }
 
     private static TiledMapLayerData map(int width, int height) {
-        return new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
+        return new TiledMapLayerData(width, height, 16, 16, 8, TiledProjection.ORTHO);
     }
 
     private static TiledMapLayerData isoMap(int width, int height) {
-        return new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(width, height, 256, 128, 8, TiledProjection.ISO);
     }
 
     private static void fillHorizontal(TiledMapLayerData map, int minGx, int gy, int maxGx, int firstTileId) {

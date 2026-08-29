@@ -121,7 +121,9 @@ public class LayerServiceParallaxTest {
             HistoryManager history = new HistoryManager(8);
             LayerService service = new LayerService(world, null, history.historyIds(), identities);
             CreateTiledLayerCommand command = new CreateTiledLayerCommand(
-                    service, "Tiled", 8, 6, null);
+                    service, "Tiled", 8, 6,
+                    games.pixscape.runtime.tiled.TiledProjection.ISO,
+                    64, 32, 16, null);
 
             history.execute(command);
             world.process();
@@ -146,6 +148,10 @@ public class LayerServiceParallaxTest {
             assertEquals(0, index.zIndex);
 
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(map);
+            assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO, tiled.projection);
+            assertEquals(64, tiled.tileWidth);
+            assertEquals(32, tiled.tileHeight);
+            assertEquals(16, tiled.chunkSize);
             tiled.tileXs.add(2);
             tiled.tileYs.add(3);
             tiled.tileAssetIds.add(77);
@@ -173,6 +179,12 @@ public class LayerServiceParallaxTest {
                     world.getMapper(PixscapeIdentityComponent.class).get(restoredMap).stableId);
             assertEquals(mapHistoryId, history.historyIds().historyIdOfEntity(restoredMap));
             TiledLayerComponent restored = world.getMapper(TiledLayerComponent.class).get(restoredMap);
+            assertEquals(games.pixscape.runtime.tiled.TiledProjection.ISO, restored.projection);
+            assertEquals(64, restored.tileWidth);
+            assertEquals(32, restored.tileHeight);
+            assertEquals(16, restored.chunkSize);
+            assertEquals(8, restored.mapWidthCells);
+            assertEquals(6, restored.mapHeightCells);
             assertEquals(77, restored.data.getTile(2, 3));
             assertEquals(1, world.getMapper(SpatialBlocksComponent.class)
                     .get(restoredMap).blocks.size);

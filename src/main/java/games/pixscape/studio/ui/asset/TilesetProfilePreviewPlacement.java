@@ -1,6 +1,6 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.TilesetAnchor;
 
 final class TilesetProfilePreviewPlacement {
@@ -12,7 +12,7 @@ final class TilesetProfilePreviewPlacement {
                                int tileHeight,
                                int referenceCellWidth,
                                int referenceCellHeight,
-                               SceneMetaRuntime.TiledProjection projection,
+                               TiledProjection projection,
                                TilesetAnchor anchor,
                                int offsetX,
                                int offsetY) {
@@ -20,9 +20,9 @@ final class TilesetProfilePreviewPlacement {
         int safeTileHeight = Math.max(1, tileHeight);
         int safeReferenceCellWidth = Math.max(1, referenceCellWidth);
         int safeReferenceCellHeight = Math.max(1, referenceCellHeight);
-        SceneMetaRuntime.TiledProjection safeProjection = projection != null
+        TiledProjection safeProjection = projection != null
                 ? projection
-                : SceneMetaRuntime.TiledProjection.ORTHO;
+                : TiledProjection.ORTHO;
         TilesetAnchor safeAnchor = anchor != null ? anchor : TilesetAnchor.TOP_CENTER;
 
         Bounds cellBounds = new Bounds(
@@ -60,7 +60,7 @@ final class TilesetProfilePreviewPlacement {
         );
         Bounds unionBounds = cellBounds.union(tileBounds);
 
-        Point[] cellOutline = safeProjection == SceneMetaRuntime.TiledProjection.ISO
+        Point[] cellOutline = safeProjection == TiledProjection.ISO
                 ? new Point[]{
                 new Point(0f, 0f),
                 new Point(safeReferenceCellWidth * 0.5f, safeReferenceCellHeight * 0.5f),

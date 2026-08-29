@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -113,7 +114,7 @@ public class AssetUsageScannerTest {
         }));
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 8, TiledProjection.ORTHO);
         tiled.data.setTile(1, 1, tile.id());
         tiled.tileAssetIds.add(tile.id());
         world.process();

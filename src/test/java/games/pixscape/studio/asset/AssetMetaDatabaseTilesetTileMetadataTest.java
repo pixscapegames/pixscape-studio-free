@@ -2,6 +2,7 @@ package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -38,7 +39,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         tileset.margin = 2;
         tileset.referenceCellWidth = 24;
         tileset.referenceCellHeight = 20;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = TilesetAnchor.TOP_LEFT;
         tileset.offsetX = -3;
         tileset.offsetY = 5;
@@ -101,7 +102,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         assertEquals(2, loadedTileset.margin);
         assertEquals(24, loadedTileset.referenceCellWidth);
         assertEquals(20, loadedTileset.referenceCellHeight);
-        assertSame(SceneMetaRuntime.TiledProjection.ISO, loadedTileset.projection);
+        assertSame(TiledProjection.ISO, loadedTileset.projection);
         assertSame(TilesetAnchor.TOP_LEFT, loadedTileset.anchor);
         assertEquals(-3, loadedTileset.offsetX);
         assertEquals(5, loadedTileset.offsetY);
@@ -127,7 +128,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
         tileset.tileHeight = 32;
         tileset.referenceCellWidth = 64;
         tileset.referenceCellHeight = 36;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = TilesetAnchor.BOTTOM_LEFT;
         tileset.offsetX = 8;
         tileset.offsetY = -6;
@@ -179,7 +180,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
 
         assertEquals(18, tileset.referenceCellWidth);
         assertEquals(24, tileset.referenceCellHeight);
-        assertSame(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertSame(TiledProjection.ORTHO, tileset.projection);
         assertSame(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
@@ -219,7 +220,7 @@ public class AssetMetaDatabaseTilesetTileMetadataTest {
 
         assertEquals(32, tileset.referenceCellWidth);
         assertEquals(32, tileset.referenceCellHeight);
-        assertSame(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertSame(TiledProjection.ORTHO, tileset.projection);
         assertSame(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(2, tileset.offsetX);
         assertEquals(-9, tileset.offsetY);

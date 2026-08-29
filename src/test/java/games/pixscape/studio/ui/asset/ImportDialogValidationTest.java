@@ -2,6 +2,7 @@ package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetRenderSize;
 import org.junit.Test;
@@ -40,7 +41,7 @@ public class ImportDialogValidationTest {
         assertEquals(0, item.tileSpacing);
         assertEquals(32, item.referenceCellWidth);
         assertEquals(32, item.referenceCellHeight);
-        assertSame(SceneMetaRuntime.TiledProjection.ORTHO, item.projection);
+        assertSame(TiledProjection.ORTHO, item.projection);
         assertSame(TilesetAnchor.TOP_CENTER, item.anchor);
         assertEquals(0, item.offsetX);
         assertEquals(0, item.offsetY);
@@ -96,7 +97,7 @@ public class ImportDialogValidationTest {
                 3,
                 64,
                 32,
-                SceneMetaRuntime.TiledProjection.ISO,
+                TiledProjection.ISO,
                 TilesetAnchor.TOP_LEFT,
                 -5,
                 7,
@@ -109,7 +110,7 @@ public class ImportDialogValidationTest {
         assertEquals(3, item.tileSpacing);
         assertEquals(64, item.tilesetProfileSettings().referenceCellWidth());
         assertEquals(32, item.tilesetProfileSettings().referenceCellHeight());
-        assertSame(SceneMetaRuntime.TiledProjection.ISO, item.tilesetProfileSettings().projection());
+        assertSame(TiledProjection.ISO, item.tilesetProfileSettings().projection());
         assertSame(TilesetAnchor.TOP_LEFT, item.tilesetProfileSettings().anchor());
         assertEquals(-5, item.tilesetProfileSettings().offsetX());
         assertEquals(7, item.tilesetProfileSettings().offsetY());
@@ -125,7 +126,7 @@ public class ImportDialogValidationTest {
         item.tileSpacing = 3;
         item.referenceCellWidth = 48;
         item.referenceCellHeight = 32;
-        item.projection = SceneMetaRuntime.TiledProjection.ISO;
+        item.projection = TiledProjection.ISO;
         item.anchor = TilesetAnchor.TOP_LEFT;
         item.offsetX = -5;
         item.offsetY = 7;
@@ -285,7 +286,7 @@ public class ImportDialogValidationTest {
         item.projection = null;
         assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
 
-        item.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        item.projection = TiledProjection.ORTHO;
         item.anchor = null;
         assertTrue(ImportDialogValidation.hasInvalidTilesetProfileSettings(item));
     }

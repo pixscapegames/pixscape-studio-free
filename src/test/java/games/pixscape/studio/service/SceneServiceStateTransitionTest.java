@@ -6,6 +6,7 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -33,7 +34,7 @@ public class SceneServiceStateTransitionTest {
                 "\"currentSceneName\":\"Ghost\"," +
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{\"Main\":{\"name\":\"Main\",\"file\":\"scene1.json\","
-                        + "\"sceneSchemaVersion\":2,"
+                        + "\"sceneSchemaVersion\":3,"
                         + "\"nextEntityStableId\":1,\"nextPhysicsShapeId\":1}}" +
                 "}");
 
@@ -109,7 +110,7 @@ public class SceneServiceStateTransitionTest {
                 16,
                 16,
                 8,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
         return layerId;
     }

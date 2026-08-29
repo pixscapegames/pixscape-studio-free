@@ -43,6 +43,7 @@ import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -703,7 +704,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             if (meta == null) return;
 
             if (tile) {
-                configureTileMode(meta);
+                configureTileMode();
             } else {
                 configureEntityMode();
             }
@@ -726,15 +727,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (tiledPreviewService != null) tiledPreviewService.clear();
     }
 
-    private void configureTileMode(SceneMeta meta) {
-        gridActor.setTiledMode(meta.tiledProjection, meta.tileWidth, meta.tileHeight);
+    private void configureTileMode() {
         int mapEntity = selectionService.getTiledMapEditingTargetEntityId();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntity, null);
 
         if (tiled != null && tiled.data != null) {
             TiledMapLayerData map = tiled.data;
+            gridActor.setTiledMode(tiled.projection, tiled.tileWidth, tiled.tileHeight);
 
-            if (meta.tiledProjection == games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO) {
+            if (tiled.projection == TiledProjection.ORTHO) {
                 float minX = map.originX;
                 float minY = map.originY;
                 float maxX = minX + map.mapWidth * map.tileWidth;
@@ -746,8 +747,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
 
             gridActor.bindTo(map);
+            gizmoSystem.enableTiledOverlay(tiled.tileWidth, tiled.tileHeight);
+        } else {
+            configureEntityMode();
         }
-        gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
     }
 
     private void configureEntityMode() {
@@ -1183,10 +1186,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
                 if (isTiledToolInputEnabled() && tiledToolService.is(TiledToolService.Mode.ERASE)) {
                     gizmoSystem.refreshOverlayMouse();
-                    SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-                    if (meta != null) {
-                        gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
-                    }
+                    enableTiledOverlayForSelectedMap();
                 }
 
                 handleRectUp();
@@ -1358,7 +1358,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int minGY = Math.min(rectStartGY, gy);
         int maxGY = Math.max(rectStartGY, gy);
 
-        if (tiled.data.projection == games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO) {
+        if (tiled.data.projection == TiledProjection.ISO) {
             gizmoSystem.showTiledRectPreview(tiled.data, minGX, minGY, maxGX, maxGY);
         } else {
             float worldX0 = tiled.data.tileToWorldX(minGX, minGY);
@@ -1408,10 +1408,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         byte flags;
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-            if (meta != null) {
-                gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
-            }
+            enableTiledOverlayForSelectedMap();
             assetId = 0;
             flags = TileTransformFlags.NONE;
         } else {
@@ -2159,6 +2156,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 && selectionService.isTiledMapEditingTargetActive()
                 && (spatialBlockSelectionService == null
                 || !spatialBlockSelectionService.isEditingActive());
+    }
+
+    private void enableTiledOverlayForSelectedMap() {
+        int mapEntity = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
+                .getSafe(mapEntity, null);
+        if (tiled != null) {
+            gizmoSystem.enableTiledOverlay(tiled.tileWidth, tiled.tileHeight);
+        }
     }
 
 

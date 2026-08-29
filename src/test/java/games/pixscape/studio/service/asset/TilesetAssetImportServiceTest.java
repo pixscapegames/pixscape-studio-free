@@ -8,6 +8,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.*;
@@ -73,7 +74,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(0, tileset.margin);
         assertEquals(16, tileset.referenceCellWidth);
         assertEquals(16, tileset.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TiledProjection.ORTHO, tileset.projection);
         assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
@@ -146,7 +147,7 @@ public class TilesetAssetImportServiceTest {
                         new TilesetProfileImportSettings(
                                 64,
                                 32,
-                                SceneMetaRuntime.TiledProjection.ISO,
+                                TiledProjection.ISO,
                                 TilesetAnchor.BOTTOM_LEFT,
                                 -6,
                                 9,
@@ -158,7 +159,7 @@ public class TilesetAssetImportServiceTest {
         TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/terrain"));
         assertEquals(64, tileset.referenceCellWidth);
         assertEquals(32, tileset.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ISO, tileset.projection);
+        assertEquals(TiledProjection.ISO, tileset.projection);
         assertEquals(TilesetAnchor.BOTTOM_LEFT, tileset.anchor);
         assertEquals(-6, tileset.offsetX);
         assertEquals(9, tileset.offsetY);
@@ -189,7 +190,7 @@ public class TilesetAssetImportServiceTest {
                         new TilesetProfileImportSettings(
                                 64,
                                 32,
-                                SceneMetaRuntime.TiledProjection.ISO,
+                                TiledProjection.ISO,
                                 TilesetAnchor.TOP_CENTER,
                                 -6,
                                 9,
@@ -214,7 +215,7 @@ public class TilesetAssetImportServiceTest {
         );
         assertEquals(64, loaded.referenceCellWidth);
         assertEquals(32, loaded.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ISO, loaded.projection);
+        assertEquals(TiledProjection.ISO, loaded.projection);
         assertEquals(TilesetAnchor.TOP_CENTER, loaded.anchor);
         assertEquals(-6, loaded.offsetX);
         assertEquals(9, loaded.offsetY);
@@ -245,7 +246,7 @@ public class TilesetAssetImportServiceTest {
                             new TilesetProfileImportSettings(
                                     0,
                                     32,
-                                    SceneMetaRuntime.TiledProjection.ORTHO,
+                                    TiledProjection.ORTHO,
                                     TilesetAnchor.BOTTOM_CENTER,
                                     0,
                                     0,
@@ -357,7 +358,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(1, tileset.margin);
         assertEquals(2, tileset.referenceCellWidth);
         assertEquals(2, tileset.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TiledProjection.ORTHO, tileset.projection);
         assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
@@ -482,7 +483,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(0, tileset.margin);
         assertEquals(10, tileset.referenceCellWidth);
         assertEquals(10, tileset.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ORTHO, tileset.projection);
+        assertEquals(TiledProjection.ORTHO, tileset.projection);
         assertEquals(TilesetAnchor.TOP_CENTER, tileset.anchor);
         assertEquals(0, tileset.offsetX);
         assertEquals(0, tileset.offsetY);
@@ -530,7 +531,7 @@ public class TilesetAssetImportServiceTest {
                         new TilesetProfileImportSettings(
                                 256,
                                 128,
-                                SceneMetaRuntime.TiledProjection.ISO,
+                                TiledProjection.ISO,
                                 TilesetAnchor.BOTTOM_LEFT,
                                 12,
                                 -8,
@@ -545,7 +546,7 @@ public class TilesetAssetImportServiceTest {
         assertEquals(512, tileset.tileHeight);
         assertEquals(256, tileset.referenceCellWidth);
         assertEquals(128, tileset.referenceCellHeight);
-        assertEquals(SceneMetaRuntime.TiledProjection.ISO, tileset.projection);
+        assertEquals(TiledProjection.ISO, tileset.projection);
         assertEquals(TilesetAnchor.BOTTOM_LEFT, tileset.anchor);
         assertEquals(12, tileset.offsetX);
         assertEquals(-8, tileset.offsetY);
@@ -579,7 +580,7 @@ public class TilesetAssetImportServiceTest {
                 new TilesetProfileImportSettings(
                         16,
                         16,
-                        SceneMetaRuntime.TiledProjection.ORTHO,
+                        TiledProjection.ORTHO,
                         TilesetAnchor.BOTTOM_CENTER,
                         0,
                         0,
@@ -631,7 +632,7 @@ public class TilesetAssetImportServiceTest {
                         new TilesetProfileImportSettings(
                                 256,
                                 128,
-                                SceneMetaRuntime.TiledProjection.ISO,
+                                TiledProjection.ISO,
                                 TilesetAnchor.BOTTOM_CENTER,
                                 12,
                                 -8,

@@ -6,6 +6,7 @@ import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
@@ -74,7 +75,7 @@ public class RuntimeExportTilesetProfilesTest {
         terrain.tileHeight = 96;
         terrain.referenceCellWidth = 32;
         terrain.referenceCellHeight = 16;
-        terrain.projection = SceneMetaRuntime.TiledProjection.ISO;
+        terrain.projection = TiledProjection.ISO;
         terrain.anchor = TilesetAnchor.TOP_CENTER;
         terrain.offsetX = 4;
         terrain.offsetY = -8;
@@ -112,7 +113,7 @@ public class RuntimeExportTilesetProfilesTest {
         props.tileHeight = 32;
         props.referenceCellWidth = 32;
         props.referenceCellHeight = 32;
-        props.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        props.projection = TiledProjection.ORTHO;
         props.anchor = TilesetAnchor.BOTTOM_LEFT;
 
         TileAssetMeta crate = (TileAssetMeta) db.registerIfAbsent(
@@ -196,7 +197,7 @@ public class RuntimeExportTilesetProfilesTest {
         tileset.tileHeight = 32;
         tileset.referenceCellWidth = 32;
         tileset.referenceCellHeight = 32;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.projection = TiledProjection.ORTHO;
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.renderSize = TilesetRenderSize.NATIVE;
 
@@ -271,7 +272,7 @@ public class RuntimeExportTilesetProfilesTest {
         tileset.tileHeight = 32;
         tileset.referenceCellWidth = 32;
         tileset.referenceCellHeight = 32;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.projection = TiledProjection.ORTHO;
         tileset.anchor = TilesetAnchor.TOP_CENTER;
         tileset.renderSize = TilesetRenderSize.NATIVE;
 

@@ -2,7 +2,7 @@ package games.pixscape.studio.service.tiled;
 
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
@@ -124,7 +124,7 @@ public final class StudioTilesetProfileResolver {
                 : (tilesetMeta.tileHeight > 0 ? tilesetMeta.tileHeight : 32);
         profile.projection = tilesetMeta.projection != null
                 ? tilesetMeta.projection
-                : SceneMetaRuntime.TiledProjection.ORTHO;
+                : TiledProjection.ORTHO;
         profile.anchor = toRuntimeAnchor(tilesetMeta.anchor);
         profile.offsetX = tilesetMeta.offsetX;
         profile.offsetY = tilesetMeta.offsetY;

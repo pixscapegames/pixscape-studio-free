@@ -360,7 +360,7 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        typeValueLabel.setText(buildLayerTypeLabel(lic.type));
+        typeValueLabel.setText(buildLayerTypeLabel(layerEntityId, lic.type));
 
         boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
@@ -426,19 +426,20 @@ public class LayerProperties extends VisTable {
         invalidateHierarchy();
     }
 
-    private String buildLayerTypeLabel(int type) {
+    private String buildLayerTypeLabel(int layerEntityId, int type) {
         if (type != LayerComponent.TYPE_TILED) {
             return LayerService.typeDisplayName(type);
         }
-        return buildTiledTypeLabel(currentSceneMeta());
+        int mapEntityId = tiledMapEntityId(layerEntityId);
+        return buildTiledTypeLabel(mTiled.getSafe(mapEntityId, null));
     }
 
-    private String buildTiledTypeLabel(SceneMeta sceneMeta) {
-        if (sceneMeta == null || !sceneMeta.tiledEnabled || sceneMeta.tiledProjection == null) {
+    private String buildTiledTypeLabel(TiledLayerComponent tiled) {
+        if (tiled == null || tiled.projection == null) {
             return "Tiled";
         }
 
-        return switch (sceneMeta.tiledProjection) {
+        return switch (tiled.projection) {
             case ISO -> "Tiled isometric";
             case ORTHO -> "Tiled orthogonal";
         };
@@ -529,12 +530,10 @@ public class LayerProperties extends VisTable {
 
     private float defaultTiledSpatialHeight(int layerEntityId) {
         TiledLayerComponent tiled = mTiled.getSafe(tiledMapEntityId(layerEntityId), null);
-        if (tiled != null && tiled.data != null && tiled.data.tileHeight > 0) {
-            return tiled.data.tileHeight;
+        if (tiled != null && tiled.tileHeight > 0) {
+            return tiled.tileHeight;
         }
-
-        SceneMeta meta = currentSceneMeta();
-        return meta != null && meta.tileHeight > 0f ? meta.tileHeight : 0f;
+        return 0f;
     }
 
     private void executeCommand(Command command) {

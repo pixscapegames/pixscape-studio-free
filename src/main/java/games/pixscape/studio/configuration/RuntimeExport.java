@@ -8,6 +8,7 @@ import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.prefab.RuntimePrefabFragment;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
@@ -607,8 +608,8 @@ public final class RuntimeExport {
         return Integer.compare(leftId, rightId);
     }
 
-    private static String tiledProjectionWireName(SceneMetaRuntime.TiledProjection projection) {
-        if (projection == SceneMetaRuntime.TiledProjection.ISO) return "isometric";
+    private static String tiledProjectionWireName(TiledProjection projection) {
+        if (projection == TiledProjection.ISO) return "isometric";
         return "orthogonal";
     }
 

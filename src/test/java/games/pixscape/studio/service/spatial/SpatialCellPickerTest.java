@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -91,7 +92,7 @@ public class SpatialCellPickerTest {
     }
 
     private static TiledMapLayerData isoMap() {
-        return new TiledMapLayerData(6, 6, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(6, 6, 256, 128, 8, TiledProjection.ISO);
     }
 
     private static TiledMapRenderState renderState(TiledMapLayerData map) {

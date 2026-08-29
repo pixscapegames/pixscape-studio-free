@@ -1,6 +1,7 @@
 package games.pixscape.studio.system;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -80,7 +81,7 @@ public class TiledFallbackSystemTiledStateTest {
         profile.tilesetId = 1;
         profile.referenceCellWidth = 16;
         profile.referenceCellHeight = 16;
-        profile.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        profile.projection = TiledProjection.ORTHO;
         profile.anchor = RuntimeTilesetAnchor.TOP_CENTER;
         profile.renderSize = RuntimeTilesetRenderSize.NATIVE;
         profile.tileAssetIds = new int[]{tileAssetId};

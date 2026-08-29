@@ -1,6 +1,7 @@
 package games.pixscape.studio.importer.tmx;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -90,8 +91,8 @@ public class TmxObjectCoordinateMapperTest {
                                       int tileHeight) {
         return new TmxScenePlan("Scene", "map.tmx", orientation,
                 "isometric".equals(orientation)
-                        ? SceneMetaRuntime.TiledProjection.ISO
-                        : SceneMetaRuntime.TiledProjection.ORTHO,
+                        ? TiledProjection.ISO
+                        : TiledProjection.ORTHO,
                 mapWidth, mapHeight, tileWidth, tileHeight,
                 (long) mapWidth * mapHeight, 0, 0);
     }

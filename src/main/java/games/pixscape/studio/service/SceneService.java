@@ -20,6 +20,7 @@ import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
@@ -582,8 +583,8 @@ public final class SceneService {
                 meta.tileHeight = tileHeight;
                 meta.tiledProjection =
                         "Isometric".equals(projection)
-                                ? SceneMetaRuntime.TiledProjection.ISO
-                                : SceneMetaRuntime.TiledProjection.ORTHO;
+                                ? TiledProjection.ISO
+                                : TiledProjection.ORTHO;
             }
 
             ProjectConfig.setInstance(cfg);
@@ -1997,8 +1998,8 @@ public final class SceneService {
                 meta.tileHeight = tileHeight;
                 meta.tiledProjection =
                         "Isometric".equals(projection)
-                                ? SceneMetaRuntime.TiledProjection.ISO
-                                : SceneMetaRuntime.TiledProjection.ORTHO;
+                                ? TiledProjection.ISO
+                                : TiledProjection.ORTHO;
             }
 
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);

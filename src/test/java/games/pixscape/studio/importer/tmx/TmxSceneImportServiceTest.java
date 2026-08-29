@@ -23,6 +23,7 @@ import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.render.GeometryDirty;
@@ -92,7 +93,7 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
-    public void importSceneConfiguresSceneMetaTiledFields() throws Exception {
+    public void importScenePersistsSourceConfigurationOnMapWithoutMutatingSceneDefaults() throws Exception {
         Harness h = harness("tmx-import-scene-meta");
         writePng(h.projectDir.child("terrain.png"), 64, 32);
         FileHandle tmx = writeTmx(h.root.resolve("iso.tmx"), """
@@ -108,10 +109,18 @@ public class TmxSceneImportServiceTest {
 
         assertTrue(result.imported());
         SceneMeta meta = h.cfg.getSceneMeta(result.sceneName());
-        assertTrue(meta.tiledEnabled);
+        assertFalse(meta.tiledEnabled);
         assertEquals(32f, meta.tileWidth, 0.0001f);
-        assertEquals(16f, meta.tileHeight, 0.0001f);
-        assertEquals(SceneMetaRuntime.TiledProjection.ISO, meta.tiledProjection);
+        assertEquals(32f, meta.tileHeight, 0.0001f);
+        assertEquals(TiledProjection.ORTHO, meta.tiledProjection);
+
+        TiledLayerComponent tiled = firstTiled(loadImportedWorld(h, result));
+        assertEquals(TiledProjection.ISO, tiled.projection);
+        assertEquals(32, tiled.tileWidth);
+        assertEquals(16, tiled.tileHeight);
+        assertEquals(16, tiled.chunkSize);
+        assertEquals(2, tiled.mapWidthCells);
+        assertEquals(2, tiled.mapHeightCells);
     }
 
     @Test
@@ -840,7 +849,7 @@ public class TmxSceneImportServiceTest {
         TmxSceneImportService importer = h.importer();
         TmxImportPlanResult planned = importer.plan(request(tmx, "Mappings"));
         SceneMeta meta = new SceneMeta("Mappings", "mappings.json");
-        importer.configureSceneMeta(meta, planned.plan().scene());
+        importer.initializeSceneRuntimeAvailability(meta);
 
         TmxSceneImportService.ImportAssetsResult assets = importer.importAssets(planned.plan(), meta);
         int tilesetIndex = planned.plan().tilesets().get(0).planIndex();

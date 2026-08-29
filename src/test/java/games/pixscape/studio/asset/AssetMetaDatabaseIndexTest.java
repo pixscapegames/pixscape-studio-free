@@ -4,6 +4,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -565,7 +566,7 @@ public class AssetMetaDatabaseIndexTest {
         tileset.margin = 2;
         tileset.referenceCellWidth = 32;
         tileset.referenceCellHeight = 24;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = TilesetAnchor.BOTTOM_CENTER;
         tileset.offsetX = 3;
         tileset.offsetY = -4;

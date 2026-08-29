@@ -18,6 +18,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -268,8 +269,12 @@ public class SceneServiceSingleLoadActivationTest {
             authored.getMapper(TransformComponent.class).create(mapEntity);
             authored.getMapper(VisibilityComponent.class).create(mapEntity);
             TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(mapEntity);
+            tiled.projection = TiledProjection.ORTHO;
+            tiled.tileWidth = 32;
+            tiled.tileHeight = 32;
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
+            tiled.chunkSize = 16;
             tiled.spatialEnabled = true;
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
@@ -329,8 +334,12 @@ public class SceneServiceSingleLoadActivationTest {
             authored.getMapper(TransformComponent.class).create(mapEntity);
             authored.getMapper(VisibilityComponent.class).create(mapEntity);
             TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(mapEntity);
+            tiled.projection = TiledProjection.ORTHO;
+            tiled.tileWidth = 32;
+            tiled.tileHeight = 32;
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
+            tiled.chunkSize = 16;
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
                 tiled.tileYs.add(cell / tiled.mapWidthCells);
@@ -401,7 +410,7 @@ public class SceneServiceSingleLoadActivationTest {
             meta.tileWidth = 16;
             meta.tileHeight = 16;
             meta.chunkSize = 8;
-            meta.tiledProjection = SceneMetaRuntime.TiledProjection.ORTHO;
+            meta.tiledProjection = TiledProjection.ORTHO;
             meta.nextEntityStableId = 1000;
         }
         return new Fixture(cfg, projectDir);

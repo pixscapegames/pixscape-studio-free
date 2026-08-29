@@ -1,6 +1,7 @@
 package games.pixscape.studio.system;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileQuadTransforms;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -99,7 +100,7 @@ public class StudioTiledProfilePlacementTest {
         tileset.tileHeight = 512;
         tileset.referenceCellWidth = 256;
         tileset.referenceCellHeight = 128;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ISO;
+        tileset.projection = TiledProjection.ISO;
         tileset.anchor = anchor;
         tileset.offsetX = offsetX;
         tileset.offsetY = offsetY;
@@ -116,7 +117,7 @@ public class StudioTiledProfilePlacementTest {
         return new Fixture(
                 db,
                 tile,
-                new TiledMapLayerData(1, 1, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO),
+                new TiledMapLayerData(1, 1, 256, 128, 4, TiledProjection.ISO),
                 resolver.resolve(tile.id())
         );
     }

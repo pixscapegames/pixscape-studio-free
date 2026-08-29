@@ -16,7 +16,7 @@ import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetRenderSize;
@@ -78,7 +78,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         public int imageHeight = -1;
         public int referenceCellWidth = 32;
         public int referenceCellHeight = 32;
-        public SceneMetaRuntime.TiledProjection projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        public TiledProjection projection = TiledProjection.ORTHO;
         public TilesetAnchor anchor = TilesetAnchor.TOP_CENTER;
         public int offsetX = 0;
         public int offsetY = 0;
@@ -108,7 +108,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                                          int tileSpacing,
                                          int referenceCellWidth,
                                          int referenceCellHeight,
-                                         SceneMetaRuntime.TiledProjection projection,
+                                         TiledProjection projection,
                                          TilesetAnchor anchor,
                                          int offsetX,
                                          int offsetY,
@@ -774,16 +774,16 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 defaultCellHeight,
                 defaultCellWidth,
                 defaultCellHeight,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
-        SceneMetaRuntime.TiledProjection[] previousProjection = {SceneMetaRuntime.TiledProjection.ORTHO};
+        TiledProjection[] previousProjection = {TiledProjection.ORTHO};
 
         ChangeListener previewListener = new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (updatingControls[0]) return;
 
-                SceneMetaRuntime.TiledProjection projection = projectionFromDisplayName(projectionBox.getSelected());
+                TiledProjection projection = projectionFromDisplayName(projectionBox.getSelected());
                 if (projection != null && projection != previousProjection[0]) {
                     TilesetProfileReferenceDefaults.ReferenceSize referenceSize =
                             referenceDefaults.referenceSizeAfterProjectionChange(
@@ -1096,7 +1096,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 item.referenceCellHeight,
                 item.projection
         );
-        SceneMetaRuntime.TiledProjection[] previousProjection = {item.projection};
+        TiledProjection[] previousProjection = {item.projection};
 
         ChangeListener previewListener = new ChangeListener() {
             @Override
@@ -1105,7 +1105,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
 
                 Integer tileWidth = parseSpinnerValue(tileWidthSpinner, true);
                 Integer tileHeight = parseSpinnerValue(tileHeightSpinner, true);
-                SceneMetaRuntime.TiledProjection projection = projectionFromDisplayName(projectionBox.getSelected());
+                TiledProjection projection = projectionFromDisplayName(projectionBox.getSelected());
 
                 if (tileWidth != null && tileHeight != null && projection != null) {
                     TilesetProfileReferenceDefaults.ReferenceSize referenceSize;
@@ -1600,7 +1600,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                                    int tileIndex,
                                    int referenceCellWidth,
                                    int referenceCellHeight,
-                                   SceneMetaRuntime.TiledProjection projection,
+                                   TiledProjection projection,
                                    TilesetAnchor anchor,
                                    int offsetX,
                                    int offsetY) {
@@ -1738,7 +1738,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         Integer referenceCellHeight = parsePositiveSpinnerValue(referenceCellHeightSpinner);
         Integer offsetX = parseOffsetSpinnerValue(offsetXSpinner);
         Integer offsetY = parseOffsetSpinnerValue(offsetYSpinner);
-        SceneMetaRuntime.TiledProjection projection = projectionFromDisplayName(projectionBox != null ? projectionBox.getSelected() : null);
+        TiledProjection projection = projectionFromDisplayName(projectionBox != null ? projectionBox.getSelected() : null);
         TilesetAnchor anchor = anchorFromDisplayName(anchorBox != null ? anchorBox.getSelected() : null);
 
         if (slicing == null
@@ -1776,7 +1776,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         Integer referenceCellHeight = parsePositiveSpinnerValue(referenceCellHeightSpinner);
         Integer offsetX = parseOffsetSpinnerValue(offsetXSpinner);
         Integer offsetY = parseOffsetSpinnerValue(offsetYSpinner);
-        SceneMetaRuntime.TiledProjection projection = projectionFromDisplayName(projectionBox != null ? projectionBox.getSelected() : null);
+        TiledProjection projection = projectionFromDisplayName(projectionBox != null ? projectionBox.getSelected() : null);
         TilesetAnchor anchor = anchorFromDisplayName(anchorBox != null ? anchorBox.getSelected() : null);
 
         if (referenceCellWidth == null
@@ -1823,8 +1823,8 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         return Integer.parseInt(text.trim());
     }
 
-    private static String displayName(SceneMetaRuntime.TiledProjection projection) {
-        if (projection == SceneMetaRuntime.TiledProjection.ISO) return "Isometric";
+    private static String displayName(TiledProjection projection) {
+        if (projection == TiledProjection.ISO) return "Isometric";
         return "Orthogonal";
     }
 
@@ -1837,9 +1837,9 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         return "Top center";
     }
 
-    private static SceneMetaRuntime.TiledProjection projectionFromDisplayName(String raw) {
-        if ("Isometric".equals(raw)) return SceneMetaRuntime.TiledProjection.ISO;
-        if ("Orthogonal".equals(raw)) return SceneMetaRuntime.TiledProjection.ORTHO;
+    private static TiledProjection projectionFromDisplayName(String raw) {
+        if ("Isometric".equals(raw)) return TiledProjection.ISO;
+        if ("Orthogonal".equals(raw)) return TiledProjection.ORTHO;
         return null;
     }
 
@@ -2028,7 +2028,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 item.referenceCellWidth = Math.max(1, item.referenceCellWidth);
                 item.referenceCellHeight = Math.max(1, item.referenceCellHeight);
                 if (item.projection == null) {
-                    item.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+                    item.projection = TiledProjection.ORTHO;
                 }
                 if (item.anchor == null) {
                     item.anchor = TilesetAnchor.TOP_CENTER;
@@ -2101,7 +2101,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                                                 int spacing,
                                                 int referenceCellWidth,
                                                 int referenceCellHeight,
-                                                SceneMetaRuntime.TiledProjection projection,
+                                                TiledProjection projection,
                                                 TilesetAnchor anchor,
                                                 int offsetX,
                                                 int offsetY,

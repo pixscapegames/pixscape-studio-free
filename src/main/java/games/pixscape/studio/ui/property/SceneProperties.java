@@ -338,7 +338,8 @@ public class SceneProperties extends VisTable {
         tileWidthField = new VisLabel();
         tileHeightField = new VisLabel();
         tiledBlock.content().addSeparator().colspan(2).growX().padTop(6).row();
-        tiledBlock.content().add(new VisLabel("Tiled map")).colspan(2).center().row();
+        tiledBlock.content().add(new VisLabel("Tiled map creation defaults"))
+                .colspan(2).center().row();
 
         tiledBlock.content().add(new VisLabel("Projection:")).left();
         tiledBlock.content().add(projection).left().row();

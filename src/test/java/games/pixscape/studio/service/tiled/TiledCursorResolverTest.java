@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
 import org.junit.Test;
@@ -11,15 +12,15 @@ public class TiledCursorResolverTest {
     @Test
     public void resolvesTheSameLogicalCellForOrthoAndIsoMaps() {
         assertResolvesCell(new TiledMapLayerData(
-                8, 8, 32, 16, 4, SceneMetaRuntime.TiledProjection.ORTHO), 3, 5);
+                8, 8, 32, 16, 4, TiledProjection.ORTHO), 3, 5);
         assertResolvesCell(new TiledMapLayerData(
-                8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO), 6, 2);
+                8, 8, 64, 32, 4, TiledProjection.ISO), 6, 2);
     }
 
     @Test
     public void marksCoordinatesOutsideTheMapInvalid() {
         TiledMapLayerData map = new TiledMapLayerData(
-                8, 8, 32, 16, 4, SceneMetaRuntime.TiledProjection.ORTHO);
+                8, 8, 32, 16, 4, TiledProjection.ORTHO);
 
         TiledCursorResolver.resolve(map, -1f, -1f, result);
 

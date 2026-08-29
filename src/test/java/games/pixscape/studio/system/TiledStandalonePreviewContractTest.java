@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -96,7 +97,7 @@ public class TiledStandalonePreviewContractTest {
         );
         tileset.referenceCellWidth = 16;
         tileset.referenceCellHeight = 16;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.projection = TiledProjection.ORTHO;
         tileset.anchor = TilesetAnchor.TOP_CENTER;
         tileset.renderSize = TilesetRenderSize.NATIVE;
         TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(

@@ -7,6 +7,7 @@ import com.badlogic.gdx.Gdx;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -524,7 +525,7 @@ public class SpatialBlockCommandsTest {
                 100,
                 50,
                 16,
-                SceneMetaRuntime.TiledProjection.ISO
+                TiledProjection.ISO
         );
         for (int gy = 0; gy < 10; gy++) {
             for (int gx = 0; gx < 10; gx++) tiled.data.setTile(gx, gy, 1);

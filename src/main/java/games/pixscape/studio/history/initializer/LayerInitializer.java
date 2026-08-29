@@ -5,6 +5,7 @@ import com.artemis.World;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -159,14 +160,19 @@ public final class LayerInitializer extends AbstractCommonInitializer {
             String name,
             int index,
             int width,
-            int height
+            int height,
+            TiledProjection projection,
+            int tileWidth,
+            int tileHeight,
+            int chunkSize
     ) {
         configureLayerDefaults(name, index, LayerComponent.TYPE_TILED);
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         String atlasTag = cfg != null ? cfg.canonicalSceneTagCurrent() : "main";
         tiledMapInitializer = new TiledMapInitializer(world, tiledAllocatorService)
-                .configureNew(index, width, height, atlasTag);
+                .configureNew(index, width, height, atlasTag,
+                        projection, tileWidth, tileHeight, chunkSize);
 
         return this;
     }

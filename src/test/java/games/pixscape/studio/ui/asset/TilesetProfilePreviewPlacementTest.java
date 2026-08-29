@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.asset;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.TilesetAnchor;
 import org.junit.Test;
 
@@ -16,7 +17,7 @@ public class TilesetProfilePreviewPlacementTest {
                 512,
                 256,
                 128,
-                SceneMetaRuntime.TiledProjection.ISO,
+                TiledProjection.ISO,
                 TilesetAnchor.BOTTOM_CENTER,
                 0,
                 0
@@ -38,7 +39,7 @@ public class TilesetProfilePreviewPlacementTest {
                 64,
                 32,
                 32,
-                SceneMetaRuntime.TiledProjection.ORTHO,
+                TiledProjection.ORTHO,
                 TilesetAnchor.BOTTOM_CENTER,
                 0,
                 0
@@ -48,7 +49,7 @@ public class TilesetProfilePreviewPlacementTest {
                 64,
                 32,
                 32,
-                SceneMetaRuntime.TiledProjection.ORTHO,
+                TiledProjection.ORTHO,
                 TilesetAnchor.TOP_LEFT,
                 0,
                 0
@@ -65,7 +66,7 @@ public class TilesetProfilePreviewPlacementTest {
                 40,
                 32,
                 32,
-                SceneMetaRuntime.TiledProjection.ORTHO,
+                TiledProjection.ORTHO,
                 TilesetAnchor.TOP_CENTER,
                 0,
                 0
@@ -82,7 +83,7 @@ public class TilesetProfilePreviewPlacementTest {
                 64,
                 32,
                 32,
-                SceneMetaRuntime.TiledProjection.ORTHO,
+                TiledProjection.ORTHO,
                 TilesetAnchor.BOTTOM_CENTER,
                 10,
                 -6

@@ -1,6 +1,6 @@
 package games.pixscape.studio.asset;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 public final class TilesetAssetMeta extends AssetMeta {
 
@@ -14,7 +14,7 @@ public final class TilesetAssetMeta extends AssetMeta {
     public int margin;
     public int referenceCellWidth;
     public int referenceCellHeight;
-    public SceneMetaRuntime.TiledProjection projection = SceneMetaRuntime.TiledProjection.ORTHO;
+    public TiledProjection projection = TiledProjection.ORTHO;
     public TilesetAnchor anchor = TilesetAnchor.TOP_CENTER;
     public int offsetX;
     public int offsetY;
@@ -39,7 +39,7 @@ public final class TilesetAssetMeta extends AssetMeta {
             referenceCellHeight = tileHeight > 0 ? tileHeight : 32;
         }
         if (projection == null) {
-            projection = SceneMetaRuntime.TiledProjection.ORTHO;
+            projection = TiledProjection.ORTHO;
         }
         if (anchor == null) {
             anchor = TilesetAnchor.TOP_CENTER;

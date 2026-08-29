@@ -12,6 +12,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
@@ -370,7 +371,7 @@ public class SpatialBlockPropertiesTest {
     private static int tiledLayer(World world) {
         int layerId = world.create();
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
-        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2, SceneMetaRuntime.TiledProjection.ORTHO);
+        tiled.data = new TiledMapLayerData(4, 4, 16, 16, 2, TiledProjection.ORTHO);
         for (int gy = 0; gy < 4; gy++) for (int gx = 0; gx < 4; gx++) tiled.data.setTile(gx, gy, 1);
         return layerId;
     }
