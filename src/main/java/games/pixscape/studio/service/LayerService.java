@@ -494,20 +494,6 @@ public final class LayerService {
                 dirtyTracker.order(eJ);
             }
         }
-        if (li.type == LayerComponent.TYPE_TILED) {
-            int mapEntityId = findTiledMapForHost(eI);
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
-            if (tiled != null && tiled.data != null)
-                tiled.data.markAllChunksContentDirty();
-        }
-
-        if (lj.type == LayerComponent.TYPE_TILED) {
-            int mapEntityId = findTiledMapForHost(eJ);
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
-            if (tiled != null && tiled.data != null)
-                tiled.data.markAllChunksContentDirty();
-        }
-
         swapItemsLayerIndices(idxI, idxJ);
         tiledMapResolver.invalidate();
         markLayerContentsDirty(idxI);
