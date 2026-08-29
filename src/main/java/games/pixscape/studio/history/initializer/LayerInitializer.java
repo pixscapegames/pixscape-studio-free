@@ -5,12 +5,8 @@ import com.artemis.World;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.model.EntityKind;
-import games.pixscape.studio.service.tiled.TiledAllocatorService;
 
 /**
  * Initializer specialized for layer entities.
@@ -34,13 +30,8 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     private int layerType = LayerComponent.TYPE_CLASSIC;
     private boolean layerSpatialEnabled = false;
 
-    private final TiledAllocatorService tiledAllocatorService;
-    private TiledMapInitializer tiledMapInitializer;
-
-    public LayerInitializer(World world,
-                            TiledAllocatorService tiledAllocatorService) {
+    public LayerInitializer(World world) {
         super(world);
-        this.tiledAllocatorService = tiledAllocatorService;
     }
 
     @Override
@@ -129,10 +120,6 @@ public final class LayerInitializer extends AbstractCommonInitializer {
     }
 
     public LayerInitializer configureNewLayer(String name, int index) {
-        return configureLayerDefaults(name, index, LayerComponent.TYPE_CLASSIC);
-    }
-
-    private LayerInitializer configureLayerDefaults(String name, int index, int type) {
         hasLayerIndex = true;
         layerIndex = index;
 
@@ -150,38 +137,10 @@ public final class LayerInitializer extends AbstractCommonInitializer {
         hasParallax = false;
 
         hasLayerType = true;
-        layerType = type;
+        layerType = LayerComponent.TYPE_CLASSIC;
         layerSpatialEnabled = false;
 
         return this;
     }
 
-    public LayerInitializer configureNewTiledLayer(
-            String name,
-            int index,
-            int width,
-            int height,
-            TiledProjection projection,
-            int tileWidth,
-            int tileHeight,
-            int chunkSize
-    ) {
-        configureLayerDefaults(name, index, LayerComponent.TYPE_TILED);
-
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        String atlasTag = cfg != null ? cfg.canonicalSceneTagCurrent() : "main";
-        tiledMapInitializer = new TiledMapInitializer(world, tiledAllocatorService)
-                .configureNew(index, width, height, atlasTag,
-                        projection, tileWidth, tileHeight, chunkSize);
-
-        return this;
-    }
-
-    public TiledMapInitializer tiledMapInitializer() {
-        return tiledMapInitializer;
-    }
-
-    public void setTiledMapInitializer(TiledMapInitializer tiledMapInitializer) {
-        this.tiledMapInitializer = tiledMapInitializer;
-    }
 }

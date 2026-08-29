@@ -279,7 +279,7 @@ public final class LayerService {
     public int addLayerTop(String name) {
         int idx = layerEntities.size;
         String effectiveName = (name != null ? name : "Layer " + idx);
-        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService)
+        LayerInitializer initializer = new LayerInitializer(world)
                 .configureNewLayer(effectiveName, idx);
         insertLayerAt(idx, initializer);
         return idx;
@@ -294,8 +294,6 @@ public final class LayerService {
             initializer.init(e);
             identityRegistry.ensureStableId(e);
         } catch (RuntimeException failure) {
-            TiledLayerComponent tiled = mTiled.getSafe(e, null);
-            if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
             IdentityRegistry.unindexEntityImmediately(world, e);
             historyIds.unbindEntity(e);
             world.delete(e);
@@ -309,26 +307,6 @@ public final class LayerService {
         layerEntities.insert(clampedIndex, e);
         renumberLayerIndices();
         tiledMapResolver.invalidate();
-
-        TiledMapInitializer tiledMapInitializer = initializer.tiledMapInitializer();
-        if (tiledMapInitializer != null) {
-            tiledMapInitializer.overrideLayerIndex(clampedIndex);
-            int mapEntityId = world.create();
-            try {
-                historyIds.ensureForEntity(mapEntityId);
-                tiledMapInitializer.init(mapEntityId);
-                identityRegistry.ensureStableId(mapEntityId);
-            } catch (RuntimeException failure) {
-                TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
-                if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
-                IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
-                historyIds.unbindEntity(mapEntityId);
-                world.delete(mapEntityId);
-                removeLayerCascade(clampedIndex);
-                throw failure;
-            }
-            tiledMapResolver.register(mapEntityId);
-        }
 
         // IMPORTANT : a coherent cache has just been built manually.
         // Do not let rebuildIfDirty() discard it before the subscription is up to date.
@@ -370,7 +348,7 @@ public final class LayerService {
         int layerEntityId = layerEntities.get(index);
         long layerHistoryId = historyIds.ensureForEntity(layerEntityId);
 
-        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService);
+        LayerInitializer initializer = new LayerInitializer(world);
         initializer.syncFrom(layerEntityId);
         List<TiledMapSnapshot> tiledMaps = new ArrayList<>();
 

@@ -26,8 +26,7 @@ public final class CreateLayerCommand implements Command {
         this.onLayerSelected = onLayerSelected;
         this.historyIds = layerService.historyIds();
         String effectiveName = (name != null && !name.isBlank()) ? name : "New Layer";
-        this.initializer = new LayerInitializer(
-                layerService.getWorld(), layerService.getTiledAllocatorService())
+        this.initializer = new LayerInitializer(layerService.getWorld())
                 .configureNewLayer(effectiveName, insertionIndex);
     }
 
