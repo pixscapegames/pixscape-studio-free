@@ -22,6 +22,8 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
+import games.pixscape.runtime.system.GameObjectCompositionSystem;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
@@ -116,6 +118,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
     private ComponentMapper<QuadDeformComponent> mQuadDeform;
+    private ComponentMapper<GameObjectComponent> mGameObject;
 
     private int[] selected = new int[0];
     private final float[] tmpCorners = new float[8];
@@ -276,7 +279,14 @@ public final class GizmoSystem extends BaseSystem {
                         continue;
                     }
 
-                    if (mOBB.has(e)) {
+                    if (mGameObject.has(e)) {
+                        float[] geometry = computeGameObjectWorldCorners(e);
+                        if (geometry == null) continue;
+                        GizmoDrawHelper.drawDashedObb(ctx, geometry);
+                        if (selected.length == 1) {
+                            GizmoDrawHelper.drawUniformScaleHandlesObb(ctx, geometry);
+                        }
+                    } else if (mOBB.has(e)) {
                         if (isLightEntity(e)) continue;
                         if (!isEntityVisibleForGizmo(e)) continue;
 
@@ -1834,6 +1844,32 @@ public final class GizmoSystem extends BaseSystem {
         OrientedBoundsHelper.toCorners(b, tmpCorners);
         applyDisplayOffset(e, tmpCorners);
         return tmpCorners;
+    }
+
+    private float[] computeGameObjectWorldCorners(int entityId) {
+        GameObjectCompositionSystem system = world.getSystem(GameObjectCompositionSystem.class);
+        GameObjectCompositionState state = system != null ? system.state() : null;
+        if (state != null && entityId >= 0 && entityId < state.boundsResolved.length
+                && state.boundsResolved[entityId]) {
+            return writeAxisAlignedCorners(
+                    state.minX[entityId], state.minY[entityId],
+                    state.maxX[entityId], state.maxY[entityId], tmpCorners);
+        }
+        TransformComponent transform = mT.getSafe(entityId, null);
+        if (transform == null) return null;
+        float half = ctx.pxToWorld(8f);
+        return writeAxisAlignedCorners(
+                transform.x - half, transform.y - half,
+                transform.x + half, transform.y + half, tmpCorners);
+    }
+
+    static float[] writeAxisAlignedCorners(
+            float minX, float minY, float maxX, float maxY, float[] out) {
+        out[0] = minX; out[1] = minY;
+        out[2] = maxX; out[3] = minY;
+        out[4] = maxX; out[5] = maxY;
+        out[6] = minX; out[7] = maxY;
+        return out;
     }
 
     private float[] computeQuadEditWorldCorners(int e) {

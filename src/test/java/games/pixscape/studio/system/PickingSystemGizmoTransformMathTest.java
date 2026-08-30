@@ -49,6 +49,12 @@ public class PickingSystemGizmoTransformMathTest {
     }
 
     @Test
+    public void gameObjectManipulationPivotUsesResolvedBottomLeftPlusOrigin() {
+        assertEquals(35f, PickingSystem.gameObjectPivot(25f, 10f), 0f);
+        assertEquals(-7f, PickingSystem.gameObjectPivot(-12f, 5f), 0f);
+    }
+
+    @Test
     public void resizeConvertsWorldDeltaIntoTheCorrectRotatedLocalAxis() {
         float cos = 0f;
         float sin = 1f;

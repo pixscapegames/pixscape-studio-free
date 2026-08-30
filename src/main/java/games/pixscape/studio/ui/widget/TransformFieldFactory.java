@@ -141,6 +141,25 @@ public final class TransformFieldFactory {
         return f;
     }
 
+    public FloatField uniformPositiveScale() {
+        FloatField field = new FloatField(world, e -> {
+            TransformComponent transform = mT.getSafe(e, null);
+            return transform != null ? transform.scaleX : 1f;
+        }, mT::has);
+        field.setDisplayDecimals(2);
+        field.setValidator(input -> {
+            try {
+                float value = Float.parseFloat(input.trim());
+                return value > 0f && !Float.isInfinite(value) && !Float.isNaN(value);
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        });
+        field.setApplier((entityId, value) -> submitTransformEdit(
+                entityId, TransformOp.SCALE, before -> before.withUniformScale(value)));
+        return field;
+    }
+
     public FloatField originX() {
         FloatField f = new FloatField(world, e -> {
             TransformComponent t = mT.getSafe(e, null);

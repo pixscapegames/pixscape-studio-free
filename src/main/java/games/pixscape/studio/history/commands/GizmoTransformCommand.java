@@ -3,6 +3,8 @@ package games.pixscape.studio.history.commands;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
@@ -137,6 +139,9 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
         if (same) return;
 
         int entityId = historyIds.entityOfHistoryId(historyId);
+        if (entityId >= 0 && world.getMapper(GameObjectComponent.class).has(entityId)) {
+            requireValidGameObjectSnapshot(after);
+        }
         EditRenderRepeatCommand.Snapshot beforeRepeat = op == TransformOp.ROTATE
                 ? RepeatRotationConstraint.captureRepeat(world, entityId)
                 : null;
@@ -145,6 +150,12 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
                 : beforeRepeat;
 
         entries.add(new Entry(historyId, before, after, beforeRepeat, afterRepeat));
+    }
+
+    private static void requireValidGameObjectSnapshot(Snapshot snapshot) {
+        TransformComponent candidate = new TransformComponent();
+        snapshot.applyTo(candidate);
+        GameObjectTransformMath.requirePositiveUniformParentScale(candidate);
     }
 
     @Override

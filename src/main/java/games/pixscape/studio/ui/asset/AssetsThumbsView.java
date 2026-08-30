@@ -1506,7 +1506,7 @@ public final class AssetsThumbsView extends VisTable {
         return "Delete " + targets.size + " selected prefabs?\n\nThis action cannot be undone.";
     }
 
-    private void setSelectedNode(AssetNode node) {
+    void setSelectedNode(AssetNode node) {
         selectedNode = node;
         refreshSelectionVisuals();
 

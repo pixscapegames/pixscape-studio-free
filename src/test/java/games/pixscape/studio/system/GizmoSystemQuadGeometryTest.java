@@ -39,4 +39,13 @@ public class GizmoSystemQuadGeometryTest {
                 actual,
                 EPSILON);
     }
+
+    @Test
+    public void gameObjectDerivedBoundsUseStableAxisAlignedCornerLayout() {
+        float[] actual = new float[8];
+        GizmoSystem.writeAxisAlignedCorners(-2f, 3f, 8f, 11f, actual);
+        assertArrayEquals(
+                new float[]{-2f, 3f, 8f, 3f, 8f, 11f, -2f, 11f},
+                actual, EPSILON);
+    }
 }

@@ -3,6 +3,8 @@ package games.pixscape.studio.history.commands;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
@@ -83,6 +85,10 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             return new Snapshot(x, y, rotationRad, scaleX, value, originX, originY);
         }
 
+        public Snapshot withUniformScale(float value) {
+            return new Snapshot(x, y, rotationRad, value, value, originX, originY);
+        }
+
         public Snapshot withOriginX(float value) {
             return new Snapshot(x, y, rotationRad, scaleX, scaleY, value, originY);
         }
@@ -135,6 +141,9 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.before = before;
         this.after = after;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
+        if (world != null && world.getMapper(GameObjectComponent.class).has(entityId)) {
+            requireValidGameObjectTransform(after);
+        }
         this.beforeRepeat = op == TransformOp.ROTATE
                 ? RepeatRotationConstraint.captureRepeat(world, entityId)
                 : null;
@@ -148,6 +157,13 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
                 || before == null
                 || after == null
                 || (before.sameAs(after) && repeatSnapshotsSame(beforeRepeat, afterRepeat));
+    }
+
+    private static void requireValidGameObjectTransform(Snapshot snapshot) {
+        if (snapshot == null) return;
+        TransformComponent candidate = new TransformComponent();
+        snapshot.apply(candidate);
+        GameObjectTransformMath.requirePositiveUniformParentScale(candidate);
     }
 
     @Override

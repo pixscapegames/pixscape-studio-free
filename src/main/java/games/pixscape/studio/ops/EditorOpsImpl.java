@@ -1,7 +1,9 @@
 package games.pixscape.studio.ops;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
 import com.artemis.World;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -36,7 +38,9 @@ import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
+import games.pixscape.studio.history.initializer.AbstractCommonInitializer;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.history.initializer.GameObjectRootInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.SceneService;
@@ -51,6 +55,7 @@ import games.pixscape.studio.ui.main.WorldCanvas;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 public class EditorOpsImpl implements EditorOps {
@@ -186,6 +191,18 @@ public class EditorOpsImpl implements EditorOps {
 
     @Override
     public int createStandaloneSprite(String relativePath, float worldX, float worldY, String metaName) {
+        return createStandaloneSprite(relativePath, worldX, worldY, metaName, -1);
+    }
+
+    @Override
+    public int createStandaloneSpriteInGameObject(
+            int parentEntityId, String relativePath, String metaName) {
+        return createStandaloneSprite(relativePath, 0f, 0f, metaName, parentEntityId);
+    }
+
+    private int createStandaloneSprite(
+            String relativePath, float worldX, float worldY,
+            String metaName, int parentEntityId) {
 
         if (relativePath == null || relativePath.isEmpty()) {
             return -1;
@@ -226,22 +243,11 @@ public class EditorOpsImpl implements EditorOps {
                         resolvedMetaName,
                         activeLayerIndex
                 );
-        init.setIdentityStableId(allocateStableId());
-
-        CreateEntityCommand cmd = new CreateEntityCommand(
-                world,
-                historyIds,
+        int createdEntityId = executePreparedCreation(
                 init,
-                createdEntityId -> {
-                    rebindHistoryEntityRenderAssets(createdEntityId);
-                    if (!init.hasCapturedZIndex()) {
-                        zOrderRuntimeService.addOnTop(createdEntityId, activeLayerIndex);
-                    }
-                    selectionService.selectOnly(createdEntityId);
-                }
-        );
-
-        historyManager.execute(cmd);
+                activeLayerIndex,
+                parentEntityId,
+                this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
         String fullRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
@@ -254,7 +260,7 @@ public class EditorOpsImpl implements EditorOps {
             atlasStudioService.requestAsyncPack(sceneTag);
         }
 
-        return cmd.getCreatedEntityId();
+        return createdEntityId;
     }
 
     @Override
@@ -267,6 +273,21 @@ public class EditorOpsImpl implements EditorOps {
                                      float worldX,
                                      float worldY,
                                      String metaName) {
+        return createAnimationSprite(animationsRelPath, worldX, worldY, metaName, -1);
+    }
+
+    @Override
+    public int createAnimationSpriteInGameObject(
+            int parentEntityId, String animationsRelPath, String metaName) {
+        return createAnimationSprite(animationsRelPath, 0f, 0f, metaName, parentEntityId);
+    }
+
+    private int createAnimationSprite(
+            String animationsRelPath,
+            float worldX,
+            float worldY,
+            String metaName,
+            int parentEntityId) {
 
         if (animationsRelPath == null || animationsRelPath.isBlank()) return -1;
 
@@ -366,26 +387,12 @@ public class EditorOpsImpl implements EditorOps {
             );
         }
 
-        init.setIdentityStableId(allocateStableId());
-
         init.configureAnimation(animationAssetId, currentClip, fps, loop);
-
-        CreateEntityCommand cmd = new CreateEntityCommand(
-                world,
-                historyIds,
+        int createdEntityId = executePreparedCreation(
                 init,
-                createdEntityId -> {
-                    rebindHistoryEntityRenderAssets(createdEntityId);
-                    if (!init.hasCapturedZIndex()) {
-                        zOrderRuntimeService.addOnTop(createdEntityId, activeLayerIndex);
-                    }
-                    selectionService.selectOnly(createdEntityId);
-                }
-        );
-
-        historyManager.execute(cmd);
-
-        int createdEntityId = cmd.getCreatedEntityId();
+                activeLayerIndex,
+                parentEntityId,
+                this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
         if (!alreadyPacked) {
@@ -485,9 +492,58 @@ public class EditorOpsImpl implements EditorOps {
         IntConsumer onRestoredEntity = restoredEntityId -> {
             rebindHistoryEntityRenderAssets(restoredEntityId);
         };
+        Command command = DeleteEntitiesCommandFactory.create(
+                world, historyIds, entities, onRestoredEntity);
+        execute(command);
+    }
 
-        DeleteEntitiesCommand cmd = new DeleteEntitiesCommand(world, historyIds, entities, onRestoredEntity);
-        execute(cmd);
+    @Override
+    public int createGameObject(float worldX, float worldY) {
+        return createGameObject(worldX, worldY, -1);
+    }
+
+    @Override
+    public int createGameObjectInGameObject(int parentEntityId) {
+        return createGameObject(0f, 0f, parentEntityId);
+    }
+
+    private int createGameObject(float worldX, float worldY, int parentEntityId) {
+        int activeLayerIndex = selectionService.getActiveLayerIndex();
+        GameObjectRootInitializer init = new GameObjectRootInitializer(world)
+                .configure(worldX, worldY, activeLayerIndex);
+        return executePreparedCreation(init, activeLayerIndex, parentEntityId, null);
+    }
+
+    private int executePreparedCreation(
+            AbstractCommonInitializer initializer,
+            int activeLayerIndex,
+            int parentEntityId,
+            Consumer<Integer> publishCreated) {
+        initializer.setIdentityStableId(allocateStableId());
+        Consumer<Integer> onCreated = createdEntityId -> {
+            if (publishCreated != null) publishCreated.accept(createdEntityId);
+            if (parentEntityId < 0 && !initializer.hasCapturedZIndex()) {
+                zOrderRuntimeService.addOnTop(createdEntityId, activeLayerIndex);
+            }
+            selectionService.selectOnly(createdEntityId);
+        };
+
+        if (parentEntityId >= 0) {
+            CreateGameObjectChildCommand command = new CreateGameObjectChildCommand(
+                    world,
+                    historyIds,
+                    identityRegistry,
+                    parentEntityId,
+                    initializer,
+                    onCreated);
+            historyManager.execute(command);
+            return command.getCreatedEntityId();
+        }
+
+        CreateEntityCommand command = new CreateEntityCommand(
+                world, historyIds, initializer, onCreated);
+        historyManager.execute(command);
+        return command.getCreatedEntityId();
     }
 
     @Override
@@ -553,6 +609,10 @@ public class EditorOpsImpl implements EditorOps {
 
             GizmoTransformCommand.Snapshot before = GizmoTransformCommand.Snapshot.of(t);
             GizmoTransformCommand.Snapshot after = GizmoTransformCommand.Snapshot.of(t);
+            boolean gameObject = world.getMapper(GameObjectComponent.class).has(entityId);
+            if (gameObject && (originX != null || originY != null)) {
+                throw new IllegalArgumentException("Game Object origin is managed by the editor.");
+            }
 
             float baseX = (x != null) ? x : before.x;
             float baseY = (y != null) ? y : before.y;
@@ -563,8 +623,24 @@ public class EditorOpsImpl implements EditorOps {
             if (y != null || dy != null) after.y = baseY;
 
             if (rotRad != null) after.rotRad = rotRad;
-            if (scaleX != null) after.sx = scaleX;
-            if (scaleY != null) after.sy = scaleY;
+            if (gameObject && (scaleX != null || scaleY != null)) {
+                float uniform = scaleX != null ? scaleX : scaleY;
+                if (scaleX != null && scaleY != null
+                        && Float.compare(scaleX, scaleY) != 0) {
+                    throw new IllegalArgumentException(
+                            "Game Object scale must be uniform.");
+                }
+                if (uniform <= 0f
+                        || Float.isInfinite(uniform) || Float.isNaN(uniform)) {
+                    throw new IllegalArgumentException(
+                            "Game Object scale must be finite and positive.");
+                }
+                after.sx = uniform;
+                after.sy = uniform;
+            } else {
+                if (scaleX != null) after.sx = scaleX;
+                if (scaleY != null) after.sy = scaleY;
+            }
             if (originX != null) after.ox = originX;
             if (originY != null) after.oy = originY;
 
@@ -579,6 +655,15 @@ public class EditorOpsImpl implements EditorOps {
 
     @Override
     public int createPointLight(float worldX, float worldY) {
+        return createPointLight(worldX, worldY, -1);
+    }
+
+    @Override
+    public int createPointLightInGameObject(int parentEntityId) {
+        return createPointLight(0f, 0f, parentEntityId);
+    }
+
+    private int createPointLight(float worldX, float worldY, int parentEntityId) {
         String sceneTag = getCurrentSceneTag();
         if (sceneTag == null) return -1;
 
@@ -608,29 +693,27 @@ public class EditorOpsImpl implements EditorOps {
                         radius, intensity, falloff,
                         r, g, b
                 );
-        init.setIdentityStableId(allocateStableId());
-
-        CreateEntityCommand cmd = new CreateEntityCommand(
-                world,
-                historyIds,
+        return executePreparedCreation(
                 init,
+                activeLayerIndex,
+                parentEntityId,
                 createdEntityId -> {
                     rebindHistoryEntityRenderAssets(createdEntityId);
                     applyDefaultUniforms(createdEntityId, RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
-                    if (!init.hasCapturedZIndex()) {
-                        zOrderRuntimeService.addOnTop(createdEntityId, activeLayerIndex);
-                    }
-                    selectionService.selectOnly(createdEntityId);
-                }
-        );
-
-        historyManager.execute(cmd);
-
-        return cmd.getCreatedEntityId();
+                });
     }
 
     @Override
     public int createConeLight(float worldX, float worldY) {
+        return createConeLight(worldX, worldY, -1);
+    }
+
+    @Override
+    public int createConeLightInGameObject(int parentEntityId) {
+        return createConeLight(0f, 0f, parentEntityId);
+    }
+
+    private int createConeLight(float worldX, float worldY, int parentEntityId) {
         String sceneTag = getCurrentSceneTag();
         if (sceneTag == null) return -1;
 
@@ -664,25 +747,14 @@ public class EditorOpsImpl implements EditorOps {
                         radius, intensity, angleDegrees, softness, falloff,
                         r, g, b
                 );
-        init.setIdentityStableId(allocateStableId());
-
-        CreateEntityCommand cmd = new CreateEntityCommand(
-                world,
-                historyIds,
+        return executePreparedCreation(
                 init,
+                activeLayerIndex,
+                parentEntityId,
                 createdEntityId -> {
                     rebindHistoryEntityRenderAssets(createdEntityId);
                     applyDefaultUniforms(createdEntityId, RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
-                    if (!init.hasCapturedZIndex()) {
-                        zOrderRuntimeService.addOnTop(createdEntityId, activeLayerIndex);
-                    }
-                    selectionService.selectOnly(createdEntityId);
-                }
-        );
-
-        historyManager.execute(cmd);
-
-        return cmd.getCreatedEntityId();
+                });
     }
 
 
@@ -1006,6 +1078,10 @@ public class EditorOpsImpl implements EditorOps {
 
         for (int i = 0; i < entities.size; i++) {
             int entityId = entities.get(i);
+            if (world.getMapper(GameObjectMemberComponent.class).has(entityId)) {
+                throw new IllegalArgumentException(
+                        "Game Object members inherit Layer from their top-level root.");
+            }
             if (!mEntityIndex.has(entityId)) {
                 throw new IllegalStateException("Drawable entity missing EntityIndexComponent (applyLayer): " + entityId);
             }

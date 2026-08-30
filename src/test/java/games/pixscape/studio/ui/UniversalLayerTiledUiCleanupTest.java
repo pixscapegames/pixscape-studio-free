@@ -28,7 +28,7 @@ public class UniversalLayerTiledUiCleanupTest {
         String tree = source("src/main/java/games/pixscape/studio/ui/tree/ItemTreePanel.java");
         String contextMenu = source("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java");
 
-        assertTrue(tree.contains("if (!layerService.isLayerEntity(layerEntityId)) return false;"));
+        assertTrue(tree.contains("return layerService.isLayerEntity(node.getEntityId());"));
         assertTrue(tree.contains("addMenu.addItem(addMap);"));
         assertTrue(contextMenu.contains("if (!layerService.isLayerEntity(layerEntityId)) return;"));
         assertFalse(tree.contains("tiledEnabled"));

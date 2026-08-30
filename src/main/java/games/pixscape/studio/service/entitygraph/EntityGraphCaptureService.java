@@ -4,6 +4,8 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
@@ -23,6 +25,8 @@ public final class EntityGraphCaptureService {
     private final ComponentMapper<ConeLightComponent> mConeLight;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final ComponentMapper<TiledLayerComponent> mTiled;
+    private final ComponentMapper<GameObjectComponent> mGameObject;
+    private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
 
     public EntityGraphCaptureService(World world) {
         this.world = world;
@@ -32,15 +36,28 @@ public final class EntityGraphCaptureService {
         this.mConeLight = world.getMapper(ConeLightComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
+        this.mGameObject = world.getMapper(GameObjectComponent.class);
+        this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
     }
 
     public EntityGraph capture(IntArray selection) {
+        if (containsGameObjectHierarchy(selection)) return EntityGraph.empty();
         return captureSupportedSelection(collectSupportedSelection(selection));
     }
 
     /** Captures only entity types currently supported by prefab serialization. */
     public EntityGraph captureForPrefab(IntArray selection) {
+        if (containsGameObjectHierarchy(selection)) return EntityGraph.empty();
         return captureSupportedSelection(collectPrefabSupportedSelection(selection));
+    }
+
+    private boolean containsGameObjectHierarchy(IntArray selection) {
+        if (selection == null) return false;
+        for (int i = 0; i < selection.size; i++) {
+            int entityId = selection.get(i);
+            if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return true;
+        }
+        return false;
     }
 
     private EntityGraph captureSupportedSelection(IntArray supported) {
@@ -83,6 +100,8 @@ public final class EntityGraphCaptureService {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return false;
         // Tiled maps require their dedicated deep snapshot; generic capture would be partial.
         if (mTiled.has(entityId)) return false;
+        // Hierarchy copy needs stable-ID remapping; reject roots and members until that command exists.
+        if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return false;
         if (mJointBase.has(entityId)) return true;
         if (!mEntityIndex.has(entityId)) return false;
         return mTransform.has(entityId);

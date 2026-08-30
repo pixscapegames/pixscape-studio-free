@@ -3,10 +3,9 @@ package games.pixscape.studio.ui.tree;
 import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -21,6 +20,10 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
+import games.pixscape.runtime.system.GameObjectCompositionSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.component.PrefabInstanceComponent;
@@ -71,10 +74,15 @@ public class ItemTreePanel extends DockablePanel {
     private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsShapesComponent> mFixtures;
     private final ComponentMapper<PrefabInstanceComponent> mPrefabInstance;
+    private final ComponentMapper<GameObjectComponent> mGameObject;
+    private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
 
     private final EntitySubscription layersSub;
     private final EntitySubscription layerItemsSub;
     private final EntitySubscription jointsSub;
+    private final EntitySubscription gameObjectMembersSub;
+    private final GameObjectHierarchySystem gameObjectHierarchy;
+    private final GameObjectCompositionSystem gameObjectComposition;
 
     private final IdVisTree tree;
     private final IconResolver iconResolver;
@@ -117,6 +125,10 @@ public class ItemTreePanel extends DockablePanel {
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mFixtures = world.getMapper(PhysicsShapesComponent.class);
         this.mPrefabInstance = world.getMapper(PrefabInstanceComponent.class);
+        this.mGameObject = world.getMapper(GameObjectComponent.class);
+        this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
+        this.gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        this.gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
 
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -125,13 +137,14 @@ public class ItemTreePanel extends DockablePanel {
         this.layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
         this.layerItemsSub = asm.get(layerItemAspect());
         this.jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
+        this.gameObjectMembersSub = asm.get(Aspect.all(GameObjectMemberComponent.class));
 
         this.iconResolver = new IconResolver(world);
 
         tree = new IdVisTree();
         tree.setIndentSpacing(25);
         tree.getSelection().setMultiple(true);
-        hookLayerContextMenu();
+        hookItemContextMenus();
 
         scroller = new VisScrollPane(tree);
         scroller.setFadeScrollBars(false);
@@ -264,6 +277,8 @@ public class ItemTreePanel extends DockablePanel {
         IntArray selection = selectionService.getSelectionSnapshot();
         if (selection.size != 1) return;
         int entityId = selection.first();
+        // Member z is local sibling order; the global layer reorder command is not applicable.
+        if (mGameObjectMember.has(entityId)) return;
         if (!ItemTreeJointSupport.isLogicalOrderMoveAllowed(world, entityId)) return;
         EntityIndexComponent index = requireEntityIndex(entityId, "ItemTree move");
         LayerLogicalOrderService.LayerOrder order =
@@ -340,6 +355,7 @@ public class ItemTreePanel extends DockablePanel {
         };
         layerItemsSub.addSubscriptionListener(refsListener);
         jointsSub.addSubscriptionListener(refsListener);
+        gameObjectMembersSub.addSubscriptionListener(refsListener);
     }
 
     private void hookTreeSelection() {
@@ -541,6 +557,10 @@ public class ItemTreePanel extends DockablePanel {
 
         tree.clearNodes();
         IntMap<IntArray> allPrefabMembers = collectPrefabMembers(world);
+        GameObjectTopologyState topology = gameObjectHierarchy != null
+                ? gameObjectHierarchy.topology() : null;
+        GameObjectCompositionState composition = gameObjectComposition != null
+                ? gameObjectComposition.state() : null;
 
         int layerCount = layerService.count();
         for (int li = layerCount - 1; li >= 0; li--) {
@@ -579,13 +599,15 @@ public class ItemTreePanel extends DockablePanel {
                         prefabNode.add(createEntityNode(members.get(i), meta.locked));
                     }
                 } else {
+                    if (isParented(item.entityId(), topology)) continue;
                     if (mTiled.has(item.entityId())) {
                         int mapEntityId = item.entityId();
                         EntityNode mapNode = createTiledMapNode(mapEntityId, meta.locked);
                         layerNode.add(mapNode);
                         tree.registerMapNode(mapNode, mapEntityId);
                     } else {
-                        layerNode.add(createEntityNode(item.entityId(), meta.locked));
+                        layerNode.add(createGameObjectHierarchyNode(
+                                item.entityId(), meta.locked, topology, composition));
                     }
                 }
             }
@@ -605,21 +627,69 @@ public class ItemTreePanel extends DockablePanel {
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
 
-    private void hookLayerContextMenu() {
-        tree.addListener(new InputListener() {
-            @Override
-            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
-                if (button != Input.Buttons.RIGHT || getStage() == null) return false;
-                EntityNode node = tree.getNodeAt(y);
-                if (node == null || !node.isLayerNode()) return false;
-                int layerEntityId = node.getEntityId();
-                if (!layerService.isLayerEntity(layerEntityId)) return false;
+    private EntityNode createGameObjectHierarchyNode(
+            int entityId, boolean layerLocked,
+            GameObjectTopologyState topology, GameObjectCompositionState composition) {
+        EntityNode node = createEntityNode(entityId, layerLocked);
+        if (!mGameObject.has(entityId) || topology == null || composition == null
+                || entityId >= composition.orderedFirstChildEntityId.length) {
+            return node;
+        }
+        int child = composition.orderedFirstChildEntityId[entityId];
+        while (child >= 0) {
+            node.add(createGameObjectHierarchyNode(child, layerLocked, topology, composition));
+            child = child < composition.orderedNextSiblingEntityId.length
+                    ? composition.orderedNextSiblingEntityId[child] : -1;
+        }
+        return node;
+    }
 
-                selectionService.setActivelayerId(
-                        layerEntityId, SelectionService.SelectionSource.TREE);
+    private static boolean isParented(int entityId, GameObjectTopologyState topology) {
+        return topology != null && entityId >= 0
+                && entityId < topology.parented.length && topology.parented[entityId];
+    }
+
+    private void hookItemContextMenus() {
+        tree.addListener(new ItemTreeContextMenuInputListener<>(
+                tree,
+                this::supportsContextMenu,
+                this::activateContextMenuNode,
+                this::selectedAssetNode,
+                (node, selectedAsset, stage, stageX, stageY) -> {
+                    if (node.isLayerNode()) {
+                        showLayerContextMenu(
+                                node.getEntityId(), selectedAsset, stage, stageX, stageY);
+                    } else {
+                        showGameObjectContextMenu(
+                                node.getEntityId(), selectedAsset, stage, stageX, stageY);
+                    }
+                }));
+    }
+
+    private boolean supportsContextMenu(EntityNode node) {
+        if (node == null) return false;
+        if (node.isLayerNode()) return layerService.isLayerEntity(node.getEntityId());
+        return node.isEntityNode() && mGameObject.has(node.getEntityId());
+    }
+
+    private void activateContextMenuNode(EntityNode node) {
+        if (node.isLayerNode()) {
+            selectionService.setActivelayerId(
+                    node.getEntityId(), SelectionService.SelectionSource.TREE);
+            return;
+        }
+        activateLayerForEntity(node.getEntityId(), SelectionService.SelectionSource.TREE);
+        selectionService.selectOnly(node.getEntityId(), SelectionService.SelectionSource.TREE);
+    }
+
+    private void showLayerContextMenu(
+            int layerEntityId,
+            AssetNode selectedAsset,
+            Stage stage,
+            float stageX,
+            float stageY) {
                 PopupMenu addMenu = new PopupMenu();
 
-                AssetNode selectedAsset = selectedAssetNode();
                 MenuItem addSprite = new MenuItem("Sprite");
                 addSprite.setDisabled(!isSpriteAsset(selectedAsset));
                 addSprite.addListener(new ClickListener() {
@@ -675,6 +745,20 @@ public class ItemTreePanel extends DockablePanel {
                 });
                 addMenu.addItem(addMap);
 
+                MenuItem addGameObject = new MenuItem("Game Object");
+                addGameObject.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createGameObject(0f, 0f);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(
+                                    entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addGameObject);
+
                 PopupMenu lights = new PopupMenu();
                 MenuItem point = new MenuItem("Point Light");
                 point.addListener(new ClickListener() {
@@ -702,11 +786,121 @@ public class ItemTreePanel extends DockablePanel {
                 MenuItem add = new MenuItem("Add");
                 add.setSubMenu(addMenu);
                 menu.addItem(add);
-                menu.showMenu(getStage(), event.getStageX(), event.getStageY());
+                menu.showMenu(stage, stageX, stageY);
+    }
+
+    private void showGameObjectContextMenu(
+            int parentEntityId,
+            AssetNode selectedAsset,
+            Stage stage,
+            float stageX,
+            float stageY) {
+        PopupMenu addMenu = buildGameObjectAddMenu(
+                selectedAsset,
+                new GameObjectChildMenuActions() {
+                    @Override
+                    public void addSprite() {
+                        editorOps.createStandaloneSpriteInGameObject(
+                                parentEntityId, selectedAsset.path, selectedAsset.name);
+                    }
+
+                    @Override
+                    public void addAnimation() {
+                        editorOps.createAnimationSpriteInGameObject(
+                                parentEntityId, selectedAsset.path, selectedAsset.name);
+                    }
+
+                    @Override
+                    public void addPointLight() {
+                        editorOps.createPointLightInGameObject(parentEntityId);
+                    }
+
+                    @Override
+                    public void addConeLight() {
+                        editorOps.createConeLightInGameObject(parentEntityId);
+                    }
+
+                    @Override
+                    public void addGameObject() {
+                        editorOps.createGameObjectInGameObject(parentEntityId);
+                    }
+                });
+
+        PopupMenu menu = new PopupMenu();
+        MenuItem add = new MenuItem("Add");
+        add.setSubMenu(addMenu);
+        menu.addItem(add);
+        menu.showMenu(stage, stageX, stageY);
+    }
+
+    interface GameObjectChildMenuActions {
+        void addSprite();
+        void addAnimation();
+        void addPointLight();
+        void addConeLight();
+        void addGameObject();
+    }
+
+    static PopupMenu buildGameObjectAddMenu(
+            AssetNode selectedAsset,
+            GameObjectChildMenuActions actions) {
+        PopupMenu addMenu = new PopupMenu();
+
+        MenuItem addSprite = new MenuItem("Sprite");
+        addSprite.setDisabled(!isSpriteAsset(selectedAsset));
+        addSprite.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (!addSprite.isDisabled()) actions.addSprite();
                 event.handle();
-                return true;
             }
         });
+        addMenu.addItem(addSprite);
+
+        MenuItem addAnimation = new MenuItem("Animation");
+        addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
+        addAnimation.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (!addAnimation.isDisabled()) actions.addAnimation();
+                event.handle();
+            }
+        });
+        addMenu.addItem(addAnimation);
+
+        PopupMenu lights = new PopupMenu();
+        MenuItem point = new MenuItem("Point Light");
+        point.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addPointLight();
+                event.handle();
+            }
+        });
+        lights.addItem(point);
+        MenuItem cone = new MenuItem("Cone Light");
+        cone.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addConeLight();
+                event.handle();
+            }
+        });
+        lights.addItem(cone);
+        MenuItem light = new MenuItem("Light");
+        light.setSubMenu(lights);
+        addMenu.addItem(light);
+
+        MenuItem addGameObject = new MenuItem("Game Object");
+        addGameObject.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addGameObject();
+                event.handle();
+            }
+        });
+        addMenu.addItem(addGameObject);
+        return addMenu;
     }
 
     private AssetNode selectedAssetNode() {

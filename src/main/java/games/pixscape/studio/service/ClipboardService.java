@@ -7,7 +7,7 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.DeleteEntitiesCommand;
+import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
 import games.pixscape.studio.service.entitygraph.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -78,12 +78,11 @@ public final class ClipboardService {
             supported.add(entry.sourceEntityId());
         }
 
-        historyManager.execute(new DeleteEntitiesCommand(
+        historyManager.execute(DeleteEntitiesCommandFactory.create(
                 world,
                 historyManager.historyIds(),
                 supported,
-                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
-        ));
+                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity));
         selectionService.clearSelection();
         pasteCount = 0;
         return true;

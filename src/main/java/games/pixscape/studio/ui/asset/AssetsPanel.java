@@ -140,7 +140,11 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     public AssetNode getSelectedAssetNode() {
-        return thumbsView.getSelectedNode();
+        return selectedAssetNode(thumbsView);
+    }
+
+    static AssetNode selectedAssetNode(AssetsThumbsView thumbsView) {
+        return thumbsView != null ? thumbsView.getSelectedNode() : null;
     }
 
     private void buildLayout() {

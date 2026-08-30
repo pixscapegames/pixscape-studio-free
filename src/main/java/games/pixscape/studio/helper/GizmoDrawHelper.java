@@ -77,6 +77,14 @@ public final class GizmoDrawHelper {
         drawRotateHandle(ctx, obb);
     }
 
+    public static void drawUniformScaleHandlesObb(StudioDrawContext ctx, float[] obb) {
+        drawHandleSquare(ctx, HandleLayout.swX(obb), HandleLayout.swY(obb));
+        drawHandleSquare(ctx, HandleLayout.seX(obb), HandleLayout.seY(obb));
+        drawHandleSquare(ctx, HandleLayout.neX(obb), HandleLayout.neY(obb));
+        drawHandleSquare(ctx, HandleLayout.nwX(obb), HandleLayout.nwY(obb));
+        drawRotateHandle(ctx, obb);
+    }
+
     /** Draws BL, BR, TR and TL quad edges with one round handle per corner. */
     public static void drawQuadEditGizmo(StudioDrawContext ctx, float[] quad) {
         float lineWorld = thicknessPx * ctx.wpp();

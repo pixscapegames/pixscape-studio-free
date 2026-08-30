@@ -37,6 +37,18 @@ public interface EditorOps {
 
     int createConeLight(float worldX, float worldY);
 
+    int createGameObject(float worldX, float worldY);
+
+    int createStandaloneSpriteInGameObject(int parentEntityId, String relativePath, String metaName);
+
+    int createAnimationSpriteInGameObject(int parentEntityId, String animationsRelPath, String metaName);
+
+    int createPointLightInGameObject(int parentEntityId);
+
+    int createConeLightInGameObject(int parentEntityId);
+
+    int createGameObjectInGameObject(int parentEntityId);
+
     int createJoint(int type, int aEntityId, int bEntityId, float worldX, float worldY);
 
     int createGearJoint(int joint1EntityId, int joint2EntityId);

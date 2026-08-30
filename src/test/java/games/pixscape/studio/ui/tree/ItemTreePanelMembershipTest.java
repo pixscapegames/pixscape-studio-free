@@ -11,6 +11,8 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.service.SelectionService;
@@ -81,6 +83,35 @@ public class ItemTreePanelMembershipTest {
             selection.selectFromTree(point);
             assertTrue(selection.getSelectionSet().contains(rectangle));
             assertTrue(selection.getSelectionSet().contains(point));
+        } finally {
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void realGameObjectRootAndChildRemainRealIndependentSelectionTargets() {
+        World world = new World();
+        try {
+            int root = authoredItem(world, "Game Object", 0, 2);
+            world.getMapper(TransformComponent.class).create(root);
+            world.getMapper(GameObjectComponent.class).create(root);
+            int child = authoredItem(world, "Child", 0, 0);
+            world.getMapper(TransformComponent.class).create(child);
+            world.getMapper(GameObjectMemberComponent.class).create(child).parentStableId = root + 1;
+            world.process();
+
+            EntitySubscription items = world.getAspectSubscriptionManager()
+                    .get(ItemTreePanel.layerItemAspect());
+            assertTrue(contains(items.getEntities(), root));
+            assertTrue(contains(items.getEntities(), child));
+
+            SelectionService selection = new SelectionService(world, null);
+            selection.selectOnly(root, SelectionService.SelectionSource.TREE);
+            assertEquals(1, selection.getSelectionSnapshot().size);
+            assertEquals(root, selection.getSelectionSnapshot().first());
+            selection.selectOnly(child, SelectionService.SelectionSource.TREE);
+            assertEquals(1, selection.getSelectionSnapshot().size);
+            assertEquals(child, selection.getSelectionSnapshot().first());
         } finally {
             world.dispose();
         }

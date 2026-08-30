@@ -11,29 +11,57 @@ import static org.junit.Assert.assertTrue;
 public class EditorOpsImplIntegrationContractTest {
 
     @Test
-    public void deleteEntities_usesHistoryDeleteCommand_andGuardsEmptySelection() throws Exception {
+    public void deleteEntities_routesHierarchyAndStandaloneTargetsIntoOneHistoryCommand()
+            throws Exception {
         String source = readEditorOpsImpl();
         String body = methodBody(source, "public void deleteEntities(IntArray entities)");
 
         assertTrue(body.contains("if (entities == null || entities.isEmpty())"));
         assertTrue(body.contains("IntConsumer onRestoredEntity = restoredEntityId ->"));
         assertTrue(body.contains("rebindHistoryEntityRenderAssets(restoredEntityId);"));
-        assertTrue(body.contains("DeleteEntitiesCommand cmd = new DeleteEntitiesCommand(world, historyIds, entities, onRestoredEntity);"));
-        assertTrue(body.contains("execute(cmd);"));
+        assertTrue(body.contains("DeleteEntitiesCommandFactory.create("));
+        assertTrue(body.contains("execute(command);"));
     }
 
     @Test
     public void lightCreationUsesActiveLayerAndGenericHistoryCreationWithoutLayerTypeGate() throws Exception {
         String source = readEditorOpsImpl();
-        String point = methodBody(source, "public int createPointLight(float worldX, float worldY)");
-        String cone = methodBody(source, "public int createConeLight(float worldX, float worldY)");
+        String point = methodBody(source,
+                "private int createPointLight(float worldX, float worldY, int parentEntityId)");
+        String cone = methodBody(source,
+                "private int createConeLight(float worldX, float worldY, int parentEntityId)");
 
         assertTrue(point.contains("int activeLayerIndex = selectionService.getActiveLayerIndex();"));
         assertTrue(point.contains(".configurePointLightProcedural("));
-        assertTrue(point.contains("historyManager.execute(cmd);"));
+        assertTrue(point.contains("executePreparedCreation("));
         assertTrue(cone.contains("int activeLayerIndex = selectionService.getActiveLayerIndex();"));
         assertTrue(cone.contains(".configureConeLightProcedural("));
-        assertTrue(cone.contains("historyManager.execute(cmd);"));
+        assertTrue(cone.contains("executePreparedCreation("));
+    }
+
+    @Test
+    public void gameObjectChildCreationUsesOneFocusedHistoryCommandForEverySupportedType()
+            throws Exception {
+        String source = readEditorOpsImpl();
+        assertTrue(methodBody(source,
+                "public int createStandaloneSpriteInGameObject(")
+                .contains("parentEntityId"));
+        assertTrue(methodBody(source,
+                "public int createAnimationSpriteInGameObject(")
+                .contains("parentEntityId"));
+        assertTrue(methodBody(source,
+                "public int createPointLightInGameObject(int parentEntityId)")
+                .contains("parentEntityId"));
+        assertTrue(methodBody(source,
+                "public int createConeLightInGameObject(int parentEntityId)")
+                .contains("parentEntityId"));
+        assertTrue(methodBody(source,
+                "public int createGameObjectInGameObject(int parentEntityId)")
+                .contains("parentEntityId"));
+
+        String execution = methodBody(source, "private int executePreparedCreation(");
+        assertTrue(execution.contains("new CreateGameObjectChildCommand("));
+        assertTrue(execution.contains("historyManager.execute(command);"));
     }
 
     @Test

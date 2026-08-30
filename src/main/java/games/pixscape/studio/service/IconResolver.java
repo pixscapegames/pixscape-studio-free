@@ -38,6 +38,9 @@ public class IconResolver {
             case TILED_MAP -> {
                 return VisUI.getSkin().getDrawable("icon-tiled");
             }
+            case GAME_OBJECT -> {
+                return VisUI.getSkin().getDrawable("cube");
+            }
             default -> {
                 return VisUI.getSkin().getDrawable("image_icon16");
             }
