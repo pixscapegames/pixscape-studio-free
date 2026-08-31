@@ -268,7 +268,7 @@ public class RenderRebindHelperTest {
     }
 
     @Test
-    public void prefabRebindWithThreePublishedHandlesDoesNotInvalidateSnapshot()
+    public void hierarchyRebindWithThreePublishedHandlesDoesNotInvalidateSnapshot()
             throws Exception {
         World world = worldWithDirtyTracker();
         Fixture first = fixture(world, 7);
@@ -301,7 +301,7 @@ public class RenderRebindHelperTest {
     }
 
     @Test
-    public void prefabRebindInvalidatesOnceWhenOneHandleIsUnpublished()
+    public void hierarchyRebindInvalidatesOnceWhenOneHandleIsUnpublished()
             throws Exception {
         World world = worldWithDirtyTracker();
         Fixture first = fixture(world, 7);

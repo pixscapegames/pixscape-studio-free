@@ -55,8 +55,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.initializer.GenericEntityInitializer;
-import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
@@ -66,10 +64,8 @@ import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
-import games.pixscape.studio.service.entitygraph.EntityGraph;
-import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
-import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
@@ -88,7 +84,6 @@ import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.Objects;
 import java.util.function.IntFunction;
-import java.util.function.IntPredicate;
 
 public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcessor,
         SpatialPreviewInvariantBoundary.FailureListener {
@@ -138,7 +133,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final PolygonDrawSession polygonDrawSession;
     private String defaultShaderName;
     private GameObjectAssetService gameObjectAssetService;
-    private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
     private IdentityRegistry identityRegistry;
 
@@ -182,7 +176,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final Vector2 lastMouse = new Vector2();
     private final Vector2 delta = new Vector2();
     private final Vector2 tmpWorldPos = new Vector2();
-    private final Vector2 tmpPrefabOrigin = new Vector2();
     private final Vector2 tmpBeforeScroll = new Vector2();
     private final Vector2 tmpAfterScroll = new Vector2();
     private final Vector2 tmpUiStageCoords = new Vector2();
@@ -444,15 +437,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         clipboardService = new ClipboardService(this, identityRegistry);
 
-        gameObjectAssetService = new GameObjectAssetService(world);
-        entityGraphInstantiationService = new EntityGraphInstantiationService(
-                world,
-                historyManager,
-                identityRegistry,
-                physicsService,
-                this::isScenePhysicsEnabled,
-                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
-        );
+        gameObjectAssetService = new GameObjectAssetService(
+                world, historyManager, identityRegistry,
+                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity,
+                entityId -> {
+                    if (entityId >= 0) selectionService.selectOnly(entityId);
+                    else selectionService.clearSelection();
+                });
 
         // Wiring
         pickingSystem.setSelectionService(selectionService);
@@ -785,7 +776,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         boolean acceptHere = switch (peek.type) {
-            case "particle", "anim-sheet", "atlas-region", "image-file", "prefab", "tile-asset", "tiled-animation" -> true;
+            case "particle", "anim-sheet", "atlas-region", "image-file", "gameObject", "tile-asset", "tiled-animation" -> true;
             default -> false;
         };
 
@@ -820,7 +811,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 case "anim-sheet" -> handleAnimSheetDrop(p, mx, my);
                 case "atlas-region" -> handleImageDrop(p, mx, my);
                 case "image-file" -> handleImageFileDrop(p, mx, my);
-                case "prefab" -> handlePrefabDrop(p, mx, my);
+                case "gameObject" -> handleGameObjectDrop(p, mx, my);
             }
             cleanupDndPayload(p);
         }
@@ -1731,7 +1722,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     }
 
-    public void handlePrefabDrop(DragPayload p, float screenX, float screenY) {
+    public void handleGameObjectDrop(DragPayload p, float screenX, float screenY) {
         if (p == null || p.path == null || p.path.trim().isEmpty()) {
             return;
         }
@@ -1744,63 +1735,34 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 tmpWorldPos
         );
 
-        FileHandle prefabFile = Gdx.files.absolute(p.path);
-        if (!prefabFile.exists()) {
-            Gdx.app.error("PrefabDrop", "Prefab file does not exist: " + p.path);
+        FileHandle assetFile = Gdx.files.absolute(p.path);
+        if (!assetFile.exists()) {
+            Gdx.app.error("GameObjectDrop", "Game Object file does not exist: " + p.path);
             return;
         }
 
-        EntityGraph graph;
+        GameObjectAsset asset;
         try {
-            graph = gameObjectAssetService.loadGameObject(prefabFile);
+            asset = gameObjectAssetService.loadGameObjectAsset(assetFile);
         } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to load prefab: " + p.path, ex);
-            return;
-        }
-
-        if (graph == null || graph.isEmpty()) {
-            Gdx.app.error("PrefabDrop", "Prefab graph is empty: " + p.path);
-            return;
-        }
-        if (!entityGraphInstantiationService.isInstantiationAllowed(graph)) {
-            Gdx.app.error(
-                    "PrefabDrop",
-                    "Cannot instantiate authored Physics while scene Physics is disabled: "
-                            + p.path);
-            return;
-        }
-
-        computePrefabOrigin(graph, tmpPrefabOrigin);
-
-        int prefabInstanceId;
-        String prefabId = StudioFs.removeExtension(prefabFile.name());
-        try {
-            SceneService sceneService = app != null ? app.getSceneService() : null;
-            if (sceneService == null) {
-                throw new IllegalStateException("Scene service is unavailable");
-            }
-            prefabInstanceId = sceneService.allocatePrefabInstanceId();
-        } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to allocate prefab instance: " + p.path, ex);
+            Gdx.app.error("GameObjectDrop", "Failed to load Game Object: " + p.path, ex);
             return;
         }
 
         String sceneTag = currentSceneTag();
-        boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
+        boolean atlasInputChanged = ensureGameObjectRenderAssetsInSceneAtlas(asset, sceneTag);
 
         EntityGraphInstantiationResult result;
         try {
-            result = entityGraphInstantiationService.instantiatePrefab(
-                    graph,
+            result = gameObjectAssetService.instantiateGameObject(
+                    assetFile,
+                    assetFile.name(),
                     selectionService.getActiveLayerIndex(),
-                    tmpWorldPos.x - tmpPrefabOrigin.x,
-                    tmpWorldPos.y - tmpPrefabOrigin.y,
-                    "Instantiate Prefab",
-                    prefabInstanceId,
-                    prefabId
+                    tmpWorldPos.x,
+                    tmpWorldPos.y
             );
         } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to instantiate prefab: " + p.path, ex);
+            Gdx.app.error("GameObjectDrop", "Failed to instantiate Game Object: " + p.path, ex);
             return;
         }
 
@@ -1811,7 +1773,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     sceneTag,
                     assetVisualResolver,
                     result.createdIds(),
-                    "prefab-render-assets-rebound"
+                    "game-object-render-assets-rebound"
             );
 
             if (atlasInputChanged) {
@@ -1819,40 +1781,22 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
         }
 
-        ItemTreePanel itemTreePanel = app.getItemTreePanel();
-        if (itemTreePanel != null) {
-            itemTreePanel.selectPrefabInstance(prefabInstanceId, result.createdIds());
-        } else {
-            selectionService.replaceSelection(
-                    result.createdIds(), SelectionService.SelectionSource.TREE);
-        }
     }
 
-    boolean ensurePrefabRenderAssetsInSceneAtlas(EntityGraph graph, String sceneTag) {
+    boolean ensureGameObjectRenderAssetsInSceneAtlas(GameObjectAsset asset, String sceneTag) {
         SceneService sceneService = (app != null) ? app.getSceneService() : null;
         if (sceneService == null || sceneTag == null || sceneTag.isBlank()) {
             return false;
         }
-        return ensurePrefabRenderAssetsInSceneAtlas(graph, assetId -> sceneService.ensureSceneAtlasInputHasAsset(sceneTag, assetId));
-    }
-
-    static boolean ensurePrefabRenderAssetsInSceneAtlas(EntityGraph graph, IntPredicate ensureAssetInSceneAtlasInput) {
-        if (ensureAssetInSceneAtlasInput == null || graph == null || graph.isEmpty()) {
-            return false;
-        }
-
         boolean changed = false;
         IntSet assetIds = new IntSet();
-        for (EntityGraphEntry entry : graph.entries()) {
-            if (entry == null || entry.initializer() == null) continue;
-            GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-            if (snapshot == null) continue;
-            if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
-                assetIds.add(snapshot.assetRefAssetId);
+        for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
+            if (data.assetRef != null && data.assetRef.assetId > 0) {
+                assetIds.add(data.assetRef.assetId);
             }
-            if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
-                for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
-                    int animationAssetId = snapshot.animationAssetIds.get(i);
+            if (data.animation != null && data.animation.animationAssetIds != null) {
+                for (int i = 0; i < data.animation.animationAssetIds.size; i++) {
+                    int animationAssetId = data.animation.animationAssetIds.get(i);
                     if (animationAssetId > 0) assetIds.add(animationAssetId);
                 }
             }
@@ -1860,7 +1804,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         for (IntSet.IntSetIterator it = assetIds.iterator(); it.hasNext; ) {
             int assetId = it.next();
-            changed |= ensureAssetInSceneAtlasInput.test(assetId);
+            changed |= sceneService.ensureSceneAtlasInputHasAsset(sceneTag, assetId);
         }
         return changed;
     }
@@ -1875,37 +1819,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             assetRef.atlasTag = sceneTag;
         }
     }
-
-    static void computePrefabOrigin(EntityGraph graph, Vector2 out) {
-        float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY;
-        float maxY = Float.NEGATIVE_INFINITY;
-        boolean any = false;
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            GenericEntityInitializer.PreviewVisualData visual =
-                    entry.initializer().toPreviewVisualData();
-
-            if (!visual.hasTransform || visual.hasPhysicsJoint) {
-                continue;
-            }
-
-            minX = Math.min(minX, visual.x);
-            minY = Math.min(minY, visual.y);
-            maxX = Math.max(maxX, visual.x);
-            maxY = Math.max(maxY, visual.y);
-            any = true;
-        }
-
-        if (!any) {
-            out.set(0f, 0f);
-            return;
-        }
-
-        out.set((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
-    }
-
 
     // ---------------------------------------------------------------------
     // Lifecycle

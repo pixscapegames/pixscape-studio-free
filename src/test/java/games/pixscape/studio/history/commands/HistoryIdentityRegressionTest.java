@@ -185,7 +185,7 @@ public class HistoryIdentityRegressionTest {
     }
 
     @Test
-    public void prefabInstantiationAssignsFreshIdentitiesForEachInstance() {
+    public void graphInstantiationAssignsFreshIdentitiesForEachCopy() {
         ProjectConfig config = new ProjectConfig();
         config.createSceneMeta("Identity regression");
         ProjectConfig.setInstance(config);
@@ -203,9 +203,9 @@ public class HistoryIdentityRegressionTest {
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
                 world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true);
 
-        EntityGraphInstantiationResult first = service.instantiate(graph, 0, 10f, 0f, "Instantiate Prefab");
+        EntityGraphInstantiationResult first = service.instantiate(graph, 0, 10f, 0f, "Instantiate Graph");
         world.process();
-        EntityGraphInstantiationResult second = service.instantiate(graph, 0, 20f, 0f, "Instantiate Prefab");
+        EntityGraphInstantiationResult second = service.instantiate(graph, 0, 20f, 0f, "Instantiate Graph");
         world.process();
 
         Assert.assertEquals(3, first.createdIds().size);
@@ -217,7 +217,7 @@ public class HistoryIdentityRegressionTest {
     }
 
     @Test
-    public void prefabDeleteUndoRedoStressDoesNotDuplicateIdentityMappings() {
+    public void graphDeleteUndoRedoStressDoesNotDuplicateIdentityMappings() {
         World world = world();
         HistoryManager history = new HistoryManager(32);
         IdentityRegistry identities = bindIdentities(world);
@@ -230,7 +230,7 @@ public class HistoryIdentityRegressionTest {
         EntityGraphInstantiationResult instance = new EntityGraphInstantiationService(
                 world, history, identities, new games.pixscape.runtime.service.PhysicsService(
                 world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true)
-                .instantiate(graph, 0, 10f, 10f, "Instantiate Prefab");
+                .instantiate(graph, 0, 10f, 10f, "Instantiate Graph");
         world.process();
 
         long firstHistoryId = history.historyIds().historyIdOfEntity(instance.createdIds().get(0));

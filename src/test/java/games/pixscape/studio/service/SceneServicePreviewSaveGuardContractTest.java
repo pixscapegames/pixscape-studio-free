@@ -325,7 +325,7 @@ public class SceneServicePreviewSaveGuardContractTest {
                   "animationsDir": "animations",
                   "shadersDir": "shaders",
                   "audioDir": "audio",
-                  "prefabsDir": "prefabs",
+                  "gameObjectsDir": "gameobjects",
                   "currentSceneName": "%s",
                   "scenes": {
                     "Main": {

@@ -26,7 +26,7 @@ public class HtmlPreviewPipelineTest {
         write(runtime, "project.json");
         write(runtime, "scenes/demo.json");
         write(runtime, "effects/fire.p");
-        write(runtime, "prefabs/enemy.pixfragment.json");
+        write(runtime, "gameobjects/enemy.gameobject");
 
         Path first = HtmlPreviewLauncher.preparePreviewState(studio, runtime);
         Path second = HtmlPreviewLauncher.preparePreviewState(studio, runtime);
@@ -42,7 +42,7 @@ public class HtmlPreviewPipelineTest {
         assertTrue(manifestLine(manifest, "pixscape-project/project.json").endsWith(":1"));
         assertTrue(manifestLine(manifest, "pixscape-project/scenes/demo.json").endsWith(":0"));
         assertTrue(manifestLine(manifest, "pixscape-project/effects/fire.p").endsWith(":0"));
-        assertTrue(manifestLine(manifest, "pixscape-project/prefabs/enemy.pixfragment.json")
+        assertTrue(manifestLine(manifest, "pixscape-project/gameobjects/enemy.gameobject")
                 .endsWith(":0"));
         assertFalse(Files.exists(first.getParent().resolve("pixscape-project")));
         assertFalse(Files.exists(studio.resolve(".pixscape/preview/html/htmlplayer")));
@@ -76,6 +76,7 @@ public class HtmlPreviewPipelineTest {
     }
 
     private static String assetTypePrefix(String path) {
-        return path.endsWith(".json") || path.endsWith(".p") ? "t:" : "b:";
+        return path.endsWith(".json") || path.endsWith(".gameobject")
+                || path.endsWith(".p") ? "t:" : "b:";
     }
 }

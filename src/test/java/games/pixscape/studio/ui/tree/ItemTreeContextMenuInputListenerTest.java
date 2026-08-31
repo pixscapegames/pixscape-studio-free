@@ -99,7 +99,7 @@ public class ItemTreeContextMenuInputListenerTest {
     }
 
     @Test
-    public void acceptsRealGameObjectEntityNodeButRejectsLegacyPrefabVirtualNode() {
+    public void acceptsRealGameObjectEntityNode() {
         Stage stage = stage();
         try {
             EntityNode realRoot = new EntityNode("Game Object", null, 41, true);
@@ -117,19 +117,6 @@ public class ItemTreeContextMenuInputListenerTest {
             realListener.touchUp(event, 1f, 2f, 0, Input.Buttons.RIGHT);
             assertEquals(new IntArray(new int[]{41}), presented);
 
-            EntityNode prefab = EntityNode.prefabInstance(
-                    "Legacy", null, 7, new IntArray(new int[]{41}), true);
-            StubTree prefabTree = new StubTree(prefab);
-            stage.addActor(prefabTree);
-            ItemTreeContextMenuInputListener<Object> prefabListener = new ItemTreeContextMenuInputListener<>(
-                    prefabTree,
-                    node -> node.isEntityNode() && node.getEntityId() == 41,
-                    ignored -> { },
-                    () -> null,
-                    (node, context, shownStage, stageX, stageY) -> presented.add(-1));
-            assertFalse(prefabListener.touchDown(
-                    event, 1f, 2f, 0, Input.Buttons.RIGHT));
-            assertEquals(new IntArray(new int[]{41}), presented);
         } finally {
             stage.dispose();
         }

@@ -53,7 +53,7 @@ public class RegressionContracts013Test {
     }
 
     @Test
-    public void sceneAtlasInput_cleanup_onlyRemovesUnreferencedAssets_notPrefabSourceOwnership() throws Exception {
+    public void sceneAtlasInput_cleanup_onlyRemovesUnreferencedAssets() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
         String collectBody = methodBody(source, "private Set<String> collectRequiredAtlasInputPathsForCurrentScene(");
 

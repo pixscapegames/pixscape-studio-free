@@ -50,8 +50,7 @@ public class HtmlPreviewLauncherManifestTest {
                 "pixscape-project/atlases/b.png",
                 "pixscape-project/effects/fire.p",
                 "pixscape-project/audio/music.ogg",
-                "pixscape-project/gameobjects/enemy.gameobject",
-                "pixscape-project/prefabs/enemy.pixfragment.json"
+                "pixscape-project/gameobjects/enemy.gameobject"
         };
 
         for (String path : bootstrap) writeFile(assets, path);

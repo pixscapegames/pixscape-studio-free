@@ -9,7 +9,6 @@ import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
@@ -42,7 +41,6 @@ public final class RuntimeExport {
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsRuntimeJointComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("PhysicsCompiledFixturesComponent");
         RUNTIME_EXCLUDED_COMPONENTS.add("SpatialPhysicsFootprintComponent");
-        RUNTIME_EXCLUDED_COMPONENTS.add("PrefabInstanceComponent");
     }
 
     private static final Json JSON = new Json();
@@ -246,42 +244,10 @@ public final class RuntimeExport {
                 continue;
             }
 
-            boolean isStudioGameObject = file.name().endsWith(GameObjectAsset.EXTENSION);
-            boolean isRuntimeFragment = file.name().endsWith(".pixfragment.json");
-
-            if (!isStudioGameObject && !isRuntimeFragment) {
-                continue;
-            }
-            if (isRuntimeFragment) {
-                sanitizeGameObjectRuntimeFragment(file, targetDir.child(file.name()));
-            } else {
+            if (file.name().endsWith(GameObjectAsset.EXTENSION)) {
                 file.copyTo(targetDir.child(file.name()));
             }
         }
-    }
-
-    private static void sanitizeGameObjectRuntimeFragment(FileHandle inFile, FileHandle outFile) {
-        JsonValue root = new JsonReader().parse(inFile);
-        GameObjectRuntimeFragment.requireCurrentSchema(root);
-        removeStudioOnlyArtemisComponents(root, RUNTIME_EXCLUDED_COMPONENTS);
-
-        JsonValue entities = root.get("entities");
-
-        if (entities != null && entities.isObject()) {
-            for (JsonValue ent = entities.child; ent != null; ent = ent.next) {
-                JsonValue comps = ent.get("components");
-                if (comps == null) continue;
-
-                JsonValue id = comps.get("PixscapeIdentityComponent");
-                if (id != null && id.isObject()) {
-                    id.remove("stableId");
-                }
-            }
-        }
-
-        outFile.parent().mkdirs();
-        String pretty = root.prettyPrint(JsonWriter.OutputType.json, 120);
-        StudioIO.writeAtomic(outFile, out -> out.write(pretty.getBytes(StandardCharsets.UTF_8)));
     }
 
     private static void exportTileAnimations(FileHandle studioFile, FileHandle runtimeFile) {

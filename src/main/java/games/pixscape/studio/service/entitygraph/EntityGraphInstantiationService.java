@@ -15,10 +15,8 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.CompositeCommand;
 import games.pixscape.studio.history.commands.CreateEntityCommand;
-import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
-import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,26 +73,7 @@ public final class EntityGraphInstantiationService {
                                                       float dx,
                                                       float dy,
                                                       String commandName) {
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null, -1, null);
-    }
-
-    public EntityGraphInstantiationResult instantiatePrefab(
-            EntityGraph graph,
-            int activeLayerIndex,
-            float dx,
-            float dy,
-            String commandName,
-            int prefabInstanceId,
-            String prefabId) {
-        if (prefabInstanceId <= 0) {
-            throw new IllegalArgumentException("Prefab instance ID must be positive.");
-        }
-        if (prefabId == null || prefabId.isBlank()) {
-            throw new IllegalArgumentException("Prefab ID must not be blank.");
-        }
-        return instantiate(
-                graph, activeLayerIndex, dx, dy, commandName,
-                null, prefabInstanceId, prefabId);
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null);
     }
 
     public EntityGraphInstantiationResult instantiateForClipboard(
@@ -107,7 +86,7 @@ public final class EntityGraphInstantiationService {
         if (targetLayer == null) {
             throw new IllegalArgumentException("targetLayer must not be null.");
         }
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer, -1, null);
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
     }
 
     public boolean isInstantiationAllowed(EntityGraph graph) {
@@ -121,9 +100,7 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             String commandName,
-            ClipboardTargetLayer clipboardTargetLayer,
-            int prefabInstanceId,
-            String prefabId) {
+            ClipboardTargetLayer clipboardTargetLayer) {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
@@ -135,8 +112,7 @@ public final class EntityGraphInstantiationService {
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
-                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer,
-                prefabInstanceId, prefabId);
+                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer);
         if (clipboardTargetLayer == ClipboardTargetLayer.NON_SPATIAL) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
@@ -166,26 +142,10 @@ public final class EntityGraphInstantiationService {
         if (commands.isEmpty()) return EntityGraphInstantiationResult.empty();
         commands.add(new ApplyPreparedJointRemapsCommand(
                 preparedJointRemaps, sourceToCreated));
-        if (prefabInstanceId > 0) {
-            commands.add(ReorderLogicalLayerCommand.normalizeAfterCreation(
-                    world,
-                    historyManager.historyIds(),
-                    activeLayerIndex,
-                    new LayerLogicalOrderService(world),
-                    () -> currentCreatedEntityIds(sourceToCreated)));
-        }
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
         historyManager.execute(new CompositeCommand(label, commands));
 
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
-    }
-
-    private static IntArray currentCreatedEntityIds(IntIntMap sourceToCreated) {
-        IntArray entityIds = new IntArray(false, sourceToCreated.size);
-        for (IntIntMap.Entry entry : sourceToCreated) {
-            entityIds.add(entry.value);
-        }
-        return entityIds;
     }
 
     private List<PreparedEntity> prepareEntities(
@@ -194,9 +154,7 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             IntMap<GenericEntitySnapshotData> snapshots,
-            ClipboardTargetLayer clipboardTargetLayer,
-            int prefabInstanceId,
-            String prefabId) {
+            ClipboardTargetLayer clipboardTargetLayer) {
         List<PreparedEntity> prepared = new ArrayList<>();
         for (EntityGraphEntry entry : graph.entries()) {
             int sourceEntityId = entry.sourceEntityId();
@@ -209,9 +167,6 @@ public final class EntityGraphInstantiationService {
             GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             if (clipboardTargetLayer != null) {
                 initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);
-                initializer.clearPrefabInstance();
-            } else if (prefabInstanceId > 0) {
-                initializer.setPrefabInstance(prefabInstanceId, prefabId);
             }
             initializer.overrideLayerIndex(activeLayerIndex);
             initializer.translate(dx, dy);

@@ -10,7 +10,6 @@ public final class SceneMeta extends SceneMetaRuntime {
     public float ambientColorB = Float.NaN;
     public float ambientIntensity = Float.NaN;
     public SceneRuntimeAvailabilityData runtimeAvailability = new SceneRuntimeAvailabilityData();
-    public int nextPrefabInstanceId = 1;
 
     public SceneMeta(String name, String file) {
         super(name, file);

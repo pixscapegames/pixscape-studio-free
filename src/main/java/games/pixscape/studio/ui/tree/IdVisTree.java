@@ -12,7 +12,6 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
     private final IntMap<EntityNode> jointNodesByEntityId = new IntMap<>();
     private final IntMap<EntityNode> mapNodes = new IntMap<>();
     private final IntMap<EntityNode> spatialBlockNodes = new IntMap<>();
-    private final IntMap<EntityNode> prefabInstanceNodes = new IntMap<>();
 
     /**
      * Clears the tree and resets internal indexes.
@@ -24,7 +23,6 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         jointNodesByEntityId.clear();
         mapNodes.clear();
         spatialBlockNodes.clear();
-        prefabInstanceNodes.clear();
     }
 
     /**
@@ -51,11 +49,6 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
         }
     }
 
-    public void registerPrefabInstanceNode(EntityNode node) {
-        if (node == null || !node.isPrefabInstanceNode()) return;
-        prefabInstanceNodes.put(node.getPrefabInstanceId(), node);
-    }
-
     public void registerJointNode(EntityNode node, int jointEntityId) {
         if (node == null || !node.isJointNode()) return;
         node.setValue(jointEntityId);
@@ -64,10 +57,6 @@ public class IdVisTree extends VisTree<EntityNode, Integer> {
 
     public EntityNode findJointNode(int jointEntityId) {
         return jointNodesByEntityId.get(jointEntityId);
-    }
-
-    public EntityNode findPrefabInstanceNode(int instanceId) {
-        return prefabInstanceNodes.get(instanceId);
     }
 
     public EntityNode findMapNode(int entityId) {
