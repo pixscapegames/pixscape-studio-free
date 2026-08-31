@@ -2,10 +2,12 @@ package games.pixscape.studio.system;
 
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.helper.AuthoredGeometryTransform;
+import games.pixscape.studio.helper.HandleLayout;
 import games.pixscape.studio.input.InputManipulationContext;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class PickingSystemGizmoTransformMathTest {
 
@@ -52,6 +54,43 @@ public class PickingSystemGizmoTransformMathTest {
     public void gameObjectManipulationPivotUsesResolvedBottomLeftPlusOrigin() {
         assertEquals(35f, PickingSystem.gameObjectPivot(25f, 10f), 0f);
         assertEquals(-7f, PickingSystem.gameObjectPivot(-12f, 5f), 0f);
+    }
+
+    @Test
+    public void rotatedGameObjectUsesDisplayedCornerAndRotationHandlePositions() {
+        float c = (float) Math.cos(Math.PI / 4d);
+        float s = (float) Math.sin(Math.PI / 4d);
+        float[] corners = {
+                0f, 0f,
+                40f * c, 40f * s,
+                40f * c - 20f * s, 40f * s + 20f * c,
+                -20f * s, 20f * c
+        };
+
+        assertTrue(games.pixscape.studio.helper.HandleHelper.insideSquare(
+                HandleLayout.neX(corners), HandleLayout.neY(corners),
+                corners[4], corners[5], 0.001f));
+
+        float[] rotate = new float[2];
+        HandleLayout.rotateHandle(corners, 12f, rotate);
+        assertEquals(InputManipulationContext.Handle.ROTATE,
+                PickingSystem.hitTestGameObjectRotateHandle(
+                        corners, rotate[0], rotate[1], 1f, 12f, new float[2]));
+        assertEquals(InputManipulationContext.Handle.NONE,
+                PickingSystem.hitTestGameObjectRotateHandle(
+                        corners, 20f, 32f, 1f, 12f, new float[2]));
+    }
+
+    @Test
+    public void rotatedGameObjectUniformResizeUsesPivotDistanceAndStaysPositive() {
+        assertEquals(3f, PickingSystem.uniformScaleFromPointer(
+                5f, 7f, 15f, 7f, 25f, 7f, 1.5f), 0.0001f);
+        assertEquals(3f, PickingSystem.uniformScaleFromPointer(
+                5f, 7f, 5f, 17f, 5f, 27f, 1.5f), 0.0001f);
+        assertEquals(0.01f, PickingSystem.uniformScaleFromPointer(
+                5f, 7f, 15f, 7f, 5f, 7f, 1.5f), 0f);
+        assertTrue(Float.isNaN(PickingSystem.uniformScaleFromPointer(
+                5f, 7f, 5f, 7f, 10f, 7f, 1f)));
     }
 
     @Test

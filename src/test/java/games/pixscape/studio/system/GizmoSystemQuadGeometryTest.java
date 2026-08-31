@@ -41,7 +41,7 @@ public class GizmoSystemQuadGeometryTest {
     }
 
     @Test
-    public void gameObjectDerivedBoundsUseStableAxisAlignedCornerLayout() {
+    public void axisAlignedCornerWriterUsesStableCornerLayout() {
         float[] actual = new float[8];
         GizmoSystem.writeAxisAlignedCorners(-2f, 3f, 8f, 11f, actual);
         assertArrayEquals(

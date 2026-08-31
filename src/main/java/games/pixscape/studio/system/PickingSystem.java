@@ -27,9 +27,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
-import games.pixscape.runtime.system.GameObjectCompositionSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
@@ -98,8 +96,8 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
     private ComponentMapper<QuadDeformComponent> mQuadDeform;
     private ComponentMapper<GameObjectComponent> mGameObject;
-    private GameObjectCompositionSystem gameObjectComposition;
     private GameObjectHierarchySystem gameObjectHierarchy;
+    private GameObjectGizmoGeometry gameObjectGizmoGeometry;
 
     private DirtyTrackerSystem dirty;
     private GizmoSystem gizmoSystem;
@@ -307,8 +305,8 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
-        gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
         selectableObbSubscription = world.getAspectSubscriptionManager().get(
                 Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
                         .exclude(PointLightComponent.class, ConeLightComponent.class,
@@ -3231,14 +3229,26 @@ public final class PickingSystem extends BaseSystem {
         float pivotY = manipulationPivotY(entityId, transform);
         tmp2Vec.set(pivotX, pivotY);
         applyDisplayOffset(entityId, tmp2Vec);
-        float startDistance = Vector2.dst(
-                tmp2Vec.x, tmp2Vec.y, ctx.dragStartMouseX(), ctx.dragStartMouseY());
-        if (startDistance <= 0.0001f) return;
-        float currentDistance = Vector2.dst(tmp2Vec.x, tmp2Vec.y, mouseX, mouseY);
-        float scale = Math.max(0.01f, ctx.scaleXstart() * currentDistance / startDistance);
+        float scale = uniformScaleFromPointer(
+                tmp2Vec.x, tmp2Vec.y,
+                ctx.dragStartMouseX(), ctx.dragStartMouseY(),
+                mouseX, mouseY,
+                ctx.scaleXstart());
+        if (Float.isNaN(scale)) return;
         transform.scaleX = scale;
         transform.scaleY = scale;
         if (dirty != null) dirty.geometry(entityId, GeometryDirty.SCALE);
+    }
+
+    static float uniformScaleFromPointer(
+            float pivotX, float pivotY,
+            float startX, float startY,
+            float currentX, float currentY,
+            float initialScale) {
+        float startDistance = Vector2.dst(pivotX, pivotY, startX, startY);
+        if (startDistance <= 0.0001f) return Float.NaN;
+        float currentDistance = Vector2.dst(pivotX, pivotY, currentX, currentY);
+        return Math.max(0.01f, initialScale * currentDistance / startDistance);
     }
 
     static float clampScaleAwayFromZero(float value, float fallbackSignValue, float minAbs) {
@@ -3844,10 +3854,8 @@ public final class PickingSystem extends BaseSystem {
         if (mGameObject.has(entityId)) {
             float rotateOffsetWorld = HandleHelper.pxToWorld(
                     worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
-            HandleLayout.rotateHandle(obb, rotateOffsetWorld, tmp2);
-            return HandleHelper.insideSquare(mx, my, tmp2[0], tmp2[1], halfWidthorld)
-                    ? InputManipulationContext.Handle.ROTATE
-                    : InputManipulationContext.Handle.NONE;
+            return hitTestGameObjectRotateHandle(
+                    obb, mx, my, halfWidthorld, rotateOffsetWorld, tmp2);
         }
 
         if (HandleHelper.insideSquare(mx, my, HandleLayout.midSX(obb), HandleLayout.midSY(obb), halfWidthorld))
@@ -3867,6 +3875,20 @@ public final class PickingSystem extends BaseSystem {
         }
 
         return InputManipulationContext.Handle.NONE;
+    }
+
+    static InputManipulationContext.Handle hitTestGameObjectRotateHandle(
+            float[] corners,
+            float mouseX,
+            float mouseY,
+            float halfWidthWorld,
+            float rotateOffsetWorld,
+            float[] scratch2) {
+        HandleLayout.rotateHandle(corners, rotateOffsetWorld, scratch2);
+        return HandleHelper.insideSquare(
+                mouseX, mouseY, scratch2[0], scratch2[1], halfWidthWorld)
+                ? InputManipulationContext.Handle.ROTATE
+                : InputManipulationContext.Handle.NONE;
     }
 
     private boolean tryBeginLightRadiusDrag(float mx, float my, int entityId) {
@@ -3977,19 +3999,10 @@ public final class PickingSystem extends BaseSystem {
 
     private float[] computeOBBWorldCorners(int e) {
         if (mGameObject.has(e)) {
-            GameObjectCompositionState state = gameObjectComposition != null
-                    ? gameObjectComposition.state() : null;
-            if (state != null && e >= 0 && e < state.boundsResolved.length
-                    && state.boundsResolved[e]) {
-                return GizmoSystem.writeAxisAlignedCorners(
-                        state.minX[e], state.minY[e], state.maxX[e], state.maxY[e], tmpCorners);
-            }
-            TransformComponent transform = mT.getSafe(e, null);
-            if (transform == null) return null;
             float half = HandleHelper.pxToWorld(worldCam, 8f);
-            return GizmoSystem.writeAxisAlignedCorners(
-                    transform.x - half, transform.y - half,
-                    transform.x + half, transform.y + half, tmpCorners);
+            return gameObjectGizmoGeometry != null
+                    && gameObjectGizmoGeometry.writeWorldCorners(e, half, tmpCorners)
+                    ? tmpCorners : null;
         }
         OrientedBoundsComponent b = mOBB.getSafe(e, null);
         if (b == null) return null;
@@ -4051,7 +4064,12 @@ public final class PickingSystem extends BaseSystem {
         float objectRotationRad = 0f;
         IntArray sel = selectionService.getSelectionSnapshot();
         if (sel.size == 1 && mT.has(sel.get(0))) {
-            objectRotationRad = mT.get(sel.get(0)).rotationRad;
+            int selectedEntity = sel.get(0);
+            WorldTransformState state = mGameObject.has(selectedEntity) && gameObjectHierarchy != null
+                    ? gameObjectHierarchy.worldTransforms() : null;
+            objectRotationRad = state != null && state.isResolved(selectedEntity)
+                    ? state.rotationRad[selectedEntity]
+                    : mT.get(selectedEntity).rotationRad;
         }
 
         if (dragging) {

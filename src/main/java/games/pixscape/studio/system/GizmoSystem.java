@@ -22,8 +22,6 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
-import games.pixscape.runtime.system.GameObjectCompositionSystem;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
@@ -119,6 +117,7 @@ public final class GizmoSystem extends BaseSystem {
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
     private ComponentMapper<QuadDeformComponent> mQuadDeform;
     private ComponentMapper<GameObjectComponent> mGameObject;
+    private GameObjectGizmoGeometry gameObjectGizmoGeometry;
 
     private int[] selected = new int[0];
     private final float[] tmpCorners = new float[8];
@@ -171,6 +170,11 @@ public final class GizmoSystem extends BaseSystem {
 
     public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
         this.displayOffsetResolver = displayOffsetResolver;
+    }
+
+    @Override
+    protected void initialize() {
+        gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
     }
 
     @Override
@@ -1847,20 +1851,10 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private float[] computeGameObjectWorldCorners(int entityId) {
-        GameObjectCompositionSystem system = world.getSystem(GameObjectCompositionSystem.class);
-        GameObjectCompositionState state = system != null ? system.state() : null;
-        if (state != null && entityId >= 0 && entityId < state.boundsResolved.length
-                && state.boundsResolved[entityId]) {
-            return writeAxisAlignedCorners(
-                    state.minX[entityId], state.minY[entityId],
-                    state.maxX[entityId], state.maxY[entityId], tmpCorners);
-        }
-        TransformComponent transform = mT.getSafe(entityId, null);
-        if (transform == null) return null;
         float half = ctx.pxToWorld(8f);
-        return writeAxisAlignedCorners(
-                transform.x - half, transform.y - half,
-                transform.x + half, transform.y + half, tmpCorners);
+        return gameObjectGizmoGeometry != null
+                && gameObjectGizmoGeometry.writeWorldCorners(entityId, half, tmpCorners)
+                ? tmpCorners : null;
     }
 
     static float[] writeAxisAlignedCorners(
