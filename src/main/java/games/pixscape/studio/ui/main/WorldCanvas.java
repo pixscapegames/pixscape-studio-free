@@ -353,7 +353,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         animationRegistry,
                         studioTilesetProfiles,
                         systemProfiler,
-                        false,
+                        new IdentityLayerDisplayOffsetResolver(),
 
                         // pre-render: Studio fallback systems before draw-list build
                         pre_render -> {
