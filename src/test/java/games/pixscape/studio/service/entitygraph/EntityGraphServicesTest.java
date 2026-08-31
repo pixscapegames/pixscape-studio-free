@@ -54,23 +54,23 @@ public class EntityGraphServicesTest {
     }
 
     @Test
-    public void genericCaptureIncludesLightsWhilePrefabCaptureExcludesThem() {
+    public void gameObjectCaptureRequiresARealSelectedRoot() {
         World world = new World(new WorldConfiguration());
         int point = light(world, false);
         int cone = light(world, true);
         EntityGraphCaptureService service = new EntityGraphCaptureService(world);
 
         EntityGraph generic = service.capture(arr(point, cone));
-        EntityGraph prefab = service.captureForPrefab(arr(point, cone));
+        EntityGraph gameObject = service.captureForGameObject(arr(point, cone));
 
         assertContains(generic, point);
         assertContains(generic, cone);
-        assertNotContains(prefab, point);
-        assertNotContains(prefab, cone);
+        assertNotContains(gameObject, point);
+        assertNotContains(gameObject, cone);
     }
 
     @Test
-    public void genericAndPrefabCaptureExcludeTiledMapRoots() {
+    public void genericAndGameObjectCaptureExcludeTiledMapRoots() {
         World world = new World(new WorldConfiguration());
         int map = world.create();
         world.getMapper(EntityIndexComponent.class).create(map).layerIndex = 0;
@@ -79,7 +79,7 @@ public class EntityGraphServicesTest {
         EntityGraphCaptureService service = new EntityGraphCaptureService(world);
 
         Assert.assertTrue(service.capture(arr(map)).isEmpty());
-        Assert.assertTrue(service.captureForPrefab(arr(map)).isEmpty());
+        Assert.assertTrue(service.captureForGameObject(arr(map)).isEmpty());
     }
 
     @Test

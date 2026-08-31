@@ -339,7 +339,7 @@ public final class EventFlow {
     ) {
     }
 
-    public record PrefabsChanged(
+    public record GameObjectsChanged(
             int sourceTag
     ) {
     }

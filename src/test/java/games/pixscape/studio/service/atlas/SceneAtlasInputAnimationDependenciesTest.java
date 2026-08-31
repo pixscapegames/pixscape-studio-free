@@ -9,8 +9,8 @@ import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.prefab.PrefabAsset;
-import games.pixscape.runtime.prefab.PrefabLoader;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
@@ -53,25 +53,38 @@ public class SceneAtlasInputAnimationDependenciesTest {
     }
 
     @Test
-    public void runtimeAvailablePrefabIncludesEveryAttachedAnimationAsset() throws Exception {
+    public void runtimeAvailableGameObjectIncludesEveryAttachedAnimationAsset() throws Exception {
         Harness harness = new Harness();
-        PrefabAsset prefab = new PrefabAsset();
-        prefab.name = "multi-animation";
-        PrefabAsset.PrefabEntityData entity = new PrefabAsset.PrefabEntityData();
-        entity.assetRef = new PrefabAsset.AssetRefData();
-        entity.assetRef.assetId = harness.active.id();
-        entity.animation = new PrefabAsset.AnimationData();
-        entity.animation.animationAssetIds.add(harness.active.id());
-        entity.animation.animationAssetIds.add(harness.nonActive.id());
-        entity.animation.currentClip = "default";
-        entity.animation.fps = 12f;
-        entity.animation.playing = true;
-        entity.animation.loop = true;
-        entity.animation.frame = -1;
-        prefab.entities.add(entity);
-        new PrefabLoader().save(
-                StudioFs.requirePrefabFile(harness.cfg, "multi-animation"), prefab);
-        harness.cfg.getCurrentSceneMeta().runtimeAvailability.prefabIds.add("multi-animation");
+        GameObjectAsset gameObject = new GameObjectAsset();
+        gameObject.rootSourceEntityId = 1;
+        GameObjectAsset.GameObjectEntityData entity = new GameObjectAsset.GameObjectEntityData();
+        entity.sourceEntityId = 1;
+        entity.transform = new GameObjectAsset.TransformData();
+        entity.transform.scaleX = 1f;
+        entity.transform.scaleY = 1f;
+        entity.gameObject = new GameObjectAsset.GameObjectData();
+        gameObject.entities.add(entity);
+        GameObjectAsset.GameObjectEntityData visual = new GameObjectAsset.GameObjectEntityData();
+        visual.sourceEntityId = 2;
+        visual.parentSourceEntityId = 1;
+        visual.transform = new GameObjectAsset.TransformData();
+        visual.transform.scaleX = 1f;
+        visual.transform.scaleY = 1f;
+        visual.assetRef = new GameObjectAsset.AssetRefData();
+        visual.assetRef.assetId = harness.active.id();
+        visual.animation = new GameObjectAsset.AnimationData();
+        visual.animation.animationAssetIds.add(harness.active.id());
+        visual.animation.animationAssetIds.add(harness.nonActive.id());
+        visual.animation.currentClip = "default";
+        visual.animation.fps = 12f;
+        visual.animation.playing = true;
+        visual.animation.loop = true;
+        visual.animation.frame = -1;
+        gameObject.entities.add(visual);
+        new GameObjectAssetLoader().save(
+                StudioFs.requireGameObjectFile(harness.cfg, "multi-animation"), gameObject);
+        harness.cfg.getCurrentSceneMeta().runtimeAvailability.gameObjectIds
+                .add("gameobjects/multi-animation.gameobject");
 
         Set<String> required = collect(
                 harness.cfg, new World(new WorldConfiguration()), harness.database);

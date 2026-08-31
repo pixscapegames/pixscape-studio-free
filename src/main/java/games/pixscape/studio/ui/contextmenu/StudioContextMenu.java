@@ -34,8 +34,8 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.prefab.PrefabAssetService;
-import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
+import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
@@ -65,7 +65,7 @@ public final class StudioContextMenu extends InputListener {
     private final EditorOps ops;
 
     private final EntityGraphCaptureService entityGraphCaptureService;
-    private final PrefabAssetService prefabAssetService;
+    private final GameObjectAssetService gameObjectAssetService;
 
     private final int MY_TAG = EventFlow.tag(this);
 
@@ -85,7 +85,7 @@ public final class StudioContextMenu extends InputListener {
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
 
         this.entityGraphCaptureService = new EntityGraphCaptureService(world);
-        this.prefabAssetService = new PrefabAssetService(world);
+        this.gameObjectAssetService = new GameObjectAssetService(world);
     }
 
     @Override
@@ -587,16 +587,16 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(paste);
 
-        MenuItem createPrefab = new MenuItem("Create prefab from selection");
-        createPrefab.setDisabled(!hasSelection);
-        createPrefab.addListener(new ClickListener() {
+        MenuItem createGameObject = new MenuItem("Create Game Object from selection");
+        createGameObject.setDisabled(!hasSelection);
+        createGameObject.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                showCreatePrefabDialog();
+                showCreateGameObjectDialog();
                 event.handle();
             }
         });
-        menu.addItem(createPrefab);
+        menu.addItem(createGameObject);
 
         MenuItem delete = new MenuItem("Delete");
         delete.setDisabled(!hasDeletableTarget);
@@ -618,12 +618,12 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showCreatePrefabDialog() {
-        VisDialog dialog = new StudioDialog("Create Prefab") {
+    private void showCreateGameObjectDialog() {
+        VisDialog dialog = new StudioDialog("Create Game Object") {
             private final VisTextField nameField = new VisTextField();
 
             {
-                nameField.setMessageText("Prefab name");
+                nameField.setMessageText("Game Object name");
 
                 getContentTable().defaults().pad(6).left();
                 getContentTable().add(new VisLabel("Name")).left();
@@ -641,7 +641,7 @@ public final class StudioContextMenu extends InputListener {
                     return;
                 }
 
-                createPrefabFromSelection(nameField.getText());
+                createGameObjectFromSelection(nameField.getText());
                 hide();
             }
         };
@@ -650,45 +650,44 @@ public final class StudioContextMenu extends InputListener {
         dialog.show(stage);
     }
 
-    private void createPrefabFromSelection(String rawName) {
-        String name = sanitizePrefabName(rawName);
+    private void createGameObjectFromSelection(String rawName) {
+        String name = sanitizeGameObjectName(rawName);
 
         if (name.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "Prefab name is required.");
+            Dialogs.showOKDialog(stage, "Create Game Object", "Game Object name is required.");
             return;
         }
 
         IntArray selection = selectionService.getSelectionSnapshot();
         if (selection == null || selection.size == 0) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "No entity selected.");
+            Dialogs.showOKDialog(stage, "Create Game Object", "No entity selected.");
             return;
         }
 
-        EntityGraph graph = entityGraphCaptureService.captureForPrefab(selection);
+        EntityGraph graph = entityGraphCaptureService.captureForGameObject(selection);
         if (graph == null || graph.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "Selection cannot be saved as a prefab.");
+            Dialogs.showOKDialog(stage, "Create Game Object", "Selection cannot be saved as a Game Object.");
             return;
         }
 
-        FileHandle prefabFile = StudioFs.requirePrefabFile(ProjectConfig.getInstance(), name);
+        FileHandle gameObjectFile = StudioFs.requireGameObjectFile(ProjectConfig.getInstance(), name);
 
         try {
-            prefabAssetService.savePrefab(prefabFile, name, graph);
-            PrefabPreviewWriter.writePrefabPreview(
-                    StudioFs.requirePrefabPreviewFile(ProjectConfig.getInstance(), name),
-                    ProjectConfig.getInstance(),
-                    graph
-            );
-            EventFlow.i().publish(new EventFlow.PrefabsChanged(MY_TAG));
-            Gdx.app.log("Prefab", "Created prefab: " + prefabFile.path());
-            Dialogs.showOKDialog(stage, "Create Prefab", "Prefab created:\n" + prefabFile.path());
+            gameObjectAssetService.saveGameObject(gameObjectFile, graph);
+            // Hierarchy-aware scene instantiation is Stage 5B. A neutral placeholder avoids
+            // publishing a misleading flat preview from authored local transforms.
+            GameObjectPreviewWriter.writePlaceholder(
+                    StudioFs.requireGameObjectPreviewFile(ProjectConfig.getInstance(), name));
+            EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
+            Gdx.app.log("GameObject", "Created Game Object: " + gameObjectFile.path());
+            Dialogs.showOKDialog(stage, "Create Game Object", "Game Object created:\n" + gameObjectFile.path());
         } catch (RuntimeException ex) {
-            Gdx.app.error("Prefab", "Failed to create prefab", ex);
-            Dialogs.showOKDialog(stage, "Create Prefab failed", ex.getMessage());
+            Gdx.app.error("GameObject", "Failed to create Game Object", ex);
+            Dialogs.showOKDialog(stage, "Create Game Object failed", ex.getMessage());
         }
     }
 
-    private static String sanitizePrefabName(String raw) {
+    private static String sanitizeGameObjectName(String raw) {
         if (raw == null) return "";
 
         String value = raw.trim().toLowerCase();

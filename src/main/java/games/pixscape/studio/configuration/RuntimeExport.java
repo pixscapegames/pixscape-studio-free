@@ -9,7 +9,8 @@ import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.runtime.prefab.RuntimePrefabFragment;
+import games.pixscape.runtime.gameobject.GameObjectRuntimeFragment;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
 import games.pixscape.studio.io.StudioFs;
@@ -99,7 +100,7 @@ public final class RuntimeExport {
         out.animationsDir = RuntimeFs.DIR_ANIMATIONS;
         out.shadersDir = RuntimeFs.DIR_SHADERS;
         out.audioDir = RuntimeFs.DIR_AUDIO;
-        out.prefabsDir = RuntimeFs.DIR_PREFABS;
+        out.gameObjectsDir = RuntimeFs.DIR_GAME_OBJECTS;
         out.glSamples = studioCfg.glSamples;
 
         // 2) Studio scenes -> runtime (deterministic order)
@@ -189,9 +190,9 @@ public final class RuntimeExport {
                 studioProjectDir.child(StudioFs.DIR_ORIG_AUDIO),
                 runtimeDir.child(out.audioDir)
         );
-        copyPrefabFiles(
-                studioProjectDir.child(StudioFs.DIR_PREFABS),
-                runtimeDir.child(out.prefabsDir)
+        copyGameObjectFiles(
+                studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS),
+                runtimeDir.child(out.gameObjectsDir)
         );
 
         // 6b) Export tiled animations registry (runtime-ready only)
@@ -230,7 +231,7 @@ public final class RuntimeExport {
         }
     }
 
-    private static void copyPrefabFiles(FileHandle sourceDir, FileHandle targetDir) {
+    private static void copyGameObjectFiles(FileHandle sourceDir, FileHandle targetDir) {
         if (sourceDir == null || !sourceDir.exists() || !sourceDir.isDirectory()) {
             return;
         }
@@ -245,23 +246,23 @@ public final class RuntimeExport {
                 continue;
             }
 
-            boolean isStudioPrefab = file.name().endsWith(StudioFs.EXT_PREFAB);
+            boolean isStudioGameObject = file.name().endsWith(GameObjectAsset.EXTENSION);
             boolean isRuntimeFragment = file.name().endsWith(".pixfragment.json");
 
-            if (!isStudioPrefab && !isRuntimeFragment) {
+            if (!isStudioGameObject && !isRuntimeFragment) {
                 continue;
             }
             if (isRuntimeFragment) {
-                sanitizeRuntimePrefabFragment(file, targetDir.child(file.name()));
+                sanitizeGameObjectRuntimeFragment(file, targetDir.child(file.name()));
             } else {
                 file.copyTo(targetDir.child(file.name()));
             }
         }
     }
 
-    private static void sanitizeRuntimePrefabFragment(FileHandle inFile, FileHandle outFile) {
+    private static void sanitizeGameObjectRuntimeFragment(FileHandle inFile, FileHandle outFile) {
         JsonValue root = new JsonReader().parse(inFile);
-        RuntimePrefabFragment.requireCurrentSchema(root);
+        GameObjectRuntimeFragment.requireCurrentSchema(root);
         removeStudioOnlyArtemisComponents(root, RUNTIME_EXCLUDED_COMPONENTS);
 
         JsonValue entities = root.get("entities");
@@ -722,15 +723,15 @@ public final class RuntimeExport {
         }
         root.addChild("particles", particles);
 
-        JsonValue prefabs = new JsonValue(JsonValue.ValueType.array);
-        if (data.prefabIds != null) {
-            for (String prefabId : data.prefabIds) {
-                if (prefabId != null && !prefabId.isBlank()) {
-                    prefabs.addChild(new JsonValue(prefabId));
+        JsonValue gameObjects = new JsonValue(JsonValue.ValueType.array);
+        if (data.gameObjectIds != null) {
+            for (String gameObjectId : data.gameObjectIds) {
+                if (gameObjectId != null && !gameObjectId.isBlank()) {
+                    gameObjects.addChild(new JsonValue(gameObjectId));
                 }
             }
         }
-        root.addChild("prefabs", prefabs);
+        root.addChild("gameObjects", gameObjects);
 
         JsonValue tiledTiles = new JsonValue(JsonValue.ValueType.array);
         if (data.tiledTileAssetIds != null) {

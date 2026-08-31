@@ -14,15 +14,16 @@ import static org.junit.Assert.*;
 public class RuntimeAvailabilityServiceTest {
 
     @Test
-    public void addPrefab_deduplicatesAndListsByCategory() {
+    public void addGameObject_deduplicatesAndListsByCategory() {
         RuntimeAvailabilityService service = new RuntimeAvailabilityService();
         SceneMeta scene = new SceneMeta("Main", "scene1.json");
 
-        assertTrue(service.addPrefab(scene, "enemy_slime"));
-        assertFalse(service.addPrefab(scene, "enemy_slime"));
+        assertTrue(service.addGameObject(scene, "enemy_slime"));
+        assertFalse(service.addGameObject(scene, "enemy_slime"));
 
-        assertEquals(1, service.listPrefabIds(scene).size());
-        assertEquals("enemy_slime", service.listPrefabIds(scene).get(0));
+        assertEquals(1, service.listGameObjectIds(scene).size());
+        assertEquals("gameobjects/enemy_slime.gameobject",
+                service.listGameObjectIds(scene).get(0));
         assertTrue(service.listTiledAnimationIds(scene).isEmpty());
     }
 
@@ -40,16 +41,16 @@ public class RuntimeAvailabilityServiceTest {
     }
 
     @Test
-    public void removePrefab_removesOnlyDeclaration() {
+    public void removeGameObject_removesOnlyDeclaration() {
         RuntimeAvailabilityService service = new RuntimeAvailabilityService();
         SceneMeta scene = new SceneMeta("Main", "scene1.json");
 
-        assertTrue(service.addPrefab(scene, "enemy_slime"));
-        assertTrue(service.containsPrefab(scene, "enemy_slime"));
+        assertTrue(service.addGameObject(scene, "enemy_slime"));
+        assertTrue(service.containsGameObject(scene, "enemy_slime"));
 
-        assertTrue(service.removePrefab(scene, "enemy_slime"));
-        assertFalse(service.containsPrefab(scene, "enemy_slime"));
-        assertFalse(service.removePrefab(scene, "enemy_slime"));
+        assertTrue(service.removeGameObject(scene, "enemy_slime"));
+        assertFalse(service.containsGameObject(scene, "enemy_slime"));
+        assertFalse(service.removeGameObject(scene, "enemy_slime"));
     }
 
     @Test

@@ -37,7 +37,7 @@ public final class AssetsFolderScanner {
             case ANIMATIONS -> projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS);
             case PARTICLES -> projectDir.child(StudioFs.DIR_ORIG_EFFECTS);
             case TILES -> projectDir.child(StudioFs.DIR_ORIG_TILES);
-            case PREFABS -> projectDir.child(StudioFs.DIR_PREFABS);
+            case GAME_OBJECTS -> projectDir.child(StudioFs.DIR_GAME_OBJECTS);
         };
 
         if (!baseDir.exists() || !baseDir.isDirectory())

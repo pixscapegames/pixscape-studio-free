@@ -14,7 +14,7 @@ public final class AssetNode {
         IMAGE,
         ANIMATION,              // classic animations
         PARTICLE,
-        PREFAB,
+        GAME_OBJECT,
         TILED_ANIMATIONS_FOLDER,
         TILED_ANIMATION,
         TILED_ANIMATION_FRAME
@@ -28,7 +28,7 @@ public final class AssetNode {
         ANIMATIONS,             // classic animations root
         PARTICLES,
         TILES,
-        PREFABS
+        GAME_OBJECTS
     }
 
     public Kind kind;

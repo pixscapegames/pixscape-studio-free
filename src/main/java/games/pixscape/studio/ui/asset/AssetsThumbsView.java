@@ -33,9 +33,9 @@ import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
-import games.pixscape.studio.service.prefab.PrefabAssetItem;
-import games.pixscape.studio.service.prefab.PrefabBrowserService;
-import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
+import games.pixscape.studio.service.gameobject.GameObjectAssetItem;
+import games.pixscape.studio.service.gameobject.GameObjectBrowserService;
+import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
 import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
@@ -80,14 +80,14 @@ public final class AssetsThumbsView extends VisTable {
     private ThumbsLayoutStrategy currentLayoutStrategy = galleryLayoutStrategy;
 
     private PopupMenu activeAssetMenu;
-    private final PrefabBrowserService prefabBrowserService = new PrefabBrowserService();
+    private final GameObjectBrowserService gameObjectBrowserService = new GameObjectBrowserService();
 
     private TiledAnimationFrameRemoveListener tiledAnimationFrameRemoveListener;
     private TiledAnimationFrameDurationChangeListener tiledAnimationFrameDurationChangeListener;
     private TiledAnimationFrameMoveListener tiledAnimationFrameMoveListener;
     private TiledAnimationDeleteListener tiledAnimationDeleteListener;
 
-    private final Array<Texture> ownedPrefabThumbTextures = new Array<>();
+    private final Array<Texture> ownedGameObjectThumbTextures = new Array<>();
 
     @FunctionalInterface
     public interface TiledAnimationFrameRemoveListener {
@@ -142,8 +142,8 @@ public final class AssetsThumbsView extends VisTable {
         add(header).growX().padBottom(4f).row();
         add(scroll).grow();
 
-        EventFlow.i().subscribe(EventFlow.PrefabsChanged.class, evt -> {
-            if (currentFolder != null && currentFolder.root == AssetNode.Root.PREFABS) {
+        EventFlow.i().subscribe(EventFlow.GameObjectsChanged.class, evt -> {
+            if (currentFolder != null && currentFolder.root == AssetNode.Root.GAME_OBJECTS) {
                 showForNode(currentFolder);
             }
         });
@@ -255,7 +255,7 @@ public final class AssetsThumbsView extends VisTable {
         currentAssets.clear();
         tileWidgets.clear();
         grid.clear();
-        disposeOwnedPrefabThumbTextures();
+        disposeOwnedGameObjectThumbTextures();
 
         currentLayoutStrategy = galleryLayoutStrategy;
         currentLayoutStrategy.configureScrollPane(scroll);
@@ -267,7 +267,7 @@ public final class AssetsThumbsView extends VisTable {
 
     public void showForNode(AssetNode folder) {
         currentFolder = folder;
-        disposeOwnedPrefabThumbTextures();
+        disposeOwnedGameObjectThumbTextures();
         refreshHeaderActions();
 
         selectedNode = null;
@@ -300,10 +300,10 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        if (folder.root == AssetNode.Root.PREFABS) {
+        if (folder.root == AssetNode.Root.GAME_OBJECTS) {
             currentLayoutStrategy = galleryLayoutStrategy;
             currentLayoutStrategy.configureScrollPane(scroll);
-            loadPrefabs();
+            loadGameObjects();
             layoutDirty = true;
             rebuildGrid();
             return;
@@ -330,14 +330,14 @@ public final class AssetsThumbsView extends VisTable {
         rebuildGrid();
     }
 
-    private void loadPrefabs() {
+    private void loadGameObjects() {
         ProjectConfig cfg = ProjectConfig.getInstance();
-        Array<PrefabAssetItem> items = prefabBrowserService.scan(cfg);
-        for (PrefabAssetItem item : items) {
+        Array<GameObjectAssetItem> items = gameObjectBrowserService.scan(cfg);
+        for (GameObjectAssetItem item : items) {
             AssetNode node = new AssetNode(
-                    AssetNode.Kind.PREFAB,
-                    AssetNode.Root.PREFABS,
-                    item.prefabFile().path(),
+                    AssetNode.Kind.GAME_OBJECT,
+                    AssetNode.Root.GAME_OBJECTS,
+                    item.gameObjectFile().path(),
                     item.name(),
                     null
             );
@@ -600,7 +600,7 @@ public final class AssetsThumbsView extends VisTable {
             case ANIMATIONS -> StudioFs.DIR_ORIG_ANIMATIONS + "/" + node.path;
             case PARTICLES -> StudioFs.DIR_ORIG_EFFECTS + "/" + node.path;
             case TILES -> StudioFs.DIR_ORIG_TILES + "/" + node.path;
-            case PREFABS -> null;
+            case GAME_OBJECTS -> null;
         };
     }
 
@@ -763,8 +763,8 @@ public final class AssetsThumbsView extends VisTable {
                 contentActor = buildEditableTiledAnimationFrameThumb(node);
             }
 
-            case PREFAB -> {
-                contentActor = buildPrefabThumb(node);
+            case GAME_OBJECT -> {
+                contentActor = buildGameObjectThumb(node);
             }
 
             default -> {
@@ -1093,7 +1093,7 @@ public final class AssetsThumbsView extends VisTable {
         if (node == null) return false;
 
         return switch (node.kind) {
-            case IMAGE, ANIMATION, PARTICLE, PREFAB -> true;
+            case IMAGE, ANIMATION, PARTICLE, GAME_OBJECT -> true;
             default -> false;
         };
     }
@@ -1130,7 +1130,7 @@ public final class AssetsThumbsView extends VisTable {
         if (node == null) return false;
 
         return switch (node.kind) {
-            case IMAGE, ANIMATION, PARTICLE, PREFAB, TILED_ANIMATION -> true;
+            case IMAGE, ANIMATION, PARTICLE, GAME_OBJECT, TILED_ANIMATION -> true;
             default -> false;
         };
     }
@@ -1160,8 +1160,8 @@ public final class AssetsThumbsView extends VisTable {
         delete.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (node.kind == AssetNode.Kind.PREFAB) {
-                    showDeletePrefabDialog(deleteTargets);
+                if (node.kind == AssetNode.Kind.GAME_OBJECT) {
+                    showDeleteGameObjectDialog(deleteTargets);
                 } else if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
                     if (tiledAnimationDeleteListener != null) {
                         tiledAnimationDeleteListener.accept(node.tileAnimationId, node.name);
@@ -1204,7 +1204,7 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         return switch (node.kind) {
-            case PREFAB -> "Delete prefab";
+            case GAME_OBJECT -> "Delete Game Object";
             case TILED_ANIMATION -> "Delete";
             default -> "Delete \"" + node.name + "\"";
         };
@@ -1226,7 +1226,7 @@ public final class AssetsThumbsView extends VisTable {
             case IMAGE -> first.root == AssetNode.Root.TILES ? "tiles" : "images";
             case ANIMATION -> "animations";
             case PARTICLE -> "particle effects";
-            case PREFAB -> "prefabs";
+            case GAME_OBJECT -> "Game Objects";
             default -> "assets";
         };
     }
@@ -1448,23 +1448,23 @@ public final class AssetsThumbsView extends VisTable {
         dialog.show(getStage());
     }
 
-    private Actor buildPrefabThumb(AssetNode node) {
+    private Actor buildGameObjectThumb(AssetNode node) {
         ProjectConfig cfg = ProjectConfig.getInstance();
-        FileHandle previewFile = StudioFs.requirePrefabPreviewFile(cfg, node.name);
+        FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(cfg, node.name);
 
         if (!previewFile.exists()) {
-            PrefabPreviewWriter.writePlaceholder(previewFile);
+            GameObjectPreviewWriter.writePlaceholder(previewFile);
         }
 
         Texture texture = new Texture(previewFile);
-        ownedPrefabThumbTextures.add(texture);
+        ownedGameObjectThumbTextures.add(texture);
 
         VisImage img = new VisImage(new TextureRegion(texture));
         img.setScaling(Scaling.fit);
         return img;
     }
 
-    private void showDeletePrefabDialog(Array<AssetNode> nodes) {
+    private void showDeleteGameObjectDialog(Array<AssetNode> nodes) {
         Array<AssetNode> targets = new Array<>();
         if (nodes != null) {
             targets.addAll(nodes);
@@ -1474,36 +1474,36 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        VisDialog dialog = new StudioDialog("Delete prefab") {
+        VisDialog dialog = new StudioDialog("Delete Game Object") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
                 ProjectConfig cfg = ProjectConfig.getInstance();
                 for (AssetNode target : targets) {
-                    PrefabAssetItem item = new PrefabAssetItem(
+                    GameObjectAssetItem item = new GameObjectAssetItem(
                             target.name,
-                            StudioFs.requirePrefabFile(cfg, target.name),
-                            StudioFs.requirePrefabPreviewFile(cfg, target.name)
+                            StudioFs.requireGameObjectFile(cfg, target.name),
+                            StudioFs.requireGameObjectPreviewFile(cfg, target.name)
                     );
-                    prefabBrowserService.deletePrefab(item);
+                    gameObjectBrowserService.deleteGameObject(item);
                 }
                 if (currentFolder != null) {
                     showForNode(currentFolder);
                 }
             }
         };
-        dialog.text(deletePrefabDialogText(targets));
+        dialog.text(deleteGameObjectDialogText(targets));
         dialog.button("Delete", true);
         dialog.button("Cancel", false);
         dialog.show(getStage());
     }
 
-    private String deletePrefabDialogText(Array<AssetNode> targets) {
+    private String deleteGameObjectDialogText(Array<AssetNode> targets) {
         if (targets.size == 1) {
-            return "Delete prefab \"" + targets.first().name + "\"?\n\nThis action cannot be undone.";
+            return "Delete Game Object \"" + targets.first().name + "\"?\n\nThis action cannot be undone.";
         }
 
-        return "Delete " + targets.size + " selected prefabs?\n\nThis action cannot be undone.";
+        return "Delete " + targets.size + " selected Game Objects?\n\nThis action cannot be undone.";
     }
 
     void setSelectedNode(AssetNode node) {
@@ -1666,11 +1666,11 @@ public final class AssetsThumbsView extends VisTable {
                 p.path = data.path;
                 buildParticleGhost(p);
             }
-            case PREFAB -> {
-                p.type = "prefab";
-                p.path = data.path;      // absolute path or project-relative .pixprefab path
+            case GAME_OBJECT -> {
+                p.type = "gameObject";
+                p.path = data.path;      // absolute path or project-relative .pixgameObject path
                 p.guid = data.name;
-                buildPrefabGhost(p, data);
+                buildGameObjectGhost(p, data);
             }
             case TILED_ANIMATION -> {
                 p.type = "tiled-animation";
@@ -1696,7 +1696,7 @@ public final class AssetsThumbsView extends VisTable {
             case ANIMATIONS -> StudioFs.DIR_ORIG_ANIMATIONS + "/" + data.path;
             case PARTICLES -> StudioFs.DIR_ORIG_EFFECTS + "/" + data.path;
             case TILES -> StudioFs.DIR_ORIG_TILES + "/" + data.path;
-            case PREFABS -> null;
+            case GAME_OBJECTS -> null;
         };
 
         if (sourceRelPath == null) return -1;
@@ -1716,7 +1716,7 @@ public final class AssetsThumbsView extends VisTable {
             case ANIMATIONS -> AssetType.ANIMATION;
             case PARTICLES -> AssetType.PARTICLE;
             case TILES -> AssetType.TILE;
-            case PREFABS -> null;
+            case GAME_OBJECTS -> null;
         };
     }
 
@@ -1790,13 +1790,13 @@ public final class AssetsThumbsView extends VisTable {
         return pm;
     }
 
-    private void buildPrefabGhost(DragPayload p, AssetNode data) {
+    private void buildGameObjectGhost(DragPayload p, AssetNode data) {
         if (p == null || data == null) return;
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return;
 
-        FileHandle previewFile = StudioFs.requirePrefabPreviewFile(cfg, data.name);
+        FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(cfg, data.name);
 
         Pixmap pm = null;
 
@@ -1804,7 +1804,7 @@ public final class AssetsThumbsView extends VisTable {
             try {
                 pm = new Pixmap(previewFile);
             } catch (RuntimeException ex) {
-                Gdx.app.error("PrefabDnD", "Failed to load prefab preview: " + previewFile.path(), ex);
+                Gdx.app.error("GameObjectDnD", "Failed to load Game Object preview: " + previewFile.path(), ex);
             }
         }
 
@@ -1873,7 +1873,7 @@ public final class AssetsThumbsView extends VisTable {
             case TILES -> projectDir.child(StudioFs.DIR_ORIG_TILES).child(data.path);
             case ANIMATIONS -> projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS).child(data.path);
             case PARTICLES -> null;
-            case PREFABS -> null;
+            case GAME_OBJECTS -> null;
         };
         if (file != null && file.exists()) {
             Pixmap pm = new Pixmap(file);
@@ -1938,12 +1938,12 @@ public final class AssetsThumbsView extends VisTable {
         layout();
     }
 
-    private void disposeOwnedPrefabThumbTextures() {
-        for (Texture texture : ownedPrefabThumbTextures) {
+    private void disposeOwnedGameObjectThumbTextures() {
+        for (Texture texture : ownedGameObjectThumbTextures) {
             if (texture != null) {
                 texture.dispose();
             }
         }
-        ownedPrefabThumbTextures.clear();
+        ownedGameObjectThumbTextures.clear();
     }
 }

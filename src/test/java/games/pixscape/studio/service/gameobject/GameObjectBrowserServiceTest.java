@@ -1,4 +1,4 @@
-package games.pixscape.studio.service.prefab;
+package games.pixscape.studio.service.gameobject;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
@@ -13,7 +13,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class PrefabBrowserServiceTest {
+public class GameObjectBrowserServiceTest {
 
     @BeforeClass
     public static void bootGdx() {
@@ -26,40 +26,42 @@ public class PrefabBrowserServiceTest {
     }
 
     @Test
-    public void scanFindsPrefabsAndPreviewPath() {
-        ProjectConfig cfg = testCfg("prefab-scan");
-        FileHandle dir = StudioFs.requirePrefabsDir(cfg);
-        dir.child("car.pixprefab").writeString("{}", false);
+    public void scanFindsGameObjectsAndPreviewPath() {
+        ProjectConfig cfg = testCfg("gameObject-scan");
+        FileHandle dir = StudioFs.requireGameObjectsDir(cfg);
+        dir.child("car.gameobject").writeString("{}", false);
+        dir.child("legacy.pixprefab").writeString("{}", false);
 
-        PrefabBrowserService service = new PrefabBrowserService();
-        Array<PrefabAssetItem> items = service.scan(cfg);
+        GameObjectBrowserService service = new GameObjectBrowserService();
+        Array<GameObjectAssetItem> items = service.scan(cfg);
 
         Assert.assertEquals(1, items.size);
         Assert.assertEquals("car", items.first().name());
+        Assert.assertEquals("gameobjects/car.gameobject", items.first().logicalAssetId());
         Assert.assertTrue(items.first().previewFile().path().endsWith("car.preview.png"));
     }
 
     @Test
-    public void deleteRemovesPrefabAndPreview() {
-        ProjectConfig cfg = testCfg("prefab-delete");
-        FileHandle prefab = StudioFs.requirePrefabFile(cfg, "truck");
-        FileHandle preview = StudioFs.requirePrefabPreviewFile(cfg, "truck");
-        prefab.writeString("{}", false);
+    public void deleteRemovesGameObjectAndPreview() {
+        ProjectConfig cfg = testCfg("gameObject-delete");
+        FileHandle gameObject = StudioFs.requireGameObjectFile(cfg, "truck");
+        FileHandle preview = StudioFs.requireGameObjectPreviewFile(cfg, "truck");
+        gameObject.writeString("{}", false);
         preview.writeString("x", false);
 
-        PrefabBrowserService service = new PrefabBrowserService();
-        service.deletePrefab(new PrefabAssetItem("truck", prefab, preview));
+        GameObjectBrowserService service = new GameObjectBrowserService();
+        service.deleteGameObject(new GameObjectAssetItem("truck", gameObject, preview));
 
-        Assert.assertFalse(prefab.exists());
+        Assert.assertFalse(gameObject.exists());
         Assert.assertFalse(preview.exists());
     }
 
     @Test
     public void placeholderPreviewIsWritten() {
-        ProjectConfig cfg = testCfg("prefab-preview");
-        FileHandle preview = StudioFs.requirePrefabPreviewFile(cfg, "plane");
+        ProjectConfig cfg = testCfg("gameObject-preview");
+        FileHandle preview = StudioFs.requireGameObjectPreviewFile(cfg, "plane");
 
-        PrefabPreviewWriter.writePlaceholder(preview);
+        GameObjectPreviewWriter.writePlaceholder(preview);
 
         Assert.assertTrue(preview.exists());
         Assert.assertTrue(preview.length() > 0);

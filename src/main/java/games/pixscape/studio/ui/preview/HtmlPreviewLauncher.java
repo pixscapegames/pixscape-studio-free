@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
@@ -248,7 +249,7 @@ public final class HtmlPreviewLauncher {
                 || value.endsWith(".frag") || value.endsWith(".vert")
                 || value.endsWith(".xml") || value.endsWith(".txt")
                 || value.endsWith(".glsl") || value.endsWith(".p")
-                || value.endsWith(".fnt") || value.endsWith(".pixprefab")
+                || value.endsWith(".fnt") || value.endsWith(GameObjectAsset.EXTENSION)
                 || value.endsWith(".pixfragment")
                 || value.endsWith(".pixfragment.json")) return "t";
         return "b";
@@ -272,7 +273,7 @@ public final class HtmlPreviewLauncher {
         if (value.endsWith(".atlas") || value.endsWith(".frag")
                 || value.endsWith(".vert") || value.endsWith(".glsl")
                 || value.endsWith(".txt") || value.endsWith(".p")
-                || value.endsWith(".fnt") || value.endsWith(".pixprefab")
+                || value.endsWith(".fnt") || value.endsWith(GameObjectAsset.EXTENSION)
                 || value.endsWith(".pixfragment")
                 || value.endsWith(".pixfragment.json")) return "text/plain";
         return "application/octet-stream";

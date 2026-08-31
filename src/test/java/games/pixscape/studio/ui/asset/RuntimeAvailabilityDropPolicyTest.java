@@ -43,12 +43,12 @@ public class RuntimeAvailabilityDropPolicyTest {
     }
 
     @Test
-    public void prefabMapsToPrefabs() {
+    public void gameObjectMapsToGameObjects() {
         DragPayload payload = new DragPayload();
-        payload.type = "prefab";
+        payload.type = "gameObject";
 
         assertEquals(
-                RuntimeAvailabilityCategory.PREFABS,
+                RuntimeAvailabilityCategory.GAME_OBJECTS,
                 RuntimeAvailabilityDropPolicy.resolveCategory(payload)
         );
     }

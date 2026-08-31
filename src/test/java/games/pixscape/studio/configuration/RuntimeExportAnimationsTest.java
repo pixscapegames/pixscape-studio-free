@@ -115,7 +115,7 @@ public class RuntimeExportAnimationsTest {
         scene.runtimeAvailability.spriteAssetIds.add(10);
         scene.runtimeAvailability.animationAssetIds.add(11);
         scene.runtimeAvailability.particleEffectPaths.add("impact.p");
-        scene.runtimeAvailability.prefabIds.add("enemy");
+        scene.runtimeAvailability.gameObjectIds.add("gameobjects/enemy.gameobject");
         scene.runtimeAvailability.tiledAnimationIds.add(13);
         scene.ambientColorR = 0f;
         scene.ambientColorG = 0f;
@@ -154,7 +154,11 @@ public class RuntimeExportAnimationsTest {
         assertEquals(10, availability.get("sprites").get(0).asInt());
         assertEquals(11, availability.get("animations").get(0).asInt());
         assertEquals("impact.p", availability.get("particles").get(0).asString());
-        assertEquals("enemy", availability.get("prefabs").get(0).asString());
+        assertEquals("gameobjects/enemy.gameobject",
+                availability.get("gameObjects").get(0).asString());
+        assertFalse(availability.has("prefabs"));
+        assertFalse(availability.has("prefabIds"));
+        assertFalse(availability.has("runtimePrefabIds"));
         assertEquals(tile.id(), availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
         assertFalse(exportedScene.has("mainCameraOffscreen"));
@@ -373,18 +377,18 @@ public class RuntimeExportAnimationsTest {
     }
 
     @Test
-    public void exportRuntimeSanitizesPrefabFragmentsForRuntime() throws Exception {
-        Path studioDir = Files.createTempDirectory("pixscape-studio-export-prefab-fragment-studio");
-        Path userDir = Files.createTempDirectory("pixscape-studio-export-prefab-fragment-user");
+    public void exportRuntimeSanitizesGameObjectFragmentsForRuntime() throws Exception {
+        Path studioDir = Files.createTempDirectory("pixscape-studio-export-gameObject-fragment-studio");
+        Path userDir = Files.createTempDirectory("pixscape-studio-export-gameObject-fragment-user");
 
         ProjectConfig cfg = new ProjectConfig();
-        cfg.projectTitle = "Prefab Fragment Export";
-        cfg.projectFileName = "prefab-fragment-export";
+        cfg.projectTitle = "GameObject Fragment Export";
+        cfg.projectFileName = "gameObject-fragment-export";
         cfg.exportRootPathDir = userDir.toString();
         cfg.createSceneMeta("Main");
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.createDirectories(studioDir.resolve(StudioFs.DIR_PREFABS));
+        Files.createDirectories(studioDir.resolve(StudioFs.DIR_GAME_OBJECTS));
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
@@ -403,7 +407,7 @@ public class RuntimeExportAnimationsTest {
                 "\"PixscapeIdentityComponent\":{\"stableId\":42,\"name\":\"car\"}}}}," +
                 "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PrefabInstanceComponent\",\"PhysicsCompiledFixturesComponent\",\"PixscapeIdentityComponent\"]}}";
         Files.writeString(
-                studioDir.resolve(StudioFs.DIR_PREFABS).resolve("car.pixfragment.json"),
+                studioDir.resolve(StudioFs.DIR_GAME_OBJECTS).resolve("car.pixfragment.json"),
                 fragment,
                 StandardCharsets.UTF_8
         );
@@ -411,7 +415,7 @@ public class RuntimeExportAnimationsTest {
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
         FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME)
-                .resolve("prefabs")
+                .resolve("gameobjects")
                 .resolve("car.pixfragment.json")
                 .toFile());
         String exported = out.readString("UTF-8");

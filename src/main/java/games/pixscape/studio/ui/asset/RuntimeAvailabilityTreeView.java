@@ -50,7 +50,7 @@ public final class RuntimeAvailabilityTreeView extends VisTable {
     private void buildTree() {
         tree.clearChildren();
 
-        tree.add(folderNode("Game objects", RuntimeAvailabilityCategory.PREFABS));
+        tree.add(folderNode("Game Objects", RuntimeAvailabilityCategory.GAME_OBJECTS));
         tree.add(folderNode("Images", RuntimeAvailabilityCategory.SPRITES));
         tree.add(folderNode("Particles", RuntimeAvailabilityCategory.PARTICLES));
         tree.add(folderNode("Animations", RuntimeAvailabilityCategory.ANIMATIONS));

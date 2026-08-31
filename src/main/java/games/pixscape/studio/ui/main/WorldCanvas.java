@@ -73,7 +73,7 @@ import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService
 import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
-import games.pixscape.studio.service.prefab.PrefabAssetService;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.service.tiled.*;
@@ -137,7 +137,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private ClipboardService clipboardService;
     private final PolygonDrawSession polygonDrawSession;
     private String defaultShaderName;
-    private PrefabAssetService prefabAssetService;
+    private GameObjectAssetService gameObjectAssetService;
     private EntityGraphInstantiationService entityGraphInstantiationService;
     private KeyboardNudgeService keyboardNudgeService;
     private IdentityRegistry identityRegistry;
@@ -444,7 +444,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         clipboardService = new ClipboardService(this, identityRegistry);
 
-        prefabAssetService = new PrefabAssetService(world);
+        gameObjectAssetService = new GameObjectAssetService(world);
         entityGraphInstantiationService = new EntityGraphInstantiationService(
                 world,
                 historyManager,
@@ -1752,7 +1752,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         EntityGraph graph;
         try {
-            graph = prefabAssetService.loadPrefab(prefabFile);
+            graph = gameObjectAssetService.loadGameObject(prefabFile);
         } catch (RuntimeException ex) {
             Gdx.app.error("PrefabDrop", "Failed to load prefab: " + p.path, ex);
             return;

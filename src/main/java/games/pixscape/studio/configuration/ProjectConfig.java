@@ -207,7 +207,7 @@ public class ProjectConfig {
             if (m.runtimeAvailability.spriteAssetIds == null) m.runtimeAvailability.spriteAssetIds = new java.util.ArrayList<>();
             if (m.runtimeAvailability.animationAssetIds == null) m.runtimeAvailability.animationAssetIds = new java.util.ArrayList<>();
             if (m.runtimeAvailability.particleEffectPaths == null) m.runtimeAvailability.particleEffectPaths = new java.util.ArrayList<>();
-            if (m.runtimeAvailability.prefabIds == null) m.runtimeAvailability.prefabIds = new java.util.ArrayList<>();
+            if (m.runtimeAvailability.gameObjectIds == null) m.runtimeAvailability.gameObjectIds = new java.util.ArrayList<>();
             if (m.runtimeAvailability.tiledTileAssetIds == null) m.runtimeAvailability.tiledTileAssetIds = new java.util.ArrayList<>();
             if (m.runtimeAvailability.tiledAnimationIds == null) m.runtimeAvailability.tiledAnimationIds = new java.util.ArrayList<>();
             if (m.pixelsPerMeter <= 0f) m.pixelsPerMeter = 100f;

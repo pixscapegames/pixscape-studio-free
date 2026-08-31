@@ -6,7 +6,7 @@ public final class SceneRuntimeAvailabilityData {
     public ArrayList<Integer> spriteAssetIds = new ArrayList<>();
     public ArrayList<Integer> animationAssetIds = new ArrayList<>();
     public ArrayList<String> particleEffectPaths = new ArrayList<>();
-    public ArrayList<String> prefabIds = new ArrayList<>();
+    public ArrayList<String> gameObjectIds = new ArrayList<>();
     public ArrayList<Integer> tiledTileAssetIds = new ArrayList<>();
     public ArrayList<Integer> tiledAnimationIds = new ArrayList<>();
 }

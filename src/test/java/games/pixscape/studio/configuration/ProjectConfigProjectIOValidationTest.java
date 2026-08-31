@@ -437,7 +437,7 @@ public class ProjectConfigProjectIOValidationTest {
         main.runtimeAvailability.spriteAssetIds.add(11);
         main.runtimeAvailability.animationAssetIds.add(12);
         main.runtimeAvailability.particleEffectPaths.add("impact.p");
-        main.runtimeAvailability.prefabIds.add("enemy_slime");
+        main.runtimeAvailability.gameObjectIds.add("enemy_slime");
         main.runtimeAvailability.tiledTileAssetIds.add(6);
         main.runtimeAvailability.tiledAnimationIds.add(7);
 
@@ -450,7 +450,7 @@ public class ProjectConfigProjectIOValidationTest {
         assertEquals(Integer.valueOf(11), reloadedMain.runtimeAvailability.spriteAssetIds.get(0));
         assertEquals(Integer.valueOf(12), reloadedMain.runtimeAvailability.animationAssetIds.get(0));
         assertEquals("impact.p", reloadedMain.runtimeAvailability.particleEffectPaths.get(0));
-        assertEquals("enemy_slime", reloadedMain.runtimeAvailability.prefabIds.get(0));
+        assertEquals("enemy_slime", reloadedMain.runtimeAvailability.gameObjectIds.get(0));
         assertEquals(Integer.valueOf(6), reloadedMain.runtimeAvailability.tiledTileAssetIds.get(0));
         assertEquals(Integer.valueOf(7), reloadedMain.runtimeAvailability.tiledAnimationIds.get(0));
     }
@@ -467,7 +467,7 @@ public class ProjectConfigProjectIOValidationTest {
         assertTrue(scene.runtimeAvailability.spriteAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.animationAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.particleEffectPaths.isEmpty());
-        assertTrue(scene.runtimeAvailability.prefabIds.isEmpty());
+        assertTrue(scene.runtimeAvailability.gameObjectIds.isEmpty());
         assertTrue(scene.runtimeAvailability.tiledTileAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.tiledAnimationIds.isEmpty());
     }

@@ -1277,10 +1277,10 @@ public final class SceneService {
         return changed;
     }
 
-    public boolean addRuntimeAvailablePrefab(String prefabId) {
+    public boolean addRuntimeAvailableGameObject(String gameObjectId) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        boolean changed = runtimeAvailabilityService.addPrefab(meta, prefabId);
+        boolean changed = runtimeAvailabilityService.addGameObject(meta, gameObjectId);
         persistRuntimeAvailabilityChange(cfg, changed);
         return changed;
     }
@@ -1333,10 +1333,10 @@ public final class SceneService {
         return changed;
     }
 
-    public boolean removeRuntimeAvailablePrefab(String prefabId) {
+    public boolean removeRuntimeAvailableGameObject(String gameObjectId) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        boolean changed = runtimeAvailabilityService.removePrefab(meta, prefabId);
+        boolean changed = runtimeAvailabilityService.removeGameObject(meta, gameObjectId);
         persistRuntimeAvailabilityChange(cfg, changed);
         return changed;
     }

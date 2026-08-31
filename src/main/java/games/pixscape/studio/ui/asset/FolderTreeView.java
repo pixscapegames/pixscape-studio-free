@@ -99,7 +99,7 @@ public final class FolderTreeView extends VisTable {
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(currentCfg);
 
-        addPrefabsNode();
+        addGameObjectsNode();
 
         FolderTreeBuilder.buildFolders(
                 tree,
@@ -140,12 +140,12 @@ public final class FolderTreeView extends VisTable {
     }
 
 
-    private void addPrefabsNode() {
+    private void addGameObjectsNode() {
         AssetNode data = new AssetNode(
                 AssetNode.Kind.FOLDER,
-                AssetNode.Root.PREFABS,
+                AssetNode.Root.GAME_OBJECTS,
                 "",
-                "Game objects",
+                "Game Objects",
                 null
         );
 

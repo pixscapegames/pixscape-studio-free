@@ -1,11 +1,15 @@
 package games.pixscape.studio.service.entitygraph;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
+import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
@@ -21,23 +25,21 @@ public final class EntityGraphCaptureService {
     private final World world;
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<PointLightComponent> mPointLight;
-    private final ComponentMapper<ConeLightComponent> mConeLight;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<GameObjectComponent> mGameObject;
     private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
+    private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
 
     public EntityGraphCaptureService(World world) {
         this.world = world;
         this.mTransform = world.getMapper(TransformComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mPointLight = world.getMapper(PointLightComponent.class);
-        this.mConeLight = world.getMapper(ConeLightComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mGameObject = world.getMapper(GameObjectComponent.class);
         this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
+        this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
     }
 
     public EntityGraph capture(IntArray selection) {
@@ -45,10 +47,18 @@ public final class EntityGraphCaptureService {
         return captureSupportedSelection(collectSupportedSelection(selection));
     }
 
-    /** Captures only entity types currently supported by prefab serialization. */
-    public EntityGraph captureForPrefab(IntArray selection) {
-        if (containsGameObjectHierarchy(selection)) return EntityGraph.empty();
-        return captureSupportedSelection(collectPrefabSupportedSelection(selection));
+    /** Captures one complete real Game Object hierarchy for asset publication. */
+    public EntityGraph captureForGameObject(IntArray selection) {
+        IntArray hierarchy = collectGameObjectHierarchy(selection);
+        if (hierarchy.size == 0) return EntityGraph.empty();
+        List<EntityGraphEntry> entries = new ArrayList<>(hierarchy.size);
+        for (int i = 0; i < hierarchy.size; i++) {
+            int entityId = hierarchy.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(entityId);
+            entries.add(new EntityGraphEntry(entityId, initializer));
+        }
+        return new EntityGraph(entries);
     }
 
     private boolean containsGameObjectHierarchy(IntArray selection) {
@@ -85,15 +95,44 @@ public final class EntityGraphCaptureService {
         return supported;
     }
 
-    private IntArray collectPrefabSupportedSelection(IntArray selection) {
-        IntArray supported = collectSupportedSelection(selection);
-        for (int i = supported.size - 1; i >= 0; i--) {
-            int entityId = supported.get(i);
-            if (mPointLight.has(entityId) || mConeLight.has(entityId)) {
-                supported.removeIndex(i);
-            }
+    private IntArray collectGameObjectHierarchy(IntArray selection) {
+        IntArray hierarchy = new IntArray();
+        if (selection == null || selection.size != 1) return hierarchy;
+        int root = selection.first();
+        if (!world.getEntityManager().isActive(root)
+                || !mGameObject.has(root)
+                || mGameObjectMember.has(root)) {
+            return hierarchy;
         }
-        return supported;
+        PixscapeIdentityComponent rootIdentity = mIdentity.getSafe(root, null);
+        if (rootIdentity == null || rootIdentity.stableId <= 0) return hierarchy;
+
+        hierarchy.add(root);
+        IntSet capturedStableIds = new IntSet();
+        capturedStableIds.add(rootIdentity.stableId);
+        IntSet capturedEntities = new IntSet();
+        capturedEntities.add(root);
+        IntBag members = world.getAspectSubscriptionManager()
+                .get(Aspect.all(GameObjectMemberComponent.class))
+                .getEntities();
+        boolean changed;
+        do {
+            changed = false;
+            int[] ids = members.getData();
+            for (int i = 0; i < members.size(); i++) {
+                int entityId = ids[i];
+                if (capturedEntities.contains(entityId)) continue;
+                GameObjectMemberComponent member = mGameObjectMember.get(entityId);
+                if (!capturedStableIds.contains(member.parentStableId)) continue;
+                PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+                if (identity == null || identity.stableId <= 0) return new IntArray();
+                capturedEntities.add(entityId);
+                capturedStableIds.add(identity.stableId);
+                hierarchy.add(entityId);
+                changed = true;
+            }
+        } while (changed);
+        return hierarchy;
     }
 
     private boolean isCaptureSupported(int entityId) {
