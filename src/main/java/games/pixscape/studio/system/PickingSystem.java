@@ -3767,7 +3767,7 @@ public final class PickingSystem extends BaseSystem {
             TransformComponent t = mT.getSafe(e, null);
             if (t == null) continue;
 
-            tmp2Vec.set(t.x, t.y);
+            resolveLightWorldPosition(e, t, tmp2Vec);
             applyDisplayOffset(e, tmp2Vec);
             float cx = tmp2Vec.x;
             float cy = tmp2Vec.y;
@@ -3921,11 +3921,12 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        tmp2Vec.set(t.x, t.y);
+        resolveLightWorldPosition(entityId, t, tmp2Vec);
         applyDisplayOffset(entityId, tmp2Vec);
         float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(tmp2Vec.x, tmp2Vec.y, mx, my));
         float newRotationRad = lightDragIsCone
-                ? (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x)
+                ? localLightRotationForWorldAngle(entityId, t,
+                (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x))
                 : lightRotationCurrentRad;
         applyLightOverlayLive(entityId, newRadius, newRotationRad, lightDragIsCone);
         lightRadiusCurrent = newRadius;
@@ -3978,14 +3979,44 @@ public final class PickingSystem extends BaseSystem {
 
     private void computeLightRadiusHandleWorld(int entityId, TransformComponent t, Vector2 out) {
         float radius = readLightRadius(entityId);
+        resolveLightWorldPosition(entityId, t, out);
         if (mConeLight != null && mConeLight.has(entityId)) {
-            float angle = t.rotationRad;
-            out.set(t.x + MathUtils.cos(angle) * radius, t.y + MathUtils.sin(angle) * radius);
+            float angle = resolvedLightWorldRotation(entityId, t);
+            out.add(MathUtils.cos(angle) * radius, MathUtils.sin(angle) * radius);
         } else {
-            out.set(t.x + radius, t.y);
+            out.x += radius;
         }
 
         applyDisplayOffset(entityId, out);
+    }
+
+    private void resolveLightWorldPosition(int entityId, TransformComponent transform, Vector2 out) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        if (state != null && state.isResolved(entityId)) {
+            out.set(state.x[entityId], state.y[entityId]);
+        } else {
+            out.set(transform.x, transform.y);
+        }
+    }
+
+    private float resolvedLightWorldRotation(int entityId, TransformComponent transform) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        return state != null && state.isResolved(entityId)
+                ? state.rotationRad[entityId] : transform.rotationRad;
+    }
+
+    /** Converts the pointer's world-space cone angle back to the authored local transform angle. */
+    private float localLightRotationForWorldAngle(int entityId,
+                                                  TransformComponent transform,
+                                                  float worldAngle) {
+        return transform.rotationRad + wrappedAngleDelta(
+                resolvedLightWorldRotation(entityId, transform), worldAngle);
+    }
+
+    private static float wrappedAngleDelta(float from, float to) {
+        return MathUtils.atan2(MathUtils.sin(to - from), MathUtils.cos(to - from));
     }
 
     private boolean isLightEntity(int entityId) {

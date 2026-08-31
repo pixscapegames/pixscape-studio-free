@@ -256,8 +256,18 @@ public class ItemTreePanel extends DockablePanel {
 
     private void moveSelection(int direction) {
         IntArray selection = selectionService.getSelectionSnapshot();
-        if (selection.size != 1) return;
-        int entityId = selection.first();
+        int entityId;
+        if (selection.size == 1) {
+            entityId = selection.first();
+        } else if (explicitTiledMapEntityId >= 0
+                && world.getEntityManager().isActive(explicitTiledMapEntityId)
+                && mTiled.has(explicitTiledMapEntityId)) {
+            // Map-node selection enters explicit map-editing context instead of entity selection.
+            // It remains a normal top-level logical item for layer ordering.
+            entityId = explicitTiledMapEntityId;
+        } else {
+            return;
+        }
         // Member z is local sibling order; the global layer reorder command is not applicable.
         if (mGameObjectMember.has(entityId)) return;
         if (!ItemTreeJointSupport.isLogicalOrderMoveAllowed(world, entityId)) return;

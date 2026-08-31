@@ -2,68 +2,28 @@ package games.pixscape.studio.service;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.helper.ParallaxHelper;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.render.LayerStateSOA;
 
-/** Resolves transient display-space parallax offsets without mutating authored geometry. */
+/**
+ * Studio authoring coordinates intentionally have no parallax display offset. Layer parallax is
+ * preserved as authored metadata for Runtime and preview worlds.
+ */
 public final class StudioDisplayOffsetResolver {
 
-    private final DynamicEntityRenderState renderState;
-    private final LayerStateSOA layerState;
-    private final OrthographicCamera camera;
-    private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
     private final Vector2 scratchOffset = new Vector2();
 
     public StudioDisplayOffsetResolver(World world,
                                        DynamicEntityRenderState renderState,
                                        LayerStateSOA layerState,
-                                       OrthographicCamera camera) {
+                                       com.badlogic.gdx.graphics.OrthographicCamera camera) {
         if (world == null) throw new IllegalArgumentException("World is required.");
-        this.renderState = renderState;
-        this.layerState = layerState;
-        this.camera = camera;
-        this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mPhysicsBody = world.getMapper(PhysicsBodyComponent.class);
     }
 
     public void resolve(int entityId, Vector2 out) {
         if (out == null) throw new IllegalArgumentException("Output vector is required.");
         out.set(0f, 0f);
-
-        int renderSlot = renderState != null ? renderState.renderSlotForEntity(entityId)
-                : DynamicEntityRenderState.NO_SLOT;
-        if (renderSlot != DynamicEntityRenderState.NO_SLOT
-                && renderSlot < renderState.activeCount
-                && renderState.offsetX != null
-                && renderState.offsetY != null) {
-            out.set(renderState.offsetX[renderSlot], renderState.offsetY[renderSlot]);
-            return;
-        }
-
-        if (camera == null || layerState == null || !mEntityIndex.has(entityId)) return;
-
-        int layerIndex = mEntityIndex.get(entityId).getLayerIndex();
-        if (layerIndex < 0 || layerIndex >= layerState.capacity() || !layerState.enabled[layerIndex]) return;
-
-        boolean physical = mPhysicsBody.has(entityId);
-        float factorX = physical
-                ? layerState.physicsParallaxX
-                : layerState.parallaxX[layerIndex];
-        float factorY = physical
-                ? layerState.physicsParallaxY
-                : layerState.parallaxY[layerIndex];
-        ParallaxHelper.computeParallaxOffset(
-                camera.position.x,
-                camera.position.y,
-                Float.isNaN(factorX) ? 1f : factorX,
-                Float.isNaN(factorY) ? 1f : factorY,
-                out);
     }
 
     public void addTo(int entityId, Vector2 point) {

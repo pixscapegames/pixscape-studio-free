@@ -16,7 +16,7 @@ import static org.junit.Assert.assertTrue;
 public class PickingSystemDisplayOffsetTest {
 
     @Test
-    public void genericObbHitUsesDisplayedCoordinates() {
+    public void genericObbHitUsesAuthoredEditorCoordinates() {
         World world = new World(new WorldConfiguration());
         try {
             int entity = world.create();
@@ -30,15 +30,15 @@ public class PickingSystemDisplayOffsetTest {
 
             resolver.addTo(entity, displayedCorners, 4);
 
-            assertTrue(PickingSystem.isDisplayedObbHit(displayedCorners, 105f, 25f, 0f));
-            assertFalse(PickingSystem.isDisplayedObbHit(displayedCorners, 5f, 5f, 0f));
+            assertTrue(PickingSystem.isDisplayedObbHit(displayedCorners, 5f, 5f, 0f));
+            assertFalse(PickingSystem.isDisplayedObbHit(displayedCorners, 105f, 25f, 0f));
         } finally {
             world.dispose();
         }
     }
 
     @Test
-    public void nonRenderedPhysicalObbHitUsesScenePhysicsParallax() {
+    public void physicalObbHitIgnoresSceneParallaxInStudio() {
         World world = new World(new WorldConfiguration());
         try {
             int entity = world.create();
@@ -58,8 +58,8 @@ public class PickingSystemDisplayOffsetTest {
 
             resolver.addTo(entity, displayedCorners, 4);
 
-            assertTrue(PickingSystem.isDisplayedObbHit(displayedCorners, 25f, 85f, 0f));
-            assertFalse(PickingSystem.isDisplayedObbHit(displayedCorners, 75f, 105f, 0f));
+            assertTrue(PickingSystem.isDisplayedObbHit(displayedCorners, 5f, 5f, 0f));
+            assertFalse(PickingSystem.isDisplayedObbHit(displayedCorners, 25f, 85f, 0f));
         } finally {
             world.dispose();
         }

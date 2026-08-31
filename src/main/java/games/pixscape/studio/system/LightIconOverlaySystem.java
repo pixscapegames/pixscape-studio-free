@@ -14,6 +14,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
@@ -41,10 +43,12 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private ComponentMapper<TransformComponent> mTransform;
     private ComponentMapper<VisibilityComponent> mVisibility;
     private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private GameObjectHierarchySystem gameObjectHierarchy;
 
     private final Vector2 tmpMouseWorld = new Vector2();
     private final Vector3 tmpMouse3 = new Vector3();
     private final Vector2 tmpDisplayOffset = new Vector2();
+    private final Vector2 tmpWorldPosition = new Vector2();
 
     public LightIconOverlaySystem(StudioDrawContext ctx,
                                   OrthographicCamera worldCam) {
@@ -68,6 +72,11 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     }
 
     @Override
+    protected void initialize() {
+        gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+    }
+
+    @Override
     protected void begin() {
         ctx.batch.setProjectionMatrix(ctx.cam.combined);
         ctx.batch.begin();
@@ -85,9 +94,11 @@ public final class LightIconOverlaySystem extends IteratingSystem {
             return;
         }
 
+        resolveWorldPosition(entityId, transform, tmpWorldPosition);
         resolveDisplayOffset(entityId, tmpDisplayOffset);
-        float x = transform.x + tmpDisplayOffset.x;
-        float y = transform.y + tmpDisplayOffset.y;
+        float x = tmpWorldPosition.x + tmpDisplayOffset.x;
+        float y = tmpWorldPosition.y + tmpDisplayOffset.y;
+        float rotationRad = resolveWorldRotation(entityId, transform);
 
         float sizeWorld = ICON_SIZE_PX * ctx.wpp();
         float half = sizeWorld * 0.5f;
@@ -105,7 +116,7 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         }
 
         if (isCone) {
-            drawConeWedge(entityId, x, y);
+            drawConeWedge(entityId, x, y, rotationRad);
         } else {
             PointLightComponent light = mLight.get(entityId);
             if (light != null && light.radius > 0f) {
@@ -114,7 +125,7 @@ public final class LightIconOverlaySystem extends IteratingSystem {
             }
         }
 
-        drawRadiusHandle(entityId, x, y);
+        drawRadiusHandle(entityId, x, y, rotationRad);
 
     }
 
@@ -123,14 +134,12 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         ctx.batch.end();
     }
 
-    private void drawConeWedge(int entityId, float x, float y) {
+    private void drawConeWedge(int entityId, float x, float y, float rotationRad) {
         ConeLightComponent light = mConeLight.get(entityId);
         if (light == null || light.radius <= 0f || light.coneAngleDeg <= 0f) {
             return;
         }
 
-        TransformComponent transform = mTransform.get(entityId);
-        float rotationRad = transform != null ? transform.rotationRad : 0f;
         float halfAngleRad = MathUtils.degreesToRadians * light.coneAngleDeg * 0.5f;
         float startAngle = rotationRad - halfAngleRad;
         float endAngle = rotationRad + halfAngleRad;
@@ -162,7 +171,7 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         }
     }
 
-    private void drawRadiusHandle(int entityId, float x, float y) {
+    private void drawRadiusHandle(int entityId, float x, float y, float rotationRad) {
         float radius = 0f;
         float dirX = 1f;
         float dirY = 0f;
@@ -173,10 +182,8 @@ public final class LightIconOverlaySystem extends IteratingSystem {
         ConeLightComponent cone = mConeLight.getSafe(entityId, null);
         if (cone != null) {
             radius = cone.radius;
-            TransformComponent t = mTransform.getSafe(entityId, null);
-            float ang = t != null ? t.rotationRad : 0f;
-            dirX = MathUtils.cos(ang);
-            dirY = MathUtils.sin(ang);
+            dirX = MathUtils.cos(rotationRad);
+            dirY = MathUtils.sin(rotationRad);
         }
 
         if (radius <= 0f) return;
@@ -199,6 +206,31 @@ public final class LightIconOverlaySystem extends IteratingSystem {
             return;
         }
         displayOffsetResolver.resolve(entityId, out);
+    }
+
+    private void resolveWorldPosition(int entityId, TransformComponent authored, Vector2 out) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        out.set(resolvedWorldX(state, entityId, authored), resolvedWorldY(state, entityId, authored));
+    }
+
+    private float resolveWorldRotation(int entityId, TransformComponent authored) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        return resolvedWorldRotation(state, entityId, authored);
+    }
+
+    static float resolvedWorldX(WorldTransformState state, int entityId, TransformComponent authored) {
+        return state != null && state.isResolved(entityId) ? state.x[entityId] : authored.x;
+    }
+
+    static float resolvedWorldY(WorldTransformState state, int entityId, TransformComponent authored) {
+        return state != null && state.isResolved(entityId) ? state.y[entityId] : authored.y;
+    }
+
+    static float resolvedWorldRotation(WorldTransformState state, int entityId, TransformComponent authored) {
+        return state != null && state.isResolved(entityId)
+                ? state.rotationRad[entityId] : authored.rotationRad;
     }
 
     private boolean isHoveringIcon(float x, float y, float halfWidthorld) {
