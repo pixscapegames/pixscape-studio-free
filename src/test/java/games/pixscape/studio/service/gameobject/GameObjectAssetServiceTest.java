@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.component.PixscapeTagComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.AnimationComponent;
@@ -175,6 +176,9 @@ public class GameObjectAssetServiceTest {
         Assert.assertEquals(0, world.getMapper(EntityIndexComponent.class).get(unrelated).zIndex);
 
         Assert.assertTrue(world.getMapper(AssetRefComponent.class).has(sprite));
+        Assert.assertTrue("Renderable Game Object children must be eligible for atlas rebind.",
+                world.getMapper(TextureRegionComponent.class).has(sprite));
+        Assert.assertFalse(world.getMapper(TextureRegionComponent.class).get(sprite).valid);
         Assert.assertTrue(world.getMapper(AnimationComponent.class).has(sprite));
         Assert.assertTrue(world.getMapper(PointLightComponent.class).has(light));
         Assert.assertTrue(world.getMapper(ConeLightComponent.class).has(light));

@@ -141,6 +141,10 @@ final class GameObjectEntityDataMapper {
             snapshot.hasAssetRef = true;
             snapshot.assetRefAssetId = data.assetRef.assetId;
             snapshot.assetRefAtlasTag = data.assetRef.atlasTag;
+            // TextureRegion is runtime-only and intentionally not stored in .gameobject assets.
+            // Restore its marker so RenderRebindHelper can resolve the current Scene atlas binding.
+            snapshot.hasTextureRegion = true;
+            snapshot.textureValid = false;
         }
         if (data.tint != null) {
             snapshot.hasTint = true;
