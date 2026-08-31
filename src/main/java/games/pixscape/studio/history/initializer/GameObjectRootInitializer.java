@@ -17,14 +17,19 @@ public final class GameObjectRootInitializer extends AbstractCommonInitializer {
     }
 
     public GameObjectRootInitializer configure(float x, float y, int layerIndex) {
+        return configure(x, y, 0f, 0f, layerIndex);
+    }
+
+    public GameObjectRootInitializer configure(
+            float x, float y, float originX, float originY, int layerIndex) {
         hasTransform = true;
         trX = x;
         trY = y;
         trRotationRad = 0f;
         trScaleX = 1f;
         trScaleY = 1f;
-        trOriginX = 0f;
-        trOriginY = 0f;
+        trOriginX = originX;
+        trOriginY = originY;
         hasEntityIndex = true;
         entityLayerIndex = layerIndex;
         entityZIndex = 0;
@@ -42,6 +47,15 @@ public final class GameObjectRootInitializer extends AbstractCommonInitializer {
         sourceAssetId = "";
         customProperties.clear();
         return this;
+    }
+
+    public GameObjectRootInitializer setSourceAssetId(String value) {
+        sourceAssetId = value != null ? value : "";
+        return this;
+    }
+
+    public int stableId() {
+        return identityStableId;
     }
 
     @Override

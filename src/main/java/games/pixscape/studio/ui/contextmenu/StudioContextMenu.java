@@ -31,11 +31,8 @@ import games.pixscape.studio.service.ClipboardService;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.entitygraph.EntityGraph;
-import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.gameobject.GameObjectAssetService;
-import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
@@ -64,7 +61,6 @@ public final class StudioContextMenu extends InputListener {
     private SpatialBlockPlacementTarget lastRightClickSpatialTarget = SpatialBlockPlacementTarget.invalid();
     private final EditorOps ops;
 
-    private final EntityGraphCaptureService entityGraphCaptureService;
     private final GameObjectAssetService gameObjectAssetService;
 
     private final int MY_TAG = EventFlow.tag(this);
@@ -84,8 +80,7 @@ public final class StudioContextMenu extends InputListener {
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
 
-        this.entityGraphCaptureService = new EntityGraphCaptureService(world);
-        this.gameObjectAssetService = new GameObjectAssetService(world);
+        this.gameObjectAssetService = canvas.getGameObjectAssetService();
     }
 
     @Override
@@ -587,12 +582,13 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(paste);
 
-        MenuItem createGameObject = new MenuItem("Create Game Object from selection");
-        createGameObject.setDisabled(!hasSelection);
+        MenuItem createGameObject = new MenuItem("Convert Selection to Game Object");
+        createGameObject.setDisabled(!hasSelection
+                || !gameObjectAssetService.canConvertSelectionToGameObject(selection));
         createGameObject.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                showCreateGameObjectDialog();
+                showConvertSelectionToGameObjectDialog();
                 event.handle();
             }
         });
@@ -618,8 +614,8 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showCreateGameObjectDialog() {
-        VisDialog dialog = new StudioDialog("Create Game Object") {
+    private void showConvertSelectionToGameObjectDialog() {
+        VisDialog dialog = new StudioDialog("Convert Selection to Game Object") {
             private final VisTextField nameField = new VisTextField();
 
             {
@@ -631,7 +627,7 @@ public final class StudioContextMenu extends InputListener {
 
                 getButtonsTable().defaults().pad(8).minWidth(100);
                 button("Cancel", false);
-                button("Create", true);
+                button("Convert", true);
             }
 
             @Override
@@ -641,7 +637,7 @@ public final class StudioContextMenu extends InputListener {
                     return;
                 }
 
-                createGameObjectFromSelection(nameField.getText());
+                convertSelectionToGameObject(nameField.getText());
                 hide();
             }
         };
@@ -650,40 +646,33 @@ public final class StudioContextMenu extends InputListener {
         dialog.show(stage);
     }
 
-    private void createGameObjectFromSelection(String rawName) {
+    private void convertSelectionToGameObject(String rawName) {
         String name = sanitizeGameObjectName(rawName);
 
         if (name.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Game Object", "Game Object name is required.");
+            Dialogs.showOKDialog(stage, "Convert Selection to Game Object", "Game Object name is required.");
             return;
         }
 
         IntArray selection = selectionService.getSelectionSnapshot();
         if (selection == null || selection.size == 0) {
-            Dialogs.showOKDialog(stage, "Create Game Object", "No entity selected.");
-            return;
-        }
-
-        EntityGraph graph = entityGraphCaptureService.captureForGameObject(selection);
-        if (graph == null || graph.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Game Object", "Selection cannot be saved as a Game Object.");
+            Dialogs.showOKDialog(stage, "Convert Selection to Game Object", "No entity selected.");
             return;
         }
 
         FileHandle gameObjectFile = StudioFs.requireGameObjectFile(ProjectConfig.getInstance(), name);
+        FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(ProjectConfig.getInstance(), name);
 
         try {
-            gameObjectAssetService.saveGameObject(gameObjectFile, graph);
-            // Hierarchy-aware scene instantiation is Stage 5B. A neutral placeholder avoids
-            // publishing a misleading flat preview from authored local transforms.
-            GameObjectPreviewWriter.writePlaceholder(
-                    StudioFs.requireGameObjectPreviewFile(ProjectConfig.getInstance(), name));
+            gameObjectAssetService.convertSelectionToGameObject(
+                    gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
             EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
-            Gdx.app.log("GameObject", "Created Game Object: " + gameObjectFile.path());
-            Dialogs.showOKDialog(stage, "Create Game Object", "Game Object created:\n" + gameObjectFile.path());
+            Gdx.app.log("GameObject", "Converted selection to Game Object: " + gameObjectFile.path());
+            Dialogs.showOKDialog(stage, "Convert Selection to Game Object",
+                    "Game Object created:\n" + gameObjectFile.path());
         } catch (RuntimeException ex) {
-            Gdx.app.error("GameObject", "Failed to create Game Object", ex);
-            Dialogs.showOKDialog(stage, "Create Game Object failed", ex.getMessage());
+            Gdx.app.error("GameObject", "Failed to convert selection to Game Object", ex);
+            Dialogs.showOKDialog(stage, "Convert Selection to Game Object failed", ex.getMessage());
         }
     }
 

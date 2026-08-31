@@ -443,7 +443,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 entityId -> {
                     if (entityId >= 0) selectionService.selectOnly(entityId);
                     else selectionService.clearSelection();
-                });
+                }, selectionService);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService);
@@ -2108,6 +2108,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public SelectionService getSelectionService() {
         return selectionService;
+    }
+
+    public GameObjectAssetService getGameObjectAssetService() {
+        return gameObjectAssetService;
     }
 
     public LayerService getLayerService() {
