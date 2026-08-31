@@ -5,11 +5,12 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.*;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class EntityGraphGameObjectBoundaryTest {
     @Test
-    public void anyRootOrMemberRejectsTheWholeGenericClipboardCapture() {
+    public void genericCaptureDelegatesGameObjectRootsToTheHierarchyAwarePath() {
         World world = new World();
         try {
             int ordinary = authored(world, 1);
@@ -20,8 +21,13 @@ public class EntityGraphGameObjectBoundaryTest {
             world.process();
             EntityGraphCaptureService capture = new EntityGraphCaptureService(world);
 
-            assertTrue(capture.capture(new IntArray(new int[]{ordinary, root})).isEmpty());
-            assertTrue(capture.capture(new IntArray(new int[]{child})).isEmpty());
+            assertEquals(3, capture.capture(new IntArray(new int[]{ordinary, root})).size());
+            try {
+                capture.capture(new IntArray(new int[]{child}));
+                throw new AssertionError("Expected member-only V1 rejection.");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("member alone"));
+            }
         } finally {
             world.dispose();
         }

@@ -29,10 +29,23 @@ public final class CreateEntityCommand implements Command {
                                HistoryIdRegistry historyIds,
                                Initializer initializer,
                                Consumer<Integer> onCreated) {
+        this(world, historyIds, initializer, onCreated, -1L);
+    }
+
+    /** Accepts a history identity reserved before a multi-entity publication starts. */
+    public CreateEntityCommand(World world,
+                               HistoryIdRegistry historyIds,
+                               Initializer initializer,
+                               Consumer<Integer> onCreated,
+                               long preparedHistoryId) {
         this.world = world;
         this.historyIds = historyIds;
         this.initializer = initializer;
         this.onCreated = onCreated;
+        if (preparedHistoryId == 0L || preparedHistoryId < -1L) {
+            throw new IllegalArgumentException("Prepared history ID must be positive or unset.");
+        }
+        this.historyId = preparedHistoryId;
     }
 
     @Override

@@ -12,11 +12,10 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
+import games.pixscape.studio.service.property.PropertyReferenceMapper;
 
 import java.util.Map;
 
@@ -256,28 +255,11 @@ final class GameObjectEntityDataMapper {
 
     private static PropertySet remapProperties(
             PropertySet source, IntMap<Integer> stableToSource) {
-        PropertySet remapped = new PropertySet(source.size());
-        Array<String> names = new Array<>();
-        source.copyNamesTo(names);
-        for (String name : names) {
-            PropertyValue value = source.valueCopy(name);
-            if (value.type() == PropertyType.OBJECT) {
-                int stableId = value.asObjectStableId();
-                if (stableId == -1) {
-                    remapped.putObjectStableId(name, -1);
-                } else if (stableToSource.containsKey(stableId)) {
-                    remapped.putObjectStableId(name, stableToSource.get(stableId));
-                } else {
-                    throw new IllegalArgumentException("Game Object asset source entity has "
-                            + "unsupported external OBJECT reference stableId " + stableId + ".");
-                }
-            } else if (value.type() == PropertyType.CLASS) {
-                remapped.putClass(name, value.className(),
-                        remapProperties(value.classPropertiesCopy(), stableToSource));
-            } else {
-                remapped.put(name, value);
-            }
-        }
-        return remapped;
+        return PropertyReferenceMapper.remap(source, stableId -> {
+            if (stableId == -1) return -1;
+            if (stableToSource.containsKey(stableId)) return stableToSource.get(stableId);
+            throw new IllegalArgumentException("Game Object asset source entity has "
+                    + "unsupported external OBJECT reference stableId " + stableId + ".");
+        });
     }
 }

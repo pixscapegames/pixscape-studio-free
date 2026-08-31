@@ -9,6 +9,7 @@ import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryManager;
@@ -17,6 +18,7 @@ import games.pixscape.studio.history.commands.CompositeCommand;
 import games.pixscape.studio.history.commands.CreateEntityCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
+import games.pixscape.studio.service.property.PropertyReferenceMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -109,6 +111,7 @@ public final class EntityGraphInstantiationService {
         }
 
         IntArray createdIds = new IntArray();
+        IntArray createdRootIds = new IntArray();
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
@@ -116,26 +119,40 @@ public final class EntityGraphInstantiationService {
         if (clipboardTargetLayer == ClipboardTargetLayer.NON_SPATIAL) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
-        prepareJointRemaps(snapshots);
         finalizePreparedEntities(preparedEntities, snapshots);
         List<PreparedJointRemap> preparedJointRemaps =
                 prepareJointRemaps(snapshots);
+        IntIntMap sourceToStable = prepareStableIdentities(preparedEntities);
         for (PreparedEntity prepared : preparedEntities) {
-            prepared.initializer.setIdentityStableId(identityRegistry.allocateStableId());
+            prepared.initializer.setIdentityStableId(
+                    sourceToStable.get(prepared.sourceEntityId, -1));
         }
         List<Command> commands = new ArrayList<>();
         for (PreparedEntity prepared : preparedEntities) {
+            int parentStableId = prepared.parentSourceEntityId == -1
+                    ? -1 : sourceToStable.get(prepared.parentSourceEntityId, -1);
+            EntityGraphHierarchyInitializer initializer =
+                    new EntityGraphHierarchyInitializer(
+                            world,
+                            prepared.initializer,
+                            prepared.gameObjectRoot,
+                            prepared.gameObjectSourceAssetId,
+                            parentStableId,
+                            remapProperties(prepared.customProperties, sourceToStable));
             CreateEntityCommand cmd = new CreateEntityCommand(
                     world,
                     historyManager.historyIds(),
-                    prepared.initializer,
+                    initializer,
                     createdEntityId -> {
                         createdIds.add(createdEntityId);
                         sourceToCreated.put(prepared.sourceEntityId, createdEntityId);
+                        if (prepared.parentSourceEntityId == -1) {
+                            createdRootIds.add(createdEntityId);
+                        }
                         if (onCreatedEntity != null) {
                             onCreatedEntity.accept(createdEntityId);
                         }
-                    });
+                    }, historyManager.historyIds().allocateHistoryId());
             commands.add(cmd);
         }
 
@@ -145,7 +162,7 @@ public final class EntityGraphInstantiationService {
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
         historyManager.execute(new CompositeCommand(label, commands));
 
-        return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
+        return new EntityGraphInstantiationResult(createdIds, sourceToCreated, createdRootIds);
     }
 
     private List<PreparedEntity> prepareEntities(
@@ -155,8 +172,9 @@ public final class EntityGraphInstantiationService {
             float dy,
             IntMap<GenericEntitySnapshotData> snapshots,
             ClipboardTargetLayer clipboardTargetLayer) {
-        List<PreparedEntity> prepared = new ArrayList<>();
-        for (EntityGraphEntry entry : graph.entries()) {
+        List<EntityGraphEntry> orderedEntries = validateAndOrderHierarchy(graph);
+        List<PreparedEntity> prepared = new ArrayList<>(orderedEntries.size());
+        for (EntityGraphEntry entry : orderedEntries) {
             int sourceEntityId = entry.sourceEntityId();
             if (snapshots.containsKey(sourceEntityId)) {
                 throw new IllegalArgumentException(
@@ -169,12 +187,39 @@ public final class EntityGraphInstantiationService {
                 initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);
             }
             initializer.overrideLayerIndex(activeLayerIndex);
-            initializer.translate(dx, dy);
+            if (entry.parentSourceEntityId() == -1) {
+                initializer.translate(dx, dy);
+            }
             snapshot = initializer.toSnapshotData(sourceEntityId);
             snapshots.put(sourceEntityId, snapshot);
-            prepared.add(new PreparedEntity(sourceEntityId, initializer));
+            validateHierarchyEntry(entry, snapshot);
+            prepared.add(new PreparedEntity(
+                    sourceEntityId,
+                    entry.parentSourceEntityId(),
+                    entry.gameObjectRoot(),
+                    entry.gameObjectSourceAssetId(),
+                    entry.customProperties(),
+                    initializer));
         }
         return prepared;
+    }
+
+    private IntIntMap prepareStableIdentities(List<PreparedEntity> preparedEntities) {
+        IntIntMap sourceToStable = new IntIntMap(preparedEntities.size());
+        for (PreparedEntity prepared : preparedEntities) {
+            sourceToStable.put(prepared.sourceEntityId, identityRegistry.allocateStableId());
+        }
+        return sourceToStable;
+    }
+
+    private static PropertySet remapProperties(
+            PropertySet source, IntIntMap sourceToStable) {
+        return PropertyReferenceMapper.remap(source, sourceId -> {
+            if (sourceId == -1) return -1;
+            if (sourceToStable.containsKey(sourceId)) return sourceToStable.get(sourceId, -1);
+            throw new IllegalArgumentException(
+                    "Entity graph contains an unresolved OBJECT source ID " + sourceId + ".");
+        });
     }
 
     private void finalizePreparedEntities(
@@ -304,6 +349,78 @@ public final class EntityGraphInstantiationService {
                                 + " contains a null physics shape.");
             }
         }
+    }
+
+    private static List<EntityGraphEntry> validateAndOrderHierarchy(EntityGraph graph) {
+        IntMap<EntityGraphEntry> entriesBySourceId = new IntMap<>(graph.size());
+        for (EntityGraphEntry entry : graph.entries()) {
+            if (entriesBySourceId.containsKey(entry.sourceEntityId())) {
+                throw new IllegalArgumentException("Entity graph contains duplicate source IDs.");
+            }
+            entriesBySourceId.put(entry.sourceEntityId(), entry);
+        }
+        IntIntMap visitState = new IntIntMap(graph.size());
+        List<EntityGraphEntry> ordered = new ArrayList<>(graph.size());
+        for (EntityGraphEntry entry : graph.entries()) {
+            appendParentBeforeChild(entry, entriesBySourceId, visitState, ordered);
+        }
+        return ordered;
+    }
+
+    private static void appendParentBeforeChild(
+            EntityGraphEntry entry,
+            IntMap<EntityGraphEntry> entriesBySourceId,
+            IntIntMap visitState,
+            List<EntityGraphEntry> ordered) {
+        int sourceId = entry.sourceEntityId();
+        int state = visitState.get(sourceId, 0);
+        if (state == 2) return;
+        if (state == 1) {
+            throw new IllegalArgumentException("Entity graph hierarchy contains a cycle.");
+        }
+        visitState.put(sourceId, 1);
+        if (entry.parentSourceEntityId() != -1) {
+            EntityGraphEntry parent = entriesBySourceId.get(entry.parentSourceEntityId());
+            if (parent == null) {
+                throw new IllegalArgumentException("Entity graph member references a missing parent.");
+            }
+            if (!parent.gameObjectRoot()) {
+                throw new IllegalArgumentException(
+                        "Entity graph member parent must be a Game Object root.");
+            }
+            appendParentBeforeChild(parent, entriesBySourceId, visitState, ordered);
+        }
+        visitState.put(sourceId, 2);
+        ordered.add(entry);
+    }
+
+    private static void validateHierarchyEntry(
+            EntityGraphEntry entry, GenericEntitySnapshotData snapshot) {
+        if (entry.gameObjectRoot()) {
+            if (!snapshot.hasTransform || !snapshot.hasEntityIndex) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root requires TransformComponent and EntityIndexComponent.");
+            }
+            if (!isPositiveUniformScale(snapshot.scaleX, snapshot.scaleY)) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root scale must be finite, positive, and uniform.");
+            }
+            if (snapshot.hasPhysicsBody || snapshot.hasTextureRegion || snapshot.hasAnimation) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root contains an unsupported component domain.");
+            }
+        }
+        if (entry.parentSourceEntityId() != -1
+                && (snapshot.hasPhysicsBody || snapshot.hasSpatialHeight)) {
+            throw new IllegalArgumentException(
+                    "Game Object graph member contains an unsupported component domain.");
+        }
+    }
+
+    private static boolean isPositiveUniformScale(float scaleX, float scaleY) {
+        return !Float.isNaN(scaleX) && !Float.isInfinite(scaleX)
+                && !Float.isNaN(scaleY) && !Float.isInfinite(scaleY)
+                && scaleX > 0f && Float.compare(scaleX, scaleY) == 0;
     }
 
     private static boolean hasSpecificJointData(GenericEntitySnapshotData snapshot) {
@@ -467,11 +584,20 @@ public final class EntityGraphInstantiationService {
 
     private static final class PreparedEntity {
         final int sourceEntityId;
+        final int parentSourceEntityId;
+        final boolean gameObjectRoot;
+        final String gameObjectSourceAssetId;
+        final PropertySet customProperties;
         final GenericEntityInitializer initializer;
 
-        PreparedEntity(
-                int sourceEntityId, GenericEntityInitializer initializer) {
+        PreparedEntity(int sourceEntityId, int parentSourceEntityId,
+                       boolean gameObjectRoot, String gameObjectSourceAssetId,
+                       PropertySet customProperties, GenericEntityInitializer initializer) {
             this.sourceEntityId = sourceEntityId;
+            this.parentSourceEntityId = parentSourceEntityId;
+            this.gameObjectRoot = gameObjectRoot;
+            this.gameObjectSourceAssetId = gameObjectSourceAssetId;
+            this.customProperties = customProperties != null ? customProperties.copy() : null;
             this.initializer = initializer;
         }
     }

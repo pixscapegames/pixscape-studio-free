@@ -42,6 +42,7 @@ import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
+import games.pixscape.studio.service.property.PropertyReferenceMapper;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import games.pixscape.studio.service.SelectionService;
@@ -520,23 +521,8 @@ public final class GameObjectAssetService {
 
     private static PropertySet remapProperties(
             PropertySet source, IntIntMap sourceToStable) {
-        PropertySet result = new PropertySet(source.size());
-        com.badlogic.gdx.utils.Array<String> names = new com.badlogic.gdx.utils.Array<>();
-        source.copyNamesTo(names);
-        for (String name : names) {
-            PropertyValue value = source.valueCopy(name);
-            if (value.type() == PropertyType.OBJECT) {
-                int sourceId = value.asObjectStableId();
-                result.putObjectStableId(name,
-                        sourceId == -1 ? -1 : sourceToStable.get(sourceId, -1));
-            } else if (value.type() == PropertyType.CLASS) {
-                result.putClass(name, value.className(),
-                        remapProperties(value.classPropertiesCopy(), sourceToStable));
-            } else {
-                result.put(name, value);
-            }
-        }
-        return result;
+        return PropertyReferenceMapper.remap(source,
+                sourceId -> sourceId == -1 ? -1 : sourceToStable.get(sourceId, -1));
     }
 
     private static IntArray currentCreatedEntityIds(IntIntMap sourceToCreated) {

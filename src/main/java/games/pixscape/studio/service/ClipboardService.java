@@ -24,6 +24,7 @@ public final class ClipboardService {
     private final IdentityRegistry identityRegistry;
 
     private final EntityGraphCaptureService graphCaptureService;
+    private final ClipboardSelectionNormalizer selectionNormalizer;
     private final EntityGraphInstantiationService graphInstantiationService;
 
     private EntityGraph graph = EntityGraph.empty();
@@ -41,6 +42,7 @@ public final class ClipboardService {
         this.identityRegistry = identityRegistry;
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
+        this.selectionNormalizer = new ClipboardSelectionNormalizer(world);
         this.graphInstantiationService = new EntityGraphInstantiationService(
                 world, historyManager, identityRegistry, canvas.getPhysicsService(),
                 canvas::isScenePhysicsEnabled,
@@ -59,7 +61,14 @@ public final class ClipboardService {
     }
 
     public boolean copySelection() {
-        graph = graphCaptureService.capture(selectionService.getSelectionSnapshot());
+        IntArray normalized = normalizeClipboardSelection();
+        if (normalized == null) return false;
+        try {
+            graph = graphCaptureService.captureNormalizedClipboard(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
+            return false;
+        }
         if (graph.isEmpty()) {
             return false;
         }
@@ -68,20 +77,22 @@ public final class ClipboardService {
     }
 
     public boolean cutSelection() {
-        graph = graphCaptureService.capture(selectionService.getSelectionSnapshot());
-        if (graph.isEmpty()) {
+        IntArray normalized = normalizeClipboardSelection();
+        if (normalized == null) return false;
+        try {
+            graph = graphCaptureService.captureNormalizedClipboard(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
             return false;
         }
-
-        IntArray supported = new IntArray();
-        for (EntityGraphEntry entry : graph.entries()) {
-            supported.add(entry.sourceEntityId());
+        if (graph.isEmpty()) {
+            return false;
         }
 
         historyManager.execute(DeleteEntitiesCommandFactory.create(
                 world,
                 historyManager.historyIds(),
-                supported,
+                normalized,
                 canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity));
         selectionService.clearSelection();
         pasteCount = 0;
@@ -122,12 +133,22 @@ public final class ClipboardService {
 
         pasteCount++;
         selectionService.clearSelection();
-        selectionService.selectOnly(result.createdIds().get(0));
-        for (int i = 1; i < result.createdIds().size; i++) {
-            selectionService.selectAdd(result.createdIds().get(i));
+        selectionService.selectOnly(result.createdRootIds().get(0));
+        for (int i = 1; i < result.createdRootIds().size; i++) {
+            selectionService.selectAdd(result.createdRootIds().get(i));
         }
 
         return true;
+    }
+
+    private IntArray normalizeClipboardSelection() {
+        try {
+            return selectionNormalizer.normalize(selectionService.getSelectionSnapshot());
+        } catch (IllegalArgumentException ignored) {
+            // Preserve existing failed-Copy behavior: the clipboard is cleared, Scene untouched.
+            graph = EntityGraph.empty();
+            return null;
+        }
     }
 
     private ResolvedClipboardDestination resolveClipboardDestination() {

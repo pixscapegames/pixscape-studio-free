@@ -5,6 +5,7 @@ import com.artemis.Aspect;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.IntMap;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
@@ -12,13 +13,18 @@ import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.CustomPropertiesComponent;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.ClipboardPhysicsJointGraph;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class EntityGraphCaptureService {
@@ -43,8 +49,8 @@ public final class EntityGraphCaptureService {
     }
 
     public EntityGraph capture(IntArray selection) {
-        if (containsGameObjectHierarchy(selection)) return EntityGraph.empty();
-        return captureSupportedSelection(collectSupportedSelection(selection));
+        IntArray normalized = new ClipboardSelectionNormalizer(world).normalize(selection);
+        return captureNormalizedClipboard(normalized);
     }
 
     /** Captures one complete real Game Object hierarchy for asset publication. */
@@ -61,13 +67,122 @@ public final class EntityGraphCaptureService {
         return new EntityGraph(entries);
     }
 
-    private boolean containsGameObjectHierarchy(IntArray selection) {
-        if (selection == null) return false;
-        for (int i = 0; i < selection.size; i++) {
-            int entityId = selection.get(i);
-            if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return true;
+    /** Captures a V1 clipboard selection with graph-local hierarchy ownership. */
+    public EntityGraph captureGameObjectClipboard(IntArray selection) {
+        IntArray roots = new ClipboardSelectionNormalizer(world).normalize(selection);
+        return captureNormalizedClipboard(roots);
+    }
+
+    /** Captures already-normalized V1 clipboard roots without changing Scene state. */
+    public EntityGraph captureNormalizedClipboard(IntArray roots) {
+        if (roots.size == 0) return EntityGraph.empty();
+        if (!containsGameObjectRoot(roots)) {
+            return captureSupportedSelection(collectSupportedSelection(roots));
+        }
+        IntArray entities = new IntArray(false, roots.size);
+        IntArray parents = new IntArray(false, roots.size);
+        IntSet knownStableIds = new IntSet();
+        IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
+        for (int i = 0; i < roots.size; i++) {
+            if (!mGameObject.has(roots.get(i)) && !isCaptureSupported(roots.get(i))) {
+                throw new IllegalArgumentException(
+                        "Clipboard selection contains an unsupported standalone entity.");
+            }
+            collectClipboardSubtree(roots.get(i), -1, entities, parents, knownStableIds,
+                    childrenByParentStableId);
+        }
+        IntMap<Integer> stableToSource = new IntMap<>();
+        for (int i = 0; i < entities.size; i++) stableToSource.put(mIdentity.get(entities.get(i)).stableId, i + 1);
+        List<EntityGraphEntry> entries = new ArrayList<>(entities.size);
+        for (int i = 0; i < entities.size; i++) {
+            int entityId = entities.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(entityId);
+            if (parents.get(i) == -1 && mGameObjectMember.has(entityId)) normalizeNestedRootToWorldPose(entityId, initializer);
+            CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
+            GameObjectComponent gameObject = mGameObject.getSafe(entityId, null);
+            entries.add(new EntityGraphEntry(
+                    i + 1,
+                    parents.get(i),
+                    gameObject != null,
+                    gameObject != null ? gameObject.sourceAssetId : "",
+                    initializer,
+                    ClipboardPropertyReferenceNormalizer.normalize(properties != null ? properties.properties : null, stableToSource)));
+        }
+        return new EntityGraph(entries);
+    }
+
+    private boolean containsGameObjectRoot(IntArray roots) {
+        for (int i = 0; i < roots.size; i++) {
+            if (mGameObject.has(roots.get(i))) return true;
         }
         return false;
+    }
+
+    private IntMap<IntArray> collectChildrenByParentStableId() {
+        IntMap<IntArray> childrenByParentStableId = new IntMap<>();
+        IntBag members = world.getAspectSubscriptionManager().get(
+                Aspect.all(GameObjectMemberComponent.class)).getEntities();
+        for (int i = 0; i < members.size(); i++) {
+            int child = members.get(i);
+            GameObjectMemberComponent member = mGameObjectMember.get(child);
+            PixscapeIdentityComponent identity = mIdentity.getSafe(child, null);
+            if (member == null || identity == null || identity.stableId <= 0) continue;
+            IntArray children = childrenByParentStableId.get(member.parentStableId);
+            if (children == null) {
+                children = new IntArray(false, 1);
+                childrenByParentStableId.put(member.parentStableId, children);
+            }
+            children.add(child);
+        }
+        for (IntMap.Entry<IntArray> entry : childrenByParentStableId.entries()) {
+            sortChildrenByStableId(entry.value);
+        }
+        return childrenByParentStableId;
+    }
+
+    private void sortChildrenByStableId(IntArray children) {
+        long[] order = new long[children.size];
+        for (int i = 0; i < children.size; i++) {
+            int entityId = children.get(i);
+            order[i] = ((long) mIdentity.get(entityId).stableId << 32)
+                    | (entityId & 0xffffffffL);
+        }
+        Arrays.sort(order);
+        for (int i = 0; i < children.size; i++) children.set(i, (int) order[i]);
+    }
+
+    private void collectClipboardSubtree(int entityId, int parentSourceId,
+                                         IntArray entities, IntArray parents, IntSet stableIds,
+                                         IntMap<IntArray> childrenByParentStableId) {
+        if (!world.getEntityManager().isActive(entityId)) throw new IllegalArgumentException("Clipboard entity is inactive.");
+        PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+        if (identity == null || identity.stableId <= 0) {
+            throw new IllegalArgumentException("Clipboard entity requires a stable identity.");
+        }
+        if (!stableIds.add(identity.stableId)) {
+            throw new IllegalArgumentException("Clipboard hierarchy contains a duplicate stable identity.");
+        }
+        int sourceId = entities.size + 1;
+        entities.add(entityId);
+        parents.add(parentSourceId);
+        if (!mGameObject.has(entityId)) return;
+        IntArray children = childrenByParentStableId.get(identity.stableId);
+        if (children == null) return;
+        for (int i = 0; i < children.size; i++) {
+            collectClipboardSubtree(children.get(i), sourceId, entities, parents, stableIds,
+                    childrenByParentStableId);
+        }
+    }
+
+    private void normalizeNestedRootToWorldPose(int entityId, GenericEntityInitializer initializer) {
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        WorldTransformState state = hierarchy != null ? hierarchy.worldTransforms() : null;
+        if (state == null || !state.isResolved(entityId)) throw new IllegalStateException("Nested Game Object clipboard root has no resolved world transform.");
+        GenericEntitySnapshotData snapshot = initializer.toSnapshotData(0);
+        snapshot.x = state.x[entityId]; snapshot.y = state.y[entityId];
+        snapshot.rotationRad = state.rotationRad[entityId]; snapshot.scaleX = state.scaleX[entityId]; snapshot.scaleY = state.scaleY[entityId];
+        initializer.applySnapshotData(snapshot);
     }
 
     private EntityGraph captureSupportedSelection(IntArray supported) {
