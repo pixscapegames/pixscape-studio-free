@@ -78,11 +78,25 @@ public class EntityGraphGameObjectInstantiationTest {
             f.process();
             int restoredRoot = result.sourceToCreated().get(1, -1);
             int restoredChild = result.sourceToCreated().get(2, -1);
+            assertEquals(2, result.createdIds().size);
+            assertIds(result.createdRootIds(), restoredRoot);
             assertEquals(rootStableId, f.identities.get(restoredRoot).stableId);
             assertEquals(childStableId, f.identities.get(restoredChild).stableId);
             assertEquals(rootHistoryId, f.history.historyIds().historyIdOfEntity(restoredRoot));
             assertEquals(childHistoryId, f.history.historyIds().historyIdOfEntity(restoredChild));
             assertHierarchy(f, restoredRoot, restoredChild, 7, 25f, 37f, 4f, -2f, 9, 3);
+
+            f.history.undo();
+            f.process();
+            f.history.redo();
+            f.process();
+            int secondRedoRoot = result.sourceToCreated().get(1, -1);
+            int secondRedoChild = result.sourceToCreated().get(2, -1);
+            assertEquals(2, result.createdIds().size);
+            assertIds(result.createdIds(), secondRedoRoot, secondRedoChild);
+            assertIds(result.createdRootIds(), secondRedoRoot);
+            assertEquals(rootHistoryId, f.history.historyIds().historyIdOfEntity(secondRedoRoot));
+            assertEquals(childHistoryId, f.history.historyIds().historyIdOfEntity(secondRedoChild));
         } finally {
             f.dispose();
         }

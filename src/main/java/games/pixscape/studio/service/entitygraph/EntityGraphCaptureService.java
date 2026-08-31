@@ -79,16 +79,17 @@ public final class EntityGraphCaptureService {
         if (!containsGameObjectRoot(roots)) {
             return captureSupportedSelection(collectSupportedSelection(roots));
         }
-        IntArray entities = new IntArray(false, roots.size);
-        IntArray parents = new IntArray(false, roots.size);
+        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        IntArray entities = new IntArray(false, captureRoots.size);
+        IntArray parents = new IntArray(false, captureRoots.size);
         IntSet knownStableIds = new IntSet();
         IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
-        for (int i = 0; i < roots.size; i++) {
-            if (!mGameObject.has(roots.get(i)) && !isCaptureSupported(roots.get(i))) {
+        for (int i = 0; i < captureRoots.size; i++) {
+            if (!mGameObject.has(captureRoots.get(i)) && !isCaptureSupported(captureRoots.get(i))) {
                 throw new IllegalArgumentException(
                         "Clipboard selection contains an unsupported standalone entity.");
             }
-            collectClipboardSubtree(roots.get(i), -1, entities, parents, knownStableIds,
+            collectClipboardSubtree(captureRoots.get(i), -1, entities, parents, knownStableIds,
                     childrenByParentStableId);
         }
         IntMap<Integer> stableToSource = new IntMap<>();
@@ -110,6 +111,32 @@ public final class EntityGraphCaptureService {
                     ClipboardPropertyReferenceNormalizer.normalize(properties != null ? properties.properties : null, stableToSource)));
         }
         return new EntityGraph(entries);
+    }
+
+    /**
+     * Preserves ordinary clipboard joint augmentation for standalone roots in a mixed
+     * selection. Game Object roots and their descendants are deliberately excluded:
+     * Physics remains a standalone clipboard domain in V1.
+     */
+    private IntArray augmentStandalonePhysicsRoots(IntArray roots) {
+        IntArray standaloneRoots = new IntArray(false, roots.size);
+        for (int i = 0; i < roots.size; i++) {
+            int entityId = roots.get(i);
+            if (!mGameObject.has(entityId)) standaloneRoots.add(entityId);
+        }
+        IntArray augmentedStandalone = ClipboardPhysicsJointGraph.filterCopyableSelection(
+                world, standaloneRoots);
+        IntSet included = new IntSet();
+        IntArray result = new IntArray(false, roots.size + augmentedStandalone.size);
+        for (int i = 0; i < roots.size; i++) {
+            int entityId = roots.get(i);
+            if (included.add(entityId)) result.add(entityId);
+        }
+        for (int i = 0; i < augmentedStandalone.size; i++) {
+            int entityId = augmentedStandalone.get(i);
+            if (included.add(entityId)) result.add(entityId);
+        }
+        return result;
     }
 
     private boolean containsGameObjectRoot(IntArray roots) {
@@ -254,7 +281,7 @@ public final class EntityGraphCaptureService {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return false;
         // Tiled maps require their dedicated deep snapshot; generic capture would be partial.
         if (mTiled.has(entityId)) return false;
-        // Hierarchy copy needs stable-ID remapping; reject roots and members until that command exists.
+        // Ordinary Game Object members cannot be independent clipboard roots in V1.
         if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return false;
         if (mJointBase.has(entityId)) return true;
         if (!mEntityIndex.has(entityId)) return false;

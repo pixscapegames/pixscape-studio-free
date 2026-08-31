@@ -110,8 +110,6 @@ public final class EntityGraphInstantiationService {
             return EntityGraphInstantiationResult.empty();
         }
 
-        IntArray createdIds = new IntArray();
-        IntArray createdRootIds = new IntArray();
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
@@ -127,8 +125,13 @@ public final class EntityGraphInstantiationService {
             prepared.initializer.setIdentityStableId(
                     sourceToStable.get(prepared.sourceEntityId, -1));
         }
+        IntArray createdIds = fixedSlots(preparedEntities.size());
+        IntArray createdRootIds = fixedSlots(rootCount(preparedEntities));
         List<Command> commands = new ArrayList<>();
-        for (PreparedEntity prepared : preparedEntities) {
+        int rootSlot = 0;
+        for (int entitySlot = 0; entitySlot < preparedEntities.size(); entitySlot++) {
+            PreparedEntity prepared = preparedEntities.get(entitySlot);
+            int resultEntitySlot = entitySlot;
             int parentStableId = prepared.parentSourceEntityId == -1
                     ? -1 : sourceToStable.get(prepared.parentSourceEntityId, -1);
             EntityGraphHierarchyInitializer initializer =
@@ -139,15 +142,16 @@ public final class EntityGraphInstantiationService {
                             prepared.gameObjectSourceAssetId,
                             parentStableId,
                             remapProperties(prepared.customProperties, sourceToStable));
+            int resultRootSlot = prepared.parentSourceEntityId == -1 ? rootSlot++ : -1;
             CreateEntityCommand cmd = new CreateEntityCommand(
                     world,
                     historyManager.historyIds(),
                     initializer,
                     createdEntityId -> {
-                        createdIds.add(createdEntityId);
+                        createdIds.set(resultEntitySlot, createdEntityId);
                         sourceToCreated.put(prepared.sourceEntityId, createdEntityId);
-                        if (prepared.parentSourceEntityId == -1) {
-                            createdRootIds.add(createdEntityId);
+                        if (resultRootSlot >= 0) {
+                            createdRootIds.set(resultRootSlot, createdEntityId);
                         }
                         if (onCreatedEntity != null) {
                             onCreatedEntity.accept(createdEntityId);
@@ -163,6 +167,20 @@ public final class EntityGraphInstantiationService {
         historyManager.execute(new CompositeCommand(label, commands));
 
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated, createdRootIds);
+    }
+
+    private static IntArray fixedSlots(int count) {
+        IntArray result = new IntArray(false, count);
+        for (int i = 0; i < count; i++) result.add(-1);
+        return result;
+    }
+
+    private static int rootCount(List<PreparedEntity> preparedEntities) {
+        int count = 0;
+        for (PreparedEntity prepared : preparedEntities) {
+            if (prepared.parentSourceEntityId == -1) count++;
+        }
+        return count;
     }
 
     private List<PreparedEntity> prepareEntities(

@@ -17,6 +17,14 @@ import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import org.junit.Test;
 
@@ -251,6 +259,74 @@ public class EntityGraphGameObjectClipboardCaptureTest {
         }
     }
 
+    @Test
+    public void mixedGameObjectAndStandaloneBodiesIncludeTheirValidDistanceJoint() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
+            int firstBody = f.physicsBody(20);
+            int secondBody = f.physicsBody(30);
+            f.distanceJoint(40, firstBody, secondBody);
+            f.world.process();
+
+            EntityGraph graph = new EntityGraphCaptureService(f.world)
+                    .captureGameObjectClipboard(new IntArray(new int[]{root, firstBody, secondBody}));
+
+            assertEquals(4, graph.size());
+            assertEntry(graph.entries().get(0), 1, -1, true);
+            assertTrue(graph.entries().get(3).initializer().toSnapshotData(0).hasJoint);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void mixedGameObjectAndIncompleteStandaloneBodiesDoNotIncludeJoint() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
+            int firstBody = f.physicsBody(20);
+            int secondBody = f.physicsBody(30);
+            f.distanceJoint(40, firstBody, secondBody);
+            f.world.process();
+
+            EntityGraph graph = new EntityGraphCaptureService(f.world)
+                    .captureGameObjectClipboard(new IntArray(new int[]{root, firstBody}));
+
+            assertEquals(2, graph.size());
+            for (EntityGraphEntry entry : graph.entries()) {
+                assertFalse(entry.initializer().toSnapshotData(0).hasJoint);
+            }
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void mixedGameObjectAndStandaloneBodiesIncludeGearDependenciesInOrder() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
+            int firstBody = f.physicsBody(20);
+            int secondBody = f.physicsBody(30);
+            int thirdBody = f.physicsBody(40);
+            int revolute = f.revoluteJoint(50, firstBody, secondBody);
+            int prismatic = f.prismaticJoint(60, secondBody, thirdBody);
+            f.gearJoint(70, firstBody, thirdBody, revolute, prismatic);
+            f.world.process();
+
+            EntityGraph graph = new EntityGraphCaptureService(f.world).captureGameObjectClipboard(
+                    new IntArray(new int[]{root, firstBody, secondBody, thirdBody}));
+
+            assertEquals(7, graph.size());
+            assertTrue(graph.entries().get(4).initializer().toSnapshotData(0).hasJoint);
+            assertTrue(graph.entries().get(5).initializer().toSnapshotData(0).hasJoint);
+            assertTrue(graph.entries().get(6).initializer().toSnapshotData(0).hasJoint);
+        } finally {
+            f.world.dispose();
+        }
+    }
+
     private static void assertEntry(EntityGraphEntry entry, int sourceId, int parentSourceId,
                                     boolean gameObjectRoot) {
         assertEquals(sourceId, entry.sourceEntityId());
@@ -342,6 +418,53 @@ public class EntityGraphGameObjectClipboardCaptureTest {
 
         int standalone(int stableId, float x, float y) {
             return base(stableId, -1, x, y);
+        }
+
+        int physicsBody(int stableId) {
+            int entity = standalone(stableId, 0f, 0f);
+            world.getMapper(PhysicsBodyComponent.class).create(entity);
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class)
+                    .create(entity);
+            shapes.shapes.add(new PhysicsShapeData());
+            return entity;
+        }
+
+        int distanceJoint(int stableId, int firstBody, int secondBody) {
+            int entity = joint(stableId, PhysicsJointComponent.TYPE_DISTANCE, firstBody, secondBody);
+            world.getMapper(PhysicsDistanceJointComponent.class).create(entity);
+            return entity;
+        }
+
+        int revoluteJoint(int stableId, int firstBody, int secondBody) {
+            int entity = joint(stableId, PhysicsJointComponent.TYPE_REVOLUTE, firstBody, secondBody);
+            world.getMapper(PhysicsRevoluteJointComponent.class).create(entity);
+            return entity;
+        }
+
+        int prismaticJoint(int stableId, int firstBody, int secondBody) {
+            int entity = joint(stableId, PhysicsJointComponent.TYPE_PRISMATIC, firstBody, secondBody);
+            world.getMapper(PhysicsPrismaticJointComponent.class).create(entity);
+            return entity;
+        }
+
+        int gearJoint(int stableId, int firstBody, int secondBody, int firstJoint, int secondJoint) {
+            int entity = joint(stableId, PhysicsJointComponent.TYPE_GEAR, firstBody, secondBody);
+            PhysicsGearJointComponent gear = world.getMapper(PhysicsGearJointComponent.class)
+                    .create(entity);
+            gear.joint1Eid = firstJoint;
+            gear.joint2Eid = secondJoint;
+            return entity;
+        }
+
+        private int joint(int stableId, int type, int firstBody, int secondBody) {
+            int entity = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;
+            world.getMapper(EntityIndexComponent.class).create(entity);
+            PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(entity);
+            joint.type = type;
+            joint.aEid = firstBody;
+            joint.bEid = secondBody;
+            return entity;
         }
 
         private int base(int stableId, int parentStableId, float x, float y) {
