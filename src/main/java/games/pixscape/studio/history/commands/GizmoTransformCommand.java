@@ -140,7 +140,18 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
 
         int entityId = historyIds.entityOfHistoryId(historyId);
         if (entityId >= 0 && world.getMapper(GameObjectComponent.class).has(entityId)) {
-            requireValidGameObjectSnapshot(after);
+            if (op == TransformOp.SCALE) {
+                if (!isValidGameObjectScale(after)
+                        || !GameObjectHierarchyCommandSupport.canApplyScale(
+                                world, entityId, after.sx, after.sy)) {
+                    TransformComponent current = world.getMapper(TransformComponent.class)
+                            .getSafe(entityId, null);
+                    if (current != null) before.applyTo(current);
+                    return;
+                }
+            } else {
+                requireValidGameObjectSnapshot(after);
+            }
         }
         EditRenderRepeatCommand.Snapshot beforeRepeat = op == TransformOp.ROTATE
                 ? RepeatRotationConstraint.captureRepeat(world, entityId)
@@ -156,6 +167,15 @@ public final class GizmoTransformCommand implements Command, SupportsNoop {
         TransformComponent candidate = new TransformComponent();
         snapshot.applyTo(candidate);
         GameObjectTransformMath.requirePositiveUniformParentScale(candidate);
+    }
+
+    private static boolean isValidGameObjectScale(Snapshot snapshot) {
+        try {
+            requireValidGameObjectSnapshot(snapshot);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     @Override

@@ -4,5 +4,6 @@ public enum CursorKind {
     NONE,
     MOVE,
     RESIZE,
-    ROTATE
+    ROTATE,
+    FORBIDDEN
 }

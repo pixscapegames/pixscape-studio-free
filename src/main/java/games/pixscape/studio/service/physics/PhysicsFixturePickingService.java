@@ -2,6 +2,7 @@ package games.pixscape.studio.service.physics;
 
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
+import com.artemis.World;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -21,14 +22,20 @@ public final class PhysicsFixturePickingService {
     }
 
     private final PhysicsService physicsService;
+    private final ResolvedPhysicsPose resolvedPose;
     private final Vector2 tmpCenter = new Vector2();
     private final float[] vertexScratch = new float[16];
 
     public PhysicsFixturePickingService(PhysicsService physicsService) {
+        this(null, physicsService);
+    }
+
+    public PhysicsFixturePickingService(World world, PhysicsService physicsService) {
         if (physicsService == null) {
             throw new IllegalArgumentException("physicsService cannot be null.");
         }
         this.physicsService = physicsService;
+        this.resolvedPose = world != null ? new ResolvedPhysicsPose(world) : null;
     }
 
     public PickResult pick(
@@ -64,6 +71,7 @@ public final class PhysicsFixturePickingService {
                     bodyEntityId, fixture, tmpCenter)) {
                 return false;
             }
+            remap(bodyEntityId, tmpCenter);
             float radius = physicsService.computeCompiledFixtureRadiusWU(fixture)
                     + Math.max(0f, toleranceWU);
             return tmpCenter.dst2(worldX, worldY) <= radius * radius;
@@ -75,12 +83,28 @@ public final class PhysicsFixturePickingService {
         int count = physicsService.computeCompiledFixtureVerticesWU(
                 bodyEntityId, fixture, vertexScratch);
         if (count < 3) return false;
+        remap(bodyEntityId, vertexScratch, count);
         if (Intersector.isPointInPolygon(
                 vertexScratch, 0, count * 2, worldX, worldY)) {
             return true;
         }
         return isNearClosedPolyline(
                 vertexScratch, count, worldX, worldY, toleranceWU);
+    }
+
+    private void remap(int bodyEntityId, Vector2 point) {
+        if (resolvedPose != null) resolvedPose.remapAuthoredWorldPoint(bodyEntityId, point);
+    }
+
+    private void remap(int bodyEntityId, float[] vertices, int vertexCount) {
+        if (resolvedPose == null) return;
+        for (int i = 0; i < vertexCount; i++) {
+            tmpCenter.set(vertices[i * 2], vertices[i * 2 + 1]);
+            if (resolvedPose.remapAuthoredWorldPoint(bodyEntityId, tmpCenter)) {
+                vertices[i * 2] = tmpCenter.x;
+                vertices[i * 2 + 1] = tmpCenter.y;
+            }
+        }
     }
 
     private static boolean isNearClosedPolyline(

@@ -2,6 +2,7 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -110,6 +111,83 @@ public class GameObjectHierarchyCommandsTest {
                 assertFalse(f.world.getMapper(GameObjectMemberComponent.class).has(particle));
                 assertEquals(before.x, f.transform(particle).x, 0f);
             }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void physicsCannotBeAttachedBelowScaledGameObjectFrameBeforeMutation() {
+        Fixture f = new Fixture();
+        try {
+            int scaledRoot = f.entity(1, 0, 0, 10f, 20f, 0f, 2f, 2f, true);
+            int body = f.entity(2, 0, 1, 4f, 8f, 0f, 1f, 1f, false);
+            f.world.getMapper(PhysicsBodyComponent.class).create(body);
+            f.process();
+
+            try {
+                new AddEntityToGameObjectCommand(
+                        f.world, f.historyIds, f.identities, body, scaledRoot, 0);
+                fail("Expected Physics scaled-ancestor rejection");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("Physics"));
+            }
+
+            assertFalse(f.world.getMapper(GameObjectMemberComponent.class).has(body));
+            assertEquals(4f, f.transform(body).x, EPSILON);
+            assertEquals(8f, f.transform(body).y, EPSILON);
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void ancestorScaleIsRejectedButBodyOwnScaleRemainsAllowed() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.entity(1, 0, 0, 0f, 0f, 0f, 1f, 1f, true);
+            int body = f.entity(2, 0, 1, 4f, 8f, 0f, 1f, 1f, false);
+            f.world.getMapper(PhysicsBodyComponent.class).create(body);
+            f.world.getMapper(GameObjectMemberComponent.class).create(body).parentStableId = 1;
+            f.process();
+
+            EditTransformCommand.Snapshot rootBefore = EditTransformCommand.Snapshot.capture(f.transform(root));
+            EditTransformCommand rejectedScale = new EditTransformCommand(
+                    f.world, f.historyIds, root, TransformOp.SCALE,
+                    rootBefore, rootBefore.withUniformScale(2f));
+            assertTrue(rejectedScale.isNoop());
+            rejectedScale.redo();
+            assertEquals(1f, f.transform(root).scaleX, EPSILON);
+
+            EditTransformCommand.Snapshot bodyBefore = EditTransformCommand.Snapshot.capture(f.transform(body));
+            EditTransformCommand ownBodyScale = new EditTransformCommand(
+                    f.world, f.historyIds, body, TransformOp.SCALE,
+                    bodyBefore, bodyBefore.withUniformScale(2f));
+            assertFalse(ownBodyScale.isNoop());
+            ownBodyScale.redo();
+            assertEquals(2f, f.transform(body).scaleX, EPSILON);
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void nestedGameObjectAncestorsAreLockedWhileUnrelatedGameObjectIsScalable() {
+        Fixture f = new Fixture();
+        try {
+            int outer = f.entity(1, 0, 0, 0f, 0f, 0f, 1f, 1f, true);
+            int inner = f.entity(2, 0, 1, 0f, 0f, 0f, 1f, 1f, true);
+            int body = f.entity(3, 0, 2, 2f, 3f, 0f, 1f, 1f, false);
+            int unrelated = f.entity(4, 0, 3, 0f, 0f, 0f, 1f, 1f, true);
+            f.world.getMapper(GameObjectMemberComponent.class).create(inner).parentStableId = 1;
+            f.world.getMapper(GameObjectMemberComponent.class).create(body).parentStableId = 2;
+            f.world.getMapper(PhysicsBodyComponent.class).create(body);
+            f.process();
+
+            assertFalse(GameObjectHierarchyCommandSupport.canApplyScale(f.world, outer, 2f, 2f));
+            assertFalse(GameObjectHierarchyCommandSupport.canApplyScale(f.world, inner, 2f, 2f));
+            assertTrue(GameObjectHierarchyCommandSupport.canApplyScale(f.world, body, 2f, 2f));
+            assertTrue(GameObjectHierarchyCommandSupport.canApplyScale(f.world, unrelated, 2f, 2f));
         } finally {
             f.close();
         }

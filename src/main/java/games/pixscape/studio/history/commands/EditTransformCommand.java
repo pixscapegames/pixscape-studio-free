@@ -65,6 +65,14 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             return rotationRad;
         }
 
+        public float scaleX() {
+            return scaleX;
+        }
+
+        public float scaleY() {
+            return scaleY;
+        }
+
         public Snapshot withX(float value) {
             return new Snapshot(value, y, rotationRad, scaleX, scaleY, originX, originY);
         }
@@ -141,8 +149,15 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.before = before;
         this.after = after;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
+        boolean rejectedScale = false;
         if (world != null && world.getMapper(GameObjectComponent.class).has(entityId)) {
-            requireValidGameObjectTransform(after);
+            if (op == TransformOp.SCALE && after != null) {
+                rejectedScale = !isValidGameObjectScale(after)
+                        || !GameObjectHierarchyCommandSupport.canApplyScale(
+                                world, entityId, after.scaleX, after.scaleY);
+            } else {
+                requireValidGameObjectTransform(after);
+            }
         }
         this.beforeRepeat = op == TransformOp.ROTATE
                 ? RepeatRotationConstraint.captureRepeat(world, entityId)
@@ -156,7 +171,18 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
                 || entityHistoryId <= 0L
                 || before == null
                 || after == null
+                || rejectedScale
                 || (before.sameAs(after) && repeatSnapshotsSame(beforeRepeat, afterRepeat));
+    }
+
+    private static boolean isValidGameObjectScale(Snapshot snapshot) {
+        if (snapshot == null) return false;
+        try {
+            requireValidGameObjectTransform(snapshot);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 
     private static void requireValidGameObjectTransform(Snapshot snapshot) {

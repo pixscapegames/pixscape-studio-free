@@ -10,8 +10,9 @@ import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 
-final class GameObjectHierarchyCommandSupport {
+public final class GameObjectHierarchyCommandSupport {
     private static final int MAX_DEPTH = 1024;
 
     private GameObjectHierarchyCommandSupport() {
@@ -40,13 +41,12 @@ final class GameObjectHierarchyCommandSupport {
         GameObjectTransformMath.requirePositiveUniformParentScale(
                 world.getMapper(TransformComponent.class).get(parentEntityId));
         rejectCycle(world, identities, childEntityId, parentEntityId);
+        requireProspectivePhysicsAncestry(world, identities, childEntityId, parentEntityId);
     }
 
     static void requireSupportedMember(World world, int entityId) {
         if (world.getMapper(TiledLayerComponent.class).has(entityId)
                 || world.getMapper(ParticleEmitterComponent.class).has(entityId)
-                || world.getMapper(PhysicsBodyComponent.class).has(entityId)
-                || world.getMapper(PhysicsShapesComponent.class).has(entityId)
                 || world.getMapper(SpatialHeightComponent.class).has(entityId)
                 || world.getMapper(SpatialBlocksComponent.class).has(entityId)
                 || world.getMapper(SpatialShapesComponent.class).has(entityId)) {
@@ -116,6 +116,121 @@ final class GameObjectHierarchyCommandSupport {
         TransformComponent copy = new TransformComponent();
         apply(copy, source);
         return copy;
+    }
+
+    /** Validates the current Game Object frames above a prospective or existing Physics Body. */
+    static void requirePhysicsAncestry(
+            World world, IdentityRegistry identities, int entityId) {
+        int current = entityId;
+        for (int depth = 0; depth < MAX_DEPTH; depth++) {
+            GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                    .getSafe(current, null);
+            if (member == null) return;
+            int parent = identities.findByStableId(member.parentStableId);
+            requireActive(world, parent, "Physics ancestor");
+            TransformComponent parentTransform = world.getMapper(TransformComponent.class)
+                    .getSafe(parent, null);
+            try {
+                GameObjectTransformMath.requireUnitParentScale(parentTransform, "Physics");
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        "Physics hierarchy requires every Game Object ancestor to use scale (1,1).", ex);
+            }
+            current = parent;
+        }
+        throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
+    }
+
+    static boolean subtreeContainsPhysics(
+            World world, IdentityRegistry identities, int entityId) {
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy != null) {
+            return hierarchy.containsPhysicsInSubtree(entityId);
+        }
+        if (world.getMapper(PhysicsBodyComponent.class).has(entityId)) return true;
+
+        com.artemis.utils.IntBag bodies = world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities();
+        int[] data = bodies.getData();
+        for (int i = 0, n = bodies.size(); i < n; i++) {
+            int current = data[i];
+            for (int depth = 0; depth < MAX_DEPTH; depth++) {
+                if (current == entityId) return true;
+                GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                        .getSafe(current, null);
+                if (member == null) break;
+                current = identities.findByStableId(member.parentStableId);
+                if (current < 0) break;
+            }
+        }
+        return false;
+    }
+
+    /** Returns whether a strict hierarchy descendant, not the entity itself, has Physics. */
+    static boolean hasPhysicsDescendant(
+            World world, IdentityRegistry identities, int entityId) {
+        if (identities == null) return false;
+        com.artemis.utils.IntBag bodies = world.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities();
+        int[] data = bodies.getData();
+        for (int i = 0, n = bodies.size(); i < n; i++) {
+            int current = data[i];
+            for (int depth = 0; depth < MAX_DEPTH; depth++) {
+                GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                        .getSafe(current, null);
+                if (member == null) break;
+                current = identities.findByStableId(member.parentStableId);
+                if (current == entityId) return true;
+                if (current < 0) break;
+            }
+        }
+        return false;
+    }
+
+    public static boolean canApplyScale(
+            World world, int entityId, float scaleX, float scaleY) {
+        if (world == null || entityId < 0
+                || !world.getMapper(GameObjectComponent.class).has(entityId)) {
+            return true;
+        }
+        return !hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId)
+                || (scaleX == 1f && scaleY == 1f);
+    }
+
+    /** True only for a Game Object frame strictly above a Physics descendant. */
+    public static boolean isPhysicsAncestorScaleLocked(World world, int entityId) {
+        return world != null && entityId >= 0
+                && world.getMapper(GameObjectComponent.class).has(entityId)
+                && hasPhysicsDescendant(world, IdentityRegistry.boundTo(world), entityId);
+    }
+
+    static void requireScaleAllowedForPhysicsDescendants(
+            World world, int entityId, float scaleX, float scaleY) {
+        if (!canApplyScale(world, entityId, scaleX, scaleY)) {
+            throw new IllegalArgumentException(
+                    "A Game Object ancestor of Physics must keep scale (1,1).");
+        }
+    }
+
+    private static void requireProspectivePhysicsAncestry(
+            World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
+        if (!subtreeContainsPhysics(world, identities, childEntityId)) return;
+        int current = parentEntityId;
+        for (int depth = 0; depth < MAX_DEPTH; depth++) {
+            TransformComponent transform = world.getMapper(TransformComponent.class).get(current);
+            try {
+                GameObjectTransformMath.requireUnitParentScale(transform, "Physics");
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException(
+                        "Cannot reparent Physics under a non-unit Game Object ancestor.", ex);
+            }
+            GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                    .getSafe(current, null);
+            if (member == null) return;
+            current = identities.findByStableId(member.parentStableId);
+            requireActive(world, current, "prospective Physics ancestor");
+        }
+        throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
     }
 
     private static void rejectCycle(

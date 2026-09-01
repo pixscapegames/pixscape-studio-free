@@ -2,13 +2,17 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -206,7 +210,46 @@ public class AddPhysicsBodyCommandTest {
         Assert.assertEquals(highWater, harness.meta.nextPhysicsShapeId);
     }
 
-    private static final class Harness {
+    @Test
+    public void validNestedGameObjectMemberCanReceivePhysicsAndUndoRedo() {
+        HierarchyHarness harness = new HierarchyHarness();
+        int root = harness.gameObject(1, -1);
+        int nested = harness.gameObject(2, 1);
+        int child = harness.entity(3, 2);
+        harness.rebuildIdentities();
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world, harness.historyIds, harness.physics,
+                child, PhysicsBodyComponent.KINEMATIC, true));
+
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        Assert.assertEquals(PhysicsBodyComponent.KINEMATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class).get(child).type);
+        harness.history.undo();
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        harness.history.redo();
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+    }
+
+    @Test
+    public void scaledPhysicsAncestorIsRejectedWithoutPublishingComponents() {
+        HierarchyHarness harness = new HierarchyHarness();
+        int root = harness.gameObject(1, -1);
+        harness.world.getMapper(TransformComponent.class).get(root).scaleX = 2f;
+        harness.world.getMapper(TransformComponent.class).get(root).scaleY = 2f;
+        int child = harness.entity(2, 1);
+        harness.rebuildIdentities();
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world, harness.historyIds, harness.physics,
+                child, PhysicsBodyComponent.DYNAMIC, true));
+
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class).has(child));
+        Assert.assertFalse(harness.history.canUndo());
+    }
+
+    private static class Harness {
         final World world = new World();
         final SceneMeta meta = new SceneMeta();
         final PhysicsService physics = new PhysicsService(world, null, meta);
@@ -215,6 +258,38 @@ public class AddPhysicsBodyCommandTest {
 
         Harness() {
             history.historyIds().clear();
+        }
+    }
+
+    private static final class HierarchyHarness extends Harness {
+        final IdentityRegistry identities = new IdentityRegistry();
+
+        HierarchyHarness() {
+            meta.nextEntityStableId = 100;
+            identities.bind(world, meta);
+        }
+
+        int gameObject(int stableId, int parentStableId) {
+            int entityId = entity(stableId, parentStableId);
+            world.getMapper(GameObjectComponent.class).create(entityId);
+            return entityId;
+        }
+
+        int entity(int stableId, int parentStableId) {
+            int entityId = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(entityId).stableId = stableId;
+            world.getMapper(EntityIndexComponent.class).create(entityId);
+            world.getMapper(TransformComponent.class).create(entityId);
+            if (parentStableId > 0) {
+                world.getMapper(GameObjectMemberComponent.class).create(entityId)
+                        .parentStableId = parentStableId;
+            }
+            return entityId;
+        }
+
+        void rebuildIdentities() {
+            identities.rebuild();
+            world.process();
         }
     }
 }

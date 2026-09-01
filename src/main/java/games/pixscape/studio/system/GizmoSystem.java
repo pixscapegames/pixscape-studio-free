@@ -39,6 +39,7 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioDisplayOffsetResolver;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
+import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.spatial.*;
 import games.pixscape.studio.service.tiled.TiledPreviewService;
 import games.pixscape.studio.service.tiled.TiledVisualCoverage;
@@ -70,6 +71,7 @@ public final class GizmoSystem extends BaseSystem {
     private final TiledPreviewService tiledPreviewService;
     private final PhysicsShapeData tmpAuthoringFixture = new PhysicsShapeData();
     private final ParticleOverlayVisual particleOverlayVisual = new ParticleOverlayVisual();
+    private ResolvedPhysicsPose resolvedPhysicsPose;
 
     private boolean lassoVisible = false;
     private float lassoX0, lassoY0, lassoX1, lassoY1;
@@ -94,6 +96,8 @@ public final class GizmoSystem extends BaseSystem {
 
     private final Vector2 tmpA = new Vector2();
     private final Vector2 tmpB = new Vector2();
+    private final ResolvedPhysicsPose.Pose tmpPhysicsPoseA = new ResolvedPhysicsPose.Pose();
+    private final ResolvedPhysicsPose.Pose tmpPhysicsPoseB = new ResolvedPhysicsPose.Pose();
     private CursorKind cursorKind = CursorKind.NONE;
     private float cursorAngleRad = 0f;
     private final Vector2 cursorWorld = new Vector2();
@@ -175,6 +179,7 @@ public final class GizmoSystem extends BaseSystem {
     @Override
     protected void initialize() {
         gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
+        resolvedPhysicsPose = new ResolvedPhysicsPose(world);
     }
 
     @Override
@@ -842,6 +847,7 @@ public final class GizmoSystem extends BaseSystem {
             out[i * 2 + 1] = wy;
         }
 
+        remapPhysicsPoints(bodyEid, out, count);
         applyDisplayOffset(bodyEid, out, count);
 
         return count;
@@ -1000,6 +1006,7 @@ public final class GizmoSystem extends BaseSystem {
             if (!physicsService.computeCompiledFixtureCenterWU(
                     bodyEid, fixture, tmpFixtureCenter)) return;
 
+            remapPhysicsPoint(bodyEid, tmpFixtureCenter);
             applyDisplayOffset(bodyEid, tmpFixtureCenter);
             float radiusWU = physicsService.computeCompiledFixtureRadiusWU(fixture);
 
@@ -1026,6 +1033,7 @@ public final class GizmoSystem extends BaseSystem {
                 bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount < 2) return;
 
+        remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
 
         GizmoDrawHelper.drawFixturePolygon(
@@ -1177,6 +1185,7 @@ public final class GizmoSystem extends BaseSystem {
 
         if (selectedFixture.geometry.shapeType == PhysicsGeometryData.SHAPE_CIRCLE) {
             if (!physicsService.computeShapeCenterWU(bodyEid, selectedFixture, tmpFixtureCenter)) return;
+            remapPhysicsPoint(bodyEid, tmpFixtureCenter);
             applyDisplayOffset(bodyEid, tmpFixtureCenter);
             float radiusWU = physicsService.computeShapeRadiusWU(selectedFixture);
             GizmoDrawHelper.drawShapeVertexHandle(ctx, tmpFixtureCenter.x + radiusWU, tmpFixtureCenter.y);
@@ -1196,6 +1205,7 @@ public final class GizmoSystem extends BaseSystem {
         int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, selectedFixture, tmpFixtureVerts);
         if (vertexCount < 2) return;
 
+        remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
         GizmoDrawHelper.drawShapeVertices(ctx, tmpFixtureVerts, vertexCount);
     }
@@ -1226,6 +1236,7 @@ public final class GizmoSystem extends BaseSystem {
 
         if (vertexCount < 3) return;
 
+        remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts, vertexCount);
 
         GizmoDrawHelper.drawPolygonVertices(ctx, tmpFixtureVerts, vertexCount);
@@ -1488,8 +1499,7 @@ public final class GizmoSystem extends BaseSystem {
         int aEid = joint.aEid;
         if (aEid < 0) return false;
 
-        boolean ok = physicsService.computeAnchorWorldWU(aEid, joint.anchorAx, joint.anchorAy, outPivot);
-        if (!ok) return false;
+        if (!computeResolvedBodyAnchor(aEid, joint.anchorAx, joint.anchorAy, outPivot)) return false;
 
         applyDisplayOffset(aEid, outPivot);
         return true;
@@ -1502,21 +1512,20 @@ public final class GizmoSystem extends BaseSystem {
         if (motor == null) return false;
 
         int aEid = joint.aEid;
-        TransformComponent ta = mT.getSafe(aEid, null);
-        if (aEid < 0 || ta == null) return false;
+        if (aEid < 0 || !resolvePhysicsPose(aEid, tmpPhysicsPoseA)) return false;
 
         float ppm = resolvePixelsPerMeter();
 
-        float cos = MathUtils.cos(ta.rotationRad);
-        float sin = MathUtils.sin(ta.rotationRad);
+        float cos = MathUtils.cos(tmpPhysicsPoseA.rotationRad);
+        float sin = MathUtils.sin(tmpPhysicsPoseA.rotationRad);
 
         float dxWu = motor.linearOffsetX * ppm;
         float dyWu = motor.linearOffsetY * ppm;
 
-        float targetX = ta.x + dxWu * cos - dyWu * sin;
-        float targetY = ta.y + dxWu * sin + dyWu * cos;
+        float targetX = tmpPhysicsPoseA.x + dxWu * cos - dyWu * sin;
+        float targetY = tmpPhysicsPoseA.y + dxWu * sin + dyWu * cos;
 
-        outA.set(ta.x, ta.y);
+        outA.set(tmpPhysicsPoseA.x, tmpPhysicsPoseA.y);
         outB.set(targetX, targetY);
 
         applyDisplayOffset(aEid, outA);
@@ -1532,19 +1541,10 @@ public final class GizmoSystem extends BaseSystem {
         int bEid = joint.bEid;
         if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
-        TransformComponent ta = mT.getSafe(aEid, null);
-        TransformComponent tb = mT.getSafe(bEid, null);
-        if (ta == null || tb == null) return false;
-
         float ppm = resolvePixelsPerMeter();
 
-        float ax = anchorWorldX_WU(ta, joint.anchorAx, joint.anchorAy, ppm);
-        float ay = anchorWorldY_WU(ta, joint.anchorAx, joint.anchorAy, ppm);
-        float bx = anchorWorldX_WU(tb, joint.anchorBx, joint.anchorBy, ppm);
-        float by = anchorWorldY_WU(tb, joint.anchorBx, joint.anchorBy, ppm);
-
-        outA.set(ax, ay);
-        outB.set(bx, by);
+        if (!computeResolvedBodyAnchor(aEid, joint.anchorAx, joint.anchorAy, outA)
+                || !computeResolvedBodyAnchor(bEid, joint.anchorBx, joint.anchorBy, outB)) return false;
 
         applyDisplayOffset(aEid, outA);
         applyDisplayOffset(bEid, outB);
@@ -1557,12 +1557,12 @@ public final class GizmoSystem extends BaseSystem {
                                       boolean focusedBody,
                                       Vector2 anchorA) {
         PhysicsWheelJointComponent wheel = mWheel.getSafe(jointEid, null);
-        TransformComponent ta = mT.getSafe(joint.aEid, null);
-        if (wheel == null || ta == null || anchorA == null) return;
+        if (wheel == null || anchorA == null
+                || !resolvePhysicsPose(joint.aEid, tmpPhysicsPoseA)) return;
 
         float axisLen = HandleHelper.pxToWorld(ctx.cam, 20f);
-        float cos = MathUtils.cos(ta.rotationRad);
-        float sin = MathUtils.sin(ta.rotationRad);
+        float cos = MathUtils.cos(tmpPhysicsPoseA.rotationRad);
+        float sin = MathUtils.sin(tmpPhysicsPoseA.rotationRad);
         float dx = wheel.axisX * cos - wheel.axisY * sin;
         float dy = wheel.axisX * sin + wheel.axisY * cos;
         float mag2 = dx * dx + dy * dy;
@@ -1604,23 +1604,14 @@ public final class GizmoSystem extends BaseSystem {
         int bEid = joint.bEid;
         if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
-        TransformComponent ta = mT.getSafe(aEid, null);
-        TransformComponent tb = mT.getSafe(bEid, null);
-        if (ta == null || tb == null) return false;
-
         float ppm = resolvePixelsPerMeter();
 
         // Ground anchors are stored in world meters.
         outGroundA.set(pulley.groundAx * ppm, pulley.groundAy * ppm);
         outGroundB.set(pulley.groundBx * ppm, pulley.groundBy * ppm);
 
-        float ax = anchorWorldX_WU(ta, joint.anchorAx, joint.anchorAy, ppm);
-        float ay = anchorWorldY_WU(ta, joint.anchorAx, joint.anchorAy, ppm);
-        float bx = anchorWorldX_WU(tb, joint.anchorBx, joint.anchorBy, ppm);
-        float by = anchorWorldY_WU(tb, joint.anchorBx, joint.anchorBy, ppm);
-
-        outAnchorA.set(ax, ay);
-        outAnchorB.set(bx, by);
+        if (!computeResolvedBodyAnchor(aEid, joint.anchorAx, joint.anchorAy, outAnchorA)
+                || !computeResolvedBodyAnchor(bEid, joint.anchorBx, joint.anchorBy, outAnchorB)) return false;
 
         applyDisplayOffset(aEid, outGroundA);
         applyDisplayOffset(aEid, outAnchorA);
@@ -1645,18 +1636,26 @@ public final class GizmoSystem extends BaseSystem {
 
         if (src1.type == PhysicsJointComponent.TYPE_REVOLUTE) {
             ok1 = physicsService.computeRevoluteJointPivotWU(gear.joint1Eid, outA);
-            if (ok1) applyDisplayOffset(src1.aEid, outA);
+            if (ok1) {
+                applyDisplayOffset(src1.aEid, outA);
+            }
         } else if (src1.type == PhysicsJointComponent.TYPE_PRISMATIC) {
             ok1 = physicsService.computePrismaticJointPivotWU(gear.joint1Eid, outA);
-            if (ok1) applyDisplayOffset(src1.aEid, outA);
+            if (ok1) {
+                applyDisplayOffset(src1.aEid, outA);
+            }
         }
 
         if (src2.type == PhysicsJointComponent.TYPE_REVOLUTE) {
             ok2 = physicsService.computeRevoluteJointPivotWU(gear.joint2Eid, outB);
-            if (ok2) applyDisplayOffset(src2.aEid, outB);
+            if (ok2) {
+                applyDisplayOffset(src2.aEid, outB);
+            }
         } else if (src2.type == PhysicsJointComponent.TYPE_PRISMATIC) {
             ok2 = physicsService.computePrismaticJointPivotWU(gear.joint2Eid, outB);
-            if (ok2) applyDisplayOffset(src2.aEid, outB);
+            if (ok2) {
+                applyDisplayOffset(src2.aEid, outB);
+            }
         }
 
         return ok1 && ok2;
@@ -1774,23 +1773,28 @@ public final class GizmoSystem extends BaseSystem {
         int bEid = j.bEid;
         if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
-        TransformComponent ta = mT.getSafe(aEid, null);
-        TransformComponent tb = mT.getSafe(bEid, null);
-        if (ta == null || tb == null) return false;
-
-        float ppm = resolvePixelsPerMeter();
-        float ax = anchorWorldX_WU(ta, j.anchorAx, j.anchorAy, ppm);
-        float ay = anchorWorldY_WU(ta, j.anchorAx, j.anchorAy, ppm);
-        float bx = anchorWorldX_WU(tb, j.anchorBx, j.anchorBy, ppm);
-        float by = anchorWorldY_WU(tb, j.anchorBx, j.anchorBy, ppm);
-
-        outA.set(ax, ay);
-        outB.set(bx, by);
+        if (!computeResolvedBodyAnchor(aEid, j.anchorAx, j.anchorAy, outA)
+                || !computeResolvedBodyAnchor(bEid, j.anchorBx, j.anchorBy, outB)) return false;
 
         applyDisplayOffset(aEid, outA);
         applyDisplayOffset(bEid, outB);
 
         return true;
+    }
+
+    private boolean computeResolvedBodyAnchor(
+            int bodyEid, float localAx_m, float localAy_m, Vector2 out) {
+        if (!resolvePhysicsPose(bodyEid, tmpPhysicsPoseA)) return false;
+        float ppm = resolvePixelsPerMeter();
+        float cos = MathUtils.cos(tmpPhysicsPoseA.rotationRad);
+        float sin = MathUtils.sin(tmpPhysicsPoseA.rotationRad);
+        out.set(tmpPhysicsPoseA.x + (localAx_m * cos - localAy_m * sin) * ppm,
+                tmpPhysicsPoseA.y + (localAx_m * sin + localAy_m * cos) * ppm);
+        return true;
+    }
+
+    private boolean resolvePhysicsPose(int bodyEid, ResolvedPhysicsPose.Pose out) {
+        return resolvedPhysicsPose != null && resolvedPhysicsPose.resolve(bodyEid, out);
     }
 
     private static float anchorWorldX_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
@@ -1817,6 +1821,20 @@ public final class GizmoSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
         if (displayOffsetResolver != null) displayOffsetResolver.addTo(entityId, p);
+    }
+
+    /** Converts authored Physics-service output into the hierarchy-resolved Body pose. */
+    private void remapPhysicsPoint(int bodyEid, Vector2 point) {
+        if (resolvedPhysicsPose != null) {
+            resolvedPhysicsPose.remapAuthoredWorldPoint(bodyEid, point);
+        }
+    }
+
+    /** Converts authored Physics-service output into the hierarchy-resolved Body pose. */
+    private void remapPhysicsPoints(int bodyEid, float[] points, int pointCount) {
+        if (resolvedPhysicsPose != null) {
+            resolvedPhysicsPose.remapAuthoredWorldPoints(bodyEid, points, pointCount);
+        }
     }
 
     private boolean isEntityVisibleForGizmo(int e) {

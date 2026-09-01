@@ -8,6 +8,8 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -80,6 +82,46 @@ public class ConvertSelectionToGameObjectCommandTest {
             assertEquals(rootStable, world.getMapper(PixscapeIdentityComponent.class)
                     .get(redoneRoot).stableId);
             assertEquals(new IntArray(new int[]{redoneRoot}), selection.getSelectionSnapshot());
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
+    public void rejectsPhysicsBeforeCreatingAConversionRootOrChangingTheScene() {
+        World world = new World(new WorldConfiguration());
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        HistoryManager history = new HistoryManager(8);
+        try {
+            int body = entity(world, 10, 3, 0, 4f, 8f);
+            world.getMapper(PhysicsBodyComponent.class).create(body);
+            world.getMapper(PhysicsShapesComponent.class).create(body);
+            world.process();
+            identities.rebuild();
+
+            SelectionService selection = new SelectionService(world, null);
+            selection.selectOnly(body);
+            LayerLogicalOrderService.LayerOrder order = new LayerLogicalOrderService(world).derive(3);
+
+            try {
+                new ConvertSelectionToGameObjectCommand(
+                        world, history.historyIds(), identities, selection,
+                        new IntArray(new int[]{body}), order,
+                        4f, 8f, 0f, 0f, "gameobjects/physics.gameobject");
+                fail("Expected Physics conversion boundary rejection");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("P3"));
+            }
+
+            assertEquals(1, world.getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all(PixscapeIdentityComponent.class))
+                    .getEntities().size());
+            assertFalse(world.getMapper(GameObjectMemberComponent.class).has(body));
+            assertEquals(4f, world.getMapper(TransformComponent.class).get(body).x, 0.0001f);
         } finally {
             identities.bind(null, null);
             world.dispose();

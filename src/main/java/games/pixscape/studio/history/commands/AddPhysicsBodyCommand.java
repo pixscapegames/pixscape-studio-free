@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
@@ -10,6 +11,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
@@ -45,6 +47,21 @@ public final class AddPhysicsBodyCommand
                 && bodyEntityId >= 0
                 && world.getEntityManager().isActive(bodyEntityId)
                 && !world.getMapper(PhysicsBodyComponent.class).has(bodyEntityId);
+        if (valid) {
+            try {
+                if (world.getMapper(GameObjectMemberComponent.class).has(bodyEntityId)) {
+                    if (!world.getMapper(TransformComponent.class).has(bodyEntityId)) {
+                        throw new IllegalArgumentException("Game Object Physics member requires Transform.");
+                    }
+                    IdentityRegistry identities = IdentityRegistry.boundTo(world);
+                    if (identities == null) throw new IllegalStateException("IdentityRegistry is required.");
+                    GameObjectHierarchyCommandSupport.requirePhysicsAncestry(
+                            world, identities, bodyEntityId);
+                }
+            } catch (RuntimeException ex) {
+                valid = false;
+            }
+        }
         this.bodyHistoryId = valid ? historyIds.ensureForEntity(bodyEntityId) : -1L;
         this.transformExistedBefore = valid
                 && world.getMapper(TransformComponent.class).has(bodyEntityId);

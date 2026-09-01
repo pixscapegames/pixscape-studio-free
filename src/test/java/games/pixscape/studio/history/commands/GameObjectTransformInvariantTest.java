@@ -6,7 +6,7 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Test;
 
-import static org.junit.Assert.fail;
+import static org.junit.Assert.assertTrue;
 
 public class GameObjectTransformInvariantTest {
     @Test
@@ -20,13 +20,13 @@ public class GameObjectTransformInvariantTest {
             world.getMapper(GameObjectComponent.class).create(root);
             HistoryIdRegistry ids = new HistoryIdRegistry();
             EditTransformCommand.Snapshot before = EditTransformCommand.Snapshot.capture(transform);
-            expectRejected(() -> new EditTransformCommand(
+            assertNoop(new EditTransformCommand(
                     world, ids, root, TransformOp.SCALE, before,
                     before.withScaleX(2f)));
-            expectRejected(() -> new EditTransformCommand(
+            assertNoop(new EditTransformCommand(
                     world, ids, root, TransformOp.SCALE, before,
                     before.withUniformScale(0f)));
-            expectRejected(() -> new EditTransformCommand(
+            assertNoop(new EditTransformCommand(
                     world, ids, root, TransformOp.SCALE, before,
                     before.withUniformScale(-1f)));
             new EditTransformCommand(
@@ -40,12 +40,7 @@ public class GameObjectTransformInvariantTest {
         }
     }
 
-    private static void expectRejected(Runnable action) {
-        try {
-            action.run();
-            fail("Expected invalid Game Object transform rejection");
-        } catch (IllegalArgumentException expected) {
-            // expected
-        }
+    private static void assertNoop(EditTransformCommand command) {
+        assertTrue(command.isNoop());
     }
 }

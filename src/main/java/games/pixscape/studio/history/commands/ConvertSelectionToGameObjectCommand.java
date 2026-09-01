@@ -8,6 +8,8 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -71,6 +73,14 @@ public final class ConvertSelectionToGameObjectCommand implements Command {
         }
         if (selectedTopToBottom == null || selectedTopToBottom.size == 0 || order == null) {
             throw new IllegalArgumentException("A non-empty contiguous logical selection is required.");
+        }
+        for (int i = 0; i < selectedTopToBottom.size; i++) {
+            int entityId = selectedTopToBottom.get(i);
+            if (world.getMapper(PhysicsBodyComponent.class).has(entityId)
+                    || world.getMapper(PhysicsShapesComponent.class).has(entityId)) {
+                throw new IllegalArgumentException(
+                        "Physics conversion to Game Object assets remains unavailable until P3.");
+            }
         }
         this.world = world;
         this.historyIds = historyIds;

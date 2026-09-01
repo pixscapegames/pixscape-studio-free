@@ -2,13 +2,21 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.system.DirtyFlushSystem;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Assert;
 import org.junit.Test;
@@ -124,6 +132,67 @@ public class CreateJointCommandRegressionTest {
         }
     }
 
+    @Test
+    public void hierarchyMemberBodiesCreateResolvedRevoluteAndPulleyJointsAndRedo() {
+        GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem(8);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(8), hierarchy, new DirtyFlushSystem())
+                .build());
+        HistoryIdRegistry historyIds = new HistoryIdRegistry();
+        IdentityRegistry identities = new IdentityRegistry();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        identities.bind(world, meta);
+        Box2dWorldService box2d = new Box2dWorldService(100f, new Vector2(0f, -9.81f));
+        try {
+            int root = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(root).stableId = 1;
+            world.getMapper(EntityIndexComponent.class).create(root);
+            TransformComponent rootTransform = world.getMapper(TransformComponent.class).create(root);
+            rootTransform.x = 100f;
+            rootTransform.y = 50f;
+            rootTransform.rotationRad = (float) Math.PI * 0.5f;
+            rootTransform.refreshCaches();
+            world.getMapper(GameObjectComponent.class).create(root);
+
+            int a = createHierarchyBody(world, historyIds, 2, 1, 10f, 0f);
+            int b = createHierarchyBody(world, historyIds, 3, 1, 30f, 0f);
+            world.process();
+            PhysicsService physics = new PhysicsService(world, box2d);
+            float pivotX = hierarchy.worldTransforms().x[a];
+            float pivotY = hierarchy.worldTransforms().y[a];
+
+            CreateJointCommand revolute = new CreateJointCommand(
+                    world, physics, historyIds, PhysicsJointComponent.TYPE_REVOLUTE,
+                    a, b, pivotX, pivotY);
+            revolute.redo();
+            int revoluteEid = revolute.getCreatedJointEntityId();
+            PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).get(revoluteEid);
+            Assert.assertEquals(a, base.aEid);
+            Assert.assertEquals(b, base.bEid);
+            Assert.assertEquals(0f, base.anchorAx, 0.0001f);
+            Assert.assertEquals(0f, base.anchorAy, 0.0001f);
+            revolute.undo();
+            world.process();
+            Assert.assertFalse(world.getEntityManager().isActive(revoluteEid));
+            revolute.redo();
+            Assert.assertTrue(world.getEntityManager().isActive(revolute.getCreatedJointEntityId()));
+
+            CreateJointCommand pulley = new CreateJointCommand(
+                    world, physics, historyIds, PhysicsJointComponent.TYPE_PULLEY,
+                    a, b, 0f, 0f);
+            pulley.redo();
+            PhysicsPulleyJointComponent pulleyData = world.getMapper(PhysicsPulleyJointComponent.class)
+                    .get(pulley.getCreatedJointEntityId());
+            Assert.assertEquals(hierarchy.worldTransforms().x[a], pulleyData.groundAx * 100f, 0.0001f);
+            Assert.assertEquals(hierarchy.worldTransforms().x[b], pulleyData.groundBx * 100f, 0.0001f);
+        } finally {
+            identities.bind(null, null);
+            box2d.dispose();
+            world.dispose();
+        }
+    }
+
     private <T extends com.artemis.Component> void assertJointCreated(int type, Consumer<T> typeAssert, Class<T> specificType) {
         World world = new World(new WorldConfiguration());
         HistoryIdRegistry historyIds = new HistoryIdRegistry();
@@ -174,6 +243,16 @@ public class CreateJointCommandRegressionTest {
         PhysicsShapesComponent component = world.getMapper(PhysicsShapesComponent.class).create(eid);
         component.shapes.add(
                 games.pixscape.runtime.service.PhysicsService.createDefaultShape(eid + 1));
+        return eid;
+    }
+
+    private static int createHierarchyBody(
+            World world, HistoryIdRegistry historyIds, int stableId, int parentStableId, float x, float y) {
+        int eid = createBody(world, historyIds, x, y);
+        world.getMapper(PixscapeIdentityComponent.class).create(eid).stableId = stableId;
+        world.getMapper(EntityIndexComponent.class).create(eid);
+        world.getMapper(GameObjectMemberComponent.class).create(eid).parentStableId = parentStableId;
+        world.getMapper(TransformComponent.class).get(eid).refreshCaches();
         return eid;
     }
 
