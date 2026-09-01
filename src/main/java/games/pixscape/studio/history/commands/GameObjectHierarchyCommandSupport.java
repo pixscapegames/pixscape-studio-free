@@ -169,6 +169,10 @@ public final class GameObjectHierarchyCommandSupport {
     /** Returns whether a strict hierarchy descendant, not the entity itself, has Physics. */
     static boolean hasPhysicsDescendant(
             World world, IdentityRegistry identities, int entityId) {
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy != null) {
+            return hierarchy.containsPhysicsInDescendants(entityId);
+        }
         if (identities == null) return false;
         com.artemis.utils.IntBag bodies = world.getAspectSubscriptionManager()
                 .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities();

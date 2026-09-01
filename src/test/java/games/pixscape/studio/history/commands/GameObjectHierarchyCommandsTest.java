@@ -1,10 +1,13 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Test;
 
@@ -193,6 +196,33 @@ public class GameObjectHierarchyCommandsTest {
         }
     }
 
+    @Test
+    public void scaleLockUsesTheHierarchyStrictDescendantQueryWhenAvailable() {
+        Fixture f = new Fixture(true);
+        try {
+            int ancestor = f.entity(1, 0, 0, 0f, 0f, 0f, 1f, 1f, true);
+            int directBody = f.entity(2, 0, 1, 0f, 0f, 0f, 1f, 1f, false);
+            int ownBodyOnly = f.entity(3, 0, 2, 0f, 0f, 0f, 1f, 1f, true);
+            int unrelated = f.entity(4, 0, 3, 0f, 0f, 0f, 1f, 1f, true);
+            f.world.getMapper(GameObjectMemberComponent.class).create(directBody).parentStableId = 1;
+            f.world.getMapper(PhysicsBodyComponent.class).create(directBody);
+            f.world.getMapper(PhysicsBodyComponent.class).create(ownBodyOnly);
+            f.process();
+
+            GameObjectHierarchySystem hierarchy = f.world.getSystem(GameObjectHierarchySystem.class);
+            assertTrue(hierarchy.containsPhysicsInDescendants(ancestor));
+            assertFalse(hierarchy.containsPhysicsInDescendants(ownBodyOnly));
+            assertFalse(hierarchy.containsPhysicsInDescendants(unrelated));
+            assertTrue(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, ancestor));
+            assertFalse(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, ownBodyOnly));
+            assertFalse(GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(f.world, unrelated));
+            assertFalse(GameObjectHierarchyCommandSupport.canApplyScale(f.world, ancestor, 2f, 2f));
+            assertTrue(GameObjectHierarchyCommandSupport.canApplyScale(f.world, ownBodyOnly, 2f, 2f));
+        } finally {
+            f.close();
+        }
+    }
+
     private static void assertWorld(Fixture f, int entity, float x, float y,
                                     float rotation, float sx, float sy,
                                     float ox, float oy) {
@@ -208,11 +238,20 @@ public class GameObjectHierarchyCommandsTest {
     }
 
     private static final class Fixture {
-        final World world = new World();
+        final World world;
         final IdentityRegistry identities = new IdentityRegistry();
         final HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
         Fixture() {
+            this(false);
+        }
+
+        Fixture(boolean hierarchyEnabled) {
+            world = hierarchyEnabled
+                    ? new World(new WorldConfigurationBuilder()
+                    .with(new DirtyTrackerSystem(16), new GameObjectHierarchySystem(16))
+                    .build())
+                    : new World();
             SceneMetaRuntime sceneMeta = new SceneMetaRuntime();
             sceneMeta.nextEntityStableId = 1000;
             identities.bind(world, sceneMeta);
@@ -239,7 +278,7 @@ public class GameObjectHierarchyCommandsTest {
             return entity;
         }
 
-        void process() { world.process(); identities.rebuild(); }
+        void process() { identities.rebuild(); world.process(); }
         TransformComponent transform(int entity) { return world.getMapper(TransformComponent.class).get(entity); }
         EntityIndexComponent index(int entity) { return world.getMapper(EntityIndexComponent.class).get(entity); }
         PixscapeIdentityComponent identity(int entity) { return world.getMapper(PixscapeIdentityComponent.class).get(entity); }
