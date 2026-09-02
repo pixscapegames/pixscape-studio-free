@@ -346,7 +346,7 @@ public class EntityGraphGameObjectClipboardCaptureTest {
                 fail("Expected Game Object hierarchy joint rejection.");
             } catch (IllegalArgumentException expected) {
                 assertTrue(expected.getMessage().contains(
-                        "Physics joints in Game Object clipboard hierarchies"));
+                        "Physics joint connected to an entity outside the Game Object"));
             }
             assertTrue(f.world.getEntityManager().isActive(root));
             assertTrue(f.world.getEntityManager().isActive(memberBody));

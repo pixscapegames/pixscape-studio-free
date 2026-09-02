@@ -18,6 +18,8 @@ import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -228,6 +230,49 @@ public class ClipboardServiceFlowTest {
                 .get(secondMember).shapes.first().physicsShapeId;
         Assert.assertNotEquals(firstShapeId, secondShapeId);
         Assert.assertEquals(37f, h.world.getMapper(TransformComponent.class).get(secondRoot).x, 0f);
+    }
+
+    @Test
+    public void copyPasteGameObjectWithInternalJointRemapsBothBodiesAndKeepsJointUnselected()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 5f, 7f, 0f, 1f, 1, "source/jointed");
+        int bodyA = gameObjectMember(h.world, 200, 100, 1f, 0f, 2);
+        int bodyB = gameObjectMember(h.world, 300, 100, 3f, 0f, 3);
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyA);
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyB);
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyA).shapes.add(
+                physicsShape(701));
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyB).shapes.add(
+                physicsShape(702));
+        int sourceJoint = h.world.create();
+        PhysicsJointComponent base = h.world.getMapper(PhysicsJointComponent.class).create(sourceJoint);
+        base.type = PhysicsJointComponent.TYPE_DISTANCE;
+        base.aEid = bodyA;
+        base.bEid = bodyB;
+        PhysicsDistanceJointComponent distance = h.world.getMapper(
+                PhysicsDistanceJointComponent.class).create(sourceJoint);
+        distance.lengthM = 2f;
+        distance.frequencyHz = 3f;
+        distance.dampingRatio = .5f;
+        h.world.process();
+        h.selection.selectOnly(root);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+
+        IntArray selected = h.selection.getSelectionSnapshot();
+        Assert.assertEquals(1, selected.size);
+        int pastedRoot = selected.first();
+        int pastedJoint = onlyJointOtherThan(h.world, sourceJoint);
+        PhysicsJointComponent pastedBase = h.world.getMapper(PhysicsJointComponent.class).get(pastedJoint);
+        Assert.assertNotEquals(bodyA, pastedBase.aEid);
+        Assert.assertNotEquals(bodyB, pastedBase.bEid);
+        Assert.assertTrue(isMemberOf(h.world, pastedBase.aEid, pastedRoot));
+        Assert.assertTrue(isMemberOf(h.world, pastedBase.bEid, pastedRoot));
+        Assert.assertEquals(2f, h.world.getMapper(PhysicsDistanceJointComponent.class)
+                .get(pastedJoint).lengthM, 0f);
     }
 
     @Test
@@ -619,6 +664,28 @@ public class ClipboardServiceFlowTest {
         return -1;
     }
 
+    private static boolean isMemberOf(World world, int entityId, int rootEntityId) {
+        PixscapeIdentityComponent root = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(rootEntityId, null);
+        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                .getSafe(entityId, null);
+        return root != null && member != null && member.parentStableId == root.stableId;
+    }
+
+    private static int onlyJointOtherThan(World world, int sourceJoint) {
+        IntBag joints = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsJointComponent.class)).getEntities();
+        int result = -1;
+        for (int i = 0; i < joints.size(); i++) {
+            int entityId = joints.get(i);
+            if (entityId == sourceJoint) continue;
+            Assert.assertEquals(-1, result);
+            result = entityId;
+        }
+        Assert.assertTrue(result >= 0);
+        return result;
+    }
+
     private static int findByStableId(World world, int stableId) {
         IntBag identities = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PixscapeIdentityComponent.class)).getEntities();
@@ -644,6 +711,16 @@ public class ClipboardServiceFlowTest {
         shape.spatialFootprint = footprint;
         shapes.shapes.add(shape);
         return entity;
+    }
+
+    private static PhysicsShapeData physicsShape(int id) {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = id;
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        shape.geometry.halfWidth = 1f;
+        shape.geometry.halfHeight = 1f;
+        return shape;
     }
 
     private static boolean hasFootprint(PhysicsShapesComponent shapes) {

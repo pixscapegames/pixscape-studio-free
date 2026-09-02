@@ -6,6 +6,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntIntMap;
 import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
@@ -96,7 +97,7 @@ public final class EntityGraphCaptureService {
             collectClipboardSubtree(captureRoots.get(i), -1, entities, parents, knownStableIds,
                     childrenByParentStableId);
         }
-        requireSupportedGameObjectHierarchyPhysics(entities);
+        IntArray internalJoints = requireSupportedGameObjectHierarchyPhysics(entities);
         IntMap<Integer> stableToSource = new IntMap<>();
         for (int i = 0; i < entities.size; i++) stableToSource.put(mIdentity.get(entities.get(i)).stableId, i + 1);
         List<EntityGraphEntry> entries = new ArrayList<>(entities.size);
@@ -115,7 +116,44 @@ public final class EntityGraphCaptureService {
                     initializer,
                     ClipboardPropertyReferenceNormalizer.normalize(properties != null ? properties.properties : null, stableToSource)));
         }
+        appendClipboardJoints(entries, entities, internalJoints);
         return new EntityGraph(entries);
+    }
+
+    /**
+     * Returns the complete authored closure represented by a normalized clipboard
+     * capture. Cut must delete this closure as well: internal joint entities do not
+     * belong to the Game Object hierarchy, so deleting only the selected roots would
+     * otherwise leave dangling scene joints behind.
+     */
+    public IntArray captureNormalizedClipboardCutEntities(IntArray roots) {
+        if (roots == null || roots.size == 0) return new IntArray(false, 0);
+        // Standalone clipboard has its own permissive identity contract.  Do not route
+        // it through hierarchy collection, which correctly requires stable identities
+        // for Game Object ownership but would reject ordinary standalone entities.
+        if (!containsGameObjectRoot(roots)) return augmentStandalonePhysicsRoots(roots);
+        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        IntArray entities = new IntArray(false, captureRoots.size);
+        IntArray parents = new IntArray(false, captureRoots.size);
+        IntSet knownStableIds = new IntSet();
+        IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
+        for (int i = 0; i < captureRoots.size; i++) {
+            int entityId = captureRoots.get(i);
+            if (!mGameObject.has(entityId) && !isCaptureSupported(entityId)) {
+                throw new IllegalArgumentException(
+                        "Clipboard selection contains an unsupported standalone entity.");
+            }
+            collectClipboardSubtree(entityId, -1, entities, parents, knownStableIds,
+                    childrenByParentStableId);
+        }
+        IntArray internalJoints = requireSupportedGameObjectHierarchyPhysics(entities);
+        IntSet includedEntities = new IntSet(entities.size + internalJoints.size);
+        for (int i = 0; i < entities.size; i++) includedEntities.add(entities.get(i));
+        for (int i = 0; i < internalJoints.size; i++) {
+            int jointEntityId = internalJoints.get(i);
+            if (includedEntities.add(jointEntityId)) entities.add(jointEntityId);
+        }
+        return entities;
     }
 
     /**
@@ -151,8 +189,8 @@ public final class EntityGraphCaptureService {
         return false;
     }
 
-    /** P3-B permits Bodies/Shapes in a GO graph, but never silently drops joints or Spatial links. */
-    private void requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
+    /** P4 captures internal joints but rejects any Body dependency that escapes the hierarchy closure. */
+    private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
         IntSet hierarchyEntities = new IntSet(capturedEntities.size);
         for (int i = 0; i < capturedEntities.size; i++) {
             int entityId = capturedEntities.get(i);
@@ -171,14 +209,70 @@ public final class EntityGraphCaptureService {
                 }
             }
         }
-        if (hierarchyEntities.size == 0) return;
+        IntArray internal = new IntArray(false, 8);
+        if (hierarchyEntities.size == 0) return internal;
         IntBag joints = world.getAspectSubscriptionManager().get(
                 Aspect.all(PhysicsJointComponent.class)).getEntities();
         for (int i = 0; i < joints.size(); i++) {
             PhysicsJointComponent joint = mJointBase.get(joints.get(i));
-            if (hierarchyEntities.contains(joint.aEid) || hierarchyEntities.contains(joint.bEid)) {
+            boolean aInside = hierarchyEntities.contains(joint.aEid);
+            boolean bInside = hierarchyEntities.contains(joint.bEid);
+            if (aInside != bInside) {
                 throw new IllegalArgumentException(
-                        "Physics joints in Game Object clipboard hierarchies are not supported.");
+                        "Game Object contains a Physics joint connected to an entity outside the Game Object.");
+            }
+            if (aInside) internal.add(joints.get(i));
+        }
+        IntSet internalSet = new IntSet(internal.size);
+        for (int i = 0; i < internal.size; i++) internalSet.add(internal.get(i));
+        ComponentMapper<games.pixscape.runtime.component.physics.PhysicsGearJointComponent> gears =
+                world.getMapper(games.pixscape.runtime.component.physics.PhysicsGearJointComponent.class);
+        for (int i = 0; i < internal.size; i++) {
+            int jointEntityId = internal.get(i);
+            PhysicsJointComponent base = mJointBase.get(jointEntityId);
+            if (base.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            games.pixscape.runtime.component.physics.PhysicsGearJointComponent gear = gears.getSafe(jointEntityId, null);
+            if (gear == null || !internalSet.contains(gear.joint1Eid) || !internalSet.contains(gear.joint2Eid)) {
+                throw new IllegalArgumentException(
+                        "Game Object Gear joint depends on a joint outside the Game Object.");
+            }
+        }
+        return internal;
+    }
+
+    private void appendClipboardJoints(List<EntityGraphEntry> entries, IntArray entityIds, IntArray jointEntities) {
+        if (jointEntities.size == 0) return;
+        IntIntMap entityToSource = new IntIntMap(entityIds.size);
+        for (int i = 0; i < entityIds.size; i++) entityToSource.put(entityIds.get(i), i + 1);
+        IntIntMap jointToSource = new IntIntMap(jointEntities.size);
+        int nextJointSource = entries.size() + 1;
+        for (int i = 0; i < jointEntities.size; i++) {
+            int jointEntityId = jointEntities.get(i);
+            int existingSource = entityToSource.get(jointEntityId, -1);
+            jointToSource.put(jointEntityId,
+                    existingSource > 0 ? existingSource : nextJointSource++);
+        }
+        for (int i = 0; i < jointEntities.size; i++) {
+            int jointEntityId = jointEntities.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(jointEntityId);
+            int sourceId = jointToSource.get(jointEntityId, -1);
+            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceId);
+            snapshot.jointAEid = entityToSource.get(snapshot.jointAEid, -1);
+            snapshot.jointBEid = entityToSource.get(snapshot.jointBEid, -1);
+            if (snapshot.jointType == PhysicsJointComponent.TYPE_GEAR) {
+                snapshot.gearJoint1Eid = jointToSource.get(snapshot.gearJoint1Eid, -1);
+                snapshot.gearJoint2Eid = jointToSource.get(snapshot.gearJoint2Eid, -1);
+            }
+            initializer.applySnapshotData(snapshot);
+            int existingEntryIndex = sourceId - 1;
+            if (existingEntryIndex < entries.size()) {
+                EntityGraphEntry existing = entries.get(existingEntryIndex);
+                entries.set(existingEntryIndex, new EntityGraphEntry(
+                        existing.sourceEntityId(), existing.parentSourceEntityId(),
+                        false, "", initializer, existing.customProperties()));
+            } else {
+                entries.add(new EntityGraphEntry(sourceId, -1, false, "", initializer, null));
             }
         }
     }

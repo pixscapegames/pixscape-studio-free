@@ -19,6 +19,7 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
@@ -128,8 +129,48 @@ public class GameObjectAssetServiceTest {
                     new FileHandle(temp.getRoot()).child("joint.gameobject"), graph);
             Assert.fail("Expected Physics joint endpoint rejection.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("Physics joints in Game Object assets"));
+            Assert.assertTrue(expected.getMessage().contains(
+                    "Physics joint connected to an entity outside the Game Object"));
         }
+    }
+
+    @Test
+    public void saveTopLevelGameObjectCapturesInternalJointWithoutChangingScene() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int root = entity(world, 1, -1, true, 0f, 0);
+        int bodyA = entity(world, 2, 1, false, 1f, 0);
+        int bodyB = entity(world, 3, 1, false, 3f, 0);
+        world.getMapper(PhysicsBodyComponent.class).create(bodyA);
+        world.getMapper(PhysicsBodyComponent.class).create(bodyB);
+        int jointEntity = world.create();
+        PhysicsJointComponent base = world.getMapper(PhysicsJointComponent.class).create(jointEntity);
+        base.type = PhysicsJointComponent.TYPE_DISTANCE;
+        base.aEid = bodyA;
+        base.bEid = bodyB;
+        base.anchorAx = .2f;
+        base.anchorBy = .8f;
+        PhysicsDistanceJointComponent distance = world.getMapper(
+                PhysicsDistanceJointComponent.class).create(jointEntity);
+        distance.lengthM = 2f;
+        distance.frequencyHz = 3f;
+        distance.dampingRatio = .5f;
+        world.process();
+
+        FileHandle file = new FileHandle(temp.getRoot()).child("jointed.gameobject");
+        new GameObjectAssetService(world).saveGameObject(file,
+                new EntityGraphCaptureService(world).captureForGameObject(
+                        new IntArray(new int[]{root})));
+
+        GameObjectAsset asset = new GameObjectAssetLoader().load(file);
+        Assert.assertEquals(1, asset.joints.size());
+        GameObjectAsset.GameObjectJointData joint = asset.joints.get(0);
+        Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, joint.type);
+        Assert.assertEquals(2, joint.bodyALocalEntityId);
+        Assert.assertEquals(3, joint.bodyBLocalEntityId);
+        Assert.assertEquals(2f, joint.distance.lengthM, 0f);
+        Assert.assertEquals(bodyA, base.aEid);
+        Assert.assertEquals(bodyB, base.bEid);
+        Assert.assertTrue(world.getEntityManager().isActive(jointEntity));
     }
 
     @Test
@@ -403,14 +444,15 @@ public class GameObjectAssetServiceTest {
                 new PhysicsService(world, null, meta));
         Assert.assertFalse(service.canConvertSelectionToGameObject(selection.getSelectionSnapshot()));
         Assert.assertTrue(service.conversionRejection(selection.getSelectionSnapshot())
-                .contains("Physics joints in Game Object assets"));
+                .contains("Physics joint connected to an entity outside the Game Object"));
         FileHandle assetFile = new FileHandle(temp.getRoot()).child("jointed.gameobject");
         try {
             service.convertSelectionToGameObject(
                     assetFile, new FileHandle(temp.getRoot()).child("jointed.png"), "jointed");
             Assert.fail("Expected joint-specific conversion rejection.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("Physics joints in Game Object assets"));
+            Assert.assertTrue(expected.getMessage().contains(
+                    "Physics joint connected to an entity outside the Game Object"));
         }
         Assert.assertFalse(assetFile.exists());
         Assert.assertFalse(world.getMapper(GameObjectMemberComponent.class).has(first));
@@ -570,7 +612,8 @@ public class GameObjectAssetServiceTest {
                 new GameObjectAssetService(world).classifySelection(new IntArray(new int[]{root}));
         Assert.assertEquals(GameObjectAssetService.SelectionMode.UNAVAILABLE, classification.mode());
         Assert.assertEquals("Save as Game Object Asset…", classification.actionLabel());
-        Assert.assertTrue(classification.rejection().contains("Physics joints in Game Object assets"));
+        Assert.assertTrue(classification.rejection().contains(
+                "Physics joint connected to an entity outside the Game Object"));
 
         SelectionService selection = new SelectionService(world, null);
         selection.selectOnly(root);
@@ -583,7 +626,8 @@ public class GameObjectAssetServiceTest {
                             preview -> preview.writeString("preview", false, "UTF-8"));
             Assert.fail("Expected joint-specific Game Object save rejection.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("Physics joints in Game Object assets"));
+            Assert.assertTrue(expected.getMessage().contains(
+                    "Physics joint connected to an entity outside the Game Object"));
         }
         Assert.assertFalse(assetFile.exists());
         Assert.assertEquals(1, parent(world, member));

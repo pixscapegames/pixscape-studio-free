@@ -142,7 +142,12 @@ public final class EntityGraphInstantiationService {
                             prepared.gameObjectSourceAssetId,
                             parentStableId,
                             remapProperties(prepared.customProperties, sourceToStable));
-            int resultRootSlot = prepared.parentSourceEntityId == -1 ? rootSlot++ : -1;
+            // Standalone joint records are graph implementation details, not clipboard roots.
+            // Selecting them after paste is misleading and makes a Game Object paste appear
+            // to have an extra root.
+            boolean resultRoot = prepared.parentSourceEntityId == -1
+                    && !snapshots.get(prepared.sourceEntityId).hasJoint;
+            int resultRootSlot = resultRoot ? rootSlot++ : -1;
             CreateEntityCommand cmd = new CreateEntityCommand(
                     world,
                     historyManager.historyIds(),
@@ -178,7 +183,10 @@ public final class EntityGraphInstantiationService {
     private static int rootCount(List<PreparedEntity> preparedEntities) {
         int count = 0;
         for (PreparedEntity prepared : preparedEntities) {
-            if (prepared.parentSourceEntityId == -1) count++;
+            if (prepared.parentSourceEntityId == -1
+                    && !prepared.initializer.toSnapshotData(prepared.sourceEntityId).hasJoint) {
+                count++;
+            }
         }
         return count;
     }

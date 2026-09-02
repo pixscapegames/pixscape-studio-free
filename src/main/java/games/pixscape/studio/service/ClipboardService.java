@@ -89,10 +89,17 @@ public final class ClipboardService {
             return false;
         }
 
+        IntArray cutEntities;
+        try {
+            cutEntities = graphCaptureService.captureNormalizedClipboardCutEntities(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
+            return false;
+        }
         historyManager.execute(DeleteEntitiesCommandFactory.create(
                 world,
                 historyManager.historyIds(),
-                normalized,
+                cutEntities,
                 canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity));
         selectionService.clearSelection();
         pasteCount = 0;

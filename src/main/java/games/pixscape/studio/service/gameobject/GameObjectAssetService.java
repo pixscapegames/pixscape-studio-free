@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.gameobject;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntMap;
@@ -19,6 +20,8 @@ import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsPulleyJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
@@ -33,6 +36,8 @@ import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.studio.history.HistoryManager;
@@ -56,6 +61,7 @@ import games.pixscape.studio.model.EntityKind;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
 /** Studio publication and diagnostic-reading boundary for {@code .gameobject} assets. */
@@ -87,18 +93,20 @@ public final class GameObjectAssetService {
     private final IntConsumer rootSelection;
     private final SelectionService selectionService;
     private final PhysicsService physicsService;
+    private final BooleanSupplier scenePhysicsEnabled;
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
     private final GameObjectEntityDataMapper mapper = new GameObjectEntityDataMapper();
+    private final GameObjectJointDataMapper jointMapper = new GameObjectJointDataMapper();
 
     public GameObjectAssetService(World world) {
-        this(world, null, null, null, null, null, null);
+        this(world, null, null, null, null, null, null, () -> true);
     }
 
     public GameObjectAssetService(
             World world, HistoryManager historyManager,
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection) {
-        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection, null, null);
+        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection, null, null, () -> true);
     }
 
     public GameObjectAssetService(
@@ -106,7 +114,7 @@ public final class GameObjectAssetService {
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection, SelectionService selectionService) {
         this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection,
-                selectionService, null);
+                selectionService, null, () -> true);
     }
 
     public GameObjectAssetService(
@@ -114,6 +122,15 @@ public final class GameObjectAssetService {
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection, SelectionService selectionService,
             PhysicsService physicsService) {
+        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection,
+                selectionService, physicsService, () -> true);
+    }
+
+    public GameObjectAssetService(
+            World world, HistoryManager historyManager,
+            IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
+            IntConsumer rootSelection, SelectionService selectionService,
+            PhysicsService physicsService, BooleanSupplier scenePhysicsEnabled) {
         if (world == null) throw new IllegalArgumentException("World is required.");
         this.world = world;
         this.historyManager = historyManager;
@@ -122,6 +139,8 @@ public final class GameObjectAssetService {
         this.rootSelection = rootSelection;
         this.selectionService = selectionService;
         this.physicsService = physicsService;
+        if (scenePhysicsEnabled == null) throw new IllegalArgumentException("scenePhysicsEnabled is required.");
+        this.scenePhysicsEnabled = scenePhysicsEnabled;
     }
 
     public void saveGameObject(FileHandle file, EntityGraph graph) {
@@ -265,6 +284,10 @@ public final class GameObjectAssetService {
             throw new IllegalStateException("Game Object instantiation dependencies are not configured.");
         }
         GameObjectAsset asset = loader.load(file);
+        if (!scenePhysicsEnabled.getAsBoolean() && containsAuthoredPhysics(asset)) {
+            throw new IllegalStateException(
+                    "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
+        }
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size());
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
@@ -274,7 +297,8 @@ public final class GameObjectAssetService {
         List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
         IntArray createdIds = new IntArray(false, ordered.size());
         IntIntMap sourceToCreated = new IntIntMap(ordered.size());
-        List<Command> commands = new ArrayList<>(ordered.size() + 1);
+        IntIntMap jointToCreated = new IntIntMap(asset.joints.size());
+        List<Command> commands = new ArrayList<>(ordered.size() + asset.joints.size() + 2);
         for (GameObjectAsset.GameObjectEntityData data : ordered) {
             EntityGraphEntry entry = mapper.toGraphEntry(world, data);
             GenericEntityInitializer generic = entry.initializer();
@@ -308,6 +332,19 @@ public final class GameObjectAssetService {
                 if (onCreatedEntity != null) onCreatedEntity.accept(entityId);
             }));
         }
+        for (GameObjectAsset.GameObjectJointData data : asset.joints) {
+            GenericEntityInitializer generic = jointMapper.toInitializer(world, data);
+            generic.setIdentityStableId(identityRegistry.allocateStableId());
+            commands.add(new CreateEntityCommand(world, historyManager.historyIds(), generic, entityId -> {
+                createdIds.add(entityId);
+                jointToCreated.put(data.jointLocalId, entityId);
+                if (onCreatedEntity != null) onCreatedEntity.accept(entityId);
+            }));
+        }
+        if (!asset.joints.isEmpty()) {
+            commands.add(new RemapAssetJointsCommand(asset.joints, asset.rootSourceEntityId,
+                    sourceToCreated, jointToCreated));
+        }
         commands.add(ReorderLogicalLayerCommand.normalizeAfterCreation(
                 world, historyManager.historyIds(), destinationLayer,
                 new LayerLogicalOrderService(world),
@@ -323,6 +360,84 @@ public final class GameObjectAssetService {
         }
         historyManager.execute(new CompositeCommand("Instantiate Game Object", commands));
         return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
+    }
+
+    private static boolean containsAuthoredPhysics(GameObjectAsset asset) {
+        if (!asset.joints.isEmpty()) return true;
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity.physicsBody != null || !entity.physicsShapes.isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /** Runs after all hierarchy Bodies and standalone joint entities have been created. */
+    private final class RemapAssetJointsCommand implements Command {
+        private final List<GameObjectAsset.GameObjectJointData> joints;
+        private final int rootLocalEntityId;
+        private final IntIntMap entityMap;
+        private final IntIntMap jointMap;
+
+        private RemapAssetJointsCommand(List<GameObjectAsset.GameObjectJointData> joints, int rootLocalEntityId,
+                                        IntIntMap entityMap, IntIntMap jointMap) {
+            this.joints = joints; this.rootLocalEntityId = rootLocalEntityId;
+            this.entityMap = entityMap; this.jointMap = jointMap;
+        }
+
+        @Override public String label() { return "Remap Game Object Joints"; }
+
+        @Override public void redo() {
+            ComponentMapper<PhysicsJointComponent> bases = world.getMapper(PhysicsJointComponent.class);
+            ComponentMapper<PhysicsGearJointComponent> gears = world.getMapper(PhysicsGearJointComponent.class);
+            for (GameObjectAsset.GameObjectJointData source : joints) {
+                int target = requiredMapping(jointMap, source.jointLocalId, "joint");
+                PhysicsJointComponent base = bases.getSafe(target, null);
+                if (base == null) throw new IllegalStateException("Created Game Object joint lost its base component.");
+                base.aEid = requiredMapping(entityMap, source.bodyALocalEntityId, "Body A");
+                base.bEid = requiredMapping(entityMap, source.bodyBLocalEntityId, "Body B");
+                if (source.type == PhysicsJointComponent.TYPE_GEAR) {
+                    PhysicsGearJointComponent gear = gears.getSafe(target, null);
+                    if (gear == null) throw new IllegalStateException("Created Game Object Gear joint lost its typed component.");
+                    gear.joint1Eid = requiredMapping(jointMap, source.gear.jointALocalId, "Gear source");
+                    gear.joint2Eid = requiredMapping(jointMap, source.gear.jointBLocalId, "Gear source");
+                }
+                if (source.type == PhysicsJointComponent.TYPE_PULLEY) {
+                    PhysicsPulleyJointComponent pulley = world.getMapper(PhysicsPulleyJointComponent.class)
+                            .getSafe(target, null);
+                    if (pulley == null) throw new IllegalStateException("Created Game Object Pulley joint lost its typed component.");
+                    TransformComponent root = world.getMapper(TransformComponent.class).get(
+                            requiredMapping(entityMap, rootLocalEntityId, "root"));
+                    float ppm = pixelsPerMeter();
+                    float[] a = rootLocalMetersToWorldMeters(root,
+                            source.pulley.groundAnchorALocalX, source.pulley.groundAnchorALocalY, ppm);
+                    float[] b = rootLocalMetersToWorldMeters(root,
+                            source.pulley.groundAnchorBLocalX, source.pulley.groundAnchorBLocalY, ppm);
+                    pulley.groundAx = a[0]; pulley.groundAy = a[1]; pulley.groundBx = b[0]; pulley.groundBy = b[1];
+                }
+                DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
+                if (dirty != null) dirty.joint(target, JointDirtyBits.ALL);
+            }
+        }
+
+        @Override public void undo() { }
+    }
+
+    private static int requiredMapping(IntIntMap map, int key, String label) {
+        if (!map.containsKey(key)) throw new IllegalStateException("Missing Game Object " + label + " mapping.");
+        return map.get(key, -1);
+    }
+
+    private static float[] rootLocalMetersToWorldMeters(TransformComponent root,
+                                                          float localX, float localY, float ppm) {
+        float cos = com.badlogic.gdx.math.MathUtils.cos(root.rotationRad);
+        float sin = com.badlogic.gdx.math.MathUtils.sin(root.rotationRad);
+        float frameX = root.x + root.originX - cos * root.scaleX * root.originX
+                + sin * root.scaleY * root.originY;
+        float frameY = root.y + root.originY - sin * root.scaleX * root.originX
+                - cos * root.scaleY * root.originY;
+        float localWuX = localX * ppm;
+        float localWuY = localY * ppm;
+        return new float[]{(frameX + cos * root.scaleX * localWuX - sin * root.scaleY * localWuY) / ppm,
+                (frameY + sin * root.scaleX * localWuX + cos * root.scaleY * localWuY) / ppm};
     }
 
     /** Produces a flat diagnostic graph. Scene publication uses {@link #instantiateGameObject}. */
@@ -356,7 +471,7 @@ public final class GameObjectAssetService {
             sourceToAsset.put(entityId, nextAssetId);
             nextAssetId++;
         }
-        requireNoCapturedPhysicsJoint(sourceToAsset);
+        IntArray capturedJoints = requireInternalJointClosure(sourceToAsset);
 
         GameObjectAsset asset = new GameObjectAsset();
         for (EntityGraphEntry entry : graph.entries()) {
@@ -387,6 +502,7 @@ public final class GameObjectAssetService {
             }
             asset.entities.add(data);
         }
+        appendCapturedJoints(asset, sourceToAsset, capturedJoints);
         loader.validate(asset, null);
         return asset;
     }
@@ -464,7 +580,7 @@ public final class GameObjectAssetService {
         }
         IntArray hierarchy = collectConversionHierarchy(new IntArray(new int[]{root}));
         for (int i = 0; i < hierarchy.size; i++) requireAssetSupported(hierarchy.get(i));
-        requireNoCapturedPhysicsJoint(hierarchy);
+        requireInternalJointClosure(toLocalIds(hierarchy));
         requireConvertiblePhysicsHierarchy(hierarchy);
     }
 
@@ -513,7 +629,7 @@ public final class GameObjectAssetService {
                     "Selected entities must form one contiguous range in Layer order.");
         }
         IntArray conversionHierarchy = collectConversionHierarchy(selectedTopToBottom);
-        requireNoCapturedPhysicsJoint(conversionHierarchy);
+        requireInternalJointClosure(toLocalIds(conversionHierarchy));
         requireConvertiblePhysicsHierarchy(conversionHierarchy);
         Bounds bounds = computeBounds(selectedTopToBottom);
         return new ConversionPlan(order, selectedTopToBottom, bounds.minX, bounds.minY,
@@ -537,7 +653,7 @@ public final class GameObjectAssetService {
             stableToSource.put(identity.stableId, nextSource);
             entityToSource.put(entityId, nextSource++);
         }
-        requireNoCapturedPhysicsJoint(hierarchy);
+        IntArray capturedJoints = requireInternalJointClosure(entityToSource);
         requireConvertiblePhysicsHierarchy(hierarchy);
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 1;
@@ -565,6 +681,7 @@ public final class GameObjectAssetService {
             }
             asset.entities.add(data);
         }
+        appendCapturedJoints(asset, entityToSource, capturedJoints);
         loader.validate(asset, null);
         return asset;
     }
@@ -756,32 +873,114 @@ public final class GameObjectAssetService {
         }
     }
 
-    /** Joints are Scene relationships; an asset may not capture either referenced endpoint. */
-    private void requireNoCapturedPhysicsJoint(IntMap<Integer> capturedEntityToSource) {
-        IntSet captured = new IntSet(capturedEntityToSource.size);
-        for (IntMap.Entry<Integer> entry : capturedEntityToSource) captured.add(entry.key);
-        requireNoCapturedPhysicsJoint(captured);
-    }
-
-    private void requireNoCapturedPhysicsJoint(IntArray capturedEntities) {
-        IntSet captured = new IntSet(capturedEntities.size);
-        for (int i = 0; i < capturedEntities.size; i++) captured.add(capturedEntities.get(i));
-        requireNoCapturedPhysicsJoint(captured);
-    }
-
-    private void requireNoCapturedPhysicsJoint(IntSet capturedEntities) {
+    /**
+     * Discovers all internal Scene joints for the captured Body closure. A joint with exactly one
+     * endpoint in the closure would otherwise be silently lost from a reusable asset, so it is
+     * rejected before any publication or History mutation.
+     */
+    private IntArray requireInternalJointClosure(IntMap<Integer> capturedEntityToLocal) {
+        IntSet captured = new IntSet(capturedEntityToLocal.size);
+        for (IntMap.Entry<Integer> entry : capturedEntityToLocal) captured.add(entry.key);
+        IntArray internal = new IntArray(false, 8);
+        IntSet internalSet = new IntSet();
         com.artemis.utils.IntBag joints = world.getAspectSubscriptionManager().get(
-                com.artemis.Aspect.all(PhysicsJointComponent.class)).getEntities();
-        ComponentMapper<PhysicsJointComponent> jointMapper =
-                world.getMapper(PhysicsJointComponent.class);
+                Aspect.all(PhysicsJointComponent.class)).getEntities();
+        ComponentMapper<PhysicsJointComponent> bases = world.getMapper(PhysicsJointComponent.class);
         for (int i = 0; i < joints.size(); i++) {
-            PhysicsJointComponent joint = jointMapper.get(joints.get(i));
-            if (capturedEntities.contains(joint.aEid)
-                    || capturedEntities.contains(joint.bEid)) {
+            int jointEntityId = joints.get(i);
+            PhysicsJointComponent joint = bases.getSafe(jointEntityId, null);
+            if (joint == null) continue;
+            boolean aInside = captured.contains(joint.aEid);
+            boolean bInside = captured.contains(joint.bEid);
+            if (aInside != bInside) {
                 throw new IllegalArgumentException(
-                        "Physics joints in Game Object assets are not supported.");
+                        "Game Object contains a Physics joint connected to an entity outside the Game Object.");
+            }
+            if (aInside) {
+                internal.add(jointEntityId);
+                internalSet.add(jointEntityId);
             }
         }
+        ComponentMapper<PhysicsGearJointComponent> gears = world.getMapper(PhysicsGearJointComponent.class);
+        for (int i = 0; i < internal.size; i++) {
+            int jointEntityId = internal.get(i);
+            PhysicsJointComponent base = bases.get(jointEntityId);
+            if (base.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            PhysicsGearJointComponent gear = gears.getSafe(jointEntityId, null);
+            if (gear == null || !internalSet.contains(gear.joint1Eid) || !internalSet.contains(gear.joint2Eid)) {
+                throw new IllegalArgumentException(
+                        "Game Object Gear joint depends on a joint outside the Game Object.");
+            }
+        }
+        return internal;
+    }
+
+    private static IntMap<Integer> toLocalIds(IntArray entities) {
+        IntMap<Integer> result = new IntMap<Integer>(entities.size);
+        for (int i = 0; i < entities.size; i++) result.put(entities.get(i), i + 1);
+        return result;
+    }
+
+    private void appendCapturedJoints(GameObjectAsset asset, IntMap<Integer> entityToLocal,
+                                      IntArray jointEntities) {
+        IntIntMap jointToLocal = new IntIntMap(jointEntities.size);
+        for (int i = 0; i < jointEntities.size; i++) jointToLocal.put(jointEntities.get(i), i + 1);
+        for (int i = 0; i < jointEntities.size; i++) {
+            GameObjectAsset.GameObjectJointData joint = jointMapper.fromScene(world, jointEntities.get(i), i + 1,
+                    toIntIntMap(entityToLocal), jointToLocal);
+            localizePulleyGroundAnchors(asset, joint);
+            asset.joints.add(joint);
+        }
+    }
+
+    /** Converts current Scene world-meter pulley anchors to the asset root's local meter frame. */
+    private void localizePulleyGroundAnchors(GameObjectAsset asset, GameObjectAsset.GameObjectJointData joint) {
+        if (joint.type != PhysicsJointComponent.TYPE_PULLEY || joint.pulley == null) return;
+        GameObjectAsset.GameObjectEntityData root = null;
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity.sourceEntityId == asset.rootSourceEntityId) { root = entity; break; }
+        }
+        if (root == null || root.transform == null) {
+            throw new IllegalStateException("Game Object Pulley capture requires the asset root transform.");
+        }
+        float ppm = pixelsPerMeter();
+        float[] a = worldMetersToRootLocalMeters(root.transform,
+                joint.pulley.groundAnchorALocalX, joint.pulley.groundAnchorALocalY, ppm);
+        float[] b = worldMetersToRootLocalMeters(root.transform,
+                joint.pulley.groundAnchorBLocalX, joint.pulley.groundAnchorBLocalY, ppm);
+        joint.pulley.groundAnchorALocalX = a[0]; joint.pulley.groundAnchorALocalY = a[1];
+        joint.pulley.groundAnchorBLocalX = b[0]; joint.pulley.groundAnchorBLocalY = b[1];
+    }
+
+    private float pixelsPerMeter() {
+        if (physicsService == null) throw new IllegalStateException(
+                "Game Object Pulley capture requires PhysicsService.");
+        float ppm = 1f / physicsService.pxToM(1f);
+        if (Float.isNaN(ppm) || Float.isInfinite(ppm) || ppm <= 0f) {
+            throw new IllegalStateException("Current scene pixelsPerMeter must be finite and positive.");
+        }
+        return ppm;
+    }
+
+    private static float[] worldMetersToRootLocalMeters(GameObjectAsset.TransformData root,
+                                                          float worldX, float worldY, float ppm) {
+        float cos = com.badlogic.gdx.math.MathUtils.cos(root.rotationRad);
+        float sin = com.badlogic.gdx.math.MathUtils.sin(root.rotationRad);
+        float frameX = root.x + root.originX - cos * root.scaleX * root.originX
+                + sin * root.scaleY * root.originY;
+        float frameY = root.y + root.originY - sin * root.scaleX * root.originX
+                - cos * root.scaleY * root.originY;
+        float dx = worldX * ppm - frameX;
+        float dy = worldY * ppm - frameY;
+        float determinant = root.scaleX * root.scaleY;
+        return new float[]{(cos * root.scaleY * dx + sin * root.scaleY * dy) / determinant / ppm,
+                (-sin * root.scaleX * dx + cos * root.scaleX * dy) / determinant / ppm};
+    }
+
+    private static IntIntMap toIntIntMap(IntMap<Integer> values) {
+        IntIntMap result = new IntIntMap(values.size);
+        for (IntMap.Entry<Integer> entry : values) result.put(entry.key, entry.value);
+        return result;
     }
 
     private void requireNoSpatialLinkedPhysicsShapes(int entityId) {

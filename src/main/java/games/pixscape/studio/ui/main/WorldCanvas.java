@@ -444,7 +444,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 entityId -> {
                     if (entityId >= 0) selectionService.selectOnly(entityId);
                     else selectionService.clearSelection();
-                }, selectionService, physicsService);
+                }, selectionService, physicsService, this::isScenePhysicsEnabled);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService);
