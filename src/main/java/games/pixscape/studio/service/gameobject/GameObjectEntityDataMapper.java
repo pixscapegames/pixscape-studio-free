@@ -11,6 +11,7 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
@@ -165,6 +166,32 @@ final class GameObjectEntityDataMapper {
                 snapshot.shaderFloats.add(new ShaderFloatParam(entry.getKey(), entry.getValue()));
             }
         }
+        if (data.physicsBody != null) {
+            snapshot.hasPhysicsBody = true;
+            snapshot.bodyType = data.physicsBody.type;
+            snapshot.fixedRotation = data.physicsBody.fixedRotation;
+            snapshot.bullet = data.physicsBody.bullet;
+            snapshot.allowSleep = data.physicsBody.allowSleep;
+            snapshot.awake = data.physicsBody.awake;
+            snapshot.gravityScale = data.physicsBody.gravityScale;
+            snapshot.linearDamping = data.physicsBody.linearDamping;
+            snapshot.angularDamping = data.physicsBody.angularDamping;
+            for (int i = 0; i < data.physicsShapes.size(); i++) {
+                GameObjectAsset.PhysicsShapeData source = data.physicsShapes.get(i);
+                PhysicsShapeData target = new PhysicsShapeData();
+                target.physicsShapeId = source.localShapeId;
+                target.geometry = source.geometry != null ? source.geometry.copy() : null;
+                target.density = source.density;
+                target.friction = source.friction;
+                target.restitution = source.restitution;
+                target.sensor = source.sensor;
+                target.categoryBits = source.categoryBits;
+                target.maskBits = source.maskBits;
+                target.groupIndex = source.groupIndex;
+                target.enabled = source.enabled;
+                snapshot.shapes.add(target);
+            }
+        }
         GenericEntityInitializer initializer = new GenericEntityInitializer(world)
                 .applySnapshotData(snapshot);
         return new EntityGraphEntry(data.sourceEntityId, initializer);
@@ -249,6 +276,37 @@ final class GameObjectEntityDataMapper {
                 if (param != null && param.name != null && !param.name.isEmpty()) {
                     data.shaderParams.floats.put(param.name, param.value);
                 }
+            }
+        }
+        if (source.hasPhysicsBody) {
+            data.physicsBody = new GameObjectAsset.PhysicsBodyData();
+            data.physicsBody.type = source.bodyType;
+            data.physicsBody.fixedRotation = source.fixedRotation;
+            data.physicsBody.bullet = source.bullet;
+            data.physicsBody.allowSleep = source.allowSleep;
+            data.physicsBody.awake = source.awake;
+            data.physicsBody.gravityScale = source.gravityScale;
+            data.physicsBody.linearDamping = source.linearDamping;
+            data.physicsBody.angularDamping = source.angularDamping;
+            for (int i = 0; i < source.shapes.size; i++) {
+                PhysicsShapeData shape = source.shapes.get(i);
+                if (shape == null) continue;
+                if (shape.spatialBlockId != 0 || shape.spatialFootprint) {
+                    throw new IllegalArgumentException(
+                            "Game Object assets do not support Spatial-linked Physics shapes.");
+                }
+                GameObjectAsset.PhysicsShapeData target = new GameObjectAsset.PhysicsShapeData();
+                target.localShapeId = i + 1;
+                target.geometry = shape.geometry != null ? shape.geometry.copy() : null;
+                target.density = shape.density;
+                target.friction = shape.friction;
+                target.restitution = shape.restitution;
+                target.sensor = shape.sensor;
+                target.categoryBits = shape.categoryBits;
+                target.maskBits = shape.maskBits;
+                target.groupIndex = shape.groupIndex;
+                target.enabled = shape.enabled;
+                data.physicsShapes.add(target);
             }
         }
     }

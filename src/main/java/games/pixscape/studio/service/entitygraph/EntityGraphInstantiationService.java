@@ -219,6 +219,7 @@ public final class EntityGraphInstantiationService {
                     entry.customProperties(),
                     initializer));
         }
+        validateGameObjectHierarchyPhysics(orderedEntries, snapshots);
         return prepared;
     }
 
@@ -423,15 +424,54 @@ public final class EntityGraphInstantiationService {
                 throw new IllegalArgumentException(
                         "Game Object graph root scale must be finite, positive, and uniform.");
             }
-            if (snapshot.hasPhysicsBody || snapshot.hasTextureRegion || snapshot.hasAnimation) {
+            if (snapshot.hasTextureRegion || snapshot.hasAnimation) {
                 throw new IllegalArgumentException(
                         "Game Object graph root contains an unsupported component domain.");
             }
         }
         if (entry.parentSourceEntityId() != -1
-                && (snapshot.hasPhysicsBody || snapshot.hasSpatialHeight)) {
+                && snapshot.hasSpatialHeight) {
             throw new IllegalArgumentException(
                     "Game Object graph member contains an unsupported component domain.");
+        }
+    }
+
+    private static void validateGameObjectHierarchyPhysics(
+            List<EntityGraphEntry> entries,
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        IntMap<EntityGraphEntry> bySourceId = new IntMap<EntityGraphEntry>(entries.size());
+        boolean containsGameObjectHierarchy = false;
+        for (EntityGraphEntry entry : entries) {
+            bySourceId.put(entry.sourceEntityId(), entry);
+            containsGameObjectHierarchy |= entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
+        }
+        if (!containsGameObjectHierarchy) return;
+        for (EntityGraphEntry entry : entries) {
+            GenericEntitySnapshotData snapshot = snapshots.get(entry.sourceEntityId());
+            if (snapshot == null) continue;
+            boolean hierarchyEntry = entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
+            if (hierarchyEntry && snapshot.shapes != null) {
+                for (PhysicsShapeData shape : snapshot.shapes) {
+                    if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+                        throw new IllegalArgumentException(
+                                "Game Object clipboard hierarchies do not support "
+                                        + "Spatial-linked Physics shapes.");
+                    }
+                }
+            }
+            if (!snapshot.hasPhysicsBody) continue;
+            int parentSourceId = entry.parentSourceEntityId();
+            while (parentSourceId != -1) {
+                EntityGraphEntry parent = bySourceId.get(parentSourceId);
+                GenericEntitySnapshotData parentSnapshot = snapshots.get(parentSourceId);
+                if (parent == null || parentSnapshot == null || !parent.gameObjectRoot()
+                        || Float.compare(parentSnapshot.scaleX, 1f) != 0
+                        || Float.compare(parentSnapshot.scaleY, 1f) != 0) {
+                    throw new IllegalArgumentException(
+                            "Physics in a Game Object hierarchy requires every ancestor scale to be (1,1).");
+                }
+                parentSourceId = parent.parentSourceEntityId();
+            }
         }
     }
 

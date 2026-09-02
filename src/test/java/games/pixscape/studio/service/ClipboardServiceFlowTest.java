@@ -185,6 +185,52 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
+    public void copyPasteGameObjectBodyUsesFreshShapeIdsAndKeepsMemberLocalTransform()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 5f, 7f, 0.2f, 1f, 2, "source/physical");
+        int bodyMember = gameObjectMember(h.world, 200, 100, 3f, -4f, 4);
+        TransformComponent memberTransform = h.world.getMapper(TransformComponent.class).get(bodyMember);
+        memberTransform.scaleX = -1f;
+        memberTransform.scaleY = 2f;
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyMember)
+                .type = PhysicsBodyComponent.DYNAMIC;
+        PhysicsShapeData sourceShape = new PhysicsShapeData();
+        sourceShape.physicsShapeId = 77;
+        sourceShape.geometry = new PhysicsGeometryData();
+        sourceShape.geometry.halfWidth = 2f;
+        sourceShape.geometry.halfHeight = 3f;
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyMember).shapes.add(sourceShape);
+        h.world.process();
+        h.selection.selectOnly(root);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        sourceShape.geometry.halfWidth = 99f;
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        int firstRoot = h.selection.getFirstSelectedEntityId();
+        int firstMember = findMemberOf(h.world, firstRoot);
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(firstMember));
+        int firstShapeId = h.world.getMapper(PhysicsShapesComponent.class)
+                .get(firstMember).shapes.first().physicsShapeId;
+        Assert.assertNotEquals(77, firstShapeId);
+        Assert.assertEquals(2f, h.world.getMapper(PhysicsShapesComponent.class)
+                .get(firstMember).shapes.first().geometry.halfWidth, 0f);
+        Assert.assertEquals(3f, h.world.getMapper(TransformComponent.class).get(firstMember).x, 0f);
+        Assert.assertEquals(-1f, h.world.getMapper(TransformComponent.class).get(firstMember).scaleX, 0f);
+        Assert.assertEquals(21f, h.world.getMapper(TransformComponent.class).get(firstRoot).x, 0f);
+
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        int secondRoot = h.selection.getFirstSelectedEntityId();
+        int secondMember = findMemberOf(h.world, secondRoot);
+        int secondShapeId = h.world.getMapper(PhysicsShapesComponent.class)
+                .get(secondMember).shapes.first().physicsShapeId;
+        Assert.assertNotEquals(firstShapeId, secondShapeId);
+        Assert.assertEquals(37f, h.world.getMapper(TransformComponent.class).get(secondRoot).x, 0f);
+    }
+
+    @Test
     public void copyRootAndDescendantNormalizesToOneHierarchyAndMemberOnlyCopyFailsCleanly()
             throws Exception {
         Harness h = new Harness();

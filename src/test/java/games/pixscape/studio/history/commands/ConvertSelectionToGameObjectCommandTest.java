@@ -10,6 +10,8 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -89,7 +91,7 @@ public class ConvertSelectionToGameObjectCommandTest {
     }
 
     @Test
-    public void rejectsPhysicsBeforeCreatingAConversionRootOrChangingTheScene() {
+    public void convertsPhysicsWithoutRecreatingTheBodyOrChangingShapeIdentity() {
         World world = new World(new WorldConfiguration());
         SceneMetaRuntime meta = new SceneMetaRuntime();
         meta.nextEntityStableId = 100;
@@ -98,8 +100,14 @@ public class ConvertSelectionToGameObjectCommandTest {
         HistoryManager history = new HistoryManager(8);
         try {
             int body = entity(world, 10, 3, 0, 4f, 8f);
+            world.getMapper(TransformComponent.class).get(body).scaleX = -1f;
+            world.getMapper(TransformComponent.class).get(body).scaleY = 2f;
+            world.getMapper(TransformComponent.class).get(body).refreshCaches();
             world.getMapper(PhysicsBodyComponent.class).create(body);
-            world.getMapper(PhysicsShapesComponent.class).create(body);
+            PhysicsShapeData shape = new PhysicsShapeData();
+            shape.physicsShapeId = 77;
+            shape.geometry = new PhysicsGeometryData();
+            world.getMapper(PhysicsShapesComponent.class).create(body).shapes.add(shape);
             world.process();
             identities.rebuild();
 
@@ -107,21 +115,26 @@ public class ConvertSelectionToGameObjectCommandTest {
             selection.selectOnly(body);
             LayerLogicalOrderService.LayerOrder order = new LayerLogicalOrderService(world).derive(3);
 
-            try {
-                new ConvertSelectionToGameObjectCommand(
-                        world, history.historyIds(), identities, selection,
-                        new IntArray(new int[]{body}), order,
-                        4f, 8f, 0f, 0f, "gameobjects/physics.gameobject");
-                fail("Expected Physics conversion boundary rejection");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().contains("P3"));
-            }
-
-            assertEquals(1, world.getAspectSubscriptionManager()
-                    .get(com.artemis.Aspect.all(PixscapeIdentityComponent.class))
-                    .getEntities().size());
+            ConvertSelectionToGameObjectCommand command = new ConvertSelectionToGameObjectCommand(
+                    world, history.historyIds(), identities, selection,
+                    new IntArray(new int[]{body}), order,
+                    4f, 8f, 0f, 0f, "gameobjects/physics.gameobject");
+            history.execute(command);
+            int root = selection.getFirstSelectedEntityId();
+            assertTrue(world.getMapper(GameObjectComponent.class).has(root));
+            assertTrue(world.getMapper(PhysicsBodyComponent.class).has(body));
+            assertEquals(77, world.getMapper(PhysicsShapesComponent.class)
+                    .get(body).shapes.first().physicsShapeId);
+            assertEquals(0f, world.getMapper(TransformComponent.class).get(body).x, 0.0001f);
+            assertEquals(-1f, world.getMapper(TransformComponent.class).get(body).scaleX, 0f);
+            assertEquals(2f, world.getMapper(TransformComponent.class).get(body).scaleY, 0f);
+            history.undo();
+            world.process();
             assertFalse(world.getMapper(GameObjectMemberComponent.class).has(body));
             assertEquals(4f, world.getMapper(TransformComponent.class).get(body).x, 0.0001f);
+            assertEquals(-1f, world.getMapper(TransformComponent.class).get(body).scaleX, 0f);
+            assertEquals(77, world.getMapper(PhysicsShapesComponent.class)
+                    .get(body).shapes.first().physicsShapeId);
         } finally {
             identities.bind(null, null);
             world.dispose();

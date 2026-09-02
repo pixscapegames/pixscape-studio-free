@@ -327,6 +327,66 @@ public class EntityGraphGameObjectClipboardCaptureTest {
         }
     }
 
+    @Test
+    public void gameObjectHierarchyClipboardRejectsExternalPhysicsJointEndpoint() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
+            int memberBody = f.member(20, 10, 1f, 2f);
+            f.world.getMapper(PhysicsBodyComponent.class).create(memberBody);
+            f.world.getMapper(PhysicsShapesComponent.class).create(memberBody)
+                    .shapes.add(validShape(11));
+            int externalBody = f.physicsBody(30);
+            f.distanceJoint(40, memberBody, externalBody);
+            f.world.process();
+
+            try {
+                new EntityGraphCaptureService(f.world)
+                        .captureGameObjectClipboard(new IntArray(new int[]{root}));
+                fail("Expected Game Object hierarchy joint rejection.");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains(
+                        "Physics joints in Game Object clipboard hierarchies"));
+            }
+            assertTrue(f.world.getEntityManager().isActive(root));
+            assertTrue(f.world.getEntityManager().isActive(memberBody));
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    @Test
+    public void gameObjectHierarchyClipboardRejectsSpatialLinkedPhysicsShape() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.gameObject(10, -1, 0f, 0f, 0f, 1f, 0f, 0f);
+            int memberBody = f.member(20, 10, 1f, 2f);
+            f.world.getMapper(PhysicsBodyComponent.class).create(memberBody);
+            PhysicsShapeData linked = validShape(12);
+            linked.spatialBlockId = 1;
+            linked.geometry = null;
+            f.world.getMapper(PhysicsShapesComponent.class).create(memberBody).shapes.add(linked);
+            f.world.process();
+
+            try {
+                new EntityGraphCaptureService(f.world)
+                        .captureGameObjectClipboard(new IntArray(new int[]{root}));
+                fail("Expected Spatial-linked Physics rejection.");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("Spatial-linked Physics shapes"));
+            }
+        } finally {
+            f.world.dispose();
+        }
+    }
+
+    private static PhysicsShapeData validShape(int shapeId) {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = shapeId;
+        shape.geometry = new games.pixscape.runtime.physics.PhysicsGeometryData();
+        return shape;
+    }
+
     private static void assertEntry(EntityGraphEntry entry, int sourceId, int parentSourceId,
                                     boolean gameObjectRoot) {
         assertEquals(sourceId, entry.sourceEntityId());

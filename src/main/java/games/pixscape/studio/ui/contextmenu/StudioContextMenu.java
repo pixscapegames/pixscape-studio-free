@@ -582,13 +582,24 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(paste);
 
-        MenuItem createGameObject = new MenuItem("Convert Selection to Game Object");
-        createGameObject.setDisabled(!hasSelection
-                || !gameObjectAssetService.canConvertSelectionToGameObject(selection));
+        GameObjectAssetService.SelectionClassification gameObjectSelection =
+                gameObjectAssetService.classifySelection(selection);
+        MenuItem createGameObject = new MenuItem(gameObjectSelection.actionLabel());
+        createGameObject.setDisabled(!gameObjectSelection.isAvailable());
+        if (!gameObjectSelection.isAvailable() && gameObjectSelection.rejection() != null) {
+            Tooltip tip = new Tooltip.Builder(gameObjectSelection.rejection())
+                    .target(createGameObject)
+                    .build();
+            tip.setAppearDelayTime(0f);
+        }
         createGameObject.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                showConvertSelectionToGameObjectDialog();
+                if (createGameObject.isDisabled()) {
+                    event.handle();
+                    return;
+                }
+                showGameObjectAssetDialog(gameObjectSelection.mode());
                 event.handle();
             }
         });
@@ -614,12 +625,16 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showConvertSelectionToGameObjectDialog() {
-        VisDialog dialog = new StudioDialog("Convert Selection to Game Object") {
+    private void showGameObjectAssetDialog(GameObjectAssetService.SelectionMode mode) {
+        boolean saveExisting = mode == GameObjectAssetService.SelectionMode.SAVE_EXISTING_GAME_OBJECT;
+        String title = saveExisting ? "Save as Game Object Asset" : "Convert Selection to Game Object";
+        String fieldHint = saveExisting ? "Asset name" : "Game Object name";
+        String submit = saveExisting ? "Save" : "Convert";
+        VisDialog dialog = new StudioDialog(title) {
             private final VisTextField nameField = new VisTextField();
 
             {
-                nameField.setMessageText("Game Object name");
+                nameField.setMessageText(fieldHint);
 
                 getContentTable().defaults().pad(6).left();
                 getContentTable().add(new VisLabel("Name")).left();
@@ -627,7 +642,7 @@ public final class StudioContextMenu extends InputListener {
 
                 getButtonsTable().defaults().pad(8).minWidth(100);
                 button("Cancel", false);
-                button("Convert", true);
+                button(submit, true);
             }
 
             @Override
@@ -637,7 +652,7 @@ public final class StudioContextMenu extends InputListener {
                     return;
                 }
 
-                convertSelectionToGameObject(nameField.getText());
+                publishGameObjectAsset(mode, nameField.getText());
                 hide();
             }
         };
@@ -646,17 +661,23 @@ public final class StudioContextMenu extends InputListener {
         dialog.show(stage);
     }
 
-    private void convertSelectionToGameObject(String rawName) {
+    private void publishGameObjectAsset(GameObjectAssetService.SelectionMode requestedMode, String rawName) {
+        boolean saveExisting = requestedMode == GameObjectAssetService.SelectionMode.SAVE_EXISTING_GAME_OBJECT;
+        String title = saveExisting ? "Save as Game Object Asset" : "Convert Selection to Game Object";
+        String noun = saveExisting ? "Asset name" : "Game Object name";
         String name = sanitizeGameObjectName(rawName);
 
         if (name.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Convert Selection to Game Object", "Game Object name is required.");
+            Dialogs.showOKDialog(stage, title, noun + " is required.");
             return;
         }
 
-        IntArray selection = selectionService.getSelectionSnapshot();
-        if (selection == null || selection.size == 0) {
-            Dialogs.showOKDialog(stage, "Convert Selection to Game Object", "No entity selected.");
+        GameObjectAssetService.SelectionClassification classification =
+                gameObjectAssetService.classifySelection(selectionService.getSelectionSnapshot());
+        if (classification.mode() != requestedMode) {
+            String message = classification.rejection() != null
+                    ? classification.rejection() : "Selection changed; reopen the action from the current selection.";
+            Dialogs.showOKDialog(stage, title, message);
             return;
         }
 
@@ -664,15 +685,20 @@ public final class StudioContextMenu extends InputListener {
         FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(ProjectConfig.getInstance(), name);
 
         try {
-            gameObjectAssetService.convertSelectionToGameObject(
-                    gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
+            if (saveExisting) {
+                gameObjectAssetService.saveExistingGameObjectAsAsset(
+                        gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
+            } else {
+                gameObjectAssetService.convertSelectionToGameObject(
+                        gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
+            }
             EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
-            Gdx.app.log("GameObject", "Converted selection to Game Object: " + gameObjectFile.path());
-            Dialogs.showOKDialog(stage, "Convert Selection to Game Object",
-                    "Game Object created:\n" + gameObjectFile.path());
+            String success = saveExisting ? "Game Object asset saved:\n" : "Game Object created:\n";
+            Gdx.app.log("GameObject", success + gameObjectFile.path());
+            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path());
         } catch (RuntimeException ex) {
-            Gdx.app.error("GameObject", "Failed to convert selection to Game Object", ex);
-            Dialogs.showOKDialog(stage, "Convert Selection to Game Object failed", ex.getMessage());
+            Gdx.app.error("GameObject", "Failed to publish Game Object asset", ex);
+            Dialogs.showOKDialog(stage, title + " failed", ex.getMessage());
         }
     }
 

@@ -26,11 +26,13 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.studio.history.HistoryManager;
@@ -41,6 +43,7 @@ import games.pixscape.studio.history.commands.ConvertSelectionToGameObjectComman
 import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
+import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.property.PropertyReferenceMapper;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
@@ -52,34 +55,65 @@ import games.pixscape.studio.model.EntityKind;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /** Studio publication and diagnostic-reading boundary for {@code .gameobject} assets. */
 public final class GameObjectAssetService {
+    /** The one authoritative interpretation of a Game Object publication selection. */
+    public enum SelectionMode {
+        CONVERT_SELECTION,
+        SAVE_EXISTING_GAME_OBJECT,
+        UNAVAILABLE
+    }
+
+    /**
+     * Effective roots are normalized before this result is published: a selected descendant
+     * of a selected Game Object root is never captured a second time.
+     */
+    public record SelectionClassification(
+            SelectionMode mode, IntArray effectiveSelection, String rejection, String actionLabel) {
+        public boolean isAvailable() {
+            return mode != SelectionMode.UNAVAILABLE;
+        }
+    }
+
+    private static final String CONVERT_ACTION_LABEL = "Convert Selection to Game Object…";
+    private static final String SAVE_ACTION_LABEL = "Save as Game Object Asset…";
     private final World world;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
     private final IntConsumer onCreatedEntity;
     private final IntConsumer rootSelection;
     private final SelectionService selectionService;
+    private final PhysicsService physicsService;
     private final GameObjectAssetLoader loader = new GameObjectAssetLoader();
     private final GameObjectEntityDataMapper mapper = new GameObjectEntityDataMapper();
 
     public GameObjectAssetService(World world) {
-        this(world, null, null, null, null, null);
+        this(world, null, null, null, null, null, null);
     }
 
     public GameObjectAssetService(
             World world, HistoryManager historyManager,
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection) {
-        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection, null);
+        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection, null, null);
     }
 
     public GameObjectAssetService(
             World world, HistoryManager historyManager,
             IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
             IntConsumer rootSelection, SelectionService selectionService) {
+        this(world, historyManager, identityRegistry, onCreatedEntity, rootSelection,
+                selectionService, null);
+    }
+
+    public GameObjectAssetService(
+            World world, HistoryManager historyManager,
+            IdentityRegistry identityRegistry, IntConsumer onCreatedEntity,
+            IntConsumer rootSelection, SelectionService selectionService,
+            PhysicsService physicsService) {
         if (world == null) throw new IllegalArgumentException("World is required.");
         this.world = world;
         this.historyManager = historyManager;
@@ -87,6 +121,7 @@ public final class GameObjectAssetService {
         this.onCreatedEntity = onCreatedEntity;
         this.rootSelection = rootSelection;
         this.selectionService = selectionService;
+        this.physicsService = physicsService;
     }
 
     public void saveGameObject(FileHandle file, EntityGraph graph) {
@@ -101,13 +136,47 @@ public final class GameObjectAssetService {
         return loader.load(file);
     }
 
-    /** Cheap command-boundary preflight used only to enable the conversion action. */
+    /** Compatibility preflight for callers that specifically require a wrapping conversion. */
     public boolean canConvertSelectionToGameObject(IntArray selection) {
+        return classifySelection(selection).mode == SelectionMode.CONVERT_SELECTION;
+    }
+
+    /** Returns the current preflight reason, or {@code null} when the requested action is available. */
+    public String conversionRejection(IntArray selection) {
+        return classifySelection(selection).rejection;
+    }
+
+    /**
+     * Classifies selection shape and validates the corresponding operation boundary.
+     * Consumers use this result for wording, enabled state and execution; they do not
+     * independently infer whether a selected Game Object should be wrapped or saved.
+     */
+    public SelectionClassification classifySelection(IntArray selection) {
+        IntArray effective = normalizeSelection(selection);
+        if (effective.size == 0) {
+            return unavailable(effective, "Select one or more supported top-level entities.",
+                    CONVERT_ACTION_LABEL);
+        }
+
+        int only = effective.size == 1 ? effective.first() : -1;
+        boolean existingGameObject = only >= 0 && world.getMapper(GameObjectComponent.class).has(only);
+        String actionLabel = existingGameObject ? SAVE_ACTION_LABEL : CONVERT_ACTION_LABEL;
+        if (existingGameObject && world.getMapper(GameObjectMemberComponent.class).has(only)) {
+            return unavailable(effective,
+                    "Nested Game Objects cannot be saved as standalone assets.", actionLabel);
+        }
+
         try {
-            prepareConversion(selection, "gameobjects/selection.gameobject");
-            return true;
-        } catch (RuntimeException ignored) {
-            return false;
+            if (existingGameObject) {
+                prepareExistingGameObjectSave(only);
+                return new SelectionClassification(SelectionMode.SAVE_EXISTING_GAME_OBJECT,
+                        effective, null, actionLabel);
+            }
+            prepareConversion(effective, "gameobjects/selection.gameobject");
+            return new SelectionClassification(SelectionMode.CONVERT_SELECTION,
+                    effective, null, actionLabel);
+        } catch (RuntimeException failure) {
+            return unavailable(effective, failure.getMessage(), actionLabel);
         }
     }
 
@@ -124,7 +193,11 @@ public final class GameObjectAssetService {
             throw new IllegalArgumentException("A Game Object asset already exists: " + gameObjectFile.path());
         }
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
-        ConversionPlan plan = prepareConversion(selectionService.getSelectionSnapshot(), canonicalId);
+        SelectionClassification classification = classifySelection(selectionService.getSelectionSnapshot());
+        if (classification.mode != SelectionMode.CONVERT_SELECTION) {
+            throw unavailableOperation(classification, "converted");
+        }
+        ConversionPlan plan = prepareConversion(classification.effectiveSelection, canonicalId);
         GameObjectAsset asset = createConversionAsset(plan);
         ConvertSelectionToGameObjectCommand command = new ConvertSelectionToGameObjectCommand(
                 world, historyManager.historyIds(), identityRegistry, selectionService,
@@ -134,6 +207,49 @@ public final class GameObjectAssetService {
             loader.save(gameObjectFile, asset);
             GameObjectPreviewWriter.writePlaceholder(previewFile);
             historyManager.execute(command);
+        } catch (RuntimeException | Error failure) {
+            if (previewFile.exists()) previewFile.delete();
+            if (gameObjectFile.exists()) gameObjectFile.delete();
+            throw failure;
+        }
+    }
+
+    /**
+     * Publishes one existing top-level Game Object hierarchy without changing Scene state.
+     * In particular, provenance, IDs, transforms, membership, selection and History are untouched.
+     */
+    public void saveExistingGameObjectAsAsset(
+            FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId) {
+        saveExistingGameObjectAsAsset(gameObjectFile, previewFile, logicalAssetId,
+                GameObjectPreviewWriter::writePlaceholder);
+    }
+
+    /** Package-visible writer seam keeps publication semantics testable without a native Pixmap backend. */
+    void saveExistingGameObjectAsAsset(
+            FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId,
+            Consumer<FileHandle> previewWriter) {
+        if (selectionService == null) {
+            throw new IllegalStateException("Game Object save dependencies are not configured.");
+        }
+        if (gameObjectFile == null || previewFile == null || previewWriter == null) {
+            throw new IllegalArgumentException("Game Object asset and preview paths are required.");
+        }
+        if (gameObjectFile.exists()) {
+            throw new IllegalArgumentException("A Game Object asset already exists: " + gameObjectFile.path());
+        }
+        GameObjectAssetId.normalize(logicalAssetId);
+        SelectionClassification classification = classifySelection(selectionService.getSelectionSnapshot());
+        if (classification.mode != SelectionMode.SAVE_EXISTING_GAME_OBJECT) {
+            throw unavailableOperation(classification, "saved");
+        }
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .captureForGameObject(classification.effectiveSelection);
+        if (graph.isEmpty()) {
+            throw new IllegalStateException("Selected Game Object hierarchy is unavailable for asset publication.");
+        }
+        try {
+            saveGameObject(gameObjectFile, graph);
+            previewWriter.accept(previewFile);
         } catch (RuntimeException | Error failure) {
             if (previewFile.exists()) previewFile.delete();
             if (gameObjectFile.exists()) gameObjectFile.delete();
@@ -162,6 +278,14 @@ public final class GameObjectAssetService {
         for (GameObjectAsset.GameObjectEntityData data : ordered) {
             EntityGraphEntry entry = mapper.toGraphEntry(world, data);
             GenericEntityInitializer generic = entry.initializer();
+            if (data.physicsBody != null) {
+                if (physicsService == null) {
+                    throw new IllegalStateException(
+                            "Game Object Physics asset instantiation requires PhysicsService.");
+                }
+                generic.allocateFreshPhysicsShapeIds(physicsService);
+                generic.preparePhysicsCandidate();
+            }
             generic.setIdentityStableId(sourceToStable.get(data.sourceEntityId, -1));
             generic.overrideLayerIndex(destinationLayer);
             if (data.sourceEntityId == asset.rootSourceEntityId) {
@@ -217,7 +341,7 @@ public final class GameObjectAssetService {
         int nextAssetId = 1;
         for (EntityGraphEntry entry : graph.entries()) {
             int entityId = entry.sourceEntityId();
-            requireSupported(entityId);
+            requireAssetSupported(entityId);
             PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
                     .getSafe(entityId, null);
             if (identity == null || identity.stableId <= 0) {
@@ -232,6 +356,7 @@ public final class GameObjectAssetService {
             sourceToAsset.put(entityId, nextAssetId);
             nextAssetId++;
         }
+        requireNoCapturedPhysicsJoint(sourceToAsset);
 
         GameObjectAsset asset = new GameObjectAsset();
         for (EntityGraphEntry entry : graph.entries()) {
@@ -264,6 +389,83 @@ public final class GameObjectAssetService {
         }
         loader.validate(asset, null);
         return asset;
+    }
+
+    private SelectionClassification unavailable(
+            IntArray effectiveSelection, String reason, String actionLabel) {
+        return new SelectionClassification(SelectionMode.UNAVAILABLE, effectiveSelection, reason, actionLabel);
+    }
+
+    private static IllegalArgumentException unavailableOperation(
+            SelectionClassification classification, String verb) {
+        String reason = classification.rejection;
+        return new IllegalArgumentException(reason != null && !reason.isBlank()
+                ? reason : "The selected Game Object cannot be " + verb + ".");
+    }
+
+    private IntArray normalizeSelection(IntArray selection) {
+        IntArray requested = new IntArray(false, selection != null ? selection.size : 0);
+        if (selection == null) return requested;
+        IntSet requestedIds = new IntSet(selection.size);
+        for (int i = 0; i < selection.size; i++) {
+            int entityId = selection.get(i);
+            if (requestedIds.add(entityId)) requested.add(entityId);
+        }
+
+        IntMap<Integer> entityByStableId = new IntMap<>();
+        com.artemis.utils.IntBag identities = world.getAspectSubscriptionManager().get(
+                com.artemis.Aspect.all(PixscapeIdentityComponent.class)).getEntities();
+        ComponentMapper<PixscapeIdentityComponent> identityMapper =
+                world.getMapper(PixscapeIdentityComponent.class);
+        for (int i = 0; i < identities.size(); i++) {
+            int entityId = identities.get(i);
+            PixscapeIdentityComponent identity = identityMapper.getSafe(entityId, null);
+            if (identity != null && identity.stableId > 0) {
+                entityByStableId.put(identity.stableId, entityId);
+            }
+        }
+
+        IntArray effective = new IntArray(false, requested.size);
+        ComponentMapper<GameObjectMemberComponent> members =
+                world.getMapper(GameObjectMemberComponent.class);
+        ComponentMapper<GameObjectComponent> gameObjects = world.getMapper(GameObjectComponent.class);
+        for (int i = 0; i < requested.size; i++) {
+            int entityId = requested.get(i);
+            if (!hasSelectedGameObjectAncestor(entityId, requestedIds, entityByStableId,
+                    members, gameObjects)) {
+                effective.add(entityId);
+            }
+        }
+        return effective;
+    }
+
+    private static boolean hasSelectedGameObjectAncestor(
+            int entityId, IntSet selected, IntMap<Integer> entityByStableId,
+            ComponentMapper<GameObjectMemberComponent> members,
+            ComponentMapper<GameObjectComponent> gameObjects) {
+        GameObjectMemberComponent member = members.getSafe(entityId, null);
+        IntSet visitedParents = new IntSet();
+        while (member != null && visitedParents.add(member.parentStableId)) {
+            Integer parent = entityByStableId.get(member.parentStableId);
+            if (parent == null) return false;
+            if (selected.contains(parent) && gameObjects.has(parent)) return true;
+            member = members.getSafe(parent, null);
+        }
+        return false;
+    }
+
+    private void prepareExistingGameObjectSave(int root) {
+        requireConvertibleTopLevel(root);
+        if (!world.getMapper(GameObjectComponent.class).has(root)) {
+            throw new IllegalArgumentException("Select a Game Object root to save as an asset.");
+        }
+        if (world.getMapper(GameObjectMemberComponent.class).has(root)) {
+            throw new IllegalArgumentException("Nested Game Objects cannot be saved as standalone assets.");
+        }
+        IntArray hierarchy = collectConversionHierarchy(new IntArray(new int[]{root}));
+        for (int i = 0; i < hierarchy.size; i++) requireAssetSupported(hierarchy.get(i));
+        requireNoCapturedPhysicsJoint(hierarchy);
+        requireConvertiblePhysicsHierarchy(hierarchy);
     }
 
     private ConversionPlan prepareConversion(IntArray selection, String canonicalId) {
@@ -310,6 +512,9 @@ public final class GameObjectAssetService {
             throw new IllegalArgumentException(
                     "Selected entities must form one contiguous range in Layer order.");
         }
+        IntArray conversionHierarchy = collectConversionHierarchy(selectedTopToBottom);
+        requireNoCapturedPhysicsJoint(conversionHierarchy);
+        requireConvertiblePhysicsHierarchy(conversionHierarchy);
         Bounds bounds = computeBounds(selectedTopToBottom);
         return new ConversionPlan(order, selectedTopToBottom, bounds.minX, bounds.minY,
                 (bounds.maxX - bounds.minX) * .5f, (bounds.maxY - bounds.minY) * .5f,
@@ -323,7 +528,7 @@ public final class GameObjectAssetService {
         int nextSource = 2;
         for (int i = 0; i < hierarchy.size; i++) {
             int entityId = hierarchy.get(i);
-            requireSupported(entityId);
+            requireConvertibleSupported(entityId);
             PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
                     .getSafe(entityId, null);
             if (identity == null || identity.stableId <= 0 || stableToSource.containsKey(identity.stableId)) {
@@ -332,6 +537,8 @@ public final class GameObjectAssetService {
             stableToSource.put(identity.stableId, nextSource);
             entityToSource.put(entityId, nextSource++);
         }
+        requireNoCapturedPhysicsJoint(hierarchy);
+        requireConvertiblePhysicsHierarchy(hierarchy);
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 1;
         asset.entities.add(newRootAssetData(plan));
@@ -411,7 +618,7 @@ public final class GameObjectAssetService {
             for (int i = 0; i < bag.size(); i++) {
                 int entityId = bag.get(i);
                 if (knownEntities.contains(entityId) || !knownStableIds.contains(members.get(entityId).parentStableId)) continue;
-                requireSupported(entityId);
+                requireConvertibleSupported(entityId);
                 PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
                 if (identity == null || identity.stableId <= 0) {
                     throw new IllegalArgumentException("Game Object hierarchy has malformed identity data.");
@@ -430,7 +637,7 @@ public final class GameObjectAssetService {
                 || !world.getMapper(PixscapeIdentityComponent.class).has(entityId)) {
             throw new IllegalArgumentException("Selection contains a non-authorable scene entity.");
         }
-        requireSupported(entityId);
+        requireConvertibleSupported(entityId);
     }
 
     private Bounds computeBounds(IntArray selectedTopToBottom) {
@@ -531,23 +738,101 @@ public final class GameObjectAssetService {
         return result;
     }
 
-    private void requireSupported(int entityId) {
+    private void requireAssetSupported(int entityId) {
         if (world.getMapper(TiledLayerComponent.class).has(entityId)) {
             throw unsupported(entityId, "Tiled Maps");
         }
         if (world.getMapper(ParticleEmitterComponent.class).has(entityId)) {
             throw unsupported(entityId, "ParticleEmitter");
         }
-        if (world.getMapper(PhysicsBodyComponent.class).has(entityId)
-                || world.getMapper(PhysicsShapesComponent.class).has(entityId)
-                || world.getMapper(PhysicsJointComponent.class).has(entityId)) {
-            throw unsupported(entityId, "Physics");
+        if (world.getMapper(PhysicsJointComponent.class).has(entityId)) {
+            throw unsupported(entityId, "Physics joints");
         }
+        requireNoSpatialLinkedPhysicsShapes(entityId);
         if (world.getMapper(SpatialHeightComponent.class).has(entityId)
                 || world.getMapper(SpatialBlocksComponent.class).has(entityId)
                 || world.getMapper(SpatialShapesComponent.class).has(entityId)) {
             throw unsupported(entityId, "Spatial");
         }
+    }
+
+    /** Joints are Scene relationships; an asset may not capture either referenced endpoint. */
+    private void requireNoCapturedPhysicsJoint(IntMap<Integer> capturedEntityToSource) {
+        IntSet captured = new IntSet(capturedEntityToSource.size);
+        for (IntMap.Entry<Integer> entry : capturedEntityToSource) captured.add(entry.key);
+        requireNoCapturedPhysicsJoint(captured);
+    }
+
+    private void requireNoCapturedPhysicsJoint(IntArray capturedEntities) {
+        IntSet captured = new IntSet(capturedEntities.size);
+        for (int i = 0; i < capturedEntities.size; i++) captured.add(capturedEntities.get(i));
+        requireNoCapturedPhysicsJoint(captured);
+    }
+
+    private void requireNoCapturedPhysicsJoint(IntSet capturedEntities) {
+        com.artemis.utils.IntBag joints = world.getAspectSubscriptionManager().get(
+                com.artemis.Aspect.all(PhysicsJointComponent.class)).getEntities();
+        ComponentMapper<PhysicsJointComponent> jointMapper =
+                world.getMapper(PhysicsJointComponent.class);
+        for (int i = 0; i < joints.size(); i++) {
+            PhysicsJointComponent joint = jointMapper.get(joints.get(i));
+            if (capturedEntities.contains(joint.aEid)
+                    || capturedEntities.contains(joint.bEid)) {
+                throw new IllegalArgumentException(
+                        "Physics joints in Game Object assets are not supported.");
+            }
+        }
+    }
+
+    private void requireNoSpatialLinkedPhysicsShapes(int entityId) {
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class)
+                .getSafe(entityId, null);
+        if (shapes == null || shapes.shapes == null) return;
+        for (int i = 0; i < shapes.shapes.size; i++) {
+            PhysicsShapeData shape = shapes.shapes.get(i);
+            if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+                throw new IllegalArgumentException(
+                        "Game Object assets do not support Spatial-linked Physics shapes.");
+            }
+        }
+    }
+
+    private void requireConvertiblePhysicsHierarchy(IntArray hierarchy) {
+        IntMap<Integer> entityByStableId = new IntMap<Integer>(hierarchy.size);
+        ComponentMapper<PixscapeIdentityComponent> identities =
+                world.getMapper(PixscapeIdentityComponent.class);
+        ComponentMapper<GameObjectMemberComponent> members =
+                world.getMapper(GameObjectMemberComponent.class);
+        ComponentMapper<TransformComponent> transforms =
+                world.getMapper(TransformComponent.class);
+        for (int i = 0; i < hierarchy.size; i++) {
+            int entityId = hierarchy.get(i);
+            PixscapeIdentityComponent identity = identities.getSafe(entityId, null);
+            if (identity == null || identity.stableId <= 0) {
+                throw new IllegalArgumentException("Game Object hierarchy has malformed identity data.");
+            }
+            entityByStableId.put(identity.stableId, entityId);
+        }
+        for (int i = 0; i < hierarchy.size; i++) {
+            int entityId = hierarchy.get(i);
+            if (!world.getMapper(PhysicsBodyComponent.class).has(entityId)) continue;
+            GameObjectMemberComponent member = members.getSafe(entityId, null);
+            while (member != null) {
+                Integer parentEntityId = entityByStableId.get(member.parentStableId);
+                TransformComponent parent = parentEntityId != null
+                        ? transforms.getSafe(parentEntityId, null) : null;
+                if (parent == null || Float.compare(parent.scaleX, 1f) != 0
+                        || Float.compare(parent.scaleY, 1f) != 0) {
+                    throw new IllegalArgumentException(
+                            "Physics in a Game Object hierarchy requires every ancestor scale to be (1,1).");
+                }
+                member = members.getSafe(parentEntityId, null);
+            }
+        }
+    }
+
+    private void requireConvertibleSupported(int entityId) {
+        requireAssetSupported(entityId);
     }
 
     private static IllegalArgumentException unsupported(int entityId, String domain) {

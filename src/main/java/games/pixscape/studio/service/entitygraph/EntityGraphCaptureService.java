@@ -19,6 +19,8 @@ import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.ClipboardPhysicsJointGraph;
@@ -32,6 +34,7 @@ public final class EntityGraphCaptureService {
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private final ComponentMapper<PhysicsShapesComponent> mPhysicsShapes;
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<GameObjectComponent> mGameObject;
     private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
@@ -42,6 +45,7 @@ public final class EntityGraphCaptureService {
         this.mTransform = world.getMapper(TransformComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
+        this.mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mGameObject = world.getMapper(GameObjectComponent.class);
         this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
@@ -92,6 +96,7 @@ public final class EntityGraphCaptureService {
             collectClipboardSubtree(captureRoots.get(i), -1, entities, parents, knownStableIds,
                     childrenByParentStableId);
         }
+        requireSupportedGameObjectHierarchyPhysics(entities);
         IntMap<Integer> stableToSource = new IntMap<>();
         for (int i = 0; i < entities.size; i++) stableToSource.put(mIdentity.get(entities.get(i)).stableId, i + 1);
         List<EntityGraphEntry> entries = new ArrayList<>(entities.size);
@@ -144,6 +149,38 @@ public final class EntityGraphCaptureService {
             if (mGameObject.has(roots.get(i))) return true;
         }
         return false;
+    }
+
+    /** P3-B permits Bodies/Shapes in a GO graph, but never silently drops joints or Spatial links. */
+    private void requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
+        IntSet hierarchyEntities = new IntSet(capturedEntities.size);
+        for (int i = 0; i < capturedEntities.size; i++) {
+            int entityId = capturedEntities.get(i);
+            if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) {
+                hierarchyEntities.add(entityId);
+                PhysicsShapesComponent shapes = mPhysicsShapes.getSafe(entityId, null);
+                if (shapes != null && shapes.shapes != null) {
+                    for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
+                        PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
+                        if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+                            throw new IllegalArgumentException(
+                                    "Game Object clipboard hierarchies do not support "
+                                            + "Spatial-linked Physics shapes.");
+                        }
+                    }
+                }
+            }
+        }
+        if (hierarchyEntities.size == 0) return;
+        IntBag joints = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsJointComponent.class)).getEntities();
+        for (int i = 0; i < joints.size(); i++) {
+            PhysicsJointComponent joint = mJointBase.get(joints.get(i));
+            if (hierarchyEntities.contains(joint.aEid) || hierarchyEntities.contains(joint.bEid)) {
+                throw new IllegalArgumentException(
+                        "Physics joints in Game Object clipboard hierarchies are not supported.");
+            }
+        }
     }
 
     private IntMap<IntArray> collectChildrenByParentStableId() {
