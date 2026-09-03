@@ -14,6 +14,8 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -159,7 +161,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         if (eid < 0 || ctx.layerService == null) return false;
         EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
         EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
-        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
+        int effectiveLayerEntity = effectiveLayerEntity(eid);
+        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class)
+                .getSafe(effectiveLayerEntity, null);
         int layerEntityId = index != null
                 ? ctx.layerService.getLayerEntity(index.getLayerIndex())
                 : -1;
@@ -169,6 +173,16 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         ProjectConfig config = ProjectConfig.getInstance();
         SceneMeta scene = config != null ? config.getCurrentSceneMeta() : null;
         return canActivateSpatialPhysics(scene, kind, index, layer);
+    }
+
+    /** Game Object members inherit the root Layer; their own EntityIndex is authored-local. */
+    private int effectiveLayerEntity(int eid) {
+        GameObjectHierarchySystem hierarchy = ctx.world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy == null) return eid;
+        GameObjectTopologyState topology = hierarchy.topology();
+        return eid < topology.getEntityCapacity() && topology.parented[eid]
+                ? topology.rootEntityId[eid]
+                : eid;
     }
 
     static boolean canActivateSpatialPhysics(

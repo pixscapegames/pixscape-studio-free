@@ -200,10 +200,10 @@ public final class EntityGraphCaptureService {
                 if (shapes != null && shapes.shapes != null) {
                     for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
                         PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
-                        if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+                        if (shape != null && shape.spatialBlockId > 0) {
                             throw new IllegalArgumentException(
                                     "Game Object clipboard hierarchies do not support "
-                                            + "Spatial-linked Physics shapes.");
+                                            + "Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
                         }
                     }
                 }

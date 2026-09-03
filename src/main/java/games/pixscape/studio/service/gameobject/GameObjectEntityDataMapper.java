@@ -189,8 +189,14 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = source.maskBits;
                 target.groupIndex = source.groupIndex;
                 target.enabled = source.enabled;
+                target.spatialFootprint = source.spatialFootprint;
                 snapshot.shapes.add(target);
             }
+        }
+        if (data.spatialHeight != null) {
+            snapshot.hasSpatialHeight = true;
+            snapshot.spatialAltitude = data.spatialHeight.altitude;
+            snapshot.spatialHeight = data.spatialHeight.height;
         }
         GenericEntityInitializer initializer = new GenericEntityInitializer(world)
                 .applySnapshotData(snapshot);
@@ -291,9 +297,9 @@ final class GameObjectEntityDataMapper {
             for (int i = 0; i < source.shapes.size; i++) {
                 PhysicsShapeData shape = source.shapes.get(i);
                 if (shape == null) continue;
-                if (shape.spatialBlockId != 0 || shape.spatialFootprint) {
+                if (shape.spatialBlockId > 0) {
                     throw new IllegalArgumentException(
-                            "Game Object assets do not support Spatial-linked Physics shapes.");
+                            "Game Object assets cannot contain Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
                 }
                 GameObjectAsset.PhysicsShapeData target = new GameObjectAsset.PhysicsShapeData();
                 target.localShapeId = i + 1;
@@ -306,8 +312,14 @@ final class GameObjectEntityDataMapper {
                 target.maskBits = shape.maskBits;
                 target.groupIndex = shape.groupIndex;
                 target.enabled = shape.enabled;
+                target.spatialFootprint = shape.spatialFootprint;
                 data.physicsShapes.add(target);
             }
+        }
+        if (source.hasSpatialHeight) {
+            data.spatialHeight = new GameObjectAsset.SpatialHeightData();
+            data.spatialHeight.altitude = source.spatialAltitude;
+            data.spatialHeight.height = source.spatialHeight;
         }
     }
 

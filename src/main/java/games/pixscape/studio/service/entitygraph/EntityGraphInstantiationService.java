@@ -437,11 +437,6 @@ public final class EntityGraphInstantiationService {
                         "Game Object graph root contains an unsupported component domain.");
             }
         }
-        if (entry.parentSourceEntityId() != -1
-                && snapshot.hasSpatialHeight) {
-            throw new IllegalArgumentException(
-                    "Game Object graph member contains an unsupported component domain.");
-        }
     }
 
     private static void validateGameObjectHierarchyPhysics(
@@ -460,10 +455,10 @@ public final class EntityGraphInstantiationService {
             boolean hierarchyEntry = entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
             if (hierarchyEntry && snapshot.shapes != null) {
                 for (PhysicsShapeData shape : snapshot.shapes) {
-                    if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+                    if (shape != null && shape.spatialBlockId > 0) {
                         throw new IllegalArgumentException(
                                 "Game Object clipboard hierarchies do not support "
-                                        + "Spatial-linked Physics shapes.");
+                                        + "Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
                     }
                 }
             }

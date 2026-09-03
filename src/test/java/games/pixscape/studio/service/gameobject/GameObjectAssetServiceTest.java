@@ -22,6 +22,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -112,6 +113,32 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
+    public void capturePersistsAutonomousSpatialFootprintAndHeight() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int root = entity(world, 1, -1, true, 0f, 0);
+        world.getMapper(PhysicsBodyComponent.class).create(root);
+        PhysicsShapeData footprint = manualShape(77, 2f);
+        footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        footprint.geometry.radius = 2f;
+        footprint.spatialFootprint = true;
+        world.getMapper(PhysicsShapesComponent.class).create(root).shapes.add(footprint);
+        SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(root);
+        height.altitude = 4f;
+        height.height = 6f;
+        world.process();
+
+        FileHandle file = new FileHandle(temp.getRoot()).child("spatial.gameobject");
+        new GameObjectAssetService(world).saveGameObject(file,
+                new EntityGraphCaptureService(world).captureForGameObject(
+                        new IntArray(new int[]{root})));
+
+        GameObjectAsset.GameObjectEntityData restored = new GameObjectAssetLoader().load(file).entities.get(0);
+        Assert.assertTrue(restored.physicsShapes.get(0).spatialFootprint);
+        Assert.assertEquals(4f, restored.spatialHeight.altitude, 0f);
+        Assert.assertEquals(6f, restored.spatialHeight.height, 0f);
+    }
+
+    @Test
     public void captureRejectsPhysicsJointEndpointOutsideTheHierarchy() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 1, -1, true, 0f, 0);
@@ -191,7 +218,7 @@ public class GameObjectAssetServiceTest {
             new GameObjectAssetService(world).saveGameObject(file, graph);
             Assert.fail("Expected Spatial-linked Physics rejection.");
         } catch (IllegalArgumentException expected) {
-            Assert.assertTrue(expected.getMessage().contains("Spatial-linked Physics shapes"));
+            Assert.assertTrue(expected.getMessage().contains("spatialBlockId > 0"));
         }
         Assert.assertFalse(file.exists());
     }

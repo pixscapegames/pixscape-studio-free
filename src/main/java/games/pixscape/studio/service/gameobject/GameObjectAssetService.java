@@ -866,10 +866,9 @@ public final class GameObjectAssetService {
             throw unsupported(entityId, "Physics joints");
         }
         requireNoSpatialLinkedPhysicsShapes(entityId);
-        if (world.getMapper(SpatialHeightComponent.class).has(entityId)
-                || world.getMapper(SpatialBlocksComponent.class).has(entityId)
+        if (world.getMapper(SpatialBlocksComponent.class).has(entityId)
                 || world.getMapper(SpatialShapesComponent.class).has(entityId)) {
-            throw unsupported(entityId, "Spatial");
+            throw unsupported(entityId, "Scene-local Spatial structures");
         }
     }
 
@@ -989,9 +988,9 @@ public final class GameObjectAssetService {
         if (shapes == null || shapes.shapes == null) return;
         for (int i = 0; i < shapes.shapes.size; i++) {
             PhysicsShapeData shape = shapes.shapes.get(i);
-            if (shape != null && (shape.spatialBlockId != 0 || shape.spatialFootprint)) {
+            if (shape != null && shape.spatialBlockId > 0) {
                 throw new IllegalArgumentException(
-                        "Game Object assets do not support Spatial-linked Physics shapes.");
+                        "Game Object assets cannot contain Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
             }
         }
     }

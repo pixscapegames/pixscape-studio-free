@@ -6,7 +6,6 @@ import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -47,11 +46,10 @@ public final class GameObjectHierarchyCommandSupport {
     static void requireSupportedMember(World world, int entityId) {
         if (world.getMapper(TiledLayerComponent.class).has(entityId)
                 || world.getMapper(ParticleEmitterComponent.class).has(entityId)
-                || world.getMapper(SpatialHeightComponent.class).has(entityId)
                 || world.getMapper(SpatialBlocksComponent.class).has(entityId)
                 || world.getMapper(SpatialShapesComponent.class).has(entityId)) {
             throw new IllegalArgumentException(
-                    "This entity type is not supported as a Game Object member in Runtime V1.");
+                    "Tiled and Scene-local Spatial structures are not supported as Game Object members.");
         }
     }
 
