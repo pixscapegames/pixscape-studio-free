@@ -1,7 +1,7 @@
 # Changelog
 
 
-## 0.2.4 - Universal Layers and Tiled Maps
+## 0.3.0 - Universal Layers and Tiled Maps
 
 ### Breaking changes
 
