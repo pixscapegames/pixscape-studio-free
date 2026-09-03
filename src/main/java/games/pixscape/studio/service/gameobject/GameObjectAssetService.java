@@ -155,6 +155,24 @@ public final class GameObjectAssetService {
         return loader.load(file);
     }
 
+    /**
+     * Returns whether this authored hierarchy contains state that can only exist on a
+     * Spatial-enabled Layer. The check deliberately walks every asset member: Game
+     * Object nesting is an authoring hierarchy, not a Spatial aggregate.
+     */
+    public boolean requiresSpatialLayer(GameObjectAsset asset) {
+        if (asset == null || asset.entities == null) return false;
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity == null) continue;
+            if (entity.spatialHeight != null) return true;
+            if (entity.physicsShapes == null) continue;
+            for (GameObjectAsset.PhysicsShapeData shape : entity.physicsShapes) {
+                if (shape != null && shape.spatialFootprint) return true;
+            }
+        }
+        return false;
+    }
+
     /** Compatibility preflight for callers that specifically require a wrapping conversion. */
     public boolean canConvertSelectionToGameObject(IntArray selection) {
         return classifySelection(selection).mode == SelectionMode.CONVERT_SELECTION;

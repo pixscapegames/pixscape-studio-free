@@ -25,6 +25,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
@@ -855,10 +856,36 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int activeLayerId = selectionService.getActivelayerId();
         if (activeLayerId < 0) return DropAllowedResult.forbidden();
 
-        return isAssetPayloadAllowedForEditingContext(
+        if (!isAssetPayloadAllowedForEditingContext(
                 layerService.isLayerEntity(activeLayerId),
-                selectionService.isTiledMapEditingTargetActive(), p.type)
-                ? DropAllowedResult.allowed() : DropAllowedResult.forbidden();
+                selectionService.isTiledMapEditingTargetActive(), p.type)) {
+            return DropAllowedResult.forbidden();
+        }
+        if (!"gameObject".equals(p.type)) return DropAllowedResult.allowed();
+
+        LayerComponent targetLayer = world.getMapper(LayerComponent.class)
+                .getSafe(activeLayerId, null);
+        if (targetLayer == null) return DropAllowedResult.forbidden();
+        GameObjectAsset asset = loadGameObjectAssetForDropValidation(p);
+        if (asset == null || !isGameObjectAssetAllowedForLayer(
+                LayerService.isSpatialActorLayer(targetLayer),
+                gameObjectAssetService.requiresSpatialLayer(asset))) {
+            return DropAllowedResult.forbidden();
+        }
+        return DropAllowedResult.allowed();
+    }
+
+    private GameObjectAsset loadGameObjectAssetForDropValidation(DragPayload payload) {
+        if (gameObjectAssetService == null || payload.path == null || payload.path.trim().isEmpty()) {
+            return null;
+        }
+        FileHandle file = Gdx.files.absolute(payload.path);
+        if (!file.exists()) return null;
+        try {
+            return gameObjectAssetService.loadGameObjectAsset(file);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     /** Layer capability and explicit Map editing target are independent axes. */
@@ -868,6 +895,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 || "tiled-animation".equals(payloadType);
         if (tilePayload) return tiledMapTargetActive;
         return layerTarget;
+    }
+
+    static boolean isGameObjectAssetAllowedForLayer(
+            boolean spatialLayer, boolean assetRequiresSpatialLayer) {
+        return spatialLayer || !assetRequiresSpatialLayer;
     }
 
     private void cleanupDndPayload(DragPayload p) {

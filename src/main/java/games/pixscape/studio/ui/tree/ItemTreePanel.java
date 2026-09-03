@@ -533,6 +533,8 @@ public class ItemTreePanel extends DockablePanel {
                     if (node.isLayerNode()) {
                         showLayerContextMenu(
                                 node.getEntityId(), selectedAsset, stage, stageX, stageY);
+                    } else if (node.isTiledMapNode()) {
+                        showTiledMapContextMenu(node.getEntityId(), stage, stageX, stageY);
                     } else {
                         showGameObjectContextMenu(
                                 node.getEntityId(), selectedAsset, stage, stageX, stageY);
@@ -543,6 +545,7 @@ public class ItemTreePanel extends DockablePanel {
     private boolean supportsContextMenu(EntityNode node) {
         if (node == null) return false;
         if (node.isLayerNode()) return layerService.isLayerEntity(node.getEntityId());
+        if (node.isTiledMapNode()) return mTiled.has(node.getEntityId());
         return node.isEntityNode() && mGameObject.has(node.getEntityId());
     }
 
@@ -552,8 +555,18 @@ public class ItemTreePanel extends DockablePanel {
                     node.getEntityId(), SelectionService.SelectionSource.TREE);
             return;
         }
+        if (node.isTiledMapNode()) {
+            handleTiledMapNodeSelection(node);
+            return;
+        }
         activateLayerForEntity(node.getEntityId(), SelectionService.SelectionSource.TREE);
         selectionService.selectOnly(node.getEntityId(), SelectionService.SelectionSource.TREE);
+    }
+
+    private void showTiledMapContextMenu(
+            int mapEntityId, Stage stage, float stageX, float stageY) {
+        PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteTiledMap(mapEntityId));
+        menu.showMenu(stage, stageX, stageY);
     }
 
     private void showLayerContextMenu(
@@ -713,6 +726,24 @@ public class ItemTreePanel extends DockablePanel {
         void addPointLight();
         void addConeLight();
         void addGameObject();
+    }
+
+    interface TiledMapMenuActions {
+        void deleteMap();
+    }
+
+    static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions) {
+        PopupMenu menu = new PopupMenu();
+        MenuItem deleteMap = new MenuItem("Delete map");
+        deleteMap.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.deleteMap();
+                event.handle();
+            }
+        });
+        menu.addItem(deleteMap);
+        return menu;
     }
 
     static PopupMenu buildGameObjectAddMenu(

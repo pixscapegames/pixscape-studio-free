@@ -123,6 +123,16 @@ public final class ClipboardService {
         if (destination == null) {
             return false;
         }
+        if (!graphInstantiationService.isClipboardInstantiationAllowed(
+                graph, destination.targetLayer())) {
+            if (Gdx.app != null) {
+                Gdx.app.error(
+                        "Clipboard",
+                        "Cannot paste a Game Object hierarchy containing Spatial actor data "
+                                + "onto a non-Spatial Layer.");
+            }
+            return false;
+        }
         float dx = (pasteCount + 1) * PASTE_STEP_X;
         float dy = (pasteCount + 1) * PASTE_STEP_Y;
 

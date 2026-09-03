@@ -139,6 +139,23 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
+    public void requiresSpatialLayerScansEveryGameObjectMemberAndKeepsPhysicsOnlyAssetsValid() {
+        World world = new World(new WorldConfiguration());
+        GameObjectAssetService service = new GameObjectAssetService(world);
+        GameObjectAsset asset = physicalHierarchyAsset();
+
+        Assert.assertFalse(service.requiresSpatialLayer(asset));
+
+        GameObjectAsset.GameObjectEntityData nested = asset.entities.get(1);
+        nested.spatialHeight = new GameObjectAsset.SpatialHeightData();
+        Assert.assertTrue(service.requiresSpatialLayer(asset));
+
+        nested.spatialHeight = null;
+        nested.physicsShapes.get(0).spatialFootprint = true;
+        Assert.assertTrue(service.requiresSpatialLayer(asset));
+    }
+
+    @Test
     public void captureRejectsPhysicsJointEndpointOutsideTheHierarchy() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 1, -1, true, 0f, 0);

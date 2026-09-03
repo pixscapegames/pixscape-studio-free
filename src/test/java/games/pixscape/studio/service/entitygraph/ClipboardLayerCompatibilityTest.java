@@ -6,6 +6,9 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
@@ -223,6 +226,50 @@ public class ClipboardLayerCompatibilityTest {
                 world.getMapper(PhysicsShapesComponent.class).get(restored)));
     }
 
+    @Test
+    public void gameObjectHierarchyWithNestedSpatialActorIsRejectedBeforeMutationOnOrdinaryLayer() {
+        sceneMeta.nextEntityStableId = 1_000;
+        int root = gameObject(100, -1);
+        int nested = gameObject(200, 100);
+        world.getMapper(SpatialHeightComponent.class).create(nested).height = 2f;
+        world.process();
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .captureGameObjectClipboard(new IntArray(new int[]{root}));
+        int activeBefore = activeEntityCount();
+        int nextStableBefore = sceneMeta.nextEntityStableId;
+
+        Assert.assertFalse(service.isClipboardInstantiationAllowed(
+                graph, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL));
+        EntityGraphInstantiationResult rejected = paste(
+                graph, 6, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
+
+        Assert.assertEquals(0, rejected.createdIds().size);
+        Assert.assertEquals(activeBefore, activeEntityCount());
+        Assert.assertEquals(nextStableBefore, sceneMeta.nextEntityStableId);
+        Assert.assertFalse(history.canUndo());
+
+        EntityGraphInstantiationResult accepted = paste(
+                graph, 6, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
+        Assert.assertEquals(2, accepted.createdIds().size);
+        int pastedNested = accepted.sourceToCreated().get(2, -1);
+        Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(pastedNested));
+    }
+
+    @Test
+    public void gameObjectHierarchyWithAutonomousFootprintIsRejectedOnOrdinaryLayer() {
+        sceneMeta.nextEntityStableId = 1_000;
+        int root = gameObject(100, -1);
+        int member = gameObject(200, 100);
+        PhysicsShapeData footprint = shape(true);
+        world.getMapper(PhysicsShapesComponent.class).create(member).shapes.add(footprint);
+        world.process();
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .captureGameObjectClipboard(new IntArray(new int[]{root}));
+
+        Assert.assertFalse(service.isClipboardInstantiationAllowed(
+                graph, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL));
+    }
+
     private EntityGraph capture(int... entities) {
         return new EntityGraphCaptureService(world).capture(new IntArray(entities));
     }
@@ -239,6 +286,21 @@ public class ClipboardLayerCompatibilityTest {
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
         height.altitude = 3.5f;
         height.height = 2.25f;
+        return entity;
+    }
+
+    private int gameObject(int stableId, int parentStableId) {
+        int entity = world.create();
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+        world.getMapper(EntityIndexComponent.class).create(entity);
+        world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;
+        world.getMapper(GameObjectComponent.class).create(entity);
+        if (parentStableId > 0) {
+            world.getMapper(GameObjectMemberComponent.class).create(entity)
+                    .parentStableId = parentStableId;
+        }
         return entity;
     }
 
@@ -295,6 +357,10 @@ public class ClipboardLayerCompatibilityTest {
             }
         }
         return found;
+    }
+
+    private int activeEntityCount() {
+        return world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size();
     }
 
     private int count(Class<? extends com.artemis.Component> component) {

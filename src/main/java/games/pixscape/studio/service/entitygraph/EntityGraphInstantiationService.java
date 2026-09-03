@@ -88,7 +88,25 @@ public final class EntityGraphInstantiationService {
         if (targetLayer == null) {
             throw new IllegalArgumentException("targetLayer must not be null.");
         }
+        if (!isClipboardInstantiationAllowed(graph, targetLayer)) {
+            return EntityGraphInstantiationResult.empty();
+        }
         return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
+    }
+
+    /**
+     * Clipboard may normalize Spatial state only for standalone entities. A Game
+     * Object hierarchy carrying authored Spatial actor state must instead be pasted
+     * onto a Spatial-enabled Layer intact, or be rejected before any Scene mutation.
+     */
+    public boolean isClipboardInstantiationAllowed(
+            EntityGraph graph, ClipboardTargetLayer targetLayer) {
+        return graph != null
+                && !graph.isEmpty()
+                && targetLayer != null
+                && isInstantiationAllowed(graph)
+                && (targetLayer != ClipboardTargetLayer.NON_SPATIAL
+                || !gameObjectHierarchyRequiresSpatialLayer(graph));
     }
 
     public boolean isInstantiationAllowed(EntityGraph graph) {
@@ -229,6 +247,20 @@ public final class EntityGraphInstantiationService {
         }
         validateGameObjectHierarchyPhysics(orderedEntries, snapshots);
         return prepared;
+    }
+
+    private static boolean gameObjectHierarchyRequiresSpatialLayer(EntityGraph graph) {
+        for (EntityGraphEntry entry : graph.entries()) {
+            if (!entry.gameObjectRoot() && entry.parentSourceEntityId() == -1) continue;
+            GenericEntitySnapshotData snapshot = entry.initializer()
+                    .toSnapshotData(entry.sourceEntityId());
+            if (snapshot.hasSpatialHeight) return true;
+            if (snapshot.shapes == null) continue;
+            for (PhysicsShapeData shape : snapshot.shapes) {
+                if (shape != null && shape.spatialFootprint) return true;
+            }
+        }
+        return false;
     }
 
     private IntIntMap prepareStableIdentities(List<PreparedEntity> preparedEntities) {
