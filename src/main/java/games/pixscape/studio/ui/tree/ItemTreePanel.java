@@ -564,7 +564,7 @@ public class ItemTreePanel extends DockablePanel {
             float stageY) {
                 PopupMenu addMenu = new PopupMenu();
 
-                MenuItem addSprite = new MenuItem("Sprite");
+                MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
                 addSprite.setDisabled(!isSpriteAsset(selectedAsset));
                 addSprite.addListener(new ClickListener() {
                     @Override
@@ -580,7 +580,7 @@ public class ItemTreePanel extends DockablePanel {
                 });
                 addMenu.addItem(addSprite);
 
-                MenuItem addAnimation = new MenuItem("Animation");
+                MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
                 addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
                 addAnimation.addListener(new ClickListener() {
                     @Override
@@ -720,7 +720,7 @@ public class ItemTreePanel extends DockablePanel {
             GameObjectChildMenuActions actions) {
         PopupMenu addMenu = new PopupMenu();
 
-        MenuItem addSprite = new MenuItem("Sprite");
+        MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
         addSprite.setDisabled(!isSpriteAsset(selectedAsset));
         addSprite.addListener(new ClickListener() {
             @Override
@@ -731,7 +731,7 @@ public class ItemTreePanel extends DockablePanel {
         });
         addMenu.addItem(addSprite);
 
-        MenuItem addAnimation = new MenuItem("Animation");
+        MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
         addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
         addAnimation.addListener(new ClickListener() {
             @Override
@@ -792,6 +792,20 @@ public class ItemTreePanel extends DockablePanel {
         return node != null
                 && node.kind == AssetNode.Kind.ANIMATION
                 && node.root == AssetNode.Root.ANIMATIONS;
+    }
+
+    static String addAssetActionLabel(String assetKind, AssetNode selectedAsset) {
+        String displayName = selectedAsset != null ? selectedAsset.name : null;
+        if (displayName == null || displayName.isBlank()) {
+            String path = selectedAsset != null ? selectedAsset.path : null;
+            if (path != null && !path.isBlank()) {
+                int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+                displayName = slash >= 0 ? path.substring(slash + 1) : path;
+            }
+        }
+        return displayName == null || displayName.isBlank()
+                ? "Add " + assetKind
+                : "Add " + assetKind + " \"" + displayName + "\"";
     }
 
     private EntityNode createTiledMapNode(int mapEntityId, boolean layerLocked) {
