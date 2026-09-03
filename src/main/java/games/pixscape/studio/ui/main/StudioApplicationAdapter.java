@@ -23,6 +23,7 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.display.DisplayMetrics;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.CursorDrawHelper;
 import games.pixscape.studio.helper.ShapeHelper;
@@ -61,6 +62,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private AnimationAssetAuthoringService animationAssetAuthoringService;
     private ShapeDrawer drawer;
     private boolean previewActive = false;
+    private final DisplayMetrics displayMetrics = new DisplayMetrics();
+    private boolean displayMetricsInitialized;
 
     private VisTable root;
 
@@ -72,6 +75,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         StudioLogCapture.install();
         StudioLogLevel.applyCurrentToGdx();
         StudioHomeBootstrap.ensureExists();
+        refreshDisplayMetrics();
 
         Skin skin = new Skin(Gdx.files.internal("assets/ui/skin/uiskin.json"));
         VisUI.load(skin);
@@ -397,9 +401,38 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
+        refreshDisplayMetrics();
         uiStage.getViewport().update(width, height, true);
         root.invalidateHierarchy();
         canvas.resize(width, height);
+    }
+
+    private void refreshDisplayMetrics() {
+        float previousScaleX = displayMetrics.scaleX();
+        float previousScaleY = displayMetrics.scaleY();
+        displayMetrics.update(
+                Gdx.graphics.getWidth(),
+                Gdx.graphics.getHeight(),
+                Gdx.graphics.getBackBufferWidth(),
+                Gdx.graphics.getBackBufferHeight()
+        );
+
+        boolean scaleChanged = Math.abs(displayMetrics.scaleX() - previousScaleX) > 0.0001f
+                || Math.abs(displayMetrics.scaleY() - previousScaleY) > 0.0001f;
+        if (!displayMetricsInitialized || scaleChanged) {
+            displayMetricsInitialized = true;
+            Gdx.app.log("StudioDisplay", String.format(
+                    java.util.Locale.ROOT,
+                    "logical=%dx%d framebuffer=%dx%d scale=%.2fx%.2f HiDPI=%s",
+                    displayMetrics.logicalWidth(),
+                    displayMetrics.logicalHeight(),
+                    displayMetrics.framebufferWidth(),
+                    displayMetrics.framebufferHeight(),
+                    displayMetrics.scaleX(),
+                    displayMetrics.scaleY(),
+                    displayMetrics.isHiDpi() ? "yes" : "no"
+            ));
+        }
     }
 
 

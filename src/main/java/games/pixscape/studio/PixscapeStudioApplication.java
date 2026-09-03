@@ -2,6 +2,7 @@ package games.pixscape.studio;
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.badlogic.gdx.graphics.glutils.HdpiMode;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.ui.crash.CrashDialog;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
@@ -38,6 +39,7 @@ public class PixscapeStudioApplication {
         configuration.setTitle(STUDIO_TITLE);
         configuration.setWindowIcon(PIXSCAPE_ICON);
         configuration.setWindowedMode(EDITOR_WIDTH, EDITOR_HEIGHT);
+        configuration.setHdpiMode(HdpiMode.Logical);
         configuration.setOpenGLEmulation(GL32, 3, 2);
         configuration.useVsync(true);
 
