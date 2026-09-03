@@ -605,7 +605,7 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(createGameObject);
 
-        MenuItem delete = new MenuItem("Delete");
+        MenuItem delete = new MenuItem(selectedMap >= 0 ? "Delete Tiled Map" : "Delete");
         delete.setDisabled(!hasDeletableTarget);
         delete.addListener(new ClickListener() {
             @Override

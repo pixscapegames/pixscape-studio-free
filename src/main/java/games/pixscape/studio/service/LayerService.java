@@ -130,6 +130,7 @@ public final class LayerService {
             identityRegistry.ensureStableId(mapEntityId);
             if (historyId > 0L) historyIds.bind(mapEntityId, historyId);
             else historyIds.ensureForEntity(mapEntityId);
+            EventFlow.i().publish(new EventFlow.TiledMapContentChanged(mapEntityId, MY_TAG));
             return mapEntityId;
         } catch (RuntimeException failure) {
             TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
@@ -149,6 +150,7 @@ public final class LayerService {
         IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
         historyIds.unbindEntity(mapEntityId);
         world.delete(mapEntityId);
+        EventFlow.i().publish(new EventFlow.TiledMapContentChanged(mapEntityId, MY_TAG));
     }
 
     void rebuildFromWorld() {
@@ -645,6 +647,29 @@ public final class LayerService {
     }
 
     /**
+     * Returns the Tiled Map content currently owned by one Layer for editor display.
+     * This is a cold UI rebuild query; map ownership itself remains EntityIndexComponent.
+     */
+    public Array<TiledMapUI> getTiledMapUIs(int layerEntityId) {
+        int layerIndex = indexOfLayerEntity(layerEntityId);
+        Array<TiledMapUI> maps = new Array<TiledMapUI>();
+        if (layerIndex < 0) return maps;
+        IntBag entities = world.getAspectSubscriptionManager().get(
+                Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entityId = entities.get(i);
+            EntityIndexComponent index = mEntityIndex.get(entityId);
+            if (index.layerIndex != layerIndex) continue;
+            TiledLayerComponent tiled = mTiled.get(entityId);
+            maps.add(new TiledMapUI(entityId, index.zIndex, tiled.projection,
+                    tiled.mapWidthCells, tiled.mapHeightCells));
+        }
+        maps.sort(Comparator.comparingInt(TiledMapUI::zIndex)
+                .thenComparingInt(TiledMapUI::mapEntityId));
+        return maps;
+    }
+
+    /**
      * Returns the readable layer name from its entityId.
      * If there is no explicit name, returns "Layer X" with its logical index.
      */
@@ -698,6 +723,11 @@ public final class LayerService {
 
     public record LayerUI(int layerEntityId, String name, String description, int index,
                           boolean spatialEnabled, boolean visible, boolean locked) {
+    }
+
+    public record TiledMapUI(int mapEntityId, int zIndex,
+                             games.pixscape.runtime.tiled.TiledProjection projection,
+                             int widthCells, int heightCells) {
     }
 
     public record TiledMapSnapshot(long historyId, TiledMapInitializer initializer) {}

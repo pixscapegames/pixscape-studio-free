@@ -568,14 +568,15 @@ public class EditorOpsImpl implements EditorOps {
     @Override
     public void deleteTiledMap(int mapEntityId) {
         if (mapEntityId < 0 || !world.getMapper(TiledLayerComponent.class).has(mapEntityId)) return;
+        int previousTarget = selectionService.getTiledMapEditingTargetEntityId();
         historyManager.execute(new DeleteTiledMapCommand(
                 canvas.getLayerService(), mapEntityId,
                 restoredMapEntityId -> {
                     selectionService.clearSelection();
-                    if (restoredMapEntityId >= 0) {
+                    if (restoredMapEntityId >= 0 && previousTarget == mapEntityId) {
                         selectionService.setTiledMapEditingTarget(
                                 restoredMapEntityId, SelectionService.SelectionSource.TREE);
-                    } else {
+                    } else if (previousTarget == mapEntityId) {
                         selectionService.clearTiledMapEditingTarget();
                     }
                 }));

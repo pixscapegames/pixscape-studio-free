@@ -20,6 +20,7 @@ import games.pixscape.studio.history.commands.DeleteLayerCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.LayerService.LayerUI;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
@@ -35,6 +36,7 @@ public class LayersPanel extends DockablePanel {
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
     private final Runnable markCurrentSceneSaveRequired;
+    private final EditorOps editorOps;
 
     private final VisTable listTable;
     private final VisScrollPane scroller;
@@ -61,6 +63,7 @@ public class LayersPanel extends DockablePanel {
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
         this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
+        this.editorOps = canvas.getEditorOps();
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
 
@@ -106,6 +109,8 @@ public class LayersPanel extends DockablePanel {
             if (evt.sourceTag() == MY_TAG) return;
             markDirty();
         });
+        EventFlow.i().subscribe(EventFlow.TiledMapContentChanged.class, evt -> markDirty());
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> markDirty());
     }
 
     private void buildUI() {
@@ -357,6 +362,31 @@ public class LayersPanel extends DockablePanel {
             });
 
             listTable.add(row).growX().padBottom(2).row();
+
+            Array<LayerService.TiledMapUI> maps = layerService.getTiledMapUIs(ui.layerEntityId());
+            int activeMapId = selectionService != null
+                    ? selectionService.getTiledMapEditingTargetEntityId() : -1;
+            for (LayerService.TiledMapUI map : maps) {
+                TiledMapRow mapRow = new TiledMapRow();
+                String mapLabel = "Tiled Map (" + map.projection() + ", "
+                        + map.widthCells() + " × " + map.heightCells() + ")";
+                mapRow.setData(map.mapEntityId(), mapLabel, map.mapEntityId() == activeMapId,
+                        new TiledMapRow.Listener() {
+                            @Override public void onMapSelected(int mapEntityId) {
+                                focusSelectedRowOnReload = false;
+                                selectionService.clearSelection();
+                                physicsSelectionService.clear();
+                                selectionService.setTiledMapEditingTarget(
+                                        mapEntityId, SelectionService.SelectionSource.TREE);
+                            }
+
+                            @Override public void onMapDeleteRequested(int mapEntityId) {
+                                editorOps.deleteTiledMap(mapEntityId);
+                                markDirty();
+                            }
+                        });
+                listTable.add(mapRow).growX().padBottom(2).row();
+            }
         }
 
         listTable.invalidateHierarchy();

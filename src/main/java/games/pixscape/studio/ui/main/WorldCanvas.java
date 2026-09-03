@@ -1016,7 +1016,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                             return true;
                         }
 
-                        // 4) otherwise entity deletion
+                        // 4) an explicit active map is deleted as a map, never as its Layer.
+                        int activeMapEid = selectionService.getTiledMapEditingTargetEntityId();
+                        if (activeMapEid >= 0) {
+                            editorOps.deleteTiledMap(activeMapEid);
+                            return true;
+                        }
+
+                        // 5) otherwise entity deletion
                         IntArray sel = selectionService.getSelectionSnapshot();
                         if (sel.size > 0) {
                             editorOps.deleteEntities(sel);

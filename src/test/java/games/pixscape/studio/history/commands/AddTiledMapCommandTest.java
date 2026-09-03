@@ -150,6 +150,25 @@ public class AddTiledMapCommandTest {
     }
 
     @Test
+    public void layerMapRowsExposeOnlyTheirOwnedSiblingMapsInCompositionOrder() {
+        AtomicInteger selected = new AtomicInteger(-1);
+        command(8, 8, TiledProjection.ORTHO, 16, 16, selected).redo();
+        int first = selected.get();
+        command(9, 7, TiledProjection.ISO, 32, 16, selected).redo();
+        int second = selected.get();
+        world.getMapper(EntityIndexComponent.class).get(first).zIndex = 4;
+        world.getMapper(EntityIndexComponent.class).get(second).zIndex = 9;
+
+        com.badlogic.gdx.utils.Array<LayerService.TiledMapUI> maps =
+                layers.getTiledMapUIs(layerEntity);
+
+        assertEquals(2, maps.size);
+        assertEquals(first, maps.get(0).mapEntityId());
+        assertEquals(second, maps.get(1).mapEntityId());
+        assertEquals(TiledProjection.ISO, maps.get(1).projection());
+    }
+
+    @Test
     public void dedicatedDeleteUndoRedoDeeplyPreservesCustomPropertiesAndMapState() {
         AtomicInteger selected = new AtomicInteger(-1);
         command(7, 5, TiledProjection.ISO, 24, 12, selected).redo();

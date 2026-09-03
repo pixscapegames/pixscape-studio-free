@@ -52,6 +52,13 @@ public final class EventFlow {
     ) {
     }
 
+    /** Published after one authored Tiled Map is inserted or removed. */
+    public record TiledMapContentChanged(
+            int mapEntityId,
+            int sourceTag
+    ) {
+    }
+
     /**
      * Active (current) layer changed.
      */
