@@ -45,6 +45,20 @@ public final class EventFlow {
     ) {
     }
 
+    /** Transient Studio target used by Tiled and map-owned Spatial/Physics tools. */
+    public record TiledMapEditingTargetChanged(
+            int mapEntityId,
+            int sourceTag
+    ) {
+    }
+
+    /** Published after one authored Tiled Map is inserted or removed. */
+    public record TiledMapContentChanged(
+            int mapEntityId,
+            int sourceTag
+    ) {
+    }
+
     /**
      * Active (current) layer changed.
      */
@@ -210,7 +224,7 @@ public final class EventFlow {
     }
 
     public record SpatialBlockSelectionChanged(
-            int layerEntityId,
+            int mapEntityId,
             int blockId,
             int sourceTag
     ) {
@@ -332,7 +346,7 @@ public final class EventFlow {
     ) {
     }
 
-    public record PrefabsChanged(
+    public record GameObjectsChanged(
             int sourceTag
     ) {
     }

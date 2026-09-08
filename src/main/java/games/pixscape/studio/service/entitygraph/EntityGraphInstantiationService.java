@@ -9,32 +9,30 @@ import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.CompositeCommand;
 import games.pixscape.studio.history.commands.CreateEntityCommand;
-import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
-import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
+import games.pixscape.studio.service.property.PropertyReferenceMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
 public final class EntityGraphInstantiationService {
     public enum ClipboardTargetLayer {
-        NON_PHYSICS(false, false),
-        PHYSICS(true, false),
-        SPATIAL_PHYSICS(true, true);
+        NON_SPATIAL(false),
+        SPATIAL_ENABLED(true);
 
         final boolean spatialEnabled;
-        final boolean physicsEnabled;
 
-        ClipboardTargetLayer(boolean physicsEnabled, boolean spatialEnabled) {
-            this.physicsEnabled = physicsEnabled;
+        ClipboardTargetLayer(boolean spatialEnabled) {
             this.spatialEnabled = spatialEnabled;
         }
     }
@@ -43,23 +41,31 @@ public final class EntityGraphInstantiationService {
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
     private final PhysicsService physicsService;
+    private final BooleanSupplier scenePhysicsEnabled;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final IntConsumer onCreatedEntity;
 
     public EntityGraphInstantiationService(
             World world, HistoryManager historyManager,
-            IdentityRegistry identityRegistry, PhysicsService physicsService) {
-        this(world, historyManager, identityRegistry, physicsService, null);
+            IdentityRegistry identityRegistry, PhysicsService physicsService,
+            BooleanSupplier scenePhysicsEnabled) {
+        this(world, historyManager, identityRegistry, physicsService,
+                scenePhysicsEnabled, null);
     }
 
     public EntityGraphInstantiationService(
             World world, HistoryManager historyManager,
             IdentityRegistry identityRegistry, PhysicsService physicsService,
+            BooleanSupplier scenePhysicsEnabled,
             IntConsumer onCreatedEntity) {
         this.world = world;
         this.historyManager = historyManager;
         this.identityRegistry = identityRegistry;
         this.physicsService = physicsService;
+        if (scenePhysicsEnabled == null) {
+            throw new IllegalArgumentException("scenePhysicsEnabled must not be null.");
+        }
+        this.scenePhysicsEnabled = scenePhysicsEnabled;
         this.onCreatedEntity = onCreatedEntity;
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
     }
@@ -69,26 +75,7 @@ public final class EntityGraphInstantiationService {
                                                       float dx,
                                                       float dy,
                                                       String commandName) {
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null, -1, null);
-    }
-
-    public EntityGraphInstantiationResult instantiatePrefab(
-            EntityGraph graph,
-            int activeLayerIndex,
-            float dx,
-            float dy,
-            String commandName,
-            int prefabInstanceId,
-            String prefabId) {
-        if (prefabInstanceId <= 0) {
-            throw new IllegalArgumentException("Prefab instance ID must be positive.");
-        }
-        if (prefabId == null || prefabId.isBlank()) {
-            throw new IllegalArgumentException("Prefab ID must not be blank.");
-        }
-        return instantiate(
-                graph, activeLayerIndex, dx, dy, commandName,
-                null, prefabInstanceId, prefabId);
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, null);
     }
 
     public EntityGraphInstantiationResult instantiateForClipboard(
@@ -101,7 +88,30 @@ public final class EntityGraphInstantiationService {
         if (targetLayer == null) {
             throw new IllegalArgumentException("targetLayer must not be null.");
         }
-        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer, -1, null);
+        if (!isClipboardInstantiationAllowed(graph, targetLayer)) {
+            return EntityGraphInstantiationResult.empty();
+        }
+        return instantiate(graph, activeLayerIndex, dx, dy, commandName, targetLayer);
+    }
+
+    /**
+     * Clipboard may normalize Spatial state only for standalone entities. A Game
+     * Object hierarchy carrying authored Spatial actor state must instead be pasted
+     * onto a Spatial-enabled Layer intact, or be rejected before any Scene mutation.
+     */
+    public boolean isClipboardInstantiationAllowed(
+            EntityGraph graph, ClipboardTargetLayer targetLayer) {
+        return graph != null
+                && !graph.isEmpty()
+                && targetLayer != null
+                && isInstantiationAllowed(graph)
+                && (targetLayer != ClipboardTargetLayer.NON_SPATIAL
+                || !gameObjectHierarchyRequiresSpatialLayer(graph));
+    }
+
+    public boolean isInstantiationAllowed(EntityGraph graph) {
+        return scenePhysicsEnabled.getAsBoolean()
+                || !EntityGraphPhysicsSupport.containsAuthoredPhysics(graph);
     }
 
     private EntityGraphInstantiationResult instantiate(
@@ -110,68 +120,93 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             String commandName,
-            ClipboardTargetLayer clipboardTargetLayer,
-            int prefabInstanceId,
-            String prefabId) {
+            ClipboardTargetLayer clipboardTargetLayer) {
         if (graph == null || graph.isEmpty()) {
             return EntityGraphInstantiationResult.empty();
         }
+        if (!isInstantiationAllowed(graph)) {
+            return EntityGraphInstantiationResult.empty();
+        }
 
-        IntArray createdIds = new IntArray();
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
-                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer,
-                prefabInstanceId, prefabId);
-        if (clipboardTargetLayer == ClipboardTargetLayer.PHYSICS) {
+                graph, activeLayerIndex, dx, dy, snapshots, clipboardTargetLayer);
+        if (clipboardTargetLayer == ClipboardTargetLayer.NON_SPATIAL) {
             pruneJointsWithNormalizedEndpoints(preparedEntities, snapshots);
         }
-        prepareJointRemaps(snapshots);
         finalizePreparedEntities(preparedEntities, snapshots);
         List<PreparedJointRemap> preparedJointRemaps =
                 prepareJointRemaps(snapshots);
+        IntIntMap sourceToStable = prepareStableIdentities(preparedEntities);
         for (PreparedEntity prepared : preparedEntities) {
-            prepared.initializer.setIdentityStableId(identityRegistry.allocateStableId());
+            prepared.initializer.setIdentityStableId(
+                    sourceToStable.get(prepared.sourceEntityId, -1));
         }
+        IntArray createdIds = fixedSlots(preparedEntities.size());
+        IntArray createdRootIds = fixedSlots(rootCount(preparedEntities));
         List<Command> commands = new ArrayList<>();
-        for (PreparedEntity prepared : preparedEntities) {
+        int rootSlot = 0;
+        for (int entitySlot = 0; entitySlot < preparedEntities.size(); entitySlot++) {
+            PreparedEntity prepared = preparedEntities.get(entitySlot);
+            int resultEntitySlot = entitySlot;
+            int parentStableId = prepared.parentSourceEntityId == -1
+                    ? -1 : sourceToStable.get(prepared.parentSourceEntityId, -1);
+            EntityGraphHierarchyInitializer initializer =
+                    new EntityGraphHierarchyInitializer(
+                            world,
+                            prepared.initializer,
+                            prepared.gameObjectRoot,
+                            prepared.gameObjectSourceAssetId,
+                            parentStableId,
+                            remapProperties(prepared.customProperties, sourceToStable));
+            // Standalone joint records are graph implementation details, not clipboard roots.
+            // Selecting them after paste is misleading and makes a Game Object paste appear
+            // to have an extra root.
+            boolean resultRoot = prepared.parentSourceEntityId == -1
+                    && !snapshots.get(prepared.sourceEntityId).hasJoint;
+            int resultRootSlot = resultRoot ? rootSlot++ : -1;
             CreateEntityCommand cmd = new CreateEntityCommand(
                     world,
                     historyManager.historyIds(),
-                    prepared.initializer,
+                    initializer,
                     createdEntityId -> {
-                        createdIds.add(createdEntityId);
+                        createdIds.set(resultEntitySlot, createdEntityId);
                         sourceToCreated.put(prepared.sourceEntityId, createdEntityId);
+                        if (resultRootSlot >= 0) {
+                            createdRootIds.set(resultRootSlot, createdEntityId);
+                        }
                         if (onCreatedEntity != null) {
                             onCreatedEntity.accept(createdEntityId);
                         }
-                    });
+                    }, historyManager.historyIds().allocateHistoryId());
             commands.add(cmd);
         }
 
         if (commands.isEmpty()) return EntityGraphInstantiationResult.empty();
         commands.add(new ApplyPreparedJointRemapsCommand(
                 preparedJointRemaps, sourceToCreated));
-        if (prefabInstanceId > 0) {
-            commands.add(ReorderLogicalLayerCommand.normalizeAfterCreation(
-                    world,
-                    historyManager.historyIds(),
-                    activeLayerIndex,
-                    new LayerLogicalOrderService(world),
-                    () -> currentCreatedEntityIds(sourceToCreated)));
-        }
         String label = isBlank(commandName) ? "Instantiate Entity Graph" : commandName;
         historyManager.execute(new CompositeCommand(label, commands));
 
-        return new EntityGraphInstantiationResult(createdIds, sourceToCreated);
+        return new EntityGraphInstantiationResult(createdIds, sourceToCreated, createdRootIds);
     }
 
-    private static IntArray currentCreatedEntityIds(IntIntMap sourceToCreated) {
-        IntArray entityIds = new IntArray(false, sourceToCreated.size);
-        for (IntIntMap.Entry entry : sourceToCreated) {
-            entityIds.add(entry.value);
+    private static IntArray fixedSlots(int count) {
+        IntArray result = new IntArray(false, count);
+        for (int i = 0; i < count; i++) result.add(-1);
+        return result;
+    }
+
+    private static int rootCount(List<PreparedEntity> preparedEntities) {
+        int count = 0;
+        for (PreparedEntity prepared : preparedEntities) {
+            if (prepared.parentSourceEntityId == -1
+                    && !prepared.initializer.toSnapshotData(prepared.sourceEntityId).hasJoint) {
+                count++;
+            }
         }
-        return entityIds;
+        return count;
     }
 
     private List<PreparedEntity> prepareEntities(
@@ -180,11 +215,10 @@ public final class EntityGraphInstantiationService {
             float dx,
             float dy,
             IntMap<GenericEntitySnapshotData> snapshots,
-            ClipboardTargetLayer clipboardTargetLayer,
-            int prefabInstanceId,
-            String prefabId) {
-        List<PreparedEntity> prepared = new ArrayList<>();
-        for (EntityGraphEntry entry : graph.entries()) {
+            ClipboardTargetLayer clipboardTargetLayer) {
+        List<EntityGraphEntry> orderedEntries = validateAndOrderHierarchy(graph);
+        List<PreparedEntity> prepared = new ArrayList<>(orderedEntries.size());
+        for (EntityGraphEntry entry : orderedEntries) {
             int sourceEntityId = entry.sourceEntityId();
             if (snapshots.containsKey(sourceEntityId)) {
                 throw new IllegalArgumentException(
@@ -192,27 +226,59 @@ public final class EntityGraphInstantiationService {
                                 + sourceEntityId + ".");
             }
             GenericEntityInitializer initializer = entry.initializer().duplicate();
-            GenericEntitySnapshotData snapshot =
-                    initializer.toSnapshotData(sourceEntityId);
-            if (clipboardTargetLayer == ClipboardTargetLayer.NON_PHYSICS
-                    && snapshot.hasJoint) {
-                continue;
-            }
+            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             if (clipboardTargetLayer != null) {
-                initializer.normalizeClipboardPhysics(
-                        clipboardTargetLayer.physicsEnabled,
-                        clipboardTargetLayer.spatialEnabled);
-                initializer.clearPrefabInstance();
-            } else if (prefabInstanceId > 0) {
-                initializer.setPrefabInstance(prefabInstanceId, prefabId);
+                initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);
             }
             initializer.overrideLayerIndex(activeLayerIndex);
-            initializer.translate(dx, dy);
+            if (entry.parentSourceEntityId() == -1) {
+                initializer.translate(dx, dy);
+            }
             snapshot = initializer.toSnapshotData(sourceEntityId);
             snapshots.put(sourceEntityId, snapshot);
-            prepared.add(new PreparedEntity(sourceEntityId, initializer));
+            validateHierarchyEntry(entry, snapshot);
+            prepared.add(new PreparedEntity(
+                    sourceEntityId,
+                    entry.parentSourceEntityId(),
+                    entry.gameObjectRoot(),
+                    entry.gameObjectSourceAssetId(),
+                    entry.customProperties(),
+                    initializer));
         }
+        validateGameObjectHierarchyPhysics(orderedEntries, snapshots);
         return prepared;
+    }
+
+    private static boolean gameObjectHierarchyRequiresSpatialLayer(EntityGraph graph) {
+        for (EntityGraphEntry entry : graph.entries()) {
+            if (!entry.gameObjectRoot() && entry.parentSourceEntityId() == -1) continue;
+            GenericEntitySnapshotData snapshot = entry.initializer()
+                    .toSnapshotData(entry.sourceEntityId());
+            if (snapshot.hasSpatialHeight) return true;
+            if (snapshot.shapes == null) continue;
+            for (PhysicsShapeData shape : snapshot.shapes) {
+                if (shape != null && shape.spatialFootprint) return true;
+            }
+        }
+        return false;
+    }
+
+    private IntIntMap prepareStableIdentities(List<PreparedEntity> preparedEntities) {
+        IntIntMap sourceToStable = new IntIntMap(preparedEntities.size());
+        for (PreparedEntity prepared : preparedEntities) {
+            sourceToStable.put(prepared.sourceEntityId, identityRegistry.allocateStableId());
+        }
+        return sourceToStable;
+    }
+
+    private static PropertySet remapProperties(
+            PropertySet source, IntIntMap sourceToStable) {
+        return PropertyReferenceMapper.remap(source, sourceId -> {
+            if (sourceId == -1) return -1;
+            if (sourceToStable.containsKey(sourceId)) return sourceToStable.get(sourceId, -1);
+            throw new IllegalArgumentException(
+                    "Entity graph contains an unresolved OBJECT source ID " + sourceId + ".");
+        });
     }
 
     private void finalizePreparedEntities(
@@ -342,6 +408,112 @@ public final class EntityGraphInstantiationService {
                                 + " contains a null physics shape.");
             }
         }
+    }
+
+    private static List<EntityGraphEntry> validateAndOrderHierarchy(EntityGraph graph) {
+        IntMap<EntityGraphEntry> entriesBySourceId = new IntMap<>(graph.size());
+        for (EntityGraphEntry entry : graph.entries()) {
+            if (entriesBySourceId.containsKey(entry.sourceEntityId())) {
+                throw new IllegalArgumentException("Entity graph contains duplicate source IDs.");
+            }
+            entriesBySourceId.put(entry.sourceEntityId(), entry);
+        }
+        IntIntMap visitState = new IntIntMap(graph.size());
+        List<EntityGraphEntry> ordered = new ArrayList<>(graph.size());
+        for (EntityGraphEntry entry : graph.entries()) {
+            appendParentBeforeChild(entry, entriesBySourceId, visitState, ordered);
+        }
+        return ordered;
+    }
+
+    private static void appendParentBeforeChild(
+            EntityGraphEntry entry,
+            IntMap<EntityGraphEntry> entriesBySourceId,
+            IntIntMap visitState,
+            List<EntityGraphEntry> ordered) {
+        int sourceId = entry.sourceEntityId();
+        int state = visitState.get(sourceId, 0);
+        if (state == 2) return;
+        if (state == 1) {
+            throw new IllegalArgumentException("Entity graph hierarchy contains a cycle.");
+        }
+        visitState.put(sourceId, 1);
+        if (entry.parentSourceEntityId() != -1) {
+            EntityGraphEntry parent = entriesBySourceId.get(entry.parentSourceEntityId());
+            if (parent == null) {
+                throw new IllegalArgumentException("Entity graph member references a missing parent.");
+            }
+            if (!parent.gameObjectRoot()) {
+                throw new IllegalArgumentException(
+                        "Entity graph member parent must be a Game Object root.");
+            }
+            appendParentBeforeChild(parent, entriesBySourceId, visitState, ordered);
+        }
+        visitState.put(sourceId, 2);
+        ordered.add(entry);
+    }
+
+    private static void validateHierarchyEntry(
+            EntityGraphEntry entry, GenericEntitySnapshotData snapshot) {
+        if (entry.gameObjectRoot()) {
+            if (!snapshot.hasTransform || !snapshot.hasEntityIndex) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root requires TransformComponent and EntityIndexComponent.");
+            }
+            if (!isPositiveUniformScale(snapshot.scaleX, snapshot.scaleY)) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root scale must be finite, positive, and uniform.");
+            }
+            if (snapshot.hasTextureRegion || snapshot.hasAnimation) {
+                throw new IllegalArgumentException(
+                        "Game Object graph root contains an unsupported component domain.");
+            }
+        }
+    }
+
+    private static void validateGameObjectHierarchyPhysics(
+            List<EntityGraphEntry> entries,
+            IntMap<GenericEntitySnapshotData> snapshots) {
+        IntMap<EntityGraphEntry> bySourceId = new IntMap<EntityGraphEntry>(entries.size());
+        boolean containsGameObjectHierarchy = false;
+        for (EntityGraphEntry entry : entries) {
+            bySourceId.put(entry.sourceEntityId(), entry);
+            containsGameObjectHierarchy |= entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
+        }
+        if (!containsGameObjectHierarchy) return;
+        for (EntityGraphEntry entry : entries) {
+            GenericEntitySnapshotData snapshot = snapshots.get(entry.sourceEntityId());
+            if (snapshot == null) continue;
+            boolean hierarchyEntry = entry.gameObjectRoot() || entry.parentSourceEntityId() != -1;
+            if (hierarchyEntry && snapshot.shapes != null) {
+                for (PhysicsShapeData shape : snapshot.shapes) {
+                    if (shape != null && shape.spatialBlockId > 0) {
+                        throw new IllegalArgumentException(
+                                "Game Object clipboard hierarchies do not support "
+                                        + "Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
+                    }
+                }
+            }
+            if (!snapshot.hasPhysicsBody) continue;
+            int parentSourceId = entry.parentSourceEntityId();
+            while (parentSourceId != -1) {
+                EntityGraphEntry parent = bySourceId.get(parentSourceId);
+                GenericEntitySnapshotData parentSnapshot = snapshots.get(parentSourceId);
+                if (parent == null || parentSnapshot == null || !parent.gameObjectRoot()
+                        || Float.compare(parentSnapshot.scaleX, 1f) != 0
+                        || Float.compare(parentSnapshot.scaleY, 1f) != 0) {
+                    throw new IllegalArgumentException(
+                            "Physics in a Game Object hierarchy requires every ancestor scale to be (1,1).");
+                }
+                parentSourceId = parent.parentSourceEntityId();
+            }
+        }
+    }
+
+    private static boolean isPositiveUniformScale(float scaleX, float scaleY) {
+        return !Float.isNaN(scaleX) && !Float.isInfinite(scaleX)
+                && !Float.isNaN(scaleY) && !Float.isInfinite(scaleY)
+                && scaleX > 0f && Float.compare(scaleX, scaleY) == 0;
     }
 
     private static boolean hasSpecificJointData(GenericEntitySnapshotData snapshot) {
@@ -505,11 +677,20 @@ public final class EntityGraphInstantiationService {
 
     private static final class PreparedEntity {
         final int sourceEntityId;
+        final int parentSourceEntityId;
+        final boolean gameObjectRoot;
+        final String gameObjectSourceAssetId;
+        final PropertySet customProperties;
         final GenericEntityInitializer initializer;
 
-        PreparedEntity(
-                int sourceEntityId, GenericEntityInitializer initializer) {
+        PreparedEntity(int sourceEntityId, int parentSourceEntityId,
+                       boolean gameObjectRoot, String gameObjectSourceAssetId,
+                       PropertySet customProperties, GenericEntityInitializer initializer) {
             this.sourceEntityId = sourceEntityId;
+            this.parentSourceEntityId = parentSourceEntityId;
+            this.gameObjectRoot = gameObjectRoot;
+            this.gameObjectSourceAssetId = gameObjectSourceAssetId;
+            this.customProperties = customProperties != null ? customProperties.copy() : null;
             this.initializer = initializer;
         }
     }

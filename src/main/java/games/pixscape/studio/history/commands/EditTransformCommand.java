@@ -3,6 +3,8 @@ package games.pixscape.studio.history.commands;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
@@ -63,6 +65,14 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
             return rotationRad;
         }
 
+        public float scaleX() {
+            return scaleX;
+        }
+
+        public float scaleY() {
+            return scaleY;
+        }
+
         public Snapshot withX(float value) {
             return new Snapshot(value, y, rotationRad, scaleX, scaleY, originX, originY);
         }
@@ -81,6 +91,10 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
 
         public Snapshot withScaleY(float value) {
             return new Snapshot(x, y, rotationRad, scaleX, value, originX, originY);
+        }
+
+        public Snapshot withUniformScale(float value) {
+            return new Snapshot(x, y, rotationRad, value, value, originX, originY);
         }
 
         public Snapshot withOriginX(float value) {
@@ -135,6 +149,16 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
         this.before = before;
         this.after = after;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
+        boolean rejectedScale = false;
+        if (world != null && world.getMapper(GameObjectComponent.class).has(entityId)) {
+            if (op == TransformOp.SCALE && after != null) {
+                rejectedScale = !isValidGameObjectScale(after)
+                        || !GameObjectHierarchyCommandSupport.canApplyScale(
+                                world, entityId, after.scaleX, after.scaleY);
+            } else {
+                requireValidGameObjectTransform(after);
+            }
+        }
         this.beforeRepeat = op == TransformOp.ROTATE
                 ? RepeatRotationConstraint.captureRepeat(world, entityId)
                 : null;
@@ -147,7 +171,25 @@ public final class EditTransformCommand implements Command, HistoryManager.Suppo
                 || entityHistoryId <= 0L
                 || before == null
                 || after == null
+                || rejectedScale
                 || (before.sameAs(after) && repeatSnapshotsSame(beforeRepeat, afterRepeat));
+    }
+
+    private static boolean isValidGameObjectScale(Snapshot snapshot) {
+        if (snapshot == null) return false;
+        try {
+            requireValidGameObjectTransform(snapshot);
+            return true;
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    private static void requireValidGameObjectTransform(Snapshot snapshot) {
+        if (snapshot == null) return;
+        TransformComponent candidate = new TransformComponent();
+        snapshot.apply(candidate);
+        GameObjectTransformMath.requirePositiveUniformParentScale(candidate);
     }
 
     @Override

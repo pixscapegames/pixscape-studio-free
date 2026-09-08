@@ -7,6 +7,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -24,6 +25,7 @@ public class TransformPanel extends CollapsibleWidget {
     private final FloatField rotationField;
     private final FloatField scalexField;
     private final FloatField scaleyField;
+    private final FloatField uniformScaleField;
 
     private final VisLabel widthLabel = new VisLabel();
     private final VisLabel heightLabel = new VisLabel();
@@ -32,6 +34,7 @@ public class TransformPanel extends CollapsibleWidget {
     private final VisTable rotationRow;
     private final VisTable scaleXRow;
     private final VisTable scaleYRow;
+    private final VisTable uniformScaleRow;
     private final VisTable widthRow;
     private final VisTable heightRow;
     private final Cell<VisTable> originXCell;
@@ -39,6 +42,7 @@ public class TransformPanel extends CollapsibleWidget {
     private final Cell<VisTable> rotationCell;
     private final Cell<VisTable> scaleXCell;
     private final Cell<VisTable> scaleYCell;
+    private final Cell<VisTable> uniformScaleCell;
     private final Cell<VisTable> widthCell;
     private final Cell<VisTable> heightCell;
 
@@ -62,6 +66,7 @@ public class TransformPanel extends CollapsibleWidget {
         scalexField.setDisplayDecimals(2);
         scaleyField = factory.scaleY();
         scaleyField.setDisplayDecimals(2);
+        uniformScaleField = factory.uniformPositiveScale();
 
         root.add(row("X:", xField)).left().row();
         root.add(row("Y:", yField)).left().row();
@@ -70,6 +75,7 @@ public class TransformPanel extends CollapsibleWidget {
         rotationRow = row("Rotation:", rotationField);
         scaleXRow = row("Scale X:", scalexField);
         scaleYRow = row("Scale Y:", scaleyField);
+        uniformScaleRow = row("Scale:", uniformScaleField);
         widthRow = row("Width:", widthLabel);
         heightRow = row("Height:", heightLabel);
         originXCell = root.add(originXRow).left(); root.row();
@@ -77,6 +83,7 @@ public class TransformPanel extends CollapsibleWidget {
         rotationCell = root.add(rotationRow).left(); root.row();
         scaleXCell = root.add(scaleXRow).left(); root.row();
         scaleYCell = root.add(scaleYRow).left(); root.row();
+        uniformScaleCell = root.add(uniformScaleRow).left(); root.row();
         widthCell = root.add(widthRow).left(); root.row();
         heightCell = root.add(heightRow).left(); root.row();
     }
@@ -91,16 +98,20 @@ public class TransformPanel extends CollapsibleWidget {
         rotationField.setEntityId(entityId);
         scalexField.setEntityId(entityId);
         scaleyField.setEntityId(entityId);
+        uniformScaleField.setEntityId(entityId);
 
         boolean particle = entityId >= 0
                 && ctx.world.getMapper(ParticleEmitterComponent.class).has(entityId);
-        setApplicable(originXCell, originXRow, !particle);
-        setApplicable(originYCell, originYRow, !particle);
+        boolean gameObject = entityId >= 0
+                && ctx.world.getMapper(GameObjectComponent.class).has(entityId);
+        setApplicable(originXCell, originXRow, !particle && !gameObject);
+        setApplicable(originYCell, originYRow, !particle && !gameObject);
         setApplicable(rotationCell, rotationRow, !particle);
-        setApplicable(scaleXCell, scaleXRow, !particle);
-        setApplicable(scaleYCell, scaleYRow, !particle);
-        setApplicable(widthCell, widthRow, !particle);
-        setApplicable(heightCell, heightRow, !particle);
+        setApplicable(scaleXCell, scaleXRow, !particle && !gameObject);
+        setApplicable(scaleYCell, scaleYRow, !particle && !gameObject);
+        setApplicable(uniformScaleCell, uniformScaleRow, gameObject);
+        setApplicable(widthCell, widthRow, !particle && !gameObject);
+        setApplicable(heightCell, heightRow, !particle && !gameObject);
         root.invalidateHierarchy();
 
         if (entityId < 0) {
@@ -140,6 +151,7 @@ public class TransformPanel extends CollapsibleWidget {
             case SCALE -> {
                 scalexField.refreshFromModel();
                 scaleyField.refreshFromModel();
+                uniformScaleField.refreshFromModel();
             }
             case ROTATE -> rotationField.refreshFromModel();
             case ORIGIN -> {

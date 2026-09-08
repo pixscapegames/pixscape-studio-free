@@ -3,7 +3,7 @@ package games.pixscape.studio.importer.tmx;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.api.CustomProperties;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 
@@ -492,11 +492,11 @@ public final class TmxImportPlanner {
         );
     }
 
-    private static SceneMetaRuntime.TiledProjection projectionFor(String orientation) {
+    private static TiledProjection projectionFor(String orientation) {
         if ("isometric".equals(orientation)) {
-            return SceneMetaRuntime.TiledProjection.ISO;
+            return TiledProjection.ISO;
         }
-        return SceneMetaRuntime.TiledProjection.ORTHO;
+        return TiledProjection.ORTHO;
     }
 
     private static String proposedSceneName(FileHandle tmxFile) {

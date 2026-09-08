@@ -14,6 +14,7 @@ import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyPanel;
 import games.pixscape.studio.ui.widget.SimpleTextField;
@@ -62,6 +63,8 @@ public class EntityProperties extends VisTable {
     private final ToggleSection repeatableSection;
     private final ToggleSection spatialSection;
     private final ToggleSection physicsSection;
+    private final ToggleSection gameObjectSection;
+    private final VisLabel sourceAssetValue = new VisLabel("Scene-only");
 
     private int currentEntityId = -1;
     private boolean scenePhysicsEnabled = false;
@@ -121,10 +124,18 @@ public class EntityProperties extends VisTable {
         repeatableSection = new ToggleSection("Repeatable", repeatablePanel);
         spatialSection = new ToggleSection("Spatial", spatialPanel);
         physicsSection = new ToggleSection("Physics", bodyPanel);
+        VisTable gameObjectPanel = new VisTable();
+        gameObjectPanel.left();
+        gameObjectPanel.add(new VisLabel("Source asset:")).width(CommonLayout.LABEL_WIDTH).left();
+        gameObjectPanel.add(sourceAssetValue).left();
+        CollapsibleWidget gameObjectContent = new CollapsibleWidget();
+        gameObjectContent.setTable(gameObjectPanel);
+        gameObjectSection = new ToggleSection("Game Object", gameObjectContent);
 
         defaults().left().top().pad(5);
 
         add(buildCommonHeader()).growX().left().row();
+        add(gameObjectSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
@@ -234,12 +245,23 @@ public class EntityProperties extends VisTable {
         entityName.refresh();
 
         EntityIndexComponent entityIndex = mEntityIndex.getSafe(entityId, null);
+        boolean member = ctx.world.getMapper(GameObjectMemberComponent.class).has(entityId);
+        GameObjectComponent gameObject = ctx.world.getMapper(GameObjectComponent.class)
+                .getSafe(entityId, null);
 
         refreshZIndex();
 
         int layerIndex = (entityIndex != null) ? entityIndex.getLayerIndex() : 0;
         String layerName = (ctx.layerService != null) ? ctx.layerService.getNameByIndex(layerIndex) : "";
-        layerValueLabel.setText(layerName != null ? layerName : "");
+        layerValueLabel.setText(member ? "Inherited from Game Object"
+                : layerName != null ? layerName : "");
+        if (member) {
+            zIndexValueLabel.setText("Local: " + (entityIndex != null ? entityIndex.zIndex : 0));
+        }
+        visibleCheckBox.setVisible(gameObject == null);
+        String sourceAssetId = gameObject != null ? gameObject.sourceAssetId : null;
+        sourceAssetValue.setText(sourceAssetId == null || sourceAssetId.isBlank()
+                ? "Scene-only" : sourceAssetId);
 
         visibleBinder.setEntityId(entityId);
 
@@ -287,16 +309,20 @@ public class EntityProperties extends VisTable {
         boolean isParticle = kind == EntityKind.PARTICLE;
         boolean isAnim = kind == EntityKind.ANIMATION;
         boolean isSprite = kind == EntityKind.SPRITE;
+        boolean isGameObject = kind == EntityKind.GAME_OBJECT;
 
         transformSection.setApplicable(true);
-        materialSection.setApplicable(isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
+        gameObjectSection.setApplicable(isGameObject);
+        materialSection.setApplicable(!isGameObject
+                && isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
         repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
 
         boolean physicsApplicable = isPhysicsApplicable();
         spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));
-        physicsSection.setApplicable(physicsApplicable);
+        if (isGameObject) spatialSection.setApplicable(false);
+        physicsSection.setApplicable(!isGameObject && physicsApplicable);
 
         invalidateHierarchy();
     }
@@ -306,11 +332,12 @@ public class EntityProperties extends VisTable {
     }
 
     private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return ((isSprite || isAnim) && isEntityInSpatialLayer()) || hasSpatialActorState();
+        return ((isSprite || isAnim) && isEntityInSpatialEnabledLayer())
+                || hasSpatialActorState();
     }
 
     private boolean isPhysicsApplicable() {
-        return scenePhysicsEnabled && isEntityInPhysicsLayer();
+        return scenePhysicsEnabled;
     }
 
     private void syncScenePhysicsEnabled() {
@@ -374,7 +401,7 @@ public class EntityProperties extends VisTable {
         }
     }
 
-    private boolean isEntityInPhysicsLayer() {
+    private boolean isEntityInSpatialEnabledLayer() {
         if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
             return false;
         }
@@ -383,34 +410,13 @@ public class EntityProperties extends VisTable {
             return false;
         }
         int layerIndex = entityIndex.getLayerIndex();
-        return ctx.layerService.getLayerTypeByIndex(layerIndex) == LayerComponent.TYPE_PHYSICS;
-    }
-
-    private boolean isEntityInSpatialLayer() {
-        if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
-            return false;
-        }
-        EntityIndexComponent entityIndex = mEntityIndex.getSafe(currentEntityId, null);
-        if (entityIndex == null) {
-            return false;
-        }
-        int layerIndex = entityIndex.getLayerIndex();
-        int layerType = ctx.layerService.getLayerTypeByIndex(layerIndex);
-        if (layerType != LayerComponent.TYPE_PHYSICS) {
-            return false;
-        }
-
         int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
         if (layerEntityId < 0) {
             return false;
         }
 
         LayerComponent layer = ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        if (layer != null && layer.spatialEnabled) {
-            return true;
-        }
-
-        return false;
+        return LayerService.isSpatialActorLayer(layer);
     }
 
     private boolean hasSpatialActorState() {

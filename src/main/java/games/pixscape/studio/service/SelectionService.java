@@ -9,8 +9,6 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 
 public final class SelectionService {
@@ -46,7 +44,8 @@ public final class SelectionService {
     private EntityEditMode entityEditMode = EntityEditMode.TRANSFORM;
     private int quadEditEntityId = -1;
 
-    private int activelayerId = 0;
+    private int activeLayerEntityId = 0;
+    private int tiledMapEditingTargetEntityId = -1;
     private int hoveredEntityId = -1;
     private final int MY_TAG = EventFlow.tag(this);
 
@@ -79,12 +78,12 @@ public final class SelectionService {
     }
 
     public int getActivelayerId() {
-        return activelayerId;
+        return activeLayerEntityId;
     }
 
     public int getActiveLayerIndex() {
-        if (!mLayer.has(activelayerId)) return 0;
-        return mLayer.get(activelayerId).layerIndex;
+        if (!mLayer.has(activeLayerEntityId)) return 0;
+        return mLayer.get(activeLayerEntityId).layerIndex;
     }
 
     public void setActivelayerId(int layer) {
@@ -92,35 +91,43 @@ public final class SelectionService {
     }
 
     public void setActivelayerId(int layer, SelectionSource source) {
-        setActivelayerIdInternal(layer, false, source);
+        setActivelayerIdInternal(layer, -1, source);
     }
 
-    public void setActivelayerIdForPhysicsContext(int layer) {
-        setActivelayerIdForPhysicsContext(layer, SelectionSource.VIEWPORT);
-    }
-
-    public void setActivelayerIdForPhysicsContext(int layer, SelectionSource source) {
-        setActivelayerIdInternal(layer, true, source);
-    }
-
-    private void setActivelayerIdInternal(int layer, boolean forceEntityMode, SelectionSource source) {
-        this.activelayerId = layer;
-
-        int type = layerService.getLayerTypeByEntity(layer);
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-
-        if (!forceEntityMode && type == LayerComponent.TYPE_TILED) {
-            meta.editorMode = SceneMeta.EditorMode.TILE;
-        } else {
-            meta.editorMode = SceneMeta.EditorMode.ENTITY;
+    /** Returns the explicit Tiled editing target, or {@code -1} when it is stale. */
+    public int getTiledMapEditingTargetEntityId() {
+        if (!isValidTiledMapTarget(tiledMapEditingTargetEntityId, true)) {
+            clearTiledMapEditingTarget();
         }
+        return tiledMapEditingTargetEntityId;
+    }
 
+    public void setTiledMapEditingTarget(int mapEntityId, SelectionSource source) {
+        if (!isValidTiledMapTarget(mapEntityId, false)) {
+            clearTiledMapEditingTarget();
+            return;
+        }
+        EntityIndexComponent index = mEntityIndex.get(mapEntityId);
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        setActivelayerIdInternal(hostLayerEntityId, mapEntityId, source);
+    }
+
+    public void clearTiledMapEditingTarget() {
+        if (tiledMapEditingTargetEntityId < 0) return;
+        setActivelayerIdInternal(activeLayerEntityId, -1, SelectionSource.VIEWPORT);
+    }
+
+    private void setActivelayerIdInternal(int layer, int mapEntityId, SelectionSource source) {
+        int previousTiledMapTarget = this.tiledMapEditingTargetEntityId;
+        this.activeLayerEntityId = layer;
+        this.tiledMapEditingTargetEntityId = mapEntityId;
+        boolean isTiled = isValidTiledMapTarget(mapEntityId, true);
+        if (!isTiled) this.tiledMapEditingTargetEntityId = -1;
         EventFlow.i().publish(new EventFlow.CurrentLayerChanged(layer, source, MY_TAG));
-
-        int layerType = layerService.getLayerTypeByEntity(layer);
-
-        boolean isTiled = !forceEntityMode && layerType == LayerComponent.TYPE_TILED;
+        if (previousTiledMapTarget != tiledMapEditingTargetEntityId) {
+            EventFlow.i().publish(new EventFlow.TiledMapEditingTargetChanged(
+                    tiledMapEditingTargetEntityId, MY_TAG));
+        }
 
         if (studioEditingModeService != null) {
             studioEditingModeService.setModeActive(StudioEditingMode.TILED, isTiled, MY_TAG);
@@ -134,6 +141,33 @@ public final class SelectionService {
                         EventFlow.tag(this)
                 )
         );
+    }
+
+    public boolean isTiledMapEditingTargetActive() {
+        if (!isValidTiledMapTarget(tiledMapEditingTargetEntityId, true)) {
+            clearTiledMapEditingTarget();
+            return false;
+        }
+        if (studioEditingModeService == null
+                || studioEditingModeService.getCurrentMode() != StudioEditingMode.TILED) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isValidTiledMapTarget(int mapEntityId, boolean requireActiveLayer) {
+        if (mapEntityId < 0
+                || !world.getEntityManager().isActive(mapEntityId)
+                || !mTiledLayer.has(mapEntityId)) {
+            return false;
+        }
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        if (index == null) return false;
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        if (hostLayerEntityId < 0 || !world.getEntityManager().isActive(hostLayerEntityId)) return false;
+        LayerComponent owningLayer = mLayer.getSafe(hostLayerEntityId, null);
+        return owningLayer != null
+                && (!requireActiveLayer || hostLayerEntityId == activeLayerEntityId);
     }
 
     public IntSet getSelectionSet() {
@@ -532,6 +566,9 @@ public final class SelectionService {
     }
 
     private void publish(SelectionSource source, IntArray snapshot) {
+        if (snapshot != null && snapshot.size > 0 && tiledMapEditingTargetEntityId >= 0) {
+            setActivelayerIdInternal(activeLayerEntityId, -1, source);
+        }
         EventFlow.i().publish(
                 new EventFlow.SelectionChanged(
                         snapshot != null ? new IntArray(snapshot) : new IntArray(),

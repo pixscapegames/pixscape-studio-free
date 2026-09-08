@@ -9,6 +9,7 @@ import games.pixscape.studio.helper.GeometryHelper;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditTransformCommand;
+import games.pixscape.studio.history.commands.GameObjectHierarchyCommandSupport;
 import games.pixscape.studio.history.commands.TransformOp;
 
 import java.util.Objects;
@@ -141,6 +142,25 @@ public final class TransformFieldFactory {
         return f;
     }
 
+    public FloatField uniformPositiveScale() {
+        FloatField field = new FloatField(world, e -> {
+            TransformComponent transform = mT.getSafe(e, null);
+            return transform != null ? transform.scaleX : 1f;
+        }, mT::has);
+        field.setDisplayDecimals(2);
+        field.setValidator(input -> {
+            try {
+                float value = Float.parseFloat(input.trim());
+                return value > 0f && !Float.isInfinite(value) && !Float.isNaN(value);
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        });
+        field.setApplier((entityId, value) -> submitTransformEdit(
+                entityId, TransformOp.SCALE, before -> before.withUniformScale(value)));
+        return field;
+    }
+
     public FloatField originX() {
         FloatField f = new FloatField(world, e -> {
             TransformComponent t = mT.getSafe(e, null);
@@ -195,6 +215,12 @@ public final class TransformFieldFactory {
         EditTransformCommand.Snapshot after = edit.apply(before);
         if (after == null) return;
 
+        if (op == TransformOp.SCALE
+                && !GameObjectHierarchyCommandSupport.canApplyScale(
+                        world, entityId, after.scaleX(), after.scaleY())) {
+            return;
+        }
+
         Command command = new EditTransformCommand(
                 world,
                 history.historyIds(),
@@ -210,6 +236,7 @@ public final class TransformFieldFactory {
 
         history.execute(command);
     }
+
 
     private boolean shouldUseSpritePosition(int entityId) {
         return (mParticle == null || !mParticle.has(entityId))

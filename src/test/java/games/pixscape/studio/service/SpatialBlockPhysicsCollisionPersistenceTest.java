@@ -7,6 +7,8 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -15,6 +17,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
@@ -46,10 +49,6 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
         meta = config.getCurrentSceneMeta();
         meta.pixelsPerMeter = 32f;
         meta.physicsEnabled = true;
-        meta.tileWidth = 32f;
-        meta.tileHeight = 16f;
-        meta.chunkSize = 8;
-        meta.tiledProjection = SceneMetaRuntime.TiledProjection.ORTHO;
         meta.nextEntityStableId = 2;
         ProjectConfig.setInstance(config);
     }
@@ -62,15 +61,21 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     @Test
     public void commandRelationSurvivesStudioSaveAndActivationRebuild() {
         World source = serializationWorld();
+        createTiledHost(source);
         int layer = source.create();
+        source.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
         source.getMapper(PixscapeIdentityComponent.class)
                 .create(layer).stableId = 1;
         TiledLayerComponent tiled =
                 source.getMapper(TiledLayerComponent.class).create(layer);
+        tiled.projection = TiledProjection.ORTHO;
+        tiled.tileWidth = 32;
+        tiled.tileHeight = 16;
         tiled.mapWidthCells = 4;
         tiled.mapHeightCells = 4;
+        tiled.chunkSize = 8;
         tiled.data = new TiledMapLayerData(
-                4, 4, 32, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
+                4, 4, 32, 16, 8, TiledProjection.ORTHO);
         tiled.data.setTile(1, 1, 101);
         tiled.tileXs.add(1);
         tiled.tileYs.add(1);
@@ -115,7 +120,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
             SceneLoader.loadScene(loaded, sceneFile, false, meta);
             loaded.process();
             ResolvedSceneActivationPipeline.resolveTiledLayersForActivation(
-                    loaded, meta, null, null, "Test", "CollisionRoundtrip");
+                    loaded, null, null, "Test", "CollisionRoundtrip");
             ResolvedSceneActivationPipeline.validateAndCompileSpatialBlocksForActivation(
                     loaded, "Test", "CollisionRoundtrip");
             PhysicsService.rebuildPreparedBodyCaches(loaded, meta.pixelsPerMeter);
@@ -131,6 +136,8 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
                     PhysicsShapesComponent.class).get(restoredLayer).shapes.first();
             PhysicsCompiledFixturesComponent compiled = loaded.getMapper(
                     PhysicsCompiledFixturesComponent.class).get(restoredLayer);
+            TiledLayerComponent restoredTiled = loaded.getMapper(
+                    TiledLayerComponent.class).get(restoredLayer);
             TransformComponent restoredTransform = loaded.getMapper(
                     TransformComponent.class).getSafe(restoredLayer, null);
             Assert.assertEquals(1, restoredBlock.id);
@@ -141,6 +148,14 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
             Assert.assertNull(restoredShape.geometry);
             Assert.assertEquals(PhysicsBodyComponent.STATIC, loaded.getMapper(
                     PhysicsBodyComponent.class).get(restoredLayer).type);
+            Assert.assertEquals(TiledProjection.ORTHO, restoredTiled.projection);
+            Assert.assertEquals(32, restoredTiled.tileWidth);
+            Assert.assertEquals(16, restoredTiled.tileHeight);
+            Assert.assertEquals(8, restoredTiled.chunkSize);
+            Assert.assertEquals(TiledProjection.ORTHO, restoredTiled.data.projection);
+            Assert.assertEquals(32, restoredTiled.data.tileWidth);
+            Assert.assertEquals(16, restoredTiled.data.tileHeight);
+            Assert.assertEquals(8, restoredTiled.data.chunkSize);
             Assert.assertTrue(compiled.valid);
             Assert.assertEquals(PhysicsGeometryData.SHAPE_POLYGON,
                     compiled.fixtures.first().shapeType);
@@ -197,11 +212,17 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     @Test
     public void activationCreatesIdentityTransformForAuthoredTiledPhysics() {
         World world = serializationWorld();
+        createTiledHost(world);
         int layer = world.create();
+        world.getMapper(EntityIndexComponent.class).create(layer).layerIndex = 0;
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class).create(layer);
+        tiled.projection = TiledProjection.ORTHO;
+        tiled.tileWidth = 32;
+        tiled.tileHeight = 16;
         tiled.mapWidthCells = 4;
         tiled.mapHeightCells = 4;
+        tiled.chunkSize = 8;
         tiled.tileXs.add(1);
         tiled.tileYs.add(1);
         tiled.tileAssetIds.add(101);
@@ -232,7 +253,7 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
 
         try {
             ResolvedSceneActivationPipeline.resolveTiledLayersForActivation(
-                    world, meta, null, null, "Test", "MissingTransform");
+                    world, null, null, "Test", "MissingTransform");
             PhysicsService.rebuildPreparedBodyCaches(world, meta.pixelsPerMeter);
 
             TransformComponent transform = world.getMapper(
@@ -250,6 +271,12 @@ public class SpatialBlockPhysicsCollisionPersistenceTest {
     private static World serializationWorld() {
         return new World(new WorldConfiguration()
                 .setSystem(new WorldSerializationManager()));
+    }
+
+    private static void createTiledHost(World world) {
+        int host = world.create();
+        LayerComponent layer = world.getMapper(LayerComponent.class).create(host);
+        layer.layerIndex = 0;
     }
 
     private static void assertIdentityTransform(TransformComponent transform) {

@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.widget;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.AfterClass;
@@ -72,6 +73,28 @@ public class TransformFieldFactoryTest {
 
         Assert.assertEquals(13f, t.x, 0.0001f);
         Assert.assertEquals("8", field.getText());
+    }
+
+    @Test
+    public void gameObjectPositionFieldKeepsAuthoredBottomLeftWhenOriginIsCentered() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(16);
+        int entityId = world.create();
+        history.historyIds().ensureForEntity(entityId);
+        TransformComponent transform = world.getMapper(TransformComponent.class)
+                .create(entityId);
+        transform.x = 20f;
+        transform.originX = 5f;
+        transform.scaleX = transform.scaleY = 1f;
+        world.getMapper(GameObjectComponent.class).create(entityId);
+
+        FloatField field = new TransformFieldFactory(world, history).posX(entityId);
+
+        Assert.assertEquals("20", field.getText());
+        field.setText("8");
+        field.commit();
+        Assert.assertEquals(8f, transform.x, 0.0001f);
+        Assert.assertEquals(5f, transform.originX, 0f);
     }
 
     @Test

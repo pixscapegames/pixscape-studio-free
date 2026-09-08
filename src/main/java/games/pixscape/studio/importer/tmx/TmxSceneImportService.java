@@ -6,17 +6,15 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.math.MathUtils;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
 import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.helper.TiledSparseStorageHelper;
@@ -122,25 +120,11 @@ public final class TmxSceneImportService {
     }
 
     String uniqueSceneName(String desired) {
-        String base = desired != null && !desired.isBlank() ? desired.trim() : "Imported TMX";
-        if (cfg.getSceneMeta(base) == null) {
-            return base;
-        }
-        int suffix = 2;
-        while (cfg.getSceneMeta(base + " " + suffix) != null) {
-            suffix++;
-        }
-        return base + " " + suffix;
+        String base = desired != null && !desired.isBlank() ? desired : "Imported TMX";
+        return cfg.uniqueSceneName(base);
     }
 
-    void configureSceneMeta(SceneMeta meta, TmxScenePlan scene) {
-        meta.tiledEnabled = true;
-        meta.tileWidth = scene.tileWidth();
-        meta.tileHeight = scene.tileHeight();
-        meta.chunkSize = Math.max(1, meta.chunkSize);
-        meta.tiledProjection = scene.tiledProjection() != null
-                ? scene.tiledProjection()
-                : SceneMetaRuntime.TiledProjection.ORTHO;
+    void initializeSceneRuntimeAvailability(SceneMeta meta) {
         runtimeAvailabilityService.data(meta);
     }
 
@@ -294,9 +278,13 @@ public final class TmxSceneImportService {
         for (TmxLayerPlan layerPlan : plan.layers()) {
             if (layerPlan instanceof TmxTileLayerPlan tileLayer) {
                 int layerEntity = world.create();
-                createTileLayerComponents(world, layerEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                createTileLayerComponents(world, layerEntity, layerIndex, tileLayer);
                 identityRegistry.ensureStableId(layerEntity);
-                populateTiles(world, layerEntity, tileLayer, cellLogicalIdsByTileset);
+                int mapEntity = world.create();
+                createTileMapComponents(world, mapEntity, layerIndex, tileLayer, plan.scene(), sceneTag);
+                identityRegistry.setName(mapEntity, "Map");
+                identityRegistry.ensureStableId(mapEntity);
+                populateTiles(world, mapEntity, tileLayer, cellLogicalIdsByTileset);
                 layerIndex++;
             } else if (layerPlan instanceof TmxImageLayerPlan imageLayer) {
                 ImportedImageAsset imageAsset = imageAssetsBySourceLayer.get(imageLayer.sourceLayerIndex());
@@ -328,12 +316,9 @@ public final class TmxSceneImportService {
     private void createTileLayerComponents(World world,
                                            int layerEntity,
                                            int layerIndex,
-                                           TmxTileLayerPlan tileLayer,
-                                           TmxScenePlan scene,
-                                           String sceneTag) {
+                                           TmxTileLayerPlan tileLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_TILED;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -350,28 +335,49 @@ public final class TmxSceneImportService {
         parallax.factorX = tileLayer.parallaxX();
         parallax.factorY = tileLayer.parallaxY();
 
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerEntity);
+    }
+
+    private void createTileMapComponents(World world,
+                                         int mapEntity,
+                                         int layerIndex,
+                                         TmxTileLayerPlan tileLayer,
+                                         TmxScenePlan scene,
+                                         String sceneTag) {
+        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(mapEntity);
+        index.layerIndex = layerIndex;
+        index.zIndex = 0;
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(mapEntity);
+        transform.x = tileLayer.offsetX();
+        transform.y = tileLayer.offsetY();
+        transform.rotationRad = 0f;
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+        transform.refreshCaches();
+        VisibilityComponent visibility = world.getMapper(VisibilityComponent.class).create(mapEntity);
+        visibility.visible = true;
+        visibility.culledByFrustum = false;
+        visibility.inView = true;
+        EntityMetaComponent entityMeta = world.getMapper(EntityMetaComponent.class).create(mapEntity);
+        entityMeta.kind = EntityKind.TILED_MAP;
+
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(mapEntity);
+        tiled.projection = scene.tiledProjection() != null
+                ? scene.tiledProjection()
+                : TiledProjection.ORTHO;
+        tiled.tileWidth = scene.tileWidth();
+        tiled.tileHeight = scene.tileHeight();
         tiled.mapWidthCells = tileLayer.width();
         tiled.mapHeightCells = tileLayer.height();
+        tiled.chunkSize = 16;
         tiled.originX = tileLayer.offsetX();
         tiled.originY = tileLayer.offsetY();
         tiled.spatialEnabled = false;
         tiled.defaultTileAltitude = 0f;
         tiled.defaultTileHeight = 0f;
         tiled.atlasTag = sceneTag;
-        tiled.data = new TiledMapLayerData(
-                tileLayer.width(),
-                tileLayer.height(),
-                scene.tileWidth(),
-                scene.tileHeight(),
-                16,
-                scene.tiledProjection() != null
-                        ? scene.tiledProjection()
-                        : SceneMetaRuntime.TiledProjection.ORTHO
-        );
-        tiled.data.originX = tiled.originX;
-        tiled.data.originY = tiled.originY;
-        tiled.data.visible = tileLayer.visible();
+        tiled.data = tiled.createMapData();
+        // The owning Pixscape Layer remains the imported visibility authority.
+        tiled.data.visible = true;
         tiled.data.spatialEnabled = tiled.spatialEnabled;
         tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
         tiled.data.defaultTileHeight = tiled.defaultTileHeight;
@@ -383,7 +389,6 @@ public final class TmxSceneImportService {
                                               TmxImageLayerPlan imageLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -407,7 +412,6 @@ public final class TmxSceneImportService {
                                              TmxObjectLayerPlan objectLayer) {
         LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
         layer.layerIndex = layerIndex;
-        layer.type = LayerComponent.TYPE_CLASSIC;
         layer.spatialEnabled = false;
 
         LayerMetaComponent meta = world.getMapper(LayerMetaComponent.class).create(layerEntity);
@@ -424,7 +428,6 @@ public final class TmxSceneImportService {
         parallax.factorX = objectLayer.parallaxX();
         parallax.factorY = objectLayer.parallaxY();
 
-        world.getMapper(TiledObjectLayerComponent.class).create(layerEntity);
     }
 
     private void populateObjects(World world,
@@ -876,7 +879,7 @@ public final class TmxSceneImportService {
                 tileHeight,
                 scene != null && scene.tiledProjection() != null
                         ? scene.tiledProjection()
-                        : SceneMetaRuntime.TiledProjection.ORTHO,
+                        : TiledProjection.ORTHO,
                 TilesetAnchor.BOTTOM_CENTER,
                 0,
                 0,

@@ -2,9 +2,14 @@ package games.pixscape.studio.service.physics;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -13,6 +18,11 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.system.DirtyFlushSystem;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -118,6 +128,56 @@ public class PhysicsFixturePickingServiceV2Test {
         Assert.assertTrue(result.hit());
         Assert.assertEquals(17, result.physicsShapeId);
         Assert.assertTrue(result.partIndex >= 0);
+    }
+
+    @Test
+    public void hierarchyBodyPicksAtResolvedWorldPoseNotRawLocalPose() {
+        GdxNativesLoader.load();
+        GameObjectHierarchySystem hierarchy = new GameObjectHierarchySystem(8);
+        World world = new World(new WorldConfigurationBuilder()
+                .with(new DirtyTrackerSystem(8), hierarchy, new DirtyFlushSystem())
+                .build());
+        IdentityRegistry identities = new IdentityRegistry();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        identities.bind(world, meta);
+        try {
+            int root = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(root).stableId = 1;
+            world.getMapper(EntityIndexComponent.class).create(root);
+            TransformComponent rootTransform = world.getMapper(TransformComponent.class).create(root);
+            rootTransform.x = 200f;
+            rootTransform.y = -50f;
+            rootTransform.refreshCaches();
+            world.getMapper(GameObjectComponent.class).create(root);
+
+            int body = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(body).stableId = 2;
+            world.getMapper(EntityIndexComponent.class).create(body);
+            TransformComponent bodyTransform = world.getMapper(TransformComponent.class).create(body);
+            bodyTransform.x = 10f;
+            bodyTransform.y = 5f;
+            bodyTransform.refreshCaches();
+            world.getMapper(GameObjectMemberComponent.class).create(body).parentStableId = 1;
+            world.getMapper(PhysicsBodyComponent.class).create(body);
+            PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(body);
+            shapes.shapes.add(shape(77, PhysicsGeometryData.SHAPE_BOX));
+            PhysicsService.publishPreparedCandidate(
+                    shapes,
+                    world.getMapper(PhysicsCompiledFixturesComponent.class).create(body),
+                    PhysicsService.prepareBodyCandidate(shapes.shapes));
+            world.process();
+
+            PhysicsService physics = new PhysicsService(
+                    world, new Box2dWorldService(100f, new Vector2()));
+            PhysicsFixturePickingService picker = new PhysicsFixturePickingService(world, physics);
+
+            Assert.assertTrue(picker.pick(body, 210f, -45f, 0f).hit());
+            Assert.assertFalse(picker.pick(body, 10f, 5f, 0f).hit());
+        } finally {
+            identities.bind(null, null);
+            world.dispose();
+        }
     }
 
     private static PhysicsFixturePickingService.PickResult pickSingle(

@@ -7,7 +7,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.service.asset.TilesetSliceLayout;
@@ -55,7 +55,7 @@ final class TilesetTilePreviewActor extends Actor {
                        int tileIndex,
                        int referenceCellWidth,
                        int referenceCellHeight,
-                       SceneMetaRuntime.TiledProjection projection,
+                       TiledProjection projection,
                        TilesetAnchor anchor,
                        int offsetX,
                        int offsetY) {
@@ -154,7 +154,7 @@ final class TilesetTilePreviewActor extends Actor {
                     tileRegion.getRegionHeight(),
                     tileRegion.getRegionWidth(),
                     tileRegion.getRegionHeight(),
-                    SceneMetaRuntime.TiledProjection.ORTHO,
+                    TiledProjection.ORTHO,
                     TilesetAnchor.TOP_CENTER,
                     0,
                     0

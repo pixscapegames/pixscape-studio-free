@@ -1,12 +1,18 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -14,6 +20,71 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class AddPhysicsBodyCommandTest {
+    @Test
+    public void ordinaryLayerEntityCanReceivePhysics() {
+        Harness harness = new Harness();
+        int layerEntity = harness.world.create();
+        LayerComponent layer = harness.world.getMapper(LayerComponent.class).create(layerEntity);
+        layer.layerIndex = 0;
+        int entityId = harness.world.create();
+        harness.world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = 0;
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world,
+                harness.historyIds,
+                harness.physics,
+                entityId,
+                PhysicsBodyComponent.DYNAMIC,
+                true));
+
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertEquals(1,
+                harness.world.getMapper(PhysicsShapesComponent.class).get(entityId).shapes.size);
+        Assert.assertEquals(0,
+                harness.world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex);
+    }
+
+    @Test
+    public void movingPhysicalEntityChangesOnlyLogicalLayerOwnership() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        TransformComponent transform = harness.world.getMapper(TransformComponent.class).create(entityId);
+        transform.x = 23f;
+        transform.y = -7f;
+        harness.world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = 1;
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world,
+                harness.historyIds,
+                harness.physics,
+                entityId,
+                PhysicsBodyComponent.DYNAMIC,
+                true));
+        PhysicsBodyComponent body = harness.world.getMapper(PhysicsBodyComponent.class).get(entityId);
+        int shapeId = harness.world.getMapper(PhysicsShapesComponent.class)
+                .get(entityId).shapes.first().physicsShapeId;
+        long historyId = harness.history.historyIds().ensureForEntity(entityId);
+        ChangeLayerIndexCommand move = new ChangeLayerIndexCommand(
+                harness.world, harness.history.historyIds());
+        move.addEntry(historyId, 1, 4);
+
+        harness.history.execute(move);
+
+        Assert.assertEquals(4,
+                harness.world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex);
+        Assert.assertSame(body, harness.world.getMapper(PhysicsBodyComponent.class).get(entityId));
+        Assert.assertEquals(shapeId, harness.world.getMapper(PhysicsShapesComponent.class)
+                .get(entityId).shapes.first().physicsShapeId);
+        Assert.assertEquals(23f, transform.x, 0f);
+        Assert.assertEquals(-7f, transform.y, 0f);
+
+        harness.history.undo();
+        Assert.assertEquals(1,
+                harness.world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex);
+        harness.history.redo();
+        Assert.assertEquals(4,
+                harness.world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex);
+    }
+
     @Test
     public void addUndoRedoRestoresSameShapeIdWithoutRewindingHighWater() {
         Harness harness = new Harness();
@@ -139,7 +210,46 @@ public class AddPhysicsBodyCommandTest {
         Assert.assertEquals(highWater, harness.meta.nextPhysicsShapeId);
     }
 
-    private static final class Harness {
+    @Test
+    public void validNestedGameObjectMemberCanReceivePhysicsAndUndoRedo() {
+        HierarchyHarness harness = new HierarchyHarness();
+        int root = harness.gameObject(1, -1);
+        int nested = harness.gameObject(2, 1);
+        int child = harness.entity(3, 2);
+        harness.rebuildIdentities();
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world, harness.historyIds, harness.physics,
+                child, PhysicsBodyComponent.KINEMATIC, true));
+
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        Assert.assertEquals(PhysicsBodyComponent.KINEMATIC,
+                harness.world.getMapper(PhysicsBodyComponent.class).get(child).type);
+        harness.history.undo();
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        harness.history.redo();
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+    }
+
+    @Test
+    public void scaledPhysicsAncestorIsRejectedWithoutPublishingComponents() {
+        HierarchyHarness harness = new HierarchyHarness();
+        int root = harness.gameObject(1, -1);
+        harness.world.getMapper(TransformComponent.class).get(root).scaleX = 2f;
+        harness.world.getMapper(TransformComponent.class).get(root).scaleY = 2f;
+        int child = harness.entity(2, 1);
+        harness.rebuildIdentities();
+
+        harness.history.execute(new AddPhysicsBodyCommand(
+                harness.world, harness.historyIds, harness.physics,
+                child, PhysicsBodyComponent.DYNAMIC, true));
+
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(child));
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class).has(child));
+        Assert.assertFalse(harness.history.canUndo());
+    }
+
+    private static class Harness {
         final World world = new World();
         final SceneMeta meta = new SceneMeta();
         final PhysicsService physics = new PhysicsService(world, null, meta);
@@ -148,6 +258,38 @@ public class AddPhysicsBodyCommandTest {
 
         Harness() {
             history.historyIds().clear();
+        }
+    }
+
+    private static final class HierarchyHarness extends Harness {
+        final IdentityRegistry identities = new IdentityRegistry();
+
+        HierarchyHarness() {
+            meta.nextEntityStableId = 100;
+            identities.bind(world, meta);
+        }
+
+        int gameObject(int stableId, int parentStableId) {
+            int entityId = entity(stableId, parentStableId);
+            world.getMapper(GameObjectComponent.class).create(entityId);
+            return entityId;
+        }
+
+        int entity(int stableId, int parentStableId) {
+            int entityId = world.create();
+            world.getMapper(PixscapeIdentityComponent.class).create(entityId).stableId = stableId;
+            world.getMapper(EntityIndexComponent.class).create(entityId);
+            world.getMapper(TransformComponent.class).create(entityId);
+            if (parentStableId > 0) {
+                world.getMapper(GameObjectMemberComponent.class).create(entityId)
+                        .parentStableId = parentStableId;
+            }
+            return entityId;
+        }
+
+        void rebuildIdentities() {
+            identities.rebuild();
+            world.process();
         }
     }
 }

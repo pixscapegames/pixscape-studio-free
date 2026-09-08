@@ -209,6 +209,12 @@ public abstract class AbstractCommonInitializer implements Initializer {
         entityLayerIndex = newLayerIndex;
     }
 
+    public void overrideZIndex(int newZIndex) {
+        hasEntityIndex = true;
+        entityZIndex = newZIndex;
+        capturedZIndex = true;
+    }
+
     public void setIdentityStableId(int stableId) {
         hasIdentity = true;
         identityStableId = stableId;

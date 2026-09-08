@@ -24,6 +24,9 @@ public class EntityPropertiesPhysicsVisibilityContractTest {
         assertTrue(sync.contains("ProjectConfig.getInstance()"));
         assertTrue(sync.contains("cfg != null ? cfg.getCurrentSceneMeta() : null"));
         assertTrue(sync.contains("scenePhysicsEnabled = meta != null && meta.physicsEnabled;"));
+
+        String applicable = methodBody(source, "private boolean isPhysicsApplicable()");
+        assertTrue(applicable.contains("return scenePhysicsEnabled;"));
     }
 
     private static String read(String path) throws Exception {

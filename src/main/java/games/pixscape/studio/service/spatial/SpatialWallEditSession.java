@@ -14,7 +14,7 @@ public final class SpatialWallEditSession {
     private static final int CLAMP_ITERATIONS = 16;
 
     private boolean active;
-    private int layerEntityId = SpatialBlockSelectionService.NO_LAYER;
+    private int layerEntityId = SpatialBlockSelectionService.NO_MAP;
     private int wallId = SpatialBlockSelectionService.NO_BLOCK;
     private SpatialBlocksComponent committed;
     private TiledMapLayerData map;
@@ -150,7 +150,7 @@ public final class SpatialWallEditSession {
 
     public void cancel() {
         active = false;
-        layerEntityId = SpatialBlockSelectionService.NO_LAYER;
+        layerEntityId = SpatialBlockSelectionService.NO_MAP;
         wallId = SpatialBlockSelectionService.NO_BLOCK;
         committed = null;
         map = null;

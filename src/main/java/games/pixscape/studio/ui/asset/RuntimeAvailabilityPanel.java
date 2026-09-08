@@ -36,7 +36,7 @@ public final class RuntimeAvailabilityPanel extends VisTable {
 
         treeView.setSelectionListener(this::showCategory);
 
-        AssetBrowserPanel browserPanel = new AssetBrowserPanel("Runtime Availability", treeView, thumbsView);
+        AssetBrowserPanel browserPanel = new AssetBrowserPanel("Runtime", treeView, thumbsView);
         add(browserPanel).grow();
 
         showCategory(treeView.getSelectedCategory());
@@ -155,7 +155,7 @@ public final class RuntimeAvailabilityPanel extends VisTable {
             case SPRITES -> app.getSceneService().addRuntimeAvailableSprite(resolveAssetId(payload));
             case ANIMATIONS -> app.getSceneService().addRuntimeAvailableAnimation(resolveAssetId(payload));
             case PARTICLES -> app.getSceneService().addRuntimeAvailableParticle(resolveParticleEffectPath(payload));
-            case PREFABS -> app.getSceneService().addRuntimeAvailablePrefab(resolvePrefabId(payload));
+            case GAME_OBJECTS -> app.getSceneService().addRuntimeAvailableGameObject(resolveGameObjectId(payload));
             case TILED_ANIMATIONS -> app.getSceneService().addRuntimeAvailableTiledAnimation(payload.tileAnimationId);
             case TILED_TILES -> addRuntimeAvailableTiles(payload);
         }
@@ -178,7 +178,7 @@ public final class RuntimeAvailabilityPanel extends VisTable {
         app.getSceneService().addRuntimeAvailableTiledTile(resolveAssetId(payload));
     }
 
-    private String resolvePrefabId(DragPayload payload) {
+    private String resolveGameObjectId(DragPayload payload) {
         if (payload.guid != null && !payload.guid.isBlank()) {
             return payload.guid;
         }

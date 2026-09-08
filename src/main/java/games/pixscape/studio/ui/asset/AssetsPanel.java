@@ -139,14 +139,22 @@ public final class AssetsPanel extends DockablePanel {
                 : -1;
     }
 
+    public AssetNode getSelectedAssetNode() {
+        return selectedAssetNode(thumbsView);
+    }
+
+    static AssetNode selectedAssetNode(AssetsThumbsView thumbsView) {
+        return thumbsView != null ? thumbsView.getSelectedNode() : null;
+    }
+
     private void buildLayout() {
-        AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project Assets", treeView, thumbsView);
+        AssetBrowserPanel projectAssetsBrowser = new AssetBrowserPanel("Project", treeView, thumbsView);
         VisSplitPane browserSplit = new VisSplitPane(
                 projectAssetsBrowser,
                 runtimeAvailabilityPanel,
                 false
         );
-        browserSplit.setSplitAmount(0.5f);
+        browserSplit.setSplitAmount(0.65f);
 
         add(browserSplit).grow();
     }

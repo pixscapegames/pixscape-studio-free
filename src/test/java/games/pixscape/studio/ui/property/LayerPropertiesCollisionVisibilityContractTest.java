@@ -12,27 +12,53 @@ import static org.junit.Assert.assertTrue;
 public class LayerPropertiesCollisionVisibilityContractTest {
 
     @Test
-    public void collisionsSectionRequiresTiledLayerAndScenePhysics() throws Exception {
-        String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
-        String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
+    public void tiledMapPropertiesOwnsCollisions() throws Exception {
+        String layer = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
+        String map = read("src/main/java/games/pixscape/studio/ui/property/TiledMapProperties.java");
 
-        assertTrue(refresh.contains("boolean scenePhysicsEnabled = isScenePhysicsEnabled();"));
-        assertTrue(refresh.contains("boolean collisionsSupported = isTiled && scenePhysicsEnabled;"));
-        assertTrue(refresh.contains("collisionsSection.show(collisionsSupported);"));
+        assertFalse(layer.contains("new VisCheckBox(\"Collisions\")"));
+        assertTrue(map.contains("new VisCheckBox(\"Collisions\")"));
+        assertTrue(map.contains("new AddPhysicsBodyCommand("));
+        assertTrue(map.contains("new RemovePhysicsBodyCommand("));
+        assertTrue(map.contains("mPhysicsBody.has(mapEntityId)"));
+        assertTrue(map.contains("showRemoveCollisionsDialog(mapEntityId)"));
+        assertTrue(map.contains("delete all collision shapes from this Map"));
+        assertTrue(map.contains("dialog.button(\"Remove\", true)"));
+        assertTrue(map.contains("dialog.button(\"Cancel\", false)"));
     }
 
     @Test
-    public void spatialSectionIsOnlyAvailableForTiledLayers() throws Exception {
+    public void layerAndMapSpatialPropertiesRemainDistinct() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
         String refresh = methodBody(source, "private void refreshFromModel(int layerEntityId)");
 
-        assertTrue(refresh.contains("boolean spatialSupported = isTiled;"));
-        assertTrue(refresh.contains("boolean spatialActive = isLayerSpatialEnabled(layerEntityId);"));
+        assertTrue(refresh.contains("boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty("));
+        assertTrue(refresh.contains("layerService.hasOtherSpatialActorLayer(layerEntityId)"));
+        assertTrue(refresh.contains("boolean spatialSupported = ordinarySpatialVisible;"));
+        assertTrue(refresh.contains("boolean spatialActive = lic.spatialEnabled;"));
         assertTrue(refresh.contains("spatialSection.show(spatialSupported);"));
-        assertTrue(refresh.contains("spatialBlock.show(isTiled && spatialActive);"));
-        assertTrue(source.contains("Default Altitude:"));
-        assertTrue(source.contains("Default Height:"));
-        assertTrue(source.contains("new VisCheckBox(\"Spatial Depth\")"));
+        assertFalse(source.contains("new VisCheckBox(\"Spatial Depth\")"));
+        assertTrue(source.contains("new VisCheckBox(\"Spatial\")"));
+        assertTrue(source.contains("new ToggleSpatialActorLayerCommand("));
+        assertFalse(source.contains("ToggleTiledMapSpatialDepthCommand"));
+        assertFalse(source.contains("TiledMapProperties"));
+        assertFalse(source.contains("StudioEditingMode.SPATIAL"));
+        assertFalse(source.contains("new VisLabel(\"Type:\")"));
+        assertFalse(source.contains("typeDisplayName("));
+
+        String map = read("src/main/java/games/pixscape/studio/ui/property/TiledMapProperties.java");
+        assertTrue(map.contains("new VisCheckBox(\"Spatial Depth\")"));
+        assertTrue(map.contains("new ToggleTiledMapSpatialDepthCommand("));
+        assertTrue(map.contains("Default Altitude:"));
+        assertTrue(map.contains("Default Height:"));
+    }
+
+    @Test
+    public void ordinarySpatialVisibilityHonorsEligibilityUniquenessAndAuthoredState() {
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, false));
+        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, true, true));
+        assertFalse(LayerProperties.shouldShowOrdinarySpatialProperty(false, false, false));
+        assertTrue(LayerProperties.shouldShowOrdinarySpatialProperty(true, false, true));
     }
 
     @Test
@@ -51,29 +77,28 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         assertTrue(source.contains("new ToggleSection(\"Spatial\""));
         assertTrue(source.contains("boolean isSprite = kind == EntityKind.SPRITE;"));
         assertTrue(source.contains("spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));"));
-        assertTrue(source.contains("&& isEntityInSpatialLayer()) || hasSpatialActorState();"));
+        assertTrue(source.contains("&& isEntityInSpatialEnabledLayer())"));
         assertFalse(source.contains("EventFlow.LayerSpatialDepthChanged.class"));
         assertTrue(source.contains("EventFlow.SpatialHeightChanged.class"));
     }
 
     @Test
-    public void addingCollisionsCannotAddLayerPhysicsWhenScenePhysicsIsOff() throws Exception {
-        String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
-        String addPhysics = methodBody(source, "private void addPhysicsToTiledLayer(int layerEntityId)");
+    public void addingMapCollisionsCannotEnableScenePhysics() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/property/TiledMapProperties.java");
 
-        assertTrue(source.contains("if (!isScenePhysicsEnabled()) {\n" +
-                "                    refreshFromModel(layerEntityId);"));
-        assertTrue(addPhysics.contains("if (!isScenePhysicsEnabled())"));
-        assertTrue(addPhysics.contains("return;"));
+        assertTrue(source.contains("if (requested && !isScenePhysicsEnabled())"));
+        assertFalse(source.contains("physicsEnabled = true"));
     }
 
     @Test
-    public void localCollisionRemovalExplainsThatItCanBeUndone() throws Exception {
-        String source = read("src/main/java/games/pixscape/studio/ui/property/LayerProperties.java");
+    public void propertiesPanelRoutesActualMapSelectionAndTargetEvent() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/property/PropertiesPanel.java");
+        String selection = methodBody(source, "public void onSelectionChanged(IntArray selectionSnapshot)");
 
-        assertTrue(source.contains("Removing collisions will delete the physics on this layer.\n" +
-                "                        This action can be undone."));
-        assertFalse(source.contains("Removing collisions will permanently delete"));
+        assertTrue(selection.contains("if (mTiled.has(e))"));
+        assertTrue(selection.contains("showTiledMapProperties(e)"));
+        assertTrue(source.contains("EventFlow.TiledMapEditingTargetChanged.class"));
+        assertFalse(source.contains("findTiledMapForHost("));
     }
 
     @Test

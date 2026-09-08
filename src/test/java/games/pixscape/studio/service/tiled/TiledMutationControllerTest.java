@@ -17,7 +17,7 @@ public class TiledMutationControllerTest {
         Fixture fixture = fixture();
         int revision = fixture.tiled.data.contentRevision();
 
-        fixture.controller.beginStroke(fixture.layer);
+        fixture.controller.beginStroke(fixture.map);
         fixture.controller.updateStroke(fixture.tiled, 1, 1, 7, TileTransformFlags.FLIP_H);
         fixture.controller.updateStroke(fixture.tiled, 3, 1, 7, TileTransformFlags.FLIP_H);
         TiledMutationController.Result accepted = fixture.controller.commitStroke();
@@ -48,18 +48,18 @@ public class TiledMutationControllerTest {
         Fixture fixture = fixture();
         fixture.tiled.data.setTile(2, 2, 3);
         SpatialBlocksComponent blocks = fixture.world.getMapper(SpatialBlocksComponent.class)
-                .create(fixture.layer);
+                .create(fixture.map);
         SpatialBlockData wall = wallLinkedTo(2, 2, 3);
         blocks.blocks.add(wall);
         int revision = fixture.tiled.data.contentRevision();
         int linkedRefCount = wall.linkedTileRefs.size;
 
-        fixture.controller.beginStroke(fixture.layer);
+        fixture.controller.beginStroke(fixture.map);
         fixture.controller.updateStroke(fixture.tiled, 2, 2, 0, TileTransformFlags.NONE);
         TiledMutationController.Result rejected = fixture.controller.commitStroke();
 
         Assert.assertEquals(TiledMutationController.Status.REJECTED, rejected.status());
-        Assert.assertEquals(fixture.layer, rejected.layerEntityId());
+        Assert.assertEquals(fixture.map, rejected.mapEntityId());
         Assert.assertNotNull(rejected.rejection());
         Assert.assertEquals(12, rejected.rejection().firstBlockId());
         Assert.assertEquals(3, fixture.tiled.data.getTile(2, 2));
@@ -74,14 +74,14 @@ public class TiledMutationControllerTest {
     public void cancelAndResetPublishNothingAndDiscardStagedCells() {
         Fixture fixture = fixture();
 
-        fixture.controller.beginStroke(fixture.layer);
+        fixture.controller.beginStroke(fixture.map);
         fixture.controller.updateStroke(fixture.tiled, 1, 1, 4, TileTransformFlags.NONE);
         Assert.assertEquals(TiledMutationController.Status.CANCELLED, fixture.controller.cancel().status());
         Assert.assertFalse(fixture.controller.isActive());
         Assert.assertEquals(0, fixture.tiled.data.getTile(1, 1));
         Assert.assertEquals(0, fixture.history.getCursor());
 
-        fixture.controller.beginStroke(fixture.layer);
+        fixture.controller.beginStroke(fixture.map);
         fixture.controller.updateStroke(fixture.tiled, 2, 2, 5, TileTransformFlags.NONE);
         fixture.controller.reset();
         Assert.assertFalse(fixture.controller.isActive());
@@ -90,7 +90,7 @@ public class TiledMutationControllerTest {
         Assert.assertEquals(0, fixture.tiled.data.getTile(2, 2));
         Assert.assertEquals(0, fixture.history.getCursor());
 
-        fixture.controller.beginStroke(fixture.layer);
+        fixture.controller.beginStroke(fixture.map);
         fixture.controller.updateStroke(fixture.tiled, 3, 3, 6, TileTransformFlags.NONE);
         Assert.assertEquals(TiledMutationController.Status.ACCEPTED,
                 fixture.controller.commitStroke().status());
@@ -105,13 +105,13 @@ public class TiledMutationControllerTest {
 
         Assert.assertEquals(TiledMutationController.Status.ACCEPTED,
                 fixture.controller.commitRectangle(
-                        fixture.layer, fixture.tiled, 1, 1, 2, 2, 8, TileTransformFlags.NONE).status());
+                        fixture.map, fixture.tiled, 1, 1, 2, 2, 8, TileTransformFlags.NONE).status());
         Assert.assertEquals(8, fixture.tiled.data.getTile(1, 1));
         Assert.assertEquals(8, fixture.tiled.data.getTile(2, 2));
 
         Assert.assertEquals(TiledMutationController.Status.ACCEPTED,
                 fixture.controller.commitFill(
-                        fixture.layer, fixture.tiled, 1, 1, 9, TileTransformFlags.FLIP_V).status());
+                        fixture.map, fixture.tiled, 1, 1, 9, TileTransformFlags.FLIP_V).status());
         Assert.assertEquals(9, fixture.tiled.data.getTile(1, 1));
         Assert.assertEquals(9, fixture.tiled.data.getTile(2, 2));
         Assert.assertEquals(TileTransformFlags.FLIP_V,
@@ -119,19 +119,19 @@ public class TiledMutationControllerTest {
 
         Assert.assertEquals(TiledMutationController.Status.ACCEPTED,
                 fixture.controller.commitRectangle(
-                        fixture.layer, fixture.tiled, 1, 1, 1, 1, 0, TileTransformFlags.NONE).status());
+                        fixture.map, fixture.tiled, 1, 1, 1, 1, 0, TileTransformFlags.NONE).status());
         Assert.assertEquals(0, fixture.tiled.data.getTile(1, 1));
         Assert.assertEquals(3, fixture.history.getCursor());
     }
 
     private static Fixture fixture() {
         World world = new World(new WorldConfiguration());
-        int layer = world.create();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layer);
+        int map = world.create();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(map);
         tiled.data = new TiledMapLayerData(8, 8, 32, 16, 4);
         HistoryManager history = new HistoryManager(16);
         TiledMutationController controller = new TiledMutationController(world, history, () -> null);
-        return new Fixture(world, layer, tiled, history, controller);
+        return new Fixture(world, map, tiled, history, controller);
     }
 
     private static SpatialBlockData wallLinkedTo(int gx, int gy, int assetId) {
@@ -149,7 +149,7 @@ public class TiledMutationControllerTest {
     }
 
     private record Fixture(World world,
-                           int layer,
+                           int map,
                            TiledLayerComponent tiled,
                            HistoryManager history,
                            TiledMutationController controller) {

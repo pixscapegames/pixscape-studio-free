@@ -2,21 +2,35 @@ package games.pixscape.studio.service;
 
 import com.artemis.Aspect;
 import com.artemis.World;
-import com.artemis.WorldConfiguration;
+import com.artemis.WorldConfigurationBuilder;
+import com.artemis.managers.WorldSerializationManager;
+import com.artemis.utils.IntBag;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.CustomPropertiesComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.QuadDeformComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -31,6 +45,8 @@ import org.junit.Test;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
 
@@ -135,6 +151,297 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
+    public void copyPasteGameObjectRootCapturesTheCompleteHierarchyAndSelectsOnlyTheNewRoot()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 5f, 7f, 0.2f, 1.25f, 2, "source/tree");
+        int child = gameObjectMember(h.world, 200, 100, 3f, -4f, 4);
+        h.world.getMapper(CustomPropertiesComponent.class).create(child).properties = new PropertySet()
+                .putObjectStableId("root", 100);
+        h.world.process();
+        h.selection.selectOnly(root);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertEquals(root, h.selection.getFirstSelectedEntityId());
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+
+        IntArray selected = h.selection.getSelectionSnapshot();
+        Assert.assertEquals(1, selected.size);
+        int copiedRoot = selected.first();
+        int copiedChild = findMemberOf(h.world, copiedRoot);
+        Assert.assertTrue(copiedChild >= 0);
+        Assert.assertTrue(h.world.getMapper(GameObjectComponent.class).has(copiedRoot));
+        Assert.assertEquals("source/tree", h.world.getMapper(GameObjectComponent.class)
+                .get(copiedRoot).sourceAssetId);
+        Assert.assertEquals(21f, h.world.getMapper(TransformComponent.class).get(copiedRoot).x, 0f);
+        Assert.assertEquals(-9f, h.world.getMapper(TransformComponent.class).get(copiedRoot).y, 0f);
+        Assert.assertEquals(3f, h.world.getMapper(TransformComponent.class).get(copiedChild).x, 0f);
+        int copiedRootStableId = h.world.getMapper(PixscapeIdentityComponent.class)
+                .get(copiedRoot).stableId;
+        Assert.assertNotEquals(100, copiedRootStableId);
+        Assert.assertEquals(copiedRootStableId, h.world.getMapper(GameObjectMemberComponent.class)
+                .get(copiedChild).parentStableId);
+        Assert.assertEquals(copiedRootStableId, h.world.getMapper(CustomPropertiesComponent.class)
+                .get(copiedChild).properties.getObjectStableId("root", -1));
+    }
+
+    @Test
+    public void copyPasteGameObjectBodyUsesFreshShapeIdsAndKeepsMemberLocalTransform()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 5f, 7f, 0.2f, 1f, 2, "source/physical");
+        int bodyMember = gameObjectMember(h.world, 200, 100, 3f, -4f, 4);
+        TransformComponent memberTransform = h.world.getMapper(TransformComponent.class).get(bodyMember);
+        memberTransform.scaleX = -1f;
+        memberTransform.scaleY = 2f;
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyMember)
+                .type = PhysicsBodyComponent.DYNAMIC;
+        PhysicsShapeData sourceShape = new PhysicsShapeData();
+        sourceShape.physicsShapeId = 77;
+        sourceShape.geometry = new PhysicsGeometryData();
+        sourceShape.geometry.halfWidth = 2f;
+        sourceShape.geometry.halfHeight = 3f;
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyMember).shapes.add(sourceShape);
+        h.world.process();
+        h.selection.selectOnly(root);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        sourceShape.geometry.halfWidth = 99f;
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        int firstRoot = h.selection.getFirstSelectedEntityId();
+        int firstMember = findMemberOf(h.world, firstRoot);
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(firstMember));
+        int firstShapeId = h.world.getMapper(PhysicsShapesComponent.class)
+                .get(firstMember).shapes.first().physicsShapeId;
+        Assert.assertNotEquals(77, firstShapeId);
+        Assert.assertEquals(2f, h.world.getMapper(PhysicsShapesComponent.class)
+                .get(firstMember).shapes.first().geometry.halfWidth, 0f);
+        Assert.assertEquals(3f, h.world.getMapper(TransformComponent.class).get(firstMember).x, 0f);
+        Assert.assertEquals(-1f, h.world.getMapper(TransformComponent.class).get(firstMember).scaleX, 0f);
+        Assert.assertEquals(21f, h.world.getMapper(TransformComponent.class).get(firstRoot).x, 0f);
+
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        int secondRoot = h.selection.getFirstSelectedEntityId();
+        int secondMember = findMemberOf(h.world, secondRoot);
+        int secondShapeId = h.world.getMapper(PhysicsShapesComponent.class)
+                .get(secondMember).shapes.first().physicsShapeId;
+        Assert.assertNotEquals(firstShapeId, secondShapeId);
+        Assert.assertEquals(37f, h.world.getMapper(TransformComponent.class).get(secondRoot).x, 0f);
+    }
+
+    @Test
+    public void copyPasteGameObjectWithInternalJointRemapsBothBodiesAndKeepsJointUnselected()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 5f, 7f, 0f, 1f, 1, "source/jointed");
+        int bodyA = gameObjectMember(h.world, 200, 100, 1f, 0f, 2);
+        int bodyB = gameObjectMember(h.world, 300, 100, 3f, 0f, 3);
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyA);
+        h.world.getMapper(PhysicsBodyComponent.class).create(bodyB);
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyA).shapes.add(
+                physicsShape(701));
+        h.world.getMapper(PhysicsShapesComponent.class).create(bodyB).shapes.add(
+                physicsShape(702));
+        int sourceJoint = h.world.create();
+        PhysicsJointComponent base = h.world.getMapper(PhysicsJointComponent.class).create(sourceJoint);
+        base.type = PhysicsJointComponent.TYPE_DISTANCE;
+        base.aEid = bodyA;
+        base.bEid = bodyB;
+        PhysicsDistanceJointComponent distance = h.world.getMapper(
+                PhysicsDistanceJointComponent.class).create(sourceJoint);
+        distance.lengthM = 2f;
+        distance.frequencyHz = 3f;
+        distance.dampingRatio = .5f;
+        h.world.process();
+        h.selection.selectOnly(root);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+
+        IntArray selected = h.selection.getSelectionSnapshot();
+        Assert.assertEquals(1, selected.size);
+        int pastedRoot = selected.first();
+        int pastedJoint = onlyJointOtherThan(h.world, sourceJoint);
+        PhysicsJointComponent pastedBase = h.world.getMapper(PhysicsJointComponent.class).get(pastedJoint);
+        Assert.assertNotEquals(bodyA, pastedBase.aEid);
+        Assert.assertNotEquals(bodyB, pastedBase.bEid);
+        Assert.assertTrue(isMemberOf(h.world, pastedBase.aEid, pastedRoot));
+        Assert.assertTrue(isMemberOf(h.world, pastedBase.bEid, pastedRoot));
+        Assert.assertEquals(2f, h.world.getMapper(PhysicsDistanceJointComponent.class)
+                .get(pastedJoint).lengthM, 0f);
+    }
+
+    @Test
+    public void copyRootAndDescendantNormalizesToOneHierarchyAndMemberOnlyCopyFailsCleanly()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 0f, 0f, 0f, 1f, 1, "");
+        int child = gameObjectMember(h.world, 200, 100, 1f, 2f, 2);
+        h.world.process();
+        h.selection.selectOnly(root);
+        h.selection.selectAdd(child);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        Assert.assertEquals(1, h.selection.getSelectionSnapshot().size);
+        Assert.assertEquals(5, countAll(h.world));
+
+        h.selection.selectOnly(child);
+        Assert.assertFalse(h.clipboard.copySelection());
+        Assert.assertFalse(h.clipboard.hasContent());
+        Assert.assertEquals(child, h.selection.getFirstSelectedEntityId());
+        Assert.assertTrue(h.world.getEntityManager().isActive(root));
+        Assert.assertTrue(h.world.getEntityManager().isActive(child));
+    }
+
+    @Test
+    public void cutGameObjectRootDeletesTheSubtreeAndClipboardPasteCreatesFreshHierarchy()
+            throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 3f, 4f, 0f, 1f, 1, "source/tree");
+        int child = gameObjectMember(h.world, 200, 100, 5f, 6f, 2);
+        h.world.process();
+        h.selection.selectOnly(root);
+        long originalRootHistory = h.history.historyIds().ensureForEntity(root);
+        long originalChildHistory = h.history.historyIds().ensureForEntity(child);
+
+        Assert.assertTrue(h.clipboard.cutSelection());
+        h.world.process();
+        Assert.assertFalse(h.world.getEntityManager().isActive(root));
+        Assert.assertFalse(h.world.getEntityManager().isActive(child));
+        Assert.assertTrue(h.clipboard.hasContent());
+
+        h.history.undo();
+        h.world.process();
+        int restoredRoot = h.history.historyIds().entityOfHistoryId(originalRootHistory);
+        int restoredChild = h.history.historyIds().entityOfHistoryId(originalChildHistory);
+        Assert.assertTrue(restoredRoot >= 0);
+        Assert.assertTrue(restoredChild >= 0);
+        Assert.assertEquals(h.world.getMapper(PixscapeIdentityComponent.class).get(restoredRoot).stableId,
+                h.world.getMapper(GameObjectMemberComponent.class).get(restoredChild).parentStableId);
+
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+        int pastedRoot = h.selection.getFirstSelectedEntityId();
+        Assert.assertNotEquals(h.world.getMapper(PixscapeIdentityComponent.class).get(restoredRoot).stableId,
+                h.world.getMapper(PixscapeIdentityComponent.class).get(pastedRoot).stableId);
+        Assert.assertTrue(findMemberOf(h.world, pastedRoot) >= 0);
+    }
+
+    @Test
+    public void cutNestedGameObjectDeletesOnlyItsSubtreeAndUndoRestoresItsParentRelation()
+            throws Exception {
+        Harness h = new Harness();
+        int outer = gameObject(h.world, 100, -1, 0f, 0f, 0f, 1f, 1, "");
+        int nested = gameObject(h.world, 200, 100, 2f, 3f, 0f, 1f, 2, "");
+        int leaf = gameObjectMember(h.world, 300, 200, 4f, 5f, 3);
+        h.world.process();
+        long nestedHistory = h.history.historyIds().ensureForEntity(nested);
+        h.selection.selectOnly(nested);
+
+        Assert.assertTrue(h.clipboard.cutSelection());
+        h.world.process();
+        Assert.assertTrue(h.world.getEntityManager().isActive(outer));
+        Assert.assertFalse(h.world.getEntityManager().isActive(nested));
+        Assert.assertFalse(h.world.getEntityManager().isActive(leaf));
+
+        h.history.undo();
+        h.world.process();
+        int restoredNested = h.history.historyIds().entityOfHistoryId(nestedHistory);
+        Assert.assertTrue(restoredNested >= 0);
+        Assert.assertEquals(h.world.getMapper(PixscapeIdentityComponent.class).get(outer).stableId,
+                h.world.getMapper(GameObjectMemberComponent.class).get(restoredNested).parentStableId);
+        Assert.assertTrue(findMemberOf(h.world, restoredNested) >= 0);
+    }
+
+    @Test
+    public void copyPasteGameObjectHierarchySurvivesSceneSaveAndReload() throws Exception {
+        Harness h = new Harness();
+        int root = gameObject(h.world, 100, -1, 3f, 4f, 0f, 1f, 1, "source/tree");
+        int child = gameObjectMember(h.world, 200, 100, 5f, 6f, 2);
+        h.world.process();
+        h.selection.selectOnly(root);
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+        h.world.process();
+
+        int copiedRoot = h.selection.getFirstSelectedEntityId();
+        int copiedChild = findMemberOf(h.world, copiedRoot);
+        int copiedRootStableId = h.world.getMapper(PixscapeIdentityComponent.class)
+                .get(copiedRoot).stableId;
+        int copiedChildStableId = h.world.getMapper(PixscapeIdentityComponent.class)
+                .get(copiedChild).stableId;
+        Path path = Files.createTempFile("clipboard-game-object", ".json");
+        World loaded = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(32),
+                        new GameObjectHierarchySystem(32))
+                .build());
+        try {
+            SceneService.saveScene(h.world, new FileHandle(path.toFile()), false);
+            SceneMetaRuntime meta = new SceneMetaRuntime();
+            meta.nextEntityStableId = h.sceneMeta.nextEntityStableId;
+            SceneLoader.loadScene(loaded, new FileHandle(path.toFile()), false, meta);
+            IdentityRegistry loadedIdentities = new IdentityRegistry();
+            loadedIdentities.bind(loaded, meta);
+            loadedIdentities.rebuild();
+            loaded.process();
+
+            int restoredRoot = findByStableId(loaded, copiedRootStableId);
+            int restoredChild = findByStableId(loaded, copiedChildStableId);
+            Assert.assertTrue(restoredRoot >= 0);
+            Assert.assertTrue(restoredChild >= 0);
+            Assert.assertEquals("source/tree", loaded.getMapper(GameObjectComponent.class)
+                    .get(restoredRoot).sourceAssetId);
+            Assert.assertEquals(copiedRootStableId,
+                    loaded.getMapper(GameObjectMemberComponent.class)
+                            .get(restoredChild).parentStableId);
+            Assert.assertEquals(5f, loaded.getMapper(TransformComponent.class)
+                    .get(restoredChild).x, 0f);
+            Assert.assertEquals(6f, loaded.getMapper(TransformComponent.class)
+                    .get(restoredChild).y, 0f);
+        } finally {
+            loaded.dispose();
+            Files.deleteIfExists(path);
+        }
+    }
+
+    @Test
+    public void copyPastePointLightPreservesCompleteLightStateInClassicLayer() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 13f, 17f, 0);
+        PointLightComponent light = h.world.getMapper(PointLightComponent.class).create(source);
+        light.enabled = false;
+        light.radius = 123f;
+        light.intensity = 2.5f;
+        light.falloff = 3.25f;
+        light.r = 0.15f;
+        light.g = 0.35f;
+        light.b = 0.75f;
+        h.selection.selectOnly(source);
+
+        Assert.assertTrue(h.clipboard.copySelection());
+        Assert.assertTrue(h.clipboard.paste());
+
+        int pastedEntity = h.selection.getFirstSelectedEntityId();
+        PointLightComponent pasted = h.world.getMapper(PointLightComponent.class).get(pastedEntity);
+        Assert.assertNotNull(pasted);
+        Assert.assertFalse(pasted.enabled);
+        Assert.assertEquals(123f, pasted.radius, 0f);
+        Assert.assertEquals(2.5f, pasted.intensity, 0f);
+        Assert.assertEquals(3.25f, pasted.falloff, 0f);
+        Assert.assertEquals(0.15f, pasted.r, 0f);
+        Assert.assertEquals(0.35f, pasted.g, 0f);
+        Assert.assertEquals(0.75f, pasted.b, 0f);
+        Assert.assertEquals(0,
+                h.world.getMapper(EntityIndexComponent.class).get(pastedEntity).layerIndex);
+    }
+
+    @Test
     public void clipboardAndEntityGraphShareOneIdentityRegistry() throws Exception {
         Harness h = new Harness();
         int source = createEntity(h.world, 1f, 2f, 0);
@@ -150,7 +457,7 @@ public class ClipboardServiceFlowTest {
                 .capture(new IntArray(new int[]{source}));
         EntityGraphInstantiationResult directResult =
                 new EntityGraphInstantiationService(
-                        h.world, h.history, h.identities, h.physicsService)
+                        h.world, h.history, h.identities, h.physicsService, () -> true)
                         .instantiate(graph, 0, 4f, 4f, "Direct graph path");
         int directEntity = directResult.createdIds().first();
         int directStableId = h.world.getMapper(PixscapeIdentityComponent.class)
@@ -163,7 +470,7 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void pasteResolvesValidClassicLayerAndStripsPhysics() throws Exception {
+    public void pasteResolvesValidOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
@@ -172,18 +479,18 @@ public class ClipboardServiceFlowTest {
         Assert.assertTrue(h.clipboard.paste());
         int pasted = h.selection.getFirstSelectedEntityId();
         Assert.assertEquals(0, h.world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
-        Assert.assertFalse(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertFalse(h.world.getMapper(PhysicsShapesComponent.class).has(pasted));
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(1, h.world.getMapper(PhysicsShapesComponent.class).get(pasted).shapes.size);
     }
 
     @Test
-    public void pasteResolvesValidPhysicsLayerAndKeepsPhysics() throws Exception {
+    public void pasteResolvesSecondOrdinaryLayerAndKeepsPhysics() throws Exception {
         Harness h = new Harness();
-        int physicsLayer = h.addLayer(1, LayerComponent.TYPE_PHYSICS, false);
+        int ordinaryLayer = h.addLayer(1, false);
         int source = physicalEntity(h.world, 0, false);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
-        h.selection.setActivelayerId(physicsLayer);
+        h.selection.setActivelayerId(ordinaryLayer);
 
         Assert.assertTrue(h.clipboard.paste());
         int pasted = h.selection.getFirstSelectedEntityId();
@@ -193,9 +500,55 @@ public class ClipboardServiceFlowTest {
     }
 
     @Test
-    public void pasteResolvesValidSpatialPhysicsLayerAndKeepsSpatialState() throws Exception {
+    public void pasteRejectsRetainedPhysicsGraphWhileScenePhysicsIsDisabled() throws Exception {
         Harness h = new Harness();
-        int spatialLayer = h.addLayer(1, LayerComponent.TYPE_PHYSICS, true);
+        int source = physicalEntity(h.world, 0, false);
+        h.selection.selectOnly(source);
+        Assert.assertTrue(h.clipboard.copySelection());
+        h.world.delete(source);
+        h.world.process();
+        h.selection.clearSelection();
+        h.sceneMeta.physicsEnabled = false;
+        int entitiesBefore = countAll(h.world);
+        int historyCursorBefore = h.history.getCursor();
+        int nextStableIdBefore = h.sceneMeta.nextEntityStableId;
+
+        Assert.assertFalse(h.clipboard.paste());
+
+        Assert.assertTrue(h.clipboard.hasContent());
+        Assert.assertEquals(entitiesBefore, countAll(h.world));
+        Assert.assertEquals(historyCursorBefore, h.history.getCursor());
+        Assert.assertEquals(nextStableIdBefore, h.sceneMeta.nextEntityStableId);
+
+        h.sceneMeta.physicsEnabled = true;
+        Assert.assertTrue(h.clipboard.paste());
+        int pasted = h.selection.getFirstSelectedEntityId();
+        Assert.assertTrue(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(
+                1,
+                h.world.getMapper(PhysicsShapesComponent.class).get(pasted).shapes.size);
+    }
+
+    @Test
+    public void ordinaryClipboardGraphPastesWhileScenePhysicsIsDisabled() throws Exception {
+        Harness h = new Harness();
+        int source = createEntity(h.world, 3f, 7f, 0);
+        h.selection.selectOnly(source);
+        Assert.assertTrue(h.clipboard.copySelection());
+        h.sceneMeta.physicsEnabled = false;
+
+        Assert.assertTrue(h.clipboard.paste());
+
+        int pasted = h.selection.getFirstSelectedEntityId();
+        Assert.assertFalse(h.world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertEquals(19f,
+                h.world.getMapper(TransformComponent.class).get(pasted).x, 0f);
+    }
+
+    @Test
+    public void pasteResolvesValidSpatialEnabledLayerAndKeepsSpatialState() throws Exception {
+        Harness h = new Harness();
+        int spatialLayer = h.addLayer(1, true);
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;
@@ -221,7 +574,6 @@ public class ClipboardServiceFlowTest {
         int rogueLayer = h.world.create();
         LayerComponent rogue = h.world.getMapper(LayerComponent.class).create(rogueLayer);
         rogue.layerIndex = 99;
-        rogue.type = LayerComponent.TYPE_CLASSIC;
         h.world.process();
         h.selection.setActivelayerId(rogueLayer);
 
@@ -244,31 +596,13 @@ public class ClipboardServiceFlowTest {
     @Test
     public void pasteRejectsLayerDeletedBetweenCopyAndPaste() throws Exception {
         Harness h = new Harness();
-        int target = h.addLayer(1, LayerComponent.TYPE_CLASSIC, false);
+        int target = h.addLayer(1, false);
         int source = createEntity(h.world, 1f, 1f, 0);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
         h.selection.setActivelayerId(target);
         h.layers.removeLayerCascade(1);
         h.world.process();
-
-        int entitiesBefore = countAll(h.world);
-        int nextStableIdBefore = h.sceneMeta.nextEntityStableId;
-        Assert.assertFalse(h.clipboard.paste());
-        Assert.assertEquals(entitiesBefore, countAll(h.world));
-        Assert.assertEquals(nextStableIdBefore, h.sceneMeta.nextEntityStableId);
-        Assert.assertFalse(h.history.canUndo());
-        Assert.assertEquals(source, h.selection.getFirstSelectedEntityId());
-    }
-
-    @Test
-    public void pasteRejectsUnknownLayerType() throws Exception {
-        Harness h = new Harness();
-        int unknownLayer = h.addLayer(1, 999, false);
-        int source = createEntity(h.world, 2f, 3f, 0);
-        h.selection.selectOnly(source);
-        Assert.assertTrue(h.clipboard.copySelection());
-        h.selection.setActivelayerId(unknownLayer);
 
         int entitiesBefore = countAll(h.world);
         int nextStableIdBefore = h.sceneMeta.nextEntityStableId;
@@ -290,6 +624,80 @@ public class ClipboardServiceFlowTest {
         return entity;
     }
 
+    private static int gameObject(
+            World world, int stableId, int parentStableId, float x, float y,
+            float rotation, float scale, int z, String sourceAssetId) {
+        int entity = gameObjectMember(world, stableId, parentStableId, x, y, z);
+        TransformComponent transform = world.getMapper(TransformComponent.class).get(entity);
+        transform.rotationRad = rotation;
+        transform.scaleX = scale;
+        transform.scaleY = scale;
+        world.getMapper(GameObjectComponent.class).create(entity).sourceAssetId = sourceAssetId;
+        return entity;
+    }
+
+    private static int gameObjectMember(
+            World world, int stableId, int parentStableId, float x, float y, int z) {
+        int entity = createEntity(world, x, y, 0);
+        world.getMapper(EntityIndexComponent.class).get(entity).zIndex = z;
+        world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;
+        if (parentStableId >= 0) {
+            world.getMapper(GameObjectMemberComponent.class).create(entity)
+                    .parentStableId = parentStableId;
+        }
+        return entity;
+    }
+
+    private static int findMemberOf(World world, int rootEntityId) {
+        PixscapeIdentityComponent root = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(rootEntityId, null);
+        if (root == null) return -1;
+        com.artemis.utils.IntBag members = world.getAspectSubscriptionManager()
+                .get(Aspect.all(GameObjectMemberComponent.class)).getEntities();
+        for (int i = 0; i < members.size(); i++) {
+            int entityId = members.get(i);
+            if (world.getMapper(GameObjectMemberComponent.class)
+                    .get(entityId).parentStableId == root.stableId) {
+                return entityId;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean isMemberOf(World world, int entityId, int rootEntityId) {
+        PixscapeIdentityComponent root = world.getMapper(PixscapeIdentityComponent.class)
+                .getSafe(rootEntityId, null);
+        GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
+                .getSafe(entityId, null);
+        return root != null && member != null && member.parentStableId == root.stableId;
+    }
+
+    private static int onlyJointOtherThan(World world, int sourceJoint) {
+        IntBag joints = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsJointComponent.class)).getEntities();
+        int result = -1;
+        for (int i = 0; i < joints.size(); i++) {
+            int entityId = joints.get(i);
+            if (entityId == sourceJoint) continue;
+            Assert.assertEquals(-1, result);
+            result = entityId;
+        }
+        Assert.assertTrue(result >= 0);
+        return result;
+    }
+
+    private static int findByStableId(World world, int stableId) {
+        IntBag identities = world.getAspectSubscriptionManager()
+                .get(Aspect.all(PixscapeIdentityComponent.class)).getEntities();
+        for (int i = 0; i < identities.size(); i++) {
+            int entityId = identities.get(i);
+            if (world.getMapper(PixscapeIdentityComponent.class).get(entityId).stableId == stableId) {
+                return entityId;
+            }
+        }
+        return -1;
+    }
+
     private static int physicalEntity(World world, int layerIndex, boolean footprint) {
         int entity = createEntity(world, 0f, 0f, layerIndex);
         world.getMapper(PhysicsBodyComponent.class).create(entity);
@@ -303,6 +711,16 @@ public class ClipboardServiceFlowTest {
         shape.spatialFootprint = footprint;
         shapes.shapes.add(shape);
         return entity;
+    }
+
+    private static PhysicsShapeData physicsShape(int id) {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = id;
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
+        shape.geometry.halfWidth = 1f;
+        shape.geometry.halfHeight = 1f;
+        return shape;
     }
 
     private static boolean hasFootprint(PhysicsShapesComponent shapes) {
@@ -331,7 +749,10 @@ public class ClipboardServiceFlowTest {
     }
 
     private static final class Harness {
-        final World world = new World(new WorldConfiguration());
+        final World world = new World(new WorldConfigurationBuilder()
+                .with(new WorldSerializationManager(), new DirtyTrackerSystem(32),
+                        new GameObjectHierarchySystem(32))
+                .build());
         final HistoryManager history = new HistoryManager(32);
         final SceneMeta sceneMeta;
         final IdentityRegistry identities = new IdentityRegistry();
@@ -347,11 +768,13 @@ public class ClipboardServiceFlowTest {
             config.createSceneMeta("Main");
             ProjectConfig.setInstance(config);
             sceneMeta = config.getCurrentSceneMeta();
+            sceneMeta.physicsEnabled = true;
+            sceneMeta.nextEntityStableId = 1_000;
             identities.bind(world, sceneMeta);
             identities.rebuild();
             physicsService = new PhysicsService(world, null, sceneMeta);
             layers = new LayerService(world, null, history.historyIds(), identities);
-            classicLayer = addLayer(0, LayerComponent.TYPE_CLASSIC, false);
+            classicLayer = addLayer(0, false);
             selection = new SelectionService(world, layers);
             selection.setActivelayerId(classicLayer);
             canvas = newTestCanvas(
@@ -359,11 +782,10 @@ public class ClipboardServiceFlowTest {
             clipboard = new ClipboardService(canvas, identities);
         }
 
-        int addLayer(int index, int type, boolean spatialEnabled) {
+        int addLayer(int index, boolean spatialEnabled) {
             int entity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entity);
             layer.layerIndex = index;
-            layer.type = type;
             layer.spatialEnabled = spatialEnabled;
             world.getMapper(LayerMetaComponent.class).create(entity);
             world.process();

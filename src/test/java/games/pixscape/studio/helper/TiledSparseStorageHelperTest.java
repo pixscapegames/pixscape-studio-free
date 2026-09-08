@@ -2,6 +2,7 @@ package games.pixscape.studio.helper;
 
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Test;
@@ -131,7 +132,7 @@ public class TiledSparseStorageHelperTest {
                 16,
                 16,
                 chunkSize,
-                SceneMetaRuntime.TiledProjection.ORTHO
+                TiledProjection.ORTHO
         );
         return component;
     }

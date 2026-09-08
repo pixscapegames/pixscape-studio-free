@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.preview;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.*;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.glutils.HdpiMode;
 import games.pixscape.studio.PixscapeStudioApplication;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExportPaths;
@@ -92,6 +93,7 @@ public final class PreviewLauncher {
         Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
         configuration.setTitle(STUDIO_TITLE);
         configuration.setWindowIcon(PixscapeStudioApplication.PIXSCAPE_ICON);
+        configuration.setHdpiMode(HdpiMode.Logical);
         if (landscape) {
             configuration.setWindowedMode(resolution.witdht(), resolution.height());
         } else {

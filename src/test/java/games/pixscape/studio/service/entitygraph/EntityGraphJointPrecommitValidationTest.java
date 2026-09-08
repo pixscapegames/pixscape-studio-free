@@ -179,7 +179,7 @@ public class EntityGraphJointPrecommitValidationTest {
                     new EntityGraphInstantiationService(
                             world, history, identities,
                             new games.pixscape.runtime.service.PhysicsService(
-                                    world, null, new games.pixscape.studio.configuration.SceneMeta()));
+                                    world, null, new games.pixscape.studio.configuration.SceneMeta()), () -> true);
             world.process();
             sentinel.processCount = 0;
         }

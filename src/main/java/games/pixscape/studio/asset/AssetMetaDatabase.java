@@ -2,7 +2,7 @@ package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.io.StudioIO;
 
 import java.nio.charset.StandardCharsets;
@@ -433,17 +433,17 @@ public final class AssetMetaDatabase implements Json.Serializable {
         json.setOutputType(JsonWriter.OutputType.json);
         json.setIgnoreUnknownFields(true);
         json.setSerializer(AssetMeta.class, ASSET_META_SERIALIZER);
-        json.setSerializer(SceneMetaRuntime.TiledProjection.class,
-                new Json.Serializer<SceneMetaRuntime.TiledProjection>() {
+        json.setSerializer(TiledProjection.class,
+                new Json.Serializer<TiledProjection>() {
                     @Override
                     public void write(Json json,
-                                      SceneMetaRuntime.TiledProjection object,
+                                      TiledProjection object,
                                       Class knownType) {
                         json.writeValue(tiledProjectionWireName(object));
                     }
 
                     @Override
-                    public SceneMetaRuntime.TiledProjection read(Json json,
+                    public TiledProjection read(Json json,
                                                                  JsonValue jsonData,
                                                                  Class type) {
                         return tiledProjectionFromWireName(
@@ -835,20 +835,20 @@ public final class AssetMetaDatabase implements Json.Serializable {
     }
 
     private static String tiledProjectionWireName(
-            SceneMetaRuntime.TiledProjection projection) {
-        if (projection == SceneMetaRuntime.TiledProjection.ISO) return "isometric";
-        if (projection == SceneMetaRuntime.TiledProjection.ORTHO) return "orthogonal";
+            TiledProjection projection) {
+        if (projection == TiledProjection.ISO) return "isometric";
+        if (projection == TiledProjection.ORTHO) return "orthogonal";
         return null;
     }
 
-    private static SceneMetaRuntime.TiledProjection tiledProjectionFromWireName(
+    private static TiledProjection tiledProjectionFromWireName(
             String raw) {
         if (isBlank(raw)) return null;
         if ("isometric".equalsIgnoreCase(raw) || "ISO".equalsIgnoreCase(raw)) {
-            return SceneMetaRuntime.TiledProjection.ISO;
+            return TiledProjection.ISO;
         }
         if ("orthogonal".equalsIgnoreCase(raw) || "ORTHO".equalsIgnoreCase(raw)) {
-            return SceneMetaRuntime.TiledProjection.ORTHO;
+            return TiledProjection.ORTHO;
         }
         return null;
     }

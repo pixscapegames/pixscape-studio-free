@@ -43,6 +43,7 @@ import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -55,8 +56,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.initializer.GenericEntityInitializer;
-import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.input.InputState;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
@@ -66,14 +65,12 @@ import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
-import games.pixscape.studio.service.entitygraph.EntityGraph;
-import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
-import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
-import games.pixscape.studio.service.prefab.PrefabAssetService;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.service.tiled.*;
@@ -88,7 +85,6 @@ import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.Objects;
 import java.util.function.IntFunction;
-import java.util.function.IntPredicate;
 
 public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcessor,
         SpatialPreviewInvariantBoundary.FailureListener {
@@ -137,12 +133,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private ClipboardService clipboardService;
     private final PolygonDrawSession polygonDrawSession;
     private String defaultShaderName;
-    private PrefabAssetService prefabAssetService;
-    private EntityGraphInstantiationService entityGraphInstantiationService;
+    private GameObjectAssetService gameObjectAssetService;
     private KeyboardNudgeService keyboardNudgeService;
     private IdentityRegistry identityRegistry;
-    private String cachedPrefabPhysicsPath;
-    private boolean cachedPrefabContainsPhysics;
 
     // tiled
     private TiledPaintService tiledPaintService;
@@ -160,6 +153,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final TileAnimationRegistry tileAnimationRegistry;
     // tiled rect
     private boolean rectActive = false;
+    private int rectMapEntityId = -1;
     private int rectStartGX;
     private int rectStartGY;
 
@@ -183,7 +177,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private final Vector2 lastMouse = new Vector2();
     private final Vector2 delta = new Vector2();
     private final Vector2 tmpWorldPos = new Vector2();
-    private final Vector2 tmpPrefabOrigin = new Vector2();
     private final Vector2 tmpBeforeScroll = new Vector2();
     private final Vector2 tmpAfterScroll = new Vector2();
     private final Vector2 tmpUiStageCoords = new Vector2();
@@ -361,6 +354,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                         animationRegistry,
                         studioTilesetProfiles,
                         systemProfiler,
+                        new IdentityLayerDisplayOffsetResolver(),
 
                         // pre-render: Studio fallback systems before draw-list build
                         pre_render -> {
@@ -417,7 +411,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledMutationController = new TiledMutationController(
                 world, historyManager, () -> app != null ? app.getSceneService() : null);
 
-        tiledAllocatorService = new TiledAllocatorService();
+        tiledAllocatorService = new TiledAllocatorService(tileAnimationRegistry);
 
         tiledPaintService = new TiledPaintService();
         tiledToolService = new TiledToolService();
@@ -445,14 +439,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         clipboardService = new ClipboardService(this, identityRegistry);
 
-        prefabAssetService = new PrefabAssetService(world);
-        entityGraphInstantiationService = new EntityGraphInstantiationService(
-                world,
-                historyManager,
-                identityRegistry,
-                physicsService,
-                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
-        );
+        gameObjectAssetService = new GameObjectAssetService(
+                world, historyManager, identityRegistry,
+                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity,
+                entityId -> {
+                    if (entityId >= 0) selectionService.selectOnly(entityId);
+                    else selectionService.clearSelection();
+                }, selectionService, physicsService, this::isScenePhysicsEnabled);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService);
@@ -703,7 +696,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             if (meta == null) return;
 
             if (tile) {
-                configureTileMode(meta);
+                configureTileMode();
             } else {
                 configureEntityMode();
             }
@@ -713,26 +706,28 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private void bindTiledMutationContextChanges() {
         EventFlow.i().subscribe(EventFlow.TiledToolChanged.class, ev -> cancelTiledGesture());
         EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, ev -> cancelTiledGesture());
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, ev -> cancelTiledGesture());
     }
 
     private void cancelTiledGesture() {
         if (tiledMutationController != null) tiledMutationController.reset();
         if (rectActive) {
             rectActive = false;
+            rectMapEntityId = -1;
             if (gizmoSystem != null) gizmoSystem.hideRectPreview();
         }
         if (tiledPreviewService != null) tiledPreviewService.clear();
     }
 
-    private void configureTileMode(SceneMeta meta) {
-        gridActor.setTiledMode(meta.tiledProjection, meta.tileWidth, meta.tileHeight);
-        int layerEntity = selectionService.getActivelayerId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntity, null);
+    private void configureTileMode() {
+        int mapEntity = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntity, null);
 
         if (tiled != null && tiled.data != null) {
             TiledMapLayerData map = tiled.data;
+            gridActor.setTiledMode(tiled.projection, tiled.tileWidth, tiled.tileHeight);
 
-            if (meta.tiledProjection == games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ORTHO) {
+            if (tiled.projection == TiledProjection.ORTHO) {
                 float minX = map.originX;
                 float minY = map.originY;
                 float maxX = minX + map.mapWidth * map.tileWidth;
@@ -744,8 +739,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
 
             gridActor.bindTo(map);
+            gizmoSystem.enableTiledOverlay(tiled.tileWidth, tiled.tileHeight);
+        } else {
+            configureEntityMode();
         }
-        gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
     }
 
     private void configureEntityMode() {
@@ -781,7 +778,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         boolean acceptHere = switch (peek.type) {
-            case "particle", "anim-sheet", "atlas-region", "image-file", "prefab", "tile-asset", "tiled-animation" -> true;
+            case "particle", "anim-sheet", "atlas-region", "image-file", "gameObject", "tile-asset", "tiled-animation" -> true;
             default -> false;
         };
 
@@ -816,7 +813,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 case "anim-sheet" -> handleAnimSheetDrop(p, mx, my);
                 case "atlas-region" -> handleImageDrop(p, mx, my);
                 case "image-file" -> handleImageFileDrop(p, mx, my);
-                case "prefab" -> handlePrefabDrop(p, mx, my);
+                case "gameObject" -> handleGameObjectDrop(p, mx, my);
             }
             cleanupDndPayload(p);
         }
@@ -859,29 +856,50 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int activeLayerId = selectionService.getActivelayerId();
         if (activeLayerId < 0) return DropAllowedResult.forbidden();
 
-        int layerType = layerService.getLayerTypeByEntity(activeLayerId);
+        if (!isAssetPayloadAllowedForEditingContext(
+                layerService.isLayerEntity(activeLayerId),
+                selectionService.isTiledMapEditingTargetActive(), p.type)) {
+            return DropAllowedResult.forbidden();
+        }
+        if (!"gameObject".equals(p.type)) return DropAllowedResult.allowed();
 
-        boolean tilePayload = switch (p.type) {
-            case "tile-asset", "tiled-animation" -> true;
-            default -> false;
-        };
+        LayerComponent targetLayer = world.getMapper(LayerComponent.class)
+                .getSafe(activeLayerId, null);
+        if (targetLayer == null) return DropAllowedResult.forbidden();
+        GameObjectAsset asset = loadGameObjectAssetForDropValidation(p);
+        if (asset == null || !isGameObjectAssetAllowedForLayer(
+                LayerService.isSpatialActorLayer(targetLayer),
+                gameObjectAssetService.requiresSpatialLayer(asset))) {
+            return DropAllowedResult.forbidden();
+        }
+        return DropAllowedResult.allowed();
+    }
 
-        return switch (layerType) {
-            case LayerComponent.TYPE_TILED -> tilePayload
-                    ? DropAllowedResult.allowed()
-                    : DropAllowedResult.forbidden();
-            case LayerComponent.TYPE_LIGHT -> DropAllowedResult.forbidden();
-            case LayerComponent.TYPE_PHYSICS -> DropAllowedResult.allowed();
-            default -> {
-                if (tilePayload) {
-                    yield DropAllowedResult.forbidden();
-                }
-                if ("prefab".equals(p.type) && payloadPrefabContainsPhysics(p)) {
-                    yield DropAllowedResult.forbidden();
-                }
-                yield DropAllowedResult.allowed();
-            }
-        };
+    private GameObjectAsset loadGameObjectAssetForDropValidation(DragPayload payload) {
+        if (gameObjectAssetService == null || payload.path == null || payload.path.trim().isEmpty()) {
+            return null;
+        }
+        FileHandle file = Gdx.files.absolute(payload.path);
+        if (!file.exists()) return null;
+        try {
+            return gameObjectAssetService.loadGameObjectAsset(file);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    /** Layer capability and explicit Map editing target are independent axes. */
+    static boolean isAssetPayloadAllowedForEditingContext(
+            boolean layerTarget, boolean tiledMapTargetActive, String payloadType) {
+        boolean tilePayload = "tile-asset".equals(payloadType)
+                || "tiled-animation".equals(payloadType);
+        if (tilePayload) return tiledMapTargetActive;
+        return layerTarget;
+    }
+
+    static boolean isGameObjectAssetAllowedForLayer(
+            boolean spatialLayer, boolean assetRequiresSpatialLayer) {
+        return spatialLayer || !assetRequiresSpatialLayer;
     }
 
     private void cleanupDndPayload(DragPayload p) {
@@ -897,33 +915,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         currentCursorForbidden = false;
 
         Gdx.graphics.setSystemCursor(Cursor.SystemCursor.Arrow);
-    }
-
-    private boolean payloadPrefabContainsPhysics(DragPayload p) {
-        if (p == null || p.path == null || p.path.trim().isEmpty()) {
-            return false;
-        }
-
-        if (p.path.equals(cachedPrefabPhysicsPath)) {
-            return cachedPrefabContainsPhysics;
-        }
-
-        cachedPrefabPhysicsPath = p.path;
-        cachedPrefabContainsPhysics = false;
-
-        FileHandle prefabFile = Gdx.files.absolute(p.path);
-        if (!prefabFile.exists()) {
-            return false;
-        }
-
-        try {
-            EntityGraph graph = prefabAssetService.loadPrefab(prefabFile);
-            cachedPrefabContainsPhysics = prefabContainsPhysics(graph);
-        } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to inspect prefab physics: " + p.path, ex);
-        }
-
-        return cachedPrefabContainsPhysics;
     }
 
     private void setDndCursor(DragPayload payload, boolean forbidden) {
@@ -1057,7 +1048,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                             return true;
                         }
 
-                        // 4) otherwise entity deletion
+                        // 4) an explicit active map is deleted as a map, never as its Layer.
+                        int activeMapEid = selectionService.getTiledMapEditingTargetEntityId();
+                        if (activeMapEid >= 0) {
+                            editorOps.deleteTiledMap(activeMapEid);
+                            return true;
+                        }
+
+                        // 5) otherwise entity deletion
                         IntArray sel = selectionService.getSelectionSnapshot();
                         if (sel.size > 0) {
                             editorOps.deleteEntities(sel);
@@ -1129,11 +1127,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return true;
                 }
 
-                SceneMeta currentMeta = ProjectConfig.getInstance().getCurrentSceneMeta();
-                if (currentMeta == null) {
-                    return false;
-                }
-                boolean isTileMode = currentMeta.editorMode == SceneMeta.EditorMode.TILE;
+                boolean isTileMode = selectionService.isTiledMapEditingTargetActive();
 
                 if (!isTileMode || button != Input.Buttons.LEFT) {
                     return false;
@@ -1155,13 +1149,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     return true;
                 }
 
-                int layerEntityId = selectionService.getActivelayerId();
-                if (layerEntityId == -1) {
+                int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+                if (mapEntityId == -1) {
                     return false;
                 }
 
                 if (tiledToolService.is(TiledToolService.Mode.FILL)) {
-                    performFill(layerEntityId);
+                    performFill(mapEntityId);
                     return true;
                 }
 
@@ -1203,14 +1197,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
 
                 if (tiledMutationController.isActive()) {
-                    consumeTiledMutationResult(tiledMutationController.commitStroke());
+                    int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+                    if (isTiledToolInputEnabled()
+                            && tiledMutationController.activeMapEntityId() == mapEntityId) {
+                        consumeTiledMutationResult(tiledMutationController.commitStroke());
+                    } else {
+                        tiledMutationController.cancel();
+                    }
                 }
                 if (isTiledToolInputEnabled() && tiledToolService.is(TiledToolService.Mode.ERASE)) {
                     gizmoSystem.refreshOverlayMouse();
-                    SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-                    if (meta != null) {
-                        gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
-                    }
+                    enableTiledOverlayForSelectedMap();
                 }
 
                 handleRectUp();
@@ -1262,8 +1259,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean handleTiledOutsideMapClick() {
-        int layerEntityId = selectionService.getActivelayerId();
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (tiled == null || tiled.data == null) return false;
 
         computeTileUnderMouse(tiled, tmpWorldPos);
@@ -1291,14 +1288,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             return false;
         }
 
-        tiledMutationController.beginStroke(layerEntityId);
+        tiledMutationController.beginStroke(mapEntityId);
 
-        applyBrushAtMouse(layerEntityId);
+        applyBrushAtMouse(mapEntityId);
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
             gizmoSystem.disableTiledOverlay();
@@ -1319,8 +1316,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
-        applyBrushAtMouse(layerEntityId);
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        applyBrushAtMouse(mapEntityId);
     }
 
     private boolean handleRectDown() {
@@ -1331,12 +1328,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return false;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             return false;
         }
 
-        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             return false;
@@ -1347,6 +1344,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         rectStartGX = tiled.data.worldToTileX(tmpWorldPos.x, tmpWorldPos.y);
         rectStartGY = tiled.data.worldToTileY(tmpWorldPos.x, tmpWorldPos.y);
 
+        rectMapEntityId = mapEntityId;
         rectActive = true;
         return true;
     }
@@ -1355,13 +1353,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (!rectActive) {
             return;
         }
+        if (selectionService.getTiledMapEditingTargetEntityId() != rectMapEntityId) {
+            cancelTiledGesture();
+            return;
+        }
         if (!isTiledToolInputEnabled()) {
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(selectionService.getActivelayerId(), null);
+                        .getSafe(selectionService.getTiledMapEditingTargetEntityId(), null);
 
         if (tiled == null || tiled.data == null) {
             return;
@@ -1377,7 +1379,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         int minGY = Math.min(rectStartGY, gy);
         int maxGY = Math.max(rectStartGY, gy);
 
-        if (tiled.data.projection == games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection.ISO) {
+        if (tiled.data.projection == TiledProjection.ISO) {
             gizmoSystem.showTiledRectPreview(tiled.data, minGX, minGY, maxGX, maxGY);
         } else {
             float worldX0 = tiled.data.tileToWorldX(minGX, minGY);
@@ -1395,17 +1397,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
+        int startedMapEntityId = rectMapEntityId;
         rectActive = false;
+        rectMapEntityId = -1;
         gizmoSystem.hideRectPreview();
 
-        int layerEntityId = selectionService.getActivelayerId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1 || mapEntityId != startedMapEntityId) {
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             return;
@@ -1425,10 +1429,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         byte flags;
 
         if (tiledToolService.is(TiledToolService.Mode.ERASE)) {
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-            if (meta != null) {
-                gizmoSystem.enableTiledOverlay(meta.tileWidth, meta.tileHeight);
-            }
+            enableTiledOverlayForSelectedMap();
             assetId = 0;
             flags = TileTransformFlags.NONE;
         } else {
@@ -1440,21 +1441,21 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         consumeTiledMutationResult(tiledMutationController.commitRectangle(
-                layerEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
+                mapEntityId, tiled, minX, minY, maxX, maxY, assetId, flags));
     }
 
-    private void applyBrushAtMouse(int layerEntityId) {
+    private void applyBrushAtMouse(int mapEntityId) {
 
-        if (layerEntityId == -1)
+        if (mapEntityId == -1)
             return;
-        if (tiledMutationController.activeLayerEntityId() != layerEntityId) {
+        if (tiledMutationController.activeMapEntityId() != mapEntityId) {
             tiledMutationController.cancel();
             return;
         }
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null)
             return;
@@ -1489,11 +1490,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         tiledMutationController.updateStroke(tiled, gx, gy, assetId, flags);
     }
 
-    private void performFill(int layerEntityId) {
+    private void performFill(int mapEntityId) {
 
         TiledLayerComponent tiled =
                 world.getMapper(TiledLayerComponent.class)
-                        .getSafe(layerEntityId, null);
+                        .getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null)
             return;
@@ -1519,22 +1520,22 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         consumeTiledMutationResult(tiledMutationController.commitFill(
-                layerEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
+                mapEntityId, tiled, startGX, startGY, replacementId, replacementFlags));
     }
 
     private void consumeTiledMutationResult(TiledMutationController.Result result) {
         if (result.status() == TiledMutationController.Status.REJECTED) {
-            showTiledSpatialRejection(result.layerEntityId(), result.rejection());
+            showTiledSpatialRejection(result.mapEntityId(), result.rejection());
         }
     }
 
-    void showTiledSpatialRejection(int layerEntityId, TiledSpatialMutationRejection rejection) {
+    void showTiledSpatialRejection(int mapEntityId, TiledSpatialMutationRejection rejection) {
         if (rejection == null) return;
         VisDialog dialog = new StudioDialog("Spatial authoring conflict") {
             @Override
             protected void result(Object object) {
                 if (Boolean.TRUE.equals(object) && rejection.firstBlockId() > 0) {
-                    spatialBlockSelectionService.selectBlock(layerEntityId, rejection.firstBlockId());
+                    spatialBlockSelectionService.selectBlock(mapEntityId, rejection.firstBlockId());
                 }
             }
         };
@@ -1761,7 +1762,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     }
 
-    public void handlePrefabDrop(DragPayload p, float screenX, float screenY) {
+    public void handleGameObjectDrop(DragPayload p, float screenX, float screenY) {
         if (p == null || p.path == null || p.path.trim().isEmpty()) {
             return;
         }
@@ -1774,60 +1775,34 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 tmpWorldPos
         );
 
-        FileHandle prefabFile = Gdx.files.absolute(p.path);
-        if (!prefabFile.exists()) {
-            Gdx.app.error("PrefabDrop", "Prefab file does not exist: " + p.path);
+        FileHandle assetFile = Gdx.files.absolute(p.path);
+        if (!assetFile.exists()) {
+            Gdx.app.error("GameObjectDrop", "Game Object file does not exist: " + p.path);
             return;
         }
 
-        EntityGraph graph;
+        GameObjectAsset asset;
         try {
-            graph = prefabAssetService.loadPrefab(prefabFile);
+            asset = gameObjectAssetService.loadGameObjectAsset(assetFile);
         } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to load prefab: " + p.path, ex);
-            return;
-        }
-
-        if (graph == null || graph.isEmpty()) {
-            Gdx.app.error("PrefabDrop", "Prefab graph is empty: " + p.path);
-            return;
-        }
-
-        if (prefabContainsPhysics(graph) && !activeLayerAcceptsPhysicsPrefabs()) {
-            return;
-        }
-
-        computePrefabOrigin(graph, tmpPrefabOrigin);
-
-        int prefabInstanceId;
-        String prefabId = StudioFs.removeExtension(prefabFile.name());
-        try {
-            SceneService sceneService = app != null ? app.getSceneService() : null;
-            if (sceneService == null) {
-                throw new IllegalStateException("Scene service is unavailable");
-            }
-            prefabInstanceId = sceneService.allocatePrefabInstanceId();
-        } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to allocate prefab instance: " + p.path, ex);
+            Gdx.app.error("GameObjectDrop", "Failed to load Game Object: " + p.path, ex);
             return;
         }
 
         String sceneTag = currentSceneTag();
-        boolean atlasInputChanged = ensurePrefabRenderAssetsInSceneAtlas(graph, sceneTag);
+        boolean atlasInputChanged = ensureGameObjectRenderAssetsInSceneAtlas(asset, sceneTag);
 
         EntityGraphInstantiationResult result;
         try {
-            result = entityGraphInstantiationService.instantiatePrefab(
-                    graph,
+            result = gameObjectAssetService.instantiateGameObject(
+                    assetFile,
+                    assetFile.name(),
                     selectionService.getActiveLayerIndex(),
-                    tmpWorldPos.x - tmpPrefabOrigin.x,
-                    tmpWorldPos.y - tmpPrefabOrigin.y,
-                    "Instantiate Prefab",
-                    prefabInstanceId,
-                    prefabId
+                    tmpWorldPos.x,
+                    tmpWorldPos.y
             );
         } catch (RuntimeException ex) {
-            Gdx.app.error("PrefabDrop", "Failed to instantiate prefab: " + p.path, ex);
+            Gdx.app.error("GameObjectDrop", "Failed to instantiate Game Object: " + p.path, ex);
             return;
         }
 
@@ -1838,7 +1813,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     sceneTag,
                     assetVisualResolver,
                     result.createdIds(),
-                    "prefab-render-assets-rebound"
+                    "game-object-render-assets-rebound"
             );
 
             if (atlasInputChanged) {
@@ -1846,82 +1821,22 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
         }
 
-        ItemTreePanel itemTreePanel = app.getItemTreePanel();
-        if (itemTreePanel != null) {
-            itemTreePanel.selectPrefabInstance(prefabInstanceId, result.createdIds());
-        } else {
-            selectionService.replaceSelection(
-                    result.createdIds(), SelectionService.SelectionSource.TREE);
-        }
     }
 
-    private boolean prefabContainsPhysics(EntityGraph graph) {
-        if (graph == null || graph.isEmpty()) {
-            return false;
-        }
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            GenericEntitySnapshotData snapshot =
-                    entry.initializer().toSnapshotData(entry.sourceEntityId());
-
-            if (snapshot.hasPhysicsBody ||
-                    snapshot.shapes.size > 0 ||
-                    snapshot.hasJoint ||
-                    snapshot.hasDistanceJoint ||
-                    snapshot.hasRevoluteJoint ||
-                    snapshot.hasPrismaticJoint ||
-                    snapshot.hasWheelJoint ||
-                    snapshot.hasFrictionJoint ||
-                    snapshot.hasMotorJoint ||
-                    snapshot.hasWeldJoint ||
-                    snapshot.hasPulleyJoint ||
-                    snapshot.hasGearJoint ||
-                    snapshot.shapes.size > 0) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private boolean activeLayerAcceptsPhysicsPrefabs() {
-        if (selectionService == null || layerService == null) {
-            return false;
-        }
-
-        int activeLayerEntityId = selectionService.getActivelayerId();
-        if (activeLayerEntityId < 0) {
-            return false;
-        }
-
-        return layerService.getLayerTypeByEntity(activeLayerEntityId) == LayerComponent.TYPE_PHYSICS;
-    }
-
-    boolean ensurePrefabRenderAssetsInSceneAtlas(EntityGraph graph, String sceneTag) {
+    boolean ensureGameObjectRenderAssetsInSceneAtlas(GameObjectAsset asset, String sceneTag) {
         SceneService sceneService = (app != null) ? app.getSceneService() : null;
         if (sceneService == null || sceneTag == null || sceneTag.isBlank()) {
             return false;
         }
-        return ensurePrefabRenderAssetsInSceneAtlas(graph, assetId -> sceneService.ensureSceneAtlasInputHasAsset(sceneTag, assetId));
-    }
-
-    static boolean ensurePrefabRenderAssetsInSceneAtlas(EntityGraph graph, IntPredicate ensureAssetInSceneAtlasInput) {
-        if (ensureAssetInSceneAtlasInput == null || graph == null || graph.isEmpty()) {
-            return false;
-        }
-
         boolean changed = false;
         IntSet assetIds = new IntSet();
-        for (EntityGraphEntry entry : graph.entries()) {
-            if (entry == null || entry.initializer() == null) continue;
-            GenericEntitySnapshotData snapshot = entry.initializer().toSnapshotData(entry.sourceEntityId());
-            if (snapshot == null) continue;
-            if (snapshot.hasAssetRef && snapshot.assetRefAssetId > 0) {
-                assetIds.add(snapshot.assetRefAssetId);
+        for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
+            if (data.assetRef != null && data.assetRef.assetId > 0) {
+                assetIds.add(data.assetRef.assetId);
             }
-            if (snapshot.hasAnimation && snapshot.animationAssetIds != null) {
-                for (int i = 0; i < snapshot.animationAssetIds.size; i++) {
-                    int animationAssetId = snapshot.animationAssetIds.get(i);
+            if (data.animation != null && data.animation.animationAssetIds != null) {
+                for (int i = 0; i < data.animation.animationAssetIds.size; i++) {
+                    int animationAssetId = data.animation.animationAssetIds.get(i);
                     if (animationAssetId > 0) assetIds.add(animationAssetId);
                 }
             }
@@ -1929,7 +1844,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         for (IntSet.IntSetIterator it = assetIds.iterator(); it.hasNext; ) {
             int assetId = it.next();
-            changed |= ensureAssetInSceneAtlasInput.test(assetId);
+            changed |= sceneService.ensureSceneAtlasInputHasAsset(sceneTag, assetId);
         }
         return changed;
     }
@@ -1944,37 +1859,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             assetRef.atlasTag = sceneTag;
         }
     }
-
-    static void computePrefabOrigin(EntityGraph graph, Vector2 out) {
-        float minX = Float.POSITIVE_INFINITY;
-        float minY = Float.POSITIVE_INFINITY;
-        float maxX = Float.NEGATIVE_INFINITY;
-        float maxY = Float.NEGATIVE_INFINITY;
-        boolean any = false;
-
-        for (EntityGraphEntry entry : graph.entries()) {
-            GenericEntityInitializer.PreviewVisualData visual =
-                    entry.initializer().toPreviewVisualData();
-
-            if (!visual.hasTransform || visual.hasPhysicsJoint) {
-                continue;
-            }
-
-            minX = Math.min(minX, visual.x);
-            minY = Math.min(minY, visual.y);
-            maxX = Math.max(maxX, visual.x);
-            maxY = Math.max(maxY, visual.y);
-            any = true;
-        }
-
-        if (!any) {
-            out.set(0f, 0f);
-            return;
-        }
-
-        out.set((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
-    }
-
 
     // ---------------------------------------------------------------------
     // Lifecycle
@@ -2103,8 +1987,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
-        if (meta == null || meta.editorMode != SceneMeta.EditorMode.TILE) {
+        if (!selectionService.isTiledMapEditingTargetActive()) {
             tiledPreviewService.clear();
             return;
         }
@@ -2117,21 +2000,21 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         TiledBrushSession activeStroke = tiledMutationController.activePreviewSession();
         if (activeStroke != null) {
             TiledLayerComponent pendingLayer = world.getMapper(TiledLayerComponent.class)
-                    .getSafe(activeStroke.getLayerEntityId(), null);
+                    .getSafe(activeStroke.getMapEntityId(), null);
             if (pendingLayer == null || pendingLayer.data == null) tiledPreviewService.clear();
             else tiledPreviewService.showBrushSession(
                     pendingLayer.data, pendingLayer.atlasTag, activeStroke);
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
-        if (layerEntityId == -1) {
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId == -1) {
             tiledPreviewService.clear();
             return;
         }
 
         TiledLayerComponent tiled =
-                world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+                world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
 
         if (tiled == null || tiled.data == null) {
             tiledPreviewService.clear();
@@ -2188,10 +2071,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             return;
         }
 
-        int layerEntityId = selectionService.getActivelayerId();
-        TiledLayerComponent tiled = layerEntityId < 0
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = mapEntityId < 0
                 ? null
-                : world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null);
+                : world.getMapper(TiledLayerComponent.class).getSafe(mapEntityId, null);
         if (tiled == null || tiled.data == null) {
             publishTiledCursor(false, 0, 0);
             return;
@@ -2211,7 +2094,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean isTiledToolInputEnabled() {
-        return spatialBlockSelectionService == null || !spatialBlockSelectionService.isEditingActive();
+        return selectionService != null
+                && selectionService.isTiledMapEditingTargetActive()
+                && (spatialBlockSelectionService == null
+                || !spatialBlockSelectionService.isEditingActive());
+    }
+
+    private void enableTiledOverlayForSelectedMap() {
+        int mapEntity = selectionService.getTiledMapEditingTargetEntityId();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
+                .getSafe(mapEntity, null);
+        if (tiled != null) {
+            gizmoSystem.enableTiledOverlay(tiled.tileWidth, tiled.tileHeight);
+        }
     }
 
 
@@ -2255,6 +2150,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return selectionService;
     }
 
+    public GameObjectAssetService getGameObjectAssetService() {
+        return gameObjectAssetService;
+    }
+
     public LayerService getLayerService() {
         return layerService;
     }
@@ -2271,6 +2170,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return physicsService;
     }
 
+    public boolean isScenePhysicsEnabled() {
+        ProjectConfig config = ProjectConfig.getInstance();
+        SceneMeta meta = config != null ? config.getCurrentSceneMeta() : null;
+        return meta != null && meta.physicsEnabled;
+    }
+
     public PhysicsSelectionService getPhysicsSelectionService() {
         return physicsSelectionService;
     }
@@ -2280,6 +2185,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void resetEditingContexts() {
+        selectionService.clearTiledMapEditingTarget();
         studioEditingModeService.reset(EventFlow.tag(this));
         physicsSelectionService.clear();
         spatialBlockSelectionService.clear();

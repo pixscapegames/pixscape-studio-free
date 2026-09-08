@@ -26,7 +26,7 @@ import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
-import games.pixscape.studio.service.prefab.PrefabAssetService;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -186,8 +186,8 @@ public final class SceneAtlasInputService {
             }
         }
 
-        if (availability.prefabIds != null && !availability.prefabIds.isEmpty()) {
-            addRuntimeAvailablePrefabSources(cfg, world, assetDb, availability, required);
+        if (availability.gameObjectIds != null && !availability.gameObjectIds.isEmpty()) {
+            addRuntimeAvailableGameObjectSources(cfg, world, assetDb, availability, required);
         }
 
         if (availability.tiledTileAssetIds != null) {
@@ -210,28 +210,28 @@ public final class SceneAtlasInputService {
         }
     }
 
-    private void addRuntimeAvailablePrefabSources(ProjectConfig cfg,
+    private void addRuntimeAvailableGameObjectSources(ProjectConfig cfg,
                                                   World world,
                                                   AssetMetaDatabase assetDb,
                                                   SceneRuntimeAvailabilityData availability,
                                                   Set<String> required) {
         if (cfg == null || world == null || assetDb == null) return;
 
-        PrefabAssetService prefabAssetService = new PrefabAssetService(world);
-        for (String prefabId : availability.prefabIds) {
-            if (prefabId == null || prefabId.isBlank()) continue;
+        GameObjectAssetService gameObjectAssetService = new GameObjectAssetService(world);
+        for (String gameObjectId : availability.gameObjectIds) {
+            if (gameObjectId == null || gameObjectId.isBlank()) continue;
 
-            FileHandle prefabFile = StudioFs.requirePrefabFile(cfg, prefabId);
-            if (!prefabFile.exists()) {
-                Gdx.app.error(TAG, "Missing runtime availability prefab: " + prefabFile.path());
+            FileHandle gameObjectFile = StudioFs.requireGameObjectFile(cfg, gameObjectId);
+            if (!gameObjectFile.exists()) {
+                Gdx.app.error(TAG, "Missing runtime availability gameObject: " + gameObjectFile.path());
                 continue;
             }
 
             EntityGraph graph;
             try {
-                graph = prefabAssetService.loadPrefab(prefabFile);
+                graph = gameObjectAssetService.loadGameObject(gameObjectFile);
             } catch (RuntimeException ex) {
-                Gdx.app.error(TAG, "Failed to collect runtime availability prefab: " + prefabFile.path(), ex);
+                Gdx.app.error(TAG, "Failed to collect runtime availability gameObject: " + gameObjectFile.path(), ex);
                 continue;
             }
 

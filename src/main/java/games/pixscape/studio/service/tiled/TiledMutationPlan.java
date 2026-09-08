@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 /** Immutable canonical before/after snapshot for one tiled gesture. */
 public final class TiledMutationPlan {
-    private final int layerEntityId;
+    private final int mapEntityId;
     private final int[] gx;
     private final int[] gy;
     private final int[] beforeAssetId;
@@ -12,10 +12,10 @@ public final class TiledMutationPlan {
     private final int[] afterAssetId;
     private final byte[] afterFlags;
 
-    TiledMutationPlan(int layerEntityId, int[] gx, int[] gy,
+    TiledMutationPlan(int mapEntityId, int[] gx, int[] gy,
                       int[] beforeAssetId, byte[] beforeFlags,
                       int[] afterAssetId, byte[] afterFlags, int count) {
-        this.layerEntityId = layerEntityId;
+        this.mapEntityId = mapEntityId;
         this.gx = Arrays.copyOf(gx, count);
         this.gy = Arrays.copyOf(gy, count);
         this.beforeAssetId = Arrays.copyOf(beforeAssetId, count);
@@ -24,7 +24,7 @@ public final class TiledMutationPlan {
         this.afterFlags = Arrays.copyOf(afterFlags, count);
     }
 
-    public int layerEntityId() { return layerEntityId; }
+    public int mapEntityId() { return mapEntityId; }
     public int size() { return gx.length; }
     public boolean isEmpty() { return gx.length == 0; }
     public int gx(int index) { return gx[index]; }

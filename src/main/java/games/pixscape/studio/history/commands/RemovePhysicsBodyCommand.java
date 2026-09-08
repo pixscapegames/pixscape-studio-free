@@ -3,6 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -26,6 +27,7 @@ public final class RemovePhysicsBodyCommand
     private final Array<PhysicsShapeData> shapeSnapshots =
             new Array<>(true, 4, PhysicsShapeData.class);
     private final DeleteEntitiesCommand jointDeleteCommand;
+    private final boolean containsLinkedShape;
     private final boolean noop;
 
     public RemovePhysicsBodyCommand(
@@ -33,6 +35,19 @@ public final class RemovePhysicsBodyCommand
             HistoryIdRegistry historyIds,
             PhysicsService physicsService,
             int bodyEntityId) {
+        this(world, historyIds, physicsService, bodyEntityId, false);
+    }
+
+    /**
+     * @param allowTiledLinkedShapes whether a Tiled Map owner may remove its complete
+     *                               collision body, including Spatial Block links
+     */
+    public RemovePhysicsBodyCommand(
+            World world,
+            HistoryIdRegistry historyIds,
+            PhysicsService physicsService,
+            int bodyEntityId,
+            boolean allowTiledLinkedShapes) {
         this.world = world;
         this.historyIds = historyIds;
         this.physicsService = physicsService;
@@ -59,23 +74,28 @@ public final class RemovePhysicsBodyCommand
                 }
             }
         }
-        boolean containsLinkedShape = false;
+        boolean linkedShapeFound = false;
         for (int i = 0; i < shapeSnapshots.size; i++) {
             if (shapeSnapshots.get(i).spatialBlockId > 0) {
-                containsLinkedShape = true;
+                linkedShapeFound = true;
                 break;
             }
         }
+        this.containsLinkedShape = linkedShapeFound;
+        boolean linkedRemovalAllowed = !containsLinkedShape
+                || (allowTiledLinkedShapes
+                && valid
+                && world.getMapper(TiledLayerComponent.class).has(bodyEntityId));
 
-        IntArray jointIds = valid && !containsLinkedShape
+        IntArray jointIds = valid && linkedRemovalAllowed
                 ? physicsService.collectJointsAffectedByBodyRemoval(
                         bodyEntityId, new IntArray(false, 8))
                 : new IntArray();
-        this.jointDeleteCommand = valid && !containsLinkedShape
+        this.jointDeleteCommand = valid && linkedRemovalAllowed
                 ? new DeleteEntitiesCommand(
                         world, historyIds, jointIds, this::markRestoredJointDirty)
                 : null;
-        this.noop = !valid || containsLinkedShape || bodyHistoryId <= 0L;
+        this.noop = !valid || !linkedRemovalAllowed || bodyHistoryId <= 0L;
     }
 
     @Override
@@ -136,8 +156,13 @@ public final class RemovePhysicsBodyCommand
         for (int i = 0; i < shapeSnapshots.size; i++) {
             candidate.add(shapeSnapshots.get(i).copy());
         }
-        PreparedPhysicsBodyCandidate prepared =
-                PhysicsService.prepareBodyCandidate(candidate);
+        PreparedPhysicsBodyCandidate prepared = containsLinkedShape
+                ? PhysicsService.prepareBodyCandidate(
+                        world,
+                        entityId,
+                        candidate,
+                        FixtureCommandSupport.requireCurrentPixelsPerMeter())
+                : PhysicsService.prepareBodyCandidate(candidate);
         PhysicsShapesComponent shapes =
                 world.getMapper(PhysicsShapesComponent.class).has(entityId)
                         ? world.getMapper(PhysicsShapesComponent.class).get(entityId)

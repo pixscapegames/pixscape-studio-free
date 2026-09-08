@@ -1,12 +1,13 @@
 package games.pixscape.studio.service;
 
 import com.artemis.World;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.DeleteEntitiesCommand;
+import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
 import games.pixscape.studio.service.entitygraph.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -23,6 +24,7 @@ public final class ClipboardService {
     private final IdentityRegistry identityRegistry;
 
     private final EntityGraphCaptureService graphCaptureService;
+    private final ClipboardSelectionNormalizer selectionNormalizer;
     private final EntityGraphInstantiationService graphInstantiationService;
 
     private EntityGraph graph = EntityGraph.empty();
@@ -40,8 +42,10 @@ public final class ClipboardService {
         this.identityRegistry = identityRegistry;
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
+        this.selectionNormalizer = new ClipboardSelectionNormalizer(world);
         this.graphInstantiationService = new EntityGraphInstantiationService(
                 world, historyManager, identityRegistry, canvas.getPhysicsService(),
+                canvas::isScenePhysicsEnabled,
                 canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity);
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
@@ -57,7 +61,14 @@ public final class ClipboardService {
     }
 
     public boolean copySelection() {
-        graph = graphCaptureService.capture(selectionService.getSelectionSnapshot());
+        IntArray normalized = normalizeClipboardSelection();
+        if (normalized == null) return false;
+        try {
+            graph = graphCaptureService.captureNormalizedClipboard(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
+            return false;
+        }
         if (graph.isEmpty()) {
             return false;
         }
@@ -66,22 +77,30 @@ public final class ClipboardService {
     }
 
     public boolean cutSelection() {
-        graph = graphCaptureService.capture(selectionService.getSelectionSnapshot());
+        IntArray normalized = normalizeClipboardSelection();
+        if (normalized == null) return false;
+        try {
+            graph = graphCaptureService.captureNormalizedClipboard(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
+            return false;
+        }
         if (graph.isEmpty()) {
             return false;
         }
 
-        IntArray supported = new IntArray();
-        for (EntityGraphEntry entry : graph.entries()) {
-            supported.add(entry.sourceEntityId());
+        IntArray cutEntities;
+        try {
+            cutEntities = graphCaptureService.captureNormalizedClipboardCutEntities(normalized);
+        } catch (IllegalArgumentException ignored) {
+            graph = EntityGraph.empty();
+            return false;
         }
-
-        historyManager.execute(new DeleteEntitiesCommand(
+        historyManager.execute(DeleteEntitiesCommandFactory.create(
                 world,
                 historyManager.historyIds(),
-                supported,
-                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity
-        ));
+                cutEntities,
+                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity));
         selectionService.clearSelection();
         pasteCount = 0;
         return true;
@@ -91,9 +110,27 @@ public final class ClipboardService {
         if (graph.isEmpty()) {
             return false;
         }
+        if (!graphInstantiationService.isInstantiationAllowed(graph)) {
+            if (Gdx.app != null) {
+                Gdx.app.error(
+                        "Clipboard",
+                        "Cannot paste authored Physics while scene Physics is disabled.");
+            }
+            return false;
+        }
 
         ResolvedClipboardDestination destination = resolveClipboardDestination();
         if (destination == null) {
+            return false;
+        }
+        if (!graphInstantiationService.isClipboardInstantiationAllowed(
+                graph, destination.targetLayer())) {
+            if (Gdx.app != null) {
+                Gdx.app.error(
+                        "Clipboard",
+                        "Cannot paste a Game Object hierarchy containing Spatial actor data "
+                                + "onto a non-Spatial Layer.");
+            }
             return false;
         }
         float dx = (pasteCount + 1) * PASTE_STEP_X;
@@ -113,12 +150,22 @@ public final class ClipboardService {
 
         pasteCount++;
         selectionService.clearSelection();
-        selectionService.selectOnly(result.createdIds().get(0));
-        for (int i = 1; i < result.createdIds().size; i++) {
-            selectionService.selectAdd(result.createdIds().get(i));
+        selectionService.selectOnly(result.createdRootIds().get(0));
+        for (int i = 1; i < result.createdRootIds().size; i++) {
+            selectionService.selectAdd(result.createdRootIds().get(i));
         }
 
         return true;
+    }
+
+    private IntArray normalizeClipboardSelection() {
+        try {
+            return selectionNormalizer.normalize(selectionService.getSelectionSnapshot());
+        } catch (IllegalArgumentException ignored) {
+            // Preserve existing failed-Copy behavior: the clipboard is cleared, Scene untouched.
+            graph = EntityGraph.empty();
+            return null;
+        }
     }
 
     private ResolvedClipboardDestination resolveClipboardDestination() {
@@ -134,24 +181,15 @@ public final class ClipboardService {
         }
 
         LayerComponent layer = world.getMapper(LayerComponent.class).getSafe(layerEntityId, null);
-        if (layer == null || layer.layerIndex != layerIndex || !isKnownLayerType(layer.type)) {
+        if (layer == null || layer.layerIndex != layerIndex) {
             return null;
         }
 
         EntityGraphInstantiationService.ClipboardTargetLayer targetLayer =
-                layer.type != LayerComponent.TYPE_PHYSICS
-                        ? EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS
-                        : LayerService.isSpatialActorLayer(layer)
-                                ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_PHYSICS
-                                : EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS;
+                LayerService.isSpatialActorLayer(layer)
+                        ? EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED
+                        : EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL;
         return new ResolvedClipboardDestination(layerIndex, targetLayer);
-    }
-
-    private static boolean isKnownLayerType(int type) {
-        return type == LayerComponent.TYPE_CLASSIC
-                || type == LayerComponent.TYPE_PHYSICS
-                || type == LayerComponent.TYPE_LIGHT
-                || type == LayerComponent.TYPE_TILED;
     }
 
     private record ResolvedClipboardDestination(

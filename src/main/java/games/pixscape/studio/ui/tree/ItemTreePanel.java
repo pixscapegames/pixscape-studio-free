@@ -4,26 +4,36 @@ import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
+import com.kotcrab.vis.ui.widget.MenuItem;
+import com.kotcrab.vis.ui.widget.PopupMenu;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
+import games.pixscape.runtime.system.GameObjectCompositionSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.component.LayerMetaComponent;
-import games.pixscape.studio.component.PrefabInstanceComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
+import games.pixscape.studio.history.commands.AddTiledMapCommand;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
@@ -31,17 +41,18 @@ import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
+import games.pixscape.studio.ui.asset.AssetNode;
+import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.layer.AddTiledMapDialog;
 import games.pixscape.studio.ui.property.PropertiesPanel;
-
-import java.util.HashSet;
-import java.util.Set;
 
 import static games.pixscape.runtime.component.physics.PhysicsBodyComponent.*;
 
 public class ItemTreePanel extends DockablePanel {
 
+    private final StudioApplicationAdapter app;
     private final World world;
     private final LayerService layerService;
     private final PhysicsSelectionService physicsSelectionService;
@@ -49,6 +60,7 @@ public class ItemTreePanel extends DockablePanel {
     private final SelectionService selectionService;
     private final LayerLogicalOrderService logicalOrderService;
     private final HistoryManager historyManager;
+    private final EditorOps editorOps;
 
     private final ComponentMapper<EntityMetaComponent> mMeta;
     private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
@@ -57,11 +69,15 @@ public class ItemTreePanel extends DockablePanel {
     private final ComponentMapper<TiledLayerComponent> mTiled;
     private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsShapesComponent> mFixtures;
-    private final ComponentMapper<PrefabInstanceComponent> mPrefabInstance;
+    private final ComponentMapper<GameObjectComponent> mGameObject;
+    private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
 
     private final EntitySubscription layersSub;
     private final EntitySubscription layerItemsSub;
     private final EntitySubscription jointsSub;
+    private final EntitySubscription gameObjectMembersSub;
+    private final GameObjectHierarchySystem gameObjectHierarchy;
+    private final GameObjectCompositionSystem gameObjectComposition;
 
     private final IdVisTree tree;
     private final IconResolver iconResolver;
@@ -69,14 +85,7 @@ public class ItemTreePanel extends DockablePanel {
     private boolean suppressTreeSelectionEvents = false;
     private boolean handlingTreeSelection = false;
 
-    private int explicitTiledMapLayerEid = -1;
-    private int explicitPrefabInstanceId = -1;
-
-    enum ExplicitPrefabSyncResult {
-        SELECTED,
-        PENDING_NODE,
-        INVALID
-    }
+    private int explicitTiledMapEntityId = -1;
 
     private final VisScrollPane scroller;
 
@@ -85,6 +94,7 @@ public class ItemTreePanel extends DockablePanel {
     public ItemTreePanel(StudioApplicationAdapter app) {
         super("Items");
 
+        this.app = app;
         var canvas = app.getCanvas();
         this.world = canvas.getEcsWorld();
         this.layerService = canvas.getLayerService();
@@ -93,6 +103,7 @@ public class ItemTreePanel extends DockablePanel {
         this.selectionService = canvas.getSelectionService();
         this.logicalOrderService = new LayerLogicalOrderService(world);
         this.historyManager = canvas.getHistoryManager();
+        this.editorOps = canvas.getEditorOps();
 
         this.mMeta = world.getMapper(EntityMetaComponent.class);
         this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
@@ -101,7 +112,10 @@ public class ItemTreePanel extends DockablePanel {
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mFixtures = world.getMapper(PhysicsShapesComponent.class);
-        this.mPrefabInstance = world.getMapper(PrefabInstanceComponent.class);
+        this.mGameObject = world.getMapper(GameObjectComponent.class);
+        this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
+        this.gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        this.gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
 
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -110,12 +124,14 @@ public class ItemTreePanel extends DockablePanel {
         this.layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
         this.layerItemsSub = asm.get(layerItemAspect());
         this.jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
+        this.gameObjectMembersSub = asm.get(Aspect.all(GameObjectMemberComponent.class));
 
         this.iconResolver = new IconResolver(world);
 
         tree = new IdVisTree();
         tree.setIndentSpacing(25);
         tree.getSelection().setMultiple(true);
+        hookItemContextMenus();
 
         scroller = new VisScrollPane(tree);
         scroller.setFadeScrollBars(false);
@@ -155,18 +171,14 @@ public class ItemTreePanel extends DockablePanel {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
-                explicitTiledMapLayerEid = -1;
-                explicitPrefabInstanceId = -1;
+                explicitTiledMapEntityId = -1;
                 if (propertiesPanel != null) {
                     propertiesPanel.clearTiledMapMode();
                 }
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
-            IntArray snapshot = explicitPrefabInstanceId >= 0
-                    ? selectionService.getSelectionSnapshot()
-                    : evt.ids();
-            syncTreeSelectionFromModel(snapshot, applyFocus);
+            syncTreeSelectionFromModel(evt.ids(), applyFocus);
         });
 
         EventFlow.i().subscribe(EventFlow.LayerNameChanged.class, evt -> {
@@ -194,8 +206,7 @@ public class ItemTreePanel extends DockablePanel {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
 
             if (evt.source() != SelectionService.SelectionSource.TREE) {
-                explicitTiledMapLayerEid = -1;
-                explicitPrefabInstanceId = -1;
+                explicitTiledMapEntityId = -1;
             }
 
             boolean applyFocus = evt.source() != SelectionService.SelectionSource.TREE;
@@ -244,38 +255,26 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private void moveSelection(int direction) {
-        if (moveExplicitPrefab(direction)) return;
         IntArray selection = selectionService.getSelectionSnapshot();
-        if (selection.size != 1) return;
-        int entityId = selection.first();
+        int entityId;
+        if (selection.size == 1) {
+            entityId = selection.first();
+        } else if (explicitTiledMapEntityId >= 0
+                && world.getEntityManager().isActive(explicitTiledMapEntityId)
+                && mTiled.has(explicitTiledMapEntityId)) {
+            // Map-node selection enters explicit map-editing context instead of entity selection.
+            // It remains a normal top-level logical item for layer ordering.
+            entityId = explicitTiledMapEntityId;
+        } else {
+            return;
+        }
+        // Member z is local sibling order; the global layer reorder command is not applicable.
+        if (mGameObjectMember.has(entityId)) return;
         if (!ItemTreeJointSupport.isLogicalOrderMoveAllowed(world, entityId)) return;
         EntityIndexComponent index = requireEntityIndex(entityId, "ItemTree move");
         LayerLogicalOrderService.LayerOrder order =
                 logicalOrderService.derive(index.layerIndex);
         executeLogicalReorder(index.layerIndex, order.moveEntity(entityId, direction));
-    }
-
-    private boolean moveExplicitPrefab(int direction) {
-        if (explicitPrefabInstanceId <= 0) return false;
-        EntityNode node = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
-        var selectedNodes = tree.getSelection().toArray();
-        if (node == null
-                || !node.isSelectable()
-                || selectedNodes.size != 1
-                || selectedNodes.first() != node) {
-            explicitPrefabInstanceId = -1;
-            return false;
-        }
-        IntArray members = node.getPrefabZOrderMemberIds();
-        if (members.size == 0) return true;
-        EntityIndexComponent index = mEntityIndex.getSafe(members.first(), null);
-        if (index == null) return true;
-        LayerLogicalOrderService.LayerOrder order =
-                logicalOrderService.derive(index.layerIndex);
-        executeLogicalReorder(
-                index.layerIndex,
-                order.movePrefab(explicitPrefabInstanceId, direction));
-        return true;
     }
 
     private void executeLogicalReorder(int layerIndex, IntArray desiredOrder) {
@@ -324,6 +323,7 @@ public class ItemTreePanel extends DockablePanel {
         };
         layerItemsSub.addSubscriptionListener(refsListener);
         jointsSub.addSubscriptionListener(refsListener);
+        gameObjectMembersSub.addSubscriptionListener(refsListener);
     }
 
     private void hookTreeSelection() {
@@ -340,25 +340,16 @@ public class ItemTreePanel extends DockablePanel {
                     EntityNode bodyNode = findFirstBodyNode(nodes);
                     EntityNode jointNode = findFirstJointNode(nodes);
                     EntityNode spatialNode = findFirstSpatialBlocksNode(nodes);
-                    EntityNode prefabNode = findFirstPrefabInstanceNode(nodes);
-
-                    if (prefabNode != null && nodes.size == 1) {
-                        handlePrefabInstanceNodeSelection(prefabNode);
-                    } else if (jointNode != null && nodes.size == 1) {
-                        explicitPrefabInstanceId = -1;
+                    if (jointNode != null && nodes.size == 1) {
                         handleJointNodeSelection(jointNode);
                     } else if (mapNode != null && nodes.size == 1) {
-                        explicitPrefabInstanceId = -1;
                         handleTiledMapNodeSelection(mapNode);
                     } else if (bodyNode != null && nodes.size == 1) {
-                        explicitPrefabInstanceId = -1;
                         handleBodyNodeSelection(bodyNode);
                     } else if (spatialNode != null && nodes.size == 1) {
-                        explicitPrefabInstanceId = -1;
                         handleSpatialBlocksNodeSelection(spatialNode);
                     } else {
-                        explicitPrefabInstanceId = -1;
-                        explicitTiledMapLayerEid = -1;
+                        explicitTiledMapEntityId = -1;
                         if (propertiesPanel != null) {
                             propertiesPanel.clearTiledMapMode();
                         }
@@ -370,19 +361,6 @@ public class ItemTreePanel extends DockablePanel {
                         boolean layerSwitched = false;
                         for (EntityNode en : nodes) {
                             if (en == null) continue;
-
-                            if (en.isPrefabInstanceNode()) {
-                                IntArray members = en.getPrefabMemberIds();
-                                for (int i = 0; i < members.size; i++) {
-                                    int member = members.get(i);
-                                    if (!layerSwitched) {
-                                        activateLayerForEntity(member, SelectionService.SelectionSource.TREE);
-                                        layerSwitched = true;
-                                    }
-                                    selectionService.selectFromTree(member);
-                                }
-                                continue;
-                            }
 
                             int eid = en.getEntityId();
                             if (eid < 0) continue;
@@ -411,57 +389,6 @@ public class ItemTreePanel extends DockablePanel {
         });
     }
 
-    private void handlePrefabInstanceNodeSelection(EntityNode prefabNode) {
-        if (prefabNode == null || !prefabNode.isPrefabInstanceNode() || !prefabNode.isSelectable()) {
-            explicitPrefabInstanceId = -1;
-            return;
-        }
-
-        selectPrefabInstance(prefabNode.getPrefabInstanceId(), prefabNode.getPrefabMemberIds());
-    }
-
-    public void selectPrefabInstance(int prefabInstanceId, IntArray members) {
-        if (prefabInstanceId < 0 || members == null || members.size == 0) {
-            explicitPrefabInstanceId = -1;
-            return;
-        }
-
-        explicitTiledMapLayerEid = -1;
-        if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
-        exitExplicitPhysicsEditMode();
-        exitExplicitSpatialBlockMode();
-
-        boolean layerActivated = false;
-        for (int i = 0; i < members.size; i++) {
-            int member = members.get(i);
-            if (!world.getEntityManager().isActive(member)) continue;
-            if (!layerActivated) {
-                activateLayerForEntity(member, SelectionService.SelectionSource.TREE);
-                layerActivated = true;
-            }
-        }
-        selectionService.replaceSelection(members, SelectionService.SelectionSource.TREE);
-        explicitPrefabInstanceId = layerActivated ? prefabInstanceId : -1;
-        if (explicitPrefabInstanceId < 0) return;
-
-        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
-        if (prefabNode == null) {
-            markDirty();
-        } else if (selectionExactlyMatchesPrefab(
-                selectionService.getSelectionSnapshot(), prefabNode)) {
-            forceSingleTreeSelection(prefabNode);
-        }
-    }
-
-    private EntityNode findFirstPrefabInstanceNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
-        if (nodes == null) return null;
-        for (int i = 0; i < nodes.size; i++) {
-            EntityNode node = nodes.get(i);
-            if (node != null && node.isPrefabInstanceNode()) return node;
-        }
-        return null;
-    }
-
     private EntityNode findFirstTiledMapNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
         if (nodes == null) return null;
         for (int i = 0; i < nodes.size; i++) {
@@ -474,30 +401,39 @@ public class ItemTreePanel extends DockablePanel {
     private void handleTiledMapNodeSelection(EntityNode mapNode) {
         if (mapNode == null || !mapNode.isTiledMapNode()) return;
 
-        int layerEid = mapNode.getEntityId();
-        if (layerEid < 0) return;
+        int mapEntityId = mapNode.getEntityId();
+        if (mapEntityId < 0) return;
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        if (index == null) return;
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        if (hostLayerEntityId < 0) return;
 
-        explicitTiledMapLayerEid = layerEid;
+        explicitTiledMapEntityId = mapEntityId;
 
         forceSingleTreeSelection(mapNode);
         exitExplicitPhysicsEditMode();
         exitExplicitSpatialBlockMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerId(layerEid, SelectionService.SelectionSource.TREE);
+        selectionService.setTiledMapEditingTarget(
+                mapEntityId, SelectionService.SelectionSource.TREE);
 
         if (propertiesPanel != null) {
-            propertiesPanel.requestTiledMapProperties(layerEid);
+            propertiesPanel.requestTiledMapProperties(mapEntityId);
         }
     }
 
     private void handleSpatialBlocksNodeSelection(EntityNode spatialNode) {
         if (spatialNode == null || !spatialNode.isSpatialBlocksNode()) return;
 
-        int layerEid = spatialNode.getEntityId();
-        if (layerEid < 0) return;
+        int mapEntityId = spatialNode.getEntityId();
+        if (mapEntityId < 0) return;
+        EntityIndexComponent index = mEntityIndex.getSafe(mapEntityId, null);
+        if (index == null) return;
+        int hostLayerEntityId = layerService.getLayerEntity(index.layerIndex);
+        if (hostLayerEntityId < 0) return;
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) {
             propertiesPanel.clearTiledMapMode();
         }
@@ -506,15 +442,19 @@ public class ItemTreePanel extends DockablePanel {
         exitExplicitPhysicsEditMode();
 
         selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-        selectionService.setActivelayerId(layerEid, SelectionService.SelectionSource.TREE);
-        spatialBlockSelectionService.enterLayer(layerEid);
+        selectionService.setTiledMapEditingTarget(
+                mapEntityId, SelectionService.SelectionSource.TREE);
+        spatialBlockSelectionService.enterMap(mapEntityId);
     }
 
     private void rebuildTreeFromWorld() {
         suppressTreeSelectionEvents = true;
 
         tree.clearNodes();
-        IntMap<IntArray> allPrefabMembers = collectPrefabMembers(world);
+        GameObjectTopologyState topology = gameObjectHierarchy != null
+                ? gameObjectHierarchy.topology() : null;
+        GameObjectCompositionState composition = gameObjectComposition != null
+                ? gameObjectComposition.state() : null;
 
         int layerCount = layerService.count();
         for (int li = layerCount - 1; li >= 0; li--) {
@@ -532,101 +472,17 @@ public class ItemTreePanel extends DockablePanel {
                 layerNode.getLabel().setColor(Color.WHITE);
             }
 
-            LayerComponent layerComp = world.getMapper(LayerComponent.class).get(eLayer);
-            EntityNode mapNode = null;
-
-            if (layerComp.type == LayerComponent.TYPE_TILED) {
-                TiledLayerComponent tiled = mTiled.getSafe(eLayer, null);
-                if (tiled != null) {
-                    mapNode = new EntityNode(
-                            "Map (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
-                            IconResolver.getDrawable(EntityKind.TILED_MAP),
-                            eLayer,
-                            true,
-                            EntityNode.NodeKind.TILED_MAP
-                    );
-                    if (layerNode.getActor() != null && mapNode.getActor() != null) {
-                        mapNode.getActor().setUserObject(layerNode.getActor().getUserObject());
-                    }
-                    if (meta.locked) {
-                        mapNode.getLabel().setColor(Color.DARK_GRAY);
-                    } else {
-                        mapNode.getLabel().setColor(Color.WHITE);
-                    }
-                    layerNode.add(mapNode);
-                    tree.registerMapNode(mapNode, eLayer);
-
-                    if (mBody.has(eLayer)) {
-                        boolean selectableBody = !meta.locked;
-
-                        EntityNode bodyNode = new EntityNode(
-                                "Static body",
-                                null,
-                                eLayer,
-                                selectableBody,
-                                EntityNode.NodeKind.BODY
-                        );
-
-                        if (meta.locked) {
-                            bodyNode.getLabel().setColor(Color.DARK_GRAY);
-                        } else if (selectableBody) {
-                            bodyNode.getLabel().setColor(Color.WHITE);
-                        } else {
-                            bodyNode.getLabel().setColor(0.65f, 0.65f, 0.65f, 1f);
-                        }
-
-                        mapNode.add(bodyNode);
-                        tree.registerNode(bodyNode, eLayer);
-                    }
-
-                    if (isLayerSpatialEnabled(eLayer, layerComp, tiled)) {
-                        boolean selectableSpatial = !meta.locked;
-                        EntityNode spatialNode = new EntityNode(
-                                "Spatial volumes",
-                                null,
-                                eLayer,
-                                selectableSpatial,
-                                selectableSpatial ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO
-                        );
-
-                        if (meta.locked) {
-                            spatialNode.getLabel().setColor(Color.DARK_GRAY);
-                        } else if (selectableSpatial) {
-                            spatialNode.getLabel().setColor(Color.WHITE);
-                        } else {
-                            spatialNode.getLabel().setColor(0.65f, 0.65f, 0.65f, 1f);
-                        }
-
-                        mapNode.add(spatialNode);
-                        if (selectableSpatial) {
-                            tree.registerNode(spatialNode, eLayer);
-                        }
-                    }
-                }
-            }
-
             LayerLogicalOrderService.LayerOrder logicalOrder = logicalOrderService.derive(li);
             for (LayerLogicalOrderService.LogicalItem item : logicalOrder.items()) {
-                if (item.isPrefab()) {
-                    IntArray members = item.members();
-                    IntArray completeMembers = allPrefabMembers.get(
-                            item.prefabInstanceId(), members);
-                    EntityNode prefabNode = EntityNode.prefabInstance(
-                            item.prefabId(),
-                            VisUI.getSkin().getDrawable("cube"),
-                            item.prefabInstanceId(),
-                            completeMembers,
-                            members,
-                            !meta.locked);
-                    prefabNode.getLabel().setColor(meta.locked ? Color.DARK_GRAY : Color.WHITE);
-                    layerNode.add(prefabNode);
-                    tree.registerPrefabInstanceNode(prefabNode);
-
-                    for (int i = 0; i < members.size; i++) {
-                        prefabNode.add(createEntityNode(members.get(i), meta.locked));
-                    }
+                if (isParented(item.entityId(), topology)) continue;
+                if (mTiled.has(item.entityId())) {
+                    int mapEntityId = item.entityId();
+                    EntityNode mapNode = createTiledMapNode(mapEntityId, meta.locked);
+                    layerNode.add(mapNode);
+                    tree.registerMapNode(mapNode, mapEntityId);
                 } else {
-                    layerNode.add(createEntityNode(item.entityId(), meta.locked));
+                    layerNode.add(createGameObjectHierarchyNode(
+                            item.entityId(), meta.locked, topology, composition));
                 }
             }
         }
@@ -643,6 +499,373 @@ public class ItemTreePanel extends DockablePanel {
 
         suppressTreeSelectionEvents = false;
         syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+    }
+
+    private EntityNode createGameObjectHierarchyNode(
+            int entityId, boolean layerLocked,
+            GameObjectTopologyState topology, GameObjectCompositionState composition) {
+        EntityNode node = createEntityNode(entityId, layerLocked);
+        if (!mGameObject.has(entityId) || topology == null || composition == null
+                || entityId >= composition.orderedFirstChildEntityId.length) {
+            return node;
+        }
+        int child = composition.orderedFirstChildEntityId[entityId];
+        while (child >= 0) {
+            node.add(createGameObjectHierarchyNode(child, layerLocked, topology, composition));
+            child = child < composition.orderedNextSiblingEntityId.length
+                    ? composition.orderedNextSiblingEntityId[child] : -1;
+        }
+        return node;
+    }
+
+    private static boolean isParented(int entityId, GameObjectTopologyState topology) {
+        return topology != null && entityId >= 0
+                && entityId < topology.parented.length && topology.parented[entityId];
+    }
+
+    private void hookItemContextMenus() {
+        tree.addListener(new ItemTreeContextMenuInputListener<>(
+                tree,
+                this::supportsContextMenu,
+                this::activateContextMenuNode,
+                this::selectedAssetNode,
+                (node, selectedAsset, stage, stageX, stageY) -> {
+                    if (node.isLayerNode()) {
+                        showLayerContextMenu(
+                                node.getEntityId(), selectedAsset, stage, stageX, stageY);
+                    } else if (node.isTiledMapNode()) {
+                        showTiledMapContextMenu(node.getEntityId(), stage, stageX, stageY);
+                    } else {
+                        showGameObjectContextMenu(
+                                node.getEntityId(), selectedAsset, stage, stageX, stageY);
+                    }
+                }));
+    }
+
+    private boolean supportsContextMenu(EntityNode node) {
+        if (node == null) return false;
+        if (node.isLayerNode()) return layerService.isLayerEntity(node.getEntityId());
+        if (node.isTiledMapNode()) return mTiled.has(node.getEntityId());
+        return node.isEntityNode() && mGameObject.has(node.getEntityId());
+    }
+
+    private void activateContextMenuNode(EntityNode node) {
+        if (node.isLayerNode()) {
+            selectionService.setActivelayerId(
+                    node.getEntityId(), SelectionService.SelectionSource.TREE);
+            return;
+        }
+        if (node.isTiledMapNode()) {
+            handleTiledMapNodeSelection(node);
+            return;
+        }
+        activateLayerForEntity(node.getEntityId(), SelectionService.SelectionSource.TREE);
+        selectionService.selectOnly(node.getEntityId(), SelectionService.SelectionSource.TREE);
+    }
+
+    private void showTiledMapContextMenu(
+            int mapEntityId, Stage stage, float stageX, float stageY) {
+        PopupMenu menu = buildTiledMapContextMenu(() -> editorOps.deleteTiledMap(mapEntityId));
+        menu.showMenu(stage, stageX, stageY);
+    }
+
+    private void showLayerContextMenu(
+            int layerEntityId,
+            AssetNode selectedAsset,
+            Stage stage,
+            float stageX,
+            float stageY) {
+                PopupMenu addMenu = new PopupMenu();
+
+                MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
+                addSprite.setDisabled(!isSpriteAsset(selectedAsset));
+                addSprite.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        if (addSprite.isDisabled()) return;
+                        int entityId = editorOps.createStandaloneSprite(
+                                selectedAsset.path, 0f, 0f, selectedAsset.name);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addSprite);
+
+                MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
+                addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
+                addAnimation.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        if (addAnimation.isDisabled()) return;
+                        int entityId = editorOps.createAnimationSprite(
+                                selectedAsset.path, 0f, 0f, selectedAsset.name);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addAnimation);
+
+                MenuItem addMap = new MenuItem("Tiled Map");
+                addMap.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        new AddTiledMapDialog(request -> historyManager.execute(
+                                new AddTiledMapCommand(layerService, layerEntityId,
+                                        request.mapWidth(), request.mapHeight(), request.projection(),
+                                        request.tileWidth(), request.tileHeight(), request.chunkSize(),
+                                        mapEntityId -> {
+                                            if (mapEntityId >= 0) {
+                                                selectionService.clearSelection(
+                                                        SelectionService.SelectionSource.TREE);
+                                                selectionService.setTiledMapEditingTarget(mapEntityId,
+                                                        SelectionService.SelectionSource.TREE);
+                                            } else {
+                                                selectionService.clearTiledMapEditingTarget();
+                                            }
+                                        }))).show(getStage());
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addMap);
+
+                MenuItem addGameObject = new MenuItem("Game Object");
+                addGameObject.addListener(new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createGameObject(0f, 0f);
+                        if (entityId >= 0) {
+                            selectionService.selectOnly(
+                                    entityId, SelectionService.SelectionSource.TREE);
+                        }
+                        click.handle();
+                    }
+                });
+                addMenu.addItem(addGameObject);
+
+                PopupMenu lights = new PopupMenu();
+                MenuItem point = new MenuItem("Point Light");
+                point.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createPointLight(0f, 0f);
+                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        click.handle();
+                    }
+                });
+                lights.addItem(point);
+                MenuItem cone = new MenuItem("Cone Light");
+                cone.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent click, float itemX, float itemY) {
+                        int entityId = editorOps.createConeLight(0f, 0f);
+                        selectionService.selectOnly(entityId, SelectionService.SelectionSource.TREE);
+                        click.handle();
+                    }
+                });
+                lights.addItem(cone);
+                MenuItem light = new MenuItem("Light");
+                light.setSubMenu(lights);
+                addMenu.addItem(light);
+
+                PopupMenu menu = new PopupMenu();
+                MenuItem add = new MenuItem("Add");
+                add.setSubMenu(addMenu);
+                menu.addItem(add);
+                menu.showMenu(stage, stageX, stageY);
+    }
+
+    private void showGameObjectContextMenu(
+            int parentEntityId,
+            AssetNode selectedAsset,
+            Stage stage,
+            float stageX,
+            float stageY) {
+        PopupMenu addMenu = buildGameObjectAddMenu(
+                selectedAsset,
+                new GameObjectChildMenuActions() {
+                    @Override
+                    public void addSprite() {
+                        editorOps.createStandaloneSpriteInGameObject(
+                                parentEntityId, selectedAsset.path, selectedAsset.name);
+                    }
+
+                    @Override
+                    public void addAnimation() {
+                        editorOps.createAnimationSpriteInGameObject(
+                                parentEntityId, selectedAsset.path, selectedAsset.name);
+                    }
+
+                    @Override
+                    public void addPointLight() {
+                        editorOps.createPointLightInGameObject(parentEntityId);
+                    }
+
+                    @Override
+                    public void addConeLight() {
+                        editorOps.createConeLightInGameObject(parentEntityId);
+                    }
+
+                    @Override
+                    public void addGameObject() {
+                        editorOps.createGameObjectInGameObject(parentEntityId);
+                    }
+                });
+
+        PopupMenu menu = new PopupMenu();
+        MenuItem add = new MenuItem("Add");
+        add.setSubMenu(addMenu);
+        menu.addItem(add);
+        menu.showMenu(stage, stageX, stageY);
+    }
+
+    interface GameObjectChildMenuActions {
+        void addSprite();
+        void addAnimation();
+        void addPointLight();
+        void addConeLight();
+        void addGameObject();
+    }
+
+    interface TiledMapMenuActions {
+        void deleteMap();
+    }
+
+    static PopupMenu buildTiledMapContextMenu(TiledMapMenuActions actions) {
+        PopupMenu menu = new PopupMenu();
+        MenuItem deleteMap = new MenuItem("Delete map");
+        deleteMap.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.deleteMap();
+                event.handle();
+            }
+        });
+        menu.addItem(deleteMap);
+        return menu;
+    }
+
+    static PopupMenu buildGameObjectAddMenu(
+            AssetNode selectedAsset,
+            GameObjectChildMenuActions actions) {
+        PopupMenu addMenu = new PopupMenu();
+
+        MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
+        addSprite.setDisabled(!isSpriteAsset(selectedAsset));
+        addSprite.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (!addSprite.isDisabled()) actions.addSprite();
+                event.handle();
+            }
+        });
+        addMenu.addItem(addSprite);
+
+        MenuItem addAnimation = new MenuItem(addAssetActionLabel("Animation", selectedAsset));
+        addAnimation.setDisabled(!isAnimationAsset(selectedAsset));
+        addAnimation.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (!addAnimation.isDisabled()) actions.addAnimation();
+                event.handle();
+            }
+        });
+        addMenu.addItem(addAnimation);
+
+        PopupMenu lights = new PopupMenu();
+        MenuItem point = new MenuItem("Point Light");
+        point.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addPointLight();
+                event.handle();
+            }
+        });
+        lights.addItem(point);
+        MenuItem cone = new MenuItem("Cone Light");
+        cone.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addConeLight();
+                event.handle();
+            }
+        });
+        lights.addItem(cone);
+        MenuItem light = new MenuItem("Light");
+        light.setSubMenu(lights);
+        addMenu.addItem(light);
+
+        MenuItem addGameObject = new MenuItem("Game Object");
+        addGameObject.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                actions.addGameObject();
+                event.handle();
+            }
+        });
+        addMenu.addItem(addGameObject);
+        return addMenu;
+    }
+
+    private AssetNode selectedAssetNode() {
+        AssetsPanel assetsPanel = app.getAssetsPanel();
+        return assetsPanel != null ? assetsPanel.getSelectedAssetNode() : null;
+    }
+
+    static boolean isSpriteAsset(AssetNode node) {
+        return node != null
+                && node.kind == AssetNode.Kind.IMAGE
+                && node.root == AssetNode.Root.IMAGES;
+    }
+
+    static boolean isAnimationAsset(AssetNode node) {
+        return node != null
+                && node.kind == AssetNode.Kind.ANIMATION
+                && node.root == AssetNode.Root.ANIMATIONS;
+    }
+
+    static String addAssetActionLabel(String assetKind, AssetNode selectedAsset) {
+        String displayName = selectedAsset != null ? selectedAsset.name : null;
+        if (displayName == null || displayName.isBlank()) {
+            String path = selectedAsset != null ? selectedAsset.path : null;
+            if (path != null && !path.isBlank()) {
+                int slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+                displayName = slash >= 0 ? path.substring(slash + 1) : path;
+            }
+        }
+        return displayName == null || displayName.isBlank()
+                ? "Add " + assetKind
+                : "Add " + assetKind + " \"" + displayName + "\"";
+    }
+
+    private EntityNode createTiledMapNode(int mapEntityId, boolean layerLocked) {
+        TiledLayerComponent tiled = mTiled.get(mapEntityId);
+        PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
+        String mapName = identity != null && identity.name != null && !identity.name.isBlank()
+                ? identity.name : "Map";
+        EntityNode mapNode = new EntityNode(
+                mapName + " (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
+                IconResolver.getDrawable(EntityKind.TILED_MAP), mapEntityId, !layerLocked,
+                EntityNode.NodeKind.TILED_MAP);
+        mapNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+
+        if (mBody.has(mapEntityId)) {
+            EntityNode bodyNode = new EntityNode("Static body", null, mapEntityId, !layerLocked,
+                    EntityNode.NodeKind.BODY);
+            bodyNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+            mapNode.add(bodyNode);
+            tree.registerNode(bodyNode, mapEntityId);
+        }
+        if (isMapSpatialEnabled(tiled)) {
+            EntityNode spatialNode = new EntityNode("Spatial volumes", null, mapEntityId,
+                    !layerLocked, !layerLocked
+                    ? EntityNode.NodeKind.SPATIAL_BLOCKS : EntityNode.NodeKind.INFO);
+            spatialNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
+            mapNode.add(spatialNode);
+            if (!layerLocked) tree.registerNode(spatialNode, mapEntityId);
+        }
+        return mapNode;
     }
 
     private EntityNode createEntityNode(int entityId, boolean layerLocked) {
@@ -704,22 +927,6 @@ public class ItemTreePanel extends DockablePanel {
         tree.getSelection().setProgrammaticChangeEvents(false);
         tree.getSelection().clear();
 
-        if (explicitPrefabInstanceId >= 0) {
-            ExplicitPrefabSyncResult result = syncExplicitPrefabSelection(
-                    world,
-                    mPrefabInstance,
-                    tree,
-                    explicitPrefabInstanceId,
-                    selectionSnapshot);
-            if (result != ExplicitPrefabSyncResult.INVALID) {
-                EntityNode prefabNode = tree.findPrefabInstanceNode(explicitPrefabInstanceId);
-                if (applyFocus && prefabNode != null) focusNode(prefabNode);
-                tree.getSelection().setProgrammaticChangeEvents(true);
-                return;
-            }
-            explicitPrefabInstanceId = -1;
-        }
-
         EntityNode physicsNode = resolvePhysicsContextNode();
         if (physicsNode != null) {
             tree.getSelection().add(physicsNode);
@@ -740,8 +947,8 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
-        if (explicitTiledMapLayerEid >= 0) {
-            EntityNode mapNode = tree.findMapNode(explicitTiledMapLayerEid);
+        if (explicitTiledMapEntityId >= 0) {
+            EntityNode mapNode = tree.findMapNode(explicitTiledMapEntityId);
             if (mapNode != null) {
                 tree.getSelection().add(mapNode);
                 if (applyFocus) {
@@ -750,6 +957,7 @@ public class ItemTreePanel extends DockablePanel {
                 tree.getSelection().setProgrammaticChangeEvents(true);
                 return;
             }
+            explicitTiledMapEntityId = -1;
         }
 
         int activeLayerId = selectionService.getActivelayerId();
@@ -787,56 +995,6 @@ public class ItemTreePanel extends DockablePanel {
         tree.getSelection().setProgrammaticChangeEvents(true);
     }
 
-    private boolean selectionExactlyMatchesPrefab(
-            IntArray selectionSnapshot, EntityNode prefabNode) {
-        return selectionExactlyMatchesPrefab(
-                world, mPrefabInstance, selectionSnapshot, prefabNode);
-    }
-
-    static boolean selectionExactlyMatchesPrefab(
-            World world,
-            ComponentMapper<PrefabInstanceComponent> prefabInstances,
-            IntArray selectionSnapshot,
-            EntityNode prefabNode) {
-        if (selectionSnapshot == null || prefabNode == null) return false;
-        IntArray members = prefabNode.getPrefabMemberIds();
-        if (selectionSnapshot.size != members.size) return false;
-        Set<Integer> selected = new HashSet<>();
-        for (int i = 0; i < selectionSnapshot.size; i++) {
-            selected.add(selectionSnapshot.get(i));
-        }
-        if (selected.size() != members.size) return false;
-        for (int i = 0; i < members.size; i++) {
-            int member = members.get(i);
-            if (!world.getEntityManager().isActive(member)
-                    || !selected.contains(member)) {
-                return false;
-            }
-            PrefabInstanceComponent prefab = prefabInstances.getSafe(member, null);
-            if (prefab == null || prefab.instanceId != prefabNode.getPrefabInstanceId()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    static ExplicitPrefabSyncResult syncExplicitPrefabSelection(
-            World world,
-            ComponentMapper<PrefabInstanceComponent> prefabInstances,
-            IdVisTree tree,
-            int prefabInstanceId,
-            IntArray selectionSnapshot) {
-        EntityNode prefabNode = tree.findPrefabInstanceNode(prefabInstanceId);
-        if (prefabNode == null) return ExplicitPrefabSyncResult.PENDING_NODE;
-        if (!prefabNode.isSelectable()
-                || !selectionExactlyMatchesPrefab(
-                world, prefabInstances, selectionSnapshot, prefabNode)) {
-            return ExplicitPrefabSyncResult.INVALID;
-        }
-        tree.getSelection().add(prefabNode);
-        return ExplicitPrefabSyncResult.SELECTED;
-    }
-
     private EntityNode resolvePhysicsContextNode() {
         EntityNode jointNode = ItemTreeJointSupport.resolveSelectedJointNode(
                 tree, physicsSelectionService);
@@ -857,15 +1015,15 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private EntityNode resolveSpatialBlockContextNode() {
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
-        if (layerEntityId < 0) return null;
-        return tree.findSpatialBlocksNode(layerEntityId);
+        int mapEntityId = spatialBlockSelectionService.getEditingMapEntityId();
+        if (mapEntityId < 0) return null;
+        return tree.findSpatialBlocksNode(mapEntityId);
     }
 
     private void handleBodyNodeSelection(EntityNode bodyNode) {
         if (bodyNode == null || !bodyNode.isBodyNode()) return;
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) {
             propertiesPanel.clearTiledMapMode();
         }
@@ -882,7 +1040,7 @@ public class ItemTreePanel extends DockablePanel {
             selectionService.selectOnly(bodyEid, SelectionService.SelectionSource.TREE);
         } else {
             selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-            selectionService.setActivelayerIdForPhysicsContext(bodyEid, SelectionService.SelectionSource.TREE);
+            selectionService.setActivelayerId(bodyEid, SelectionService.SelectionSource.TREE);
         }
 
         physicsSelectionService.clearSelectionOnly();
@@ -901,7 +1059,7 @@ public class ItemTreePanel extends DockablePanel {
             return;
         }
 
-        explicitTiledMapLayerEid = -1;
+        explicitTiledMapEntityId = -1;
         if (propertiesPanel != null) propertiesPanel.clearTiledMapMode();
         exitExplicitSpatialBlockMode();
         activateLayerForEntity(jointEntityId, SelectionService.SelectionSource.TREE);
@@ -945,27 +1103,6 @@ public class ItemTreePanel extends DockablePanel {
         return null;
     }
 
-    static IntMap<IntArray> collectPrefabMembers(World world) {
-        IntMap<IntArray> membersByInstance = new IntMap<>();
-        ComponentMapper<PrefabInstanceComponent> prefabs =
-                world.getMapper(PrefabInstanceComponent.class);
-        IntBag entities = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PrefabInstanceComponent.class)).getEntities();
-        int[] data = entities.getData();
-        for (int i = 0; i < entities.size(); i++) {
-            int entityId = data[i];
-            PrefabInstanceComponent prefab = prefabs.getSafe(entityId, null);
-            if (prefab == null || prefab.instanceId <= 0) continue;
-            IntArray members = membersByInstance.get(prefab.instanceId);
-            if (members == null) {
-                members = new IntArray();
-                membersByInstance.put(prefab.instanceId, members);
-            }
-            members.add(entityId);
-        }
-        return membersByInstance;
-    }
-
     private EntityNode findFirstSpatialBlocksNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {
         if (nodes == null) return null;
         for (int i = 0; i < nodes.size; i++) {
@@ -975,8 +1112,7 @@ public class ItemTreePanel extends DockablePanel {
         return null;
     }
 
-    private boolean isLayerSpatialEnabled(int layerEntityId, LayerComponent layer, TiledLayerComponent tiled) {
-        if (layer != null && layer.spatialEnabled) return true;
+    private boolean isMapSpatialEnabled(TiledLayerComponent tiled) {
         return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
     }
 

@@ -7,6 +7,8 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -16,6 +18,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -79,7 +82,8 @@ public class SceneServiceSingleLoadActivationTest {
 
         fixture.cfg.setCurrentSceneByName("Main");
         ProjectConfig.setInstance(fixture.cfg);
-        new TiledMapProperties(active, () -> { }).setLayerEntityId(tiledLayers[0]);
+        new TiledMapProperties(active, null, null, () -> { })
+                .setMapEntityId(tiledLayers[0]);
         active.dispose();
     }
 
@@ -213,7 +217,7 @@ public class SceneServiceSingleLoadActivationTest {
                     assertEquals(2, layers.length);
                     for (int layer : layers) {
                         assertNotNull(world.getMapper(TiledLayerComponent.class).get(layer).data);
-                        assertNotNull(world.getMapper(LayerMetaComponent.class).get(layer));
+                        assertNotNull(world.getMapper(EntityIndexComponent.class).get(layer));
                         org.junit.Assert.assertTrue(history.historyIds().historyIdOfEntity(layer) > 0L);
                     }
                     org.junit.Assert.assertEquals(-1L, history.historyIds().historyIdOfEntity(999));
@@ -255,11 +259,22 @@ public class SceneServiceSingleLoadActivationTest {
             authored.getMapper(PixscapeIdentityComponent.class)
                     .create(layerEntity).stableId = i + 1;
             LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
+            layer.layerIndex = i;
             layer.spatialEnabled = true;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
-            TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(layerEntity);
+            int mapEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(mapEntity).stableId = 100 + i;
+            authored.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = i;
+            authored.getMapper(TransformComponent.class).create(mapEntity);
+            authored.getMapper(VisibilityComponent.class).create(mapEntity);
+            TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(mapEntity);
+            tiled.projection = TiledProjection.ORTHO;
+            tiled.tileWidth = 32;
+            tiled.tileHeight = 32;
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
+            tiled.chunkSize = 16;
             tiled.spatialEnabled = true;
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
@@ -280,20 +295,20 @@ public class SceneServiceSingleLoadActivationTest {
             wall.beginAuthoredLinkedTileRefs();
             wall.addLinkedTileRef(0, 0, assetIds[i]);
             SpatialBlocksComponent blocks =
-                    authored.getMapper(SpatialBlocksComponent.class).create(layerEntity);
+                    authored.getMapper(SpatialBlocksComponent.class).create(mapEntity);
             blocks.blocks.add(wall);
             blocks.nextSpatialBlockId = wall.id + 1;
 
             if (linkedPhysics && i == 0) {
                 authored.getMapper(TransformComponent.class)
-                        .create(layerEntity);
+                        .create(mapEntity);
                 authored.getMapper(PhysicsBodyComponent.class)
-                        .create(layerEntity);
+                        .create(mapEntity);
                 PhysicsShapeData linked = new PhysicsShapeData();
                 linked.physicsShapeId = 700;
                 linked.spatialBlockId = wall.id;
                 authored.getMapper(PhysicsShapesComponent.class)
-                        .create(layerEntity).shapes.add(linked);
+                        .create(mapEntity).shapes.add(linked);
             }
         }
         authored.process();
@@ -307,11 +322,23 @@ public class SceneServiceSingleLoadActivationTest {
             int layerEntity = authored.create();
             authored.getMapper(PixscapeIdentityComponent.class)
                     .create(layerEntity).stableId = i + 1;
-            authored.getMapper(LayerComponent.class).create(layerEntity).spatialEnabled = false;
+            LayerComponent layer = authored.getMapper(LayerComponent.class).create(layerEntity);
+            layer.layerIndex = i;
+            layer.spatialEnabled = false;
             authored.getMapper(LayerMetaComponent.class).create(layerEntity).name = "Layer " + i;
-            TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(layerEntity);
+            int mapEntity = authored.create();
+            authored.getMapper(PixscapeIdentityComponent.class)
+                    .create(mapEntity).stableId = 100 + i;
+            authored.getMapper(EntityIndexComponent.class).create(mapEntity).layerIndex = i;
+            authored.getMapper(TransformComponent.class).create(mapEntity);
+            authored.getMapper(VisibilityComponent.class).create(mapEntity);
+            TiledLayerComponent tiled = authored.getMapper(TiledLayerComponent.class).create(mapEntity);
+            tiled.projection = TiledProjection.ORTHO;
+            tiled.tileWidth = 32;
+            tiled.tileHeight = 32;
             tiled.mapWidthCells = 32;
             tiled.mapHeightCells = 32;
+            tiled.chunkSize = 16;
             for (int cell = 0; cell < counts[i]; cell++) {
                 tiled.tileXs.add(cell % tiled.mapWidthCells);
                 tiled.tileYs.add(cell / tiled.mapWidthCells);
@@ -378,11 +405,6 @@ public class SceneServiceSingleLoadActivationTest {
         for (String sceneName : sceneNames) {
             cfg.createSceneMeta(sceneName);
             SceneMeta meta = cfg.getSceneMeta(sceneName);
-            meta.tiledEnabled = true;
-            meta.tileWidth = 16;
-            meta.tileHeight = 16;
-            meta.chunkSize = 8;
-            meta.tiledProjection = SceneMetaRuntime.TiledProjection.ORTHO;
             meta.nextEntityStableId = 1000;
         }
         return new Fixture(cfg, projectDir);

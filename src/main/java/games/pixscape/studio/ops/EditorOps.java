@@ -1,6 +1,7 @@
 package games.pixscape.studio.ops;
 
 import com.badlogic.gdx.utils.IntArray;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 
 public interface EditorOps {
@@ -36,6 +37,18 @@ public interface EditorOps {
 
     int createConeLight(float worldX, float worldY);
 
+    int createGameObject(float worldX, float worldY);
+
+    int createStandaloneSpriteInGameObject(int parentEntityId, String relativePath, String metaName);
+
+    int createAnimationSpriteInGameObject(int parentEntityId, String animationsRelPath, String metaName);
+
+    int createPointLightInGameObject(int parentEntityId);
+
+    int createConeLightInGameObject(int parentEntityId);
+
+    int createGameObjectInGameObject(int parentEntityId);
+
     int createJoint(int type, int aEntityId, int bEntityId, float worldX, float worldY);
 
     int createGearJoint(int joint1EntityId, int joint2EntityId);
@@ -66,6 +79,11 @@ public interface EditorOps {
     }
 
     void deleteEntities(IntArray entities);
+
+    int addTiledMap(int layerEntityId, int mapWidth, int mapHeight,
+                    TiledProjection projection, int tileWidth, int tileHeight, int chunkSize);
+
+    void deleteTiledMap(int mapEntityId);
 
     void applyTransform(IntArray entities,
                         Float x, Float y, Float dx, Float dy,

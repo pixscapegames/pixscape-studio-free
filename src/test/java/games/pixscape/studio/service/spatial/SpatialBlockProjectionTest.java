@@ -2,6 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -105,7 +106,7 @@ public class SpatialBlockProjectionTest {
     }
 
     private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 100f;
         map.originY = 50f;
         return map;

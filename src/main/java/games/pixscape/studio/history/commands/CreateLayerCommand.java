@@ -1,24 +1,20 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.World;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.LayerInitializer;
 import games.pixscape.studio.service.LayerService;
 
 import java.util.function.IntConsumer;
 
-public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
+public final class CreateLayerCommand implements Command {
 
     private final LayerService layerService;
-    private final World world;
     private final int insertionIndex;
     private final LayerInitializer initializer;
     private final HistoryIdRegistry historyIds;
-    private final boolean spatialActorLayer;
     private long historyId = -1L;
     private final IntConsumer onLayerSelected;
-    private boolean rejected;
+    private final long undoSelectionHistoryId;
 
     private LayerService.LayerSnapshot snapshot;
 
@@ -26,32 +22,25 @@ public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
                               int insertionIndex,
                               String name,
                               IntConsumer onLayerSelected) {
-        this(layerService, insertionIndex, name, LayerComponent.TYPE_CLASSIC, onLayerSelected);
+        this(layerService, insertionIndex, name, -1, onLayerSelected);
     }
 
     public CreateLayerCommand(LayerService layerService,
                               int insertionIndex,
                               String name,
-                              int type,
-                              IntConsumer onLayerSelected) {
-        this(layerService, insertionIndex, name, type, false, onLayerSelected);
-    }
-
-    public CreateLayerCommand(LayerService layerService,
-                              int insertionIndex,
-                              String name,
-                              int type,
-                              boolean spatialActorLayer,
+                              int undoSelectionLayerEntityId,
                               IntConsumer onLayerSelected) {
         this.layerService = layerService;
-        this.world = layerService.getWorld();
         this.insertionIndex = insertionIndex;
         this.onLayerSelected = onLayerSelected;
         this.historyIds = layerService.historyIds();
-        this.spatialActorLayer = spatialActorLayer && type == LayerComponent.TYPE_PHYSICS;
+        this.undoSelectionHistoryId =
+                layerService.indexOfLayerEntity(undoSelectionLayerEntityId) >= 0
+                        ? historyIds.ensureForEntity(undoSelectionLayerEntityId)
+                        : -1L;
         String effectiveName = (name != null && !name.isBlank()) ? name : "New Layer";
-        this.initializer = new LayerInitializer(world, layerService.getTiledAllocatorService())
-                .configureNewLayer(effectiveName, insertionIndex, type, this.spatialActorLayer);
+        this.initializer = new LayerInitializer(layerService.getWorld())
+                .configureNewLayer(effectiveName, insertionIndex);
     }
 
     @Override
@@ -61,25 +50,6 @@ public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
 
     @Override
     public void redo() {
-        applyRedo();
-    }
-
-    @Override
-    public CommandOutcome executeOutcome() {
-        return applyRedo();
-    }
-
-    @Override
-    public CommandOutcome redoOutcome() {
-        return applyRedo();
-    }
-
-    private CommandOutcome applyRedo() {
-        rejected = spatialActorLayer && layerService.hasSpatialActorLayer();
-        if (rejected) {
-            return CommandOutcome.REJECTED;
-        }
-
         int layerEntityId;
         if (snapshot != null) {
             layerEntityId = layerService.insertLayerSnapshot(snapshot.index(), snapshot);
@@ -97,7 +67,6 @@ public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
         if (onLayerSelected != null) {
             onLayerSelected.accept(layerEntityId);
         }
-        return CommandOutcome.APPLIED;
     }
 
     @Override
@@ -117,25 +86,27 @@ public final class CreateLayerCommand implements Command, OutcomeAwareCommand {
         unbindSnapshotHistoryIds(snapshot);
 
         if (onLayerSelected != null) {
-            int fallbackIndex = Math.min(index, layerService.count() - 1);
-            int fallbackEntity = fallbackIndex >= 0 ? layerService.getLayerEntity(fallbackIndex) : -1;
-            onLayerSelected.accept(fallbackEntity);
+            int previousSelection = undoSelectionHistoryId > 0L
+                    ? historyIds.entityOfHistoryId(undoSelectionHistoryId)
+                    : -1;
+            if (layerService.indexOfLayerEntity(previousSelection) >= 0) {
+                onLayerSelected.accept(previousSelection);
+            } else {
+                int fallbackIndex = Math.min(index, layerService.count() - 1);
+                int fallbackEntity = fallbackIndex >= 0
+                        ? layerService.getLayerEntity(fallbackIndex)
+                        : -1;
+                onLayerSelected.accept(fallbackEntity);
+            }
         }
-    }
-
-    @Override
-    public CommandOutcome undoOutcome() {
-        undo();
-        return CommandOutcome.APPLIED;
-    }
-
-    public boolean wasRejected() {
-        return rejected;
     }
 
     private void unbindSnapshotHistoryIds(LayerService.LayerSnapshot snap) {
         if (snap == null) return;
         historyIds.unbindHistoryId(snap.layerHistoryId());
+        for (LayerService.TiledMapSnapshot map : snap.tiledMaps()) {
+            historyIds.unbindHistoryId(map.historyId());
+        }
         for (LayerService.DrawableSnapshot drawable : snap.drawables()) {
             historyIds.unbindHistoryId(drawable.historyId);
         }

@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.tiled;
 
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -124,7 +125,7 @@ public class TiledVisualCoverageTest {
     }
 
     private static TiledMapLayerData isoMap() {
-        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, SceneMetaRuntime.TiledProjection.ISO);
+        TiledMapLayerData map = new TiledMapLayerData(16, 16, 256, 128, 4, TiledProjection.ISO);
         map.originX = 0f;
         map.originY = 0f;
         return map;

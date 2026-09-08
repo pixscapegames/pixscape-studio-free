@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -254,7 +255,7 @@ public class FixtureLinkedCommandSupportTest {
                     TiledLayerComponent.class).create(owner);
             tiled.data = new TiledMapLayerData(
                     20, 20, 32, 16, 8,
-                    SceneMetaRuntime.TiledProjection.ORTHO);
+                    TiledProjection.ORTHO);
             SpatialBlocksComponent blocks = world.getMapper(
                     SpatialBlocksComponent.class).create(owner);
             SpatialBlockData block = new SpatialBlockData();

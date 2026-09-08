@@ -6,6 +6,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.HdpiUtils;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.ShaderFloatParam;
@@ -87,7 +88,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         cam.update();
 
         Gdx.gl.glBindFramebuffer(GL20.GL_FRAMEBUFFER, 0);
-        Gdx.gl.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        HdpiUtils.glViewport(0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
         if (metricsBatch instanceof TextureArrayMeshBatchStudio taBatch) {

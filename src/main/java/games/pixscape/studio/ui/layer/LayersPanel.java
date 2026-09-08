@@ -1,9 +1,5 @@
 package games.pixscape.studio.ui.layer;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
-import com.artemis.World;
-import com.artemis.ComponentMapper;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
@@ -13,16 +9,13 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.component.TiledObjectLayerComponent;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.HistoryManager.SupportsNoop;
 import games.pixscape.studio.history.commands.ChangeLayerOrderCommand;
 import games.pixscape.studio.history.commands.CreateLayerCommand;
-import games.pixscape.studio.history.commands.CreateTiledLayerCommand;
 import games.pixscape.studio.history.commands.DeleteLayerCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.LayerService.LayerUI;
@@ -41,8 +34,6 @@ public class LayersPanel extends DockablePanel {
     private final SelectionService selectionService;
     private final PhysicsSelectionService physicsSelectionService;
     private final HistoryManager historyManager;
-    private final World world;
-    private final ComponentMapper<TiledObjectLayerComponent> mTiledObjectLayer;
     private final Runnable markCurrentSceneSaveRequired;
 
     private final VisTable listTable;
@@ -69,8 +60,6 @@ public class LayersPanel extends DockablePanel {
         this.selectionService = canvas.getSelectionService();
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
         this.historyManager = canvas.getHistoryManager();
-        this.world = canvas.getEcsWorld();
-        this.mTiledObjectLayer = world.getMapper(TiledObjectLayerComponent.class);
         this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         UiRefreshDispatchSystem postProcess = canvas.getEcsWorld().getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
@@ -109,6 +98,10 @@ public class LayersPanel extends DockablePanel {
             if (evt.sourceTag() == MY_TAG) return;
             markDirty();
         });
+        EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> {
+            if (evt.sourceTag() == MY_TAG) return;
+            markDirty();
+        });
         EventFlow.i().subscribe(EventFlow.LayerLockChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             markDirty();
@@ -143,53 +136,7 @@ public class LayersPanel extends DockablePanel {
         btnAdd.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                NewLayerDialog dialog = new NewLayerDialog(
-                        layerService,
-                        request -> {
-
-                            if (request.type() == LayerComponent.TYPE_TILED) {
-                                if (tiledMemoryOK(request.width(), request.height())) {
-                                    historyManager.execute(new CreateTiledLayerCommand(
-                                            layerService,
-                                            request.name(),
-                                            request.width(),
-                                            request.height(),
-                                            layerId -> {
-                                                if (selectionService != null) {
-                                                    selectionService.setActivelayerId(layerId);
-                                                }
-                                            }
-                                    ));
-                                }
-
-                            } else {
-
-                                CreateLayerCommand command = new CreateLayerCommand(
-                                        layerService,
-                                        layerService.count(),
-                                        request.name(),
-                                        request.type(),
-                                        request.spatialActorLayer(),
-                                        layerId -> {
-                                            if (selectionService != null) {
-                                                selectionService.setActivelayerId(layerId);
-                                            }
-                                        }
-                                );
-                                historyManager.execute(command);
-                                if (command.wasRejected()) {
-                                    showSpatialLayerUnavailableMessage();
-                                    return;
-                                }
-                            }
-
-                            markDirty();
-                        }
-                );
-
-                if (getStage() != null) {
-                    dialog.show(getStage());
-                }
+                createLayerImmediately();
             }
         });
 
@@ -201,52 +148,6 @@ public class LayersPanel extends DockablePanel {
                         : -1;
 
                 if (activeLayerId == -1) return;
-                int type = layerService.getLayerTypeByEntity(activeLayerId);
-
-                // ---------------------------------------------------
-                // TILED = permanent deletion
-                // ---------------------------------------------------
-                if (type == LayerComponent.TYPE_TILED) {
-
-                    VisDialog dialog = new StudioDialog("Warning") {
-                        @Override
-                        protected void result(Object object) {
-                            if (!Boolean.TRUE.equals(object)) return;
-
-                            int index = layerService.indexOfLayerEntity(activeLayerId);
-                            layerService.removeLayerCascade(index);
-
-                            if (selectionService != null) {
-                                int fallback = layerService.getFirstLayerEntity();
-                                selectionService.setActivelayerId(fallback);
-                            }
-                            markDirty();
-                        }
-                    };
-
-                    dialog.text(
-                            "Deleting a tiled layer is permanent.\n\n" +
-                                    "This action cannot be undone.\n\n" +
-                                    "Are you sure?"
-                    );
-
-                    dialog.button("Delete", true);
-                    dialog.button("Cancel", false);
-
-                    dialog.setModal(true);
-                    dialog.setResizable(false);
-                    dialog.pack();
-
-                    if (getStage() != null) {
-                        dialog.show(getStage());
-                    }
-
-                    return;
-                }
-
-                // ---------------------------------------------------
-                // AUTRES TYPES = historisation normale
-                // ---------------------------------------------------
                 historyManager.execute(new DeleteLayerCommand(
                         layerService,
                         activeLayerId,
@@ -318,6 +219,31 @@ public class LayersPanel extends DockablePanel {
         });
     }
 
+    private void createLayerImmediately() {
+        int previousLayerId = selectionService != null
+                ? selectionService.getActivelayerId()
+                : -1;
+        int insertionIndex = insertionIndexForNewLayer(layerService, previousLayerId);
+        CreateLayerCommand command = new CreateLayerCommand(
+                layerService,
+                insertionIndex,
+                "New Layer",
+                previousLayerId,
+                layerId -> {
+                    if (selectionService != null) {
+                        selectionService.setActivelayerId(layerId);
+                    }
+                }
+        );
+        historyManager.execute(command);
+        markDirty();
+    }
+
+    static int insertionIndexForNewLayer(LayerService layerService, int activeLayerId) {
+        int activeIndex = layerService.indexOfLayerEntity(activeLayerId);
+        return activeIndex >= 0 ? activeIndex + 1 : layerService.count();
+    }
+
     private void focusRow(LayerRow row) {
         if (row == null) return;
 
@@ -332,10 +258,6 @@ public class LayersPanel extends DockablePanel {
             return;
         }
         historyManager.execute(command);
-    }
-
-    private boolean tiledMemoryOK(int width, int height) {
-        return true;
     }
 
     private void markDirty() {
@@ -395,7 +317,7 @@ public class LayersPanel extends DockablePanel {
                     ui.layerEntityId(),
                     ui.index(),
                     ui.name(),
-                    buildLayerTypeSuffix(ui.layerEntityId(), ui.type(), ui.spatialEnabled()),
+                    ui.spatialEnabled(),
                     ui.visible(),
                     ui.locked()
             );
@@ -436,6 +358,7 @@ public class LayersPanel extends DockablePanel {
             });
 
             listTable.add(row).growX().padBottom(2).row();
+
         }
 
         listTable.invalidateHierarchy();
@@ -446,55 +369,6 @@ public class LayersPanel extends DockablePanel {
         if (shouldFocus && selectedRow != null) {
             focusRow(selectedRow);
         }
-    }
-
-    private String buildLayerTypeSuffix(int layerEntityId, int type, boolean spatialEnabled) {
-        return layerTypeSuffix(
-                type,
-                spatialEnabled,
-                mTiledObjectLayer.has(layerEntityId),
-                currentTiledProjection()
-        );
-    }
-
-    static String layerTypeSuffix(int type,
-                                  boolean spatialEnabled,
-                                  boolean tiledObjectLayer,
-                                  games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection projection) {
-        if (tiledObjectLayer) {
-            return "(Tiled Object)";
-        }
-        if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeSuffixLabel(type, spatialEnabled);
-        }
-
-        return switch (projection) {
-            case ISO -> "(Tiled isometric)";
-            case ORTHO -> "(Tiled orthogonal)";
-            case null -> "(Tiled)";
-        };
-    }
-
-    private void showSpatialLayerUnavailableMessage() {
-        VisDialog dialog = new StudioDialog("Spatial layer unavailable");
-        dialog.text("This scene already has its single actor Spatial layer.");
-        dialog.button("OK");
-        dialog.setModal(true);
-        dialog.setResizable(false);
-        dialog.pack();
-        if (getStage() != null) {
-            dialog.show(getStage());
-        }
-    }
-
-    private games.pixscape.runtime.loading.SceneMetaRuntime.TiledProjection currentTiledProjection() {
-        var cfg = games.pixscape.studio.configuration.ProjectConfig.getInstance();
-        if (cfg == null) return null;
-
-        var meta = cfg.getCurrentSceneMeta();
-        if (meta == null || !meta.tiledEnabled) return null;
-
-        return meta.tiledProjection;
     }
 
 }

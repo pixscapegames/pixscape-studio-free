@@ -15,6 +15,7 @@ public final class CursorDrawHelper {
     private static Drawable move;
     private static Drawable resize;
     private static Drawable rotate;
+    private static Drawable forbidden;
 
     // taille logique du curseur en pixels
     private static final float SIZE_PX = 32f;
@@ -27,6 +28,7 @@ public final class CursorDrawHelper {
         move = VisUI.getSkin().getDrawable("move");
         resize = VisUI.getSkin().getDrawable("resize");
         rotate = VisUI.getSkin().getDrawable("rotate");
+        forbidden = VisUI.getSkin().getDrawable("forbidden");
     }
 
     // --------------------------------------------------------------------
@@ -45,6 +47,7 @@ public final class CursorDrawHelper {
             case MOVE -> move;
             case RESIZE -> resize;
             case ROTATE -> rotate;
+            case FORBIDDEN -> forbidden;
             default -> null;
         };
         if (d == null) return;

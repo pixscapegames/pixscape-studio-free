@@ -12,6 +12,7 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.LayerInitializer;
+import games.pixscape.studio.history.initializer.TiledMapInitializer;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 
 import java.util.ArrayList;
@@ -29,7 +30,6 @@ public final class LayerService {
 
     private final ComponentMapper<LayerComponent> mL;
     private final ComponentMapper<LayerMetaComponent> mMeta;
-    private final ComponentMapper<LayerParallaxComponent> mPar;
     private final ComponentMapper<VisibilityComponent> mVis;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
     private final ComponentMapper<TiledLayerComponent> mTiled;
@@ -54,7 +54,6 @@ public final class LayerService {
         this.identityRegistry = Objects.requireNonNull(identityRegistry, "identityRegistry");
         this.mL = world.getMapper(LayerComponent.class);
         this.mMeta = world.getMapper(LayerMetaComponent.class);
-        this.mPar = world.getMapper(LayerParallaxComponent.class);
         this.mVis = world.getMapper(VisibilityComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
         this.mTiled = world.getMapper(TiledLayerComponent.class);
@@ -122,7 +121,39 @@ public final class LayerService {
         return tiledAllocatorService;
     }
 
-    public void rebuildFromWorld() {
+    /** Materializes one map as normal content of an existing Pixscape layer. */
+    public int insertTiledMap(TiledMapInitializer initializer, long historyId) {
+        Objects.requireNonNull(initializer, "initializer");
+        int mapEntityId = world.create();
+        try {
+            initializer.init(mapEntityId);
+            identityRegistry.ensureStableId(mapEntityId);
+            if (historyId > 0L) historyIds.bind(mapEntityId, historyId);
+            else historyIds.ensureForEntity(mapEntityId);
+            EventFlow.i().publish(new EventFlow.TiledMapContentChanged(mapEntityId, MY_TAG));
+            return mapEntityId;
+        } catch (RuntimeException failure) {
+            TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
+            if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+            IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
+            historyIds.unbindEntity(mapEntityId);
+            world.delete(mapEntityId);
+            throw failure;
+        }
+    }
+
+    /** Deletes one map without affecting its owning Pixscape layer or sibling maps. */
+    public void removeTiledMap(int mapEntityId) {
+        if (mapEntityId < 0 || !world.getEntityManager().isActive(mapEntityId) || !mTiled.has(mapEntityId)) return;
+        TiledLayerComponent tiled = mTiled.get(mapEntityId);
+        if (tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
+        IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
+        historyIds.unbindEntity(mapEntityId);
+        world.delete(mapEntityId);
+        EventFlow.i().publish(new EventFlow.TiledMapContentChanged(mapEntityId, MY_TAG));
+    }
+
+    void rebuildFromWorld() {
         dirty = true;
         rebuildIfDirty();
     }
@@ -153,30 +184,23 @@ public final class LayerService {
     /**
      * Returns the logical index of a layer from its entityId.
      */
-    public int getIndexForEntity(int layerEntityId) {
+    private int getIndexForEntity(int layerEntityId) {
         if (layerEntityId == -1) return 0;
         LayerComponent li = mL.get(layerEntityId);
         return li != null ? li.layerIndex : 0;
     }
 
-    public int getLayerTypeByIndex(int index) {
-        int e = getLayerEntity(index);
-        if (e == -1) return LayerComponent.TYPE_CLASSIC;
-        LayerComponent lc = mL.getSafe(e, null);
-        return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
+    /** Returns whether the entity is a real Pixscape Layer. */
+    public boolean isLayerEntity(int layerEntityId) {
+        return mL.getSafe(layerEntityId, null) != null;
     }
 
-    public int getLayerTypeByEntity(int layerEntityId) {
-        if (layerEntityId == -1) return LayerComponent.TYPE_CLASSIC;
-        LayerComponent lc = mL.getSafe(layerEntityId, null);
-        return (lc != null) ? lc.type : LayerComponent.TYPE_CLASSIC;
-    }
-
-    /** Returns whether the scene already contains its single actor Spatial layer. */
-    public boolean hasSpatialActorLayer() {
+    /** Returns whether another ordinary layer already owns the Spatial actor slot. */
+    public boolean hasOtherSpatialActorLayer(int currentLayerEntityId) {
         rebuildIfDirty();
         for (int i = 0; i < layerEntities.size; i++) {
             int layerEntity = layerEntities.get(i);
+            if (layerEntity == currentLayerEntityId) continue;
             LayerComponent layer = mL.getSafe(layerEntity, null);
             if (isSpatialActorLayer(layer)) {
                 return true;
@@ -186,11 +210,7 @@ public final class LayerService {
     }
 
     public static boolean isSpatialActorLayer(LayerComponent layer) {
-        return layer != null && isSpatialActorLayer(layer.type, layer.spatialEnabled);
-    }
-
-    public static boolean isSpatialActorLayer(int type, boolean spatialEnabled) {
-        return type == LayerComponent.TYPE_PHYSICS && spatialEnabled;
+        return layer != null && layer.spatialEnabled;
     }
 
     public LayerMetaComponent meta(int index) {
@@ -225,24 +245,16 @@ public final class LayerService {
         return -1;
     }
 
-    public LayerParallaxComponent parallax(int index) {
-        int e = getLayerEntity(index);
-        return e != -1 ? mPar.getSafe(e, null) : null;
-    }
-
     // ---------- Mutations (actions utilisateur) ----------
 
     /**
      * Adds a layer at the top, returns its index.
      */
     public int addLayerTop(String name) {
-        return addLayerTop(name, LayerComponent.TYPE_CLASSIC);
-    }
-
-    public int addLayerTop(String name, int type) {
         int idx = layerEntities.size;
         String effectiveName = (name != null ? name : "Layer " + idx);
-        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService).configureNewLayer(effectiveName, idx, type);
+        LayerInitializer initializer = new LayerInitializer(world)
+                .configureNewLayer(effectiveName, idx);
         insertLayerAt(idx, initializer);
         return idx;
     }
@@ -256,8 +268,6 @@ public final class LayerService {
             initializer.init(e);
             identityRegistry.ensureStableId(e);
         } catch (RuntimeException failure) {
-            TiledLayerComponent tiled = mTiled.getSafe(e, null);
-            if (tiled != null && tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
             IdentityRegistry.unindexEntityImmediately(world, e);
             historyIds.unbindEntity(e);
             world.delete(e);
@@ -286,6 +296,10 @@ public final class LayerService {
         }
         int layerEntityId = insertLayerAt(index, snapshot.layerInitializer);
         historyIds.bind(layerEntityId, snapshot.layerHistoryId);
+        for (TiledMapSnapshot map : snapshot.tiledMaps) {
+            map.initializer.overrideLayerIndex(index);
+            insertTiledMap(map.initializer, map.historyId);
+        }
 
         for (DrawableSnapshot drawable : snapshot.drawables) {
             GenericEntityInitializer init = drawable.initializer;
@@ -307,8 +321,9 @@ public final class LayerService {
         int layerEntityId = layerEntities.get(index);
         long layerHistoryId = historyIds.ensureForEntity(layerEntityId);
 
-        LayerInitializer initializer = new LayerInitializer(world, tiledAllocatorService);
+        LayerInitializer initializer = new LayerInitializer(world);
         initializer.syncFrom(layerEntityId);
+        List<TiledMapSnapshot> tiledMaps = new ArrayList<>();
 
         List<DrawableSnapshot> drawables = new ArrayList<>();
 
@@ -327,6 +342,12 @@ public final class LayerService {
             if (ei == null || ei.getLayerIndex() != index) {
                 continue;
             }
+            if (mTiled.has(e)) {
+                TiledMapInitializer mapInitializer = new TiledMapInitializer(world, tiledAllocatorService);
+                mapInitializer.syncFrom(e);
+                tiledMaps.add(new TiledMapSnapshot(historyIds.ensureForEntity(e), mapInitializer));
+                continue;
+            }
 
             long drawableHistoryId = historyIds.ensureForEntity(e); // ✅ e, not layerEntityId
 
@@ -342,7 +363,7 @@ public final class LayerService {
                 .thenComparingLong(d -> d.historyId)
                 .thenComparingInt(d -> d.entityId));
 
-        return new LayerSnapshot(index, layerHistoryId, initializer, drawables);
+        return new LayerSnapshot(index, layerHistoryId, initializer, tiledMaps, drawables);
     }
 
 
@@ -357,11 +378,16 @@ public final class LayerService {
 
         int eLayer = layerEntities.get(index);
 
-        // 0) If this is a tiled layer -> release BEFORE deletion
-        if (mTiled.has(eLayer)) {
-            TiledLayerComponent tiled = mTiled.get(eLayer);
-            // Allocator release + slot deactivation
-            tiledAllocatorService.freeLayer(tiled);
+        // 0) Release every map owned by the layer before cascading its entities.
+        IntBag owned = world.getAspectSubscriptionManager()
+                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        int[] ownedData = owned.getData();
+        for (int i = 0; i < owned.size(); i++) {
+            int mapEntityId = ownedData[i];
+            EntityIndexComponent mapIndex = mEntityIndex.get(mapEntityId);
+            if (mapIndex.layerIndex == index && tiledAllocatorService != null) {
+                tiledAllocatorService.freeLayer(mTiled.get(mapEntityId));
+            }
         }
 
         // 1) Delete all entities drawables de ce layer
@@ -377,7 +403,7 @@ public final class LayerService {
         shiftItemsForRemove(index);
         renumberLayerIndices();
 
-        // 4) Forcer rebuild GPU des autres tiled layers
+        // 4) Force the GPU rebuild of the other Tiled Maps.
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -391,20 +417,6 @@ public final class LayerService {
         }
 
         EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-    }
-
-    /**
-     * Moves the layer up one step (swap with index+1).
-     */
-    public void moveLayerUp(int index) {
-        moveLayer(index, index + 1);
-    }
-
-    /**
-     * Moves the layer down one step (swap with index-1).
-     */
-    public void moveLayerDown(int index) {
-        moveLayer(index, index - 1);
     }
 
     /**
@@ -465,18 +477,6 @@ public final class LayerService {
                 dirtyTracker.order(eJ);
             }
         }
-        if (li.type == LayerComponent.TYPE_TILED) {
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(eI);
-            if (tiled != null && tiled.data != null)
-                tiled.data.markAllChunksContentDirty();
-        }
-
-        if (lj.type == LayerComponent.TYPE_TILED) {
-            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(eJ);
-            if (tiled != null && tiled.data != null)
-                tiled.data.markAllChunksContentDirty();
-        }
-
         swapItemsLayerIndices(idxI, idxJ);
         markLayerContentsDirty(idxI);
         markLayerContentsDirty(idxJ);
@@ -640,11 +640,33 @@ public final class LayerService {
             String description = (meta != null && meta.description != null) ? meta.description : "";
             boolean visible = visibleC != null && visibleC.isVisible();
             boolean locked = meta != null && meta.locked;
-            int type = lc != null ? lc.type : LayerComponent.TYPE_CLASSIC;
             boolean spatialEnabled = lc != null && lc.spatialEnabled;
-            list.add(new LayerUI(e, name, description, i, type, spatialEnabled, visible, locked));
+            list.add(new LayerUI(e, name, description, i, spatialEnabled, visible, locked));
         }
         return list;
+    }
+
+    /**
+     * Returns the Tiled Map content currently owned by one Layer for editor display.
+     * This is a cold UI rebuild query; map ownership itself remains EntityIndexComponent.
+     */
+    public Array<TiledMapUI> getTiledMapUIs(int layerEntityId) {
+        int layerIndex = indexOfLayerEntity(layerEntityId);
+        Array<TiledMapUI> maps = new Array<TiledMapUI>();
+        if (layerIndex < 0) return maps;
+        IntBag entities = world.getAspectSubscriptionManager().get(
+                Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
+        for (int i = 0; i < entities.size(); i++) {
+            int entityId = entities.get(i);
+            EntityIndexComponent index = mEntityIndex.get(entityId);
+            if (index.layerIndex != layerIndex) continue;
+            TiledLayerComponent tiled = mTiled.get(entityId);
+            maps.add(new TiledMapUI(entityId, index.zIndex, tiled.projection,
+                    tiled.mapWidthCells, tiled.mapHeightCells));
+        }
+        maps.sort(Comparator.comparingInt(TiledMapUI::zIndex)
+                .thenComparingInt(TiledMapUI::mapEntityId));
+        return maps;
     }
 
     /**
@@ -694,85 +716,32 @@ public final class LayerService {
         EventFlow.i().publish(new EventFlow.LayerLockChanged(entityId, locked, 0));
     }
 
-    public boolean isLayerLocked(int entityId) {
-        LayerMetaComponent meta = mMeta.getSafe(entityId, null);
-        return meta.locked;
-    }
-
-    public void setLayerType(int layerEntityId, int type) {
-        if (layerEntityId == -1) return;
-
-        LayerComponent lc = mL.getSafe(layerEntityId, null);
-        if (lc == null) return;
-
-        int norm = normalizeLayerType(type);
-        if (lc.type == norm) return;
-
-        lc.type = norm;
-
-        if (dirtyTracker != null) {
-            dirtyTracker.layer(layerEntityId);
-            dirtyTracker.order(layerEntityId);
-        }
-
-        dirty = true;
-
-        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-    }
-
-    private static int normalizeLayerType(int type) {
-        return switch (type) {
-            case LayerComponent.TYPE_CLASSIC,
-                 LayerComponent.TYPE_PHYSICS,
-                 LayerComponent.TYPE_LIGHT,
-                 LayerComponent.TYPE_TILED -> type;
-            default -> LayerComponent.TYPE_CLASSIC;
-        };
-    }
-
-
     public void reset() {
         layerEntities.clear();
         dirty = true;
     }
 
-    public static String typeDisplayName(int type) {
-        return typeDisplayName(type, false);
-    }
-
-    public static String typeDisplayName(int type, boolean spatialEnabled) {
-        if (isSpatialActorLayer(type, spatialEnabled)) {
-            return "Spatial";
-        }
-        return switch (type) {
-            case LayerComponent.TYPE_PHYSICS -> "Physics";
-            case LayerComponent.TYPE_LIGHT -> "Light";
-            case LayerComponent.TYPE_TILED -> "Tiled";
-            default -> "Classic";
-        };
-    }
-
-    public static String typeSuffixLabel(int type) {
-        return typeSuffixLabel(type, false);
-    }
-
-    public static String typeSuffixLabel(int type, boolean spatialEnabled) {
-        if (type == LayerComponent.TYPE_CLASSIC) {
-            return "";
-        }
-        return "(" + typeDisplayName(type, spatialEnabled) + ")";
-    }
-
-    public record LayerUI(int layerEntityId, String name, String description, int index, int type,
+    public record LayerUI(int layerEntityId, String name, String description, int index,
                           boolean spatialEnabled, boolean visible, boolean locked) {
     }
 
+    public record TiledMapUI(int mapEntityId, int zIndex,
+                             games.pixscape.runtime.tiled.TiledProjection projection,
+                             int widthCells, int heightCells) {
+    }
+
+    public record TiledMapSnapshot(long historyId, TiledMapInitializer initializer) {}
+
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
+                                List<TiledMapSnapshot> tiledMaps,
                                 List<DrawableSnapshot> drawables) {
-        public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer, List<DrawableSnapshot> drawables) {
+        public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
+                             List<TiledMapSnapshot> tiledMaps,
+                             List<DrawableSnapshot> drawables) {
             this.index = index;
             this.layerHistoryId = layerHistoryId;
             this.layerInitializer = layerInitializer;
+            this.tiledMaps = List.copyOf(tiledMaps);
             this.drawables = List.copyOf(drawables);
         }
     }

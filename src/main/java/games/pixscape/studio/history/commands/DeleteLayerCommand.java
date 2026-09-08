@@ -69,6 +69,9 @@ public final class DeleteLayerCommand implements Command {
     private void unbindSnapshotHistoryIds(LayerService.LayerSnapshot snap) {
         if (snap == null) return;
         historyIds.unbindHistoryId(snap.layerHistoryId());
+        for (LayerService.TiledMapSnapshot map : snap.tiledMaps()) {
+            historyIds.unbindHistoryId(map.historyId());
+        }
         for (LayerService.DrawableSnapshot drawable : snap.drawables()) {
             historyIds.unbindHistoryId(drawable.historyId);
         }

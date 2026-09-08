@@ -25,10 +25,6 @@ public final class NewProjectWindow extends StudioModalWindow {
 
     private final VisSelectBox<String> glProfileBox = new VisSelectBox<>();
     private final VisSelectBox<Integer> samplesBox = new VisSelectBox<>();
-    private final VisSelectBox<String> projectionBox = new VisSelectBox<>();
-
-    private final VisTextField tfTileWidth = new VisTextField("32");
-    private final VisTextField tfTileHeight = new VisTextField("32");
 
     public NewProjectWindow(String title) {
         super(title);
@@ -114,23 +110,6 @@ public final class NewProjectWindow extends StudioModalWindow {
         samplesBox.setItems(0, 2, 4, 8);
         samplesBox.setSelected(0);
 
-        projectionBox.setItems("None", "Orthogonal", "Isometric");
-        projectionBox.setSelected("Orthogonal");
-
-        projectionBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                boolean tiledEnabled = !"None".equals(projectionBox.getSelected());
-                tfTileWidth.setDisabled(!tiledEnabled);
-                tfTileHeight.setDisabled(!tiledEnabled);
-
-                if (!tiledEnabled) {
-                    tfTileWidth.setText("32");
-                    tfTileHeight.setText("32");
-                }
-            }
-        });
-
         VisTable content = new VisTable(true);
         content.defaults().pad(4).left();
 
@@ -160,19 +139,6 @@ public final class NewProjectWindow extends StudioModalWindow {
         content.add(new VisLabel("Backbuffer MSAA:")).left();
         content.add(samplesBox).growX().row();
 
-        content.addSeparator().colspan(2).padTop(6).row();
-
-        content.add(new VisLabel("Default Scene")).colspan(2).left().padTop(4).row();
-
-        content.add(new VisLabel("Tiled projection:")).left();
-        content.add(projectionBox).growX().row();
-
-        content.add(new VisLabel("Tile Width (px):")).left();
-        content.add(tfTileWidth).growX().row();
-
-        content.add(new VisLabel("Tile Height (px):")).left();
-        content.add(tfTileHeight).growX().row();
-
         VisTable buttons = new VisTable(true);
         buttons.add(ok).width(120);
         buttons.add(cancel).width(120);
@@ -192,27 +158,6 @@ public final class NewProjectWindow extends StudioModalWindow {
 
     public VisTextButton getCancelButton() {
         return cancel;
-    }
-
-    public String getProjection() {
-        return projectionBox.getSelected();
-    }
-
-    public int getTileWidth() {
-        return parseIntSafe(tfTileWidth.getText(), 32);
-    }
-
-    public int getTileHeight() {
-        return parseIntSafe(tfTileHeight.getText(), 32);
-    }
-
-    private int parseIntSafe(String value, int def) {
-        try {
-            int v = Integer.parseInt(value.trim());
-            return v > 0 ? v : def;
-        } catch (Exception e) {
-            return def;
-        }
     }
 
     public String getProjectTitle() {

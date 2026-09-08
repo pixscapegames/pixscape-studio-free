@@ -6,7 +6,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
 
 public final class SpatialTileSelectionService {
-    public static final int NO_LAYER = -1;
+    public static final int NO_MAP = -1;
     public static final String INVALID_EMPTY_CELLS = "Spatial blocks can only be created from occupied tile cells.";
     public static final String INVALID_INTERNAL_EMPTY_CELL = "Spatial block selections cannot contain internal empty cells.";
     public static final String INVALID_NON_RECTANGULAR = "Spatial block selections must contain one filled occupied rectangle.";
@@ -33,14 +33,14 @@ public final class SpatialTileSelectionService {
         }
     }
 
-    private int layerEntityId = NO_LAYER;
+    private int mapEntityId = NO_MAP;
     private boolean dragging = false;
     private int dragStartGx = 0;
     private int dragStartGy = 0;
     private int dragEndGx = 0;
     private int dragEndGy = 0;
     private boolean pointerCellValid = false;
-    private int hoverLayerEntityId = NO_LAYER;
+    private int hoverMapEntityId = NO_MAP;
     private int hoverGx;
     private int hoverGy;
     private float gestureDx;
@@ -48,8 +48,8 @@ public final class SpatialTileSelectionService {
     private final NormalizedSelection normalized = new NormalizedSelection();
 
     public SpatialTileSelectionService() {
-        EventFlow.i().subscribe(EventFlow.CurrentLayerChanged.class, evt -> {
-            if (evt.layerEntityId() != layerEntityId) {
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
+            if (evt.mapEntityId() != mapEntityId) {
                 clear();
             }
         });
@@ -60,19 +60,19 @@ public final class SpatialTileSelectionService {
         });
         EventFlow.i().subscribe(EventFlow.SceneMapResized.class, evt -> clear());
         EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, evt -> {
-            if (evt.layerEntityId() != layerEntityId) {
+            if (evt.mapEntityId() != mapEntityId) {
                 clear();
             }
         });
     }
 
-    public void beginDrag(int layerEntityId, int gx, int gy) {
-        if (layerEntityId < 0) {
+    public void beginDrag(int mapEntityId, int gx, int gy) {
+        if (mapEntityId < 0) {
             clear();
             return;
         }
 
-        this.layerEntityId = layerEntityId;
+        this.mapEntityId = mapEntityId;
         this.dragging = true;
         this.dragStartGx = gx;
         this.dragStartGy = gy;
@@ -105,15 +105,15 @@ public final class SpatialTileSelectionService {
         clearHover();
     }
 
-    public void setHover(int layerEntityId, int gx, int gy) {
-        hoverLayerEntityId = layerEntityId;
+    public void setHover(int mapEntityId, int gx, int gy) {
+        hoverMapEntityId = mapEntityId;
         hoverGx = gx;
         hoverGy = gy;
     }
 
-    public void clearHover() { hoverLayerEntityId = NO_LAYER; }
-    public boolean hasHover() { return hoverLayerEntityId >= 0; }
-    public int getHoverLayerEntityId() { return hoverLayerEntityId; }
+    public void clearHover() { hoverMapEntityId = NO_MAP; }
+    public boolean hasHover() { return hoverMapEntityId >= 0; }
+    public int getHoverMapEntityId() { return hoverMapEntityId; }
     public int getHoverGx() { return hoverGx; }
     public int getHoverGy() { return hoverGy; }
 
@@ -129,7 +129,7 @@ public final class SpatialTileSelectionService {
     }
 
     public void clear() {
-        layerEntityId = NO_LAYER;
+        mapEntityId = NO_MAP;
         dragging = false;
         dragStartGx = 0;
         dragStartGy = 0;
@@ -143,11 +143,11 @@ public final class SpatialTileSelectionService {
     }
 
     public boolean hasSelection() {
-        return layerEntityId >= 0;
+        return mapEntityId >= 0;
     }
 
-    public int getLayerEntityId() {
-        return layerEntityId;
+    public int getMapEntityId() {
+        return mapEntityId;
     }
 
     public int getMinGx() {
@@ -179,9 +179,9 @@ public final class SpatialTileSelectionService {
         return (getMaxGxExclusive() - getMinGx()) * (getMaxGyExclusive() - getMinGy());
     }
 
-    public boolean contains(int layerEntityId, int gx, int gy) {
+    public boolean contains(int mapEntityId, int gx, int gy) {
         return hasSelection()
-                && this.layerEntityId == layerEntityId
+                && this.mapEntityId == mapEntityId
                 && gx >= getMinGx()
                 && gx < getMaxGxExclusive()
                 && gy >= getMinGy()

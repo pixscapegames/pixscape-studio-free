@@ -14,12 +14,12 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneAmbientLighting;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -56,11 +56,6 @@ public class SceneProperties extends VisTable {
     private final SimpleFloatSlider ambientIntensitySlider;
     private boolean internalLightingRefresh = false;
     private boolean internalPhysicsRefresh = false;
-
-    private final CollapsibleVisTable tiledBlock;
-    private final VisLabel projection;
-    private final VisLabel tileWidthField;
-    private final VisLabel tileHeightField;
 
     private final int MY_TAG = EventFlow.tag(this);
     private boolean dirtyUi = false;
@@ -333,26 +328,6 @@ public class SceneProperties extends VisTable {
         });
 
 
-        tiledBlock = new CollapsibleVisTable(true, true);
-
-        projection = new VisLabel();
-        tileWidthField = new VisLabel();
-        tileHeightField = new VisLabel();
-        tiledBlock.content().addSeparator().colspan(2).growX().padTop(6).row();
-        tiledBlock.content().add(new VisLabel("Tiled map")).colspan(2).center().row();
-
-        tiledBlock.content().add(new VisLabel("Projection:")).left();
-        tiledBlock.content().add(projection).left().row();
-
-        tiledBlock.content().add(new VisLabel("Tile Width:")).left();
-        tiledBlock.content().add(tileWidthField).width(100).left().row();
-
-        tiledBlock.content().add(new VisLabel("Tile Height:")).left();
-        tiledBlock.content().add(tileHeightField).width(100).left().growX().row();
-
-        add(tiledBlock).colspan(2).growX().row();
-        tiledBlock.show(false);
-
         UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
         postProcess.add(this::updateIfDirty);
         postProcess.add(this::completePendingPhysicsPurge);
@@ -382,13 +357,7 @@ public class SceneProperties extends VisTable {
         m.ambientColorG = g;
         m.ambientColorB = b;
 
-        float mr = 1f + (r - 1f) * t;
-        float mg = 1f + (g - 1f) * t;
-        float mb = 1f + (b - 1f) * t;
-
-        m.ambientMulR = mr;
-        m.ambientMulG = mg;
-        m.ambientMulB = mb;
+        SceneAmbientLighting.deriveRuntimeMultipliers(m);
 
         publishAmbient(m);
         flagPreviewSaveRequired();
@@ -492,7 +461,6 @@ public class SceneProperties extends VisTable {
 
         refreshPhysicsFromMeta();
         refreshLightingFromMeta();
-        refreshTiledFromMeta();
     }
 
     private void refreshPhysicsFromMeta() {
@@ -579,22 +547,6 @@ public class SceneProperties extends VisTable {
         }
     }
 
-    private void refreshTiledFromMeta() {
-        SceneMeta m = currentMeta();
-        if (m == null) {
-            tiledBlock.show(false);
-            projection.setText("");
-            tileWidthField.setText("");
-            tileHeightField.setText("");
-            return;
-        }
-
-        tiledBlock.show(m.tiledEnabled);
-        projection.setText(m.tiledProjection.name());
-        tileWidthField.setText(Float.toString(m.tileWidth));
-        tileHeightField.setText(Float.toString(m.tileHeight));
-    }
-
     private void refreshPhysicsParallaxFromMeta(SceneMeta m) {
         internalParallaxRefresh = true;
         try {
@@ -665,7 +617,8 @@ public class SceneProperties extends VisTable {
         dialog.text(
                 """
                         Disabling physics will permanently delete all physics in this scene.
-                        This includes bodies, fixtures, attached joints and physics layers.
+                        This includes bodies, fixtures, sensors and attached joints.
+                        Layers and non-physics entities will remain unchanged.
                         
                         Do you want to continue?"""
         );
@@ -684,9 +637,7 @@ public class SceneProperties extends VisTable {
 
     private void beginPhysicsPurge(SceneMeta sceneMeta) {
         List<Integer> bodyEntityIds = entitiesWith(Aspect.all(PhysicsBodyComponent.class));
-        List<Integer> physicsLayerEntityIds = collectPhysicsLayerEntityIds();
         validateActive(bodyEntityIds);
-        validateActive(physicsLayerEntityIds);
         com.badlogic.gdx.utils.IntArray jointEntityIds =
                 new com.badlogic.gdx.utils.IntArray(false, 16);
         com.badlogic.gdx.utils.IntSet uniqueJointIds =
@@ -711,47 +662,7 @@ public class SceneProperties extends VisTable {
         for (int i = 0; i < jointEntityIds.size; i++) {
             historyManager.historyIds().unbindEntity(jointEntityIds.get(i));
         }
-        removeAllPhysicsLayers(physicsLayerEntityIds);
         pendingPhysicsPurge = sceneMeta;
-    }
-
-    private List<Integer> collectPhysicsLayerEntityIds() {
-        List<Integer> physicsLayerEntityIds = new ArrayList<>();
-        if (layerService == null) return physicsLayerEntityIds;
-        int layerCount = layerService.count();
-        for (int i = 0; i < layerCount; i++) {
-            int layerEntityId = layerService.getLayerEntity(i);
-            if (layerEntityId == -1) {
-                continue;
-            }
-
-            if (layerService.getLayerTypeByEntity(layerEntityId) == LayerComponent.TYPE_PHYSICS) {
-                physicsLayerEntityIds.add(layerEntityId);
-            }
-        }
-        return physicsLayerEntityIds;
-    }
-
-    private void removeAllPhysicsLayers(List<Integer> physicsLayerEntityIds) {
-        int activeLayerId = selectionService != null ? selectionService.getActivelayerId() : -1;
-        boolean activeLayerWasRemoved = false;
-
-        for (int i = physicsLayerEntityIds.size() - 1; i >= 0; i--) {
-            int layerEntityId = physicsLayerEntityIds.get(i);
-
-            if (layerEntityId == activeLayerId) {
-                activeLayerWasRemoved = true;
-            }
-
-            int index = layerService.indexOfLayerEntity(layerEntityId);
-            if (index >= 0) {
-                layerService.removeLayerCascade(index);
-            }
-        }
-
-        if (selectionService != null && activeLayerWasRemoved) {
-            selectionService.setActivelayerId(layerService.getFirstLayerEntity());
-        }
     }
 
     private void completePendingPhysicsPurge() {

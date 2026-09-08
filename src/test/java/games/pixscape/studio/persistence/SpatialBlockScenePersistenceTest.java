@@ -10,6 +10,7 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
@@ -112,7 +113,7 @@ public class SpatialBlockScenePersistenceTest {
     @Test
     public void normalizedSelectionRoundtripNeverRestoresRawEmptyBorders() {
         TiledMapLayerData map = new TiledMapLayerData(
-                8, 8, 64, 32, 4, SceneMetaRuntime.TiledProjection.ISO);
+                8, 8, 64, 32, 4, TiledProjection.ISO);
         map.setTile(2, 3, 201);
         map.setTile(3, 3, 202);
         map.setTile(4, 3, 203);

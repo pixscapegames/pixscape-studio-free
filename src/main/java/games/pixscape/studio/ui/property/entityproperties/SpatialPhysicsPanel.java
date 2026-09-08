@@ -14,6 +14,8 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
@@ -22,6 +24,7 @@ import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditSpatialHeightCommand;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
 import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -66,14 +69,15 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                 if (internalRefresh || entityId < 0) return;
 
                 boolean enable = enabledBox.isChecked();
+                boolean eligibleForActivation = isEligibleForActivation(entityId);
                 ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
                         ctx.world,
                         ctx.history.historyIds(),
                         ctx.physicsService,
                         entityId,
                         enable,
-                        isEligibleForActivation(entityId),
-                        enable ? createDefaultFootprint(entityId) : null
+                        eligibleForActivation,
+                        enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
                 if (command.isNoop()) {
                     validationLabel.setText(enable
@@ -157,16 +161,40 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         if (eid < 0 || ctx.layerService == null) return false;
         EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
         EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
-        if (kind != EntityKind.SPRITE && kind != EntityKind.ANIMATION) return false;
-        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class).getSafe(eid, null);
-        if (index == null) return false;
-        int layerIndex = index.getLayerIndex();
-        if (ctx.layerService.getLayerTypeByIndex(layerIndex) != LayerComponent.TYPE_PHYSICS) return false;
-        int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
+        int effectiveLayerEntity = effectiveLayerEntity(eid);
+        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class)
+                .getSafe(effectiveLayerEntity, null);
+        int layerEntityId = index != null
+                ? ctx.layerService.getLayerEntity(index.getLayerIndex())
+                : -1;
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
-        return layer != null && layer.spatialEnabled;
+        ProjectConfig config = ProjectConfig.getInstance();
+        SceneMeta scene = config != null ? config.getCurrentSceneMeta() : null;
+        return canActivateSpatialPhysics(scene, kind, index, layer);
+    }
+
+    /** Game Object members inherit the root Layer; their own EntityIndex is authored-local. */
+    private int effectiveLayerEntity(int eid) {
+        GameObjectHierarchySystem hierarchy = ctx.world.getSystem(GameObjectHierarchySystem.class);
+        if (hierarchy == null) return eid;
+        GameObjectTopologyState topology = hierarchy.topology();
+        return eid < topology.getEntityCapacity() && topology.parented[eid]
+                ? topology.rootEntityId[eid]
+                : eid;
+    }
+
+    static boolean canActivateSpatialPhysics(
+            SceneMeta scene,
+            EntityKind kind,
+            EntityIndexComponent index,
+            LayerComponent layer) {
+        return scene != null
+                && scene.physicsEnabled
+                && (kind == EntityKind.SPRITE || kind == EntityKind.ANIMATION)
+                && index != null
+                && LayerService.isSpatialActorLayer(layer);
     }
 
     private PhysicsShapeData createDefaultFootprint(int eid) {

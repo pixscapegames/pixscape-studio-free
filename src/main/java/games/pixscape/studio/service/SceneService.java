@@ -551,10 +551,7 @@ public final class SceneService {
                            String projectDirectoryPath,
                            String exportDir,
                            PlatformTarget platformTarget,
-                           int glSamples,
-                           int tileWidth,
-                           int tileHeight,
-                           String projection) {
+                           int glSamples) {
         FileHandle projectDir = null;
         boolean projectDirExistedBeforeAttempt = false;
         ProjectConfig cfg = new ProjectConfig();
@@ -573,18 +570,6 @@ public final class SceneService {
 
             cfg.createSceneMeta("MainScene");
             SceneMeta meta = cfg.getCurrentSceneMeta();
-
-            if ("None".equals(projection)) {
-                meta.tiledEnabled = false;
-            } else {
-                meta.tiledEnabled = true;
-                meta.tileWidth = tileWidth;
-                meta.tileHeight = tileHeight;
-                meta.tiledProjection =
-                        "Isometric".equals(projection)
-                                ? SceneMetaRuntime.TiledProjection.ISO
-                                : SceneMetaRuntime.TiledProjection.ORTHO;
-            }
 
             ProjectConfig.setInstance(cfg);
             bindSceneIdentityAuthorities(meta);
@@ -1292,10 +1277,10 @@ public final class SceneService {
         return changed;
     }
 
-    public boolean addRuntimeAvailablePrefab(String prefabId) {
+    public boolean addRuntimeAvailableGameObject(String gameObjectId) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        boolean changed = runtimeAvailabilityService.addPrefab(meta, prefabId);
+        boolean changed = runtimeAvailabilityService.addGameObject(meta, gameObjectId);
         persistRuntimeAvailabilityChange(cfg, changed);
         return changed;
     }
@@ -1348,10 +1333,10 @@ public final class SceneService {
         return changed;
     }
 
-    public boolean removeRuntimeAvailablePrefab(String prefabId) {
+    public boolean removeRuntimeAvailableGameObject(String gameObjectId) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        boolean changed = runtimeAvailabilityService.removePrefab(meta, prefabId);
+        boolean changed = runtimeAvailabilityService.removeGameObject(meta, gameObjectId);
         persistRuntimeAvailabilityChange(cfg, changed);
         return changed;
     }
@@ -1614,24 +1599,6 @@ public final class SceneService {
         return shouldSkipSaveAtlasRepack(plan.studioDir(), plan.canonicalTag(), syncResult);
     }
 
-    /** Allocates the next persistent prefab-instance identity from the active Studio scene. */
-    public int allocatePrefabInstanceId() {
-        return allocatePrefabInstanceId(ProjectConfig.getInstance());
-    }
-
-    static int allocatePrefabInstanceId(ProjectConfig cfg) {
-        SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
-        if (meta == null) {
-            throw new IllegalStateException("An active scene is required to allocate a prefab instance ID.");
-        }
-        int allocated = meta.nextPrefabInstanceId;
-        if (allocated <= 0 || allocated == Integer.MAX_VALUE) {
-            throw new IllegalStateException(
-                    "nextPrefabInstanceId must be positive and allocatable, got " + allocated + ".");
-        }
-        meta.nextPrefabInstanceId = allocated + 1;
-        return allocated;
-    }
 
     private boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
                                               String sceneTag,
@@ -1804,13 +1771,12 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     private void rebuildSparseFromDense() {
+        rebuildSparseFromDense(canvas.getEcsWorld());
+    }
 
-        World world = canvas.getEcsWorld();
-
+    static void rebuildSparseFromDense(World world) {
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer =
-                world.getMapper(LayerComponent.class);
 
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
@@ -1824,8 +1790,7 @@ public final class SceneService {
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null || tiled.data == null) continue;
 
-            LayerComponent layer = mLayer.getSafe(e, null);
-            tiled.spatialEnabled = (layer != null && layer.spatialEnabled) || tiled.data.spatialEnabled;
+            tiled.spatialEnabled = tiled.data.spatialEnabled;
             tiled.defaultTileAltitude = tiled.data.defaultTileAltitude;
             tiled.defaultTileHeight = tiled.data.defaultTileHeight;
 
@@ -1962,12 +1927,7 @@ public final class SceneService {
         }
     }
 
-    public void createNewScene(
-            String sceneName,
-            int tileWidth,
-            int tileHeight,
-            String projection
-    ) {
+    public void createNewScene(String desiredSceneName) {
         clipboardService.clear();
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) {
@@ -1980,6 +1940,7 @@ public final class SceneService {
             saveCurrentSceneOnly(cfg);
         }
 
+        String sceneName = cfg.uniqueSceneName(desiredSceneName);
         String previousSceneName = cfg.getCurrentSceneName();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         String createdSceneFileName = null;
@@ -1988,18 +1949,6 @@ public final class SceneService {
             cfg.createSceneMeta(sceneName);
             SceneMeta meta = cfg.getSceneMeta(sceneName);
             createdSceneFileName = (meta != null) ? meta.getFile() : null;
-
-            if ("None".equals(projection)) {
-                meta.tiledEnabled = false;
-            } else {
-                meta.tiledEnabled = true;
-                meta.tileWidth = tileWidth;
-                meta.tileHeight = tileHeight;
-                meta.tiledProjection =
-                        "Isometric".equals(projection)
-                                ? SceneMetaRuntime.TiledProjection.ISO
-                                : SceneMetaRuntime.TiledProjection.ORTHO;
-            }
 
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
             atlasesDir.mkdirs();

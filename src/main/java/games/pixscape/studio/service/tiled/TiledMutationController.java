@@ -21,17 +21,17 @@ public final class TiledMutationController {
         private static final Result CANCELLED = new Result(Status.CANCELLED, -1, null);
 
         private final Status status;
-        private final int layerEntityId;
+        private final int mapEntityId;
         private final TiledSpatialMutationRejection rejection;
 
-        private Result(Status status, int layerEntityId, TiledSpatialMutationRejection rejection) {
+        private Result(Status status, int mapEntityId, TiledSpatialMutationRejection rejection) {
             this.status = status;
-            this.layerEntityId = layerEntityId;
+            this.mapEntityId = mapEntityId;
             this.rejection = rejection;
         }
 
         public Status status() { return status; }
-        public int layerEntityId() { return layerEntityId; }
+        public int mapEntityId() { return mapEntityId; }
         public TiledSpatialMutationRejection rejection() { return rejection; }
     }
 
@@ -61,9 +61,9 @@ public final class TiledMutationController {
         this.spatialMutationPlanner = spatialMutationPlanner;
     }
 
-    public void beginStroke(int layerEntityId) {
+    public void beginStroke(int mapEntityId) {
         reset();
-        activeStroke = new TiledBrushSession(layerEntityId);
+        activeStroke = new TiledBrushSession(mapEntityId);
     }
 
     public void updateStroke(TiledLayerComponent tiled,
@@ -89,7 +89,7 @@ public final class TiledMutationController {
         return publish(completed);
     }
 
-    public Result commitRectangle(int layerEntityId,
+    public Result commitRectangle(int mapEntityId,
                                   TiledLayerComponent tiled,
                                   int minGX,
                                   int minGY,
@@ -99,7 +99,7 @@ public final class TiledMutationController {
                                   byte transformFlags) {
         reset();
         if (tiled == null || tiled.data == null) return Result.NO_MUTATION;
-        TiledBrushSession session = new TiledBrushSession(layerEntityId);
+        TiledBrushSession session = new TiledBrushSession(mapEntityId);
         for (int gx = minGX; gx <= maxGX; gx++) {
             for (int gy = minGY; gy <= maxGY; gy++) {
                 session.apply(tiled, gx, gy, assetId, transformFlags);
@@ -108,7 +108,7 @@ public final class TiledMutationController {
         return publish(session);
     }
 
-    public Result commitFill(int layerEntityId,
+    public Result commitFill(int mapEntityId,
                              TiledLayerComponent tiled,
                              int startGX,
                              int startGY,
@@ -125,7 +125,7 @@ public final class TiledMutationController {
             return Result.NO_MUTATION;
         }
 
-        TiledBrushSession session = new TiledBrushSession(layerEntityId);
+        TiledBrushSession session = new TiledBrushSession(mapEntityId);
         stageFill(tiled, startGX, startGY, targetPacked,
                 replacementAssetId, replacementFlags, session);
         return publish(session);
@@ -144,7 +144,7 @@ public final class TiledMutationController {
     }
 
     public boolean isActive() { return activeStroke != null; }
-    public int activeLayerEntityId() { return activeStroke != null ? activeStroke.getLayerEntityId() : -1; }
+    public int activeMapEntityId() { return activeStroke != null ? activeStroke.getMapEntityId() : -1; }
     public TiledBrushSession activePreviewSession() { return activeStroke; }
 
     private Result publish(TiledBrushSession session) {
@@ -152,13 +152,13 @@ public final class TiledMutationController {
         TiledMutationPlan plan = session.toPlan();
         if (plan.isEmpty()) return Result.NO_MUTATION;
 
-        int layerEntityId = plan.layerEntityId();
+        int mapEntityId = plan.mapEntityId();
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class)
-                .getSafe(layerEntityId, null);
+                .getSafe(mapEntityId, null);
         TiledSpatialMutationPlanner.Result preflight = spatialMutationPlanner.preflight(plan, blocks, true);
-        if (!preflight.accepted()) return rejected(layerEntityId, preflight.rejection());
+        if (!preflight.accepted()) return rejected(mapEntityId, preflight.rejection());
 
-        long historyId = historyManager.historyIds().ensureForEntity(layerEntityId);
+        long historyId = historyManager.historyIds().ensureForEntity(mapEntityId);
         SceneService sceneService = sceneServiceSupplier != null ? sceneServiceSupplier.get() : null;
         try {
             historyManager.execute(new TiledBrushCommand(
@@ -166,12 +166,12 @@ public final class TiledMutationController {
                     plan, spatialMutationPlanner));
             return Result.ACCEPTED;
         } catch (TiledMutationRejectedException rejected) {
-            return rejected(layerEntityId, rejected.rejection());
+            return rejected(mapEntityId, rejected.rejection());
         }
     }
 
-    private static Result rejected(int layerEntityId, TiledSpatialMutationRejection rejection) {
-        return new Result(Status.REJECTED, layerEntityId, rejection);
+    private static Result rejected(int mapEntityId, TiledSpatialMutationRejection rejection) {
+        return new Result(Status.REJECTED, mapEntityId, rejection);
     }
 
     private void clearTransientState() {

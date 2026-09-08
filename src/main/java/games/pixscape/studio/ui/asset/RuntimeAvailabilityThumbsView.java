@@ -42,7 +42,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
     private final Array<RuntimeAvailabilityItem> items = new Array<>();
     private final Array<Texture> ownedTextures = new Array<>();
 
-    private RuntimeAvailabilityCategory category = RuntimeAvailabilityCategory.PREFABS;
+    private RuntimeAvailabilityCategory category = RuntimeAvailabilityCategory.GAME_OBJECTS;
     private PopupMenu activeContextMenu;
     private float tileSize = 48f;
 
@@ -64,7 +64,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
     }
 
     public void showCategory(RuntimeAvailabilityCategory category) {
-        this.category = category != null ? category : RuntimeAvailabilityCategory.PREFABS;
+        this.category = category != null ? category : RuntimeAvailabilityCategory.GAME_OBJECTS;
         refresh();
     }
 
@@ -85,7 +85,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             case SPRITES -> loadAssetItems(scene, RuntimeAvailabilityCategory.SPRITES);
             case ANIMATIONS -> loadAssetItems(scene, RuntimeAvailabilityCategory.ANIMATIONS);
             case PARTICLES -> loadParticles(cfg, scene);
-            case PREFABS -> loadPrefabs(cfg, scene);
+            case GAME_OBJECTS -> loadGameObjects(cfg, scene);
             case TILED_TILES -> loadAssetItems(scene, RuntimeAvailabilityCategory.TILED_TILES);
             case TILED_ANIMATIONS -> loadTiledAnimations(scene);
         }
@@ -133,13 +133,13 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         headerRight.add(sizeSpinner).width(80f).padRight(50f);
     }
 
-    private void loadPrefabs(ProjectConfig cfg, SceneMeta scene) {
-        for (String prefabId : app.getSceneService().getRuntimeAvailabilityService().listPrefabIds(scene)) {
-            if (prefabId == null || prefabId.isBlank()) continue;
-            FileHandle prefabFile = StudioFs.requirePrefabFile(cfg, prefabId);
-            if (!prefabFile.exists()) continue;
-            FileHandle previewFile = StudioFs.requirePrefabPreviewFile(cfg, prefabId);
-            items.add(RuntimeAvailabilityItem.prefab(prefabId, prefabFile, previewFile));
+    private void loadGameObjects(ProjectConfig cfg, SceneMeta scene) {
+        for (String gameObjectId : app.getSceneService().getRuntimeAvailabilityService().listGameObjectIds(scene)) {
+            if (gameObjectId == null || gameObjectId.isBlank()) continue;
+            FileHandle gameObjectFile = StudioFs.requireGameObjectFile(cfg, gameObjectId);
+            if (!gameObjectFile.exists()) continue;
+            FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(cfg, gameObjectId);
+            items.add(RuntimeAvailabilityItem.gameObject(gameObjectId, gameObjectFile, previewFile));
         }
     }
 
@@ -166,7 +166,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             case SPRITES, TILED_TILES -> buildAssetImageThumb(item);
             case ANIMATIONS -> buildAnimationThumb(item);
             case PARTICLES -> buildParticleThumb(item);
-            case PREFABS -> buildPrefabThumb(item);
+            case GAME_OBJECTS -> buildGameObjectThumb(item);
             case TILED_ANIMATIONS -> buildTiledAnimationThumb(item);
         };
 
@@ -223,7 +223,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         }
     }
 
-    private Actor buildPrefabThumb(RuntimeAvailabilityItem item) {
+    private Actor buildGameObjectThumb(RuntimeAvailabilityItem item) {
         if (item.previewFile != null && item.previewFile.exists()) {
             Texture texture = new Texture(item.previewFile);
             ownedTextures.add(texture);
@@ -375,7 +375,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             case SPRITES -> "Drop sprites here to make them available at runtime.";
             case ANIMATIONS -> "Drop animations here to make them available at runtime.";
             case PARTICLES -> "Drop particle effects here to make them available at runtime.";
-            case PREFABS -> "Drop prefabs here to make them available at runtime.";
+            case GAME_OBJECTS -> "Drop Game Objects here to make them available at runtime.";
             case TILED_TILES -> "Drop tiles here to make them available at runtime.";
             case TILED_ANIMATIONS -> "Drop tiled animations here to make them available at runtime.";
         };
@@ -411,7 +411,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             case SPRITES -> app.getSceneService().removeRuntimeAvailableSprite(item.assetId);
             case ANIMATIONS -> app.getSceneService().removeRuntimeAvailableAnimation(item.assetId);
             case PARTICLES -> app.getSceneService().removeRuntimeAvailableParticle(item.particleEffectPath);
-            case PREFABS -> app.getSceneService().removeRuntimeAvailablePrefab(item.prefabId);
+            case GAME_OBJECTS -> app.getSceneService().removeRuntimeAvailableGameObject(item.gameObjectId);
             case TILED_ANIMATIONS -> app.getSceneService().removeRuntimeAvailableTiledAnimation(item.tiledAnimationId);
             case TILED_TILES -> app.getSceneService().removeRuntimeAvailableTiledTile(item.assetId);
         }
@@ -479,8 +479,8 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
         private final int assetId;
         private final String sourceRelPath;
         private final String particleEffectPath;
-        private final String prefabId;
-        private final FileHandle prefabFile;
+        private final String gameObjectId;
+        private final FileHandle gameObjectFile;
         private final FileHandle previewFile;
         private final int tiledAnimationId;
 
@@ -489,8 +489,8 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
                                         int assetId,
                                         String sourceRelPath,
                                         String particleEffectPath,
-                                        String prefabId,
-                                        FileHandle prefabFile,
+                                        String gameObjectId,
+                                        FileHandle gameObjectFile,
                                         FileHandle previewFile,
                                         int tiledAnimationId) {
             this.category = category;
@@ -498,8 +498,8 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             this.assetId = assetId;
             this.sourceRelPath = sourceRelPath;
             this.particleEffectPath = particleEffectPath;
-            this.prefabId = prefabId;
-            this.prefabFile = prefabFile;
+            this.gameObjectId = gameObjectId;
+            this.gameObjectFile = gameObjectFile;
             this.previewFile = previewFile;
             this.tiledAnimationId = tiledAnimationId;
         }
@@ -535,17 +535,17 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             );
         }
 
-        private static RuntimeAvailabilityItem prefab(String prefabId,
-                                                      FileHandle prefabFile,
+        private static RuntimeAvailabilityItem gameObject(String gameObjectId,
+                                                      FileHandle gameObjectFile,
                                                       FileHandle previewFile) {
             return new RuntimeAvailabilityItem(
-                    RuntimeAvailabilityCategory.PREFABS,
-                    prefabId,
+                    RuntimeAvailabilityCategory.GAME_OBJECTS,
+                    gameObjectId,
                     -1,
                     null,
                     null,
-                    prefabId,
-                    prefabFile,
+                    gameObjectId,
+                    gameObjectFile,
                     previewFile,
                     -1
             );

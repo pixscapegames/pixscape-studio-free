@@ -8,7 +8,7 @@ import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 /** Transaction-local tiled brush state. The live map is untouched until history execution. */
 public final class TiledBrushSession {
-    private final int layerEntityId;
+    private final int mapEntityId;
     private final IntIntMap indexByCell = new IntIntMap();
     private TiledMapLayerData map;
     private int[] gx = new int[16];
@@ -19,8 +19,8 @@ public final class TiledBrushSession {
     private byte[] afterTransformFlags = new byte[16];
     private int mutationCount;
 
-    public TiledBrushSession(int layerEntityId) {
-        this.layerEntityId = layerEntityId;
+    public TiledBrushSession(int mapEntityId) {
+        this.mapEntityId = mapEntityId;
     }
 
     public void apply(TiledLayerComponent comp, int cellX, int cellY, int assetId) {
@@ -70,7 +70,7 @@ public final class TiledBrushSession {
 
     public TiledMutationPlan toPlan() {
         commit();
-        return new TiledMutationPlan(layerEntityId, gx, gy, beforeAssetId,
+        return new TiledMutationPlan(mapEntityId, gx, gy, beforeAssetId,
                 beforeTransformFlags, afterAssetId, afterTransformFlags, mutationCount);
     }
 
@@ -86,7 +86,7 @@ public final class TiledBrushSession {
 
     public boolean isEmpty() { return mutationCount == 0; }
     public int mutationCount() { return mutationCount; }
-    public int getLayerEntityId() { return layerEntityId; }
+    public int getMapEntityId() { return mapEntityId; }
     public int gx(int index) { return gx[index]; }
     public int gy(int index) { return gy[index]; }
     public int beforePacked(int index) { return PackedTileValue.pack(beforeAssetId[index], beforeTransformFlags[index]); }

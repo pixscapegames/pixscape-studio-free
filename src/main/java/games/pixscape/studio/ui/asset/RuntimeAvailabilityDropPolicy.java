@@ -17,7 +17,7 @@ public final class RuntimeAvailabilityDropPolicy {
             case "image-file" -> RuntimeAvailabilityCategory.SPRITES;
             case "anim-sheet" -> RuntimeAvailabilityCategory.ANIMATIONS;
             case "particle" -> RuntimeAvailabilityCategory.PARTICLES;
-            case "prefab" -> RuntimeAvailabilityCategory.PREFABS;
+            case "gameObject" -> RuntimeAvailabilityCategory.GAME_OBJECTS;
             case "tile-asset" -> RuntimeAvailabilityCategory.TILED_TILES;
             case "tiled-animation" -> RuntimeAvailabilityCategory.TILED_ANIMATIONS;
             default -> null;

@@ -7,6 +7,7 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -17,6 +18,7 @@ import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
@@ -49,14 +51,14 @@ public class PropertiesPanel extends DockablePanel {
     private int boundFixtureBody = -1;
     private long boundFixtureId = PhysicsSelectionService.NO_SHAPE;
     private int boundJoint = -1;
-    private int boundSpatialBlockLayer = -1;
+    private int boundSpatialBlockMap = -1;
     private int boundSpatialBlockId = -1;
     private int boundLayer = -1;
     private int boundLight = -1;
     private int boundTiledMap = -1;
 
     private int pendingTiledMap = -1;
-    private int tiledMapContextLayer = -1;
+    private int tiledMapContextEntityId = -1;
 
     /**
      * Body currently used as the physics editing context.
@@ -68,6 +70,7 @@ public class PropertiesPanel extends DockablePanel {
 
     private final World world;
     private final SelectionService selectionService;
+    private final LayerService layerService;
     private final PhysicsSelectionService physicsSelectionService;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
     private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
@@ -75,6 +78,7 @@ public class PropertiesPanel extends DockablePanel {
     private final ComponentMapper<PointLightComponent> mPointLight;
     private final ComponentMapper<ConeLightComponent> mConeLight;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private final ComponentMapper<TiledLayerComponent> mTiled;
 
     private boolean dirty = true;
     private PendingView pendingView = PendingView.SCENE;
@@ -83,7 +87,7 @@ public class PropertiesPanel extends DockablePanel {
     private int pendingBody = -1;
     private int pendingFixtureBody = -1;
     private int pendingFixtureId = PhysicsSelectionService.NO_SHAPE;
-    private int pendingSpatialBlockLayer = -1;
+    private int pendingSpatialBlockMap = -1;
     private int pendingSpatialBlockId = -1;
 
     private enum PendingView {
@@ -103,12 +107,14 @@ public class PropertiesPanel extends DockablePanel {
         var layerService = canvas.getLayerService();
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
+        this.layerService = layerService;
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
         this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
         this.mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
         this.mPointLight = world.getMapper(PointLightComponent.class);
         this.mConeLight = world.getMapper(ConeLightComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
+        this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
 
         EntityPropertiesContext ctx = new EntityPropertiesContext(
@@ -145,7 +151,7 @@ public class PropertiesPanel extends DockablePanel {
 
         Runnable markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         layerProperties = new LayerProperties(
-                world, canvas.getHistoryManager(), canvas.getPhysicsService(),
+                world, canvas.getHistoryManager(), layerService,
                 markCurrentSceneSaveRequired);
         sceneProperties = new SceneProperties(
                 world, canvas.getHistoryManager(), canvas.getPhysicsService(),
@@ -153,7 +159,11 @@ public class PropertiesPanel extends DockablePanel {
                 canvas.getPhysicsSelectionReconciler(),
                 canvas::disposeBox2dAfterPhysicsPurge,
                 markCurrentSceneSaveRequired);
-        tiledMapProperties = new TiledMapProperties(world, markCurrentSceneSaveRequired);
+        tiledMapProperties = new TiledMapProperties(
+                world,
+                canvas.getHistoryManager(),
+                canvas.getPhysicsService(),
+                markCurrentSceneSaveRequired);
 
         contentHolder = new VisTable(true);
         contentHolder.top().left().pad(8);
@@ -175,7 +185,13 @@ public class PropertiesPanel extends DockablePanel {
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             pendingSelection = evt.ids() != null ? new IntArray(evt.ids()) : null;
-            pendingView = PendingView.SELECTION;
+            int focusedBody = physicsSelectionService.getFocusedBodyEid();
+            if (selectionIsFocusedBody(pendingSelection, focusedBody)) {
+                pendingBody = focusedBody;
+                pendingView = PendingView.BODY;
+            } else {
+                pendingView = PendingView.SELECTION;
+            }
             markDirty();
         });
 
@@ -213,7 +229,7 @@ public class PropertiesPanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
-            pendingSpatialBlockLayer = evt.layerEntityId();
+            pendingSpatialBlockMap = evt.mapEntityId();
             pendingSpatialBlockId = evt.blockId();
             pendingView = PendingView.SPATIAL_BLOCK;
             markDirty();
@@ -221,8 +237,8 @@ public class PropertiesPanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.SpatialBlocksChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
-            if (evt.layerEntityId() == boundSpatialBlockLayer) {
-                pendingSpatialBlockLayer = boundSpatialBlockLayer;
+            if (evt.layerEntityId() == boundSpatialBlockMap) {
+                pendingSpatialBlockMap = boundSpatialBlockMap;
                 pendingSpatialBlockId = boundSpatialBlockId;
                 pendingView = PendingView.SPATIAL_BLOCK;
                 markDirty();
@@ -241,6 +257,17 @@ public class PropertiesPanel extends DockablePanel {
             markDirty();
         });
 
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
+            if (evt.sourceTag() == MY_TAG) return;
+            int mapEntityId = evt.mapEntityId();
+            if (mapEntityId >= 0 && mTiled.has(mapEntityId)) {
+                tiledMapContextEntityId = mapEntityId;
+                pendingTiledMap = mapEntityId;
+                pendingView = PendingView.TILED_MAP;
+                markDirty();
+            }
+        });
+
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             pendingView = PendingView.SCENE;
@@ -248,15 +275,31 @@ public class PropertiesPanel extends DockablePanel {
         });
 
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
-            if (boundLayer < 0) return;
-            pendingLayer = boundLayer;
-            pendingView = PendingView.LAYER;
+            if (boundTiledMap >= 0) {
+                pendingTiledMap = boundTiledMap;
+                pendingView = PendingView.TILED_MAP;
+            } else if (boundLayer >= 0) {
+                pendingLayer = boundLayer;
+                pendingView = PendingView.LAYER;
+            } else {
+                return;
+            }
+            markDirty();
+        });
+
+        EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> {
+            if (evt.sourceTag() == MY_TAG || evt.entityId() != boundTiledMap) return;
+            pendingTiledMap = boundTiledMap;
+            pendingView = PendingView.TILED_MAP;
             markDirty();
         });
 
         EventFlow.i().subscribe(EventFlow.LayerSpatialDepthChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
-            if (evt.layerEntityId() == boundLayer) {
+            if (evt.layerEntityId() == boundTiledMap) {
+                pendingTiledMap = boundTiledMap;
+                pendingView = PendingView.TILED_MAP;
+            } else if (evt.layerEntityId() == boundLayer) {
                 pendingLayer = boundLayer;
                 pendingView = PendingView.LAYER;
             } else if (boundEntity >= 0) {
@@ -288,11 +331,11 @@ public class PropertiesPanel extends DockablePanel {
         showBodyProperties(bodyEntityId);
     }
 
-    public void requestTiledMapProperties(int layerEntityId) {
-        tiledMapContextLayer = layerEntityId;
-        pendingTiledMap = layerEntityId;
+    public void requestTiledMapProperties(int mapEntityId) {
+        tiledMapContextEntityId = mapEntityId;
+        pendingTiledMap = mapEntityId;
         pendingView = PendingView.TILED_MAP;
-        showTiledMapProperties(layerEntityId);
+        showTiledMapProperties(mapEntityId);
     }
 
     public void clearTiledMapMode() {
@@ -378,14 +421,14 @@ public class PropertiesPanel extends DockablePanel {
         boundJoint = jointEid;
     }
 
-    private void showSpatialBlockProperties(int layerEntityId, int blockId) {
+    private void showSpatialBlockProperties(int mapEntityId, int blockId) {
         contentHolder.clearChildren();
-        spatialBlockProperties.setSpatialBlock(layerEntityId, blockId);
+        spatialBlockProperties.setSpatialBlock(mapEntityId, blockId);
         contentHolder.add(spatialBlockProperties).growX().top().left().row();
         clearBindings();
         clearPhysicsContext();
         clearTiledMapContext();
-        boundSpatialBlockLayer = layerEntityId;
+        boundSpatialBlockMap = mapEntityId;
         boundSpatialBlockId = blockId;
     }
 
@@ -398,13 +441,13 @@ public class PropertiesPanel extends DockablePanel {
         clearTiledMapContext();
     }
 
-    private void showTiledMapProperties(int layerEntityId) {
+    private void showTiledMapProperties(int mapEntityId) {
         contentHolder.clearChildren();
-        tiledMapProperties.setLayerEntityId(layerEntityId);
+        tiledMapProperties.setMapEntityId(mapEntityId);
         contentHolder.add(tiledMapProperties).growX().top().left().row();
         clearBindings();
         clearPhysicsContext();
-        boundTiledMap = layerEntityId;
+        boundTiledMap = mapEntityId;
     }
 
     private void clearBindings() {
@@ -413,7 +456,7 @@ public class PropertiesPanel extends DockablePanel {
         boundFixtureBody = -1;
         boundFixtureId = PhysicsSelectionService.NO_SHAPE;
         boundJoint = -1;
-        boundSpatialBlockLayer = -1;
+        boundSpatialBlockMap = -1;
         boundSpatialBlockId = -1;
         boundLayer = -1;
         boundLight = -1;
@@ -421,7 +464,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void clearTiledMapContext() {
-        tiledMapContextLayer = -1;
+        tiledMapContextEntityId = -1;
         pendingTiledMap = -1;
     }
 
@@ -441,7 +484,14 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private boolean isExplicitPhysicsContextActive() {
-        return physicsSelectionService.getFocusedBodyEid() >= 0;
+        return physicsSelectionService.isPhysicsEditingActive();
+    }
+
+    static boolean selectionIsFocusedBody(IntArray selection, int focusedBodyEntityId) {
+        return focusedBodyEntityId >= 0
+                && selection != null
+                && selection.size == 1
+                && selection.first() == focusedBodyEntityId;
     }
 
     public void markDirty() {
@@ -456,7 +506,7 @@ public class PropertiesPanel extends DockablePanel {
             case SELECTION -> onSelectionChanged(pendingSelection);
             case BODY -> onBodySelectionChanged(pendingBody);
             case FIXTURE -> onFixtureSelectionChanged(pendingFixtureBody, pendingFixtureId);
-            case SPATIAL_BLOCK -> onSpatialBlockSelectionChanged(pendingSpatialBlockLayer, pendingSpatialBlockId);
+            case SPATIAL_BLOCK -> onSpatialBlockSelectionChanged(pendingSpatialBlockMap, pendingSpatialBlockId);
             case LAYER -> onActiveLayerChanged(pendingLayer);
             case SCENE -> showSceneProperties();
             case TILED_MAP -> showTiledMapProperties(pendingTiledMap);
@@ -464,9 +514,10 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void onActiveLayerChanged(int newLayerEntityId) {
-        if (newLayerEntityId == tiledMapContextLayer) {
-            if (newLayerEntityId != boundTiledMap) {
-                showTiledMapProperties(newLayerEntityId);
+        int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+        if (mapEntityId >= 0 && mapEntityId == tiledMapContextEntityId) {
+            if (mapEntityId != boundTiledMap) {
+                showTiledMapProperties(mapEntityId);
             }
             return;
         }
@@ -519,18 +570,18 @@ public class PropertiesPanel extends DockablePanel {
         return false;
     }
 
-    public void onSpatialBlockSelectionChanged(int layerEntityId, int blockId) {
-        if (layerEntityId >= 0 && blockId > 0) {
-            if (layerEntityId != boundSpatialBlockLayer || blockId != boundSpatialBlockId) {
-                showSpatialBlockProperties(layerEntityId, blockId);
+    public void onSpatialBlockSelectionChanged(int mapEntityId, int blockId) {
+        if (mapEntityId >= 0 && blockId > 0) {
+            if (mapEntityId != boundSpatialBlockMap || blockId != boundSpatialBlockId) {
+                showSpatialBlockProperties(mapEntityId, blockId);
             } else {
                 spatialBlockProperties.refreshNow();
             }
             return;
         }
 
-        if (layerEntityId >= 0) {
-            showLayerProperties(layerEntityId);
+        if (mapEntityId >= 0) {
+            showTiledMapProperties(mapEntityId);
             return;
         }
 
@@ -544,9 +595,10 @@ public class PropertiesPanel extends DockablePanel {
                 return;
             }
 
-            if (tiledMapContextLayer >= 0 && selectionService.getActivelayerId() == tiledMapContextLayer) {
-                if (tiledMapContextLayer != boundTiledMap) {
-                    showTiledMapProperties(tiledMapContextLayer);
+            int mapEntityId = selectionService.getTiledMapEditingTargetEntityId();
+            if (mapEntityId >= 0 && mapEntityId == tiledMapContextEntityId) {
+                if (mapEntityId != boundTiledMap) {
+                    showTiledMapProperties(mapEntityId);
                 }
                 return;
             }
@@ -594,7 +646,9 @@ public class PropertiesPanel extends DockablePanel {
             return;
         }
 
-        if (mJointBase.has(e)) {
+        if (mTiled.has(e)) {
+            if (e != boundTiledMap) showTiledMapProperties(e);
+        } else if (mJointBase.has(e)) {
             if (e != boundJoint) showJointProperties(e);
         } else if (mPointLight.has(e)) {
             if (e != boundLight) showLightPointProperties(e);

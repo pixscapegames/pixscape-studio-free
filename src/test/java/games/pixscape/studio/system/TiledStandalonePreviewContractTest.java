@@ -5,8 +5,10 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -64,10 +66,11 @@ public class TiledStandalonePreviewContractTest {
         try {
             int entityId = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.type = LayerComponent.TYPE_TILED;
 
+            int mapEntityId = world.create();
+            world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;
             TiledLayerComponent tiled =
-                    world.getMapper(TiledLayerComponent.class).create(entityId);
+                    world.getMapper(TiledLayerComponent.class).create(mapEntityId);
             tiled.atlasTag = "main";
             tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
             tiled.data.setTile(0, 0, assetId);
@@ -93,7 +96,7 @@ public class TiledStandalonePreviewContractTest {
         );
         tileset.referenceCellWidth = 16;
         tileset.referenceCellHeight = 16;
-        tileset.projection = SceneMetaRuntime.TiledProjection.ORTHO;
+        tileset.projection = TiledProjection.ORTHO;
         tileset.anchor = TilesetAnchor.TOP_CENTER;
         tileset.renderSize = TilesetRenderSize.NATIVE;
         TileAssetMeta tile = (TileAssetMeta) db.registerIfAbsent(
@@ -134,10 +137,11 @@ public class TiledStandalonePreviewContractTest {
         try {
             int entityId = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(entityId);
-            layer.type = LayerComponent.TYPE_TILED;
 
+            int mapEntityId = world.create();
+            world.getMapper(EntityIndexComponent.class).create(mapEntityId).layerIndex = 0;
             TiledLayerComponent tiled =
-                    world.getMapper(TiledLayerComponent.class).create(entityId);
+                    world.getMapper(TiledLayerComponent.class).create(mapEntityId);
             tiled.atlasTag = "main";
             tiled.data = new TiledMapLayerData(1, 1, 16, 16, 1);
             byte flags = (byte) (TileTransformFlags.FLIP_H | TileTransformFlags.FLIP_V);

@@ -17,7 +17,7 @@ public class EditorOpsStandaloneSpritePackGuardContractTest {
                 StandardCharsets.UTF_8
         );
 
-        String body = methodBody(source, "public int createStandaloneSprite(String relativePath, float worldX, float worldY, String metaName)");
+        String body = methodBody(source, "private int createStandaloneSprite(");
 
         assertTrue(body.contains("boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);"));
         assertTrue(body.contains("boolean alreadyPacked = assetId > 0"));

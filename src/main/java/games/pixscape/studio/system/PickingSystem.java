@@ -27,6 +27,8 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -72,6 +74,7 @@ public final class PickingSystem extends BaseSystem {
     private final PolygonDrawSession polygonDrawSession;
     private PhysicsPolygonAuthoringService polygonAuthoringService;
     private PhysicsFixturePickingService fixturePickingService;
+    private ResolvedPhysicsPose resolvedPhysicsPose;
     private EntitySubscription selectableObbSubscription;
     private EntitySubscription particleSubscription;
 
@@ -93,6 +96,9 @@ public final class PickingSystem extends BaseSystem {
     private ComponentMapper<SpatialBlocksComponent> mSpatialBlocks;
     private ComponentMapper<TiledLayerComponent> mTiledLayer;
     private ComponentMapper<QuadDeformComponent> mQuadDeform;
+    private ComponentMapper<GameObjectComponent> mGameObject;
+    private GameObjectHierarchySystem gameObjectHierarchy;
+    private GameObjectGizmoGeometry gameObjectGizmoGeometry;
 
     private DirtyTrackerSystem dirty;
     private GizmoSystem gizmoSystem;
@@ -124,6 +130,7 @@ public final class PickingSystem extends BaseSystem {
     private boolean osCursorHidden = false;
 
     private Integer lastPressHit = null;
+    private Integer deferredGameObjectChildClick = null;
     private boolean lastPressCtrl = false;
     private boolean lastPressOnHandle = false;
     private boolean pressHitWasAlreadySelected = false;
@@ -239,6 +246,7 @@ public final class PickingSystem extends BaseSystem {
     private final Vector2 tmpA = new Vector2();
     private final Vector2 tmpB = new Vector2();
     private final Vector2 tmp2Vec = new Vector2();
+    private final ResolvedPhysicsPose.Pose tmpResolvedPhysicsPose = new ResolvedPhysicsPose.Pose();
 
     public PickingSystem(OrthographicCamera worldCam,
                          CoordSpaces coordSpaces,
@@ -290,7 +298,7 @@ public final class PickingSystem extends BaseSystem {
 
     public void setPhysicsService(PhysicsService physicsService) {
         this.physicsService = physicsService;
-        this.fixturePickingService = new PhysicsFixturePickingService(physicsService);
+        this.fixturePickingService = new PhysicsFixturePickingService(world, physicsService);
     }
 
     public void setDisplayOffsetResolver(StudioDisplayOffsetResolver displayOffsetResolver) {
@@ -299,6 +307,9 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
+        resolvedPhysicsPose = new ResolvedPhysicsPose(world);
         selectableObbSubscription = world.getAspectSubscriptionManager().get(
                 Aspect.all(OrientedBoundsComponent.class, VisibilityComponent.class)
                         .exclude(PointLightComponent.class, ConeLightComponent.class,
@@ -522,17 +533,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private boolean isTiledModeActive() {
-        SceneMeta meta = currentSceneMeta();
-        if (meta == null) return false;
-        if (!meta.tiledEnabled) return false;
-        if (meta.editorMode != SceneMeta.EditorMode.TILE) return false;
-        if (selectionService == null) return false;
-
-        int layerEntity = selectionService.getActivelayerId();
-        if (layerEntity == -1) return false;
-
-        LayerComponent lc = world.getMapper(LayerComponent.class).getSafe(layerEntity, null);
-        return lc != null && lc.type == LayerComponent.TYPE_TILED;
+        return selectionService != null
+                && selectionService.isTiledMapEditingTargetActive();
     }
 
     private boolean isSpatialBlockModeActive() {
@@ -544,7 +546,7 @@ public final class PickingSystem extends BaseSystem {
                                         boolean leftPressed,
                                         boolean leftDown,
                                         boolean leftReleased) {
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
 
         if (resizingSpatialBlockActive) {
             if (leftDown) {
@@ -1001,6 +1003,7 @@ public final class PickingSystem extends BaseSystem {
 
     private void resetPressState() {
         lastPressHit = null;
+        deferredGameObjectChildClick = null;
         lastPressOnHandle = false;
         pressHitWasAlreadySelected = false;
         pressStartedOnSelection = false;
@@ -1018,6 +1021,7 @@ public final class PickingSystem extends BaseSystem {
                              IntArray viewportSel) {
 
         oldDrag.set(mx, my);
+        deferredGameObjectChildClick = null;
         pressHitWasAlreadySelected = false;
         pressStartedOnSelection = false;
 
@@ -1080,7 +1084,19 @@ public final class PickingSystem extends BaseSystem {
             fixtureHit = tryPickVisibleFixture(mx, my);
             if (!fixtureHit) {
                 physicsSelectionService.clearSelectionOnly();
-                lastPressHit = physicsEditMode ? null : findTopmostObbHit(mx, my);
+                Integer ordinaryHit = findTopmostObbHit(mx, my);
+                Integer selectedRoot = findSelectedGameObjectHit(viewportSel, mx, my);
+                if (!physicsEditMode && !lastPressCtrl
+                        && ordinaryHit != null && ordinaryHit >= 0
+                        && selectedRoot != null) {
+                    // Press keeps the selected root as the drag target; a click without movement
+                    // is deferred to the actual child so ordinary viewport picking remains intact.
+                    lastPressHit = selectedRoot;
+                    deferredGameObjectChildClick = ordinaryHit;
+                } else {
+                    lastPressHit = physicsEditMode ? null
+                            : ordinaryHit != null && ordinaryHit >= 0 ? ordinaryHit : selectedRoot;
+                }
             }
         }
 
@@ -1353,18 +1369,8 @@ public final class PickingSystem extends BaseSystem {
             return true;
         }
         if (base.type == PhysicsJointComponent.TYPE_WHEEL) {
-            TransformComponent ta = mT.getSafe(base.aEid, null);
-            TransformComponent tb = mT.getSafe(base.bEid, null);
-            if (ta == null || tb == null) return false;
-            float ppm = resolvePixelsPerMeter();
-            outA.set(
-                    ta.x + rotateX(base.anchorAx * ppm, base.anchorAy * ppm, ta.rotationRad),
-                    ta.y + rotateY(base.anchorAx * ppm, base.anchorAy * ppm, ta.rotationRad)
-            );
-            outB.set(
-                    tb.x + rotateX(base.anchorBx * ppm, base.anchorBy * ppm, tb.rotationRad),
-                    tb.y + rotateY(base.anchorBx * ppm, base.anchorBy * ppm, tb.rotationRad)
-            );
+            if (!computeResolvedBodyAnchor(base.aEid, base.anchorAx, base.anchorAy, outA)
+                    || !computeResolvedBodyAnchor(base.bEid, base.anchorBx, base.anchorBy, outB)) return false;
             applyDisplayOffset(base.aEid, outA);
             applyDisplayOffset(base.bEid, outB);
             return true;
@@ -1381,12 +1387,12 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void updateAnchorFromWorld(int bodyEid, float mouseWorldX, float mouseWorldY, boolean anchorA, PhysicsJointComponent base) {
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return;
         tmpA.set(mouseWorldX, mouseWorldY);
         removeDisplayOffset(bodyEid, tmpA);
         float ppm = resolvePixelsPerMeter();
-        worldPointToLocalAnchorMeters(tmpA.x, tmpA.y, t.x, t.y, t.rotationRad, ppm, tmpB);
+        if (resolvedPhysicsPose == null
+                || !resolvedPhysicsPose.resolvedWorldToLocal(bodyEid, tmpA.x, tmpA.y, tmpB)) return;
+        tmpB.scl(1f / ppm);
         float ax = tmpB.x;
         float ay = tmpB.y;
         if (anchorA) {
@@ -1461,6 +1467,7 @@ public final class PickingSystem extends BaseSystem {
         int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount != 4) return InputManipulationContext.Handle.NONE;
 
+        remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectBoxCornerHover(
@@ -1524,6 +1531,7 @@ public final class PickingSystem extends BaseSystem {
         if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE)
             return InputManipulationContext.Handle.NONE;
         if (!physicsService.computeShapeCenterWU(bodyEid, fixture, tmpA)) return InputManipulationContext.Handle.NONE;
+        remapPhysicsPoint(bodyEid, tmpA);
         applyDisplayOffset(bodyEid, tmpA);
         float hx = tmpA.x + physicsService.computeShapeRadiusWU(fixture);
         float hy = tmpA.y;
@@ -1550,21 +1558,15 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void worldToBodyLocalPx(int bodyEid, float wx, float wy, Vector2 out) {
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) {
+        if (resolvedPhysicsPose == null) {
             out.setZero();
             return;
         }
-
-        float dx = wx - t.x;
-        float dy = wy - t.y;
-
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-
-        float localX = dx * cos + dy * sin;
-        float localY = -dx * sin + dy * cos;
-        out.set(localX, localY);
+        tmp2Vec.set(wx, wy);
+        removeDisplayOffset(bodyEid, tmp2Vec);
+        if (!resolvedPhysicsPose.resolvedWorldToLocal(bodyEid, tmp2Vec.x, tmp2Vec.y, out)) {
+            out.setZero();
+        }
     }
 
     private void copyFixtureBoxCornersWorld(int bodyEid, PhysicsShapeData fixture, float[] out8) {
@@ -1572,6 +1574,7 @@ public final class PickingSystem extends BaseSystem {
         int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount != 4) return;
         System.arraycopy(tmpFixtureVerts, 0, out8, 0, 8);
+        remapPhysicsPoints(bodyEid, out8, 4);
         applyDisplayOffset(bodyEid, out8);
     }
 
@@ -1677,6 +1680,7 @@ public final class PickingSystem extends BaseSystem {
         PhysicsShapeData fixture = getSelectedFixture(resizingCircleBodyEid, resizingCircleFixtureId);
         if (fixture == null || fixture.geometry.shapeType != PhysicsGeometryData.SHAPE_CIRCLE) return;
         if (!physicsService.computeShapeCenterWU(resizingCircleBodyEid, fixture, tmpA)) return;
+        remapPhysicsPoint(resizingCircleBodyEid, tmpA);
         applyDisplayOffset(resizingCircleBodyEid, tmpA);
         float radiusWorld = Vector2.dst(tmpA.x, tmpA.y, mx, my);
         float radiusM = Math.max(0.001f, physicsService.pxToM(radiusWorld));
@@ -2017,6 +2021,7 @@ public final class PickingSystem extends BaseSystem {
         int vertexCount = physicsService.computeShapeVerticesWU(bodyEid, fixture, tmpFixtureVerts);
         if (vertexCount < 3) return -1;
 
+        remapPhysicsPoints(bodyEid, tmpFixtureVerts, vertexCount);
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectPolygonVertexHover(
@@ -2099,6 +2104,7 @@ public final class PickingSystem extends BaseSystem {
             out[i * 2 + 1] = wy;
         }
 
+        remapPhysicsPoints(bodyEid, out, count);
         applyDisplayOffset(bodyEid, out, count);
         return count;
     }
@@ -2107,6 +2113,32 @@ public final class PickingSystem extends BaseSystem {
         if (displayOffsetResolver != null) {
             displayOffsetResolver.addTo(entityId, verts, vertexCount);
         }
+    }
+
+    /** Converts authored Physics-service geometry into Studio's resolved logical Body pose. */
+    private void remapPhysicsPoint(int bodyEid, Vector2 point) {
+        if (resolvedPhysicsPose != null) {
+            resolvedPhysicsPose.remapAuthoredWorldPoint(bodyEid, point);
+        }
+    }
+
+    /** Converts authored Physics-service geometry into Studio's resolved logical Body pose. */
+    private void remapPhysicsPoints(int bodyEid, float[] points, int pointCount) {
+        if (resolvedPhysicsPose != null) {
+            resolvedPhysicsPose.remapAuthoredWorldPoints(bodyEid, points, pointCount);
+        }
+    }
+
+    private boolean computeResolvedBodyAnchor(
+            int bodyEid, float localX_m, float localY_m, Vector2 out) {
+        if (resolvedPhysicsPose == null) return false;
+        if (!resolvedPhysicsPose.resolve(bodyEid, tmpResolvedPhysicsPose)) return false;
+        float ppm = resolvePixelsPerMeter();
+        float cos = MathUtils.cos(tmpResolvedPhysicsPose.rotationRad);
+        float sin = MathUtils.sin(tmpResolvedPhysicsPose.rotationRad);
+        out.set(tmpResolvedPhysicsPose.x + (localX_m * cos - localY_m * sin) * ppm,
+                tmpResolvedPhysicsPose.y + (localX_m * sin + localY_m * cos) * ppm);
+        return true;
     }
 
     private void onPolygonVertexDragging(float mx, float my) {
@@ -2152,10 +2184,7 @@ public final class PickingSystem extends BaseSystem {
             float wy,
             Vector2 outMeters
     ) {
-        tmp2Vec.set(wx, wy);
-        removeDisplayOffset(bodyEid, tmp2Vec);
-
-        worldToBodyLocalPx(bodyEid, tmp2Vec.x, tmp2Vec.y, tmpA);
+        worldToBodyLocalPx(bodyEid, wx, wy, tmpA);
 
         float ppm = resolvePixelsPerMeter();
 
@@ -2507,21 +2536,21 @@ public final class PickingSystem extends BaseSystem {
         if (motor == null) return false;
 
         int aEid = base.aEid;
-        TransformComponent ta = mT.getSafe(aEid, null);
-        if (aEid < 0 || ta == null) return false;
+        if (aEid < 0 || resolvedPhysicsPose == null
+                || !resolvedPhysicsPose.resolve(aEid, tmpResolvedPhysicsPose)) return false;
 
         float ppm = resolvePixelsPerMeter();
 
-        float cos = MathUtils.cos(ta.rotationRad);
-        float sin = MathUtils.sin(ta.rotationRad);
+        float cos = MathUtils.cos(tmpResolvedPhysicsPose.rotationRad);
+        float sin = MathUtils.sin(tmpResolvedPhysicsPose.rotationRad);
 
         float dxWu = motor.linearOffsetX * ppm;
         float dyWu = motor.linearOffsetY * ppm;
 
-        float targetX = ta.x + dxWu * cos - dyWu * sin;
-        float targetY = ta.y + dxWu * sin + dyWu * cos;
+        float targetX = tmpResolvedPhysicsPose.x + dxWu * cos - dyWu * sin;
+        float targetY = tmpResolvedPhysicsPose.y + dxWu * sin + dyWu * cos;
 
-        outA.set(ta.x, ta.y);
+        outA.set(tmpResolvedPhysicsPose.x, tmpResolvedPhysicsPose.y);
         outB.set(targetX, targetY);
 
         applyDisplayOffset(aEid, outA);
@@ -2542,22 +2571,15 @@ public final class PickingSystem extends BaseSystem {
 
         int aEid = base.aEid;
         int bEid = base.bEid;
-        TransformComponent ta = mT.getSafe(aEid, null);
-        TransformComponent tb = mT.getSafe(bEid, null);
-        if (aEid < 0 || bEid < 0 || aEid == bEid || ta == null || tb == null) return false;
+        if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
 
         float ppm = resolvePixelsPerMeter();
 
         outGroundA.set(pulley.groundAx * ppm, pulley.groundAy * ppm);
         outGroundB.set(pulley.groundBx * ppm, pulley.groundBy * ppm);
 
-        float ax = ta.x + rotateX(base.anchorAx * ppm, base.anchorAy * ppm, ta.rotationRad);
-        float ay = ta.y + rotateY(base.anchorAx * ppm, base.anchorAy * ppm, ta.rotationRad);
-        float bx = tb.x + rotateX(base.anchorBx * ppm, base.anchorBy * ppm, tb.rotationRad);
-        float by = tb.y + rotateY(base.anchorBx * ppm, base.anchorBy * ppm, tb.rotationRad);
-
-        outAnchorA.set(ax, ay);
-        outAnchorB.set(bx, by);
+        if (!computeResolvedBodyAnchor(aEid, base.anchorAx, base.anchorAy, outAnchorA)
+                || !computeResolvedBodyAnchor(bEid, base.anchorBx, base.anchorBy, outAnchorB)) return false;
 
         applyDisplayOffset(aEid, outGroundA);
         applyDisplayOffset(aEid, outAnchorA);
@@ -2582,18 +2604,26 @@ public final class PickingSystem extends BaseSystem {
 
         if (src1.type == PhysicsJointComponent.TYPE_REVOLUTE) {
             ok1 = physicsService.computeRevoluteJointPivotWU(gear.joint1Eid, outA);
-            if (ok1) applyDisplayOffset(src1.aEid, outA);
+            if (ok1) {
+                applyDisplayOffset(src1.aEid, outA);
+            }
         } else if (src1.type == PhysicsJointComponent.TYPE_PRISMATIC) {
             ok1 = physicsService.computePrismaticJointPivotWU(gear.joint1Eid, outA);
-            if (ok1) applyDisplayOffset(src1.aEid, outA);
+            if (ok1) {
+                applyDisplayOffset(src1.aEid, outA);
+            }
         }
 
         if (src2.type == PhysicsJointComponent.TYPE_REVOLUTE) {
             ok2 = physicsService.computeRevoluteJointPivotWU(gear.joint2Eid, outB);
-            if (ok2) applyDisplayOffset(src2.aEid, outB);
+            if (ok2) {
+                applyDisplayOffset(src2.aEid, outB);
+            }
         } else if (src2.type == PhysicsJointComponent.TYPE_PRISMATIC) {
             ok2 = physicsService.computePrismaticJointPivotWU(gear.joint2Eid, outB);
-            if (ok2) applyDisplayOffset(src2.aEid, outB);
+            if (ok2) {
+                applyDisplayOffset(src2.aEid, outB);
+            }
         }
 
         return ok1 && ok2;
@@ -2631,6 +2661,10 @@ public final class PickingSystem extends BaseSystem {
         if (isLightEntity(e0)) return;
         TransformComponent t0 = mT.get(e0);
         if (t0 == null) return;
+        if (hovered != InputManipulationContext.Handle.ROTATE
+                && GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(world, e0)) {
+            return;
+        }
 
         gizmoHistoryIds.clear();
         gizmoBefore.clear();
@@ -2648,8 +2682,8 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (hovered == InputManipulationContext.Handle.ROTATE) {
-            float px = transformPivotX(t0);
-            float py = transformPivotY(t0);
+            float px = manipulationPivotX(e0, t0);
+            float py = manipulationPivotY(e0, t0);
             tmp2Vec.set(px, py);
             applyDisplayOffset(e0, tmp2Vec);
             ctx.beginRotate(tmp2Vec.x, tmp2Vec.y, mx, my, t0.rotationRad);
@@ -2659,6 +2693,13 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void onClickReleased() {
+        if (deferredGameObjectChildClick != null && deferredGameObjectChildClick >= 0) {
+            int child = deferredGameObjectChildClick;
+            deferredGameObjectChildClick = null;
+            activateLayerForEntity(child);
+            selectionService.selectOnly(child);
+            return;
+        }
         if (lastPressHit != null && lastPressHit >= 0) {
             if (lastPressCtrl) {
                 activateLayerForEntity(lastPressHit);
@@ -2950,15 +2991,15 @@ public final class PickingSystem extends BaseSystem {
         if (!movingFixtureActive) return false;
 
         PhysicsShapeData fixture = getSelectedFixture(movingFixtureBodyEid, movingFixtureId);
-        TransformComponent bodyT = mT.getSafe(movingFixtureBodyEid, null);
-        if (fixture == null || bodyT == null) return false;
+        if (fixture == null || resolvedPhysicsPose == null
+                || !resolvedPhysicsPose.resolve(movingFixtureBodyEid, tmpResolvedPhysicsPose)) return false;
 
         float dxWorld = mx - oldDrag.x;
         float dyWorld = my - oldDrag.y;
         if (dxWorld == 0f && dyWorld == 0f) return true;
 
-        float cos = MathUtils.cos(bodyT.rotationRad);
-        float sin = MathUtils.sin(bodyT.rotationRad);
+        float cos = MathUtils.cos(tmpResolvedPhysicsPose.rotationRad);
+        float sin = MathUtils.sin(tmpResolvedPhysicsPose.rotationRad);
 
         // monde -> local body
         float dxLocalPx = dxWorld * cos + dyWorld * sin;
@@ -3025,7 +3066,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private boolean isExplicitPhysicsEditMode() {
-        return physicsSelectionService.getFocusedBodyEid() >= 0;
+        return physicsSelectionService.isPhysicsEditingActive();
     }
 
     static boolean isFixtureGeometryEditable(World world, int bodyEid, int physicsShapeId) {
@@ -3084,6 +3125,10 @@ public final class PickingSystem extends BaseSystem {
 
     private void applyResize(int e0, float mx, float my, InputManipulationContext.Handle handle) {
         TransformComponent t = mT.get(e0);
+        if (t != null && mGameObject.has(e0)) {
+            applyGameObjectUniformResize(e0, t, mx, my, handle);
+            return;
+        }
         DimensionsComponent d = mDim.get(e0);
         if (t == null || d == null) return;
 
@@ -3194,6 +3239,41 @@ public final class PickingSystem extends BaseSystem {
         if (dirty != null) dirty.geometry(e0, GeometryDirty.SCALE);
     }
 
+    private void applyGameObjectUniformResize(
+            int entityId, TransformComponent transform, float mouseX, float mouseY,
+            InputManipulationContext.Handle handle) {
+        if (handle != InputManipulationContext.Handle.NE
+                && handle != InputManipulationContext.Handle.NW
+                && handle != InputManipulationContext.Handle.SE
+                && handle != InputManipulationContext.Handle.SW) return;
+        float pivotX = manipulationPivotX(entityId, transform);
+        float pivotY = manipulationPivotY(entityId, transform);
+        tmp2Vec.set(pivotX, pivotY);
+        applyDisplayOffset(entityId, tmp2Vec);
+        float scale = uniformScaleFromPointer(
+                tmp2Vec.x, tmp2Vec.y,
+                ctx.dragStartMouseX(), ctx.dragStartMouseY(),
+                mouseX, mouseY,
+                ctx.scaleXstart());
+        if (Float.isNaN(scale)) return;
+        if (!GameObjectHierarchyCommandSupport.canApplyScale(
+                world, entityId, scale, scale)) return;
+        transform.scaleX = scale;
+        transform.scaleY = scale;
+        if (dirty != null) dirty.geometry(entityId, GeometryDirty.SCALE);
+    }
+
+    static float uniformScaleFromPointer(
+            float pivotX, float pivotY,
+            float startX, float startY,
+            float currentX, float currentY,
+            float initialScale) {
+        float startDistance = Vector2.dst(pivotX, pivotY, startX, startY);
+        if (startDistance <= 0.0001f) return Float.NaN;
+        float currentDistance = Vector2.dst(pivotX, pivotY, currentX, currentY);
+        return Math.max(0.01f, initialScale * currentDistance / startDistance);
+    }
+
     static float clampScaleAwayFromZero(float value, float fallbackSignValue, float minAbs) {
         if (value > 0f && value < minAbs) return minAbs;
         if (value < 0f && value > -minAbs) return -minAbs;
@@ -3254,12 +3334,34 @@ public final class PickingSystem extends BaseSystem {
         return transform.y;
     }
 
+    private float manipulationPivotX(int entityId, TransformComponent transform) {
+        if (!mGameObject.has(entityId)) return transformPivotX(transform);
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        float worldX = state != null && state.isResolved(entityId)
+                ? state.x[entityId] : transform.x;
+        return gameObjectPivot(worldX, transform.originX);
+    }
+
+    private float manipulationPivotY(int entityId, TransformComponent transform) {
+        if (!mGameObject.has(entityId)) return transformPivotY(transform);
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        float worldY = state != null && state.isResolved(entityId)
+                ? state.y[entityId] : transform.y;
+        return gameObjectPivot(worldY, transform.originY);
+    }
+
+    static float gameObjectPivot(float resolvedPosition, float origin) {
+        return resolvedPosition + origin;
+    }
+
     private void applyRotate(int entityId, float mx, float my) {
         TransformComponent t = mT.get(entityId);
         if (t == null) return;
 
-        float cx = transformPivotX(t);
-        float cy = transformPivotY(t);
+        float cx = manipulationPivotX(entityId, t);
+        float cy = manipulationPivotY(entityId, t);
         tmp2Vec.set(cx, cy);
         applyDisplayOffset(entityId, tmp2Vec);
         cx = tmp2Vec.x;
@@ -3645,21 +3747,27 @@ public final class PickingSystem extends BaseSystem {
         boolean ok;
         if (base.type == PhysicsJointComponent.TYPE_REVOLUTE) {
             ok = physicsService.computeRevoluteJointPivotWU(jointEid, outPivot);
-            if (ok) applyDisplayOffset(base.aEid, outPivot);
+            if (ok) {
+                applyDisplayOffset(base.aEid, outPivot);
+            }
             return ok;
         }
         if (base.type == PhysicsJointComponent.TYPE_WHEEL) {
             ok = physicsService.computeWheelJointPivotWU(jointEid, outPivot);
-            if (ok) applyDisplayOffset(base.aEid, outPivot);
+            if (ok) {
+                applyDisplayOffset(base.aEid, outPivot);
+            }
             return ok;
         }
         if (base.type == PhysicsJointComponent.TYPE_PRISMATIC) {
             ok = physicsService.computePrismaticJointPivotWU(jointEid, outPivot);
-            if (ok) applyDisplayOffset(base.aEid, outPivot);
+            if (ok) {
+                applyDisplayOffset(base.aEid, outPivot);
+            }
             return ok;
         }
         if (base.type == PhysicsJointComponent.TYPE_FRICTION || base.type == PhysicsJointComponent.TYPE_WELD) {
-            ok = physicsService.computeAnchorWorldWU(base.aEid, base.anchorAx, base.anchorAy, outPivot);
+            ok = computeResolvedBodyAnchor(base.aEid, base.anchorAx, base.anchorAy, outPivot);
             if (ok) applyDisplayOffset(base.aEid, outPivot);
             return ok;
         }
@@ -3688,7 +3796,7 @@ public final class PickingSystem extends BaseSystem {
             TransformComponent t = mT.getSafe(e, null);
             if (t == null) continue;
 
-            tmp2Vec.set(t.x, t.y);
+            resolveLightWorldPosition(e, t, tmp2Vec);
             applyDisplayOffset(e, tmp2Vec);
             float cx = tmp2Vec.x;
             float cy = tmp2Vec.y;
@@ -3772,6 +3880,13 @@ public final class PickingSystem extends BaseSystem {
         if (HandleHelper.insideSquare(mx, my, HandleLayout.nwX(obb), HandleLayout.nwY(obb), halfWidthorld))
             return InputManipulationContext.Handle.NW;
 
+        if (mGameObject.has(entityId)) {
+            float rotateOffsetWorld = HandleHelper.pxToWorld(
+                    worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
+            return hitTestGameObjectRotateHandle(
+                    obb, mx, my, halfWidthorld, rotateOffsetWorld, tmp2);
+        }
+
         if (HandleHelper.insideSquare(mx, my, HandleLayout.midSX(obb), HandleLayout.midSY(obb), halfWidthorld))
             return InputManipulationContext.Handle.S;
         if (HandleHelper.insideSquare(mx, my, HandleLayout.midEX(obb), HandleLayout.midEY(obb), halfWidthorld))
@@ -3789,6 +3904,20 @@ public final class PickingSystem extends BaseSystem {
         }
 
         return InputManipulationContext.Handle.NONE;
+    }
+
+    static InputManipulationContext.Handle hitTestGameObjectRotateHandle(
+            float[] corners,
+            float mouseX,
+            float mouseY,
+            float halfWidthWorld,
+            float rotateOffsetWorld,
+            float[] scratch2) {
+        HandleLayout.rotateHandle(corners, rotateOffsetWorld, scratch2);
+        return HandleHelper.insideSquare(
+                mouseX, mouseY, scratch2[0], scratch2[1], halfWidthWorld)
+                ? InputManipulationContext.Handle.ROTATE
+                : InputManipulationContext.Handle.NONE;
     }
 
     private boolean tryBeginLightRadiusDrag(float mx, float my, int entityId) {
@@ -3821,11 +3950,12 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        tmp2Vec.set(t.x, t.y);
+        resolveLightWorldPosition(entityId, t, tmp2Vec);
         applyDisplayOffset(entityId, tmp2Vec);
         float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(tmp2Vec.x, tmp2Vec.y, mx, my));
         float newRotationRad = lightDragIsCone
-                ? (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x)
+                ? localLightRotationForWorldAngle(entityId, t,
+                (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x))
                 : lightRotationCurrentRad;
         applyLightOverlayLive(entityId, newRadius, newRotationRad, lightDragIsCone);
         lightRadiusCurrent = newRadius;
@@ -3878,14 +4008,44 @@ public final class PickingSystem extends BaseSystem {
 
     private void computeLightRadiusHandleWorld(int entityId, TransformComponent t, Vector2 out) {
         float radius = readLightRadius(entityId);
+        resolveLightWorldPosition(entityId, t, out);
         if (mConeLight != null && mConeLight.has(entityId)) {
-            float angle = t.rotationRad;
-            out.set(t.x + MathUtils.cos(angle) * radius, t.y + MathUtils.sin(angle) * radius);
+            float angle = resolvedLightWorldRotation(entityId, t);
+            out.add(MathUtils.cos(angle) * radius, MathUtils.sin(angle) * radius);
         } else {
-            out.set(t.x + radius, t.y);
+            out.x += radius;
         }
 
         applyDisplayOffset(entityId, out);
+    }
+
+    private void resolveLightWorldPosition(int entityId, TransformComponent transform, Vector2 out) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        if (state != null && state.isResolved(entityId)) {
+            out.set(state.x[entityId], state.y[entityId]);
+        } else {
+            out.set(transform.x, transform.y);
+        }
+    }
+
+    private float resolvedLightWorldRotation(int entityId, TransformComponent transform) {
+        WorldTransformState state = gameObjectHierarchy != null
+                ? gameObjectHierarchy.worldTransforms() : null;
+        return state != null && state.isResolved(entityId)
+                ? state.rotationRad[entityId] : transform.rotationRad;
+    }
+
+    /** Converts the pointer's world-space cone angle back to the authored local transform angle. */
+    private float localLightRotationForWorldAngle(int entityId,
+                                                  TransformComponent transform,
+                                                  float worldAngle) {
+        return transform.rotationRad + wrappedAngleDelta(
+                resolvedLightWorldRotation(entityId, transform), worldAngle);
+    }
+
+    private static float wrappedAngleDelta(float from, float to) {
+        return MathUtils.atan2(MathUtils.sin(to - from), MathUtils.cos(to - from));
     }
 
     private boolean isLightEntity(int entityId) {
@@ -3898,12 +4058,29 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private float[] computeOBBWorldCorners(int e) {
+        if (mGameObject.has(e)) {
+            float half = HandleHelper.pxToWorld(worldCam, 8f);
+            return gameObjectGizmoGeometry != null
+                    && gameObjectGizmoGeometry.writeWorldCorners(e, half, tmpCorners)
+                    ? tmpCorners : null;
+        }
         OrientedBoundsComponent b = mOBB.getSafe(e, null);
         if (b == null) return null;
 
         OrientedBoundsHelper.toCorners(b, tmpCorners);
         applyDisplayOffset(e, tmpCorners);
         return tmpCorners;
+    }
+
+    private Integer findSelectedGameObjectHit(
+            IntArray selection, float mouseX, float mouseY) {
+        if (selection == null || selection.size != 1) return null;
+        int entityId = selection.first();
+        if (!mGameObject.has(entityId) || !isSelectableInViewport(entityId)) return null;
+        float[] corners = computeOBBWorldCorners(entityId);
+        if (corners == null) return null;
+        float tolerance = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        return isDisplayedObbHit(corners, mouseX, mouseY, tolerance) ? entityId : null;
     }
 
     private float[] computeQuadWorldCorners(int entityId, boolean applyDisplayOffset) {
@@ -3947,7 +4124,12 @@ public final class PickingSystem extends BaseSystem {
         float objectRotationRad = 0f;
         IntArray sel = selectionService.getSelectionSnapshot();
         if (sel.size == 1 && mT.has(sel.get(0))) {
-            objectRotationRad = mT.get(sel.get(0)).rotationRad;
+            int selectedEntity = sel.get(0);
+            WorldTransformState state = mGameObject.has(selectedEntity) && gameObjectHierarchy != null
+                    ? gameObjectHierarchy.worldTransforms() : null;
+            objectRotationRad = state != null && state.isResolved(selectedEntity)
+                    ? state.rotationRad[selectedEntity]
+                    : mT.get(selectedEntity).rotationRad;
         }
 
         if (dragging) {
@@ -3984,6 +4166,14 @@ public final class PickingSystem extends BaseSystem {
         } else if (hovered == InputManipulationContext.Handle.ROTATE) {
             if (gizmoSystem != null) {
                 gizmoSystem.setCursor(CursorKind.ROTATE, objectRotationRad, tmpMouseWorld);
+                hasCustomCursor = true;
+            }
+        } else if (hovered != InputManipulationContext.Handle.NONE
+                && sel.size == 1
+                && GameObjectHierarchyCommandSupport.isPhysicsAncestorScaleLocked(
+                        world, sel.first())) {
+            if (gizmoSystem != null) {
+                gizmoSystem.setCursor(CursorKind.FORBIDDEN, 0f, tmpMouseWorld);
                 hasCustomCursor = true;
             }
         } else if (hovered != InputManipulationContext.Handle.NONE) {

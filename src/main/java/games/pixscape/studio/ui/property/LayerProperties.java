@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.property;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -9,16 +7,12 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
-import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.spinner.SimpleFloatSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
@@ -32,66 +26,50 @@ public class LayerProperties extends VisTable {
 
     private final World world;
     private final HistoryManager history;
-    private final PhysicsService physicsService;
+    private final LayerService layerService;
 
     private final ComponentMapper<LayerComponent> mIndex;
     private final ComponentMapper<LayerParallaxComponent> mParallax;
-    private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
-    private final ComponentMapper<TiledLayerComponent> mTiled;
 
     public final VisLabel indexValueLabel;
     public final TextField nameField;
     public final TextField descriptionField;
-    public final VisLabel typeValueLabel;
-
-    private final TiledMapProperties tiledMapProperties;
 
     private final UiBinders.FloatSpinnerBinder parallaxXBinder;
     private final UiBinders.FloatSpinnerBinder parallaxYBinder;
 
     private final VisCheckBox parallaxCheckBox;
-    private final VisCheckBox collisionsCheckBox;
     private final VisCheckBox spatialCheckBox;
-    private final FloatField defaultAltitudeField;
-    private final FloatField defaultHeightField;
 
     private final CollapsibleVisTable parallaxSection = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable parallaxBlock = new CollapsibleVisTable(true, true);
-    private final CollapsibleVisTable collisionsSection = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable spatialSection = new CollapsibleVisTable(true, true);
-    private final CollapsibleVisTable spatialBlock = new CollapsibleVisTable(true, true);
-    private final CollapsibleVisTable tiledSection = new CollapsibleVisTable(true, true);
 
     private final int MY_TAG = EventFlow.tag(this);
     private boolean internalParallaxRefresh = false;
-    private boolean internalCollisionsRefresh = false;
     private boolean internalSpatialRefresh = false;
     private final Runnable markCurrentSceneSaveRequired;
 
     public LayerProperties(
-            World world, HistoryManager history, PhysicsService physicsService,
+            World world, HistoryManager history,
+            LayerService layerService,
             Runnable markCurrentSceneSaveRequired) {
         super(true);
         this.world = world;
         this.history = history;
-        this.physicsService = physicsService;
+        this.layerService = layerService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
 
         this.mIndex = world.getMapper(LayerComponent.class);
         this.mParallax = world.getMapper(LayerParallaxComponent.class);
-        this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.tiledMapProperties = new TiledMapProperties(world, markCurrentSceneSaveRequired);
 
         UiFieldFactory factory = new UiFieldFactory(world);
 
         VisLabel nameLabel = new VisLabel("Name:");
         VisLabel descriptionLabel = new VisLabel("Description:");
         VisLabel indexLabel = new VisLabel("Index:");
-        VisLabel typeLabel = new VisLabel("Type:");
 
         indexValueLabel = new VisLabel();
-        typeValueLabel = new VisLabel();
         nameField = factory.layerName();
         nameField.onEnter(() -> {
             EventFlow.i().publish(
@@ -104,28 +82,8 @@ public class LayerProperties extends VisTable {
         parallaxCheckBox = new VisCheckBox("Parallax");
         parallaxCheckBox.left();
 
-        collisionsCheckBox = new VisCheckBox("Collisions");
-        collisionsCheckBox.left();
-
-        spatialCheckBox = new VisCheckBox("Spatial Depth");
+        spatialCheckBox = new VisCheckBox("Spatial");
         spatialCheckBox.left();
-
-        defaultAltitudeField = new FloatField(
-                world,
-                eid -> mTiled.get(eid).defaultTileAltitude,
-                this::hasTiledSpatialDefaults
-        ).setDisplayDecimals(2);
-
-        defaultHeightField = new FloatField(
-                world,
-                eid -> mTiled.get(eid).defaultTileHeight,
-                this::hasTiledSpatialDefaults
-        ).setDisplayDecimals(2);
-
-        defaultAltitudeField.setApplier((eid, value) ->
-                submitTiledSpatialEdit(eid, snapshot -> snapshot.withDefaultAltitude(value)));
-        defaultHeightField.setApplier((eid, value) ->
-                submitTiledSpatialEdit(eid, snapshot -> snapshot.withDefaultHeight(Math.max(0f, value))));
 
         SimpleFloatSpinnerModel modelX = new SimpleFloatSpinnerModel(1f, 0f, 10f, 0.01f);
         SimpleFloatSpinnerModel modelY = new SimpleFloatSpinnerModel(1f, 0f, 10f, 0.01f);
@@ -201,36 +159,6 @@ public class LayerProperties extends VisTable {
             }
         });
 
-        collisionsCheckBox.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (internalCollisionsRefresh) return;
-
-                int layerEntityId = nameField.getEntityId();
-                if (layerEntityId < 0 || !isTiledLayer(layerEntityId)) return;
-                if (!isScenePhysicsEnabled()) {
-                    refreshFromModel(layerEntityId);
-                    return;
-                }
-
-                boolean currentlyActive = mPhysBody.has(layerEntityId);
-                boolean requestedActive = collisionsCheckBox.isChecked();
-
-                if (requestedActive == currentlyActive) {
-                    refreshFromModel(layerEntityId);
-                    return;
-                }
-
-                if (requestedActive) {
-                    addPhysicsToTiledLayer(layerEntityId);
-                    refreshFromModel(layerEntityId);
-                    return;
-                }
-
-                showRemoveCollisionsDialog(layerEntityId);
-            }
-        });
-
         spatialCheckBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -239,37 +167,25 @@ public class LayerProperties extends VisTable {
                 int layerEntityId = nameField.getEntityId();
                 if (layerEntityId < 0) return;
 
-                boolean currentlyActive = isLayerSpatialEnabled(layerEntityId);
+                boolean currentlyActive = mIndex.get(layerEntityId).spatialEnabled;
                 boolean requestedActive = spatialCheckBox.isChecked();
                 if (requestedActive == currentlyActive) {
                     refreshFromModel(layerEntityId);
                     return;
                 }
 
-                if (requestedActive) {
-                    executeSpatialToggle(layerEntityId, true);
+                if (requestedActive && !isScenePhysicsEnabled()) {
                     refreshFromModel(layerEntityId);
                     return;
                 }
-
-                showDisableSpatialDialog(layerEntityId);
-                event.handle();
+                executeOrdinarySpatialToggle(layerEntityId, requestedActive);
+                refreshFromModel(layerEntityId);
             }
         });
 
         parallaxBlock.content().add(parallaxXSpinner).width(80).left().growX().row();
         parallaxBlock.content().add(parallaxYSpinner).width(80).left().growX().row();
         parallaxBlock.show(false);
-
-        VisTable spatialDetails = spatialBlock.content();
-        spatialDetails.left().top().padTop(5);
-        spatialDetails.defaults().left().top().pad(1);
-
-        spatialDetails.add(new VisLabel("Default Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
-        spatialDetails.add(defaultAltitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
-        spatialDetails.add(new VisLabel("Default Height:")).width(CommonLayout.LABEL_WIDTH).left();
-        spatialDetails.add(defaultHeightField).width(CommonLayout.FIELD_WIDTH).left().row();
-        spatialBlock.show(false);
 
         add(new VisLabel("LAYER"))
                 .center()
@@ -283,9 +199,6 @@ public class LayerProperties extends VisTable {
         add(descriptionLabel).top().left();
         add(descriptionField).growX().row();
 
-        add(typeLabel).left();
-        add(typeValueLabel).left().row();
-
         add(indexLabel).left();
         add(indexValueLabel).left().row();
 
@@ -293,10 +206,6 @@ public class LayerProperties extends VisTable {
         parallaxSection.content().add(parallaxCheckBox).left().growX().row();
         parallaxSection.content().add(parallaxBlock).padLeft(55).left().growX().row();
         parallaxSection.show(false);
-
-        collisionsSection.content().addSeparator().growX().row();
-        collisionsSection.content().add(collisionsCheckBox).left().growX().row();
-        collisionsSection.show(false);
 
         VisLabel spatialTitle = new VisLabel("SPATIAL");
         spatialTitle.setAlignment(Align.center);
@@ -309,17 +218,10 @@ public class LayerProperties extends VisTable {
                 .expandX()
                 .row();
         spatialSection.content().add(spatialCheckBox).left().growX().row();
-        spatialSection.content().add(spatialBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).left().growX().row();
         spatialSection.show(false);
 
-        tiledSection.content().addSeparator().growX().row();
-        tiledSection.content().add(tiledMapProperties).growX().row();
-        tiledSection.show(false);
-
         add(parallaxSection).colspan(2).left().growX().row();
-        add(collisionsSection).colspan(2).left().growX().row();
         add(spatialSection).colspan(2).left().growX().row();
-        add(tiledSection).colspan(2).left().growX().row();
     }
 
     private void flagPreviewSaveRequired() {
@@ -347,15 +249,14 @@ public class LayerProperties extends VisTable {
         }
 
         indexValueLabel.setText(lic.layerIndex);
-        typeValueLabel.setText(buildLayerTypeLabel(lic.type, lic.spatialEnabled));
-
-        boolean isTiled = lic.type == LayerComponent.TYPE_TILED;
         boolean scenePhysicsEnabled = isScenePhysicsEnabled();
-        boolean collisionsSupported = isTiled && scenePhysicsEnabled;
-        boolean collisionsActive = collisionsSupported && mPhysBody.has(layerEntityId);
-        boolean spatialSupported = isTiled;
-        boolean spatialActive = isLayerSpatialEnabled(layerEntityId);
-        boolean supportsParallax = supportsEditableParallax(layerEntityId, lic);
+        boolean ordinarySpatialVisible = shouldShowOrdinarySpatialProperty(
+                lic.spatialEnabled,
+                scenePhysicsEnabled,
+                layerService.hasOtherSpatialActorLayer(layerEntityId));
+        boolean spatialSupported = ordinarySpatialVisible;
+        boolean spatialActive = lic.spatialEnabled;
+        boolean supportsParallax = supportsEditableParallax(lic);
         boolean hasParallax = mParallax.has(layerEntityId);
 
         internalParallaxRefresh = true;
@@ -375,53 +276,16 @@ public class LayerProperties extends VisTable {
             parallaxYBinder.setEntityId(-1);
         }
 
-        internalCollisionsRefresh = true;
-        try {
-            collisionsCheckBox.setChecked(collisionsActive);
-            collisionsSection.show(collisionsSupported);
-        } finally {
-            internalCollisionsRefresh = false;
-        }
-
         internalSpatialRefresh = true;
         try {
+            spatialCheckBox.setText("Spatial");
             spatialCheckBox.setChecked(spatialActive);
             spatialSection.show(spatialSupported);
-            spatialBlock.show(isTiled && spatialActive);
-            defaultAltitudeField.setEntityId(isTiled && spatialActive ? layerEntityId : -1);
-            defaultHeightField.setEntityId(isTiled && spatialActive ? layerEntityId : -1);
-            if (isTiled && spatialActive) {
-                defaultAltitudeField.refreshFromModel();
-                defaultHeightField.refreshFromModel();
-            }
         } finally {
             internalSpatialRefresh = false;
         }
 
-        tiledSection.show(isTiled);
-        if (isTiled) {
-            tiledMapProperties.setLayerEntityId(layerEntityId);
-        }
-
         invalidateHierarchy();
-    }
-
-    private String buildLayerTypeLabel(int type, boolean spatialEnabled) {
-        if (type != LayerComponent.TYPE_TILED) {
-            return LayerService.typeDisplayName(type, spatialEnabled);
-        }
-        return buildTiledTypeLabel(currentSceneMeta());
-    }
-
-    private String buildTiledTypeLabel(SceneMeta sceneMeta) {
-        if (sceneMeta == null || !sceneMeta.tiledEnabled || sceneMeta.tiledProjection == null) {
-            return "Tiled";
-        }
-
-        return switch (sceneMeta.tiledProjection) {
-            case ISO -> "Tiled isometric";
-            case ORTHO -> "Tiled orthogonal";
-        };
     }
 
     private SceneMeta currentSceneMeta() {
@@ -434,80 +298,13 @@ public class LayerProperties extends VisTable {
         return meta != null && meta.physicsEnabled;
     }
 
-    private boolean isTiledLayer(int layerEntityId) {
-        LayerComponent lic = mIndex.getSafe(layerEntityId, null);
-        return lic != null && lic.type == LayerComponent.TYPE_TILED;
-    }
-
     private boolean supportsEditableParallax(int layerEntityId) {
         LayerComponent lic = mIndex.getSafe(layerEntityId, null);
-        return supportsEditableParallax(layerEntityId, lic);
+        return supportsEditableParallax(lic);
     }
 
-    private boolean supportsEditableParallax(int layerEntityId, LayerComponent lic) {
-        if (lic == null) return false;
-
-        if (lic.type == LayerComponent.TYPE_CLASSIC ||
-                lic.type == LayerComponent.TYPE_LIGHT) {
-            return true;
-        }
-
-        if (lic.type == LayerComponent.TYPE_TILED) {
-            return !mPhysBody.has(layerEntityId);
-        }
-
-        return false;
-    }
-
-    private void addPhysicsToTiledLayer(int layerEntityId) {
-        if (!isScenePhysicsEnabled()) {
-            refreshFromModel(layerEntityId);
-            return;
-        }
-
-        Command command = new AddPhysicsBodyCommand(
-                world,
-                history.historyIds(),
-                physicsService,
-                layerEntityId,
-                PhysicsBodyComponent.STATIC,
-                false
-        );
-        history.execute(command);
-    }
-
-    private void submitTiledSpatialEdit(
-            int layerEntityId,
-            java.util.function.UnaryOperator<EditTiledLayerSpatialDefaultsCommand.Snapshot> edit
-    ) {
-        if (layerEntityId < 0 || !hasTiledSpatialDefaults(layerEntityId) || edit == null) return;
-
-        TiledLayerComponent component = mTiled.get(layerEntityId);
-        EditTiledLayerSpatialDefaultsCommand.Snapshot before =
-                EditTiledLayerSpatialDefaultsCommand.Snapshot.capture(component);
-        EditTiledLayerSpatialDefaultsCommand.Snapshot after = edit.apply(before);
-        executeCommand(new EditTiledLayerSpatialDefaultsCommand(
-                world,
-                history.historyIds(),
-                layerEntityId,
-                before,
-                after
-        ));
-        refreshFromModel(layerEntityId);
-    }
-
-    private boolean hasTiledSpatialDefaults(int layerEntityId) {
-        return isTiledLayer(layerEntityId) && isLayerSpatialEnabled(layerEntityId);
-    }
-
-    private float defaultTiledSpatialHeight(int layerEntityId) {
-        TiledLayerComponent tiled = mTiled.getSafe(layerEntityId, null);
-        if (tiled != null && tiled.data != null && tiled.data.tileHeight > 0) {
-            return tiled.data.tileHeight;
-        }
-
-        SceneMeta meta = currentSceneMeta();
-        return meta != null && meta.tileHeight > 0f ? meta.tileHeight : 0f;
+    private boolean supportsEditableParallax(LayerComponent lic) {
+        return lic != null;
     }
 
     private void executeCommand(Command command) {
@@ -518,98 +315,21 @@ public class LayerProperties extends VisTable {
         flagPreviewSaveRequired();
     }
 
-    private void executeSpatialToggle(int layerEntityId, boolean enabled) {
-        Command command = new ToggleLayerSpatialDepthCommand(
+    static boolean shouldShowOrdinarySpatialProperty(
+            boolean currentlyEnabled,
+            boolean scenePhysicsEnabled,
+            boolean anotherOrdinaryLayerEnabled) {
+        return currentlyEnabled || (scenePhysicsEnabled && !anotherOrdinaryLayerEnabled);
+    }
+
+    private void executeOrdinarySpatialToggle(int layerEntityId, boolean enabled) {
+        executeCommand(new ToggleSpatialActorLayerCommand(
                 world,
                 history.historyIds(),
+                layerService,
                 layerEntityId,
-                enabled,
-                0f,
-                defaultTiledSpatialHeight(layerEntityId)
-        );
-        executeCommand(command);
-    }
-
-    private boolean isLayerSpatialEnabled(int layerEntityId) {
-        LayerComponent layer = mIndex.getSafe(layerEntityId, null);
-        if (layer == null) return false;
-        if (layer.spatialEnabled) return true;
-
-        TiledLayerComponent tiled = mTiled.getSafe(layerEntityId, null);
-        return tiled != null && (tiled.spatialEnabled || (tiled.data != null && tiled.data.spatialEnabled));
-    }
-
-    private void removePhysicsFromTiledLayer(int layerEntityId) {
-        history.execute(new RemovePhysicsBodyCommand(
-                world,
-                history.historyIds(),
-                physicsService,
-                layerEntityId
+                enabled
         ));
-        flagPreviewSaveRequired();
     }
 
-    private void showRemoveCollisionsDialog(int layerEntityId) {
-        if (!mPhysBody.has(layerEntityId)) {
-            refreshFromModel(layerEntityId);
-            return;
-        }
-
-        VisDialog dialog = new StudioDialog("Warning") {
-            @Override
-            protected void result(Object object) {
-                if (Boolean.TRUE.equals(object)) {
-                    removePhysicsFromTiledLayer(layerEntityId);
-                }
-                refreshFromModel(layerEntityId);
-            }
-        };
-
-        dialog.text(
-                """
-                        Removing collisions will delete the physics on this layer.
-                        This action can be undone."""
-        );
-        dialog.button("Remove", true);
-        dialog.button("Cancel", false);
-        dialog.setModal(true);
-        dialog.setResizable(false);
-        dialog.pack();
-
-        if (getStage() != null) {
-            dialog.show(getStage());
-        } else {
-            refreshFromModel(layerEntityId);
-        }
-    }
-
-    private void showDisableSpatialDialog(int layerEntityId) {
-        VisDialog dialog = new StudioDialog("Warning") {
-            @Override
-            protected void result(Object object) {
-                if (Boolean.TRUE.equals(object)) {
-                    executeSpatialToggle(layerEntityId, false);
-                }
-                refreshFromModel(layerEntityId);
-            }
-        };
-
-        dialog.text(
-                """
-                        Disable Spatial Depth on this layer?
-
-                        This will remove spatial data from entities in this layer and disable tiled spatial defaults."""
-        );
-        dialog.button("Disable", true);
-        dialog.button("Cancel", false);
-        dialog.setModal(true);
-        dialog.setResizable(false);
-        dialog.pack();
-
-        if (getStage() != null) {
-            dialog.show(getStage());
-        } else {
-            refreshFromModel(layerEntityId);
-        }
-    }
 }

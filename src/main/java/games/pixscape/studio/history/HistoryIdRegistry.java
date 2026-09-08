@@ -27,6 +27,11 @@ public final class HistoryIdRegistry {
         return seq.getAndIncrement();
     }
 
+    /** Reserves one fresh history identity for a prepared multi-entity operation. */
+    public long allocateHistoryId() {
+        return nextHistoryId();
+    }
+
     /**
      * Returns the existing historyId, or creates and binds a new one.
      */

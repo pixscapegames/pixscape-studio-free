@@ -39,18 +39,15 @@ public class BottomMenuBarSceneControlsContractTest {
     }
 
     @Test
-    public void addButtonOpensAndCentersExistingNewSceneWindow() throws Exception {
+    public void addButtonImmediatelyCreatesDefaultNamedSceneWithoutDialog() throws Exception {
         String source = readSource();
         String constructorBody = methodBody(source, "public BottomMenuBar(StudioApplicationAdapter application)");
-        String openBody = methodBody(source, "private void openNewSceneWindow()");
+        String createBody = methodBody(source, "private void createNewScene()");
 
-        assertTrue(constructorBody.contains("openNewSceneWindow();"));
-        assertOrdered(
-                openBody,
-                "newSceneWindow.resetSceneName();",
-                "app.getUiStage().addActor(newSceneWindow.fadeIn());",
-                "newSceneWindow.centerWindow();"
-        );
+        assertTrue(constructorBody.contains("createNewScene();"));
+        assertTrue(createBody.contains("app.getSceneService().createNewScene(\"New Scene\");"));
+        assertTrue(createBody.contains("refreshSelectBox();"));
+        assertFalse(source.contains("NewSceneWindow"));
     }
 
     @Test
@@ -91,17 +88,15 @@ public class BottomMenuBarSceneControlsContractTest {
     }
 
     @Test
-    public void successfulCreationRefreshesSelectionAndCloseDoesNotRepairSentinelState() throws Exception {
+    public void creationAlwaysRefreshesCurrentSelection() throws Exception {
         String source = readSource();
-        String constructorBody = methodBody(source, "public BottomMenuBar(StudioApplicationAdapter application)");
+        String createBody = methodBody(source, "private void createNewScene()");
 
         assertOrdered(
-                constructorBody,
-                "app.getSceneService().createNewScene(",
-                "newSceneWindow.fadeOut();",
+                createBody,
+                "app.getSceneService().createNewScene(\"New Scene\");",
                 "refreshSelectBox();"
         );
-        assertFalse(source.contains("protected void close()"));
     }
 
     private static String readSource() throws Exception {

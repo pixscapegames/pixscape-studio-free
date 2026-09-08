@@ -2,6 +2,8 @@ package games.pixscape.studio.io;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.studio.configuration.ProjectConfig;
 
 import java.nio.file.Paths;
@@ -40,8 +42,7 @@ public final class StudioFs {
     public static final String EXT_ATLAS = ".atlas";
     public static final String EXT_JSON = ".json";
 
-    public static final String DIR_PREFABS = "prefabs";
-    public static final String EXT_PREFAB = ".pixprefab";
+    public static final String DIR_GAME_OBJECTS = GameObjectAssetId.DIRECTORY;
 
     public static FileHandle defaultUserProjectsRoot() {
         FileHandle root = Gdx.files.absolute(DEFAULT_USER_PROJECTS_DIR);
@@ -125,24 +126,26 @@ public final class StudioFs {
         return requireAtlasesDir(cfg).child(DIR_INPUT).child(sceneTag);
     }
 
-    public static FileHandle requirePrefabsDir(ProjectConfig cfg) {
-        FileHandle dir = requireStudioProjectDir(cfg).child(DIR_PREFABS);
+    public static FileHandle requireGameObjectsDir(ProjectConfig cfg) {
+        FileHandle dir = requireStudioProjectDir(cfg).child(DIR_GAME_OBJECTS);
         if (!dir.exists()) dir.mkdirs();
         return dir;
     }
 
-    public static FileHandle requirePrefabFile(ProjectConfig cfg, String prefabName) {
-        if (prefabName == null || prefabName.trim().isEmpty()) {
-            throw new IllegalArgumentException("prefabName is blank.");
+    public static FileHandle requireGameObjectFile(ProjectConfig cfg, String gameObjectName) {
+        if (gameObjectName == null || gameObjectName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Game Object name is blank.");
         }
-        return requirePrefabsDir(cfg).child(withExt(prefabName, EXT_PREFAB));
+        String assetName = GameObjectAssetId.assetName(gameObjectName);
+        return requireGameObjectsDir(cfg).child(assetName + GameObjectAsset.EXTENSION);
     }
 
-    public static FileHandle requirePrefabPreviewFile(ProjectConfig cfg, String prefabName) {
-        if (prefabName == null || prefabName.trim().isEmpty()) {
-            throw new IllegalArgumentException("prefabName is blank.");
+    public static FileHandle requireGameObjectPreviewFile(ProjectConfig cfg, String gameObjectName) {
+        if (gameObjectName == null || gameObjectName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Game Object name is blank.");
         }
-        return requirePrefabsDir(cfg).child(removeExtension(prefabName) + ".preview.png");
+        return requireGameObjectsDir(cfg)
+                .child(GameObjectAssetId.assetName(gameObjectName) + ".preview.png");
     }
 
     public static String baseName(String name) {

@@ -6,6 +6,9 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
@@ -43,14 +46,15 @@ public class ClipboardLayerCompatibilityTest {
         identities.bind(world, sceneMeta);
         identities.rebuild();
         service = new EntityGraphInstantiationService(
-                world, history, identities, new PhysicsService(world, null, sceneMeta));
+                world, history, identities, new PhysicsService(world, null, sceneMeta),
+                () -> true);
     }
 
     @Test
-    public void spatialActorToPhysicsLayerKeepsOrdinaryPhysicsWithoutSpatialState() {
+    public void spatialActorToOrdinaryLayerKeepsOrdinaryPhysicsWithoutSpatialState() {
         int source = spatialActor(true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 7, EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS);
+                capture(source), 7, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
         int pasted = result.createdIds().first();
 
         Assert.assertEquals(7, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
@@ -62,10 +66,10 @@ public class ClipboardLayerCompatibilityTest {
     }
 
     @Test
-    public void soleSpatialFootprintToPhysicsLayerRemovesOrphanedBody() {
+    public void soleSpatialFootprintToOrdinaryLayerRemovesOrphanedBody() {
         int source = spatialActor(false);
         int pasted = paste(capture(source), 7,
-                EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
         Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
@@ -74,10 +78,10 @@ public class ClipboardLayerCompatibilityTest {
     }
 
     @Test
-    public void spatialActorToSpatialPhysicsLayerPreservesHeightAndFootprint() {
+    public void spatialActorToSpatialLayerPreservesHeightAndFootprint() {
         int source = spatialActor(true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_PHYSICS);
+                capture(source), 8, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
         int pasted = result.createdIds().first();
 
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(pasted);
@@ -90,22 +94,22 @@ public class ClipboardLayerCompatibilityTest {
     }
 
     @Test
-    public void physicsActorToClassicLayerKeepsVisualButRemovesAllPhysics() {
+    public void physicsActorToOrdinaryLayerKeepsPhysics() {
         int source = physicalActor(false, true);
         EntityGraphInstantiationResult result = paste(
-                capture(source), 2, EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS);
+                capture(source), 2, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
         int pasted = result.createdIds().first();
 
         Assert.assertTrue(world.getMapper(TransformComponent.class).has(pasted));
         Assert.assertTrue(world.getMapper(DimensionsComponent.class).has(pasted));
         Assert.assertEquals(2, world.getMapper(EntityIndexComponent.class).get(pasted).layerIndex);
-        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(pasted));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
+        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class).has(pasted));
         Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(pasted));
     }
 
     @Test
-    public void jointedBodiesToClassicLayerCreatesOnlyVisualBodies() {
+    public void jointedBodiesToOrdinaryLayerPreservePhysicsGraph() {
         int a = physicalActor(false, true);
         int b = physicalActor(false, true);
         int joint = distanceJoint(a, b);
@@ -114,15 +118,16 @@ public class ClipboardLayerCompatibilityTest {
         int nextStableIdBefore = sceneMeta.nextEntityStableId;
         int nextShapeIdBefore = sceneMeta.nextPhysicsShapeId;
         EntityGraphInstantiationResult result = paste(
-                graph, 3, EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS);
+                graph, 3, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
+        world.process();
 
-        Assert.assertEquals(2, result.createdIds().size);
+        Assert.assertEquals(3, result.createdIds().size);
         Assert.assertTrue(result.sourceToCreated().containsKey(a));
         Assert.assertTrue(result.sourceToCreated().containsKey(b));
-        Assert.assertFalse(result.sourceToCreated().containsKey(joint));
-        Assert.assertEquals(1, count(PhysicsJointComponent.class));
-        Assert.assertEquals(nextStableIdBefore + 2, sceneMeta.nextEntityStableId);
-        Assert.assertEquals(nextShapeIdBefore, sceneMeta.nextPhysicsShapeId);
+        Assert.assertTrue(result.sourceToCreated().containsKey(joint));
+        Assert.assertEquals(2, count(PhysicsJointComponent.class));
+        Assert.assertEquals(nextStableIdBefore + 3, sceneMeta.nextEntityStableId);
+        Assert.assertEquals(nextShapeIdBefore + 2, sceneMeta.nextPhysicsShapeId);
         int pastedA = result.sourceToCreated().get(a, -1);
         int pastedB = result.sourceToCreated().get(b, -1);
         int stableA = world.getMapper(games.pixscape.runtime.component.PixscapeIdentityComponent.class)
@@ -134,9 +139,8 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertNotEquals(stableA, stableB);
         for (int i = 0; i < result.createdIds().size; i++) {
             int pasted = result.createdIds().get(i);
-            Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(pasted));
-            Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(pasted));
-            Assert.assertFalse(world.getMapper(PhysicsJointComponent.class).has(pasted));
+            Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted)
+                    || world.getMapper(PhysicsJointComponent.class).has(pasted));
         }
 
         history.undo();
@@ -145,25 +149,24 @@ public class ClipboardLayerCompatibilityTest {
         Assert.assertFalse(world.getEntityManager().isActive(pastedB));
 
         history.redo();
+        world.process();
         int restoredA = result.sourceToCreated().get(a, -1);
         int restoredB = result.sourceToCreated().get(b, -1);
         Assert.assertTrue(world.getEntityManager().isActive(restoredA));
         Assert.assertTrue(world.getEntityManager().isActive(restoredB));
-        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(restoredA));
-        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(restoredB));
-        Assert.assertFalse(world.getMapper(PhysicsJointComponent.class).has(restoredA));
-        Assert.assertFalse(world.getMapper(PhysicsJointComponent.class).has(restoredB));
-        Assert.assertEquals(1, count(PhysicsJointComponent.class));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(restoredA));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(restoredB));
+        Assert.assertEquals(2, count(PhysicsJointComponent.class));
     }
 
     @Test
-    public void ordinaryPhysicsToPhysicsLayerIsPreserved() {
+    public void ordinaryPhysicsToOrdinaryLayerIsPreserved() {
         int source = physicalActor(false, true);
         PhysicsShapeData before = world.getMapper(PhysicsShapesComponent.class)
                 .get(source).shapes.first().copy();
 
         int pasted = paste(capture(source), 4,
-                EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
 
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
@@ -181,13 +184,14 @@ public class ClipboardLayerCompatibilityTest {
         EntityGraph clipboardGraph = capture(source);
 
         int classicPaste = paste(clipboardGraph, 1,
-                EntityGraphInstantiationService.ClipboardTargetLayer.NON_PHYSICS)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
         int spatialPaste = paste(clipboardGraph, 9,
-                EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_PHYSICS)
+                EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED)
                 .createdIds().first();
 
-        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(classicPaste));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(classicPaste));
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(classicPaste));
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(spatialPaste));
         Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(spatialPaste));
         Assert.assertTrue(hasFootprint(
@@ -202,7 +206,7 @@ public class ClipboardLayerCompatibilityTest {
     public void normalizedPasteUndoRedoRemainsOneAtomicHistoryOperation() {
         int source = spatialActor(true);
         int pasted = paste(capture(source), 5,
-                EntityGraphInstantiationService.ClipboardTargetLayer.PHYSICS)
+                EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL)
                 .createdIds().first();
         Assert.assertTrue(history.canUndo());
         Assert.assertTrue(world.getEntityManager().isActive(pasted));
@@ -222,6 +226,50 @@ public class ClipboardLayerCompatibilityTest {
                 world.getMapper(PhysicsShapesComponent.class).get(restored)));
     }
 
+    @Test
+    public void gameObjectHierarchyWithNestedSpatialActorIsRejectedBeforeMutationOnOrdinaryLayer() {
+        sceneMeta.nextEntityStableId = 1_000;
+        int root = gameObject(100, -1);
+        int nested = gameObject(200, 100);
+        world.getMapper(SpatialHeightComponent.class).create(nested).height = 2f;
+        world.process();
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .captureGameObjectClipboard(new IntArray(new int[]{root}));
+        int activeBefore = activeEntityCount();
+        int nextStableBefore = sceneMeta.nextEntityStableId;
+
+        Assert.assertFalse(service.isClipboardInstantiationAllowed(
+                graph, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL));
+        EntityGraphInstantiationResult rejected = paste(
+                graph, 6, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL);
+
+        Assert.assertEquals(0, rejected.createdIds().size);
+        Assert.assertEquals(activeBefore, activeEntityCount());
+        Assert.assertEquals(nextStableBefore, sceneMeta.nextEntityStableId);
+        Assert.assertFalse(history.canUndo());
+
+        EntityGraphInstantiationResult accepted = paste(
+                graph, 6, EntityGraphInstantiationService.ClipboardTargetLayer.SPATIAL_ENABLED);
+        Assert.assertEquals(2, accepted.createdIds().size);
+        int pastedNested = accepted.sourceToCreated().get(2, -1);
+        Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(pastedNested));
+    }
+
+    @Test
+    public void gameObjectHierarchyWithAutonomousFootprintIsRejectedOnOrdinaryLayer() {
+        sceneMeta.nextEntityStableId = 1_000;
+        int root = gameObject(100, -1);
+        int member = gameObject(200, 100);
+        PhysicsShapeData footprint = shape(true);
+        world.getMapper(PhysicsShapesComponent.class).create(member).shapes.add(footprint);
+        world.process();
+        EntityGraph graph = new EntityGraphCaptureService(world)
+                .captureGameObjectClipboard(new IntArray(new int[]{root}));
+
+        Assert.assertFalse(service.isClipboardInstantiationAllowed(
+                graph, EntityGraphInstantiationService.ClipboardTargetLayer.NON_SPATIAL));
+    }
+
     private EntityGraph capture(int... entities) {
         return new EntityGraphCaptureService(world).capture(new IntArray(entities));
     }
@@ -238,6 +286,21 @@ public class ClipboardLayerCompatibilityTest {
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
         height.altitude = 3.5f;
         height.height = 2.25f;
+        return entity;
+    }
+
+    private int gameObject(int stableId, int parentStableId) {
+        int entity = world.create();
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entity);
+        transform.scaleX = 1f;
+        transform.scaleY = 1f;
+        world.getMapper(EntityIndexComponent.class).create(entity);
+        world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;
+        world.getMapper(GameObjectComponent.class).create(entity);
+        if (parentStableId > 0) {
+            world.getMapper(GameObjectMemberComponent.class).create(entity)
+                    .parentStableId = parentStableId;
+        }
         return entity;
     }
 
@@ -294,6 +357,10 @@ public class ClipboardLayerCompatibilityTest {
             }
         }
         return found;
+    }
+
+    private int activeEntityCount() {
+        return world.getAspectSubscriptionManager().get(Aspect.all()).getEntities().size();
     }
 
     private int count(Class<? extends com.artemis.Component> component) {

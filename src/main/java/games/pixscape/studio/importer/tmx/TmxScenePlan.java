@@ -1,11 +1,11 @@
 package games.pixscape.studio.importer.tmx;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 public record TmxScenePlan(String proposedSceneName,
                            String sourceTmxPath,
                            String orientation,
-                           SceneMetaRuntime.TiledProjection tiledProjection,
+                           TiledProjection tiledProjection,
                            int mapWidthCells,
                            int mapHeightCells,
                            int tileWidth,

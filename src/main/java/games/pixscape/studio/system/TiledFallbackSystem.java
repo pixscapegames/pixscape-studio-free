@@ -8,9 +8,9 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
@@ -34,10 +34,10 @@ import games.pixscape.studio.service.tiled.StudioTilesetProfileResolver;
 import java.util.Objects;
 import java.util.function.IntFunction;
 
-@All({LayerComponent.class, TiledLayerComponent.class})
+@All({EntityIndexComponent.class, TiledLayerComponent.class})
 public final class TiledFallbackSystem extends IteratingSystem implements ProfiledSystem {
 
-    private ComponentMapper<LayerComponent> mLayer;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TiledLayerComponent> mTiled;
 
     private final TiledMapRenderState tiledState;
@@ -117,14 +117,15 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
     @Override
     protected void process(int e) {
 
-        LayerComponent layer = mLayer.get(e);
-        if (layer.type != LayerComponent.TYPE_TILED) return;
-
         TiledLayerComponent tiled = mTiled.get(e);
         if (tiled == null || tiled.data == null) return;
 
         TiledMapLayerData map = tiled.data;
         if (tiledState == null) return;
+
+        EntityIndexComponent index = mEntityIndex.get(e);
+        boolean publishMap = map.visible;
+        int fallbackVisibleRefStart = tiledState.getVisibleRefCount();
 
         IntMap.Values<TileChunk> values = map.getChunks();
         while (values.hasNext()) {
@@ -185,7 +186,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                     }
 
                     writeTileSlot(
-                            layer,
+                            index.layerIndex,
                             map,
                             tiledRenderRef,
                             gx,
@@ -200,8 +201,31 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                             visual.u2(),
                             visual.v2()
                     );
+                    chunk.setRenderableLocalIndex(localIndex, true);
+                    chunk.markRenderMetadataDirty();
                 }
             }
+        }
+
+        int fallbackVisibleRefCount = tiledState.getVisibleRefCount()
+                - fallbackVisibleRefStart;
+        if (publishMap && fallbackVisibleRefCount > 0) {
+            long compositionKey = SortKey64.packForBlend(
+                    0,
+                    BlendMode.ALPHA.id,
+                    0,
+                    index.layerIndex,
+                    index.zIndex,
+                    e
+            );
+            tiledState.addVisibleMap(
+                    e,
+                    index.layerIndex,
+                    index.zIndex,
+                    compositionKey,
+                    fallbackVisibleRefStart,
+                    fallbackVisibleRefCount
+            );
         }
     }
 
@@ -248,7 +272,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         return pass;
     }
 
-    void writeTileSlot(LayerComponent layer,
+    void writeTileSlot(int layerIndex,
                        TiledMapLayerData map,
                        int tiledRenderRef,
                        int gx,
@@ -276,7 +300,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
         int z = 0;
         int tie = 0;
 
-        if (map.projection == SceneMetaRuntime.TiledProjection.ISO) {
+        if (map.projection == TiledProjection.ISO) {
             z = clampSortZ(-(gx + gy));
             tie = clampSortTie(gx);
         }
@@ -287,7 +311,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                 shader,
                 blend,
                 textureHandle,
-                layer.layerIndex,
+                layerIndex,
                 z,
                 tie
         );
@@ -301,7 +325,7 @@ public final class TiledFallbackSystem extends IteratingSystem implements Profil
                 textureHandle,
                 shader,
                 blend,
-                layer.layerIndex,
+                layerIndex,
                 0,
                 0,
                 sortKey,

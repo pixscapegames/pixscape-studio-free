@@ -2,10 +2,10 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.service.SelectionService;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -318,22 +318,18 @@ public class SpatialTileSelectionServiceTest {
         selection.updateDrag(4, 2);
         selection.finishDrag();
 
-        Assert.assertEquals(77, selection.getLayerEntityId());
+        Assert.assertEquals(77, selection.getMapEntityId());
         Assert.assertTrue(selection.contains(77, 3, 2));
         Assert.assertFalse(selection.contains(78, 3, 2));
     }
 
     @Test
-    public void selectionClearsWhenLayerChangesOrModeLeavesTile() {
+    public void selectionClearsWhenMapTargetChangesOrModeLeavesTile() {
         SpatialTileSelectionService selection = new SpatialTileSelectionService();
 
         selection.beginDrag(7, 1, 1);
         selection.finishDrag();
-        EventFlow.i().publish(new EventFlow.CurrentLayerChanged(
-                8,
-                SelectionService.SelectionSource.VIEWPORT,
-                0
-        ));
+        EventFlow.i().publish(new EventFlow.TiledMapEditingTargetChanged(8, 0));
         EventFlow.i().flush();
 
         Assert.assertFalse(selection.hasSelection());
@@ -347,11 +343,11 @@ public class SpatialTileSelectionServiceTest {
     }
 
     private static TiledMapLayerData map(int width, int height) {
-        return new TiledMapLayerData(width, height, 16, 16, 8, SceneMetaRuntime.TiledProjection.ORTHO);
+        return new TiledMapLayerData(width, height, 16, 16, 8, TiledProjection.ORTHO);
     }
 
     private static TiledMapLayerData isoMap(int width, int height) {
-        return new TiledMapLayerData(width, height, 256, 128, 8, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(width, height, 256, 128, 8, TiledProjection.ISO);
     }
 
     private static void fillHorizontal(TiledMapLayerData map, int minGx, int gy, int maxGx, int firstTileId) {

@@ -115,8 +115,12 @@ public class RuntimeExportAnimationsTest {
         scene.runtimeAvailability.spriteAssetIds.add(10);
         scene.runtimeAvailability.animationAssetIds.add(11);
         scene.runtimeAvailability.particleEffectPaths.add("impact.p");
-        scene.runtimeAvailability.prefabIds.add("enemy");
+        scene.runtimeAvailability.gameObjectIds.add("gameobjects/enemy.gameobject");
         scene.runtimeAvailability.tiledAnimationIds.add(13);
+        scene.ambientColorR = 0f;
+        scene.ambientColorG = 0f;
+        scene.ambientColorB = 0f;
+        scene.ambientIntensity = 1f;
 
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
@@ -142,17 +146,25 @@ public class RuntimeExportAnimationsTest {
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
         FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve(RuntimeExport.PROJECT_JSON).toFile());
-        JsonValue availability = new JsonReader().parse(out)
+        JsonValue exportedScene = new JsonReader().parse(out)
                 .get("scenes")
-                .get("Main")
-                .get("runtimeAvailability");
+                .get("Main");
+        JsonValue availability = exportedScene.get("runtimeAvailability");
 
         assertEquals(10, availability.get("sprites").get(0).asInt());
         assertEquals(11, availability.get("animations").get(0).asInt());
         assertEquals("impact.p", availability.get("particles").get(0).asString());
-        assertEquals("enemy", availability.get("prefabs").get(0).asString());
+        assertEquals("gameobjects/enemy.gameobject",
+                availability.get("gameObjects").get(0).asString());
+        assertFalse(availability.has("prefabs"));
+        assertFalse(availability.has("prefabIds"));
+        assertFalse(availability.has("runtimePrefabIds"));
         assertEquals(tile.id(), availability.get("tiledTiles").get(0).asInt());
         assertEquals(13, availability.get("tiledAnimations").get(0).asInt());
+        assertFalse(exportedScene.has("mainCameraOffscreen"));
+        assertEquals(0f, exportedScene.getFloat("ambientMulR"), 0.0001f);
+        assertEquals(0f, exportedScene.getFloat("ambientMulG"), 0.0001f);
+        assertEquals(0f, exportedScene.getFloat("ambientMulB"), 0.0001f);
     }
 
     @Test
@@ -365,61 +377,7 @@ public class RuntimeExportAnimationsTest {
     }
 
     @Test
-    public void exportRuntimeSanitizesPrefabFragmentsForRuntime() throws Exception {
-        Path studioDir = Files.createTempDirectory("pixscape-studio-export-prefab-fragment-studio");
-        Path userDir = Files.createTempDirectory("pixscape-studio-export-prefab-fragment-user");
-
-        ProjectConfig cfg = new ProjectConfig();
-        cfg.projectTitle = "Prefab Fragment Export";
-        cfg.projectFileName = "prefab-fragment-export";
-        cfg.exportRootPathDir = userDir.toString();
-        cfg.createSceneMeta("Main");
-
-        Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
-        Files.createDirectories(studioDir.resolve(StudioFs.DIR_PREFABS));
-        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
-        new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
-
-        String fragment = "{" +
-                "\"schemaVersion\":2," +
-                "\"metadata\":{\"version\":1}," +
-                "\"componentIdentifiers\":{" +
-                "\"games.pixscape.studio.component.EntityMetaComponent\":\"EntityMetaComponent\"," +
-                "\"games.pixscape.studio.component.PrefabInstanceComponent\":\"PrefabInstanceComponent\"," +
-                "\"games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent\":\"PhysicsCompiledFixturesComponent\"," +
-                "\"games.pixscape.runtime.component.PixscapeIdentityComponent\":\"PixscapeIdentityComponent\"}," +
-                "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
-                "\"EntityMetaComponent\":{\"kind\":\"SPRITE\"}," +
-                "\"PrefabInstanceComponent\":{\"instanceId\":12,\"prefabId\":\"Car\"}," +
-                "\"PhysicsCompiledFixturesComponent\":{}," +
-                "\"PixscapeIdentityComponent\":{\"stableId\":42,\"name\":\"car\"}}}}," +
-                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"PrefabInstanceComponent\",\"PhysicsCompiledFixturesComponent\",\"PixscapeIdentityComponent\"]}}";
-        Files.writeString(
-                studioDir.resolve(StudioFs.DIR_PREFABS).resolve("car.pixfragment.json"),
-                fragment,
-                StandardCharsets.UTF_8
-        );
-
-        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
-
-        FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME)
-                .resolve("prefabs")
-                .resolve("car.pixfragment.json")
-                .toFile());
-        String exported = out.readString("UTF-8");
-
-        assertTrue(exported.contains("\"schemaVersion\": 2"));
-        assertFalse(exported.contains("games.pixscape.studio"));
-        assertFalse(exported.contains("EntityMetaComponent"));
-        assertFalse(exported.contains("PrefabInstanceComponent"));
-        assertFalse(exported.contains("prefabId"));
-        assertFalse(exported.contains("PhysicsCompiledFixturesComponent"));
-        assertFalse(exported.contains("stableId"));
-        assertTrue(exported.contains("PixscapeIdentityComponent"));
-    }
-
-    @Test
-    public void exportRuntimeStripsStudioOnlyTiledObjectLayerMarkerFromScenes() throws Exception {
+    public void exportRuntimeStripsStudioOnlyAndCompiledComponentsFromScenes() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-tiled-object-metadata-studio");
         Path userDir = Files.createTempDirectory("pixscape-studio-export-tiled-object-metadata-user");
         ProjectConfig cfg = new ProjectConfig();
@@ -431,8 +389,7 @@ public class RuntimeExportAnimationsTest {
         Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
         String scene = "{" +
                 "\"componentIdentifiers\":{" +
-                "\"games.pixscape.studio.component.TiledObjectLayerComponent\":\"TiledObjectLayerComponent\"," +
-                "\"games.pixscape.studio.component.PrefabInstanceComponent\":\"PrefabInstanceComponent\"," +
+                "\"games.pixscape.studio.component.EntityMetaComponent\":\"EntityMetaComponent\"," +
                 "\"games.pixscape.runtime.component.TransformComponent\":\"TransformComponent\"," +
                 "\"games.pixscape.runtime.component.PolygonComponent\":\"PolygonComponent\"," +
                 "\"games.pixscape.runtime.component.PolylineComponent\":\"PolylineComponent\"," +
@@ -441,8 +398,7 @@ public class RuntimeExportAnimationsTest {
                 "\"games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent\":\"PhysicsCompiledFixturesComponent\"," +
                 "\"games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent\":\"SpatialPhysicsFootprintComponent\"}," +
                 "\"entities\":{\"0\":{\"archetype\":1,\"components\":{" +
-                "\"TiledObjectLayerComponent\":{\"imported\":true}," +
-                "\"PrefabInstanceComponent\":{\"instanceId\":22,\"prefabId\":\"Castle\"}," +
+                "\"EntityMetaComponent\":{\"kind\":\"SPRITE\"}," +
                 "\"TransformComponent\":{\"x\":10,\"y\":20}," +
                 "\"PolygonComponent\":{\"vertices\":[0,0,1,0,0,1]}," +
                 "\"PolylineComponent\":{\"vertices\":[0,0,1,1]}," +
@@ -450,7 +406,7 @@ public class RuntimeExportAnimationsTest {
                 "\"PhysicsRuntimeJointComponent\":{}," +
                 "\"PhysicsCompiledFixturesComponent\":{}," +
                 "\"SpatialPhysicsFootprintComponent\":{}}}}," +
-                "\"archetypes\":{\"1\":[\"TiledObjectLayerComponent\",\"PrefabInstanceComponent\",\"TransformComponent\",\"PolygonComponent\",\"PolylineComponent\",\"PhysicsRuntimeBodyComponent\",\"PhysicsRuntimeJointComponent\",\"PhysicsCompiledFixturesComponent\",\"SpatialPhysicsFootprintComponent\"]}}";
+                "\"archetypes\":{\"1\":[\"EntityMetaComponent\",\"TransformComponent\",\"PolygonComponent\",\"PolylineComponent\",\"PhysicsRuntimeBodyComponent\",\"PhysicsRuntimeJointComponent\",\"PhysicsCompiledFixturesComponent\",\"SpatialPhysicsFootprintComponent\"]}}";
         Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), scene,
                 StandardCharsets.UTF_8);
         new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
@@ -459,9 +415,7 @@ public class RuntimeExportAnimationsTest {
 
         String exported = Files.readString(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME)
                 .resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), StandardCharsets.UTF_8);
-        assertFalse(exported.contains("TiledObjectLayerComponent"));
-        assertFalse(exported.contains("PrefabInstanceComponent"));
-        assertFalse(exported.contains("prefabId"));
+        assertFalse(exported.contains("EntityMetaComponent"));
         assertTrue(exported.contains("TransformComponent"));
         assertTrue(exported.contains("PolygonComponent"));
         assertTrue(exported.contains("PolylineComponent"));

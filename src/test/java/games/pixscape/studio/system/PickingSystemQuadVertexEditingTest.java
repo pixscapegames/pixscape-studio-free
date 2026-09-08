@@ -114,7 +114,7 @@ public class PickingSystemQuadVertexEditingTest {
     }
 
     @Test
-    public void displayOffsetIsRemovedBeforeLocalDeformationIsStored() {
+    public void authoredEditorCoordinatesAreStoredWithoutParallaxCompensation() {
         World world = new World(new WorldConfiguration());
         try {
             int entityId = world.create();
@@ -124,7 +124,7 @@ public class PickingSystemQuadVertexEditingTest {
             renderState.offsetY[slot] = 20f;
             StudioDisplayOffsetResolver resolver = new StudioDisplayOffsetResolver(
                     world, renderState, new LayerStateSOA(1), new OrthographicCamera());
-            Vector2 displayedTarget = new Vector2(115f, 47f);
+            Vector2 displayedTarget = new Vector2(15f, 27f);
 
             resolver.subtractFrom(entityId, displayedTarget);
             float[] actual = new float[2];

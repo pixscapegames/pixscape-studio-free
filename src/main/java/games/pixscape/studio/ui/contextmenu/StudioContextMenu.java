@@ -16,10 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.light.ConeLightComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -34,15 +31,13 @@ import games.pixscape.studio.service.ClipboardService;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.entitygraph.EntityGraph;
-import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
-import games.pixscape.studio.service.prefab.PrefabAssetService;
-import games.pixscape.studio.service.prefab.PrefabPreviewWriter;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.ui.layer.AddTiledMapDialog;
 
 public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");
@@ -59,8 +54,6 @@ public final class StudioContextMenu extends InputListener {
 
     private final ComponentMapper<PhysicsBodyComponent> mBody;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
-    private final ComponentMapper<PointLightComponent> mPointLight;
-    private final ComponentMapper<ConeLightComponent> mConeLight;
 
     private final PopupMenu menu = new PopupMenu();
     private final Vector2 lastRightClickWorld = new Vector2();
@@ -68,8 +61,7 @@ public final class StudioContextMenu extends InputListener {
     private SpatialBlockPlacementTarget lastRightClickSpatialTarget = SpatialBlockPlacementTarget.invalid();
     private final EditorOps ops;
 
-    private final EntityGraphCaptureService entityGraphCaptureService;
-    private final PrefabAssetService prefabAssetService;
+    private final GameObjectAssetService gameObjectAssetService;
 
     private final int MY_TAG = EventFlow.tag(this);
 
@@ -87,11 +79,8 @@ public final class StudioContextMenu extends InputListener {
 
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
-        this.mPointLight = world.getMapper(PointLightComponent.class);
-        this.mConeLight = world.getMapper(ConeLightComponent.class);
 
-        this.entityGraphCaptureService = new EntityGraphCaptureService(world);
-        this.prefabAssetService = new PrefabAssetService(world);
+        this.gameObjectAssetService = canvas.getGameObjectAssetService();
     }
 
     @Override
@@ -134,7 +123,8 @@ public final class StudioContextMenu extends InputListener {
         }
         showEditMenu();
         showShapeMenu();
-        showLightsMenu();
+        showAddTiledMapMenu();
+        showAddLightMenu();
         showJointsMenu();
     }
 
@@ -143,7 +133,7 @@ public final class StudioContextMenu extends InputListener {
             return false;
         }
 
-        int layerEntityId = spatialBlockSelectionService.getEditingLayerEntityId();
+        int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         if (layerEntityId < 0) return false;
 
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) {
@@ -225,12 +215,11 @@ public final class StudioContextMenu extends InputListener {
 
         int bodyEid = physicsSelectionService.getFocusedBodyEid();
 
-        // Useful fallback for the static body of a Tiled layer:
-        // if no body is focused yet, use the active layer if it has a body.
+        // Useful fallback for the static body owned by the active Tiled map.
         if (bodyEid < 0) {
-            int activeLayerId = selectionService.getActivelayerId();
-            if (activeLayerId >= 0 && mBody.has(activeLayerId)) {
-                bodyEid = activeLayerId;
+            int activeMapId = selectionService.getTiledMapEditingTargetEntityId();
+            if (activeMapId >= 0 && mBody.has(activeMapId)) {
+                bodyEid = activeMapId;
             }
         }
 
@@ -327,13 +316,13 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showLightsMenu() {
+    private void showAddLightMenu() {
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasJointSelected = selection.size == 1 && mJointBase.has(selection.get(0));
-        boolean isLightLayer = layerService != null
-                && layerService.getLayerTypeByIndex(selectionService.getActiveLayerIndex()) == LayerComponent.TYPE_LIGHT;
+        boolean hasActiveLayer = layerService != null
+                && layerService.isLayerEntity(selectionService.getActivelayerId());
 
-        if (!hasJointSelected && isLightLayer) {
+        if (!hasJointSelected && hasActiveLayer) {
             PopupMenu addLightSub = new PopupMenu();
             MenuItem addPoint = new MenuItem("Point Light");
             addPoint.addListener(new ClickListener() {
@@ -365,20 +354,24 @@ public final class StudioContextMenu extends InputListener {
             menu.addItem(addRoot);
         }
 
-        if (selection.size == 1) {
-            int e = selection.get(0);
-            if (e >= 0 && (mPointLight.has(e) || mConeLight.has(e))) {
-                MenuItem del = new MenuItem("Delete light");
-                del.addListener(new ClickListener() {
-                    @Override
-                    public void clicked(InputEvent event, float x, float y) {
-                        world.delete(e);
-                        selectionService.clearSelection();
-                    }
-                });
-                menu.addItem(del);
+    }
+
+    private void showAddTiledMapMenu() {
+        int layerEntityId = selectionService.getActivelayerId();
+        if (!layerService.isLayerEntity(layerEntityId)) return;
+        MenuItem addMap = new MenuItem("Add Tiled Map");
+        addMap.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                AddTiledMapDialog dialog = new AddTiledMapDialog(request ->
+                        ops.addTiledMap(layerEntityId, request.mapWidth(), request.mapHeight(),
+                                request.projection(), request.tileWidth(), request.tileHeight(),
+                                request.chunkSize()));
+                dialog.show(stage);
+                event.handle();
             }
-        }
+        });
+        menu.addItem(addMap);
     }
 
     private void showJointsMenu() {
@@ -544,12 +537,9 @@ public final class StudioContextMenu extends InputListener {
 
     private void showEditMenu() {
         IntArray selection = selectionService.getSelectionSnapshot();
+        int selectedMap = selectionService.getTiledMapEditingTargetEntityId();
         boolean hasSelection = selection.size > 0;
-
-        boolean isLightLayer = layerService != null
-                && layerService.getLayerTypeByIndex(selectionService.getActiveLayerIndex()) == LayerComponent.TYPE_LIGHT;
-
-        if (isLightLayer) return;
+        boolean hasDeletableTarget = hasSelection || selectedMap >= 0;
 
         boolean canPaste = clipboardService != null && clipboardService.hasContent();
 
@@ -592,24 +582,39 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(paste);
 
-        MenuItem createPrefab = new MenuItem("Create prefab from selection");
-        createPrefab.setDisabled(!hasSelection);
-        createPrefab.addListener(new ClickListener() {
+        GameObjectAssetService.SelectionClassification gameObjectSelection =
+                gameObjectAssetService.classifySelection(selection);
+        MenuItem createGameObject = new MenuItem(gameObjectSelection.actionLabel());
+        createGameObject.setDisabled(!gameObjectSelection.isAvailable());
+        if (!gameObjectSelection.isAvailable() && gameObjectSelection.rejection() != null) {
+            Tooltip tip = new Tooltip.Builder(gameObjectSelection.rejection())
+                    .target(createGameObject)
+                    .build();
+            tip.setAppearDelayTime(0f);
+        }
+        createGameObject.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                showCreatePrefabDialog();
+                if (createGameObject.isDisabled()) {
+                    event.handle();
+                    return;
+                }
+                showGameObjectAssetDialog(gameObjectSelection.mode());
                 event.handle();
             }
         });
-        menu.addItem(createPrefab);
+        menu.addItem(createGameObject);
 
-        MenuItem delete = new MenuItem("Delete");
-        delete.setDisabled(!hasSelection);
+        MenuItem delete = new MenuItem(selectedMap >= 0 ? "Delete Tiled Map" : "Delete");
+        delete.setDisabled(!hasDeletableTarget);
         delete.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                ops.deleteEntities(selectionService.getSelectionSnapshot());
-                selectionService.clearSelection();
+                if (selectedMap >= 0) ops.deleteTiledMap(selectedMap);
+                else {
+                    ops.deleteEntities(selectionService.getSelectionSnapshot());
+                    selectionService.clearSelection();
+                }
                 event.handle();
             }
         });
@@ -620,12 +625,16 @@ public final class StudioContextMenu extends InputListener {
         }
     }
 
-    private void showCreatePrefabDialog() {
-        VisDialog dialog = new StudioDialog("Create Prefab") {
+    private void showGameObjectAssetDialog(GameObjectAssetService.SelectionMode mode) {
+        boolean saveExisting = mode == GameObjectAssetService.SelectionMode.SAVE_EXISTING_GAME_OBJECT;
+        String title = saveExisting ? "Save as Game Object Asset" : "Convert Selection to Game Object";
+        String fieldHint = saveExisting ? "Asset name" : "Game Object name";
+        String submit = saveExisting ? "Save" : "Convert";
+        VisDialog dialog = new StudioDialog(title) {
             private final VisTextField nameField = new VisTextField();
 
             {
-                nameField.setMessageText("Prefab name");
+                nameField.setMessageText(fieldHint);
 
                 getContentTable().defaults().pad(6).left();
                 getContentTable().add(new VisLabel("Name")).left();
@@ -633,7 +642,7 @@ public final class StudioContextMenu extends InputListener {
 
                 getButtonsTable().defaults().pad(8).minWidth(100);
                 button("Cancel", false);
-                button("Create", true);
+                button(submit, true);
             }
 
             @Override
@@ -643,7 +652,7 @@ public final class StudioContextMenu extends InputListener {
                     return;
                 }
 
-                createPrefabFromSelection(nameField.getText());
+                publishGameObjectAsset(mode, nameField.getText());
                 hide();
             }
         };
@@ -652,45 +661,48 @@ public final class StudioContextMenu extends InputListener {
         dialog.show(stage);
     }
 
-    private void createPrefabFromSelection(String rawName) {
-        String name = sanitizePrefabName(rawName);
+    private void publishGameObjectAsset(GameObjectAssetService.SelectionMode requestedMode, String rawName) {
+        boolean saveExisting = requestedMode == GameObjectAssetService.SelectionMode.SAVE_EXISTING_GAME_OBJECT;
+        String title = saveExisting ? "Save as Game Object Asset" : "Convert Selection to Game Object";
+        String noun = saveExisting ? "Asset name" : "Game Object name";
+        String name = sanitizeGameObjectName(rawName);
 
         if (name.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "Prefab name is required.");
+            Dialogs.showOKDialog(stage, title, noun + " is required.");
             return;
         }
 
-        IntArray selection = selectionService.getSelectionSnapshot();
-        if (selection == null || selection.size == 0) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "No entity selected.");
+        GameObjectAssetService.SelectionClassification classification =
+                gameObjectAssetService.classifySelection(selectionService.getSelectionSnapshot());
+        if (classification.mode() != requestedMode) {
+            String message = classification.rejection() != null
+                    ? classification.rejection() : "Selection changed; reopen the action from the current selection.";
+            Dialogs.showOKDialog(stage, title, message);
             return;
         }
 
-        EntityGraph graph = entityGraphCaptureService.capture(selection);
-        if (graph == null || graph.isEmpty()) {
-            Dialogs.showOKDialog(stage, "Create Prefab", "Selection cannot be saved as a prefab.");
-            return;
-        }
-
-        FileHandle prefabFile = StudioFs.requirePrefabFile(ProjectConfig.getInstance(), name);
+        FileHandle gameObjectFile = StudioFs.requireGameObjectFile(ProjectConfig.getInstance(), name);
+        FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(ProjectConfig.getInstance(), name);
 
         try {
-            prefabAssetService.savePrefab(prefabFile, name, graph);
-            PrefabPreviewWriter.writePrefabPreview(
-                    StudioFs.requirePrefabPreviewFile(ProjectConfig.getInstance(), name),
-                    ProjectConfig.getInstance(),
-                    graph
-            );
-            EventFlow.i().publish(new EventFlow.PrefabsChanged(MY_TAG));
-            Gdx.app.log("Prefab", "Created prefab: " + prefabFile.path());
-            Dialogs.showOKDialog(stage, "Create Prefab", "Prefab created:\n" + prefabFile.path());
+            if (saveExisting) {
+                gameObjectAssetService.saveExistingGameObjectAsAsset(
+                        gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
+            } else {
+                gameObjectAssetService.convertSelectionToGameObject(
+                        gameObjectFile, previewFile, "gameobjects/" + gameObjectFile.name());
+            }
+            EventFlow.i().publish(new EventFlow.GameObjectsChanged(MY_TAG));
+            String success = saveExisting ? "Game Object asset saved:\n" : "Game Object created:\n";
+            Gdx.app.log("GameObject", success + gameObjectFile.path());
+            Dialogs.showOKDialog(stage, title, success + gameObjectFile.path());
         } catch (RuntimeException ex) {
-            Gdx.app.error("Prefab", "Failed to create prefab", ex);
-            Dialogs.showOKDialog(stage, "Create Prefab failed", ex.getMessage());
+            Gdx.app.error("GameObject", "Failed to publish Game Object asset", ex);
+            Dialogs.showOKDialog(stage, title + " failed", ex.getMessage());
         }
     }
 
-    private static String sanitizePrefabName(String raw) {
+    private static String sanitizeGameObjectName(String raw) {
         if (raw == null) return "";
 
         String value = raw.trim().toLowerCase();

@@ -6,6 +6,8 @@ import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.LongArray;
 import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -52,6 +54,14 @@ public final class DeleteEntitiesCommand implements Command {
         this.onRestoredEntity = onRestoredEntity;
 
         var em = world.getEntityManager();
+        for (int i = 0; i < entityIdsToDelete.size; i++) {
+            int entityId = entityIdsToDelete.get(i);
+            if (world.getMapper(GameObjectComponent.class).has(entityId)
+                    || world.getMapper(GameObjectMemberComponent.class).has(entityId)) {
+                throw new IllegalArgumentException(
+                        "Game Object hierarchy requires a hierarchy-aware delete command.");
+            }
+        }
 
         IntArray expanded = expandWithDependentJoints(entityIdsToDelete);
         var mJoint = world.getMapper(PhysicsJointComponent.class);

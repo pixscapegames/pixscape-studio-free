@@ -7,6 +7,7 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.configuration.SceneRuntimeAvailabilityData;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,8 +26,8 @@ public final class RuntimeAvailabilityService {
         return scene.runtimeAvailability;
     }
 
-    public List<String> listPrefabIds(SceneMeta scene) {
-        return Collections.unmodifiableList(data(scene).prefabIds);
+    public List<String> listGameObjectIds(SceneMeta scene) {
+        return Collections.unmodifiableList(data(scene).gameObjectIds);
     }
 
     public List<Integer> listSpriteAssetIds(SceneMeta scene) {
@@ -49,11 +50,11 @@ public final class RuntimeAvailabilityService {
         return Collections.unmodifiableList(data(scene).tiledTileAssetIds);
     }
 
-    public boolean addPrefab(SceneMeta scene, String prefabId) {
-        String normalized = normalizePrefabId(prefabId);
+    public boolean addGameObject(SceneMeta scene, String gameObjectId) {
+        String normalized = normalizeGameObjectId(gameObjectId);
         if (normalized == null) return false;
 
-        ArrayList<String> list = data(scene).prefabIds;
+        ArrayList<String> list = data(scene).gameObjectIds;
         if (list.contains(normalized)) return false;
         list.add(normalized);
         list.sort(String::compareToIgnoreCase);
@@ -92,9 +93,9 @@ public final class RuntimeAvailabilityService {
         return normalized != null && data(scene).particleEffectPaths.remove(normalized);
     }
 
-    public boolean removePrefab(SceneMeta scene, String prefabId) {
-        String normalized = normalizePrefabId(prefabId);
-        return normalized != null && data(scene).prefabIds.remove(normalized);
+    public boolean removeGameObject(SceneMeta scene, String gameObjectId) {
+        String normalized = normalizeGameObjectId(gameObjectId);
+        return normalized != null && data(scene).gameObjectIds.remove(normalized);
     }
 
     public boolean addTiledAnimation(SceneMeta scene, int tileAnimationId) {
@@ -165,9 +166,9 @@ public final class RuntimeAvailabilityService {
         return normalized;
     }
 
-    public boolean containsPrefab(SceneMeta scene, String prefabId) {
-        String normalized = normalizePrefabId(prefabId);
-        return normalized != null && data(scene).prefabIds.contains(normalized);
+    public boolean containsGameObject(SceneMeta scene, String gameObjectId) {
+        String normalized = normalizeGameObjectId(gameObjectId);
+        return normalized != null && data(scene).gameObjectIds.contains(normalized);
     }
 
     public boolean containsSprite(SceneMeta scene, int assetId) {
@@ -198,10 +199,10 @@ public final class RuntimeAvailabilityService {
         return value > 0 && list != null && list.remove(Integer.valueOf(value));
     }
 
-    private static String normalizePrefabId(String prefabId) {
-        if (prefabId == null) return null;
-        String normalized = prefabId.trim();
-        return normalized.isEmpty() ? null : normalized;
+    private static String normalizeGameObjectId(String gameObjectId) {
+        if (gameObjectId == null) return null;
+        if (gameObjectId.trim().isEmpty()) return null;
+        return GameObjectAssetId.normalize(gameObjectId);
     }
 
     private static String normalizeParticleEffectPath(String effectPath) {
@@ -214,7 +215,7 @@ public final class RuntimeAvailabilityService {
         if (data.spriteAssetIds == null) data.spriteAssetIds = new ArrayList<>();
         if (data.animationAssetIds == null) data.animationAssetIds = new ArrayList<>();
         if (data.particleEffectPaths == null) data.particleEffectPaths = new ArrayList<>();
-        if (data.prefabIds == null) data.prefabIds = new ArrayList<>();
+        if (data.gameObjectIds == null) data.gameObjectIds = new ArrayList<>();
         if (data.tiledTileAssetIds == null) data.tiledTileAssetIds = new ArrayList<>();
         if (data.tiledAnimationIds == null) data.tiledAnimationIds = new ArrayList<>();
     }

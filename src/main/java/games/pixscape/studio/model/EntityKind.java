@@ -6,6 +6,7 @@ public enum EntityKind {
     ANIMATION,
     LAYER,
     TILED_MAP,
+    GAME_OBJECT,
     CAMERA,
     POINT_LIGHT,
     CONE_LIGHT,

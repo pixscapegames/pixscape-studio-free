@@ -13,6 +13,39 @@ import static org.junit.Assert.*;
 public class ProjectConfigProjectIOValidationTest {
 
     @Test
+    public void sceneMetaDeclaresNoTiledMapCreationDefaults() {
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tiledProjection"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tileWidth"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("tileHeight"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("chunkSize"));
+    }
+
+    @Test
+    public void sceneMetaDeclaresNoTransientEditorState() {
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("editorMode"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("showPhysicsFixtures"));
+        assertThrows(NoSuchFieldException.class,
+                () -> SceneMeta.class.getDeclaredField("showPhysicsJoints"));
+    }
+
+    @Test
+    public void uniqueSceneNameUsesEstablishedNumberedSuffixes() {
+        ProjectConfig cfg = new ProjectConfig();
+
+        assertEquals("New Scene", cfg.uniqueSceneName("New Scene"));
+        cfg.createSceneMeta("New Scene");
+        assertEquals("New Scene 2", cfg.uniqueSceneName("New Scene"));
+        cfg.createSceneMeta("New Scene 2");
+        assertEquals("New Scene 3", cfg.uniqueSceneName("New Scene"));
+    }
+
+    @Test
     public void loadProject_validProject_loadsSuccessfully() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
@@ -63,20 +96,20 @@ public class ProjectConfigProjectIOValidationTest {
     }
 
     @Test
-    public void sceneSchemaVersionTwoIsAcceptedByStudioProjectIO() throws Exception {
+    public void sceneSchemaVersionThreeIsAcceptedByStudioProjectIO() throws Exception {
         Path dir = Files.createTempDirectory("project-config-valid-kind");
         FileHandle projectFile = writeProjectFile(dir, validProjectJson("Main", "scene1.json"));
 
         ProjectConfig cfg = ProjectConfig.ProjectIO.loadProject(projectFile);
         assertEquals(ProjectConfig.STUDIO_PROJECT_KIND, cfg.projectKind);
-        assertEquals(2, cfg.getCurrentSceneMeta().sceneSchemaVersion);
+        assertEquals(3, cfg.getCurrentSceneMeta().sceneSchemaVersion);
     }
 
     @Test(expected = RuntimeException.class)
     public void missingSceneSchemaVersionIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-missing-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":2,", "");
+                .replace("\"sceneSchemaVersion\":3,", "");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -84,7 +117,7 @@ public class ProjectConfigProjectIOValidationTest {
     public void sceneSchemaVersionZeroIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-zero-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":2", "\"sceneSchemaVersion\":0");
+                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":0");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -92,7 +125,15 @@ public class ProjectConfigProjectIOValidationTest {
     public void sceneSchemaVersionOneIsRejected() throws Exception {
         Path dir = Files.createTempDirectory("project-config-future-scene-schema");
         String json = validProjectJson("Main", "scene1.json")
-                .replace("\"sceneSchemaVersion\":2", "\"sceneSchemaVersion\":1");
+                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":1");
+        ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void sceneSchemaVersionTwoIsRejected() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-old-scene-schema");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"sceneSchemaVersion\":3", "\"sceneSchemaVersion\":2");
         ProjectConfig.ProjectIO.loadProject(writeProjectFile(dir, json));
     }
 
@@ -229,11 +270,98 @@ public class ProjectConfigProjectIOValidationTest {
         SceneMeta reloadedMain = reloaded.getCurrentSceneMeta();
 
         assertNotNull(reloadedMain);
-        assertEquals(2, reloadedMain.sceneSchemaVersion);
+        assertEquals(3, reloadedMain.sceneSchemaVersion);
         assertTrue(reloadedMain.physicsEnabled);
         assertEquals(0.75f, reloadedMain.gravityX, 0.0001f);
         assertEquals(-15.25f, reloadedMain.gravityY, 0.0001f);
         assertEquals(128f, reloadedMain.pixelsPerMeter, 0.0001f);
+    }
+
+    @Test
+    public void saveProject_sceneMetadataContainsNoTiledMapCreationDefaults() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-no-tiled-map-defaults");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Map Defaults";
+        cfg.projectFileName = "map-defaults";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.previewTarget = PreviewTarget.DESKTOP;
+        cfg.glSamples = 0;
+        cfg.createSceneMeta("Main");
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        String saved = projectFile.readString("UTF-8");
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+        SceneMeta restored = loaded.getCurrentSceneMeta();
+
+        assertNotNull(restored);
+        assertFalse(saved.contains("tiledEnabled"));
+        assertFalse(saved.contains("tiledProjection"));
+        assertFalse(saved.contains("tileWidth"));
+        assertFalse(saved.contains("tileHeight"));
+        assertFalse(saved.contains("chunkSize"));
+    }
+
+    @Test
+    public void loadProject_ignoresIntermediateSchema3TiledEnabledField() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-stale-tiled-enabled");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"name\":\"Main\"", "\"tiledEnabled\":true,\"name\":\"Main\"");
+        FileHandle projectFile = writeProjectFile(dir, json);
+
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+
+        assertNotNull(loaded.getCurrentSceneMeta());
+        ProjectConfig.ProjectIO.saveProject(loaded, projectFile);
+        assertFalse(projectFile.readString("UTF-8").contains("tiledEnabled"));
+    }
+
+    @Test
+    public void loadProject_ignoresAndDropsRemovedSceneMetadata() throws Exception {
+        Path dir = Files.createTempDirectory("project-config-removed-scene-metadata");
+        String json = validProjectJson("Main", "scene1.json")
+                .replace("\"name\":\"Main\"",
+                        "\"editorMode\":\"TILE\"," +
+                        "\"showPhysicsFixtures\":true," +
+                        "\"showPhysicsJoints\":true," +
+                        "\"mainCameraOffscreen\":true," +
+                        "\"name\":\"Main\"");
+        FileHandle projectFile = writeProjectFile(dir, json);
+
+        ProjectConfig loaded = ProjectConfig.ProjectIO.loadProject(projectFile);
+        ProjectConfig.ProjectIO.saveProject(loaded, projectFile);
+        String saved = projectFile.readString("UTF-8");
+
+        assertFalse(saved.contains("editorMode"));
+        assertFalse(saved.contains("showPhysicsFixtures"));
+        assertFalse(saved.contains("showPhysicsJoints"));
+        assertFalse(saved.contains("mainCameraOffscreen"));
+    }
+
+    @Test
+    public void saveProject_fullIntensityBlackAmbientRoundTripsWithoutBeingDefaulted() throws Exception {
+        SceneMeta restored = roundTripAmbient(0f, 0f, 0f, 1f);
+
+        assertEquals(0f, restored.ambientColorR, 0.0001f);
+        assertEquals(0f, restored.ambientColorG, 0.0001f);
+        assertEquals(0f, restored.ambientColorB, 0.0001f);
+        assertEquals(1f, restored.ambientIntensity, 0.0001f);
+        assertEquals(0f, restored.ambientMulR, 0.0001f);
+        assertEquals(0f, restored.ambientMulG, 0.0001f);
+        assertEquals(0f, restored.ambientMulB, 0.0001f);
+    }
+
+    @Test
+    public void saveProject_ambientMultipliersAreDerivedFromAuthoredValues() throws Exception {
+        SceneMeta restored = roundTripAmbient(0.2f, 0.4f, 0.6f, 0.5f);
+
+        assertEquals(0.2f, restored.ambientColorR, 0.0001f);
+        assertEquals(0.4f, restored.ambientColorG, 0.0001f);
+        assertEquals(0.6f, restored.ambientColorB, 0.0001f);
+        assertEquals(0.5f, restored.ambientIntensity, 0.0001f);
+        assertEquals(0.6f, restored.ambientMulR, 0.0001f);
+        assertEquals(0.7f, restored.ambientMulG, 0.0001f);
+        assertEquals(0.8f, restored.ambientMulB, 0.0001f);
     }
 
     @Test
@@ -309,7 +437,7 @@ public class ProjectConfigProjectIOValidationTest {
         main.runtimeAvailability.spriteAssetIds.add(11);
         main.runtimeAvailability.animationAssetIds.add(12);
         main.runtimeAvailability.particleEffectPaths.add("impact.p");
-        main.runtimeAvailability.prefabIds.add("enemy_slime");
+        main.runtimeAvailability.gameObjectIds.add("enemy_slime");
         main.runtimeAvailability.tiledTileAssetIds.add(6);
         main.runtimeAvailability.tiledAnimationIds.add(7);
 
@@ -322,7 +450,7 @@ public class ProjectConfigProjectIOValidationTest {
         assertEquals(Integer.valueOf(11), reloadedMain.runtimeAvailability.spriteAssetIds.get(0));
         assertEquals(Integer.valueOf(12), reloadedMain.runtimeAvailability.animationAssetIds.get(0));
         assertEquals("impact.p", reloadedMain.runtimeAvailability.particleEffectPaths.get(0));
-        assertEquals("enemy_slime", reloadedMain.runtimeAvailability.prefabIds.get(0));
+        assertEquals("enemy_slime", reloadedMain.runtimeAvailability.gameObjectIds.get(0));
         assertEquals(Integer.valueOf(6), reloadedMain.runtimeAvailability.tiledTileAssetIds.get(0));
         assertEquals(Integer.valueOf(7), reloadedMain.runtimeAvailability.tiledAnimationIds.get(0));
     }
@@ -339,7 +467,7 @@ public class ProjectConfigProjectIOValidationTest {
         assertTrue(scene.runtimeAvailability.spriteAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.animationAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.particleEffectPaths.isEmpty());
-        assertTrue(scene.runtimeAvailability.prefabIds.isEmpty());
+        assertTrue(scene.runtimeAvailability.gameObjectIds.isEmpty());
         assertTrue(scene.runtimeAvailability.tiledTileAssetIds.isEmpty());
         assertTrue(scene.runtimeAvailability.tiledAnimationIds.isEmpty());
     }
@@ -347,6 +475,28 @@ public class ProjectConfigProjectIOValidationTest {
     private static FileHandle writeProjectFile(Path dir, String json) throws Exception {
         Files.writeString(dir.resolve("project.json"), json, StandardCharsets.UTF_8);
         return new FileHandle(dir.resolve("project.json").toFile());
+    }
+
+    private static SceneMeta roundTripAmbient(
+            float red, float green, float blue, float intensity) throws Exception {
+        Path dir = Files.createTempDirectory("project-config-ambient-round-trip");
+        FileHandle projectFile = new FileHandle(dir.resolve("project.json").toFile());
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Ambient";
+        cfg.projectFileName = "ambient";
+        cfg.exportRootPathDir = "/tmp/export";
+        cfg.createSceneMeta("Main");
+        SceneMeta scene = cfg.getCurrentSceneMeta();
+        scene.ambientColorR = red;
+        scene.ambientColorG = green;
+        scene.ambientColorB = blue;
+        scene.ambientIntensity = intensity;
+        scene.ambientMulR = 1f;
+        scene.ambientMulG = 1f;
+        scene.ambientMulB = 1f;
+
+        ProjectConfig.ProjectIO.saveProject(cfg, projectFile);
+        return ProjectConfig.ProjectIO.loadProject(projectFile).getCurrentSceneMeta();
     }
 
     private static String validProjectJson(String currentSceneName, String currentSceneFile) {
@@ -362,7 +512,7 @@ public class ProjectConfigProjectIOValidationTest {
                 "\"nextSceneIndex\":2," +
                 "\"scenes\":{" +
                 "\"Main\":{" +
-                "\"sceneSchemaVersion\":2," +
+                "\"sceneSchemaVersion\":3," +
                 "\"name\":\"Main\"," +
                 "\"file\":\"" + currentSceneFile + "\"," +
                 "\"nextEntityStableId\":1," +

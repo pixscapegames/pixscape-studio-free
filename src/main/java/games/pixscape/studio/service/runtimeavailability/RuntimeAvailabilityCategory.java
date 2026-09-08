@@ -4,7 +4,7 @@ public enum RuntimeAvailabilityCategory {
     SPRITES,
     ANIMATIONS,
     PARTICLES,
-    PREFABS,
+    GAME_OBJECTS,
     TILED_TILES,
     TILED_ANIMATIONS
 }

@@ -7,6 +7,7 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.glutils.HdpiUtils;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -18,6 +19,7 @@ import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.debug.StudioFrameProfiler;
+import games.pixscape.studio.display.DisplayMetrics;
 import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.ui.StudioStage;
 
@@ -47,6 +49,8 @@ public final class PreviewWindow extends ApplicationAdapter {
     private OrthographicCamera worldCamera;
     private PhysicsMouseDragSystem dragSystem;
     private boolean benchMode = false;
+    private final DisplayMetrics displayMetrics = new DisplayMetrics();
+    private boolean displayMetricsInitialized;
     private final FrameTimePercentiles frameTimes = new FrameTimePercentiles(600);
     private static final long FRAME_STATS_REFRESH_NS = 250_000_000L; // 250ms
     private static final boolean PREVIEW_VSYNC_NORMAL = true;
@@ -71,6 +75,7 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void create() {
+        refreshDisplayMetrics();
         loadingUi = new PreviewLoadingUi();
         startupState = StartupState.FIRST_FRAME;
         loadingProgress = 0f;
@@ -149,6 +154,7 @@ public final class PreviewWindow extends ApplicationAdapter {
         Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        HdpiUtils.glViewport(0, 0, displayMetrics.logicalWidth(), displayMetrics.logicalHeight());
         engine.update(dt);
         engine.render();
 
@@ -224,9 +230,38 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void resize(int width, int height) {
+        refreshDisplayMetrics();
         if (loadingUi != null) loadingUi.resize(width, height);
         if (engine != null) engine.resize(width, height);
         if (uiStage != null) uiStage.getViewport().update(width, height, true);
+    }
+
+    private void refreshDisplayMetrics() {
+        float previousScaleX = displayMetrics.scaleX();
+        float previousScaleY = displayMetrics.scaleY();
+        displayMetrics.update(
+                Gdx.graphics.getWidth(),
+                Gdx.graphics.getHeight(),
+                Gdx.graphics.getBackBufferWidth(),
+                Gdx.graphics.getBackBufferHeight()
+        );
+
+        boolean scaleChanged = Math.abs(displayMetrics.scaleX() - previousScaleX) > 0.0001f
+                || Math.abs(displayMetrics.scaleY() - previousScaleY) > 0.0001f;
+        if (!displayMetricsInitialized || scaleChanged) {
+            displayMetricsInitialized = true;
+            Gdx.app.log("PreviewDisplay", String.format(
+                    java.util.Locale.ROOT,
+                    "logical=%dx%d framebuffer=%dx%d scale=%.2fx%.2f HiDPI=%s",
+                    displayMetrics.logicalWidth(),
+                    displayMetrics.logicalHeight(),
+                    displayMetrics.framebufferWidth(),
+                    displayMetrics.framebufferHeight(),
+                    displayMetrics.scaleX(),
+                    displayMetrics.scaleY(),
+                    displayMetrics.isHiDpi() ? "yes" : "no"
+            ));
+        }
     }
 
     @Override

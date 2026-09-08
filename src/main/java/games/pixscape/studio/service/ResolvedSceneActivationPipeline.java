@@ -13,8 +13,8 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.TileChunk;
-import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -77,7 +77,6 @@ final class ResolvedSceneActivationPipeline {
         SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(
                 world,
-                target.meta(),
                 tileAnimationLookup,
                 tiledAllocatorService,
                 target.projectTitle(),
@@ -96,13 +95,13 @@ final class ResolvedSceneActivationPipeline {
     }
 
     static void resolveTiledLayersForActivation(World world,
-                                                SceneMeta meta,
                                                 TileAnimationLookup lookup,
                                                 TiledAllocatorService allocator,
                                                 String projectTitle,
                                                 String sceneName) {
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
-        ComponentMapper<LayerComponent> mLayer = world.getMapper(LayerComponent.class);
+        TiledMapOwnership.validateWorld(world);
+        ComponentMapper<EntityIndexComponent> mEntityIndex = world.getMapper(EntityIndexComponent.class);
         ComponentMapper<PhysicsBodyComponent> mBody =
                 world.getMapper(PhysicsBodyComponent.class);
         ComponentMapper<PhysicsShapesComponent> mShapes =
@@ -115,15 +114,15 @@ final class ResolvedSceneActivationPipeline {
 
         int[] dataArr = bag.getData();
 
-        if (meta == null) {
-            throw new SceneService.TiledMapResolutionException(
-                    "Cannot resolve tiled maps: scene metadata is missing.");
-        }
-
         for (int i = 0; i < bag.size(); i++) {
             int e = dataArr[i];
             TiledLayerComponent tiled = mTiled.get(e);
             if (tiled == null) continue;
+            EntityIndexComponent index = mEntityIndex.getSafe(e, null);
+            if (index == null) {
+                throw unresolvedTiledMap(projectTitle, sceneName, e,
+                        "the Tiled map has no EntityIndexComponent");
+            }
             PhysicsBodyComponent body = mBody.getSafe(e, null);
             if (body != null) body.type = PhysicsBodyComponent.STATIC;
             PhysicsShapesComponent shapes = mShapes.getSafe(e, null);
@@ -132,29 +131,14 @@ final class ResolvedSceneActivationPipeline {
                 mTransform.create(e);
             }
 
-            if (tiled.mapWidthCells <= 0 || tiled.mapHeightCells <= 0
-                    || meta.tileWidth <= 0 || meta.tileHeight <= 0 || meta.chunkSize <= 0
-                    || meta.tiledProjection == null) {
+            try {
+                tiled.validateMapConfiguration();
+            } catch (IllegalArgumentException ex) {
                 throw unresolvedTiledMap(projectTitle, sceneName, e,
-                        "the serialized tiled layer or scene map metadata is incomplete");
+                        "the serialized Tiled map configuration is incomplete");
             }
 
-            tiled.data = new TiledMapLayerData(
-                    tiled.mapWidthCells,
-                    tiled.mapHeightCells,
-                    (int) meta.tileWidth,
-                    (int) meta.tileHeight,
-                    meta.chunkSize,
-                    meta.tiledProjection
-            );
-
-            tiled.data.originX = tiled.originX;
-            tiled.data.originY = tiled.originY;
-            LayerComponent layer = mLayer.getSafe(e, null);
-            tiled.spatialEnabled = (layer != null && layer.spatialEnabled) || tiled.spatialEnabled;
-            tiled.data.spatialEnabled = tiled.spatialEnabled;
-            tiled.data.defaultTileAltitude = tiled.defaultTileAltitude;
-            tiled.data.defaultTileHeight = tiled.defaultTileHeight;
+            tiled.data = tiled.createMapData();
 
             if (allocator != null) {
                 allocator.allocateLayer(tiled);

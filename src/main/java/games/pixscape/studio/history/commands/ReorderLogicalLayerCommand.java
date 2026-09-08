@@ -45,7 +45,7 @@ public final class ReorderLogicalLayerCommand
         prepareIfNeeded();
     }
 
-    /** Deferred form used after prefab creation inside the same composite history operation. */
+    /** Deferred form used after multi-entity creation inside one composite history operation. */
     public static ReorderLogicalLayerCommand normalizeAfterCreation(
             World world,
             HistoryIdRegistry historyIds,

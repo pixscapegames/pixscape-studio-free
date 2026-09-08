@@ -2,13 +2,13 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
-import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 
 /**
  * History command for creating a physics joint with stable identity through HistoryIdRegistry.
@@ -135,15 +135,15 @@ public final class CreateJointCommand implements Command {
     private int createDefaultPulleyJoint(int aEntityId, int bEntityId) {
         if (aEntityId < 0 || bEntityId < 0 || aEntityId == bEntityId) return -1;
 
-        var mT = world.getMapper(TransformComponent.class);
-        TransformComponent ta = mT.getSafe(aEntityId, null);
-        TransformComponent tb = mT.getSafe(bEntityId, null);
-        if (ta == null || tb == null) return -1;
+        ResolvedPhysicsPose poses = new ResolvedPhysicsPose(world);
+        ResolvedPhysicsPose.Pose poseA = new ResolvedPhysicsPose.Pose();
+        ResolvedPhysicsPose.Pose poseB = new ResolvedPhysicsPose.Pose();
+        if (!poses.resolve(aEntityId, poseA) || !poses.resolve(bEntityId, poseB)) return -1;
 
-        float anchorAWuX = ta.x;
-        float anchorAWuY = ta.y;
-        float anchorBWuX = tb.x;
-        float anchorBWuY = tb.y;
+        float anchorAWuX = poseA.x;
+        float anchorAWuY = poseA.y;
+        float anchorBWuX = poseB.x;
+        float anchorBWuY = poseB.y;
 
         float span = Math.abs(anchorBWuX - anchorAWuX);
         float supportOffsetY = Math.max(120f, span * 0.20f);

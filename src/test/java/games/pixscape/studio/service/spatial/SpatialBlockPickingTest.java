@@ -2,6 +2,7 @@ package games.pixscape.studio.service.spatial;
 
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import org.junit.Assert;
@@ -66,6 +67,6 @@ public class SpatialBlockPickingTest {
     }
 
     private static TiledMapLayerData map() {
-        return new TiledMapLayerData(8, 8, 100, 50, 4, SceneMetaRuntime.TiledProjection.ISO);
+        return new TiledMapLayerData(8, 8, 100, 50, 4, TiledProjection.ISO);
     }
 }

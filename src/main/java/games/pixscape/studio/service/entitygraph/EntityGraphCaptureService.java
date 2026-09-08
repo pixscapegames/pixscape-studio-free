@@ -1,38 +1,349 @@
 package games.pixscape.studio.service.entitygraph;
 
 import com.artemis.ComponentMapper;
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntSet;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntIntMap;
+import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.CustomPropertiesComponent;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.service.ClipboardPhysicsJointGraph;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public final class EntityGraphCaptureService {
     private final World world;
     private final ComponentMapper<TransformComponent> mTransform;
     private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<PointLightComponent> mPointLight;
-    private final ComponentMapper<ConeLightComponent> mConeLight;
     private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private final ComponentMapper<PhysicsShapesComponent> mPhysicsShapes;
+    private final ComponentMapper<TiledLayerComponent> mTiled;
+    private final ComponentMapper<GameObjectComponent> mGameObject;
+    private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
+    private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
 
     public EntityGraphCaptureService(World world) {
         this.world = world;
         this.mTransform = world.getMapper(TransformComponent.class);
         this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mPointLight = world.getMapper(PointLightComponent.class);
-        this.mConeLight = world.getMapper(ConeLightComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
+        this.mPhysicsShapes = world.getMapper(PhysicsShapesComponent.class);
+        this.mTiled = world.getMapper(TiledLayerComponent.class);
+        this.mGameObject = world.getMapper(GameObjectComponent.class);
+        this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
+        this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
     }
 
     public EntityGraph capture(IntArray selection) {
-        IntArray supported = collectSupportedSelection(selection);
+        IntArray normalized = new ClipboardSelectionNormalizer(world).normalize(selection);
+        return captureNormalizedClipboard(normalized);
+    }
+
+    /** Captures one complete real Game Object hierarchy for asset publication. */
+    public EntityGraph captureForGameObject(IntArray selection) {
+        IntArray hierarchy = collectGameObjectHierarchy(selection);
+        if (hierarchy.size == 0) return EntityGraph.empty();
+        List<EntityGraphEntry> entries = new ArrayList<>(hierarchy.size);
+        for (int i = 0; i < hierarchy.size; i++) {
+            int entityId = hierarchy.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(entityId);
+            entries.add(new EntityGraphEntry(entityId, initializer));
+        }
+        return new EntityGraph(entries);
+    }
+
+    /** Captures a V1 clipboard selection with graph-local hierarchy ownership. */
+    public EntityGraph captureGameObjectClipboard(IntArray selection) {
+        IntArray roots = new ClipboardSelectionNormalizer(world).normalize(selection);
+        return captureNormalizedClipboard(roots);
+    }
+
+    /** Captures already-normalized V1 clipboard roots without changing Scene state. */
+    public EntityGraph captureNormalizedClipboard(IntArray roots) {
+        if (roots.size == 0) return EntityGraph.empty();
+        if (!containsGameObjectRoot(roots)) {
+            return captureSupportedSelection(collectSupportedSelection(roots));
+        }
+        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        IntArray entities = new IntArray(false, captureRoots.size);
+        IntArray parents = new IntArray(false, captureRoots.size);
+        IntSet knownStableIds = new IntSet();
+        IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
+        for (int i = 0; i < captureRoots.size; i++) {
+            if (!mGameObject.has(captureRoots.get(i)) && !isCaptureSupported(captureRoots.get(i))) {
+                throw new IllegalArgumentException(
+                        "Clipboard selection contains an unsupported standalone entity.");
+            }
+            collectClipboardSubtree(captureRoots.get(i), -1, entities, parents, knownStableIds,
+                    childrenByParentStableId);
+        }
+        IntArray internalJoints = requireSupportedGameObjectHierarchyPhysics(entities);
+        IntMap<Integer> stableToSource = new IntMap<>();
+        for (int i = 0; i < entities.size; i++) stableToSource.put(mIdentity.get(entities.get(i)).stableId, i + 1);
+        List<EntityGraphEntry> entries = new ArrayList<>(entities.size);
+        for (int i = 0; i < entities.size; i++) {
+            int entityId = entities.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(entityId);
+            if (parents.get(i) == -1 && mGameObjectMember.has(entityId)) normalizeNestedRootToWorldPose(entityId, initializer);
+            CustomPropertiesComponent properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
+            GameObjectComponent gameObject = mGameObject.getSafe(entityId, null);
+            entries.add(new EntityGraphEntry(
+                    i + 1,
+                    parents.get(i),
+                    gameObject != null,
+                    gameObject != null ? gameObject.sourceAssetId : "",
+                    initializer,
+                    ClipboardPropertyReferenceNormalizer.normalize(properties != null ? properties.properties : null, stableToSource)));
+        }
+        appendClipboardJoints(entries, entities, internalJoints);
+        return new EntityGraph(entries);
+    }
+
+    /**
+     * Returns the complete authored closure represented by a normalized clipboard
+     * capture. Cut must delete this closure as well: internal joint entities do not
+     * belong to the Game Object hierarchy, so deleting only the selected roots would
+     * otherwise leave dangling scene joints behind.
+     */
+    public IntArray captureNormalizedClipboardCutEntities(IntArray roots) {
+        if (roots == null || roots.size == 0) return new IntArray(false, 0);
+        // Standalone clipboard has its own permissive identity contract.  Do not route
+        // it through hierarchy collection, which correctly requires stable identities
+        // for Game Object ownership but would reject ordinary standalone entities.
+        if (!containsGameObjectRoot(roots)) return augmentStandalonePhysicsRoots(roots);
+        IntArray captureRoots = augmentStandalonePhysicsRoots(roots);
+        IntArray entities = new IntArray(false, captureRoots.size);
+        IntArray parents = new IntArray(false, captureRoots.size);
+        IntSet knownStableIds = new IntSet();
+        IntMap<IntArray> childrenByParentStableId = collectChildrenByParentStableId();
+        for (int i = 0; i < captureRoots.size; i++) {
+            int entityId = captureRoots.get(i);
+            if (!mGameObject.has(entityId) && !isCaptureSupported(entityId)) {
+                throw new IllegalArgumentException(
+                        "Clipboard selection contains an unsupported standalone entity.");
+            }
+            collectClipboardSubtree(entityId, -1, entities, parents, knownStableIds,
+                    childrenByParentStableId);
+        }
+        IntArray internalJoints = requireSupportedGameObjectHierarchyPhysics(entities);
+        IntSet includedEntities = new IntSet(entities.size + internalJoints.size);
+        for (int i = 0; i < entities.size; i++) includedEntities.add(entities.get(i));
+        for (int i = 0; i < internalJoints.size; i++) {
+            int jointEntityId = internalJoints.get(i);
+            if (includedEntities.add(jointEntityId)) entities.add(jointEntityId);
+        }
+        return entities;
+    }
+
+    /**
+     * Preserves ordinary clipboard joint augmentation for standalone roots in a mixed
+     * selection. Game Object roots and their descendants are deliberately excluded:
+     * Physics remains a standalone clipboard domain in V1.
+     */
+    private IntArray augmentStandalonePhysicsRoots(IntArray roots) {
+        IntArray standaloneRoots = new IntArray(false, roots.size);
+        for (int i = 0; i < roots.size; i++) {
+            int entityId = roots.get(i);
+            if (!mGameObject.has(entityId)) standaloneRoots.add(entityId);
+        }
+        IntArray augmentedStandalone = ClipboardPhysicsJointGraph.filterCopyableSelection(
+                world, standaloneRoots);
+        IntSet included = new IntSet();
+        IntArray result = new IntArray(false, roots.size + augmentedStandalone.size);
+        for (int i = 0; i < roots.size; i++) {
+            int entityId = roots.get(i);
+            if (included.add(entityId)) result.add(entityId);
+        }
+        for (int i = 0; i < augmentedStandalone.size; i++) {
+            int entityId = augmentedStandalone.get(i);
+            if (included.add(entityId)) result.add(entityId);
+        }
+        return result;
+    }
+
+    private boolean containsGameObjectRoot(IntArray roots) {
+        for (int i = 0; i < roots.size; i++) {
+            if (mGameObject.has(roots.get(i))) return true;
+        }
+        return false;
+    }
+
+    /** P4 captures internal joints but rejects any Body dependency that escapes the hierarchy closure. */
+    private IntArray requireSupportedGameObjectHierarchyPhysics(IntArray capturedEntities) {
+        IntSet hierarchyEntities = new IntSet(capturedEntities.size);
+        for (int i = 0; i < capturedEntities.size; i++) {
+            int entityId = capturedEntities.get(i);
+            if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) {
+                hierarchyEntities.add(entityId);
+                PhysicsShapesComponent shapes = mPhysicsShapes.getSafe(entityId, null);
+                if (shapes != null && shapes.shapes != null) {
+                    for (int shapeIndex = 0; shapeIndex < shapes.shapes.size; shapeIndex++) {
+                        PhysicsShapeData shape = shapes.shapes.get(shapeIndex);
+                        if (shape != null && shape.spatialBlockId > 0) {
+                            throw new IllegalArgumentException(
+                                    "Game Object clipboard hierarchies do not support "
+                                            + "Physics shapes linked to Scene Spatial blocks (spatialBlockId > 0).");
+                        }
+                    }
+                }
+            }
+        }
+        IntArray internal = new IntArray(false, 8);
+        if (hierarchyEntities.size == 0) return internal;
+        IntBag joints = world.getAspectSubscriptionManager().get(
+                Aspect.all(PhysicsJointComponent.class)).getEntities();
+        for (int i = 0; i < joints.size(); i++) {
+            PhysicsJointComponent joint = mJointBase.get(joints.get(i));
+            boolean aInside = hierarchyEntities.contains(joint.aEid);
+            boolean bInside = hierarchyEntities.contains(joint.bEid);
+            if (aInside != bInside) {
+                throw new IllegalArgumentException(
+                        "Game Object contains a Physics joint connected to an entity outside the Game Object.");
+            }
+            if (aInside) internal.add(joints.get(i));
+        }
+        IntSet internalSet = new IntSet(internal.size);
+        for (int i = 0; i < internal.size; i++) internalSet.add(internal.get(i));
+        ComponentMapper<games.pixscape.runtime.component.physics.PhysicsGearJointComponent> gears =
+                world.getMapper(games.pixscape.runtime.component.physics.PhysicsGearJointComponent.class);
+        for (int i = 0; i < internal.size; i++) {
+            int jointEntityId = internal.get(i);
+            PhysicsJointComponent base = mJointBase.get(jointEntityId);
+            if (base.type != PhysicsJointComponent.TYPE_GEAR) continue;
+            games.pixscape.runtime.component.physics.PhysicsGearJointComponent gear = gears.getSafe(jointEntityId, null);
+            if (gear == null || !internalSet.contains(gear.joint1Eid) || !internalSet.contains(gear.joint2Eid)) {
+                throw new IllegalArgumentException(
+                        "Game Object Gear joint depends on a joint outside the Game Object.");
+            }
+        }
+        return internal;
+    }
+
+    private void appendClipboardJoints(List<EntityGraphEntry> entries, IntArray entityIds, IntArray jointEntities) {
+        if (jointEntities.size == 0) return;
+        IntIntMap entityToSource = new IntIntMap(entityIds.size);
+        for (int i = 0; i < entityIds.size; i++) entityToSource.put(entityIds.get(i), i + 1);
+        IntIntMap jointToSource = new IntIntMap(jointEntities.size);
+        int nextJointSource = entries.size() + 1;
+        for (int i = 0; i < jointEntities.size; i++) {
+            int jointEntityId = jointEntities.get(i);
+            int existingSource = entityToSource.get(jointEntityId, -1);
+            jointToSource.put(jointEntityId,
+                    existingSource > 0 ? existingSource : nextJointSource++);
+        }
+        for (int i = 0; i < jointEntities.size; i++) {
+            int jointEntityId = jointEntities.get(i);
+            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            initializer.syncFrom(jointEntityId);
+            int sourceId = jointToSource.get(jointEntityId, -1);
+            GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceId);
+            snapshot.jointAEid = entityToSource.get(snapshot.jointAEid, -1);
+            snapshot.jointBEid = entityToSource.get(snapshot.jointBEid, -1);
+            if (snapshot.jointType == PhysicsJointComponent.TYPE_GEAR) {
+                snapshot.gearJoint1Eid = jointToSource.get(snapshot.gearJoint1Eid, -1);
+                snapshot.gearJoint2Eid = jointToSource.get(snapshot.gearJoint2Eid, -1);
+            }
+            initializer.applySnapshotData(snapshot);
+            int existingEntryIndex = sourceId - 1;
+            if (existingEntryIndex < entries.size()) {
+                EntityGraphEntry existing = entries.get(existingEntryIndex);
+                entries.set(existingEntryIndex, new EntityGraphEntry(
+                        existing.sourceEntityId(), existing.parentSourceEntityId(),
+                        false, "", initializer, existing.customProperties()));
+            } else {
+                entries.add(new EntityGraphEntry(sourceId, -1, false, "", initializer, null));
+            }
+        }
+    }
+
+    private IntMap<IntArray> collectChildrenByParentStableId() {
+        IntMap<IntArray> childrenByParentStableId = new IntMap<>();
+        IntBag members = world.getAspectSubscriptionManager().get(
+                Aspect.all(GameObjectMemberComponent.class)).getEntities();
+        for (int i = 0; i < members.size(); i++) {
+            int child = members.get(i);
+            GameObjectMemberComponent member = mGameObjectMember.get(child);
+            PixscapeIdentityComponent identity = mIdentity.getSafe(child, null);
+            if (member == null || identity == null || identity.stableId <= 0) continue;
+            IntArray children = childrenByParentStableId.get(member.parentStableId);
+            if (children == null) {
+                children = new IntArray(false, 1);
+                childrenByParentStableId.put(member.parentStableId, children);
+            }
+            children.add(child);
+        }
+        for (IntMap.Entry<IntArray> entry : childrenByParentStableId.entries()) {
+            sortChildrenByStableId(entry.value);
+        }
+        return childrenByParentStableId;
+    }
+
+    private void sortChildrenByStableId(IntArray children) {
+        long[] order = new long[children.size];
+        for (int i = 0; i < children.size; i++) {
+            int entityId = children.get(i);
+            order[i] = ((long) mIdentity.get(entityId).stableId << 32)
+                    | (entityId & 0xffffffffL);
+        }
+        Arrays.sort(order);
+        for (int i = 0; i < children.size; i++) children.set(i, (int) order[i]);
+    }
+
+    private void collectClipboardSubtree(int entityId, int parentSourceId,
+                                         IntArray entities, IntArray parents, IntSet stableIds,
+                                         IntMap<IntArray> childrenByParentStableId) {
+        if (!world.getEntityManager().isActive(entityId)) throw new IllegalArgumentException("Clipboard entity is inactive.");
+        PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+        if (identity == null || identity.stableId <= 0) {
+            throw new IllegalArgumentException("Clipboard entity requires a stable identity.");
+        }
+        if (!stableIds.add(identity.stableId)) {
+            throw new IllegalArgumentException("Clipboard hierarchy contains a duplicate stable identity.");
+        }
+        int sourceId = entities.size + 1;
+        entities.add(entityId);
+        parents.add(parentSourceId);
+        if (!mGameObject.has(entityId)) return;
+        IntArray children = childrenByParentStableId.get(identity.stableId);
+        if (children == null) return;
+        for (int i = 0; i < children.size; i++) {
+            collectClipboardSubtree(children.get(i), sourceId, entities, parents, stableIds,
+                    childrenByParentStableId);
+        }
+    }
+
+    private void normalizeNestedRootToWorldPose(int entityId, GenericEntityInitializer initializer) {
+        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        WorldTransformState state = hierarchy != null ? hierarchy.worldTransforms() : null;
+        if (state == null || !state.isResolved(entityId)) throw new IllegalStateException("Nested Game Object clipboard root has no resolved world transform.");
+        GenericEntitySnapshotData snapshot = initializer.toSnapshotData(0);
+        snapshot.x = state.x[entityId]; snapshot.y = state.y[entityId];
+        snapshot.rotationRad = state.rotationRad[entityId]; snapshot.scaleX = state.scaleX[entityId]; snapshot.scaleY = state.scaleY[entityId];
+        initializer.applySnapshotData(snapshot);
+    }
+
+    private EntityGraph captureSupportedSelection(IntArray supported) {
         supported = ClipboardPhysicsJointGraph.filterCopyableSelection(world, supported);
         if (supported.size == 0) return EntityGraph.empty();
 
@@ -52,14 +363,57 @@ public final class EntityGraphCaptureService {
 
         for (int i = 0; i < selection.size; i++) {
             int entityId = selection.get(i);
-            if (isClipboardSupported(entityId)) supported.add(entityId);
+            if (isCaptureSupported(entityId)) supported.add(entityId);
         }
         return supported;
     }
 
-    private boolean isClipboardSupported(int entityId) {
+    private IntArray collectGameObjectHierarchy(IntArray selection) {
+        IntArray hierarchy = new IntArray();
+        if (selection == null || selection.size != 1) return hierarchy;
+        int root = selection.first();
+        if (!world.getEntityManager().isActive(root)
+                || !mGameObject.has(root)
+                || mGameObjectMember.has(root)) {
+            return hierarchy;
+        }
+        PixscapeIdentityComponent rootIdentity = mIdentity.getSafe(root, null);
+        if (rootIdentity == null || rootIdentity.stableId <= 0) return hierarchy;
+
+        hierarchy.add(root);
+        IntSet capturedStableIds = new IntSet();
+        capturedStableIds.add(rootIdentity.stableId);
+        IntSet capturedEntities = new IntSet();
+        capturedEntities.add(root);
+        IntBag members = world.getAspectSubscriptionManager()
+                .get(Aspect.all(GameObjectMemberComponent.class))
+                .getEntities();
+        boolean changed;
+        do {
+            changed = false;
+            int[] ids = members.getData();
+            for (int i = 0; i < members.size(); i++) {
+                int entityId = ids[i];
+                if (capturedEntities.contains(entityId)) continue;
+                GameObjectMemberComponent member = mGameObjectMember.get(entityId);
+                if (!capturedStableIds.contains(member.parentStableId)) continue;
+                PixscapeIdentityComponent identity = mIdentity.getSafe(entityId, null);
+                if (identity == null || identity.stableId <= 0) return new IntArray();
+                capturedEntities.add(entityId);
+                capturedStableIds.add(identity.stableId);
+                hierarchy.add(entityId);
+                changed = true;
+            }
+        } while (changed);
+        return hierarchy;
+    }
+
+    private boolean isCaptureSupported(int entityId) {
         if (entityId < 0 || !world.getEntityManager().isActive(entityId)) return false;
-        if (mPointLight.has(entityId) || mConeLight.has(entityId)) return false;
+        // Tiled maps require their dedicated deep snapshot; generic capture would be partial.
+        if (mTiled.has(entityId)) return false;
+        // Ordinary Game Object members cannot be independent clipboard roots in V1.
+        if (mGameObject.has(entityId) || mGameObjectMember.has(entityId)) return false;
         if (mJointBase.has(entityId)) return true;
         if (!mEntityIndex.has(entityId)) return false;
         return mTransform.has(entityId);
