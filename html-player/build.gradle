@@ -6,7 +6,7 @@ apply from: rootProject.file('gradle/htmlPlayerLibreJs.gradle')
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(javaVersion as int)
+    languageVersion = JavaLanguageVersion.of(htmlJavaVersion as int)
   }
 }
 
@@ -61,6 +61,9 @@ tasks.register('compileGwt', JavaExec) {
 
   dependsOn classes
   mainClass = 'com.google.gwt.dev.Compiler'
+  javaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(htmlJavaVersion as int)
+  }
 
   classpath =
           configurations.gwt +

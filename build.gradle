@@ -15,7 +15,7 @@ version = appVersion
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(javaVersion as int)
+    languageVersion = JavaLanguageVersion.of(studioJavaVersion as int)
   }
 }
 
@@ -54,6 +54,7 @@ distributions {
 dependencies {
   implementation "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
 
+  implementation platform("org.lwjgl:lwjgl-bom:${lwjglVersion}")
   implementation "com.github.tommyettinger:libgdx-utils:${utilsVersion}"
   implementation "com.badlogicgames.gdx:gdx-freetype:${gdxVersion}"
   implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:${gdxVersion}"
@@ -493,7 +494,7 @@ tasks.register("generateBuildInfo") {
   inputs.property("visUiVersion", providers.gradleProperty("visUiVersion").orElse("unknown"))
   inputs.property("texturePackerOnlyVersion", providers.gradleProperty("texturePackerOnlyVersion").orElse("unknown"))
   inputs.property("textureUnpackerOnlyVersion", providers.gradleProperty("textureUnpackerOnlyVersion").orElse("unknown"))
-  inputs.property("javaVersion", providers.gradleProperty("javaVersion").orElse("unknown"))
+  inputs.property("studioJavaVersion", providers.gradleProperty("studioJavaVersion").orElse("unknown"))
   inputs.property("gradleVersion", providers.gradleProperty("gradleVersion").orElse("unknown"))
   inputs.property("buildDate", buildDate)
 
@@ -515,7 +516,7 @@ tasks.register("generateBuildInfo") {
     def visUiVersion = providers.gradleProperty("visUiVersion").orElse("unknown").get()
     def texturePackerOnlyVersion = providers.gradleProperty("texturePackerOnlyVersion").orElse("unknown").get()
     def textureUnpackerOnlyVersion = providers.gradleProperty("textureUnpackerOnlyVersion").orElse("unknown").get()
-    def javaVersion = providers.gradleProperty("javaVersion").orElse("unknown").get()
+    def studioJavaVersion = providers.gradleProperty("studioJavaVersion").orElse("unknown").get()
     def gradleVersion = providers.gradleProperty("gradleVersion").orElse("unknown").get()
     def buildDateValue = buildDate
 
@@ -531,7 +532,7 @@ public final class ${buildInfoClassName} {
     public static final String APP_VERSION = "${escapeJava(appVersion)}";
     public static final String PIXSCAPE_RUNTIME_VERSION = "${escapeJava(pixscapeRuntimeVersion)}";
 
-    public static final String JAVA_VERSION = "${escapeJava(javaVersion)}";
+    public static final String JAVA_VERSION = "${escapeJava(studioJavaVersion)}";
     public static final String GRADLE_VERSION = "${escapeJava(gradleVersion)}";
     public static final String BUILD_DATE = "${escapeJava(buildDateValue)}";
 

@@ -197,7 +197,7 @@ Pixscape Studio Free currently focuses on projects targeting:
 * Android
 * HTML5 / WebGL2
 
-Pixscape Studio requires **Java 21**.
+Pixscape Studio desktop requires **Java 25**. The HTML/GWT build remains on Java 21.
 
 Pixscape Runtime is built with modern tooling and published as Java 8-compatible bytecode for broader LibGDX ecosystem compatibility.
 
@@ -207,7 +207,7 @@ iOS/RoboVM is not currently listed as an officially tested target.
 
 Requirements:
 
-* JDK 21
+* JDK 25 for Studio desktop and JDK 21 for HTML/GWT (selected through Gradle toolchains)
 * The Gradle wrapper included in this repository
 
 On Windows:

@@ -9,7 +9,7 @@ Free repository.
 
 ## Requirements
 
-- JDK 21, matching `javaVersion=21` in `gradle.properties`
+- JDK 25 for Studio desktop and JDK 21 for HTML/GWT, matching `studioJavaVersion=25` and `htmlJavaVersion=21` in `gradle.properties`
 - Gradle wrapper from this repository
 
 ## Build and Test
