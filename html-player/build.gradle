@@ -53,6 +53,8 @@ dependencies {
   }
   gwt "net.onedaybeard.artemis:artemis-odb-serializer:${artemisOdbVersion}:sources@jar"
   gwt "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}:sources@jar"
+  gwt "com.github.tommyettinger:textratypist:2.5.0:sources@jar"
+  gwt "com.github.tommyettinger:regexodus:0.1.21:sources@jar"
 }
 
 tasks.register('compileGwt', JavaExec) {

@@ -85,6 +85,8 @@ sourceSets {
 }
 
 tasks.named('processResources', Copy).configure {
+  // Consume a freshly rebuilt HTML template only after its copy task completes.
+  mustRunAfter ':html-player:copyGwtDistToTemplate'
   // The checked-in HTML preview template is reused during normal Studio runs.
   // Rebuild it explicitly with buildHtmlPreviewTemplate, or pass
   // -PrefreshHtmlPreviewTemplate=true when changing html-player sources.

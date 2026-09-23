@@ -1,6 +1,13 @@
 # Changelog
 
 
+## Unreleased
+
+### Changed
+
+* Updated the Pixscape Runtime dependency to 0.2.2.
+
+
 ## 0.3.0 - Universal Layers and Tiled Maps
 
 ### Breaking changes
