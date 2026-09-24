@@ -25,6 +25,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SceneHudCompositionRendererTest {
+    @Test public void studioCompositionUsesTheUnscaledHudViewportResize() throws Exception {
+        String source = java.nio.file.Files.readString(java.nio.file.Path.of(
+                "src/main/java/games/pixscape/studio/ui/main/SceneHudCompositionRenderer.java"));
+        assertTrue(source.contains("session.resizeUnscaled(screenX, screenY, width, height)"));
+        assertFalse(source.contains("session.resize(screenX, screenY, width, height)"));
+    }
+
     @Test public void associationResolutionUsesCanonicalSceneAndHudIdentity() {
         ProjectConfig configuration = new ProjectConfig();
         configuration.createSceneMeta("Main");

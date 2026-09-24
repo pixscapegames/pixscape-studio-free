@@ -401,7 +401,7 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
         }
 
         @Override public void resize(int screenX, int screenY, int width, int height) {
-            if (session != null) session.resize(screenX, screenY, width, height);
+            if (session != null) session.resizeUnscaled(screenX, screenY, width, height);
         }
 
         @Override public void act(float delta) {
