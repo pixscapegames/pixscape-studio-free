@@ -89,8 +89,8 @@ public class SceneHudAssociationServiceTest {
 
         FileHandle root = new FileHandle(temporary.newFolder());
         HudScreenAssetAuthoringService authoring = new HudScreenAssetAuthoringService();
-        authoring.create(root, "a", 320, 180);
-        authoring.create(root, "b", 640, 360);
+        authoring.create(root, "a");
+        authoring.create(root, "b");
 
         SceneEditorContext contextA = new SceneEditorContext(
                 "scene1", new StudioEditingModeService());

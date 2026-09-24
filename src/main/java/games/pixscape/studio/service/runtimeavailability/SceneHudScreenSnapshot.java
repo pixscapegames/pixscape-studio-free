@@ -35,8 +35,6 @@ public record SceneHudScreenSnapshot(String screenId, HudScreenAsset asset, HudD
         if (source == null) return null;
         HudScreenAsset copy = new HudScreenAsset();
         copy.schemaVersion = source.schemaVersion;
-        copy.referenceWidth = source.referenceWidth;
-        copy.referenceHeight = source.referenceHeight;
         copy.documentId = source.documentId;
         copy.skinId = source.skinId;
         copy.atlasId = source.atlasId;

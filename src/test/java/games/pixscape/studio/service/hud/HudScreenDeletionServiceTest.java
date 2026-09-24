@@ -184,7 +184,7 @@ public class HudScreenDeletionServiceTest {
         configuration.exportRootPathDir = "build/export";
         configuration.createSceneMeta("Open Scene");
         configuration.createSceneMeta("Closed Scene");
-        new HudScreenAssetAuthoringService().create(root, "status", 1280, 720);
+        new HudScreenAssetAuthoringService().create(root, "status");
         Fixture fixture = new Fixture(root, configuration, new HudScreenDeletionService());
         save(fixture);
         return fixture;

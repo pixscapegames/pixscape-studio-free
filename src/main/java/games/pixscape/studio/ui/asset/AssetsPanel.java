@@ -279,19 +279,15 @@ public final class AssetsPanel extends DockablePanel {
     private void showCreateHudScreenDialog() {
         VisTextField nameField = new VisTextField();
         nameField.setMessageText("Screen name");
-        VisTextField widthField = positiveIntegerField("1920");
-        VisTextField heightField = positiveIntegerField("1080");
 
         VisDialog dialog = new StudioDialog("New HUD Screen") {
             @Override
             protected void result(Object object) {
                 if (!Boolean.TRUE.equals(object)) return;
                 try {
-                    int width = parsePositiveDimension(widthField.getText(), "Reference width");
-                    int height = parsePositiveDimension(heightField.getText(), "Reference height");
                     ProjectConfig cfg = ProjectConfig.getInstance();
                     String screenId = hudScreenAuthoringService.create(
-                            StudioFs.requireStudioProjectDir(cfg), nameField.getText(), width, height);
+                            StudioFs.requireStudioProjectDir(cfg), nameField.getText());
 
                     treeView.reloadFromProject(cfg);
                     AssetNode hudRoot = new AssetNode(
@@ -306,10 +302,6 @@ public final class AssetsPanel extends DockablePanel {
 
         dialog.getContentTable().add(new VisLabel("Name")).left();
         dialog.getContentTable().add(nameField).width(280f).growX().row();
-        dialog.getContentTable().add(new VisLabel("Reference width")).left();
-        dialog.getContentTable().add(widthField).width(140f).left().row();
-        dialog.getContentTable().add(new VisLabel("Reference height")).left();
-        dialog.getContentTable().add(heightField).width(140f).left().row();
         dialog.button("Create", true);
         dialog.button("Cancel", false);
         dialog.setModal(true);
@@ -317,22 +309,6 @@ public final class AssetsPanel extends DockablePanel {
         dialog.pack();
         dialog.show(getStage());
         if (getStage() != null) getStage().setKeyboardFocus(nameField);
-    }
-
-    private static VisTextField positiveIntegerField(String value) {
-        VisTextField field = new VisTextField(value);
-        field.setTextFieldFilter(new VisTextField.TextFieldFilter.DigitsOnlyFilter());
-        return field;
-    }
-
-    static int parsePositiveDimension(String text, String label) {
-        try {
-            int value = Integer.parseInt(text != null ? text.trim() : "");
-            if (value <= 0) throw new NumberFormatException();
-            return value;
-        } catch (NumberFormatException failure) {
-            throw new IllegalArgumentException(label + " must be a positive whole number.");
-        }
     }
 
     private void showSimpleErrorDialog(String message) {

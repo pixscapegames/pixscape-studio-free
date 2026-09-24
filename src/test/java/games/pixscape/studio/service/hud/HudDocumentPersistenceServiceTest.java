@@ -32,7 +32,7 @@ public class HudDocumentPersistenceServiceTest {
     public void cleanLoadAndDirtySaveRoundTripDeterministicCodecState() throws Exception {
         var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
         root.child("hud/main.hudscreen").writeString("""
-                {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                {"schemaVersion":1,
                  "documentId":"hud/main.json","textureProfileId":"default"}
                 """, false, "UTF-8");
         HudDocumentCodec codec = new HudDocumentCodec();
@@ -55,7 +55,7 @@ public class HudDocumentPersistenceServiceTest {
     public void assignedSkinPersistsAndReopensThroughExistingScreenMetadata() throws Exception {
         var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
         root.child("hud/main.hudscreen").writeString("""
-                {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                {"schemaVersion":1,
                  "documentId":"hud/main.json","textureProfileId":"default"}
                 """, false, "UTF-8");
         root.child("hud/main.json").writeString(
@@ -75,10 +75,40 @@ public class HudDocumentPersistenceServiceTest {
     }
 
     @Test
+    public void adaptiveRootTableAndCellLimitsSurviveSaveAndReopen() throws Exception {
+        var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
+        root.child("hud/adaptive.hudscreen").writeString("""
+                {"schemaVersion":1,
+                 "documentId":"hud/adaptive.json","textureProfileId":"default"}
+                """, false, "UTF-8");
+        root.child("hud/adaptive.json").writeString(
+                new HudDocumentCodec().write(document(0f)), false, "UTF-8");
+        HudDocumentPersistenceService persistence = new HudDocumentPersistenceService();
+        var loaded = persistence.load(root, "adaptive");
+        HudDocumentEditSession session = new HudDocumentEditSession(loaded.asset(), loaded.document());
+        session.edit("Add adaptive table", candidate -> {
+            String id = HudLayoutAuthoring.addChild(candidate, "root", HudNodeKind.TABLE);
+            var table = HudLayoutAuthoring.node(candidate, id);
+            table.table.rows.get(0).cells.get(0).constraints.maxWidth = 280f;
+            table.table.rows.get(0).cells.get(0).constraints.expandX = true;
+            return candidate;
+        });
+        persistence.save(root, session);
+
+        var reopened = persistence.load(root, "adaptive").document();
+        var relation = reopened.root.children.get(0);
+        assertEquals(HudPlacementKind.DIRECT, relation.placementKind);
+        assertTrue(relation.node.fillParent);
+        assertEquals(Float.valueOf(280f),
+                relation.node.table.rows.get(0).cells.get(0).constraints.maxWidth);
+        assertTrue(relation.node.table.rows.get(0).cells.get(0).constraints.expandX);
+    }
+
+    @Test
     public void missingDocumentReferenceIsRejectedDuringLoad() throws Exception {
         var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
         root.child("hud/empty.hudscreen").writeString("""
-                {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                {"schemaVersion":1,
                  "textureProfileId":"default"}
                 """, false, "UTF-8");
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
@@ -115,7 +145,7 @@ public class HudDocumentPersistenceServiceTest {
     public void emptyAndOccupiedContainerRoundTripWithoutSchemaChange() throws Exception {
         var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
         root.child("hud/layout.hudscreen").writeString("""
-                {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                {"schemaVersion":1,
                  "documentId":"hud/layout.json","textureProfileId":"default"}
                 """, false, "UTF-8");
         root.child("hud/layout.json").writeString(new HudDocumentCodec().write(document(0f)), false, "UTF-8");
@@ -163,7 +193,7 @@ public class HudDocumentPersistenceServiceTest {
     public void existingDocumentSavePersistsAuthoredDocumentWithoutChangingResourceBindings() throws Exception {
         var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
         root.child("hud/shared.hudscreen").writeString("""
-                {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                {"schemaVersion":1,
                  "documentId":"hud/shared.json","textureProfileId":"hud-fixed-2048-linear-clamp"}
                 """, false, "UTF-8");
         HudDocumentCodec codec = new HudDocumentCodec();
@@ -198,7 +228,7 @@ public class HudDocumentPersistenceServiceTest {
         for (int failAt : new int[]{1, 2}) {
             var root = Gdx.files.absolute(temporary.newFolder().getAbsolutePath());
             root.child("hud/main.hudscreen").writeString("""
-                    {"schemaVersion":1,"referenceWidth":1920,"referenceHeight":1080,
+                    {"schemaVersion":1,
                      "documentId":"hud/main.json","textureProfileId":"default"}
                     """, false, "UTF-8");
             root.child("hud/main.json").writeString(new HudDocumentCodec().write(document(1f)), false, "UTF-8");

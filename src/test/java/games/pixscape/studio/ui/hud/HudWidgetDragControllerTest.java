@@ -1377,8 +1377,6 @@ public class HudWidgetDragControllerTest {
 
     private static HudScreenAsset asset() {
         HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = 100;
-        asset.referenceHeight = 100;
         asset.documentId = "hud/main.json";
         return asset;
     }

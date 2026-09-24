@@ -56,8 +56,12 @@ import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.service.hud.HudEditorSession;
+import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 import games.pixscape.studio.service.hud.HudLayoutAuthoring;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
+import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.SimpleFloatField;
 import games.pixscape.studio.ui.widget.SimpleTextArea;
@@ -80,6 +84,38 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class HudInspectorViewTest {
+
+    @Test
+    public void rootTableFillControlAndCellMaximumsEditTheDocument() throws Exception {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudDocumentV1 source = new HudDocumentV1(root);
+        String tableId = HudLayoutAuthoring.addChild(source, "root", HudNodeKind.TABLE);
+        HudScreenEditorDocument document = new HudScreenEditorDocument("hud/adaptive", "HUD",
+                asset("hud/adaptive"), source);
+        HudEditorSession session = HudPanelTestSupport.projectedSession(document);
+        HudPanelTestSupport.projectHistoryNavigation(session, document);
+        session.selectNode(tableId);
+        HudInspectorView view = new HudInspectorView(session);
+        VisCheckBox fill = view.findActor("hudTableFillParent");
+        assertTrue(fill.isChecked());
+        fill.setChecked(false);
+        assertFalse(document.document().root.children.get(0).node.fillParent);
+        assertEquals(games.pixscape.runtime.hud.document.HudPlacementKind.FREE,
+                document.document().root.children.get(0).placementKind);
+        assertEquals(CommonLayout.DEFAULT_FREE_WIDTH,
+                document.document().root.children.get(0).node.actor.width, 0f);
+        ((VisCheckBox) view.findActor("hudTableFillParent")).setChecked(true);
+        assertTrue(document.document().root.children.get(0).node.fillParent);
+
+        String cellId = document.document().root.children.get(0).node.table.rows.get(0).cells.get(0).id;
+        session.selectCell(cellId);
+        ((VisCheckBox) view.findActor("hudMaxWidthAuto")).setChecked(false);
+        SimpleFloatField maximum = view.findActor("hudMaxWidthField");
+        maximum.setText("240");
+        maximum.commit();
+        assertEquals(Float.valueOf(240f),
+                document.document().root.children.get(0).node.table.rows.get(0).cells.get(0).constraints.maxWidth);
+    }
 
     @Test
     public void dialogResultButtonsEditOrderAndDeleteWithUndoRedo() throws Exception {
@@ -291,6 +327,77 @@ public class HudInspectorViewTest {
         width.commit();
         assertEquals(123.5f, node(document.document().root, "first").actor.width, 0f);
         assertEquals(0f, node(document.document().root, "second").actor.width, 0f);
+    }
+
+    @Test
+    public void inspectorAnchorsSurviveSaveAndRuntimeExport() throws Exception {
+        FileHandle project = new FileHandle(temporary.newFolder("anchor-project"));
+        FileHandle runtime = new FileHandle(temporary.newFolder("anchor-runtime"));
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        for (String id : List.of("top-left", "top-right", "bottom-left", "bottom-right", "center")) {
+            root.children.add(HudChild.free(new HudNode(id, HudNodeKind.GROUP),
+                    new HudFreePlacement()));
+        }
+        HudScreenEditorDocument document = new HudScreenEditorDocument(
+                "hud/anchors", "Anchors", asset("hud/anchors"), new HudDocumentV1(root));
+        HudEditorSession session = HudPanelTestSupport.projectedSession(document);
+        HudInspectorView view = new HudInspectorView(session);
+
+        setFreePlacementInInspector(session, view, "top-left", 0, 2, 0f, 1f, 20f, -20f);
+        setFreePlacementInInspector(session, view, "top-right", 2, 2, 1f, 1f, -20f, -20f);
+        setFreePlacementInInspector(session, view, "bottom-left", 0, 0, 0f, 0f, 20f, 20f);
+        setFreePlacementInInspector(session, view, "bottom-right", 2, 0, 1f, 0f, -20f, 20f);
+        setFreePlacementInInspector(session, view, "center", 1, 1, .5f, .5f, 0f, 0f);
+
+        new HudDocumentPersistenceService().save(project, document);
+        assertFalse(document.isDirty());
+        HudDocumentV1 saved = new HudDocumentCodec().read(project.child("hud/anchors.json"));
+        assertEquals("RIGHT", relation(saved.root, "top-right").free.horizontalAnchor.name());
+        assertEquals("TOP", relation(saved.root, "top-right").free.verticalAnchor.name());
+        assertEquals(-20f, relation(saved.root, "top-right").free.offsetX, 0f);
+
+        ProjectConfig config = new ProjectConfig();
+        config.projectFileName = "anchor-test";
+        config.projectTitle = "Anchor test";
+        config.createSceneMeta("Main");
+        config.getSceneMeta("Main").defaultHudScreenId = "hud/anchors";
+        project.child("scenes/scene1.json").writeString("{}", false, "UTF-8");
+        project.child("project.json").writeString("{}", false, "UTF-8");
+        new AssetMetaDatabase().save(project.child(StudioFs.FILE_ASSETS_JSON));
+        try (var prepared = new SceneHudRuntimeExport().prepare(project, config)) {
+            prepared.copyTo(runtime);
+        }
+        HudDocumentV1 exported = new HudDocumentCodec().read(runtime.child("hud/anchors.json"));
+        for (int index = 0; index < saved.root.children.size(); index++) {
+            HudFreePlacement expected = saved.root.children.get(index).free;
+            HudFreePlacement actual = exported.root.children.get(index).free;
+            assertEquals(expected.horizontalAnchor, actual.horizontalAnchor);
+            assertEquals(expected.verticalAnchor, actual.verticalAnchor);
+            assertEquals(expected.pivotX, actual.pivotX, 0f);
+            assertEquals(expected.pivotY, actual.pivotY, 0f);
+            assertEquals(expected.offsetX, actual.offsetX, 0f);
+            assertEquals(expected.offsetY, actual.offsetY, 0f);
+        }
+    }
+
+    private static void setFreePlacementInInspector(HudEditorSession session, HudInspectorView view,
+                                                    String nodeId, int horizontal, int vertical,
+                                                    float pivotX, float pivotY,
+                                                    float offsetX, float offsetY) {
+        session.selectNode(nodeId);
+        view.rebuild();
+        ((VisSelectBox<?>) view.findActor("hudHorizontalAnchor")).setSelectedIndex(horizontal);
+        ((VisSelectBox<?>) view.findActor("hudVerticalAnchor")).setSelectedIndex(vertical);
+        setFreeNumber(view, "hudPivotXField", pivotX);
+        setFreeNumber(view, "hudPivotYField", pivotY);
+        setFreeNumber(view, "hudOffsetXField", offsetX);
+        setFreeNumber(view, "hudOffsetYField", offsetY);
+    }
+
+    private static void setFreeNumber(HudInspectorView view, String fieldName, float value) {
+        SimpleFloatField field = view.findActor(fieldName);
+        field.setText(Float.toString(value));
+        field.commit();
     }
 
     @Test

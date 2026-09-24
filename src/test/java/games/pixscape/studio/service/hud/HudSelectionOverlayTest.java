@@ -660,26 +660,37 @@ public class HudSelectionOverlayTest {
         }
     }
 
-    @Test public void heldMiddlePanReversesImmediatelyAfterClampingAtTheHudBoundary()
-            throws Exception {
-        HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = 1920;
-        asset.referenceHeight = 1080;
-        asset.documentId = "hud/pan-boundary.json";
-        HudScreenEditorDocument document = new HudScreenEditorDocument(
-                "hud/pan-boundary", "hud/pan-boundary", asset, nestedDocument());
-        Fixture f = open(document);
+    @Test public void middleButtonDoesNotPanHudCanvas() throws Exception {
+        Fixture f = open(nestedDocument(), "hud/no-pan");
         assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 100f, 100f)));
-        f.session.hudCamera().position.set(50f, 50f, 0f);
-        f.session.hudCamera().update();
         HudCanvasSelectionInputListener listener = new HudCanvasSelectionInputListener(f.session);
 
-        assertTrue(listener.touchDown(eventAt(70f, 80f), 0f, 0f, 0, Input.Buttons.MIDDLE));
-        listener.touchDragged(eventAt(110f, 80f), 0f, 0f, 0);
-        assertEquals(50f, f.session.hudCameraX(), 0.001f);
+        assertFalse(listener.touchDown(eventAt(70f, 80f), 0f, 0f, 0, Input.Buttons.MIDDLE));
+        assertEquals(50f, f.session.hudCamera().position.x, 0.001f);
+    }
 
-        listener.touchDragged(eventAt(100f, 80f), 0f, 0f, 0);
-        assertEquals(60f, f.session.hudCameraX(), 0.001f);
+    @Test public void centeredDialogPreviewFollowsAvailableCanvasSurface() throws Exception {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode dialog = sized(new HudNode("dialog", HudNodeKind.DIALOG), 80f, 40f);
+        dialog.dialog = new HudDialogData();
+        emptyTable(dialog);
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.horizontalAnchor = games.pixscape.runtime.hud.document.HudHorizontalAnchor.CENTER;
+        placement.verticalAnchor = games.pixscape.runtime.hud.document.HudVerticalAnchor.CENTER;
+        placement.pivotX = .5f;
+        placement.pivotY = .5f;
+        root.children.add(HudChild.free(dialog, placement));
+        Fixture f = open(new HudDocumentV1(root), "hud/centered-dialog");
+        f.session.selectNode("root");
+
+        assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 320f, 180f)));
+        HudSelectionTarget initial = target(f.session.selectionTargets(), "dialog");
+        assertEquals(120f, initial.x(), .001f);
+        assertEquals(70f, initial.y(), .001f);
+        assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 200f, 100f)));
+        HudSelectionTarget smaller = target(f.session.selectionTargets(), "dialog");
+        assertEquals(60f, smaller.x(), .001f);
+        assertEquals(30f, smaller.y(), .001f);
     }
 
     @Test public void transformCursorUsesTheGestureHandleAndNeverEditsTheDocumentOnHover()
@@ -872,8 +883,6 @@ public class HudSelectionOverlayTest {
         HudSelectionTarget before = target(f.session.selectionTargets(), "child");
 
         assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 200f, 200f)));
-        f.session.hudCamera().position.set(100f, 100f, 0f);
-        f.session.hudCamera().update();
         HudSelectionTarget after = target(f.session.selectionTargets(), "child");
         assertEquals(before.x(), after.x(), 0.001f);
         assertEquals(before.y(), after.y(), 0.001f);
@@ -887,16 +896,31 @@ public class HudSelectionOverlayTest {
         assertTrue(f.session.cancelTransformGesture());
     }
 
+    @Test public void rootTableFillUpdatesSelectionBeforeNextDraw() throws Exception {
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode table = new HudNode("table", HudNodeKind.TABLE);
+        table.fillParent = true;
+        table.table = HudLayoutAuthoring.newTableLayout(root, 1, 1, false);
+        root.children.add(HudChild.direct(table));
+        Fixture f = open(new HudDocumentV1(root), "hud/fill-table");
+        f.session.selectNode("root");
+
+        assertTrue(f.session.configurePreview(new Rectangle(20f, 30f, 320f, 180f)));
+        HudSelectionTarget target = target(f.session.selectionTargets(), "table");
+        assertEquals(320f, target.width(), .001f);
+        assertEquals(180f, target.height(), .001f);
+        assertTrue(f.session.selectOverlayTargetAt(335f, 205f));
+        assertEquals("table", f.session.selectedNodeId());
+    }
+
     @Test public void translatedViewportPicksBothRenderedHalvesAndDisplayedSideHandles() throws Exception {
         HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = 1920;
-        asset.referenceHeight = 1080;
         asset.documentId = "hud/projected-pick.json";
         HudNode root = sized(new HudNode("root", HudNodeKind.GROUP), 1920f, 1080f);
         HudNode child = sized(new HudNode("child", HudNodeKind.GROUP), 200f, 120f);
         HudFreePlacement placement = new HudFreePlacement();
-        placement.offsetX = 850f;
-        placement.offsetY = 420f;
+        placement.offsetX = 350f;
+        placement.offsetY = 240f;
         root.children.add(HudChild.free(child, placement));
         Fixture f = open(new HudScreenEditorDocument("hud/projected-pick", "hud/projected-pick",
                 asset, new HudDocumentV1(root)));
@@ -911,21 +935,16 @@ public class HudSelectionOverlayTest {
             studioStage.addActor(inputHost);
 
             assertTrue(f.session.configurePreview(new Rectangle(280f, 160f, 900f, 600f)));
-            // Default zoom before pan. Both side handles are independently projected through
-            // the HUD camera and routed through the Studio Stage/input host.
+            // Both side handles are routed through the Studio Stage/input host.
             f.session.selectNode("child");
             assertDisplayedSideHandles(studioStage, f.session);
 
-            // Horizontal and vertical pan; the two selectable halves still enter through
-            // Stage.touchDown rather than a directly constructed InputEvent.
-            f.session.hudCamera().position.set(1040f, 520f, 0f);
-            f.session.hudCamera().update();
-            f.session.act(0f);
+            // Both selectable halves enter through Stage.touchDown.
             f.session.selectNode("root");
 
-            assertStageClickSelects(studioStage, f.session, 875f, 480f, "child");
+            assertStageClickSelects(studioStage, f.session, 395f, 300f, "child");
             f.session.selectNode("root");
-            assertStageClickSelects(studioStage, f.session, 1025f, 480f, "child");
+            assertStageClickSelects(studioStage, f.session, 545f, 300f, "child");
             f.session.selectNode("root");
             assertStageEmptySpaceDoesNotSelect(studioStage, f.session, 1200f, 700f);
 
@@ -949,11 +968,6 @@ public class HudSelectionOverlayTest {
             f.session.selectNode("child");
             assertDisplayedSideHandles(studioStage, f.session);
 
-            // ScreenViewport projection changes at non-unit zoom; the input path must still
-            // recover the same HUD handle coordinates through Viewport.unproject.
-            f.session.hudCamera().zoom = 1.5f;
-            f.session.hudCamera().update();
-            assertDisplayedSideHandles(studioStage, f.session);
         } finally {
             studioStage.dispose();
             Gdx.graphics = previousGraphics;
@@ -1335,8 +1349,6 @@ public class HudSelectionOverlayTest {
                 root.children.add(HudChild.free(owner, placement));
                 String id = "hud/cell-" + kind.name().toLowerCase();
                 HudScreenAsset asset = new HudScreenAsset();
-                asset.referenceWidth = 200;
-                asset.referenceHeight = 200;
                 asset.documentId = id + ".json";
                 HudScreenEditorDocument editor = new HudScreenEditorDocument(id, id, asset,
                         new HudDocumentV1(root));
@@ -1544,9 +1556,6 @@ public class HudSelectionOverlayTest {
             assertEquals(List.of(otherRow), f.session.selectedCellRange());
 
             f.session.selectCell(last);
-            f.session.hudCamera().zoom = 1.5f;
-            f.session.hudCamera().position.set(55f, 50f, 0f);
-            f.session.hudCamera().update();
             stageTouchDown(stage, f.session, point.x, point.y);
             stageTouchUp(stage, f.session, point.x, point.y);
             assertEquals(List.of(first, middle, last), f.session.selectedCellRange());
@@ -1590,8 +1599,6 @@ public class HudSelectionOverlayTest {
 
     private static HudScreenEditorDocument document(String id, HudDocumentV1 document) {
         HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = 100;
-        asset.referenceHeight = 100;
         asset.documentId = id + ".json";
         return new HudScreenEditorDocument(id, id, asset, document);
     }
@@ -1931,8 +1938,8 @@ public class HudSelectionOverlayTest {
     }
 
     private static void assertDisplayedSideHandles(Stage studioStage, HudEditorSession session) {
-        assertStageHandleStartsResize(studioStage, session, 850f, 480f, HudTransformHandle.W);
-        assertStageHandleStartsResize(studioStage, session, 1050f, 480f, HudTransformHandle.E);
+        assertStageHandleStartsResize(studioStage, session, 350f, 300f, HudTransformHandle.W);
+        assertStageHandleStartsResize(studioStage, session, 550f, 300f, HudTransformHandle.E);
     }
 
     private static void assertStageEmptySpaceDoesNotSelect(Stage studioStage,

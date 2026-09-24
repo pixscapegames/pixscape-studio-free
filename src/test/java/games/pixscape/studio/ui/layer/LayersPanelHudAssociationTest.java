@@ -67,7 +67,7 @@ public class LayersPanelHudAssociationTest {
         configuration.createSceneMeta("Main");
         ProjectConfig.setInstance(configuration);
         FileHandle root = new FileHandle(temporary.newFolder());
-        new HudScreenAssetAuthoringService().create(root, "status", 320, 180);
+        new HudScreenAssetAuthoringService().create(root, "status");
 
         SceneEditorContext context = new SceneEditorContext(
                 "scene1", new StudioEditingModeService());

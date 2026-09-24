@@ -429,9 +429,16 @@ public final class HudLayoutAuthoring {
             child.actor.height = 160f;
         }
         if (parent.kind == HudNodeKind.GROUP && childKind != HudNodeKind.WINDOW
-                && childKind != HudNodeKind.DIALOG)
+                && childKind != HudNodeKind.DIALOG
+                && !(parent == candidate.root && childKind == HudNodeKind.TABLE))
             applyFreeCreationDefaults(child);
-        addByParent(parent, child);
+        if (parent == candidate.root && parent.kind == HudNodeKind.GROUP
+                && childKind == HudNodeKind.TABLE) {
+            child.fillParent = true;
+            parent.children.add(HudChild.direct(child));
+        } else {
+            addByParent(parent, child);
+        }
         if ((childKind == HudNodeKind.WINDOW || childKind == HudNodeKind.DIALOG)
                 && (parent.kind == HudNodeKind.TABLE || parent.kind == HudNodeKind.WINDOW
                 || parent.kind == HudNodeKind.DIALOG)) {

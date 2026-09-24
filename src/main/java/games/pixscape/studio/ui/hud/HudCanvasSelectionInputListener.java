@@ -2,7 +2,6 @@ package games.pixscape.studio.ui.hud;
 
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -15,10 +14,6 @@ import java.util.Objects;
 /** Gives editor overlay targets precedence over authored HUD Actors and the world canvas. */
 public final class HudCanvasSelectionInputListener extends InputListener {
     private final HudEditorSession session;
-    private final Vector2 previousPanStagePoint = new Vector2();
-    private final Vector2 currentPanStagePoint = new Vector2();
-    private boolean panning;
-    private int panPointer = -1;
     private int contextPointer = -1;
     private String contextNodeId;
     private String contextCellId;
@@ -53,12 +48,6 @@ public final class HudCanvasSelectionInputListener extends InputListener {
             }
             contextPointer = pointer;
             return true;
-        }
-        if (button == Input.Buttons.MIDDLE) {
-            panning = session.hudPointAt(event.getStageX(), event.getStageY(), new Vector2());
-            previousPanStagePoint.set(event.getStageX(), event.getStageY());
-            panPointer = panning ? pointer : -1;
-            return panning;
         }
         if (button != Input.Buttons.LEFT) return false;
         if (shiftPressed()) {
@@ -95,13 +84,6 @@ public final class HudCanvasSelectionInputListener extends InputListener {
     }
 
     @Override public void touchDragged(InputEvent event, float x, float y, int pointer) {
-        if (panning && pointer == panPointer) {
-            currentPanStagePoint.set(event.getStageX(), event.getStageY());
-            session.panBetweenHudStagePoints(previousPanStagePoint, currentPanStagePoint);
-            previousPanStagePoint.set(currentPanStagePoint);
-            event.stop();
-            return;
-        }
         if (pointer == pendingMovePointer) {
             if (!pendingMoveResolved && crossedDragThreshold(event.getStageX(), event.getStageY())) {
                 pendingMoveResolved = true;
@@ -131,8 +113,6 @@ public final class HudCanvasSelectionInputListener extends InputListener {
 
     @Override public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
         if (event.isTouchFocusCancel()) {
-            panning = false;
-            panPointer = -1;
             contextPointer = -1;
             contextNodeId = null;
             contextCellId = null;
@@ -158,12 +138,6 @@ public final class HudCanvasSelectionInputListener extends InputListener {
                         session, nodeId);
                 event.handle();
             }
-            return;
-        }
-        if (button == Input.Buttons.MIDDLE && pointer == panPointer) {
-            panning = false;
-            panPointer = -1;
-            event.stop();
             return;
         }
         if (button == Input.Buttons.LEFT && pointer == pendingMovePointer) {

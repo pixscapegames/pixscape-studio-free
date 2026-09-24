@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -35,8 +36,16 @@ public class BottomMenuBar extends VisTable {
     private final VisSelectBox<String> sceneSelectBox;
     private final Array<String> items = new Array<>();
     private final VisLabel zoomValue;
+    private final VisLabel zoomLabel;
+    private final VisLabel panLabel;
     private final VisLabel panFieldX;
     private final VisLabel panFieldY;
+    private final Cell<VisLabel> panLabelCell;
+    private final Cell<VisLabel> panXCell;
+    private final Cell<VisLabel> panYCell;
+    private final Cell<VisLabel> zoomLabelCell;
+    private final Cell<VisLabel> zoomValueCell;
+    private final Cell<VisTextButton> centerCamCell;
     private final VisTextButton btnPreview;
     private final VisTextButton btnPreviewSettings;
     private final VisSelectBox<Resolution> resolutionSelectBox;
@@ -46,6 +55,7 @@ public class BottomMenuBar extends VisTable {
     private final Button btnDeleteScene;
     private final VisTextButton centerCam;
     private boolean sceneControlsBusy;
+    private boolean hudCanvasActive;
 
     public static final float HEIGHT = 32;
     private final int MY_TAG = EventFlow.tag(this);
@@ -78,9 +88,9 @@ public class BottomMenuBar extends VisTable {
             }
         });
         VisLabel sceneLabel = new VisLabel("Scene:");
-        VisLabel zoomLabel = new VisLabel("Zoom:  ");
+        zoomLabel = new VisLabel("Zoom:  ");
         zoomValue = new VisLabel();
-        VisLabel panLabel = new VisLabel("Pan:  ");
+        panLabel = new VisLabel("Pan:  ");
         panFieldX = new VisLabel();
         panFieldY = new VisLabel();
         centerCam = new VisTextButton("Center camera");
@@ -166,13 +176,13 @@ public class BottomMenuBar extends VisTable {
         add(btnPreviewSettings).left().padRight(20);
         add().expandX();
 
-        add(panLabel).right();
-        add(panFieldX).right();
-        add(panFieldY).right().padRight(30);
-        add(zoomLabel).right();
-        add(zoomValue).right().padRight(30);
+        panLabelCell = add(panLabel).right();
+        panXCell = add(panFieldX).right();
+        panYCell = add(panFieldY).right().padRight(30);
+        zoomLabelCell = add(zoomLabel).right();
+        zoomValueCell = add(zoomValue).right().padRight(30);
         add(rulersVisibilityCheckBox).right().padRight(100);
-        add(centerCam).width(120).right();
+        centerCamCell = add(centerCam).width(120).right();
 
         EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class,
                 event -> refreshWorldEditingAvailability());
@@ -388,13 +398,29 @@ public class BottomMenuBar extends VisTable {
     private void refreshWorldEditingAvailability() {
         sceneSelectBox.setDisabled(sceneControlsBusy);
         btnAddScene.setDisabled(sceneControlsBusy || !worldEditingAllowed());
-        centerCam.setDisabled(!canvasNavigationAllowed());
+        centerCam.setDisabled(hudCanvasActive || !worldEditingAllowed());
         rulersVisibilityCheckBox.setDisabled(!canvasNavigationAllowed());
         updateDeleteSceneButtonState();
     }
 
     private boolean canvasNavigationAllowed() {
         return worldEditingAllowed() || app.hudCanvasActive();
+    }
+
+    public void setHudCanvasActive(boolean active) {
+        if (hudCanvasActive == active) return;
+        hudCanvasActive = active;
+        panLabelCell.setActor(active ? null : panLabel);
+        panXCell.setActor(active ? null : panFieldX);
+        panYCell.setActor(active ? null : panFieldY);
+        panYCell.padRight(active ? 0f : 30f);
+        zoomLabelCell.setActor(active ? null : zoomLabel);
+        zoomValueCell.setActor(active ? null : zoomValue);
+        zoomValueCell.padRight(active ? 0f : 30f);
+        centerCamCell.setActor(active ? null : centerCam);
+        centerCamCell.width(active ? 0f : 120f);
+        invalidateHierarchy();
+        refreshWorldEditingAvailability();
     }
 
     public void refreshSelectBox() {

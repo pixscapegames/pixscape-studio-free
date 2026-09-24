@@ -15,8 +15,6 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
     private HudEditorSession.Status loadingStatus = HudEditorSession.Status.CLOSED;
     private String selectedNodeId;
     private String selectedCellId;
-    private float hudCameraX = Float.NaN;
-    private float hudCameraY = Float.NaN;
 
     public HudScreenEditorDocument(String screenId, String title) {
         this(screenId, title, defaultAsset(screenId), defaultDocument());
@@ -42,8 +40,6 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
         loadingStatus = session.status();
         selectedNodeId = session.selectedNodeId();
         selectedCellId = session.selectedCellId();
-        hudCameraX = session.hudCameraX();
-        hudCameraY = session.hudCameraY();
     }
 
     public void setSelectedNodeId(String selectedNodeId) {
@@ -57,10 +53,6 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
         if (selectedCellId != null) selectedNodeId = null;
     }
 
-    public boolean hasHudCamera() { return Float.isFinite(hudCameraX) && Float.isFinite(hudCameraY); }
-    public float hudCameraX() { return hudCameraX; }
-    public float hudCameraY() { return hudCameraY; }
-    public void setHudCamera(float x, float y) { hudCameraX = x; hudCameraY = y; }
 
     private void resolveSelection() {
         HudDocumentV1 current = editSession.document();

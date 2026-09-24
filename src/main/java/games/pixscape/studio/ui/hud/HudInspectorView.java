@@ -249,7 +249,8 @@ public final class HudInspectorView extends VisTable {
 
     private void addNodeProperties(HudNode node) {
         String nodeId = node.id;
-        HudChild relation = HudLayoutAuthoring.childRelation(session.document(), nodeId);
+        HudDocumentV1 currentDocument = session.document();
+        HudChild relation = HudLayoutAuthoring.childRelation(currentDocument, nodeId);
         HudTableCell ownerCell = HudLayoutAuthoring.containingCell(session.document(), nodeId);
         HudNode resultOwner = HudLayoutAuthoring.resultButtonOwner(session.document(), nodeId);
         HudPlacementKind placement = relation != null ? relation.placementKind
@@ -270,7 +271,26 @@ public final class HudInspectorView extends VisTable {
             addReadOnly("Layout", "Controlled by parent " + placement.name().toLowerCase());
         }
 
-        if (placement == HudPlacementKind.FREE) addFreeProperties(nodeId);
+        if (placement == HudPlacementKind.FREE) {
+            addFreeProperties(nodeId);
+            if (node.kind == HudNodeKind.DIALOG) {
+                addReadOnly("Center on HUD", "Center anchors, 0.5 pivots, zero offsets");
+            }
+        }
+        if (node.kind == HudNodeKind.TABLE && relation != null
+                && currentDocument.root.children.contains(relation)) {
+            addCheck("Fill HUD surface", "hudTableFillParent", nodeId,
+                    nodeValue(nodeId, current -> current.fillParent),
+                    (current, currentRelation, value) -> {
+                        current.fillParent = value;
+                        currentRelation.placementKind = value
+                                ? HudPlacementKind.DIRECT : HudPlacementKind.FREE;
+                        currentRelation.free = value ? null
+                                : new games.pixscape.runtime.hud.document.HudFreePlacement();
+                        current.actor.width = value ? 0f : CommonLayout.DEFAULT_FREE_WIDTH;
+                        current.actor.height = value ? 0f : CommonLayout.DEFAULT_FREE_HEIGHT;
+                    });
+        }
         if (placement == HudPlacementKind.DIRECT) addReadOnly("Child layout", "Controlled by parent container");
         if (node.kind == HudNodeKind.DIALOG) addDialogResultButtons(node);
         if (resultOwner != null) addDialogResultProperties(nodeId);
@@ -523,6 +543,22 @@ public final class HudInspectorView extends VisTable {
                             : current.constraints.prefHeight == null ? 0f : current.constraints.prefHeight;
                 });
         addPair("Preferred", "Width", prefWidth, "Height", prefHeight);
+        SimpleFloatField maxWidth = cellNumberField("hudMaxWidthField", cellId,
+                current -> current.constraints.maxWidth,
+                (current, value) -> current.constraints.maxWidth = value, 1, nonNegative());
+        SimpleFloatField maxHeight = cellNumberField("hudMaxHeightField", cellId,
+                current -> current.constraints.maxHeight,
+                (current, value) -> current.constraints.maxHeight = value, 1, nonNegative());
+        addCellChecks("No maximum", "hudMaxWidthAuto", "hudMaxHeightAuto", cellId,
+                current -> current.constraints.maxWidth == null,
+                current -> current.constraints.maxHeight == null,
+                (current, widthAuto, heightAuto) -> {
+                    current.constraints.maxWidth = widthAuto ? null
+                            : current.constraints.maxWidth == null ? 0f : current.constraints.maxWidth;
+                    current.constraints.maxHeight = heightAuto ? null
+                            : current.constraints.maxHeight == null ? 0f : current.constraints.maxHeight;
+                });
+        addPair("Maximum", "Width", maxWidth, "Height", maxHeight);
         SimpleFloatField padLeft = cellNumberField("hudPadLeftField", cellId,
                 current -> current.constraints.padLeft,
                 (current, value) -> current.constraints.padLeft = value, 1, nonNegative());

@@ -193,9 +193,6 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                     @Override public boolean isActive() { return hudEditorSession.isTestMode(); }
                 });
         hudEditorSession.addListener(() -> {
-            if (bottomMenuBar != null && hudCanvasActive()) {
-                bottomMenuBar.setPan(hudEditorSession.hudCameraX(), hudEditorSession.hudCameraY());
-            }
             studioEditingModeService.refreshHudTestMode();
             syncHudTestInputSurface();
         });
@@ -1346,6 +1343,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     private void enterHudRulerProjection() {
+        if (bottomMenuBar != null) bottomMenuBar.setHudCanvasActive(true);
         if (!hudRulerStateCaptured) {
             rulersVisibleBeforeHud = dockManager.isRulersVisible();
             hudRulerStateCaptured = true;
@@ -1392,10 +1390,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     public void centerActiveCanvasCamera() {
-        if (hudCanvasActive()) {
-            hudEditorSession.centerHudCamera();
-            bottomMenuBar.setPan(hudEditorSession.hudCameraX(), hudEditorSession.hudCameraY());
-        } else {
+        if (!hudCanvasActive()) {
             canvas.centerCamera();
         }
     }
@@ -1406,6 +1401,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     private void leaveHudRulerProjection() {
+        if (bottomMenuBar != null) bottomMenuBar.setHudCanvasActive(false);
         if (!hudRulerStateCaptured) return;
         rulerTop.clearProjection();
         rulerLeft.clearProjection();

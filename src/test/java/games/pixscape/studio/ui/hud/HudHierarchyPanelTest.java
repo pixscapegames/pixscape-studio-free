@@ -421,8 +421,6 @@ public class HudHierarchyPanelTest {
         String first = table.table.rows.get(0).cells.get(0).id;
         String second = table.table.rows.get(0).cells.get(1).id;
         HudScreenAsset asset = asset("hud/canvas");
-        asset.referenceWidth = 100;
-        asset.referenceHeight = 100;
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument document = manager.openHudScreen(new HudScreenEditorDocument(
                 "hud/canvas", "Canvas HUD", asset, new HudDocumentV1(table)));

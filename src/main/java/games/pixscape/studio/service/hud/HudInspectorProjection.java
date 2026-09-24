@@ -24,7 +24,6 @@ public final class HudInspectorProjection {
         rows.add(new Field("Screen ID", text(session.screenId())));
         HudScreenAsset asset = session.asset();
         if (asset != null) {
-            rows.add(new Field("Reference size", asset.referenceWidth + " × " + asset.referenceHeight));
             rows.add(new Field("Document", text(asset.documentId)));
             rows.add(new Field("Skin", text(asset.skinId)));
             rows.add(new Field("Atlas", text(asset.atlasId)));
@@ -43,6 +42,7 @@ public final class HudInspectorProjection {
         HudChild relation = HudLayoutAuthoring.childRelation(document, node.id);
         HudPlacementKind placement = relation != null ? relation.placementKind : HudPlacementKind.DIRECT;
         rows.add(new Field("Placement", String.valueOf(placement)));
+        if (node.fillParent) rows.add(new Field("Fill HUD surface", "true"));
         if (placement == HudPlacementKind.CELL && relation.cell != null) addCell(rows, relation.cell);
         if (placement == HudPlacementKind.FREE && relation.free != null) addFree(rows, relation.free);
         if (node.image != null) {
@@ -84,6 +84,8 @@ public final class HudInspectorProjection {
         rows.add(new Field("Minimum", number(cell.minWidth) + " × " + number(cell.minHeight)));
         rows.add(new Field("Preferred", number(cell.prefWidth)
                 + " × " + number(cell.prefHeight)));
+        rows.add(new Field("Maximum", number(cell.maxWidth)
+                + " × " + number(cell.maxHeight)));
         rows.add(new Field("Padding", number(cell.padTop) + ", " + number(cell.padRight)
                 + ", " + number(cell.padBottom) + ", " + number(cell.padLeft)));
         rows.add(new Field("Fill / expand", cell.fillX + "/" + cell.fillY + "  "

@@ -264,8 +264,6 @@ public final class HudDocumentEditSession implements AutoCloseable {
     private static HudScreenAsset copyAsset(HudScreenAsset source) {
         HudScreenAsset copy = new HudScreenAsset();
         copy.schemaVersion = source.schemaVersion;
-        copy.referenceWidth = source.referenceWidth;
-        copy.referenceHeight = source.referenceHeight;
         copy.documentId = source.documentId;
         copy.skinId = source.skinId;
         copy.atlasId = source.atlasId;

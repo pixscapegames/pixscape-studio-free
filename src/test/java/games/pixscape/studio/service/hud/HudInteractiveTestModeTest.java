@@ -107,8 +107,6 @@ public class HudInteractiveTestModeTest {
             String authored = new HudDocumentCodec().write(document.document());
             int history = document.editSession().historySize();
             boolean dirty = document.isDirty();
-            float cameraX = session.hudCameraX();
-            float cameraY = session.hudCameraY();
 
             assertTrue(session.enterTestMode());
             Actor candidate = session.testActor("play");
@@ -128,12 +126,48 @@ public class HudInteractiveTestModeTest {
             assertFalse(session.isTestMode());
             assertNull(session.testActor("play"));
             assertEquals("play", session.selectedNodeId());
-            assertEquals(cameraX, session.hudCameraX(), 0f);
-            assertEquals(cameraY, session.hudCameraY(), 0f);
 
             assertTrue(session.enterTestMode());
             assertTrue(session.testActor("play").isVisible());
             assertNotSame(candidate, session.testActor("play"));
+        } finally {
+            session.dispose();
+        }
+    }
+
+    @Test public void testModeFollowsCanvasResizeWithoutScalingFreeWidgets() throws Exception {
+        FileHandle project = new FileHandle(temporary.newFolder("resize-mode"));
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode badge = new HudNode("badge", HudNodeKind.GROUP);
+        badge.actor.width = 50f;
+        badge.actor.height = 20f;
+        HudFreePlacement placement = new HudFreePlacement();
+        placement.horizontalAnchor = games.pixscape.runtime.hud.document.HudHorizontalAnchor.RIGHT;
+        placement.verticalAnchor = games.pixscape.runtime.hud.document.HudVerticalAnchor.TOP;
+        placement.pivotX = 1f;
+        placement.pivotY = 1f;
+        placement.offsetX = -10f;
+        placement.offsetY = -10f;
+        root.children.add(HudChild.free(badge, placement));
+        HudScreenEditorDocument document = new HudScreenEditorDocument(
+                "hud/resize", "Resize", asset(), new HudDocumentV1(root));
+        HudEditorSession session = new HudEditorSession(
+                AssetMetaDatabase::new, HudInteractiveTestModeTest::inertBatch);
+        try {
+            session.open(project, document);
+            assertTrue(session.configurePreview(new Rectangle(20f, 30f, 800f, 600f)));
+            assertTrue(session.enterTestMode());
+            assertEquals(800f, session.testActor("root").getWidth(), .001f);
+            assertEquals(740f, session.testActor("badge").getX(), .001f);
+            assertEquals(50f, session.testActor("badge").getWidth(), .001f);
+
+            assertTrue(session.configurePreview(new Rectangle(20f, 30f, 400f, 300f)));
+            assertEquals(400f, session.testActor("root").getWidth(), .001f);
+            assertEquals(340f, session.testActor("badge").getX(), .001f);
+            assertEquals(270f, session.testActor("badge").getY(), .001f);
+            assertEquals(50f, session.testActor("badge").getWidth(), .001f);
+            assertTrue(session.configurePreview(new Rectangle(20f, 30f, 800f, 600f)));
+            assertEquals(740f, session.testActor("badge").getX(), .001f);
         } finally {
             session.dispose();
         }
@@ -277,8 +311,8 @@ public class HudInteractiveTestModeTest {
         opener.actor.height = 40f;
         opener.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.SHOW));
         HudFreePlacement openerPlacement = new HudFreePlacement();
-        openerPlacement.offsetX = 900f;
-        openerPlacement.offsetY = 500f;
+        openerPlacement.offsetX = 300f;
+        openerPlacement.offsetY = 300f;
         root.children.add(HudChild.free(opener, openerPlacement));
         HudNode dialogNode = new HudNode("dialog", HudNodeKind.DIALOG);
         dialogNode.dialog = new HudDialogData();
@@ -292,8 +326,8 @@ public class HudInteractiveTestModeTest {
         closer.windowActions.add(new HudWindowAction("dialog", HudWindowActionKind.HIDE));
         dialogNode.table.rows.get(0).cells.get(0).content = closer;
         HudFreePlacement dialogPlacement = new HudFreePlacement();
-        dialogPlacement.offsetX = 900f;
-        dialogPlacement.offsetY = 500f;
+        dialogPlacement.offsetX = 300f;
+        dialogPlacement.offsetY = 300f;
         root.children.add(HudChild.free(dialogNode, dialogPlacement));
         HudScreenEditorDocument document = new HudScreenEditorDocument(
                 "hud/main", "Main", asset(), new HudDocumentV1(root));
@@ -387,7 +421,7 @@ public class HudInteractiveTestModeTest {
             assertTrue(session.enterTestMode());
             TextButton testedButton = (TextButton) session.testActor("play");
             testedButton.setTouchable(Touchable.enabled);
-            testedButton.setBounds(900f, 490f, 120f, 100f);
+            testedButton.setBounds(350f, 250f, 120f, 100f);
             int[] hudDown = {0};
             int[] hudUp = {0};
             testedButton.addListener(new InputListener() {
@@ -779,8 +813,6 @@ public class HudInteractiveTestModeTest {
 
     private static HudScreenAsset canvasSizedAsset() {
         HudScreenAsset asset = asset();
-        asset.referenceWidth = 800;
-        asset.referenceHeight = 600;
         return asset;
     }
 

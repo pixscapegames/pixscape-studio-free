@@ -42,7 +42,6 @@ import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.service.atlas.HudImageAssetRef;
 import games.pixscape.studio.document.HudScreenEditorDocument;
-import games.pixscape.studio.helper.CameraPan;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 
@@ -328,7 +327,7 @@ public final class HudEditorSession implements Disposable {
         if (isTestMode() || materialized == null || document == null || authoringSession == null)
             return false;
         Vector2 point = new Vector2();
-        if (!hudPointAt(stageX, stageY, point) || !insideHudReference(point)) return false;
+        if (!hudPointAt(stageX, stageY, point) || !insideHudSurface(point)) return false;
         Vector2 overlayPoint = authoringSession.selectionOverlayActor()
                 .stageToLocalCoordinates(new Vector2(point));
         Actor leaf = deepestVisibleAuthoredActorAt(authoringSession.stage().getRoot(), point);
@@ -1421,15 +1420,6 @@ public final class HudEditorSession implements Disposable {
         if (width <= 0 || height <= 0) return false;
         if (x != previewX || y != previewY || width != previewWidth || height != previewHeight) {
             authoringSession.configure(asset, x, y, width, height);
-            OrthographicCamera camera = (OrthographicCamera) authoringSession.viewport().getCamera();
-            if (editorDocument != null && editorDocument.hasHudCamera()) {
-                camera.position.set(editorDocument.hudCameraX(), editorDocument.hudCameraY(), 0f);
-            } else if (editorDocument != null) {
-                editorDocument.setHudCamera(camera.position.x, camera.position.y);
-            }
-            clampHudCamera(camera);
-            camera.update();
-            if (editorDocument != null) editorDocument.setHudCamera(camera.position.x, camera.position.y);
             if (materialized != null) authoringSession.prepare(materialized.root());
             previewX = x;
             previewY = y;
@@ -1529,7 +1519,7 @@ public final class HudEditorSession implements Disposable {
                 || editorDocument == null || materialized == null || cellContentGesture != null
                 || activeTransform != null || pendingMove != null) return false;
         Vector2 point = new Vector2();
-        if (!hudPointAt(stageX, stageY, point) || !insideHudReference(point))
+        if (!hudPointAt(stageX, stageY, point) || !insideHudSurface(point))
             return false;
         // Dialog.show() reparents the visible Dialog to the authoring Stage.
         Actor leaf = deepestVisibleAuthoredActorAt(authoringSession.stage().getRoot(), point);
@@ -1631,7 +1621,7 @@ public final class HudEditorSession implements Disposable {
 
     private String cellDestinationAt(CellContentGesture gesture, float stageX, float stageY) {
         Vector2 point = new Vector2();
-        if (!hudPointAt(stageX, stageY, point) || !insideHudReference(point)) return null;
+        if (!hudPointAt(stageX, stageY, point) || !insideHudSurface(point)) return null;
         HudNode table = HudLayoutAuthoring.node(document, gesture.tableId);
         if (table == null || table.table == null) return null;
         Vector2 overlayPoint = authoringSession.selectionOverlayActor()
@@ -1756,9 +1746,9 @@ public final class HudEditorSession implements Disposable {
                 ? HudTransformGeometry.move(activeTransform.context.overlayBounds, deltaX, deltaY)
                 : HudTransformGeometry.resize(activeTransform.context.overlayBounds, activeTransform.handle,
                 deltaX, deltaY);
-        activeTransform.currentOverlayBounds = HudTransformGeometry.clampToReference(
+        activeTransform.currentOverlayBounds = HudTransformGeometry.clampToSurface(
                 activeTransform.currentOverlayBounds,
-                authoringSession.referenceWidth(), authoringSession.referenceHeight());
+                 authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
         Actor actor = materialized != null ? materialized.actor(activeTransform.context.nodeId) : null;
         if (authoringSession != null) {
             authoringSession.previewAuthoredActorBounds(actor, activeTransform.currentOverlayBounds);
@@ -1855,18 +1845,14 @@ public final class HudEditorSession implements Disposable {
     public void refreshDocumentMetadata(HudScreenEditorDocument document) {
         if (editorDocument != document) return;
         HudScreenAsset updated = document.asset();
-        boolean referenceSizeChanged = asset == null
-                || asset.referenceWidth != updated.referenceWidth
-                || asset.referenceHeight != updated.referenceHeight;
         boolean resourcesChanged = asset == null || !Objects.equals(asset.atlasId, updated.atlasId)
                 || !Objects.equals(asset.skinId, updated.skinId)
                 || !Objects.equals(asset.textureProfileId, updated.textureProfileId);
-        if (referenceSizeChanged || resourcesChanged) exitTestMode();
+        if (resourcesChanged) exitTestMode();
         if (resourcesChanged) {
             resourcesStale = true;
         }
         asset = updated;
-        if (referenceSizeChanged) previewX = Integer.MIN_VALUE;
         notifyListeners();
     }
     /** Keeps current live resources usable, but forces transactional replacement on next install. */
@@ -1952,7 +1938,7 @@ public final class HudEditorSession implements Disposable {
                 || studioStageY < viewport.getScreenY()
                 || studioStageY >= viewport.getScreenY() + viewport.getScreenHeight()) return null;
         Vector2 hudPoint = studioToHud(studioStageX, studioStageY, new Vector2());
-        if (hudPoint == null || !insideHudReference(hudPoint)) return null;
+        if (hudPoint == null || !insideHudSurface(hudPoint)) return null;
         HudSelectionTarget cellTarget = authoringSession.selectionTargetAt(hudPoint.x, hudPoint.y);
         if (cellTarget != null && cellTarget.type() == HudSelectionTarget.Type.CELL) {
             HudTableCell cell = HudLayoutAuthoring.cell(document, cellTarget.nodeId());
@@ -2000,7 +1986,7 @@ public final class HudEditorSession implements Disposable {
                 || studioStageY < viewport.getScreenY()
                 || studioStageY >= viewport.getScreenY() + viewport.getScreenHeight()) return null;
         Vector2 hudPoint = studioToHud(studioStageX, studioStageY, new Vector2());
-        if (hudPoint == null || !insideHudReference(hudPoint)) return null;
+        if (hudPoint == null || !insideHudSurface(hudPoint)) return null;
 
         Actor selectedActor = materialized.actor(selectedParentId);
         HudNode selected = validation.validatedDocument().node(selectedParentId);
@@ -2091,7 +2077,7 @@ public final class HudEditorSession implements Disposable {
                 || screenY < top || screenY >= top + viewport.getScreenHeight()) return null;
 
         Vector2 hudPoint = screenToHud(viewport, logicalWindowHeight, screenX, screenY, new Vector2());
-        if (!insideHudReference(hudPoint)) return null;
+        if (!insideHudSurface(hudPoint)) return null;
         Actor actor = deepestDropActorAt(materialized.root(), hudPoint);
         while (actor != null) {
             String nodeId = actor.getName();
@@ -2268,7 +2254,7 @@ public final class HudEditorSession implements Disposable {
     public boolean scrollHudAt(float studioStageX, float studioStageY, float amountX, float amountY) {
         if (status != Status.READY || authoringSession == null || materialized == null) return false;
         Vector2 hudPoint = studioToHud(studioStageX, studioStageY, new Vector2());
-        if (hudPoint == null || !insideHudReference(hudPoint)) return false;
+        if (hudPoint == null || !insideHudSurface(hudPoint)) return false;
         Actor target = deepestVisibleAuthoredActorAt(materialized.root(), hudPoint);
         if (target == null) return false;
         ScrollPane pane = null;
@@ -2300,9 +2286,9 @@ public final class HudEditorSession implements Disposable {
             Vector2 local = parent.stageToLocalCoordinates(new Vector2(hudPoint));
             return new DropGeometry(local.x, local.y, 0f, 0f);
         }
-        HudTransformGeometry.Bounds clamped = HudTransformGeometry.clampToReference(
+        HudTransformGeometry.Bounds clamped = HudTransformGeometry.clampToSurface(
                 new HudTransformGeometry.Bounds(hudPoint.x, hudPoint.y, imageWidth, imageHeight),
-                authoringSession.referenceWidth(), authoringSession.referenceHeight());
+                 authoringSession.surfaceWidth(), authoringSession.surfaceHeight());
         Vector2 lower = parent.stageToLocalCoordinates(new Vector2(clamped.x(), clamped.y()));
         Vector2 upper = parent.stageToLocalCoordinates(new Vector2(clamped.right(), clamped.top()));
         return new DropGeometry(lower.x, lower.y,
@@ -2509,7 +2495,7 @@ public final class HudEditorSession implements Disposable {
         return out;
     }
 
-    /** Resolves a logical Studio-stage point through the current HUD camera. */
+    /** Resolves a logical Studio-stage point inside the HUD canvas. */
     public boolean hudPointAt(float studioStageX, float studioStageY, Vector2 out) {
         if (out == null || authoringSession == null || previewX == Integer.MIN_VALUE) return false;
         var viewport = authoringSession.viewport();
@@ -2520,31 +2506,6 @@ public final class HudEditorSession implements Disposable {
         return studioToHud(studioStageX, studioStageY, out) != null;
     }
 
-    /** Applies the shared grab-pan delta from stable Studio-stage pointer positions. */
-    public void panBetweenHudStagePoints(Vector2 previousStagePoint, Vector2 currentStagePoint) {
-        if (authoringSession == null || previousStagePoint == null || currentStagePoint == null) return;
-        OrthographicCamera camera = (OrthographicCamera) authoringSession.viewport().getCamera();
-        Vector2 previousHudPoint = new Vector2();
-        Vector2 currentHudPoint = new Vector2();
-        viewportPointToHud(authoringSession.viewport(),
-                previousStagePoint.x, previousStagePoint.y, previousHudPoint);
-        viewportPointToHud(authoringSession.viewport(),
-                currentStagePoint.x, currentStagePoint.y, currentHudPoint);
-        CameraPan.translateBetweenWorldPoints(camera, previousHudPoint, currentHudPoint);
-        clampHudCamera(camera);
-        camera.update();
-        if (editorDocument != null) editorDocument.setHudCamera(camera.position.x, camera.position.y);
-        notifyListeners();
-    }
-
-    public float hudCameraX() {
-        return authoringSession == null ? Float.NaN : authoringSession.viewport().getCamera().position.x;
-    }
-
-    public float hudCameraY() {
-        return authoringSession == null ? Float.NaN : authoringSession.viewport().getCamera().position.y;
-    }
-
     public OrthographicCamera hudCamera() {
         return authoringSession == null ? null : (OrthographicCamera) authoringSession.viewport().getCamera();
     }
@@ -2553,46 +2514,15 @@ public final class HudEditorSession implements Disposable {
         return authoringSession == null ? null : authoringSession.viewport();
     }
 
-    public void centerHudCamera() {
-        if (authoringSession == null) return;
-        var camera = authoringSession.viewport().getCamera();
-        camera.position.set(authoringSession.referenceWidth() * 0.5f,
-                authoringSession.referenceHeight() * 0.5f, 0f);
-        camera.update();
-        if (editorDocument != null) editorDocument.setHudCamera(camera.position.x, camera.position.y);
-        notifyListeners();
-    }
-
-    private boolean insideHudReference(Vector2 point) {
-        return point.x >= 0f && point.x <= authoringSession.referenceWidth()
-                && point.y >= 0f && point.y <= authoringSession.referenceHeight();
-    }
-
-    private void clampHudCamera(OrthographicCamera camera) {
-        float referenceWidth = authoringSession.referenceWidth();
-        float referenceHeight = authoringSession.referenceHeight();
-        float visibleWidth = camera.viewportWidth * camera.zoom;
-        float visibleHeight = camera.viewportHeight * camera.zoom;
-        camera.position.x = clampCameraAxis(camera.position.x, referenceWidth, visibleWidth);
-        camera.position.y = clampCameraAxis(camera.position.y, referenceHeight, visibleHeight);
-    }
-
-    static float clampCameraAxis(float position, float referenceSize, float visibleSize) {
-        if (visibleSize >= referenceSize) return referenceSize * 0.5f;
-        float half = visibleSize * 0.5f;
-        return Math.max(half, Math.min(position, referenceSize - half));
+    private boolean insideHudSurface(Vector2 point) {
+        return point.x >= 0f && point.x <= authoringSession.surfaceWidth()
+                && point.y >= 0f && point.y <= authoringSession.surfaceHeight();
     }
 
     private static void viewportPointToHud(com.badlogic.gdx.utils.viewport.Viewport viewport,
                                            float viewportX, float viewportY, Vector2 out) {
-        var camera = viewport.getCamera();
-        float zoom = camera instanceof OrthographicCamera orthographic ? orthographic.zoom : 1f;
-        out.x = (viewportX - viewport.getScreenX())
-                * viewport.getWorldWidth() / viewport.getScreenWidth() * zoom
-                + camera.position.x - viewport.getWorldWidth() * zoom * 0.5f;
-        out.y = (viewportY - viewport.getScreenY())
-                * viewport.getWorldHeight() / viewport.getScreenHeight() * zoom
-                + camera.position.y - viewport.getWorldHeight() * zoom * 0.5f;
+        out.x = viewportX - viewport.getScreenX();
+        out.y = viewportY - viewport.getScreenY();
     }
 
     private float transformDragThreshold() {

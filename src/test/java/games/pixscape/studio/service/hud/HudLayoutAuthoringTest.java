@@ -271,7 +271,7 @@ public class HudLayoutAuthoringTest {
     public void freeStructuralChildrenReceiveTheCentralCreationSize() {
         assertEquals(200f, CommonLayout.DEFAULT_FREE_WIDTH, 0f);
         assertEquals(120f, CommonLayout.DEFAULT_FREE_HEIGHT, 0f);
-        for (HudNodeKind kind : List.of(HudNodeKind.GROUP, HudNodeKind.TABLE,
+        for (HudNodeKind kind : List.of(HudNodeKind.GROUP,
                 HudNodeKind.STACK, HudNodeKind.CONTAINER, HudNodeKind.SCROLL_PANE)) {
             HudDocumentV1 document = document();
             String id = HudLayoutAuthoring.addChild(document, "root", kind);
@@ -281,6 +281,13 @@ public class HudLayoutAuthoringTest {
             assertEquals(CommonLayout.DEFAULT_FREE_WIDTH, child.node.actor.width, 0f);
             assertEquals(CommonLayout.DEFAULT_FREE_HEIGHT, child.node.actor.height, 0f);
         }
+        HudDocumentV1 tableDocument = document();
+        HudChild table = findChild(tableDocument.root,
+                HudLayoutAuthoring.addChild(tableDocument, "root", HudNodeKind.TABLE));
+        assertEquals(HudPlacementKind.DIRECT, table.placementKind);
+        assertTrue(table.node.fillParent);
+        assertEquals(0f, table.node.actor.width, 0f);
+        assertEquals(0f, table.node.actor.height, 0f);
     }
 
     @Test
@@ -347,14 +354,16 @@ public class HudLayoutAuthoringTest {
 
         assertEquals(1, session.historySize());
         HudNode created = findChild(session.document().root, "table-1").node;
-        assertEquals(CommonLayout.DEFAULT_FREE_WIDTH, created.actor.width, 0f);
-        assertEquals(CommonLayout.DEFAULT_FREE_HEIGHT, created.actor.height, 0f);
+        assertTrue(created.fillParent);
+        assertEquals(0f, created.actor.width, 0f);
+        assertEquals(0f, created.actor.height, 0f);
         assertTrue(session.undo());
         assertNull(findChild(session.document().root, "table-1"));
         assertTrue(session.redo());
         HudNode restored = findChild(session.document().root, "table-1").node;
-        assertEquals(CommonLayout.DEFAULT_FREE_WIDTH, restored.actor.width, 0f);
-        assertEquals(CommonLayout.DEFAULT_FREE_HEIGHT, restored.actor.height, 0f);
+        assertTrue(restored.fillParent);
+        assertEquals(0f, restored.actor.width, 0f);
+        assertEquals(0f, restored.actor.height, 0f);
         assertEquals(1, session.historySize());
     }
 

@@ -5,6 +5,8 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.hud.HudMaterializer;
@@ -19,19 +21,18 @@ import games.pixscape.studio.asset.AssetMetaDatabase;
 final class HudInteractiveTestSession implements Disposable {
     private final ScreenViewport viewport = new ScreenViewport();
     private final Stage stage;
-    private final HudScreenAsset asset;
     private HudAuthoringResources resources;
     private MaterializedHud materialized;
+    private final Rectangle clipBounds = new Rectangle();
     private int x = Integer.MIN_VALUE;
     private int y;
     private int width;
     private int height;
     private boolean disposed;
 
-    private HudInteractiveTestSession(Batch batch, HudScreenAsset asset,
+    private HudInteractiveTestSession(Batch batch,
                                       HudAuthoringResources resources,
                                       MaterializedHud materialized) {
-        this.asset = asset;
         this.resources = resources;
         this.materialized = materialized;
         stage = new Stage(viewport, batch); // The Studio Batch is borrowed by this Stage.
@@ -63,7 +64,7 @@ final class HudInteractiveTestSession implements Disposable {
             requireValid(resourceValidation);
             candidate = new HudMaterializer().materialize(
                     resourceValidation.validatedDocument(), candidateResources);
-            return new HudInteractiveTestSession(batch, asset, candidateResources, candidate);
+            return new HudInteractiveTestSession(batch, candidateResources, candidate);
         } catch (RuntimeException failure) {
             disposeCandidate(candidate, failure);
             disposeCandidate(candidateResources, failure);
@@ -78,14 +79,11 @@ final class HudInteractiveTestSession implements Disposable {
         this.y = y;
         this.width = width;
         this.height = height;
-        viewport.update(width, height, false);
+        viewport.update(width, height, true);
         viewport.setScreenPosition(x, y);
-        viewport.getCamera().position.set(asset.referenceWidth * 0.5f,
-                asset.referenceHeight * 0.5f, 0f);
-        viewport.getCamera().update();
         viewport.apply(false);
         Actor root = materialized.root();
-        root.setBounds(0f, 0f, asset.referenceWidth, asset.referenceHeight);
+        root.setBounds(0f, 0f, viewport.getWorldWidth(), viewport.getWorldHeight());
         if (root instanceof Layout layout) {
             layout.invalidateHierarchy();
             layout.validate();
@@ -97,7 +95,14 @@ final class HudInteractiveTestSession implements Disposable {
     void draw() {
         if (disposed || x == Integer.MIN_VALUE) return;
         viewport.apply(false);
-        stage.draw();
+        clipBounds.set(viewport.getScreenX(), viewport.getScreenY(),
+                viewport.getScreenWidth(), viewport.getScreenHeight());
+        if (!ScissorStack.pushScissors(clipBounds)) return;
+        try {
+            stage.draw();
+        } finally {
+            ScissorStack.popScissors();
+        }
     }
 
     Stage stage() { return disposed ? null : stage; }

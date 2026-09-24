@@ -117,9 +117,6 @@ public class HudAssetDropControllerTest {
             DragContext.get().cancel();
             f.controller.updateAt(5, 5, 300, false);
 
-            f.session.hudCamera().position.set(55f, 45f, 0f);
-            f.session.hudCamera().zoom = 1.25f;
-            f.session.hudCamera().update();
             DragPayload nestedPayload = imagePayload(f.image.id());
             nestedPayload.imageWidth = 20;
             nestedPayload.imageHeight = 10;
@@ -500,8 +497,6 @@ public class HudAssetDropControllerTest {
             pixels.dispose();
         }
         HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = 100;
-        asset.referenceHeight = 100;
         asset.documentId = "hud/main.json";
         EditorDocumentManager manager = new EditorDocumentManager();
         HudScreenEditorDocument hud = manager.openHudScreen(new HudScreenEditorDocument(

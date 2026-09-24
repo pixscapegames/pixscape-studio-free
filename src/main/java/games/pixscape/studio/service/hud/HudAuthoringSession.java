@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
 import com.badlogic.gdx.utils.Disposable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
@@ -26,8 +27,8 @@ public final class HudAuthoringSession implements Disposable {
     private final Group host = new Group();
     private final HudSelectionOverlay selectionOverlay = new HudSelectionOverlay();
     private final Vector2 overlayCoordinates = new Vector2();
+    private final Rectangle clipBounds = new Rectangle();
     private boolean disposed;
-    private boolean viewportInitialized;
 
     public HudAuthoringSession(Batch batch) {
         this(batch, null);
@@ -48,16 +49,11 @@ public final class HudAuthoringSession implements Disposable {
     }
     public void configure(HudScreenAsset asset, int x, int y, int width, int height) {
         if (asset == null || width <= 0 || height <= 0) throw new IllegalArgumentException("HUD bounds are required.");
-        viewport.update(width, height, false);
+        viewport.update(width, height, true);
         viewport.setScreenPosition(x, y);
-        if (!viewportInitialized) {
-            viewport.getCamera().position.set(asset.referenceWidth * 0.5f,
-                    asset.referenceHeight * 0.5f, 0f);
-            viewportInitialized = true;
-        }
         viewport.apply(false);
-        host.setBounds(0f, 0f, asset.referenceWidth, asset.referenceHeight);
-        selectionOverlay.setBounds(0f, 0f, asset.referenceWidth, asset.referenceHeight);
+        host.setBounds(0f, 0f, viewport.getWorldWidth(), viewport.getWorldHeight());
+        selectionOverlay.setBounds(0f, 0f, host.getWidth(), host.getHeight());
     }
     public void prepare(Actor root) {
         root.setBounds(0f, 0f, host.getWidth(), host.getHeight());
@@ -147,30 +143,37 @@ public final class HudAuthoringSession implements Disposable {
      * call would allow debugAll() to overpaint the gizmo and selection outlines.
      */
     public void draw() {
-        boolean overlayVisible = selectionOverlay.isVisible();
-        selectionOverlay.setDebug(false, true);
-        selectionOverlay.setVisible(false);
+        clipBounds.set(viewport.getScreenX(), viewport.getScreenY(),
+                viewport.getScreenWidth(), viewport.getScreenHeight());
+        if (!ScissorStack.pushScissors(clipBounds)) return;
         try {
-            viewport.apply(false);
-            stage.draw();
-        } finally {
-            selectionOverlay.setVisible(overlayVisible);
-        }
-        // Stage.drawDebug() invokes debugAll() again, so restore the editor-only exclusion afterwards.
-        selectionOverlay.setDebug(false, true);
-        if (!overlayVisible) return;
+            boolean overlayVisible = selectionOverlay.isVisible();
+            selectionOverlay.setDebug(false, true);
+            selectionOverlay.setVisible(false);
+            try {
+                viewport.apply(false);
+                stage.draw();
+            } finally {
+                selectionOverlay.setVisible(overlayVisible);
+            }
+            // Stage.drawDebug() invokes debugAll() again, so restore the editor-only exclusion afterwards.
+            selectionOverlay.setDebug(false, true);
+            if (!overlayVisible) return;
 
-        // Reuse the Stage batch and HUD camera; this is the only editor-overlay draw for the frame.
-        viewport.apply(false);
-        Batch batch = stage.getBatch();
-        batch.setProjectionMatrix(stage.getCamera().combined);
-        batch.begin();
-        selectionOverlay.draw(batch, 1f);
-        batch.end();
+            // Reuse the Stage batch and HUD camera; this is the only editor-overlay draw for the frame.
+            viewport.apply(false);
+            Batch batch = stage.getBatch();
+            batch.setProjectionMatrix(stage.getCamera().combined);
+            batch.begin();
+            selectionOverlay.draw(batch, 1f);
+            batch.end();
+        } finally {
+            ScissorStack.popScissors();
+        }
     }
     public Viewport viewport() { return viewport; }
-    public float referenceWidth() { return host.getWidth(); }
-    public float referenceHeight() { return host.getHeight(); }
+    public float surfaceWidth() { return host.getWidth(); }
+    public float surfaceHeight() { return host.getHeight(); }
     public Stage stage() { return stage; }
     Group authoredHost() { return host; }
     Group selectionOverlayHost() { return selectionOverlay; }

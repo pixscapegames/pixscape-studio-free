@@ -29,7 +29,7 @@ public class SceneHudAssetDropControllerTest {
     @Test public void realHudPayloadAssignsCapturedSceneAndDocumentSwitchInvalidatesDrag()
             throws Exception {
         FileHandle root = new FileHandle(temporary.newFolder());
-        new HudScreenAssetAuthoringService().create(root, "status", 320, 180);
+        new HudScreenAssetAuthoringService().create(root, "status");
         ProjectConfig cfg = new ProjectConfig();
         cfg.createSceneMeta("A");
         cfg.createSceneMeta("B");

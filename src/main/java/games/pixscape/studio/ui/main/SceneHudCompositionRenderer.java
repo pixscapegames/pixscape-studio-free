@@ -254,8 +254,7 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
             session = HudSession.create(asset, resources, shader);
             session.install(new HudMaterializer().materialize(
                     resourceAware.validatedDocument(), selected));
-            return new RuntimeView(resources, session, documents, persistence,
-                    asset.referenceWidth, asset.referenceHeight);
+            return new RuntimeView(resources, session, documents, persistence);
         } catch (RuntimeException failure) {
             if (session != null) session.dispose();
             if (resources != null) resources.dispose();
@@ -357,26 +356,19 @@ public final class SceneHudCompositionRenderer implements AutoCloseable {
         private HudSession session;
         private final EditorDocumentManager documents;
         private final HudDocumentPersistenceService persistence;
-        private final int referenceWidth;
-        private final int referenceHeight;
 
         private RuntimeView(HudResources resources, HudSession session,
-                            EditorDocumentManager documents, HudDocumentPersistenceService persistence,
-                            int referenceWidth, int referenceHeight) {
+                             EditorDocumentManager documents, HudDocumentPersistenceService persistence) {
             this.resources = resources;
             this.session = session;
             this.documents = documents;
             this.persistence = persistence;
-            this.referenceWidth = referenceWidth;
-            this.referenceHeight = referenceHeight;
         }
 
         @Override public boolean recompose(Association association) {
             var loaded = loadAuthoritative(new FileHandle(association.projectRoot()),
                     association.screenId(), documents, persistence);
             loaded.asset().validate();
-            if (loaded.asset().referenceWidth != referenceWidth
-                    || loaded.asset().referenceHeight != referenceHeight) return false;
             var validator = new HudDocumentValidator();
             var structural = validator.validate(loaded.document());
             requireValid(HudDocumentValidationException.Phase.STRUCTURAL,

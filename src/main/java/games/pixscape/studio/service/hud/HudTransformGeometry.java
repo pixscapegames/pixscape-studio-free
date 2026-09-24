@@ -22,11 +22,11 @@ public final class HudTransformGeometry {
     }
 
     /** Keeps a freely authored element fully inside the HUD reference rectangle. */
-    public static Bounds clampToReference(Bounds bounds, float referenceWidth, float referenceHeight) {
-        float width = Math.min(bounds.width, referenceWidth);
-        float height = Math.min(bounds.height, referenceHeight);
-        float x = Math.max(0f, Math.min(bounds.x, referenceWidth - width));
-        float y = Math.max(0f, Math.min(bounds.y, referenceHeight - height));
+    public static Bounds clampToSurface(Bounds bounds, float surfaceWidth, float surfaceHeight) {
+        float width = Math.min(bounds.width, surfaceWidth);
+        float height = Math.min(bounds.height, surfaceHeight);
+        float x = Math.max(0f, Math.min(bounds.x, surfaceWidth - width));
+        float y = Math.max(0f, Math.min(bounds.y, surfaceHeight - height));
         return new Bounds(x, y, width, height);
     }
 

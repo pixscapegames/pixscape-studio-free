@@ -18,14 +18,10 @@ public final class HudScreenAssetAuthoringService {
     private final HudScreenAssetLoader loader = new HudScreenAssetLoader();
     private final HudDocumentCodec documentCodec = new HudDocumentCodec();
 
-    public String create(FileHandle projectDir, String name,
-                         int referenceWidth, int referenceHeight) {
+    public String create(FileHandle projectDir, String name) {
         if (projectDir == null) throw new IllegalArgumentException("Project directory is required.");
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("HUD screen name cannot be empty.");
-        }
-        if (referenceWidth <= 0 || referenceHeight <= 0) {
-            throw new IllegalArgumentException("HUD reference width and height must be positive.");
         }
 
         String screenId = HudScreenAssetId.normalize(name);
@@ -42,8 +38,6 @@ public final class HudScreenAssetAuthoringService {
         }
 
         HudScreenAsset asset = new HudScreenAsset();
-        asset.referenceWidth = referenceWidth;
-        asset.referenceHeight = referenceHeight;
         asset.documentId = documentId;
         asset.validate();
         HudDocumentV1 document = new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP));

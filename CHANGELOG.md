@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Breaking changes
+
+* HUD screen assets from the fixed-resolution development format must be recreated; there is no automatic migration.
+
+### Changed
+
+* HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
+* HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
+* HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
+
 ## 0.4.0 - HUD and Multi-Scene Editing
 
 ### Added

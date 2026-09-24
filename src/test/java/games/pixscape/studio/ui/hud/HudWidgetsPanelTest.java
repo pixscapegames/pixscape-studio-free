@@ -51,11 +51,12 @@ public class HudWidgetsPanelTest {
         deferred.runAll();
         assertFalse(panel.tableButton().isChecked());
         assertEquals("table-1", session.selectedNodeId());
-        assertEquals(HudPlacementKind.FREE,
+        assertEquals(HudPlacementKind.DIRECT,
                 rootRelation(hud).placementKind);
-        assertEquals(CommonLayout.DEFAULT_FREE_WIDTH,
+        assertTrue(rootRelation(hud).node.fillParent);
+        assertEquals(0f,
                 rootRelation(hud).node.actor.width, 0f);
-        assertEquals(CommonLayout.DEFAULT_FREE_HEIGHT,
+        assertEquals(0f,
                 rootRelation(hud).node.actor.height, 0f);
         panel.containerButton().setChecked(true);
         deferred.runAll();
