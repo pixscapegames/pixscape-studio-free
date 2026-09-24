@@ -276,7 +276,7 @@ public class ItemTreePanel extends DockablePanel {
 
     static Actor projectionForDocument(EditorDocumentType type,
                                        Actor sceneItems, Actor hudHierarchy) {
-        if (type == EditorDocumentType.SCENE) return sceneItems;
+        if (type == EditorDocumentType.SCENE || type == EditorDocumentType.GAME_OBJECT) return sceneItems;
         if (type == EditorDocumentType.HUD_SCREEN) return hudHierarchy;
         return null;
     }

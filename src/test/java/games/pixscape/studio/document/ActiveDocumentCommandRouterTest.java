@@ -1,5 +1,6 @@
 package games.pixscape.studio.document;
 
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
@@ -60,6 +61,48 @@ public class ActiveDocumentCommandRouterTest {
         assertSame(scene, sceneUndo.get());
         router.save(() -> {}, failOnError());
         assertSame(scene, sceneSave.get());
+    }
+
+    @Test
+    public void undoRedoAndSaveFollowTheActiveGameObjectDocument() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        GameObjectEditorDocument gameObject = new GameObjectEditorDocument(
+                "enemy", "enemy", new FileHandle("build/test-gameobjects/enemy.gameobject"),
+                context("game-object"), 1);
+        manager.openGameObject(gameObject);
+        AtomicReference<GameObjectEditorDocument> saved = new AtomicReference<>();
+        AtomicReference<GameObjectEditorDocument> undone = new AtomicReference<>();
+        AtomicReference<GameObjectEditorDocument> redone = new AtomicReference<>();
+
+        ActiveDocumentCommandRouter router = new ActiveDocumentCommandRouter(
+                manager, noOpSceneCommands(), document -> { },
+                new ActiveDocumentCommandRouter.GameObjectCommands() {
+                    @Override public void save(GameObjectEditorDocument document) { saved.set(document); }
+                    @Override public boolean undo(GameObjectEditorDocument document) {
+                        undone.set(document);
+                        return true;
+                    }
+                    @Override public boolean redo(GameObjectEditorDocument document) {
+                        redone.set(document);
+                        return true;
+                    }
+                });
+
+        router.save(null, failOnError());
+        assertTrue(router.undo());
+        assertTrue(router.redo());
+        assertSame(gameObject, saved.get());
+        assertSame(gameObject, undone.get());
+        assertSame(gameObject, redone.get());
+    }
+
+    private static ActiveDocumentCommandRouter.SceneCommands noOpSceneCommands() {
+        return new ActiveDocumentCommandRouter.SceneCommands() {
+            @Override public void save(SceneEditorDocument document, Runnable onSuccess,
+                                       Consumer<Throwable> onFailure) { }
+            @Override public boolean undo(SceneEditorDocument document) { return false; }
+            @Override public boolean redo(SceneEditorDocument document) { return false; }
+        };
     }
 
     private static Consumer<Throwable> failOnError() {

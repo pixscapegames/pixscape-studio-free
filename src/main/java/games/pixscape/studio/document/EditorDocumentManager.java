@@ -19,6 +19,10 @@ public final class EditorDocumentManager {
     public interface DirtyHudCloseHandler {
         void requestClose(HudScreenEditorDocument document);
     }
+    @FunctionalInterface
+    public interface DirtyGameObjectCloseHandler {
+        void requestClose(GameObjectEditorDocument document);
+    }
 
     public interface Listener {
         default void documentOpened(OpenEditorDocument document) {}
@@ -33,6 +37,7 @@ public final class EditorDocumentManager {
     private OpenEditorDocument activeDocument;
     private DirtySceneCloseHandler dirtySceneCloseHandler;
     private DirtyHudCloseHandler dirtyHudCloseHandler;
+    private DirtyGameObjectCloseHandler dirtyGameObjectCloseHandler;
 
     public void addListener(Listener listener) {
         listeners.add(Objects.requireNonNull(listener, "listener"));
@@ -48,6 +53,10 @@ public final class EditorDocumentManager {
 
     public void setDirtyHudCloseHandler(DirtyHudCloseHandler handler) {
         dirtyHudCloseHandler = handler;
+    }
+
+    public void setDirtyGameObjectCloseHandler(DirtyGameObjectCloseHandler handler) {
+        dirtyGameObjectCloseHandler = handler;
     }
 
     public List<OpenEditorDocument> documents() {
@@ -69,13 +78,16 @@ public final class EditorDocumentManager {
         }
         OpenEditorDocument existing = documents.get(requested.key());
         if (existing != null) {
-            if (requested instanceof HudScreenEditorDocument hud) hud.close();
+            disposeDocument(requested);
             activate(existing.key());
             return existing;
         }
         documents.put(requested.key(), requested);
         if (requested instanceof HudScreenEditorDocument hud) {
             hud.editSession().addListener(() -> notifyTitleChanged(hud));
+        }
+        if (requested instanceof GameObjectEditorDocument gameObject) {
+            gameObject.context().setDirtyStateListener(() -> notifyTitleChanged(gameObject));
         }
         notifyOpened(requested);
         activate(requested.key());
@@ -122,6 +134,10 @@ public final class EditorDocumentManager {
         return (HudScreenEditorDocument) open(document);
     }
 
+    public GameObjectEditorDocument openGameObject(GameObjectEditorDocument document) {
+        return (GameObjectEditorDocument) open(document);
+    }
+
     public boolean activate(EditorDocumentKey key) {
         OpenEditorDocument next = documents.get(key);
         if (next == null) return false;
@@ -158,6 +174,10 @@ public final class EditorDocumentManager {
         }
         if (document instanceof HudScreenEditorDocument hud && hud.isDirty()) {
             if (dirtyHudCloseHandler != null) dirtyHudCloseHandler.requestClose(hud);
+            return false;
+        }
+        if (document instanceof GameObjectEditorDocument gameObject && gameObject.isDirty()) {
+            if (dirtyGameObjectCloseHandler != null) dirtyGameObjectCloseHandler.requestClose(gameObject);
             return false;
         }
         return closeNow(key);
@@ -198,6 +218,7 @@ public final class EditorDocumentManager {
         activeDocument = null;
         dirtySceneCloseHandler = null;
         dirtyHudCloseHandler = null;
+        dirtyGameObjectCloseHandler = null;
         listeners.clear();
         for (OpenEditorDocument document : closing) disposeDocument(document);
     }
@@ -219,6 +240,7 @@ public final class EditorDocumentManager {
     private static void disposeDocument(OpenEditorDocument document) {
         if (document instanceof SceneEditorDocument scene) scene.close();
         if (document instanceof HudScreenEditorDocument hud) hud.close();
+        if (document instanceof GameObjectEditorDocument gameObject) gameObject.close();
     }
 
     private void notifyOpened(OpenEditorDocument document) {

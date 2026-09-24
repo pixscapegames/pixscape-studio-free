@@ -31,7 +31,7 @@ public class WorldCanvasMultiSceneContractTest {
     public void documentActivationOwnsSceneHudAttachmentAndPanelRebinding() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
         assertTrue(source.contains("canvas.detach();"));
-        assertTrue(source.contains("canvas.attach(scene.context());"));
+        assertTrue(source.contains("canvas.attach(currentContext);"));
         assertTrue(source.contains("itemTreePanel.bindSceneContext(context)"));
         assertTrue(source.contains("layersPanel.bindSceneContext(context)"));
         assertTrue(source.contains("propertiesPanel.bindSceneContext(context)"));
@@ -93,6 +93,28 @@ public class WorldCanvasMultiSceneContractTest {
         assertFalse(attach.contains("activateSceneDocument"));
         assertFalse(attach.contains("activateHudDocument"));
         assertFalse(attach.contains("deactivateDocument"));
+    }
+
+    @Test
+    public void internalContextsDoNotBindProjectSceneGpuSnapshots() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        int start = source.indexOf("public void attach(SceneEditorContext context)");
+        int end = source.indexOf("public SceneEditorContext detach()", start);
+        String attach = source.substring(start, end);
+        assertTrue(attach.contains("gpuSnapshotManager != null && context.sceneIdentity() != null"));
+    }
+
+    @Test
+    public void temporaryWorldsUseOnlyTheirOwnPhysicsShapeIdAuthority() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        assertTrue(source.contains("new PhysicsService(world(), box2dWorldService, sceneMeta)"));
+    }
+
+    @Test
+    public void focusedCameraIsCapturedByTheActiveIsolatedContext() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        assertTrue(source.contains("public void focusCameraAt(float worldX, float worldY)"));
+        assertTrue(source.contains("captureView(sceneEditorContext)"));
     }
 
     private static String read(String path) throws Exception {

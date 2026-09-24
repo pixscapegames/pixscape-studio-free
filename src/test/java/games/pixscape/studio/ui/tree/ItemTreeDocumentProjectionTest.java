@@ -21,6 +21,8 @@ public class ItemTreeDocumentProjectionTest {
 
         assertSame(sceneItems, ItemTreePanel.projectionForDocument(
                 EditorDocumentType.SCENE, sceneItems, hudHierarchy));
+        assertSame(sceneItems, ItemTreePanel.projectionForDocument(
+                EditorDocumentType.GAME_OBJECT, sceneItems, hudHierarchy));
         assertSame(hudHierarchy, ItemTreePanel.projectionForDocument(
                 EditorDocumentType.HUD_SCREEN, sceneItems, hudHierarchy));
         assertNull(ItemTreePanel.projectionForDocument(null, sceneItems, hudHierarchy));

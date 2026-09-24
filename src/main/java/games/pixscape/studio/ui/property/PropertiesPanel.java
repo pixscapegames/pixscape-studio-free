@@ -57,6 +57,7 @@ public class PropertiesPanel extends DockablePanel {
     private final VisTable contentHolder;
     private final HudInspectorView hudInspectorView;
     private boolean hudMode;
+    private boolean gameObjectMode;
 
     private int boundEntity = -1;
     private int boundBody = -1;
@@ -442,6 +443,10 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showSceneProperties() {
+        if (gameObjectMode) {
+            showGameObjectHint();
+            return;
+        }
         contentHolder.clearChildren();
         contentHolder.add(sceneProperties).growX().top().left().row();
         clearBindings();
@@ -452,6 +457,7 @@ public class PropertiesPanel extends DockablePanel {
     private void showDocumentType(EditorDocumentType type) {
         if (type == null) {
             hudMode = false;
+            gameObjectMode = false;
             contentHolder.clearChildren();
             clearBindings();
             clearPhysicsContext();
@@ -459,6 +465,7 @@ public class PropertiesPanel extends DockablePanel {
             return;
         }
         hudMode = type == EditorDocumentType.HUD_SCREEN;
+        gameObjectMode = type == EditorDocumentType.GAME_OBJECT;
         if (hudMode) {
             contentHolder.clearChildren();
             hudInspectorView.rebuild();
@@ -466,6 +473,16 @@ public class PropertiesPanel extends DockablePanel {
         } else {
             dirty = true;
         }
+    }
+
+    /** Game Object tabs edit an isolated hierarchy and deliberately expose no project Scene metadata. */
+    private void showGameObjectHint() {
+        contentHolder.clearChildren();
+        contentHolder.add(new VisLabel("Select a Game Object element to edit its properties."))
+                .growX().top().left().row();
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
     }
 
     private void showLayerProperties(int layerEntity) {

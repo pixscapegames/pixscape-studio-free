@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.document;
 
+import com.badlogic.gdx.files.FileHandle;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.kotcrab.vis.ui.VisUI;
@@ -12,6 +13,7 @@ import org.junit.Test;
 import games.pixscape.studio.document.EditorDocumentKey;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.GameObjectEditorDocument;
 import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -339,6 +341,22 @@ public class EditorDocumentHostTest {
         assertTrue(tab.getTabTitle().endsWith("*"));
         hud.editSession().markSaved();
         assertFalse(tab.getTabTitle().endsWith("*"));
+    }
+
+    @Test
+    public void gameObjectDirtyMarkerTracksItsOwnSaveBaseline() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        EditorDocumentHost host = new EditorDocumentHost(manager, new VisTable());
+        SceneEditorContext context = context("asset:enemy");
+        GameObjectEditorDocument gameObject = manager.openGameObject(new GameObjectEditorDocument(
+                "enemy", "enemy", new FileHandle("build/test-gameobjects/enemy.gameobject"),
+                context, 1));
+        Tab tab = tabFor(host, gameObject.key());
+        assertEquals("Game Object: enemy", tab.getTabTitle());
+        context.markExplicitSaveRequired();
+        assertEquals("Game Object: enemy *", tab.getTabTitle());
+        context.markSaved();
+        assertEquals("Game Object: enemy", tab.getTabTitle());
     }
 
     @Test

@@ -1,5 +1,9 @@
 package games.pixscape.studio.ui.main;
 
+import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.document.GameObjectEditorDocument;
+import games.pixscape.studio.scene.SceneEditorContext;
+import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -75,6 +79,18 @@ public class DocumentDockPanelCoordinatorTest {
                 assertNull(f.widgets.getParent());
                 assertFalse(f.widgets.isVisible());
             }
+        }
+    }
+
+    @Test
+    public void gameObjectDocumentUsesTheScenePanels() throws Exception {
+        try (DockingTestFixture f = DockingTestFixture.createCoordinated(Runnable::run)) {
+            GameObjectEditorDocument document = new GameObjectEditorDocument(
+                    "enemy", "enemy", new FileHandle("build/test-gameobjects/enemy.gameobject"),
+                    new SceneEditorContext("asset:enemy", new StudioEditingModeService()), 1);
+            f.documents.openGameObject(document);
+            assertSame(f.rightBottom, f.layers.getParent());
+            assertNull(f.widgets.getParent());
         }
     }
 

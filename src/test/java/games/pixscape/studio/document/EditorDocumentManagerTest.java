@@ -1,5 +1,6 @@
 package games.pixscape.studio.document;
 
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
 import org.junit.Test;
@@ -144,6 +145,30 @@ public class EditorDocumentManagerTest {
     }
 
     @Test
+    public void gameObjectDocumentsUseAssetIdentityAndDiscardOnlyTheirIsolatedContext() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        SceneEditorContext firstContext = context("game-object-first");
+        GameObjectEditorDocument first = gameObject("enemy", firstContext);
+        assertSame(first, manager.openGameObject(first));
+
+        GameObjectEditorDocument duplicate = gameObject("gameobjects/enemy.gameobject",
+                context("game-object-duplicate"));
+        assertSame(first, manager.openGameObject(duplicate));
+        assertTrue(duplicate.context().isDisposed());
+        assertEquals(1, manager.documents().size());
+
+        firstContext.markExplicitSaveRequired();
+        AtomicReference<GameObjectEditorDocument> pending = new AtomicReference<>();
+        manager.setDirtyGameObjectCloseHandler(pending::set);
+        assertFalse(manager.requestClose(first.key()));
+        assertSame(first, pending.get());
+        assertFalse(firstContext.isDisposed());
+
+        assertTrue(manager.closeNow(first.key()));
+        assertTrue(firstContext.isDisposed());
+    }
+
+    @Test
     public void teardownClearsAndDisposesWithoutActivationOrUiCallbacks() {
         EditorDocumentManager manager = new EditorDocumentManager();
         List<String> events = new ArrayList<>();
@@ -184,5 +209,10 @@ public class EditorDocumentManagerTest {
 
     private static SceneEditorContext context(String identity) {
         return new SceneEditorContext(identity, new StudioEditingModeService());
+    }
+
+    private static GameObjectEditorDocument gameObject(String assetId, SceneEditorContext context) {
+        FileHandle file = new FileHandle("build/test-gameobjects/enemy.gameobject");
+        return new GameObjectEditorDocument(assetId, "enemy", file, context, 1);
     }
 }

@@ -23,6 +23,7 @@ public class EditorDocumentLifecycleContractTest {
     public void hudAssetsOpenThroughDocumentManagerAndSceneTabReplacesBackButton() throws Exception {
         String assets = read("src/main/java/games/pixscape/studio/ui/asset/AssetsPanel.java");
         assertTrue(assets.contains("app.openHudScreen(node.path)"));
+        assertTrue(assets.contains("app.openGameObject(node.path)"));
         assertFalse(assets.contains("app.getHudEditorSession().open("));
 
         String hierarchy = read("src/main/java/games/pixscape/studio/ui/hud/HudHierarchyPanel.java");
@@ -33,6 +34,26 @@ public class EditorDocumentLifecycleContractTest {
     }
 
     @Test
+    public void gameObjectAssetsUseAnIsolatedDocumentWorldAndAssetOnlyPersistence() throws Exception {
+        String app = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
+        assertTrue(app.contains("canvas.createSceneContext(null, new SceneMeta())"));
+        assertTrue(app.contains("requiresSpatialLayer(asset)"));
+        assertTrue(app.contains("new ToggleSpatialActorLayerCommand("));
+        assertTrue(app.contains("candidate.world().process();"));
+        assertTrue(app.contains("assetFile, assetId, layerIndex, 0f, 0f"));
+        assertTrue(app.contains("canvas.focusCameraAt(0f, 0f);"));
+        assertTrue(app.contains("RenderRebindHelper.rebindEntitiesAfterAtlasChange("));
+        assertTrue(app.contains("editorDocumentManager.openGameObject"));
+        assertTrue(app.contains("captureForGameObject(root)"));
+        assertTrue(app.contains("saveGameObject(document.assetFile(), graph)"));
+        assertTrue(app.contains("GameObjectEditorDocument"));
+
+        String manager = read("src/main/java/games/pixscape/studio/document/EditorDocumentManager.java");
+        assertTrue(manager.contains("DirtyGameObjectCloseHandler"));
+        assertTrue(manager.contains("gameObject.context().setDirtyStateListener"));
+    }
+
+    @Test
     public void activeDocumentProjectsRendererPanelsAndCompatibilityMode() throws Exception {
         String app = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
         assertTrue(app.contains("editorDocumentManager.activeDocument()"));
@@ -40,7 +61,7 @@ public class EditorDocumentLifecycleContractTest {
         assertTrue(app.contains("activeDocument instanceof SceneEditorDocument"));
         assertTrue(app.contains("deactivateDocument"));
         assertTrue(app.contains("activateHudDocument"));
-        assertTrue(app.contains("canvas.attach(scene.context())"));
+        assertTrue(app.contains("canvas.attach(currentContext)"));
         assertTrue(app.contains("canvas.detach()"));
 
         String tree = read("src/main/java/games/pixscape/studio/ui/tree/ItemTreePanel.java");

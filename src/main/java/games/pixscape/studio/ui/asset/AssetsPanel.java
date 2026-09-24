@@ -42,8 +42,11 @@ public final class AssetsPanel extends DockablePanel {
         runtimeAvailabilityPanel = new RuntimeAvailabilityPanel(app);
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
         thumbsView.setOpenListener(node -> {
-            if (node.kind != AssetNode.Kind.HUD_SCREEN) return;
-            app.openHudScreen(node.path);
+            if (node.kind == AssetNode.Kind.HUD_SCREEN) {
+                app.openHudScreen(node.path);
+            } else if (node.kind == AssetNode.Kind.GAME_OBJECT) {
+                app.openGameObject(node.path);
+            }
         });
 
         thumbsView.setTileSelectionListener(node -> {

@@ -19,7 +19,11 @@ final class EditorDocumentTab extends Tab {
     OpenEditorDocument document() { return document; }
 
     @Override public String getTabTitle() {
-        String kind = document.type() == EditorDocumentType.SCENE ? "Scene" : "HUD";
+        String kind = switch (document.type()) {
+            case SCENE -> "Scene";
+            case HUD_SCREEN -> "HUD";
+            case GAME_OBJECT -> "Game Object";
+        };
         String dirty = document.isDirty() ? " *" : "";
         return kind + ": " + document.title() + dirty;
     }

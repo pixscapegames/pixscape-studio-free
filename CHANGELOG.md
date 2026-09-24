@@ -9,6 +9,8 @@
 * Added visual HUD screen editing with a widget hierarchy, properties, drag-and-drop placement, undo/redo, and interactive test mode.
 * Added simultaneous editing of multiple scenes through document tabs with independent editor contexts.
 * Added scene-to-HUD associations and HUD-aware runtime export using the shared Pixscape Runtime.
+* Added dedicated Game Object asset tabs. Game Object assets can now be edited with the existing
+  scene tools, undo/redo and inspector, then saved independently without changing placed instances.
 
 ### Improved
 

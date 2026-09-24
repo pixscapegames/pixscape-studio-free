@@ -21,6 +21,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.utils.Layout;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.studio.ui.modal.Dialogs;
@@ -30,17 +31,21 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.ActiveDocumentCommandRouter;
 import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.GameObjectEditorDocument;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.display.DisplayMetrics;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.CursorDrawHelper;
+import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.ShapeHelper;
 import games.pixscape.studio.helper.StudioHomeBootstrap;
+import games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.logging.StudioLogCapture;
 import games.pixscape.studio.logging.StudioLogLevel;
@@ -53,6 +58,7 @@ import games.pixscape.studio.service.hud.HudEditorSession;
 import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 import games.pixscape.studio.service.hud.HudImageAuthoringService;
 import games.pixscape.studio.service.hud.SceneHudAssociationService;
+import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 import games.pixscape.studio.ui.StudioStage;
 import games.pixscape.studio.ui.asset.AssetsPanel;
@@ -247,6 +253,19 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                     hudDocumentPersistenceService.save(
                             StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), hud);
                     hudEditorSession.refreshDocumentMetadata(hud);
+                },
+                new ActiveDocumentCommandRouter.GameObjectCommands() {
+                    @Override public void save(GameObjectEditorDocument document) {
+                        saveGameObjectDocument(document);
+                    }
+                    @Override public boolean undo(GameObjectEditorDocument document) {
+                        document.context().historyManager().undo();
+                        return true;
+                    }
+                    @Override public boolean redo(GameObjectEditorDocument document) {
+                        document.context().historyManager().redo();
+                        return true;
+                    }
                 });
         animationAssetAuthoringService = new AnimationAssetAuthoringService(
                 sceneService::getAssetMetaDatabase,
@@ -465,7 +484,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                                                  Runnable onCancel,
                                                  Consumer<Throwable> onSaveFailure) {
         boolean saveRequired = sceneService != null
-                && (sceneService.requiresSaveBeforeLeavingAnyScene() || hasDirtyHudDocuments());
+                && (sceneService.requiresSaveBeforeLeavingAnyScene()
+                || hasDirtyHudDocuments() || hasDirtyGameObjectDocuments());
         CurrentSceneSaveDecisionGuard.request(
                 saveRequired,
                 title,
@@ -500,6 +520,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                         () -> {
                             try {
                                 saveAllDirtyHudDocuments();
+                                saveAllDirtyGameObjectDocuments();
                                 onSuccess.run();
                             } catch (RuntimeException failure) {
                                 onFailure.accept(failure);
@@ -517,8 +538,15 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 .anyMatch(HudScreenEditorDocument::isDirty);
     }
 
+    private boolean hasDirtyGameObjectDocuments() {
+        return editorDocumentManager != null && editorDocumentManager.documents().stream()
+                .filter(GameObjectEditorDocument.class::isInstance)
+                .map(GameObjectEditorDocument.class::cast)
+                .anyMatch(GameObjectEditorDocument::isDirty);
+    }
+
     public boolean hasDirtyEditorDocuments() {
-        return hasDirtyHudDocuments() || (sceneService != null
+        return hasDirtyHudDocuments() || hasDirtyGameObjectDocuments() || (sceneService != null
                 && sceneService.requiresSaveBeforeLeavingAnyScene());
     }
 
@@ -672,6 +700,108 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
+    /** Opens an isolated editable copy of one Game Object asset, keyed by its logical asset ID. */
+    public GameObjectEditorDocument openGameObject(String assetPath) {
+        if (assetPath == null || assetPath.isBlank()) return null;
+        FileHandle assetFile = new FileHandle(assetPath);
+        String assetId;
+        try {
+            assetId = games.pixscape.runtime.gameobject.GameObjectAssetId.normalize(assetFile.name());
+        } catch (RuntimeException failure) {
+            Dialogs.showOKDialog(uiStage, "Game Object cannot be opened",
+                    PreviewLaunchSupport.userMessageFor(failure));
+            return null;
+        }
+        var key = new games.pixscape.studio.document.EditorDocumentKey(
+                EditorDocumentType.GAME_OBJECT, assetId);
+        OpenEditorDocument existing = editorDocumentManager.find(key);
+        if (existing instanceof GameObjectEditorDocument gameObject) {
+            editorDocumentManager.activate(key);
+            return gameObject;
+        }
+        if (!assetFile.exists() || assetFile.isDirectory()) {
+            Dialogs.showOKDialog(uiStage, "Game Object cannot be opened",
+                    "The Game Object asset file is missing.");
+            return null;
+        }
+
+        SceneEditorContext previous = canvas.getAttachedSceneContext();
+        SceneEditorContext candidate = null;
+        try {
+            // Stable IDs exist only inside this isolated asset-editing World and are never
+            // published to ProjectConfig or a project Scene.
+            candidate = canvas.createSceneContext(null, new SceneMeta());
+            canvas.attach(candidate);
+            var asset = canvas.getGameObjectAssetService().loadGameObjectAsset(assetFile);
+            int layerIndex = candidate.layerService().addLayerTop("Game Object");
+            int layerEntityId = candidate.layerService().getLayerEntity(layerIndex);
+            // Commit the internal Layer before instantiation: jointed assets normalize their
+            // logical order as the last child of the construction composite.
+            candidate.world().process();
+            if (canvas.getGameObjectAssetService().requiresSpatialLayer(asset)) {
+                candidate.historyManager().execute(new ToggleSpatialActorLayerCommand(
+                        candidate.world(), candidate.historyManager().historyIds(),
+                        candidate.layerService(), layerEntityId, true));
+            }
+            candidate.selectionService().setActivelayerId(layerEntityId);
+
+            var result = canvas.getGameObjectAssetService().instantiateGameObject(
+                    assetFile, assetId, layerIndex, 0f, 0f);
+            RenderRebindHelper.rebindEntitiesAfterAtlasChange(
+                    canvas, null, canvas.getAssetVisualResolver(), result.createdIds(), null);
+            candidate.world().process();
+            int rootEntityId = result.sourceToCreated().get(asset.rootSourceEntityId, -1);
+            if (rootEntityId < 0) {
+                throw new IllegalStateException("Game Object root could not be materialized for editing.");
+            }
+            candidate.selectionService().selectOnly(rootEntityId);
+            canvas.focusCameraAt(0f, 0f);
+            // Loading an asset establishes the document baseline; the temporary construction is not undoable.
+            candidate.historyManager().clear();
+            candidate.markSaved();
+
+            String title = assetFile.nameWithoutExtension();
+            return editorDocumentManager.openGameObject(new GameObjectEditorDocument(
+                    assetId, title, assetFile, candidate, rootEntityId));
+        } catch (RuntimeException failure) {
+            if (candidate != null) {
+                canvas.releaseSceneContext(candidate);
+                candidate.dispose();
+            }
+            if (previous != null && !previous.isDisposed()) canvas.attach(previous);
+            Dialogs.showOKDialog(uiStage, "Game Object cannot be opened",
+                    PreviewLaunchSupport.userMessageFor(failure));
+            return null;
+        }
+    }
+
+    /** Publishes only the isolated Game Object edit context; no project Scene is read or changed. */
+    private void saveGameObjectDocument(GameObjectEditorDocument document) {
+        SceneEditorContext previous = canvas.getAttachedSceneContext();
+        boolean restorePrevious = previous != document.context();
+        if (restorePrevious) canvas.attach(document.context());
+        try {
+            IntArray root = new IntArray(new int[]{document.rootEntityId()});
+            var graph = new EntityGraphCaptureService(document.context().world()).captureForGameObject(root);
+            canvas.getGameObjectAssetService().saveGameObject(document.assetFile(), graph);
+            document.context().markSaved();
+            EventFlow.i().publish(new EventFlow.GameObjectsChanged(EventFlow.tag(this)));
+        } finally {
+            if (restorePrevious) {
+                if (previous != null && !previous.isDisposed()) canvas.attach(previous);
+                else canvas.detach();
+            }
+        }
+    }
+
+    private void saveAllDirtyGameObjectDocuments() {
+        for (OpenEditorDocument document : editorDocumentManager.documents()) {
+            if (document instanceof GameObjectEditorDocument gameObject && gameObject.isDirty()) {
+                saveGameObjectDocument(gameObject);
+            }
+        }
+    }
+
     /** Routes Save to the exact active editor document. */
     public void saveActiveDocumentWithProgress(Runnable onSuccess, Consumer<Throwable> onFailure) {
         editorCommandRouter.save(onSuccess, onFailure);
@@ -777,11 +907,11 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         OpenEditorDocument activeDocument = editorDocumentManager.activeDocument();
         sceneHudAssetDropController.observeActiveDocument();
         hudAssetDropController.observeActiveDocument();
-        if (activeDocument instanceof SceneEditorDocument) {
+        if (isWorldDocument(activeDocument)) {
             hudAssetDropController.leaveHudTarget();
         }
         boolean centerResolved = !previewActive && resolveCenterBoundsLogical(
-                activeDocument instanceof SceneEditorDocument);
+                isWorldDocument(activeDocument));
         // IMPORTANT: disable the editor scene during preview.
         if (centerResolved) {
             if (activeDocument instanceof HudScreenEditorDocument) {
@@ -789,7 +919,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 hudEditorSession.act(dt);
                 hudEditorSession.draw(centerBoundsLogical);
                 EventFlow.i().flush();
-            } else if (activeDocument instanceof SceneEditorDocument) {
+            } else if (isWorldDocument(activeDocument)) {
                 canvas.resize(
                         Math.round(centerBoundsLogical.x),
                         Math.round(centerBoundsLogical.y),
@@ -798,7 +928,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 canvas.getGridStage().getViewport().apply(false);
                 canvas.act(dt);
                 canvas.draw();
-                if (sceneHudCompositionRenderer != null) {
+                if (activeDocument instanceof SceneEditorDocument
+                        && sceneHudCompositionRenderer != null) {
                     try {
                         sceneHudCompositionRenderer.render(
                                 activeDocument.key().domainId(),
@@ -812,13 +943,13 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             }
         }
 
-        if (!(activeDocument instanceof SceneEditorDocument)) {
+        if (!isWorldDocument(activeDocument)) {
             hudAssetDropController.update(displayMetrics.logicalHeight(),
                     centerResolved && activeDocument instanceof HudScreenEditorDocument
                             && isHudDropUnobstructed());
         }
 
-        if (!previewActive && editorDocumentManager.activeDocument() instanceof SceneEditorDocument) {
+        if (!previewActive && isWorldDocument(editorDocumentManager.activeDocument())) {
             canvas.cancelDndReleaseIfOutsideCanvas();
         }
 
@@ -974,10 +1105,11 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (editorDocumentManager != null) {
             if (canvas != null) canvas.detach();
             for (OpenEditorDocument document : editorDocumentManager.documents()) {
-                if (document instanceof SceneEditorDocument scene) {
-                    if (itemTreePanel != null) itemTreePanel.releaseSceneContext(scene.context());
-                    if (propertiesPanel != null) propertiesPanel.releaseSceneContext(scene.context());
-                    if (canvas != null) canvas.releaseSceneContext(scene.context());
+                SceneEditorContext context = documentContext(document);
+                if (context != null) {
+                    if (itemTreePanel != null) itemTreePanel.releaseSceneContext(context);
+                    if (propertiesPanel != null) propertiesPanel.releaseSceneContext(context);
+                    if (canvas != null) canvas.releaseSceneContext(context);
                 }
             }
             editorDocumentManager.clearForTeardown();
@@ -1014,11 +1146,13 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 applyDocumentActivation(previous, current);
             }
             @Override public void documentClosed(OpenEditorDocument document) {
-                if (document instanceof SceneEditorDocument scene) {
-                    if (itemTreePanel != null) itemTreePanel.releaseSceneContext(scene.context());
-                    if (propertiesPanel != null) propertiesPanel.releaseSceneContext(scene.context());
-                    canvas.releaseSceneContext(scene.context());
-                    if (mostRecentSceneEditorContext == scene.context()) {
+                SceneEditorContext closedContext = documentContext(document);
+                if (closedContext != null) {
+                    if (itemTreePanel != null) itemTreePanel.releaseSceneContext(closedContext);
+                    if (propertiesPanel != null) propertiesPanel.releaseSceneContext(closedContext);
+                    canvas.releaseSceneContext(closedContext);
+                    if (document instanceof SceneEditorDocument scene
+                            && mostRecentSceneEditorContext == scene.context()) {
                         mostRecentSceneEditorContext = editorDocumentManager.documents().stream()
                                 .filter(SceneEditorDocument.class::isInstance)
                                 .map(SceneEditorDocument.class::cast)
@@ -1040,6 +1174,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         });
         editorDocumentManager.setDirtySceneCloseHandler(this::requestDirtySceneClose);
         editorDocumentManager.setDirtyHudCloseHandler(this::requestDirtyHudClose);
+        editorDocumentManager.setDirtyGameObjectCloseHandler(this::requestDirtyGameObjectClose);
         EventFlow.i().subscribe(EventFlow.SceneNameChanged.class, event -> {
             ProjectConfig cfg = ProjectConfig.getInstance();
             if (cfg == null) return;
@@ -1056,15 +1191,14 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     private void applyDocumentActivation(OpenEditorDocument previous, OpenEditorDocument current) {
         if (disposing) return;
         if (studioEditingModeService != null) studioEditingModeService.setHudTestMode(false);
-        if (previous instanceof SceneEditorDocument previousScene
-                && canvas.isAttached(previousScene.context())) {
+        SceneEditorContext previousContext = documentContext(previous);
+        if (previousContext != null && canvas.isAttached(previousContext)) {
             EventFlow.i().flush();
         }
         captureHudState(previous);
 
-        if (previous instanceof SceneEditorDocument previousScene
-                && canvas.isAttached(previousScene.context())) {
-            previousScene.context().rememberSceneSubmode(
+        if (previousContext != null && canvas.isAttached(previousContext)) {
+            previousContext.rememberSceneSubmode(
                     canvas.getStudioEditingModeService().getCurrentMode());
         }
 
@@ -1092,13 +1226,14 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
         if (hudEditorSession != null) hudEditorSession.suspend();
         hudCanvasInputHost.suspendHudInput();
-        if (current instanceof SceneEditorDocument scene) {
-            updateCurrentSceneCompatibility(scene);
-            canvas.attach(scene.context());
+        SceneEditorContext currentContext = documentContext(current);
+        if (currentContext != null) {
+            if (current instanceof SceneEditorDocument scene) updateCurrentSceneCompatibility(scene);
+            canvas.attach(currentContext);
             projectDocumentEditingMode(
                     canvas.getStudioEditingModeService(), current, EventFlow.tag(this));
-            mostRecentSceneEditorContext = scene.context();
-            rebindScenePanels(scene.context());
+            if (current instanceof SceneEditorDocument) mostRecentSceneEditorContext = currentContext;
+            rebindScenePanels(currentContext, current instanceof SceneEditorDocument);
         } else {
             canvas.detach();
             if (toolBar != null) toolBar.suspendSceneContext();
@@ -1114,6 +1249,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                                            int sourceTag) {
         if (document instanceof SceneEditorDocument scene) {
             modeService.activateSceneDocument(scene.context().sceneSubmode(), sourceTag);
+        } else if (document instanceof GameObjectEditorDocument gameObject) {
+            modeService.activateSceneDocument(gameObject.context().sceneSubmode(), sourceTag);
         } else if (document instanceof HudScreenEditorDocument) {
             modeService.activateHudDocument(sourceTag);
         } else {
@@ -1132,13 +1269,13 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
     }
 
-    private void rebindScenePanels(SceneEditorContext context) {
+    private void rebindScenePanels(SceneEditorContext context, boolean projectScene) {
         if (toolBar != null) toolBar.bindSceneContext(context);
         if (itemTreePanel != null) itemTreePanel.bindSceneContext(context);
         if (propertiesPanel != null) propertiesPanel.bindSceneContext(context);
         if (layersPanel != null) layersPanel.bindSceneContext(context);
         if (bottomMenuBar != null) bottomMenuBar.refreshSelectBox();
-        if (sceneService != null) sceneService.pushActiveSceneMetaToUi();
+        if (projectScene && sceneService != null) sceneService.pushActiveSceneMetaToUi();
     }
 
     private void requestDirtySceneClose(SceneEditorDocument document) {
@@ -1184,6 +1321,37 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                     @Override public void no() { editorDocumentManager.closeNow(document.key()); }
                     @Override public void cancel() { }
                 });
+    }
+
+    private void requestDirtyGameObjectClose(GameObjectEditorDocument document) {
+        Dialogs.showOptionDialog(
+                uiStage,
+                "Unsaved Game Object",
+                "Save changes to \"" + document.title() + "\" before closing?",
+                Dialogs.OptionDialogType.YES_NO_CANCEL,
+                new OptionDialogListener() {
+                    @Override public void yes() {
+                        try {
+                            saveGameObjectDocument(document);
+                            editorDocumentManager.closeNow(document.key());
+                        } catch (RuntimeException failure) {
+                            Dialogs.showOKDialog(uiStage, "Save failed",
+                                    PreviewLaunchSupport.userMessageFor(failure));
+                        }
+                    }
+                    @Override public void no() { editorDocumentManager.closeNow(document.key()); }
+                    @Override public void cancel() { }
+                });
+    }
+
+    private static SceneEditorContext documentContext(OpenEditorDocument document) {
+        if (document instanceof SceneEditorDocument scene) return scene.context();
+        if (document instanceof GameObjectEditorDocument gameObject) return gameObject.context();
+        return null;
+    }
+
+    private static boolean isWorldDocument(OpenEditorDocument document) {
+        return document instanceof SceneEditorDocument || document instanceof GameObjectEditorDocument;
     }
 
     private void captureActiveHudState() {

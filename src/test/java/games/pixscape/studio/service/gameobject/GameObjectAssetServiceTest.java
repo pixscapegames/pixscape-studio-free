@@ -49,6 +49,53 @@ public class GameObjectAssetServiceTest {
     @Rule public TemporaryFolder temp = new TemporaryFolder();
 
     @Test
+    public void savingAnEditedCopyLeavesPlacedObjectsUntouchedAndUpdatesFutureInstances()
+            throws Exception {
+        World placedWorld = new World(new WorldConfiguration());
+        int placedRoot = entity(placedWorld, 11, -1, true, 0f, 0);
+        int placedChild = entity(placedWorld, 12, 11, false, 4f, 1);
+        placedWorld.getMapper(GameObjectComponent.class).get(placedRoot).sourceAssetId =
+                "gameobjects/enemy.gameobject";
+        placedWorld.process();
+        FileHandle assetFile = new FileHandle(temp.getRoot()).child("enemy.gameobject");
+        new GameObjectAssetService(placedWorld).saveGameObject(assetFile,
+                new EntityGraphCaptureService(placedWorld).captureForGameObject(
+                        new IntArray(new int[]{placedRoot})));
+
+        // The asset editor works in a different World from the placed instance.
+        World editorWorld = new World(new WorldConfiguration());
+        int editorRoot = entity(editorWorld, 101, -1, true, 0f, 0);
+        int editorChild = entity(editorWorld, 102, 101, false, 4f, 1);
+        editorWorld.process();
+        editorWorld.getMapper(TransformComponent.class).get(editorChild).x = 42f;
+        new GameObjectAssetService(editorWorld).saveGameObject(assetFile,
+                new EntityGraphCaptureService(editorWorld).captureForGameObject(
+                        new IntArray(new int[]{editorRoot})));
+
+        Assert.assertEquals(4f, placedWorld.getMapper(TransformComponent.class)
+                .get(placedChild).x, 0f);
+        Assert.assertEquals(42f, new GameObjectAssetLoader().load(assetFile)
+                .entities.get(1).transform.x, 0f);
+
+        World futureWorld = new World(new WorldConfiguration());
+        int layer = futureWorld.create();
+        futureWorld.getMapper(LayerComponent.class).create(layer).layerIndex = 3;
+        futureWorld.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 1000;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(futureWorld, meta);
+        identities.rebuild();
+        EntityGraphInstantiationResult future = new GameObjectAssetService(
+                futureWorld, new HistoryManager(16), identities, null, null)
+                .instantiateGameObject(assetFile, "enemy", 3, 0f, 0f);
+        futureWorld.process();
+        int futureChild = future.sourceToCreated().get(2, -1);
+        Assert.assertEquals(42f, futureWorld.getMapper(TransformComponent.class)
+                .get(futureChild).x, 0f);
+    }
+
+    @Test
     public void hierarchyUsesAssetLocalIdsAndPreservesAuthoredState() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 101, -1, true, 0f, 0);
@@ -464,6 +511,44 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
+    public void convertingSelectionPublishesAnOriginRootWhileKeepingScenePlacement() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int layer = world.create();
+        world.getMapper(LayerComponent.class).create(layer).layerIndex = 6;
+        world.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        int first = entity(world, 10, -1, false, 120f, 1);
+        int second = entity(world, 11, -1, false, 180f, 0);
+        world.getMapper(EntityIndexComponent.class).get(first).layerIndex = 6;
+        world.getMapper(EntityIndexComponent.class).get(second).layerIndex = 6;
+        world.process();
+
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        identities.rebuild();
+        SelectionService selection = new SelectionService(world, null);
+        selection.selectOnly(first);
+        selection.selectAdd(second);
+        GameObjectAssetService service = new GameObjectAssetService(
+                world, new HistoryManager(8), identities, null, null, selection, null);
+        FileHandle assetFile = new FileHandle(temp.getRoot()).child("origin.gameobject");
+
+        service.convertSelectionToGameObject(assetFile,
+                new FileHandle(temp.getRoot()).child("origin.png"),
+                "gameobjects/origin.gameobject",
+                preview -> preview.writeString("preview", false, "UTF-8"));
+
+        GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.y, 0f);
+        Assert.assertEquals(120f, world.getMapper(TransformComponent.class)
+                .get(selection.getFirstSelectedEntityId()).x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(1).transform.x, 0f);
+        Assert.assertEquals(60f, asset.entities.get(2).transform.x, 0f);
+    }
+
+    @Test
     public void jointedPhysicalSelectionIsUnavailableBeforeAnyAssetIsWritten() throws Exception {
         World world = new World(new WorldConfiguration());
         int first = entity(world, 10, -1, false, 0f, 0);
@@ -594,6 +679,9 @@ public class GameObjectAssetServiceTest {
         Assert.assertTrue(previewFile.exists());
         GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
         Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, asset.schemaVersion);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.y, 0f);
+        Assert.assertEquals(3f, asset.entities.get(1).transform.x, 0f);
         Assert.assertEquals(1, asset.entities.get(1).physicsShapes.get(0).localShapeId);
         Assert.assertEquals(77, physicsShapeId(world, member));
         Assert.assertEquals(11, stable(world, root));

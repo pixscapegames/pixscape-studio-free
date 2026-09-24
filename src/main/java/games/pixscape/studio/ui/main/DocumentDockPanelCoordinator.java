@@ -74,7 +74,7 @@ final class DocumentDockPanelCoordinator {
 
     private void captureActivePresentation() {
         if (!projected) return;
-        if (activeType == EditorDocumentType.SCENE) {
+        if (isWorldDocument(activeType)) {
             scenePresentation = observe(scenePanel);
         } else if (activeType == EditorDocumentType.HUD_SCREEN) {
             hudPresentation = observe(hudPanel);
@@ -111,13 +111,17 @@ final class DocumentDockPanelCoordinator {
     }
 
     private void applyCurrentPresentation() {
-        apply(scenePanel, scenePresentation, activeType == EditorDocumentType.SCENE);
+        apply(scenePanel, scenePresentation, isWorldDocument(activeType));
         apply(hudPanel, hudPresentation, activeType == EditorDocumentType.HUD_SCREEN);
     }
 
     private boolean isActive(DockablePanel panel) {
-        return panel == scenePanel && activeType == EditorDocumentType.SCENE
+        return panel == scenePanel && isWorldDocument(activeType)
                 || panel == hudPanel && activeType == EditorDocumentType.HUD_SCREEN;
+    }
+
+    private static boolean isWorldDocument(EditorDocumentType type) {
+        return type == EditorDocumentType.SCENE || type == EditorDocumentType.GAME_OBJECT;
     }
 
     private Presentation observe(DockablePanel panel) {

@@ -215,6 +215,7 @@ public final class RenderRebindHelper {
         if ("skipped".equals(rebindResult)) return false;
         int textureHandle = material != null ? material.textureHandle : 0;
         return snapshotManager == null
+                || sceneTag == null || sceneTag.isBlank()
                 || !snapshotManager.isHandlePublishedInCurrentBundle(sceneTag, textureHandle);
     }
 

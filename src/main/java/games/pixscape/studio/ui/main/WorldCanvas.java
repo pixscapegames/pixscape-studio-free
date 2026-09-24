@@ -338,7 +338,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         SceneBinding.apply(this, binding);
         sceneEditorContext = context;
         if (contextMenu != null) contextMenu.bindSceneContext(this);
-        if (gpuSnapshotManager != null) {
+        if (gpuSnapshotManager != null && context.sceneIdentity() != null) {
             gpuSnapshotManager.bindActiveSnapshot(context.sceneIdentity());
         }
         restoreView(context);
@@ -610,7 +610,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         // Services
         keyboardNudgeService = new KeyboardNudgeService(world(), historyManager(), selectionService());
         gizmoSystem.setSelectionService(selectionService());
-        physicsService = new PhysicsService(world(), box2dWorldService);
+        physicsService = new PhysicsService(world(), box2dWorldService, sceneMeta);
         alignService = new AlignService(this);
 
         clipboardService = new ClipboardService(this, identityRegistry());
@@ -621,7 +621,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 entityId -> {
                     if (entityId >= 0) selectionService().selectOnly(entityId);
                     else selectionService().clearSelection();
-                }, selectionService(), physicsService, this::isScenePhysicsEnabled);
+                }, selectionService(), physicsService, this::allowsGameObjectAssetPhysics);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService());
@@ -2008,9 +2008,21 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void centerCamera() {
-        camera.position.set(0, 0, 0);
+        focusCameraAt(0f, 0f);
+    }
+
+    /** Focuses the active canvas without changing any authored entity transform. */
+    public void focusCameraAt(float worldX, float worldY) {
+        camera.position.set(worldX, worldY, 0);
         camera.update();
         box2DcameraUpdate();
+        if (sceneEditorContext != null && sceneEditorContext.isActive()) {
+            captureView(sceneEditorContext);
+        }
+        if (app.getBottomBar() != null) {
+            app.getBottomBar().setPan(camera.position.x, camera.position.y);
+            app.getBottomBar().setZoom(camera.zoom);
+        }
     }
 
 
@@ -2461,6 +2473,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         ProjectConfig config = ProjectConfig.getInstance();
         SceneMeta meta = config != null ? config.getCurrentSceneMeta() : null;
         return meta != null && meta.physicsEnabled;
+    }
+
+    /** Isolated Game Object documents have no persisted Scene Physics switch. */
+    private boolean allowsGameObjectAssetPhysics() {
+        return (sceneEditorContext != null && sceneEditorContext.sceneIdentity() == null)
+                || isScenePhysicsEnabled();
     }
 
     public PhysicsSelectionService getPhysicsSelectionService() {

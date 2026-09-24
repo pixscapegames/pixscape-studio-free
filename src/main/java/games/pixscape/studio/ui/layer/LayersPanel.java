@@ -269,6 +269,7 @@ public class LayersPanel extends DockablePanel {
                 for (LayerUI ui : layers) {
                     layerService.setLayerLocked(ui.layerEntityId(), locked);
                 }
+                flagPreviewSaveRequired();
                 markDirty();
                 event.stop();
             }
@@ -384,6 +385,13 @@ public class LayersPanel extends DockablePanel {
     }
 
     private void flagPreviewSaveRequired() {
+        if (app.getEditorDocumentManager().isActive(
+                games.pixscape.studio.document.EditorDocumentType.GAME_OBJECT)) {
+            // A Game Object tab owns its isolated World. Layer visibility is authored asset
+            // state here, so it must not mark the project Scene selected before the tab opened.
+            sceneContext.markExplicitSaveRequired();
+            return;
+        }
         if (markCurrentSceneSaveRequired != null) {
             markCurrentSceneSaveRequired.run();
         }
@@ -501,6 +509,7 @@ public class LayersPanel extends DockablePanel {
                 public void onLockedChanged(LayerRow row, boolean locked) {
                     if (!editingModeService.allowsWorldEditingActions()) return;
                     layerService.setLayerLocked(ui.layerEntityId(), locked);
+                    flagPreviewSaveRequired();
                     markDirty();
                 }
 

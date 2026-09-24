@@ -220,10 +220,18 @@ public final class GameObjectAssetService {
     /** Publishes a new immutable asset then wraps the same selected scene entities in its root. */
     public void convertSelectionToGameObject(
             FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId) {
+        convertSelectionToGameObject(gameObjectFile, previewFile, logicalAssetId,
+                GameObjectPreviewWriter::writePlaceholder);
+    }
+
+    /** Package-visible preview writer seam keeps conversion publication testable without a native Pixmap backend. */
+    void convertSelectionToGameObject(
+            FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId,
+            Consumer<FileHandle> previewWriter) {
         if (historyManager == null || identityRegistry == null || selectionService == null) {
             throw new IllegalStateException("Game Object conversion dependencies are not configured.");
         }
-        if (gameObjectFile == null || previewFile == null) {
+        if (gameObjectFile == null || previewFile == null || previewWriter == null) {
             throw new IllegalArgumentException("Game Object asset and preview paths are required.");
         }
         if (gameObjectFile.exists()) {
@@ -242,7 +250,7 @@ public final class GameObjectAssetService {
                 plan.rootOriginX, plan.rootOriginY, canonicalId);
         try {
             loader.save(gameObjectFile, asset);
-            GameObjectPreviewWriter.writePlaceholder(previewFile);
+            previewWriter.accept(previewFile);
             historyManager.execute(command);
         } catch (RuntimeException | Error failure) {
             if (previewFile.exists()) previewFile.delete();
@@ -521,6 +529,7 @@ public final class GameObjectAssetService {
             asset.entities.add(data);
         }
         appendCapturedJoints(asset, sourceToAsset, capturedJoints);
+        normalizeAssetRootPosition(asset);
         loader.validate(asset, null);
         return asset;
     }
@@ -700,6 +709,7 @@ public final class GameObjectAssetService {
             asset.entities.add(data);
         }
         appendCapturedJoints(asset, entityToSource, capturedJoints);
+        normalizeAssetRootPosition(asset);
         loader.validate(asset, null);
         return asset;
     }
@@ -948,6 +958,24 @@ public final class GameObjectAssetService {
             localizePulleyGroundAnchors(asset, joint);
             asset.joints.add(joint);
         }
+    }
+
+    /** Asset roots are authored at the origin; child transforms and joint anchors are local. */
+    private static void normalizeAssetRootPosition(GameObjectAsset asset) {
+        if (asset == null || asset.rootSourceEntityId <= 0) {
+            throw new IllegalStateException("Game Object asset root is required.");
+        }
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity != null && entity.sourceEntityId == asset.rootSourceEntityId) {
+                if (entity.transform == null) {
+                    throw new IllegalStateException("Game Object asset root transform is required.");
+                }
+                entity.transform.x = 0f;
+                entity.transform.y = 0f;
+                return;
+            }
+        }
+        throw new IllegalStateException("Game Object asset root is missing.");
     }
 
     /** Converts current Scene world-meter pulley anchors to the asset root's local meter frame. */
