@@ -33,22 +33,24 @@ public class RegressionContracts013Test {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
         String body = methodBody(source, "public AtlasInputSyncResult syncSceneAtlasInput(");
 
-        assertTrue(body.contains("inputDir.mkdirs();"));
-        assertTrue(body.contains("ensureInternalWhitePixel(inputDir);"));
-        assertTrue(body.contains("toRequiredInputFileNames(required)"));
-        assertTrue(body.contains("cleanupUnusedInputFiles(inputDir, requiredInputFileNames)"));
+        assertTrue(body.contains("AtlasInputFileSync.sync("));
+        String shared = read("src/main/java/games/pixscape/studio/service/atlas/AtlasInputFileSync.java");
+        assertTrue(shared.contains("ensureInternalWhitePixel(inputDir);"));
+        assertTrue(shared.contains("cleanupUnusedInputFiles(inputDir, requiredFileNames(required))"));
     }
 
     @Test
     public void atlasOperationsLogSummariesInsteadOfEveryInputOrAlias() throws Exception {
         String inputSource = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
         String loaderSource = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasLoaderService.java");
+        String packingSource = read("src/main/java/games/pixscape/studio/service/atlas/AtlasPackingService.java");
 
         assertTrue(inputSource.contains("\"Atlas input synced: scene=\""));
         assertFalse(inputSource.contains("\"Copied atlas input: \""));
         assertFalse(inputSource.contains("\"Deleted unused atlas input file: \""));
         assertFalse(inputSource.contains("\"Copied animation frame to atlas input: \""));
-        assertTrue(loaderSource.contains("settings.silent = true;"));
+        assertTrue(loaderSource.contains("AtlasPackingService.packScene"));
+        assertTrue(packingSource.contains("settings.silent = true;"));
         assertTrue(loaderSource.contains("\"Scene atlas packed: scene=\""));
     }
 
@@ -66,12 +68,12 @@ public class RegressionContracts013Test {
 
     @Test
     public void sceneAtlasInput_cleanup_isIdempotent_andFileNameBased() throws Exception {
-        String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
-        String methodBody = methodBody(source, "private static Set<String> toRequiredInputFileNames(");
+        String source = read("src/main/java/games/pixscape/studio/service/atlas/AtlasInputFileSync.java");
+        String methodBody = methodBody(source, "private static Set<String> requiredFileNames(");
         String cleanupBody = methodBody(source, "private static int cleanupUnusedInputFiles(");
 
-        assertTrue(methodBody.contains("fileNameFromPath(relPath)"));
-        assertTrue(cleanupBody.contains("if (!requiredInputFileNames.contains(child.name()))"));
+        assertTrue(methodBody.contains("fileName(path)"));
+        assertTrue(cleanupBody.contains("!requiredNames.contains(child.name())"));
     }
 
     @Test
@@ -109,7 +111,10 @@ public class RegressionContracts013Test {
     @Test
     public void runtimeExport_rebuildsAndDoesNotExportStudioAnimationSources() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/configuration/RuntimeExport.java");
-        String body = methodBody(source, "public static RuntimeConfig exportRuntime(");
+        String entry = methodBody(source, "public static RuntimeConfig exportRuntime(");
+        assertOrdered(entry, "new SceneHudRuntimeExport().prepare(", "exportPrepared(");
+        assertFalse("Previous export must survive HUD preparation failure.", entry.contains("deleteDirectory()"));
+        String body = methodBody(source, "private static RuntimeConfig exportPrepared(");
 
         assertTrue(body.contains("runtimeDir.exists()"));
         assertTrue(body.contains("runtimeDir.deleteDirectory()"));

@@ -17,18 +17,28 @@ import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.runtime.hud.HudScreenAsset;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentValidator;
+import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.HudFontReferences;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 
 import java.io.File;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.Objects;
+import java.util.List;
 
 public final class AssetUsageScanner {
 
     private final World world;
     private final ProjectConfig projectConfig;
     private final AssetMetaDatabase assetMetaDatabase;
+    private final List<HudScreenEditorDocument> openHudDocuments;
 
     private final ComponentMapper<AssetRefComponent> mAssetRef;
     private final ComponentMapper<AnimationComponent> mAnimation;
@@ -38,14 +48,21 @@ public final class AssetUsageScanner {
     public AssetUsageScanner(World world,
                              ProjectConfig projectConfig,
                              AssetMetaDatabase assetMetaDatabase) {
-        this.world = Objects.requireNonNull(world, "world");
+        this(world, projectConfig, assetMetaDatabase, List.of());
+    }
+
+    public AssetUsageScanner(World world, ProjectConfig projectConfig,
+                             AssetMetaDatabase assetMetaDatabase,
+                             List<HudScreenEditorDocument> openHudDocuments) {
+        this.world = world;
         this.projectConfig = Objects.requireNonNull(projectConfig, "projectConfig");
         this.assetMetaDatabase = Objects.requireNonNull(assetMetaDatabase, "assetMetaDatabase");
+        this.openHudDocuments = List.copyOf(openHudDocuments != null ? openHudDocuments : List.of());
 
-        this.mAssetRef = world.getMapper(AssetRefComponent.class);
-        this.mAnimation = world.getMapper(AnimationComponent.class);
-        this.mParticle = world.getMapper(ParticleEmitterComponent.class);
-        this.mTiled = world.getMapper(TiledLayerComponent.class);
+        this.mAssetRef = world != null ? world.getMapper(AssetRefComponent.class) : null;
+        this.mAnimation = world != null ? world.getMapper(AnimationComponent.class) : null;
+        this.mParticle = world != null ? world.getMapper(ParticleEmitterComponent.class) : null;
+        this.mTiled = world != null ? world.getMapper(TiledLayerComponent.class) : null;
     }
 
     public AssetUsageReport scanAsset(int assetId) {
@@ -59,6 +76,19 @@ public final class AssetUsageScanner {
         }
 
         UsageAccumulator acc = new UsageAccumulator();
+
+        if (assetMeta.type() == games.pixscape.studio.asset.AssetType.FONT) {
+            scanBitmapFontHudDocuments(assetId, acc);
+            return acc.toReport();
+        }
+        if (assetMeta.type() == games.pixscape.studio.asset.AssetType.SKIN) {
+            scanSkinHudDocuments(assetMeta.sourceRelPath(), acc);
+            return acc.toReport();
+        }
+
+        if (world == null) {
+            throw new IllegalStateException("A live Scene is required to inspect this Asset type.");
+        }
 
         scanCurrentLoadedScene(assetMeta, acc);
         scanOtherProjectSceneFiles(assetMeta, acc);
@@ -96,6 +126,8 @@ public final class AssetUsageScanner {
             case TILE -> scanCurrentWorldTile(assetMeta.id(), acc, currentSceneName);
             case PARTICLE -> scanCurrentWorldParticle(assetMeta, acc, currentSceneName);
             case TILESET -> false;
+            case FONT -> false;
+            case SKIN -> false;
         };
 
         if (found) {
@@ -145,8 +177,122 @@ public final class AssetUsageScanner {
                 case TILESET -> {
                     // no-op
                 }
+                case FONT -> {
+                    // Font usage is scanned across all HUD documents above.
+                }
+                case SKIN -> {
+                    // Skin usage is scanned across all HUD assets above.
+                }
             }
         }
+    }
+
+    private void scanSkinHudDocuments(String skinId, UsageAccumulator acc) {
+        if (skinId == null || skinId.isBlank()) return;
+        FileHandle projectDir = resolveProjectDir();
+        java.util.HashSet<String> openIds = new java.util.HashSet<>();
+        for (HudScreenEditorDocument open : openHudDocuments) {
+            openIds.add(open.screenId());
+            if (sameProjectPath(projectDir, skinId, open.asset().skinId)) {
+                acc.occurrenceCount++;
+                acc.addDocument(open.screenId());
+            }
+        }
+        FileHandle hudDir = projectDir
+                .child(games.pixscape.runtime.hud.HudScreenAssetId.DIRECTORY);
+        if (!hudDir.exists()) return;
+        for (FileHandle assetFile : hudDir.list("." + HudScreenAsset.EXTENSION.substring(1))) {
+            String documentLabel = assetFile.nameWithoutExtension();
+            if (openIds.contains(documentLabel)) continue;
+            try {
+                JsonValue assetJson = new JsonReader().parse(assetFile);
+                if (sameProjectPath(projectDir, skinId, assetJson.getString("skinId", null))) {
+                    acc.occurrenceCount++;
+                    acc.addDocument(documentLabel);
+                }
+            } catch (RuntimeException failure) {
+                throw new IllegalStateException("Cannot verify Skin usage in HUD asset '"
+                        + documentLabel + "'.", failure);
+            }
+        }
+    }
+
+    private static boolean sameProjectPath(FileHandle projectDir, String first, String second) {
+        if (first == null || first.isBlank() || second == null || second.isBlank()) return false;
+        return resolveProjectPath(projectDir, first).equals(resolveProjectPath(projectDir, second));
+    }
+
+    private static Path resolveProjectPath(FileHandle projectDir, String reference) {
+        Path root = projectDir.file().toPath().toAbsolutePath().normalize();
+        try {
+            String systemPath = reference.trim()
+                    .replace('\\', File.separatorChar)
+                    .replace('/', File.separatorChar);
+            Path relative = Path.of(systemPath);
+            if (relative.isAbsolute() || relative.getRoot() != null) {
+                throw new IllegalStateException("Skin reference must be project-relative: " + reference);
+            }
+            Path resolved = root.resolve(relative).normalize();
+            if (!resolved.startsWith(root)) {
+                throw new IllegalStateException("Skin reference escapes the Studio project directory: "
+                        + reference);
+            }
+            return resolved;
+        } catch (InvalidPathException failure) {
+            throw new IllegalStateException("Skin reference is not a valid project path: "
+                    + reference, failure);
+        }
+    }
+
+    private void scanBitmapFontHudDocuments(int assetId, UsageAccumulator acc) {
+        java.util.HashSet<String> openIds = new java.util.HashSet<>();
+        for (HudScreenEditorDocument open : openHudDocuments) {
+            openIds.add(open.screenId());
+            scanBitmapFontDocument(assetId, open.screenId(), open.document(), acc);
+        }
+        FileHandle projectDir = resolveProjectDir();
+        FileHandle hudDir = projectDir.child(games.pixscape.runtime.hud.HudScreenAssetId.DIRECTORY);
+        if (!hudDir.exists()) return;
+        for (FileHandle assetFile : hudDir.list("." + HudScreenAsset.EXTENSION.substring(1))) {
+            String documentLabel = assetFile.nameWithoutExtension();
+            try {
+                JsonValue assetJson = new JsonReader().parse(assetFile);
+                String documentId = assetJson.getString("documentId", null);
+                if (documentId == null || documentId.isBlank()) {
+                    throw new IllegalStateException("HUD asset has no documentId.");
+                }
+                if (openIds.contains(documentLabel)) continue;
+                var document = new HudDocumentCodec().read(projectDir.child(documentId));
+                scanBitmapFontDocument(assetId, documentLabel, document, acc);
+            } catch (RuntimeException failure) {
+                throw new IllegalStateException("Cannot verify bitmap-font usage in HUD document '"
+                        + documentLabel + "'.", failure);
+            }
+        }
+    }
+
+    private static void scanBitmapFontDocument(int assetId, String documentName,
+                                               games.pixscape.runtime.hud.document.HudDocumentV1 document,
+                                               UsageAccumulator acc) {
+        var validation = new HudDocumentValidator().validate(document);
+        if (!validation.isValid()) {
+            throw new IllegalStateException("Cannot verify bitmap-font usage in invalid HUD document '"
+                    + documentName + "'.");
+        }
+        boolean found = false;
+        for (HudNode node : validation.validatedDocument().nodeIndex().values()) {
+            Integer fontAssetId = HudFontReferences.assetId(node);
+            if (fontAssetId != null && fontAssetId == assetId) {
+                acc.occurrenceCount++;
+                found = true;
+            }
+            Integer tooltipFontAssetId = HudFontReferences.tooltipAssetId(node);
+            if (tooltipFontAssetId != null && tooltipFontAssetId == assetId) {
+                acc.occurrenceCount++;
+                found = true;
+            }
+        }
+        if (found) acc.addDocument(documentName);
     }
 
     private void scanOtherProjectSceneFilesTiles(IntSet tileAssetIds, UsageAccumulator acc) {
@@ -509,6 +655,7 @@ public final class AssetUsageScanner {
         int occurrenceCount = 0;
         boolean referencedInCurrentLoadedScene = false;
         final Array<String> sceneNames = new Array<>();
+        final Array<String> documentNames = new Array<>();
 
         void addScene(String sceneName) {
             if (sceneName == null || sceneName.isBlank()) return;
@@ -517,30 +664,43 @@ public final class AssetUsageScanner {
             }
         }
 
+        void addDocument(String documentName) {
+            if (documentName != null && !documentName.isBlank()
+                    && !documentNames.contains(documentName, false)) documentNames.add(documentName);
+        }
+
         AssetUsageReport toReport() {
             return new AssetUsageReport(
                     occurrenceCount > 0,
                     occurrenceCount,
                     sceneNames,
-                    referencedInCurrentLoadedScene
+                    referencedInCurrentLoadedScene, documentNames
             );
         }
     }
 
     public record AssetUsageReport(boolean used, int occurrenceCount, Array<String> sceneNames,
-                                   boolean referencedInCurrentLoadedScene) {
+                                   boolean referencedInCurrentLoadedScene,
+                                   Array<String> documentNames) {
         public AssetUsageReport(boolean used,
                                 int occurrenceCount,
                                 Array<String> sceneNames,
                                 boolean referencedInCurrentLoadedScene) {
+            this(used, occurrenceCount, sceneNames, referencedInCurrentLoadedScene, new Array<>());
+        }
+
+        public AssetUsageReport(boolean used, int occurrenceCount, Array<String> sceneNames,
+                                boolean referencedInCurrentLoadedScene,
+                                Array<String> documentNames) {
             this.used = used;
             this.occurrenceCount = occurrenceCount;
             this.sceneNames = sceneNames != null ? new Array<>(sceneNames) : new Array<>();
             this.referencedInCurrentLoadedScene = referencedInCurrentLoadedScene;
+            this.documentNames = documentNames != null ? new Array<>(documentNames) : new Array<>();
         }
 
         public static AssetUsageReport empty() {
-            return new AssetUsageReport(false, 0, new Array<>(), false);
+            return new AssetUsageReport(false, 0, new Array<>(), false, new Array<>());
         }
     }
 }

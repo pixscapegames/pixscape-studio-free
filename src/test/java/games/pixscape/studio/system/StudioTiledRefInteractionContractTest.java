@@ -61,13 +61,13 @@ public class StudioTiledRefInteractionContractTest {
                 StandardCharsets.UTF_8
         ).replace("\r\n", "\n");
 
-        int activation = source.indexOf("sceneActivationPipeline.activate(");
+        int activation = source.indexOf("pipeline.activate(");
         int validation = source.indexOf(
                 "canvas.requestTiledFallbackValidation();",
                 activation
         );
         int identityRebuild = source.indexOf(
-                "canvas.getIdentityRegistry().rebuild();",
+                "candidate.identityRegistry().rebuild();",
                 activation
         );
 
@@ -142,7 +142,7 @@ public class StudioTiledRefInteractionContractTest {
         ).replace("\r\n", "\n");
 
         assertTrue(canvas.contains("if (handleTiledOutsideMapClick())"));
-        assertTrue(canvas.contains("spatialTileSelectionService.clear();\n        selectionService.clearSelection();"));
+        assertTrue(canvas.contains("spatialTileSelectionService().clear();\n        selectionService().clearSelection();"));
         assertTrue(tree.contains("evt.source() != SelectionService.SelectionSource.TREE"));
         assertTrue(tree.contains("propertiesPanel.clearTiledMapMode();"));
     }

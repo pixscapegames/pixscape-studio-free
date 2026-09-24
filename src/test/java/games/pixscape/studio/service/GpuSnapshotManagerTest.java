@@ -165,6 +165,48 @@ public class GpuSnapshotManagerTest {
     }
 
     @Test
+    public void activatingCleanSceneRebindsItsCachedSnapshotWithoutRebuild() {
+        AtlasRuntimeService.TextureArrayBundle first = bundleWithHandle(17);
+        AtlasRuntimeService.TextureArrayBundle second = bundleWithHandle(23);
+        GpuSnapshotManager manager = new GpuSnapshotManager(
+                null,
+                metricsBatch(),
+                (sceneTag, diagnosticsEnabled) -> new SnapshotBuilder.BuildResult(
+                        "first".equals(sceneTag) ? first : second,
+                        1, 1, 0, 0L, 0L, 0L, 0L, 0L),
+                false,
+                0L,
+                message -> { }
+        );
+
+        manager.markDirty("first", "publish-first");
+        manager.syncIfDirty("first");
+        manager.markDirty("second", "publish-second");
+        manager.syncIfDirty("second");
+
+        manager.bindActiveSnapshot("first");
+
+        assertTrue(manager.isHandlePublishedInCurrentBundle("first", 17));
+        assertFalse(manager.isHandlePublishedInCurrentBundle("second", 23));
+        assertEquals(2, manager.rebuildCount());
+    }
+
+    @Test
+    public void closingSceneReleasesOnlyItsCachedSnapshot() {
+        GpuSnapshotManager manager = new GpuSnapshotManager(null, null);
+        AtlasRuntimeService.TextureArrayBundle first = bundle();
+        AtlasRuntimeService.TextureArrayBundle second = bundle();
+        manager.replaceActiveSnapshot("first", first);
+        manager.replaceActiveSnapshot("second", second);
+
+        manager.releaseScene("first");
+
+        assertNull(manager.activeSnapshot("first"));
+        assertSame(second, manager.activeSnapshot("second"));
+        assertEquals(1, manager.deferredDisposalCount());
+    }
+
+    @Test
     public void slowDiagnosticLogIncludesReasonsAndBuildBuckets() {
         List<String> logs = new ArrayList<>();
         GpuSnapshotManager manager = instrumentedManager(logs);

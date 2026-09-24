@@ -24,6 +24,8 @@ public final class StudioFs {
     public static final String DIR_ORIG_TILES = "orig/tiles";
     public static final String DIR_ORIG_ANIMATIONS = "orig/animations";
     public static final String DIR_ORIG_EFFECTS = "orig/effects";
+    public static final String DIR_ORIG_FONTS = "orig/fonts";
+    public static final String DIR_ORIG_SKINS = "orig/skins";
     public static final String DIR_ORIG_SHADERS = "orig/shaders";
     public static final String DIR_ORIG_AUDIO = "orig/audio";
     public static final String DIR_ATLASES = "atlases";
@@ -32,6 +34,8 @@ public final class StudioFs {
     public static final String PREFIX_IMAGES = "images/";
     public static final String PREFIX_ANIMATIONS = "animations/";
     public static final String PREFIX_EFFECTS = "effects/";
+    public static final String PREFIX_FONTS = "fonts/";
+    public static final String PREFIX_SKINS = "skins/";
     public static final String PREFIX_TILES = "tiles/";
 
     public static final String EXT_PNG = ".png";

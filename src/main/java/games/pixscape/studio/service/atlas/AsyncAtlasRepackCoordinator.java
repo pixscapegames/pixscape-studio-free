@@ -1,14 +1,13 @@
 package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.studio.service.PreparedAtlasPublication;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.LongSupplier;
 
-public final class AsyncAtlasRepackCoordinator {
+/** Coordinates generic, generation-aware asynchronous preparation. */
+public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
 
     public enum RepackReason {
         GENERIC,
@@ -16,77 +15,75 @@ public final class AsyncAtlasRepackCoordinator {
         SAVE
     }
 
-    public interface PackRunner {
-        RepackArtifact pack(String sceneTag, long generation, RepackReason reason) throws Exception;
+    @FunctionalInterface
+    public interface PackRunner<T extends AutoCloseable> {
+        T pack(String targetKey, long generation, RepackReason reason) throws Exception;
     }
 
-    public static final class RepackArtifact {
-        private final String sceneTag;
-        private final long generation;
-        private final FileHandle outputDir;
-        private final FileHandle atlasFile;
-        private final FileHandle pngFile;
-        private PreparedAtlasPublication preparedPublication;
+    public record PackFailure(String targetKey, long generation, Exception cause) {}
 
-        public RepackArtifact(String sceneTag,
-                              long generation,
-                              FileHandle outputDir,
-                              FileHandle atlasFile,
-                              FileHandle pngFile,
-                              PreparedAtlasPublication preparedPublication) {
-            this.sceneTag = sceneTag;
+    /**
+     * The coordinator owns a prepared payload until the caller takes it. Callers own a taken
+     * payload; discarded or unclaimed payloads are closed by this envelope.
+     */
+    public static final class Prepared<T extends AutoCloseable> implements AutoCloseable {
+        private final String targetKey;
+        private final long generation;
+        private T payload;
+
+        private Prepared(String targetKey, long generation, T payload) {
+            this.targetKey = targetKey;
             this.generation = generation;
-            this.outputDir = outputDir;
-            this.atlasFile = atlasFile;
-            this.pngFile = pngFile;
-            this.preparedPublication = preparedPublication;
+            this.payload = payload;
         }
 
-        public String sceneTag() {
-            return sceneTag;
+        public String targetKey() {
+            return targetKey;
         }
 
         public long generation() {
             return generation;
         }
 
-        public FileHandle outputDir() {
-            return outputDir;
-        }
-
-        public FileHandle atlasFile() {
-            return atlasFile;
-        }
-
-        public FileHandle pngFile() {
-            return pngFile;
-        }
-
-        public PreparedAtlasPublication takePreparedPublication() {
-            PreparedAtlasPublication taken = preparedPublication;
-            preparedPublication = null;
+        public T takePayload() {
+            T taken = payload;
+            payload = null;
             return taken;
         }
 
         public void discard() {
-            if (preparedPublication != null) {
-                preparedPublication.close();
-                preparedPublication = null;
+            if (payload == null) return;
+            try {
+                payload.close();
+            } catch (Exception failure) {
+                error("Unable to discard prepared payload", failure);
+            } finally {
+                payload = null;
             }
-            deleteQuietly(outputDir);
+        }
+
+        @Override
+        public void close() {
+            discard();
         }
     }
 
     private static final String TAG = "AtlasRepackCoordinator";
     private static final long PACK_DEBOUNCE_MS = 400L;
 
-    private final PackRunner packRunner;
-    private final ExecutorService executor =
-            Executors.newCachedThreadPool(r -> {
-                Thread t = new Thread(r, "pixscape-atlas-repack");
-                t.setDaemon(true);
-                return t;
-            });
+    private final PackRunner<T> packRunner;
+
+    private static ExecutorService createExecutor() {
+        return Executors.newCachedThreadPool(r -> {
+            Thread t = new Thread(r, "pixscape-atlas-repack");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    private final ExecutorService executor;
+    private final LongSupplier clock;
+    private final long debounceMs;
 
     private Future<?> runningFuture;
 
@@ -95,8 +92,8 @@ public final class AsyncAtlasRepackCoordinator {
     private boolean asyncPackRunning;
     private boolean asyncPackReady;
 
-    private String requestedSceneTag;
-    private String runningSceneTag;
+    private String requestedTargetKey;
+    private String runningTargetKey;
 
     private long requestedGeneration;
     private long runningGeneration;
@@ -104,24 +101,35 @@ public final class AsyncAtlasRepackCoordinator {
     private RepackReason requestedReason = RepackReason.GENERIC;
     private long lastRequestMs;
 
-    private RepackArtifact readyArtifact;
+    private Prepared<T> readyPrepared;
+    private PackFailure readyFailure;
 
-    public AsyncAtlasRepackCoordinator(PackRunner packRunner) {
-        if (packRunner == null) throw new IllegalArgumentException("packRunner is null");
-        this.packRunner = packRunner;
+    public AsyncAtlasRepackCoordinator(PackRunner<T> packRunner) {
+        this(packRunner, createExecutor(), System::currentTimeMillis, PACK_DEBOUNCE_MS);
     }
 
-    public synchronized long requestAsyncPack(String sceneTag, RepackReason reason) {
+    /** Executor/clock injection for deterministic behavioral tests, not a separate repack framework. */
+    public AsyncAtlasRepackCoordinator(PackRunner<T> packRunner, ExecutorService executor,
+                                       LongSupplier clock, long debounceMs) {
+        if (packRunner == null) throw new IllegalArgumentException("packRunner is null");
+        this.packRunner = packRunner;
+        this.executor = java.util.Objects.requireNonNull(executor);
+        this.clock = java.util.Objects.requireNonNull(clock);
+        this.debounceMs = debounceMs;
+    }
+
+    public synchronized long requestAsyncPack(String targetKey, RepackReason reason) {
         if (disposed) return requestedGeneration;
-        if (sceneTag == null || sceneTag.isBlank()) {
-            throw new IllegalArgumentException("sceneTag is blank");
+        if (targetKey == null || targetKey.isBlank()) {
+            throw new IllegalArgumentException("targetKey is blank");
         }
 
         requestedGeneration++;
-        requestedSceneTag = sceneTag;
+        requestedTargetKey = targetKey;
         requestedReason = reason != null ? reason : RepackReason.GENERIC;
         asyncPackRequested = true;
-        lastRequestMs = System.currentTimeMillis();
+        lastRequestMs = clock.getAsLong();
+        readyFailure = null;
 
         cancelRunning("newer request");
         discardReadyIfStale();
@@ -132,35 +140,42 @@ public final class AsyncAtlasRepackCoordinator {
     public synchronized void update() {
         if (disposed || !asyncPackRequested || asyncPackRunning) return;
 
-        long now = System.currentTimeMillis();
-        if (now - lastRequestMs < PACK_DEBOUNCE_MS) return;
+        long now = clock.getAsLong();
+        if (now - lastRequestMs < debounceMs) return;
 
         launchAsyncPack();
     }
 
-    public synchronized RepackArtifact pollReadyAsyncPack() {
-        if (!asyncPackReady || readyArtifact == null) return null;
+    public synchronized Prepared<T> pollReadyAsyncPack() {
+        if (!asyncPackReady || readyPrepared == null) return null;
 
-        RepackArtifact artifact = readyArtifact;
+        Prepared<T> prepared = readyPrepared;
         asyncPackReady = false;
-        readyArtifact = null;
+        readyPrepared = null;
 
-        if (artifact.generation() != requestedGeneration) {
-            artifact.discard();
+        if (prepared.generation() != requestedGeneration) {
+            prepared.discard();
             return null;
         }
 
-        return artifact;
+        return prepared;
     }
 
-    public synchronized boolean hasQueuedOrRunningFor(String sceneTag) {
-        if (sceneTag == null || sceneTag.isBlank()) {
+    public synchronized boolean hasQueuedOrRunningFor(String targetKey) {
+        if (targetKey == null || targetKey.isBlank()) {
             return asyncPackRequested || asyncPackRunning || asyncPackReady;
         }
 
-        return (asyncPackRequested && sceneTag.equals(requestedSceneTag))
-                || (asyncPackRunning && sceneTag.equals(runningSceneTag))
-                || (readyArtifact != null && sceneTag.equals(readyArtifact.sceneTag()));
+        return (asyncPackRequested && targetKey.equals(requestedTargetKey))
+                || (asyncPackRunning && targetKey.equals(runningTargetKey))
+                || (readyPrepared != null && targetKey.equals(readyPrepared.targetKey()));
+    }
+
+    /** Delivered once on the caller/UI thread; cancellations and stale failures are not errors. */
+    public synchronized PackFailure pollFailure() {
+        PackFailure failure = readyFailure;
+        readyFailure = null;
+        return failure != null && failure.generation() == requestedGeneration ? failure : null;
     }
 
     public synchronized boolean isAsyncPackRequested() {
@@ -182,61 +197,70 @@ public final class AsyncAtlasRepackCoordinator {
         asyncPackRequested = false;
         cancelRunning("dispose");
 
-        if (readyArtifact != null) {
-            readyArtifact.discard();
-            readyArtifact = null;
+        if (readyPrepared != null) {
+            readyPrepared.discard();
+            readyPrepared = null;
         }
 
         asyncPackReady = false;
+        readyFailure = null;
 
         executor.shutdownNow();
     }
 
     private void launchAsyncPack() {
-        final String sceneTag = requestedSceneTag;
+        final String targetKey = requestedTargetKey;
         final long generation = requestedGeneration;
         final RepackReason reason = requestedReason;
 
         asyncPackRequested = false;
         asyncPackRunning = true;
-        runningSceneTag = sceneTag;
+        runningTargetKey = targetKey;
         runningGeneration = generation;
 
         runningFuture = executor.submit(() -> {
-            RepackArtifact artifact = null;
+            T payload = null;
 
             try {
-                log("Async pack started scene=" + sceneTag + " gen=" + generation + " reason=" + reason);
+                log("Async pack started target=" + targetKey + " gen=" + generation + " reason=" + reason);
 
-                artifact = packRunner.pack(sceneTag, generation, reason);
+                payload = packRunner.pack(targetKey, generation, reason);
 
                 if (Thread.currentThread().isInterrupted()) {
-                    discardArtifact(artifact);
+                    discardPayload(payload);
                     return;
                 }
 
                 synchronized (this) {
                     if (disposed || generation != requestedGeneration) {
-                        discardArtifact(artifact);
+                        discardPayload(payload);
                         return;
                     }
 
-                    readyArtifact = artifact;
+                    readyPrepared = new Prepared<>(targetKey, generation, payload);
+                    payload = null;
                     asyncPackReady = true;
                 }
 
-                log("Async pack ready scene=" + sceneTag + " gen=" + generation);
+                log("Async pack ready target=" + targetKey + " gen=" + generation);
 
             } catch (Exception ex) {
-                discardArtifact(artifact);
+                discardPayload(payload);
                 if (!Thread.currentThread().isInterrupted()) {
-                    error("Async pack failed scene=" + sceneTag + " gen=" + generation, ex);
+                    boolean currentFailure = false;
+                    synchronized (this) {
+                        if (!disposed && generation == requestedGeneration) {
+                            readyFailure = new PackFailure(targetKey, generation, ex);
+                            currentFailure = true;
+                        }
+                    }
+                    if (currentFailure) error("Async pack failed target=" + targetKey + " gen=" + generation, ex);
                 }
             } finally {
                 synchronized (this) {
                     if (runningGeneration == generation) {
                         asyncPackRunning = false;
-                        runningSceneTag = null;
+                        runningTargetKey = null;
                         runningFuture = null;
                     }
                 }
@@ -246,42 +270,39 @@ public final class AsyncAtlasRepackCoordinator {
 
     private void cancelRunning(String reason) {
         if (runningFuture != null && !runningFuture.isDone()) {
-            log("Cancelling async pack scene=" + runningSceneTag
+            log("Cancelling async pack target=" + runningTargetKey
                     + " gen=" + runningGeneration
                     + " reason=" + reason);
             runningFuture.cancel(true);
         }
 
         asyncPackRunning = false;
-        runningSceneTag = null;
+        runningTargetKey = null;
         runningFuture = null;
     }
 
     private void discardReadyIfStale() {
-        if (readyArtifact != null && readyArtifact.generation() != requestedGeneration) {
-            readyArtifact.discard();
-            readyArtifact = null;
+        if (readyPrepared != null && readyPrepared.generation() != requestedGeneration) {
+            readyPrepared.discard();
+            readyPrepared = null;
             asyncPackReady = false;
         }
     }
 
-    private static void deleteQuietly(FileHandle file) {
-        if (file == null) return;
+    private static void discardPayload(AutoCloseable payload) {
+        if (payload == null) return;
         try {
-            if (file.exists()) file.deleteDirectory();
-        } catch (Exception ignored) {
+            payload.close();
+        } catch (Exception failure) {
+            error("Unable to discard prepared payload", failure);
         }
     }
 
-    private static void discardArtifact(RepackArtifact artifact) {
-        if (artifact != null) artifact.discard();
-    }
-
     private static void log(String msg) {
-        Gdx.app.log(TAG, msg);
+        if (Gdx.app != null) Gdx.app.log(TAG, msg);
     }
 
     private static void error(String msg, Exception ex) {
-        Gdx.app.error(TAG, msg, ex);
+        if (Gdx.app != null) Gdx.app.error(TAG, msg, ex);
     }
 }

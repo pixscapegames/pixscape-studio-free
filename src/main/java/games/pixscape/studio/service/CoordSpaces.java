@@ -71,8 +71,24 @@ public final class CoordSpaces {
 
     public Vector2 worldToScreen(float worldX, float worldY, Vector2 out) {
         tmp3.set(worldX, worldY, 0f);
-        worldCamera.project(tmp3);
+        worldViewport.project(tmp3);
         return out.set(tmp3.x, tmp3.y);
+    }
+
+    public int sceneScreenWidth() {
+        return Math.max(1, worldViewport.getScreenWidth());
+    }
+
+    public int sceneScreenHeight() {
+        return Math.max(1, worldViewport.getScreenHeight());
+    }
+
+    public float worldUnitsPerPixel() {
+        return (worldCamera.viewportWidth * worldCamera.zoom) / sceneScreenWidth();
+    }
+
+    public float pixelsToWorld(float pixels) {
+        return pixels * worldUnitsPerPixel();
     }
 
     private Vector2 computeLayerRenderOffset(int layerIndex, LayerService layerService, Vector2 out) {

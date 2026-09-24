@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.layer;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -19,6 +20,8 @@ public class LayerRow extends VisTable {
         void onLockedChanged(LayerRow row, boolean locked);
 
         void onRowClicked(LayerRow row);
+
+        default void onRowDoubleClicked(LayerRow row) {}
     }
 
     private final CheckBox cbVisible;
@@ -71,6 +74,9 @@ public class LayerRow extends VisTable {
             public void clicked(InputEvent event, float x, float y) {
                 if (listener != null) {
                     listener.onRowClicked(LayerRow.this);
+                    if (getTapCount() == 2) {
+                        listener.onRowDoubleClicked(LayerRow.this);
+                    }
                 }
                 super.clicked(event, x, y);
             }
@@ -104,6 +110,13 @@ public class LayerRow extends VisTable {
 
     public int getLayerIndex() {
         return layerIndex;
+    }
+
+    public void setLayerControlsVisible(boolean visibilityVisible, boolean lockVisible) {
+        cbVisible.setVisible(visibilityVisible);
+        cbVisible.setTouchable(visibilityVisible ? Touchable.enabled : Touchable.disabled);
+        cbLocked.setVisible(lockVisible);
+        cbLocked.setTouchable(lockVisible ? Touchable.enabled : Touchable.disabled);
     }
 
     public void setSelected(boolean selected) {

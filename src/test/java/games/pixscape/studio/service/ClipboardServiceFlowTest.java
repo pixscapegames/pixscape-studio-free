@@ -40,6 +40,7 @@ import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationService;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.scene.SceneEditorContext;
 import org.junit.Assert;
 import org.junit.Test;
 import sun.misc.Unsafe;
@@ -801,10 +802,12 @@ public class ClipboardServiceFlowTest {
             PhysicsService physicsService) throws Exception {
         Unsafe unsafe = getUnsafe();
         WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
-        setFieldUnsafe(unsafe, canvas, "world", world);
-        setFieldUnsafe(unsafe, canvas, "selectionService", selection);
-        setFieldUnsafe(unsafe, canvas, "historyManager", history);
-        setFieldUnsafe(unsafe, canvas, "layerService", layers);
+        SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
+        setFieldUnsafe(unsafe, context, "world", world);
+        setFieldUnsafe(unsafe, context, "selectionService", selection);
+        setFieldUnsafe(unsafe, context, "historyManager", history);
+        setFieldUnsafe(unsafe, context, "layerService", layers);
+        setFieldUnsafe(unsafe, canvas, "sceneEditorContext", context);
         setFieldUnsafe(unsafe, canvas, "physicsService", physicsService);
         return canvas;
     }
@@ -817,7 +820,7 @@ public class ClipboardServiceFlowTest {
 
     private static void setFieldUnsafe(
             Unsafe unsafe, Object target, String fieldName, Object value) throws Exception {
-        Field field = WorldCanvas.class.getDeclaredField(fieldName);
+        Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         unsafe.putObject(target, unsafe.objectFieldOffset(field), value);
     }

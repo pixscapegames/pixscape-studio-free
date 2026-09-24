@@ -416,6 +416,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
             case PARTICLE -> new ParticleAssetMeta(id, logicalPath, sourceRelPath, scope);
             case TILESET -> new TilesetAssetMeta(id, logicalPath, sourceRelPath, scope);
             case TILE -> new TileAssetMeta(id, logicalPath, sourceRelPath, scope);
+            case FONT -> new FontAssetMeta(id, logicalPath, sourceRelPath, scope);
+            case SKIN -> new SkinAssetMeta(id, logicalPath, sourceRelPath, scope);
         };
     }
 
@@ -488,6 +490,13 @@ public final class AssetMetaDatabase implements Json.Serializable {
         }
         AssetMetaDatabase db = JSON.fromJson(AssetMetaDatabase.class, file);
         return db != null ? db : new AssetMetaDatabase();
+    }
+
+    /** Canonical metadata-only snapshot for background jobs; capture on the editor thread. */
+    public String toSnapshotJson() { return JSON.toJson(this); }
+
+    public static AssetMetaDatabase fromSnapshotJson(String content) {
+        return JSON.fromJson(AssetMetaDatabase.class, content);
     }
 
     public void save(FileHandle file) {
@@ -700,6 +709,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
         if (asset instanceof ParticleAssetMeta) return AssetType.PARTICLE;
         if (asset instanceof TilesetAssetMeta) return AssetType.TILESET;
         if (asset instanceof TileAssetMeta) return AssetType.TILE;
+        if (asset instanceof FontAssetMeta) return AssetType.FONT;
+        if (asset instanceof SkinAssetMeta) return AssetType.SKIN;
         throw new IllegalStateException(
                 "Unsupported AssetMeta class: " + asset.getClass().getName() + ".");
     }

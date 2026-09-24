@@ -1,12 +1,19 @@
 # Changelog
 
-
 ## Unreleased
 
-### Changed
+## 0.4.0 - HUD and Multi-Scene Editing
 
+### Added
+
+* Added visual HUD screen editing with a widget hierarchy, properties, drag-and-drop placement, undo/redo, and interactive test mode.
+* Added simultaneous editing of multiple scenes through document tabs with independent editor contexts.
+* Added scene-to-HUD associations and HUD-aware runtime export using the shared Pixscape Runtime.
+
+### Improved
+
+* Reduced HUD atlas repacking for composition-only edits.
 * Updated the Pixscape Runtime dependency to 0.2.2.
-
 
 ## 0.3.0 - Universal Layers and Tiled Maps
 

@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.widget;
 
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -11,8 +12,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
- * Simple TextArea (non-ECS) with reader/applier binding and ENTER commit.
- * Note: this widget keeps the current "ENTER = commit" contract, so there is no true multiline editing.
+ * Simple TextArea (non-ECS) with reader/applier binding and configurable ENTER handling.
  */
 public final class SimpleTextArea extends VisTextArea implements TextInputWidget {
 
@@ -21,6 +21,7 @@ public final class SimpleTextArea extends VisTextArea implements TextInputWidget
 
     private String lastSyncedValue = "";
     private boolean internalUpdate = false;
+    private boolean multilineEditing;
 
     private VisTextField.TextFieldFilter activeFilter;
 
@@ -31,6 +32,7 @@ public final class SimpleTextArea extends VisTextArea implements TextInputWidget
             public boolean keyDown(InputEvent event, int keycode) {
                 if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) {
                     if (applier == null) return false;
+                    if (multilineEditing && !controlPressed()) return false;
                     commit();
                     if (getStage() != null) getStage().setKeyboardFocus(null);
                     return true;
@@ -38,6 +40,12 @@ public final class SimpleTextArea extends VisTextArea implements TextInputWidget
                 return false;
             }
         });
+    }
+
+    /** Plain ENTER inserts a newline; CTRL+ENTER retains the established explicit commit shortcut. */
+    public SimpleTextArea withMultilineEditing() {
+        multilineEditing = true;
+        return this;
     }
 
     public void setTextFieldFilter(VisTextField.TextFieldFilter filter) {
@@ -128,5 +136,10 @@ public final class SimpleTextArea extends VisTextArea implements TextInputWidget
         } finally {
             super.setTextFieldFilter(filterToRestore);
         }
+    }
+
+    private static boolean controlPressed() {
+        return Gdx.input != null && (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT)
+                || Gdx.input.isKeyPressed(Input.Keys.CONTROL_RIGHT));
     }
 }

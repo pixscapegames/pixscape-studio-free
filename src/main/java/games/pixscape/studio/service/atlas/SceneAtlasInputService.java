@@ -21,7 +21,6 @@ import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.configuration.SceneRuntimeAvailabilityData;
-import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
@@ -34,7 +33,6 @@ import java.util.Set;
 public final class SceneAtlasInputService {
 
     private static final String TAG = "SceneAtlasInputService";
-    private static final String INTERNAL_DIR = "__pixscape_internal__";
 
     public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,
                                                     String sceneTag,
@@ -48,35 +46,8 @@ public final class SceneAtlasInputService {
                 ? requiredProjectRelativePaths
                 : Set.of();
 
-        FileHandle inputDir = inputDir(projectDir, sceneTag);
-        inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
-        Set<String> requiredInputFileNames = toRequiredInputFileNames(required);
-        int deleted = cleanupUnusedInputFiles(inputDir, requiredInputFileNames);
-
-        int copied = 0;
-
-        for (String relPath : required) {
-            if (relPath == null || relPath.isBlank()) continue;
-
-            FileHandle source = projectDir.child(relPath);
-            if (!source.exists() || source.isDirectory()) {
-                Gdx.app.error(TAG, "Missing atlas input source: " + source.path());
-                continue;
-            }
-
-            FileHandle dest = inputDir.child(source.name());
-
-            if (copyIfDifferent(source, dest)) {
-                copied++;
-            }
-        }
-
-        AtlasInputSyncResult result = new AtlasInputSyncResult(
-                deleted > 0 || copied > 0,
-                copied,
-                deleted
-        );
+        AtlasInputSyncResult result = AtlasInputFileSync.sync(
+                projectDir, inputDir(projectDir, sceneTag), required, false);
         Gdx.app.log(TAG,
                 "Atlas input synced: scene=" + sceneTag
                         + " changed=" + result.changed()
@@ -341,17 +312,6 @@ public final class SceneAtlasInputService {
         return (slash >= 0 && slash + 1 < path.length()) ? path.substring(slash + 1) : path;
     }
 
-    private static Set<String> toRequiredInputFileNames(Set<String> requiredPaths) {
-        Set<String> requiredFileNames = new HashSet<>();
-        if (requiredPaths == null) return requiredFileNames;
-        for (String relPath : requiredPaths) {
-            String fileName = fileNameFromPath(relPath);
-            if (!fileName.isBlank()) requiredFileNames.add(fileName);
-        }
-        return requiredFileNames;
-    }
-
-
     public boolean ensureImageInInput(ProjectConfig cfg,
                                       String sceneTag,
                                       String projectRelativePath) {
@@ -369,10 +329,10 @@ public final class SceneAtlasInputService {
 
         FileHandle inputDir = inputDir(projectDir, sceneTag);
         inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
+        AtlasInputFileSync.ensureInternalWhitePixel(inputDir);
 
         FileHandle dest = inputDir.child(source.name());
-        return copyIfDifferent(source, dest);
+        return AtlasInputFileSync.copyIfDifferent(source, dest);
     }
 
     public boolean ensureAnimationDirInInput(ProjectConfig cfg,
@@ -392,7 +352,7 @@ public final class SceneAtlasInputService {
 
         FileHandle inputDir = inputDir(projectDir, sceneTag);
         inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
+        AtlasInputFileSync.ensureInternalWhitePixel(inputDir);
 
         int copied = 0;
 
@@ -401,7 +361,7 @@ public final class SceneAtlasInputService {
             if (!"png".equalsIgnoreCase(child.extension())) continue;
 
             FileHandle dest = inputDir.child(child.name());
-            if (copyIfDifferent(child, dest)) {
+            if (AtlasInputFileSync.copyIfDifferent(child, dest)) {
                 copied++;
             }
         }
@@ -424,60 +384,4 @@ public final class SceneAtlasInputService {
                 .child(sceneTag);
     }
 
-    private static void ensureInternalWhitePixel(FileHandle inputDir) {
-        FileHandle internalDir = inputDir.child(INTERNAL_DIR);
-        FileHandle whitePixel = internalDir.child(InternalAssets.WHITE_PIXEL_FILE);
-
-        if (!whitePixel.exists()) {
-            InternalAssets.copyWhitePixelTo(whitePixel);
-        }
-    }
-
-    private static boolean copyIfDifferent(FileHandle source, FileHandle dest) {
-        if (source == null || dest == null) return false;
-        if (!source.exists() || source.isDirectory()) return false;
-
-        if (dest.exists()
-                && !dest.isDirectory()
-                && dest.length() == source.length()
-                && dest.lastModified() >= source.lastModified()) {
-            return false;
-        }
-
-        dest.parent().mkdirs();
-        source.copyTo(dest);
-        return true;
-    }
-
-    private static int cleanupUnusedInputFiles(FileHandle inputDir,
-                                               Set<String> requiredInputFileNames) {
-        if (inputDir == null || !inputDir.exists()) return 0;
-
-        int deleted = 0;
-
-        for (FileHandle child : inputDir.list()) {
-            if (child == null) continue;
-
-            if (child.isDirectory()) {
-                if (INTERNAL_DIR.equals(child.name())) {
-                    continue;
-                }
-
-                child.deleteDirectory();
-                deleted++;
-                continue;
-            }
-
-            if (!"png".equalsIgnoreCase(child.extension())) {
-                continue;
-            }
-
-            if (!requiredInputFileNames.contains(child.name())) {
-                child.delete();
-                deleted++;
-            }
-        }
-
-        return deleted;
-    }
 }

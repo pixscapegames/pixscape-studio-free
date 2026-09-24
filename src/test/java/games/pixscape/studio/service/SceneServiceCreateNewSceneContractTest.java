@@ -17,12 +17,14 @@ import static org.junit.Assert.*;
 public class SceneServiceCreateNewSceneContractTest {
 
     @Test
-    public void createNewScene_usesLoadScenePipelineAsSingleSourceOfTruth() throws Exception {
+    public void createNewScene_createsAnIndependentContextWithoutReplacingTheActiveWorld() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "public void createNewScene(");
 
         assertTrue(methodBody.contains("saveCurrentSceneOnly(cfg);"));
-        assertTrue(methodBody.contains("loadScene(cfg, sceneName, projectDir);"));
+        assertTrue(methodBody.contains("canvas.createSceneContext(canonicalTag, meta);"));
+        assertTrue(methodBody.contains("openScene(canonicalTag, sceneName, candidate);"));
+        assertFalse(methodBody.contains("clearWorldAndRenderState();"));
         assertTrue(methodBody.contains("assertCurrentSceneMetadataIntegrity(cfg, sceneName, \"createNewScene\");"));
     }
 
@@ -30,15 +32,15 @@ public class SceneServiceCreateNewSceneContractTest {
     public void everySceneLifecycleBindsOrClearsBothIdentityAuthorities() throws Exception {
         String source = readSceneServiceSource();
         String helper = methodBody(source, "private void bindSceneIdentityAuthorities(");
-        assertTrue(helper.contains("getIdentityRegistry().bind(canvas.getEcsWorld(), meta)"));
+        assertTrue(helper.contains("sceneContext().identityRegistry().bind(sceneContext().world(), meta)"));
         assertTrue(helper.contains("getPhysicsService().setPhysicsShapeIdState(meta)"));
 
         assertOrdered(methodBody(source, "public void newProject("),
                 "ProjectConfig.setInstance(cfg);", "bindSceneIdentityAuthorities(meta);",
-                "getLayerService().addLayerTop");
+                "sceneContext().layerService().addLayerTop");
         assertOrdered(methodBody(source, "public void createNewScene("),
-                "clearWorldAndRenderState();", "bindSceneIdentityAuthorities(meta);",
-                "getLayerService().addLayerTop");
+                "canvas.createSceneContext(canonicalTag, meta);", "bindSceneIdentityAuthorities(meta);",
+                "candidate.layerService().addLayerTop");
         assertTrue(methodBody(source, "void loadScene(").contains("bindSceneIdentityAuthorities(meta);"));
         assertTrue(methodBody(source, "public void unloadProjectToEmptyEditor()")
                 .contains("bindSceneIdentityAuthorities(null);"));

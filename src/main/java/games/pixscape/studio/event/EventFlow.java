@@ -8,6 +8,10 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.tiled.TiledToolService;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BooleanSupplier;
+
 /**
  * EventFlow = simple typed UI event bus, flushed once per frame.
  * <p>
@@ -136,6 +140,14 @@ public final class EventFlow {
     public record CurrentSceneMeta(
             String sceneName,
             String description,
+            int sourceTag
+    ) {
+    }
+
+    /** The authored default HUD association changed for one canonical Scene. */
+    public record SceneHudAssociationChanged(
+            String sceneTag,
+            String hudScreenId,
             int sourceTag
     ) {
     }
@@ -387,6 +399,7 @@ public final class EventFlow {
 
     private final ObjectMap<Class<?>, Array<Listener<?>>> listeners = new ObjectMap<>();
     private final Array<Object> pendingEvents = new Array<>(false, 32);
+    private final ThreadLocal<SubscriptionScope> currentSubscriptionScope = new ThreadLocal<>();
 
     private EventFlow() {
     }
@@ -399,12 +412,55 @@ public final class EventFlow {
      * Subscribe to an event type (record or class).
      */
     public synchronized <T> void subscribe(Class<T> type, Listener<T> listener) {
+        SubscriptionScope scope = currentSubscriptionScope.get();
+        Listener<T> registered = listener;
+        if (scope != null) {
+            registered = event -> {
+                if (!scope.closed && scope.active.getAsBoolean()) listener.handle(event);
+            };
+            Listener<T> scopedListener = registered;
+            scope.removals.add(() -> unsubscribe(type, scopedListener));
+        }
         Array<Listener<?>> list = listeners.get(type);
         if (list == null) {
             list = new Array<>(false, 4);
             listeners.put(type, list);
         }
-        list.add(listener);
+        list.add(registered);
+    }
+
+    /** Creates a lifecycle-owned group of listeners delivered only while its Scene is active. */
+    public SubscriptionScope newSubscriptionScope(BooleanSupplier active) {
+        return new SubscriptionScope(active);
+    }
+
+    public final class SubscriptionScope implements AutoCloseable {
+        private final BooleanSupplier active;
+        private final List<Runnable> removals = new ArrayList<>();
+        private boolean closed;
+
+        private SubscriptionScope(BooleanSupplier active) {
+            this.active = active != null ? active : () -> true;
+        }
+
+        public void run(Runnable action) {
+            if (closed) throw new IllegalStateException("Event subscription scope is closed.");
+            SubscriptionScope previous = currentSubscriptionScope.get();
+            currentSubscriptionScope.set(this);
+            try {
+                action.run();
+            } finally {
+                if (previous != null) currentSubscriptionScope.set(previous);
+                else currentSubscriptionScope.remove();
+            }
+        }
+
+        @Override public void close() {
+            if (closed) return;
+            closed = true;
+            for (Runnable removal : List.copyOf(removals)) removal.run();
+            removals.clear();
+        }
     }
 
     /**
@@ -426,6 +482,11 @@ public final class EventFlow {
     public synchronized void publish(Object event) {
         if (event == null) return;
         pendingEvents.add(event);
+    }
+
+    /** Drops events produced by an unpublished transactional Scene candidate that failed to open. */
+    public synchronized void discardPending() {
+        pendingEvents.clear();
     }
 
     /**

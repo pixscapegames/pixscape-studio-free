@@ -62,7 +62,7 @@ public class WorldCanvasPhysicsPpmWiringTest {
                 StandardCharsets.UTF_8);
         String body = methodBody(source, "private void ensureBox2dFromMeta(");
         int rebuild = body.indexOf(
-                "PhysicsService.rebuildPreparedBodyCaches(world, ppm);");
+                "PhysicsService.rebuildPreparedBodyCaches(world(), ppm);");
         int applyAfterRebuild = body.indexOf(
                 "applyPixelsPerMeter(", rebuild);
         int cameraAfterApply = body.indexOf(

@@ -22,12 +22,58 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private final WorldCanvas canvas;
 
-    private final AsyncAtlasRepackCoordinator repackCoordinator;
+    private final AsyncAtlasRepackCoordinator<ScenePrepared> repackCoordinator;
     private volatile boolean disposed = false;
 
     private static final String TAG = "AtlasStudioService";
 
     private StudioAssetVisualResolver assetVisualResolver;
+
+    /** Scene-only worker result: temporary atlas files plus the prepared GPU publication. */
+    private static final class ScenePrepared implements AutoCloseable {
+        private final String sceneTag;
+        private final FileHandle outputDir;
+        private final FileHandle atlasFile;
+        private PreparedAtlasPublication preparedPublication;
+
+        private ScenePrepared(String sceneTag, FileHandle outputDir, FileHandle atlasFile,
+                              PreparedAtlasPublication preparedPublication) {
+            this.sceneTag = sceneTag;
+            this.outputDir = outputDir;
+            this.atlasFile = atlasFile;
+            this.preparedPublication = preparedPublication;
+        }
+
+        private String sceneTag() {
+            return sceneTag;
+        }
+
+        private FileHandle outputDir() {
+            return outputDir;
+        }
+
+        private FileHandle atlasFile() {
+            return atlasFile;
+        }
+
+        private PreparedAtlasPublication takePreparedPublication() {
+            PreparedAtlasPublication taken = preparedPublication;
+            preparedPublication = null;
+            return taken;
+        }
+
+        @Override
+        public void close() {
+            if (preparedPublication != null) {
+                preparedPublication.close();
+                preparedPublication = null;
+            }
+            try {
+                if (outputDir.exists()) outputDir.deleteDirectory();
+            } catch (RuntimeException ignored) {
+            }
+        }
+    }
 
     public AtlasStudioService(WorldCanvas canvas) {
         this.canvas = canvas;
@@ -69,7 +115,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         return repackCoordinator.hasQueuedOrRunningFor(sceneTag);
     }
 
-    private AsyncAtlasRepackCoordinator.RepackArtifact packAsyncToTemp(
+    private ScenePrepared packAsyncToTemp(
             String sceneTag,
             long generation,
             AsyncAtlasRepackCoordinator.RepackReason reason
@@ -101,12 +147,10 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             waitForAtlasFiles(atlasFile, pngFile);
             preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile);
 
-            return new AsyncAtlasRepackCoordinator.RepackArtifact(
+            return new ScenePrepared(
                     sceneTag,
-                    generation,
                     outputDir,
                     atlasFile,
-                    pngFile,
                     preparedPublication
             );
         } catch (RuntimeException failure) {
@@ -144,13 +188,15 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     // ============================================================
 
     public void applyIfPackReady() {
-        AsyncAtlasRepackCoordinator.RepackArtifact artifact =
+        AsyncAtlasRepackCoordinator.Prepared<ScenePrepared> preparedResult =
                 repackCoordinator.pollReadyAsyncPack();
 
-        if (artifact == null) return;
+        if (preparedResult == null) return;
+
+        final long generation = preparedResult.generation();
+        ScenePrepared artifact = preparedResult.takePayload();
 
         final String tag = artifact.sceneTag();
-        final long generation = artifact.generation();
 
         Gdx.app.log(TAG, "Applying async pack for scene=" + tag + " gen=" + generation);
 
@@ -229,7 +275,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             canvas.requestParticleRuntimeAvailabilityRefresh();
         } finally {
             if (uploaded != null) uploaded.close();
-            artifact.discard();
+            artifact.close();
             if (Boolean.getBoolean(GpuSnapshotManager.PROPERTY_DIAGNOSTICS)) {
                 Gdx.app.log(TAG,
                         "PREPARED_ATLAS_APPLY scene=" + tag
@@ -260,7 +306,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         return ns / 1_000_000f;
     }
 
-    private static void copyAtlasArtifactToFinalDir(AsyncAtlasRepackCoordinator.RepackArtifact artifact,
+    private static void copyAtlasArtifactToFinalDir(ScenePrepared artifact,
                                                     FileHandle atlasesDir) {
         String tag = artifact.sceneTag();
 

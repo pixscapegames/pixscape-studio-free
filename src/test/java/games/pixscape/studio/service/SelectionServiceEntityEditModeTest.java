@@ -22,6 +22,7 @@ public class SelectionServiceEntityEditModeTest {
     public void setUp() {
         world = new World(new WorldConfiguration());
         editingModes = new StudioEditingModeService();
+        editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         selection = new SelectionService(world, null, editingModes);
     }
 

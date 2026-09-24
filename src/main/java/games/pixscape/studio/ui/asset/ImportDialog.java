@@ -41,7 +41,9 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         SPRITESHEET,
         TILESET,
         TILESET_TSX,
-        PARTICLE_EFFECT
+        PARTICLE_EFFECT,
+        FONT,
+        SKIN
     }
 
     private static final float DIALOG_MIN_W = 1000f;
@@ -340,6 +342,11 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     private void addDroppedEntry(FileHandle entry) {
         if (entry == null || !entry.exists()) return;
 
+        if (!entry.isDirectory()) {
+            addOrSkip(entry);
+            return;
+        }
+
         Array<FileHandle> supported = new Array<>();
         collectSupportedFiles(entry, supported);
 
@@ -361,7 +368,10 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             return;
         }
 
-        if (ImportDialogValidation.isSupportedImportFile(entry)) {
+        // JSON files are only accepted when explicitly selected: recursively importing a
+        // folder must not reinterpret arbitrary project JSON as Scene2D Skins.
+        if (ImportDialogValidation.isSupportedImportFile(entry)
+                && !ImportDialogValidation.isSkinJsonFile(entry)) {
             out.add(entry);
         }
     }
@@ -384,6 +394,8 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private static ImportType guessType(FileHandle file) {
+        if (ImportDialogValidation.isBitmapFontFile(file)) return ImportType.FONT;
+        if (ImportDialogValidation.isSkinJsonFile(file)) return ImportType.SKIN;
         if (ImportDialogValidation.isParticleFile(file)) return ImportType.PARTICLE_EFFECT;
         if (ImportDialogValidation.isTsxFile(file)) return ImportType.TILESET_TSX;
         if (ImportDialogValidation.isSupportedImage(file)) return ImportType.IMAGE;
@@ -396,7 +408,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         listTable.defaults().pad(4).top();
 
         if (items.size == 0) {
-            listTable.add(new VisLabel("drop files here  (.png, .p, .tsx)"))
+            listTable.add(new VisLabel("drop files here  (.png, .p, .tsx, .fnt, .json)"))
                     .left()
                     .pad(6)
                     .colspan(4)
@@ -481,6 +493,18 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private Actor buildTypeActor(ImportItem item) {
+        if (ImportDialogValidation.isBitmapFontFile(item.file)) {
+            VisLabel label = new VisLabel("Bitmap font");
+            label.setColor(0.85f, 0.85f, 0.85f, 1f);
+            return label;
+        }
+        if (ImportDialogValidation.isSkinJsonFile(item.file)) {
+            SimpleSelectBox<ImportType> typeBox = new SimpleSelectBox<>();
+            typeBox.setItems(ImportType.SKIN);
+            typeBox.setSelected(ImportType.SKIN);
+            item.type = ImportType.SKIN;
+            return typeBox;
+        }
         if (ImportDialogValidation.isParticleFile(item.file)) {
             VisLabel label = new VisLabel("Particle effect");
             label.setColor(0.85f, 0.85f, 0.85f, 1f);
@@ -521,6 +545,18 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             wrap.left();
             wrap.add(errorLabel).left().width(COL_DETAILS_W - 8f).fillX();
             return wrap;
+        }
+
+        if (ImportDialogValidation.isBitmapFontFile(item.file)) {
+            VisLabel label = new VisLabel("BMFont descriptor and PNG pages");
+            label.setColor(0.78f, 0.78f, 0.78f, 1f);
+            return label;
+        }
+
+        if (item.type == ImportType.SKIN) {
+            VisLabel label = new VisLabel("Scene2D Skin bundle");
+            label.setColor(0.78f, 0.78f, 0.78f, 1f);
+            return label;
         }
 
         if (ImportDialogValidation.isParticleFile(item.file)) {

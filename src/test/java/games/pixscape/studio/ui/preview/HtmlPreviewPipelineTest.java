@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.preview;
 
+import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -59,6 +60,8 @@ public class HtmlPreviewPipelineTest {
         assertFalse(Files.exists(template.resolve("htmlplayer/htmlplayer.devmode.js")));
         assertFalse(Files.exists(template.resolve("htmlplayer/compilation-mappings.txt")));
         assertFalse(Files.exists(template.resolve("htmlplayer/logo.png")));
+        assertTrue(Files.isRegularFile(template.resolve("assets")
+                .resolve(HudBuiltInLabelStyle.FONT_DESCRIPTOR)));
         String index = Files.readString(template.resolve("index.html"), StandardCharsets.UTF_8);
         assertFalse(index.toLowerCase().contains("libgdx.png"));
         assertFalse(index.toLowerCase().contains("logo.png"));

@@ -2,7 +2,6 @@ package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.InternalAssets;
@@ -57,22 +56,7 @@ public final class SceneAtlasLoaderService {
                 InternalAssets.copyWhitePixelTo(whitePixel);
             }
 
-            TexturePacker.Settings settings = new TexturePacker.Settings();
-            settings.maxWidth = 2048;
-            settings.maxHeight = 2048;
-            settings.minWidth = 2048;
-            settings.minHeight = 2048;
-            settings.duplicatePadding = true;
-            settings.edgePadding = true;
-            settings.combineSubdirectories = true;
-            settings.silent = true;
-
-            TexturePacker.process(
-                    settings,
-                    inputDir.path(),
-                    outputDir.path(),
-                    canonicalTag
-            );
+            AtlasPackingService.packScene(inputDir, outputDir, canonicalTag);
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
         }
     }

@@ -28,6 +28,7 @@ public final class SimpleFloatField extends VisTextField {
 
     private Float lastValidValue;
     private boolean exactText;
+    private int displayFractionDigits = 2;
 
     public SimpleFloatField() {
         super("");
@@ -66,6 +67,15 @@ public final class SimpleFloatField extends VisTextField {
 
     public SimpleFloatField useExactText() {
         exactText = true;
+        refresh();
+        return this;
+    }
+
+    /** Sets display precision without changing the authored floating-point value. */
+    public SimpleFloatField withFractionDigits(int digits) {
+        if (digits < 0 || digits > 6) throw new IllegalArgumentException("digits must be within [0,6]");
+        exactText = false;
+        displayFractionDigits = digits;
         refresh();
         return this;
     }
@@ -194,6 +204,7 @@ public final class SimpleFloatField extends VisTextField {
     }
 
     private String floatToText(float v) {
-        return exactText ? Float.toString(v) : String.format(Locale.ROOT, "%.2f", v);
+        return exactText ? Float.toString(v)
+                : String.format(Locale.ROOT, "%." + displayFractionDigits + "f", v);
     }
 }

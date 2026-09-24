@@ -2,7 +2,7 @@
 
 <h1>Pixscape Studio Free</h1>
 
-[![Changelog](https://img.shields.io/badge/changelog-0.3.0-orange.svg)](CHANGELOG.md)<br>
+[![Changelog](https://img.shields.io/badge/changelog-0.4.0-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
 [![Java version](https://img.shields.io/badge/Java%20version-21-blue.svg)](#)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -51,6 +51,8 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 * **Open-source visual editor**
 * **Built for LibGDX and Pixscape Runtime**
 * **Scene-based 2D and 2.5D workflow**
+* **Simultaneous editing of multiple scenes**
+* **Visual HUD editing**
 * **Universal Layers with mixed scene content**
 * **First-class Tiled Map entities**
 * **Multiple Tiled Maps per scene and per Layer**
@@ -77,6 +79,8 @@ Pixscape Pro will be a separate optional edition focused on advanced production 
 ### Visual Editing
 
 * Scene editor
+* Multiple open scenes with document tabs
+* Visual HUD screen editor with widget hierarchy and interactive test mode
 * Asset browser
 * Drag-and-drop placement
 * Universal Layers with mixed content
@@ -182,7 +186,7 @@ Pixscape Runtime is a separate open-source runtime built on **LibGDX** and **Art
 Current runtime dependency:
 
 ```gradle
-games.pixscape:pixscape-runtime:0.2.1
+games.pixscape:pixscape-runtime:0.2.2
 ```
 
 Pixscape Runtime is published on Maven Central:

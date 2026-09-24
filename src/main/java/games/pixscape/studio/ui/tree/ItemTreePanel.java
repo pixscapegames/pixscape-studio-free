@@ -30,8 +30,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
 import games.pixscape.studio.history.commands.AddTiledMapCommand;
-import games.pixscape.studio.event.GetScrollListener;
-import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.service.IconResolver;
@@ -47,40 +45,55 @@ import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.layer.AddTiledMapDialog;
 import games.pixscape.studio.ui.property.PropertiesPanel;
+import games.pixscape.studio.service.StudioEditingModeService;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.OpenEditorDocument;
+import games.pixscape.studio.ui.hud.HudHierarchyPanel;
+import games.pixscape.studio.scene.SceneEditorContext;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 import static games.pixscape.runtime.component.physics.PhysicsBodyComponent.*;
 
 public class ItemTreePanel extends DockablePanel {
 
     private final StudioApplicationAdapter app;
-    private final World world;
-    private final LayerService layerService;
-    private final PhysicsSelectionService physicsSelectionService;
-    private final SpatialBlockSelectionService spatialBlockSelectionService;
-    private final SelectionService selectionService;
-    private final LayerLogicalOrderService logicalOrderService;
-    private final HistoryManager historyManager;
-    private final EditorOps editorOps;
+    private World world;
+    private LayerService layerService;
+    private PhysicsSelectionService physicsSelectionService;
+    private SpatialBlockSelectionService spatialBlockSelectionService;
+    private SelectionService selectionService;
+    private LayerLogicalOrderService logicalOrderService;
+    private HistoryManager historyManager;
+    private EditorOps editorOps;
+    private final StudioEditingModeService editingModeService;
 
-    private final ComponentMapper<EntityMetaComponent> mMeta;
-    private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
-    private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<ParticleEmitterComponent> mEmitter;
-    private final ComponentMapper<TiledLayerComponent> mTiled;
-    private final ComponentMapper<PhysicsBodyComponent> mBody;
-    private final ComponentMapper<PhysicsShapesComponent> mFixtures;
-    private final ComponentMapper<GameObjectComponent> mGameObject;
-    private final ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
+    private ComponentMapper<EntityMetaComponent> mMeta;
+    private ComponentMapper<PixscapeIdentityComponent> mIdentity;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private ComponentMapper<ParticleEmitterComponent> mEmitter;
+    private ComponentMapper<TiledLayerComponent> mTiled;
+    private ComponentMapper<PhysicsBodyComponent> mBody;
+    private ComponentMapper<PhysicsShapesComponent> mFixtures;
+    private ComponentMapper<GameObjectComponent> mGameObject;
+    private ComponentMapper<GameObjectMemberComponent> mGameObjectMember;
 
-    private final EntitySubscription layersSub;
-    private final EntitySubscription layerItemsSub;
-    private final EntitySubscription jointsSub;
-    private final EntitySubscription gameObjectMembersSub;
-    private final GameObjectHierarchySystem gameObjectHierarchy;
-    private final GameObjectCompositionSystem gameObjectComposition;
+    private EntitySubscription layersSub;
+    private EntitySubscription layerItemsSub;
+    private EntitySubscription jointsSub;
+    private EntitySubscription gameObjectMembersSub;
+    private GameObjectHierarchySystem gameObjectHierarchy;
+    private GameObjectCompositionSystem gameObjectComposition;
 
     private final IdVisTree tree;
-    private final IconResolver iconResolver;
+    private IconResolver iconResolver;
+    private final Set<World> refreshBoundWorlds =
+            Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<World> subscriptionsBoundWorlds =
+            Collections.newSetFromMap(new IdentityHashMap<>());
     private volatile boolean dirty = true;
     private boolean suppressTreeSelectionEvents = false;
     private boolean handlingTreeSelection = false;
@@ -88,6 +101,9 @@ public class ItemTreePanel extends DockablePanel {
     private int explicitTiledMapEntityId = -1;
 
     private final VisScrollPane scroller;
+    private final VisTable worldContent;
+    private final HudHierarchyPanel hudHierarchy;
+    private final VisTable documentContent = new VisTable();
 
     private PropertiesPanel propertiesPanel;
 
@@ -96,48 +112,16 @@ public class ItemTreePanel extends DockablePanel {
 
         this.app = app;
         var canvas = app.getCanvas();
-        this.world = canvas.getEcsWorld();
-        this.layerService = canvas.getLayerService();
-        this.physicsSelectionService = canvas.getPhysicsSelectionService();
-        this.spatialBlockSelectionService = canvas.getSpatialBlockSelectionService();
-        this.selectionService = canvas.getSelectionService();
-        this.logicalOrderService = new LayerLogicalOrderService(world);
-        this.historyManager = canvas.getHistoryManager();
-        this.editorOps = canvas.getEditorOps();
-
-        this.mMeta = world.getMapper(EntityMetaComponent.class);
-        this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
-        this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mEmitter = world.getMapper(ParticleEmitterComponent.class);
-        this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.mBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mFixtures = world.getMapper(PhysicsShapesComponent.class);
-        this.mGameObject = world.getMapper(GameObjectComponent.class);
-        this.mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
-        this.gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
-        this.gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
-
-        UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
-        postProcess.add(this::updateIfDirty);
-
-        AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
-        this.layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
-        this.layerItemsSub = asm.get(layerItemAspect());
-        this.jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
-        this.gameObjectMembersSub = asm.get(Aspect.all(GameObjectMemberComponent.class));
-
-        this.iconResolver = new IconResolver(world);
+        var sceneContext = app.getSceneEditorContext();
+        bindServices(sceneContext);
+        this.editingModeService = canvas.getStudioEditingModeService();
 
         tree = new IdVisTree();
         tree.setIndentSpacing(25);
         tree.getSelection().setMultiple(true);
         hookItemContextMenus();
 
-        scroller = new VisScrollPane(tree);
-        scroller.setFadeScrollBars(false);
-        scroller.setSmoothScrolling(true);
-        scroller.addListener(new GetScrollListener(scroller));
-        scroller.addListener(new LoseScroolListener());
+        scroller = StudioTreeUiSupport.createScrollPane(tree);
 
         VisTable root = new VisTable();
 
@@ -165,7 +149,19 @@ public class ItemTreePanel extends DockablePanel {
         root.add(scroller).grow().row();
         root.add(toolbar).bottom().center().row();
 
-        add(root).grow();
+        worldContent = root;
+        hudHierarchy = new HudHierarchyPanel(
+                app.getHudEditorSession(), app.getEditorDocumentManager());
+        add(documentContent).grow();
+
+        app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                showDocumentType(current != null ? current.type() : null);
+            }
+        });
+
+        showDocumentType(app.getEditorDocumentManager().activeDocument() != null
+                ? app.getEditorDocumentManager().activeDocument().type() : null);
 
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (handlingTreeSelection || suppressTreeSelectionEvents) return;
@@ -217,6 +213,74 @@ public class ItemTreePanel extends DockablePanel {
         hookTreeSelection();
     }
 
+    public void bindSceneContext(SceneEditorContext context) {
+        if (context == null || context.isDisposed()) return;
+        bindServices(context);
+        attachAutoRefresh();
+        explicitTiledMapEntityId = -1;
+        markDirty();
+        updateIfDirty();
+        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), true);
+    }
+
+    public void releaseSceneContext(SceneEditorContext context) {
+        if (context == null || !context.isInitialized()) return;
+        refreshBoundWorlds.remove(context.world());
+        subscriptionsBoundWorlds.remove(context.world());
+    }
+
+    private void bindServices(SceneEditorContext context) {
+        var canvas = app.getCanvas();
+        world = context.world();
+        layerService = context.layerService();
+        physicsSelectionService = context.physicsSelectionService();
+        spatialBlockSelectionService = context.spatialBlockSelectionService();
+        selectionService = context.selectionService();
+        logicalOrderService = new LayerLogicalOrderService(world);
+        historyManager = context.historyManager();
+        editorOps = canvas.getEditorOps();
+        mMeta = world.getMapper(EntityMetaComponent.class);
+        mIdentity = world.getMapper(PixscapeIdentityComponent.class);
+        mEntityIndex = world.getMapper(EntityIndexComponent.class);
+        mEmitter = world.getMapper(ParticleEmitterComponent.class);
+        mTiled = world.getMapper(TiledLayerComponent.class);
+        mBody = world.getMapper(PhysicsBodyComponent.class);
+        mFixtures = world.getMapper(PhysicsShapesComponent.class);
+        mGameObject = world.getMapper(GameObjectComponent.class);
+        mGameObjectMember = world.getMapper(GameObjectMemberComponent.class);
+        gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
+        gameObjectComposition = world.getSystem(GameObjectCompositionSystem.class);
+        AspectSubscriptionManager asm = world.getAspectSubscriptionManager();
+        layersSub = asm.get(Aspect.all(LayerComponent.class, LayerMetaComponent.class));
+        layerItemsSub = asm.get(layerItemAspect());
+        jointsSub = asm.get(Aspect.all(PhysicsJointComponent.class));
+        gameObjectMembersSub = asm.get(Aspect.all(GameObjectMemberComponent.class));
+        iconResolver = new IconResolver(world);
+        if (refreshBoundWorlds.add(world)) {
+            UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
+            postProcess.add(this::updateIfDirty);
+        }
+    }
+
+    private void showDocumentType(EditorDocumentType type) {
+        documentContent.clearChildren();
+        Actor projection = projectionForDocument(type, worldContent, hudHierarchy);
+        if (projection != null) documentContent.add(projection).grow();
+        documentContent.invalidateHierarchy();
+    }
+
+    /** Identifies focus in the active HUD hierarchy without treating Scene tree focus as HUD input. */
+    public boolean ownsHudKeyboardFocus(Actor focus) {
+        return hudHierarchy.ownsKeyboardFocus(focus);
+    }
+
+    static Actor projectionForDocument(EditorDocumentType type,
+                                       Actor sceneItems, Actor hudHierarchy) {
+        if (type == EditorDocumentType.SCENE) return sceneItems;
+        if (type == EditorDocumentType.HUD_SCREEN) return hudHierarchy;
+        return null;
+    }
+
     static Aspect.Builder layerItemAspect() {
         return Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class)
                 .exclude(LayerComponent.class, PhysicsJointComponent.class);
@@ -225,21 +289,7 @@ public class ItemTreePanel extends DockablePanel {
     private void focusNode(EntityNode node) {
         if (node == null) return;
 
-        Actor actor = node.getActor();
-        if (actor == null) return;
-
-        tree.validate();
-        scroller.layout();
-
-        scroller.scrollTo(
-                0f,
-                actor.getY(),
-                actor.getWidth(),
-                actor.getHeight(),
-                false,
-                true
-        );
-        scroller.updateVisualScroll();
+        StudioTreeUiSupport.scrollToNode(scroller, tree, node.getActor());
     }
 
     public void bindPropertiesPanel(PropertiesPanel propertiesPanel) {
@@ -297,6 +347,7 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     public void attachAutoRefresh() {
+        if (!subscriptionsBoundWorlds.add(world)) return;
         EntitySubscription.SubscriptionListener layersListener = new EntitySubscription.SubscriptionListener() {
             @Override
             public void inserted(IntBag entities) {
@@ -543,6 +594,7 @@ public class ItemTreePanel extends DockablePanel {
     }
 
     private boolean supportsContextMenu(EntityNode node) {
+        if (!editingModeService.allowsWorldEditingActions()) return false;
         if (node == null) return false;
         if (node.isLayerNode()) return layerService.isLayerEntity(node.getEntityId());
         if (node.isTiledMapNode()) return mTiled.has(node.getEntityId());

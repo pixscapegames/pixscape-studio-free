@@ -8,15 +8,15 @@ import com.kotcrab.vis.ui.widget.Tooltip;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.scene.SceneEditorContext;
+import games.pixscape.studio.service.StudioEditingModeService;
 
 public class ToolBar extends VisTable {
     public static final float HEIGHT = 32f;
 
     private final StudioApplicationAdapter app;
-    private final SelectionService selectionService;
-    private final SpatialBlockSelectionService spatialBlockSelectionService;
+    private final StudioEditingModeService editingModeService;
+    private SceneEditorContext sceneContext;
 
     private final TiledToolBar tiledToolBar;
 
@@ -34,8 +34,8 @@ public class ToolBar extends VisTable {
     public ToolBar(StudioApplicationAdapter app) {
         super(false);
         this.app = app;
-        this.selectionService = app.getCanvas().getSelectionService();
-        this.spatialBlockSelectionService = app.getCanvas().getSpatialBlockSelectionService();
+        this.editingModeService = app.getCanvas().getStudioEditingModeService();
+        this.sceneContext = app.getCanvas().getAttachedSceneContext();
 
         setBackground(VisUI.getSkin().getDrawable("default-pane"));
         pad(3f, 6f, 3f, 6f);
@@ -73,7 +73,21 @@ public class ToolBar extends VisTable {
         EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, evt -> {
             updateEditingContextState();
         });
+        EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class, evt -> {
+            updateEditingContextState();
+        });
 
+        updateEditingContextState();
+    }
+
+    public void bindSceneContext(SceneEditorContext context) {
+        sceneContext = context;
+        tiledToolBar.bindToolService(app.getCanvas().getTileToolService());
+        updateEditingContextState();
+    }
+
+    public void suspendSceneContext() {
+        sceneContext = null;
         updateEditingContextState();
     }
 
@@ -94,14 +108,21 @@ public class ToolBar extends VisTable {
     }
 
     private void updateEditingContextState() {
-        boolean tiledMapTarget = selectionService.isTiledMapEditingTargetActive();
-        tiledToolBar.setDisabled(!tiledMapTarget || isSpatialBlockEditingActive());
-        setAlignmentButtonsDisabled(tiledMapTarget);
+        boolean contextActive = sceneContext != null
+                && sceneContext.isActive()
+                && app.getCanvas().isAttached(sceneContext);
+        boolean worldEditingAllowed = contextActive && editingModeService.allowsWorldEditingActions();
+        boolean tiledMapTarget = contextActive
+                && sceneContext.selectionService().isTiledMapEditingTargetActive();
+        tiledToolBar.setDisabled(!worldEditingAllowed || !tiledMapTarget
+                || isSpatialBlockEditingActive());
+        setAlignmentButtonsDisabled(!worldEditingAllowed || tiledMapTarget);
         invalidateHierarchy();
     }
 
     private boolean isSpatialBlockEditingActive() {
-        return spatialBlockSelectionService != null && spatialBlockSelectionService.isEditingActive();
+        return sceneContext != null
+                && sceneContext.spatialBlockSelectionService().isEditingActive();
     }
 
     public void setAlignmentButtonsDisabled(boolean disabled) {
@@ -118,34 +139,42 @@ public class ToolBar extends VisTable {
     }
 
     private void onAlignLeft() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().alignLeft();
     }
 
     private void onAlignRight() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().alignRight();
     }
 
     private void onAlignTop() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().alignTop();
     }
 
     private void onAlignBottom() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().alignBottom();
     }
 
     private void onCenterHorizontal() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().centerHorizontal();
     }
 
     private void onCenterVertical() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().centerVertical();
     }
 
     private void onPackHorizontal() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().packHorizontal();
     }
 
     private void onPackVertical() {
+        if (!editingModeService.allowsWorldEditingActions()) return;
         app.getCanvas().getAlignService().packVertical();
     }
 }

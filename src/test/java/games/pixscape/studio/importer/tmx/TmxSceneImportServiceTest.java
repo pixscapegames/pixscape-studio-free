@@ -51,6 +51,7 @@ import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.StudioEditingModeService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -259,6 +260,7 @@ public class TmxSceneImportServiceTest {
         assertFalse(layer.spatialEnabled);
 
         StudioEditingModeService editingModes = new StudioEditingModeService();
+        editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         SelectionService selection = new SelectionService(world, layers, editingModes);
         selection.setTiledMapEditingTarget(mapEntity, SelectionService.SelectionSource.TREE);
         assertTrue(selection.isTiledMapEditingTargetActive());

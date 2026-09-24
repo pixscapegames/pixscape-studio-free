@@ -20,6 +20,11 @@ public final class SpatialBlockSelectionService {
 
     private final int eventTag = EventFlow.tag(this);
     private final StudioEditingModeService studioEditingModeService;
+    private boolean contextActive = true;
+    private final EventFlow.Listener<EventFlow.TiledMapEditingTargetChanged> tiledTargetListener = evt -> {
+        if (!contextActive) return;
+        if (evt.mapEntityId() != editingMapEntityId) clear();
+    };
 
     public SpatialBlockSelectionService() {
         this(null);
@@ -27,11 +32,17 @@ public final class SpatialBlockSelectionService {
 
     public SpatialBlockSelectionService(StudioEditingModeService studioEditingModeService) {
         this.studioEditingModeService = studioEditingModeService;
-        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
-            if (evt.mapEntityId() != editingMapEntityId) {
-                clear();
-            }
-        });
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
+    }
+
+    public void setContextActive(boolean active) {
+        contextActive = active;
+        if (!active) clearHover();
+    }
+
+    public void dispose() {
+        contextActive = false;
+        EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
     }
 
     public int getEditingMapEntityId() {

@@ -27,12 +27,17 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.studio.BuildInfo;
 import games.pixscape.studio.PixscapeStudioApplication;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
 import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.RecentProjectsService;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.ui.asset.ImportDialog;
 import games.pixscape.studio.ui.config.ProjectSettingsWindow;
 import games.pixscape.studio.ui.docking.DockManager;
@@ -40,6 +45,8 @@ import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.importer.TmxImportDialog;
 import games.pixscape.studio.ui.importer.TmxImportMessageDialog;
 import games.pixscape.studio.ui.importer.TmxImportUiSupport;
+import games.pixscape.studio.ui.hud.HudWidgetsPanel;
+import games.pixscape.studio.ui.layer.LayersPanel;
 import games.pixscape.studio.ui.log.LogWindow;
 import games.pixscape.studio.ui.shaders.ShaderManagerDialog;
 import games.pixscape.studio.ui.widget.CheckBoxMenuItem;
@@ -54,6 +61,8 @@ public class TopMenuBar extends MenuBar {
     private final RecentProjectsService recentProjectsService;
 
     private final ObjectMap<DockablePanel, CheckBoxMenuItem> panelToCheck = new ObjectMap<>();
+    private CheckBoxMenuItem widgetsMenuItem;
+    private CheckBoxMenuItem layersMenuItem;
 
     private final MenuItem projectSettings;
 
@@ -64,6 +73,12 @@ public class TopMenuBar extends MenuBar {
 
     private final Menu editMenu;
     private final Menu resourcesMenu;
+    private final MenuItem cut;
+    private final MenuItem copy;
+    private final MenuItem paste;
+    private final MenuItem undo;
+    private final MenuItem redo;
+    private boolean projectActive;
 
     private static final String FILE_PREF_NAME = "project.json";
 
@@ -158,15 +173,28 @@ public class TopMenuBar extends MenuBar {
         // --------------------------------------------------------------------
         editMenu = new Menu("Edit");
 
-        final MenuItem cut = new MenuItem("Cut            ctrl+X");
-        final MenuItem copy = new MenuItem("Copy         ctrl+C");
-        final MenuItem paste = new MenuItem("Paste         ctrl+V");
+        cut = new MenuItem("Cut            ctrl+X");
+        copy = new MenuItem("Copy         ctrl+C");
+        paste = new MenuItem("Paste         ctrl+V");
 
-        final MenuItem undo = new MenuItem("Undo         ctrl+Z");
-        onClick(undo, () -> app.getCanvas().undoHistory());
+        undo = new MenuItem("Undo         ctrl+Z");
+        onClick(undo, app::undoActiveDocument);
 
-        final MenuItem redo = new MenuItem("Redo          ctrl+Y");
-        onClick(redo, () -> app.getCanvas().redoHistory());
+        redo = new MenuItem("Redo          ctrl+Y");
+        onClick(redo, () -> {
+            app.redoActiveDocument();
+        });
+
+        app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentOpened(OpenEditorDocument document) { refreshWorldEditingAvailability(); }
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                refreshWorldEditingAvailability();
+            }
+            @Override public void documentClosed(OpenEditorDocument document) { refreshWorldEditingAvailability(); }
+            @Override public void documentTitleChanged(OpenEditorDocument document) {
+                refreshWorldEditingAvailability();
+            }
+        });
 
         // --------------------------------------------------------------------
         // RESOURCES
@@ -187,6 +215,8 @@ public class TopMenuBar extends MenuBar {
         for (DockablePanel panel : dockManager.getPanels()) {
             CheckBoxMenuItem cb = new CheckBoxMenuItem(panel.getTitleText(), panel.isVisible());
             panelToCheck.put(panel, cb);
+            if (panel instanceof HudWidgetsPanel) widgetsMenuItem = cb;
+            if (panel instanceof LayersPanel) layersMenuItem = cb;
 
             cb.addListener(new ChangeListener() {
                 @Override
@@ -283,6 +313,8 @@ public class TopMenuBar extends MenuBar {
         addMenu(viewMenu);
         addMenu(helpMenu);
 
+        EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class,
+                event -> refreshWorldEditingAvailability());
         onStart();
     }
 
@@ -506,7 +538,7 @@ public class TopMenuBar extends MenuBar {
     };
 
     private boolean isProjectDirty() {
-        return sceneService.requiresSaveBeforePreview();
+        return sceneService.requiresSaveBeforePreview() || app.hasDirtyEditorDocuments();
     }
 
     private void runWithSaveIfDirty(Runnable next) {
@@ -532,8 +564,7 @@ public class TopMenuBar extends MenuBar {
     }
 
     private void runSaveWithProgress(Runnable onSuccess) {
-        sceneService.saveProjectAndCurrentSceneWithProgress(
-                app.getUiStage(),
+        app.saveActiveDocumentWithProgress(
                 () -> {
                     refreshRecentProjectsMenu();
                     if (onSuccess != null) onSuccess.run();
@@ -615,21 +646,57 @@ public class TopMenuBar extends MenuBar {
     }
 
     public void beginProject() {
+        projectActive = true;
         projectSettings.setDisabled(false);
         importMenuItem.setDisabled(false);
         save.setDisabled(false);
         saveAs.setDisabled(false);
-        editMenu.openButton.setDisabled(false);
+        refreshWorldEditingAvailability();
         resourcesMenu.openButton.setDisabled(false);
     }
 
     public void onStart() {
+        projectActive = false;
         projectSettings.setDisabled(true);
         importMenuItem.setDisabled(true);
         save.setDisabled(true);
         saveAs.setDisabled(true);
-        editMenu.openButton.setDisabled(true);
+        refreshWorldEditingAvailability();
         resourcesMenu.openButton.setDisabled(true);
+    }
+
+    private void refreshWorldEditingAvailability() {
+        boolean worldAllowed = projectActive
+                && app.getCanvas().getStudioEditingModeService().allowsWorldEditingActions();
+        OpenEditorDocument active = app.getEditorDocumentManager().activeDocument();
+        boolean hudActive = projectActive && active instanceof HudScreenEditorDocument;
+        refreshWidgetsAvailability(widgetsMenuItem, app.getEditorDocumentManager(), projectActive);
+        refreshLayersAvailability(layersMenuItem, app.getEditorDocumentManager());
+        editMenu.openButton.setDisabled(!projectActive || active == null);
+        cut.setDisabled(!worldAllowed);
+        copy.setDisabled(!worldAllowed);
+        paste.setDisabled(!worldAllowed);
+        undo.setDisabled(hudActive
+                ? !((HudScreenEditorDocument) active).editSession().canUndo() : !worldAllowed);
+        redo.setDisabled(hudActive
+                ? !((HudScreenEditorDocument) active).editSession().canRedo() : !worldAllowed);
+    }
+
+    static void refreshWidgetsAvailability(CheckBoxMenuItem item,
+                                           EditorDocumentManager documents,
+                                           boolean projectActive) {
+        if (item == null) return;
+        boolean available = projectActive && documents.isActive(EditorDocumentType.HUD_SCREEN);
+        item.setDisabled(!available);
+        item.check.setDisabled(!available);
+    }
+
+    static void refreshLayersAvailability(CheckBoxMenuItem item,
+                                          EditorDocumentManager documents) {
+        if (item == null) return;
+        boolean hudActive = documents.isActive(EditorDocumentType.HUD_SCREEN);
+        item.setDisabled(hudActive);
+        item.check.setDisabled(hudActive);
     }
 
     private static void onClick(MenuItem item, Runnable action) {

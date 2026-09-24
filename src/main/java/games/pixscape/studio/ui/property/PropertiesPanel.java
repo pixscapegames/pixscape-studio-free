@@ -16,6 +16,9 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.LayerService;
@@ -23,6 +26,7 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.hud.HudInspectorView;
 import games.pixscape.studio.ui.property.entityproperties.ConeLightProperties;
 import games.pixscape.studio.ui.property.entityproperties.EntityProperties;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
@@ -30,21 +34,29 @@ import games.pixscape.studio.ui.property.entityproperties.PointLightProperties;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyProperties;
 import games.pixscape.studio.ui.property.entityproperties.physics.FixturesPanel;
 import games.pixscape.studio.ui.property.entityproperties.physics.JointProperties;
+import games.pixscape.studio.scene.SceneEditorContext;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+import java.util.Map;
 
 public class PropertiesPanel extends DockablePanel {
 
-    private final EntityProperties entityProperties;
-    private final BodyProperties bodyProperties;
-    private final FixturesPanel fixtureProperties;
-    private final PointLightProperties pointLightProperties;
-    private final ConeLightProperties coneLightProperties;
-    private final JointProperties jointProperties;
-    private final SpatialBlockProperties spatialBlockProperties;
-    private final LayerProperties layerProperties;
-    private final SceneProperties sceneProperties;
-    private final TiledMapProperties tiledMapProperties;
+    private EntityProperties entityProperties;
+    private BodyProperties bodyProperties;
+    private FixturesPanel fixtureProperties;
+    private PointLightProperties pointLightProperties;
+    private ConeLightProperties coneLightProperties;
+    private JointProperties jointProperties;
+    private SpatialBlockProperties spatialBlockProperties;
+    private LayerProperties layerProperties;
+    private SceneProperties sceneProperties;
+    private TiledMapProperties tiledMapProperties;
 
     private final VisTable contentHolder;
+    private final HudInspectorView hudInspectorView;
+    private boolean hudMode;
 
     private int boundEntity = -1;
     private int boundBody = -1;
@@ -68,17 +80,22 @@ public class PropertiesPanel extends DockablePanel {
 
     private final int MY_TAG = EventFlow.tag(this);
 
-    private final World world;
-    private final SelectionService selectionService;
-    private final LayerService layerService;
-    private final PhysicsSelectionService physicsSelectionService;
-    private final ComponentMapper<PhysicsJointComponent> mJointBase;
-    private final ComponentMapper<PhysicsBodyComponent> mPhysBody;
-    private final ComponentMapper<PhysicsShapesComponent> mPhysFixtures;
-    private final ComponentMapper<PointLightComponent> mPointLight;
-    private final ComponentMapper<ConeLightComponent> mConeLight;
-    private final ComponentMapper<EntityIndexComponent> mEntityIndex;
-    private final ComponentMapper<TiledLayerComponent> mTiled;
+    private World world;
+    private SelectionService selectionService;
+    private LayerService layerService;
+    private PhysicsSelectionService physicsSelectionService;
+    private ComponentMapper<PhysicsJointComponent> mJointBase;
+    private ComponentMapper<PhysicsBodyComponent> mPhysBody;
+    private ComponentMapper<PhysicsShapesComponent> mPhysFixtures;
+    private ComponentMapper<PointLightComponent> mPointLight;
+    private ComponentMapper<ConeLightComponent> mConeLight;
+    private ComponentMapper<EntityIndexComponent> mEntityIndex;
+    private ComponentMapper<TiledLayerComponent> mTiled;
+    private final StudioApplicationAdapter app;
+    private final Set<World> refreshBoundWorlds =
+            Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Map<SceneEditorContext, ContextEditors> editorsByContext =
+            new IdentityHashMap<>();
 
     private boolean dirty = true;
     private PendingView pendingView = PendingView.SCENE;
@@ -103,67 +120,9 @@ public class PropertiesPanel extends DockablePanel {
     public PropertiesPanel(StudioApplicationAdapter app) {
         super("Properties");
 
-        var canvas = app.getCanvas();
-        var layerService = canvas.getLayerService();
-        this.world = canvas.getEcsWorld();
-        this.selectionService = canvas.getSelectionService();
-        this.layerService = layerService;
-        this.mJointBase = world.getMapper(PhysicsJointComponent.class);
-        this.mPhysBody = world.getMapper(PhysicsBodyComponent.class);
-        this.mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
-        this.mPointLight = world.getMapper(PointLightComponent.class);
-        this.mConeLight = world.getMapper(ConeLightComponent.class);
-        this.mEntityIndex = world.getMapper(EntityIndexComponent.class);
-        this.mTiled = world.getMapper(TiledLayerComponent.class);
-        this.physicsSelectionService = canvas.getPhysicsSelectionService();
-
-        EntityPropertiesContext ctx = new EntityPropertiesContext(
-                world,
-                canvas.getHistoryManager(),
-                physicsSelectionService,
-                canvas.getPhysicsService(),
-                layerService,
-                canvas.getAtlasService(),
-                selectionService,
-                canvas.getIdentityRegistry(),
-                new IconResolver(world),
-                app.getSceneService()::markCurrentSceneSaveRequired,
-                app.getSceneService()::getAssetMeta,
-                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
-                app.getSceneService()::getAnimationAssetMetas,
-                app.getAnimationAssetAuthoringService(),
-                MY_TAG
-        );
-
-        entityProperties = new EntityProperties(ctx);
-        bodyProperties = new BodyProperties(ctx);
-        fixtureProperties = new FixturesPanel(ctx);
-        pointLightProperties = new PointLightProperties(ctx);
-        coneLightProperties = new ConeLightProperties(ctx);
-        jointProperties = new JointProperties(world, canvas.getHistoryManager(), canvas.getEditorOps(), selectionService);
-        spatialBlockProperties = new SpatialBlockProperties(
-                world,
-                canvas.getHistoryManager(),
-                canvas.getSpatialBlockSelectionService(),
-                canvas.getPhysicsService(),
-                app.getSceneService()::markCurrentSceneSaveRequired
-        );
-
-        Runnable markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
-        layerProperties = new LayerProperties(
-                world, canvas.getHistoryManager(), layerService,
-                markCurrentSceneSaveRequired);
-        sceneProperties = new SceneProperties(
-                world, canvas.getHistoryManager(), canvas.getPhysicsService(),
-                selectionService, layerService,
-                canvas.getPhysicsSelectionReconciler(),
-                canvas::disposeBox2dAfterPhysicsPurge,
-                markCurrentSceneSaveRequired);
-        tiledMapProperties = new TiledMapProperties(
-                world,
-                canvas.getHistoryManager(),
-                canvas.getPhysicsService(),
-                markCurrentSceneSaveRequired);
+        this.app = app;
+        var sceneContext = app.getSceneEditorContext();
+        initializeContextEditors(sceneContext);
 
         contentHolder = new VisTable(true);
         contentHolder.top().left().pad(8);
@@ -177,10 +136,17 @@ public class PropertiesPanel extends DockablePanel {
 
         add(scroller).grow().row();
 
-        UiRefreshDispatchSystem postProcess = world.getSystem(UiRefreshDispatchSystem.class);
-        postProcess.add(this::updateIfDirty);
-
+        hudInspectorView = new HudInspectorView(app.getHudEditorSession());
         showSceneProperties();
+        app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                showDocumentType(current != null ? current.type() : null);
+            }
+        });
+        showDocumentType(app.getEditorDocumentManager().activeDocument() != null
+                ? app.getEditorDocumentManager().activeDocument().type() : null);
+
+        bindRefresh(sceneContext);
 
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
@@ -325,6 +291,139 @@ public class PropertiesPanel extends DockablePanel {
         });
     }
 
+    public void bindSceneContext(SceneEditorContext context) {
+        if (context == null || context.isDisposed()) return;
+        initializeContextEditors(context);
+        bindRefresh(context);
+        pendingSelection = context.selectionService().getSelectionSnapshot();
+        pendingView = pendingSelection.size > 0 ? PendingView.SELECTION : PendingView.SCENE;
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
+        dirty = true;
+        if (!hudMode) updateIfDirty();
+    }
+
+    public void releaseSceneContext(SceneEditorContext context) {
+        if (context == null || !context.isInitialized()) return;
+        refreshBoundWorlds.remove(context.world());
+        editorsByContext.remove(context);
+    }
+
+    private void initializeContextEditors(SceneEditorContext sceneContext) {
+        var canvas = app.getCanvas();
+        world = sceneContext.world();
+        selectionService = sceneContext.selectionService();
+        layerService = sceneContext.layerService();
+        mJointBase = world.getMapper(PhysicsJointComponent.class);
+        mPhysBody = world.getMapper(PhysicsBodyComponent.class);
+        mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
+        mPointLight = world.getMapper(PointLightComponent.class);
+        mConeLight = world.getMapper(ConeLightComponent.class);
+        mEntityIndex = world.getMapper(EntityIndexComponent.class);
+        mTiled = world.getMapper(TiledLayerComponent.class);
+        physicsSelectionService = sceneContext.physicsSelectionService();
+
+        ContextEditors cached = editorsByContext.get(sceneContext);
+        if (cached != null) {
+            cached.apply(this);
+            return;
+        }
+        sceneContext.collectActiveUiSubscriptions(() -> createContextEditors(sceneContext));
+        editorsByContext.put(sceneContext, ContextEditors.capture(this));
+    }
+
+    private void createContextEditors(SceneEditorContext sceneContext) {
+        var canvas = app.getCanvas();
+
+        EntityPropertiesContext ctx = new EntityPropertiesContext(
+                world,
+                sceneContext.historyManager(),
+                physicsSelectionService,
+                canvas.getPhysicsService(),
+                layerService,
+                canvas.getAtlasService(),
+                selectionService,
+                sceneContext.identityRegistry(),
+                new IconResolver(world),
+                app.getSceneService()::markCurrentSceneSaveRequired,
+                app.getSceneService()::getAssetMeta,
+                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
+                app.getSceneService()::getAnimationAssetMetas,
+                app.getAnimationAssetAuthoringService(),
+                MY_TAG);
+        entityProperties = new EntityProperties(ctx);
+        bodyProperties = new BodyProperties(ctx);
+        fixtureProperties = new FixturesPanel(ctx);
+        pointLightProperties = new PointLightProperties(ctx);
+        coneLightProperties = new ConeLightProperties(ctx);
+        jointProperties = new JointProperties(
+                world, sceneContext.historyManager(), canvas.getEditorOps(), selectionService);
+        spatialBlockProperties = new SpatialBlockProperties(
+                world,
+                sceneContext.historyManager(),
+                sceneContext.spatialBlockSelectionService(),
+                canvas.getPhysicsService(),
+                app.getSceneService()::markCurrentSceneSaveRequired);
+        Runnable markSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
+        layerProperties = new LayerProperties(
+                world, sceneContext.historyManager(), layerService, markSaveRequired);
+        sceneProperties = new SceneProperties(
+                world, sceneContext.historyManager(), canvas.getPhysicsService(),
+                selectionService, layerService, sceneContext.physicsSelectionReconciler(),
+                canvas::disposeBox2dAfterPhysicsPurge, markSaveRequired);
+        tiledMapProperties = new TiledMapProperties(
+                world, sceneContext.historyManager(), canvas.getPhysicsService(), markSaveRequired);
+    }
+
+    private static final class ContextEditors {
+        EntityProperties entityProperties;
+        BodyProperties bodyProperties;
+        FixturesPanel fixtureProperties;
+        PointLightProperties pointLightProperties;
+        ConeLightProperties coneLightProperties;
+        JointProperties jointProperties;
+        SpatialBlockProperties spatialBlockProperties;
+        LayerProperties layerProperties;
+        SceneProperties sceneProperties;
+        TiledMapProperties tiledMapProperties;
+
+        static ContextEditors capture(PropertiesPanel panel) {
+            ContextEditors out = new ContextEditors();
+            out.entityProperties = panel.entityProperties;
+            out.bodyProperties = panel.bodyProperties;
+            out.fixtureProperties = panel.fixtureProperties;
+            out.pointLightProperties = panel.pointLightProperties;
+            out.coneLightProperties = panel.coneLightProperties;
+            out.jointProperties = panel.jointProperties;
+            out.spatialBlockProperties = panel.spatialBlockProperties;
+            out.layerProperties = panel.layerProperties;
+            out.sceneProperties = panel.sceneProperties;
+            out.tiledMapProperties = panel.tiledMapProperties;
+            return out;
+        }
+
+        void apply(PropertiesPanel panel) {
+            panel.entityProperties = entityProperties;
+            panel.bodyProperties = bodyProperties;
+            panel.fixtureProperties = fixtureProperties;
+            panel.pointLightProperties = pointLightProperties;
+            panel.coneLightProperties = coneLightProperties;
+            panel.jointProperties = jointProperties;
+            panel.spatialBlockProperties = spatialBlockProperties;
+            panel.layerProperties = layerProperties;
+            panel.sceneProperties = sceneProperties;
+            panel.tiledMapProperties = tiledMapProperties;
+        }
+    }
+
+    private void bindRefresh(SceneEditorContext context) {
+        if (!refreshBoundWorlds.add(context.world())) return;
+        UiRefreshDispatchSystem postProcess =
+                context.world().getSystem(UiRefreshDispatchSystem.class);
+        postProcess.add(this::updateIfDirty);
+    }
+
     public void requestBodyProperties(int bodyEntityId) {
         pendingBody = bodyEntityId;
         pendingView = PendingView.BODY;
@@ -348,6 +447,25 @@ public class PropertiesPanel extends DockablePanel {
         clearBindings();
         clearPhysicsContext();
         clearTiledMapContext();
+    }
+
+    private void showDocumentType(EditorDocumentType type) {
+        if (type == null) {
+            hudMode = false;
+            contentHolder.clearChildren();
+            clearBindings();
+            clearPhysicsContext();
+            clearTiledMapContext();
+            return;
+        }
+        hudMode = type == EditorDocumentType.HUD_SCREEN;
+        if (hudMode) {
+            contentHolder.clearChildren();
+            hudInspectorView.rebuild();
+            contentHolder.add(hudInspectorView).growX().top().left().row();
+        } else {
+            dirty = true;
+        }
     }
 
     private void showLayerProperties(int layerEntity) {
@@ -499,6 +617,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void updateIfDirty() {
+        if (hudMode) return;
         if (!dirty) return;
         dirty = false;
 

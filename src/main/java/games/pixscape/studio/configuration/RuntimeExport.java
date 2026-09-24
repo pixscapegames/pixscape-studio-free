@@ -17,6 +17,7 @@ import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.ProjectFileCleanupService;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -72,6 +73,15 @@ public final class RuntimeExport {
             throw new GdxRuntimeException("studioCfg.projectFileName is blank");
         }
 
+        // All HUD resolution, source capture and packing must succeed before removing the old export.
+        try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
+            return exportPrepared(studioCfg, studioProjectDir, userProjectDir, hud);
+        }
+    }
+
+    private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
+                                                 FileHandle userProjectDir, SceneHudRuntimeExport.PreparedExport hud) {
+
         // 0) runtime root dir = <userProjectDir>/pixscape-project
         FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
 
@@ -121,14 +131,25 @@ public final class RuntimeExport {
             SceneMeta studioMeta = studioScenes.get(sceneName);
             if (studioMeta == null) continue;
 
-            SceneAmbientLighting.applyDefaultsAndDerive(studioMeta);
-
             String file = RuntimeFs.filenameOnly(studioMeta.file);
             if (file == null || file.isBlank()) {
                 throw new GdxRuntimeException("Scene '" + sceneName + "' has no file; cannot export.");
             }
 
             SceneMetaRuntime runtimeMeta = new SceneMetaRuntime(studioMeta);
+            // Ambient derivation used to mutate authored Scene metadata during export.
+            SceneMeta lighting = new SceneMeta();
+            lighting.ambientMulR = studioMeta.ambientMulR;
+            lighting.ambientMulG = studioMeta.ambientMulG;
+            lighting.ambientMulB = studioMeta.ambientMulB;
+            lighting.ambientColorR = studioMeta.ambientColorR;
+            lighting.ambientColorG = studioMeta.ambientColorG;
+            lighting.ambientColorB = studioMeta.ambientColorB;
+            lighting.ambientIntensity = studioMeta.ambientIntensity;
+            SceneAmbientLighting.applyDefaultsAndDerive(lighting);
+            runtimeMeta.ambientMulR = lighting.ambientMulR;
+            runtimeMeta.ambientMulG = lighting.ambientMulG;
+            runtimeMeta.ambientMulB = lighting.ambientMulB;
             runtimeMeta.name = (studioMeta.name != null && !studioMeta.name.isBlank())
                     ? studioMeta.name
                     : sceneName;
@@ -212,6 +233,7 @@ public final class RuntimeExport {
         );
 
         // 7) Final project.json write
+        hud.copyTo(runtimeDir);
         saveProject(out, runtimeDir, studioCfg);
 
         return out;
@@ -821,7 +843,11 @@ public final class RuntimeExport {
                     continue;
                 }
 
-                copyDirIfExists(f, dstAtlasesDir.child(f.name()));
+                // Scene HUD artifacts enter only through SceneHudRuntimeExport's explicit manifest.
+                if (!f.name().equalsIgnoreCase(
+                        games.pixscape.studio.service.runtimeavailability.SceneHudEnvironmentPaths.HUD_DIRECTORY)) {
+                    copyDirIfExists(f, dstAtlasesDir.child(f.name()));
+                }
                 continue;
             }
 

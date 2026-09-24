@@ -22,7 +22,7 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
 
         assertTrue(openBody.contains("loadScene(cfg, sceneName, projectDir);"));
         assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
-        assertTrue(loadBody.contains("sceneActivationPipeline.activate("));
+        assertTrue(loadBody.contains("pipeline.activate("));
     }
 
     @Test
@@ -33,16 +33,16 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         );
         String switchBody = methodBody(source, "public void changeSceneNow(");
 
-        assertTrue(switchBody.contains("cfg.setCurrentSceneByName(sceneName);"));
-        assertTrue(switchBody.contains("saveProjectFile(cfg);"));
         assertTrue(switchBody.contains("loadScene(cfg, sceneName, projectDir);"));
+        assertFalse(switchBody.contains("cfg.setCurrentSceneByName(sceneName);"));
+        assertFalse(switchBody.contains("saveProjectFile(cfg);"));
         assertFalse(switchBody.contains("saveCurrentSceneOnly("));
         assertFalse(switchBody.contains("historyManager.isDirty()"));
         assertFalse(switchBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
     }
 
     @Test
-    public void loadScenePreservesDestructiveResolutionActivationAndPublicationOrder() throws Exception {
+    public void loadSceneBuildsCandidateTransactionallyBeforeDocumentPublication() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/service/SceneService.java"),
                 StandardCharsets.UTF_8
@@ -50,13 +50,15 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
         String body = methodBody(source, "void loadScene(");
 
         assertOrdered(body,
-                "clearWorldAndRenderState();",
                 "SceneMeta meta = cfg.getSceneMeta(sceneName);",
                 "String canonicalTag = cfg.canonicalSceneTagFor(meta);",
-                "FileHandle sceneFile = scenesDir.child(meta.getFile());",
-                "sceneActivationPipeline.activate(",
+                "canvas.createSceneContext(canonicalTag, meta);",
+                "pipeline.activate(",
+                "openScene(canonicalTag, sceneName, candidate);",
                 "EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));"
         );
+        assertTrue(body.contains("canvas.releaseSceneContext(candidate);"));
+        assertFalse(body.contains("clearWorldAndRenderState();"));
     }
 
     @Test
@@ -70,7 +72,7 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
 
         assertTrue(activationBody.contains("loadScene(cfg, result.sceneName(), projectDir);"));
         assertFalse(activationBody.contains("clearWorldAndRenderState();"));
-        assertEquals(1, countOccurrences(loadBody, "clearWorldAndRenderState();"));
+        assertEquals(0, countOccurrences(loadBody, "clearWorldAndRenderState();"));
     }
 
     @Test

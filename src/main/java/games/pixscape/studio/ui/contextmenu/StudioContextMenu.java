@@ -31,6 +31,7 @@ import games.pixscape.studio.service.ClipboardService;
 import games.pixscape.studio.service.CoordSpaces;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
@@ -43,30 +44,37 @@ public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");
 
     private final Stage stage;
-    private final SelectionService selectionService;
-    private final PhysicsSelectionService physicsSelectionService;
-    private final SpatialBlockSelectionService spatialBlockSelectionService;
-    private final SpatialTileSelectionService spatialTileSelectionService;
-    private final LayerService layerService;
-    private final ClipboardService clipboardService;
-    private final World world;
+    private SelectionService selectionService;
+    private PhysicsSelectionService physicsSelectionService;
+    private SpatialBlockSelectionService spatialBlockSelectionService;
+    private SpatialTileSelectionService spatialTileSelectionService;
+    private LayerService layerService;
+    private ClipboardService clipboardService;
+    private World world;
     private final CoordSpaces coordSpaces;
+    private final StudioEditingModeService editingModeService;
 
-    private final ComponentMapper<PhysicsBodyComponent> mBody;
-    private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private ComponentMapper<PhysicsBodyComponent> mBody;
+    private ComponentMapper<PhysicsJointComponent> mJointBase;
 
     private final PopupMenu menu = new PopupMenu();
     private final Vector2 lastRightClickWorld = new Vector2();
     private final Vector2 tmpStage = new Vector2();
     private SpatialBlockPlacementTarget lastRightClickSpatialTarget = SpatialBlockPlacementTarget.invalid();
-    private final EditorOps ops;
+    private EditorOps ops;
 
-    private final GameObjectAssetService gameObjectAssetService;
+    private GameObjectAssetService gameObjectAssetService;
 
     private final int MY_TAG = EventFlow.tag(this);
 
     public StudioContextMenu(WorldCanvas canvas, Stage stage) {
         this.stage = stage;
+        this.coordSpaces = canvas.getCoordSpaces();
+        this.editingModeService = canvas.getStudioEditingModeService();
+        bindSceneContext(canvas);
+    }
+
+    public void bindSceneContext(WorldCanvas canvas) {
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
@@ -74,7 +82,6 @@ public final class StudioContextMenu extends InputListener {
         this.spatialTileSelectionService = canvas.getSpatialTileSelectionService();
         this.layerService = canvas.getLayerService();
         this.clipboardService = canvas.getClipboardService();
-        this.coordSpaces = canvas.getCoordSpaces();
         this.ops = canvas.getEditorOps();
 
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
@@ -86,6 +93,7 @@ public final class StudioContextMenu extends InputListener {
     @Override
     public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
         if (button != Input.Buttons.RIGHT) return false;
+        if (!editingModeService.allowsWorldEditingActions()) return false;
 
         // Only open the global context menu when right-clicking on the stage background.
         // If a UI widget is the target, let that widget handle the event.

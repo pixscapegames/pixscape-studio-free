@@ -2,7 +2,9 @@ package games.pixscape.studio.system;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.TileAssetMeta;
 import games.pixscape.studio.helper.StudioDrawContext;
@@ -69,8 +71,10 @@ public class TiledGhostPreviewSystemVisualTest {
                     }
                 }
         );
+        OrthographicCamera camera = new OrthographicCamera();
+        ScreenViewport viewport = new ScreenViewport(camera);
         TiledGhostPreviewSystem ghost = new TiledGhostPreviewSystem(
-                new StudioDrawContext(null, null, null),
+                new StudioDrawContext(null, null, camera, viewport),
                 resolver,
                 new TiledPreviewService(),
                 id -> tile,

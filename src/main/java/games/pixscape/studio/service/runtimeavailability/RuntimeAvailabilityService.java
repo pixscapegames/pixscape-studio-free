@@ -129,6 +129,8 @@ public final class RuntimeAvailabilityService {
                 case PARTICLE -> removeDeletedParticle(entry.value, meta.sourceRelPath());
                 case TILE -> removeTiledTile(entry.value, meta.id());
                 case TILESET -> false;
+                case FONT -> false;
+                case SKIN -> false;
             };
         }
         return changed;

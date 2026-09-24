@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.viewport.Viewport;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.studio.service.CoordSpaces;
@@ -22,8 +23,10 @@ public class RulerActor extends VisTable {
     public enum Orientation {TOP, LEFT}
 
     private final Orientation orientation;
-    private final OrthographicCamera worldCam;
+    private final OrthographicCamera sceneCamera;
+    private OrthographicCamera worldCam;
     private final CoordSpaces coordSpaces;
+    private Viewport projectionViewport;
     private final ShapeDrawer drawer;
     private final BitmapFont font;
 
@@ -59,6 +62,7 @@ public class RulerActor extends VisTable {
                       ShapeDrawer drawer,
                       BitmapFont font) {
         this.orientation = orientation;
+        this.sceneCamera = worldCam;
         this.worldCam = worldCam;
         this.coordSpaces = coordSpaces;
         this.drawer = drawer;
@@ -111,6 +115,21 @@ public class RulerActor extends VisTable {
         return this;
     }
 
+    /** Rebinds this shared ruler to a canvas viewport without rebuilding docking layout. */
+    public void setProjection(OrthographicCamera camera, Viewport viewport) {
+        this.worldCam = camera;
+        this.projectionViewport = viewport;
+    }
+
+    public void clearProjection() {
+        this.worldCam = sceneCamera;
+        this.projectionViewport = null;
+    }
+
+    OrthographicCamera activeCamera() {
+        return worldCam;
+    }
+
     private void setSizeForOrientation() {
         if (orientation == Orientation.TOP) setHeight(thicknessPx);
         else setWidth(thicknessPx);
@@ -123,7 +142,9 @@ public class RulerActor extends VisTable {
         drawer.filledRectangle(getX(), getY(), getWidth(), getHeight());
 
         // px ↔ monde (Ortho): pxPerWorld = 1/zoom
-        float pxPerWorld = 1f / worldCam.zoom;
+        float pxPerWorld = projectionViewport == null
+                ? 1f / worldCam.zoom
+                : projectionViewport.getScreenWidth() / projectionViewport.getWorldWidth() / worldCam.zoom;
 
         // desired major step in WORLD
         float desiredMajorWorld = targetMajorPx / pxPerWorld;
@@ -250,26 +271,35 @@ public class RulerActor extends VisTable {
 
     private float visibleWorldMinX() {
         localToScreen(0f, 0f, tmpScreen);
-        coordSpaces.screenToWorld(tmpScreen.x, tmpScreen.y, tmpWorld);
+        screenToWorld(tmpScreen, tmpWorld);
         return tmpWorld.x;
     }
 
     private float visibleWorldMaxX() {
         localToScreen(getWidth(), 0f, tmpScreen2);
-        coordSpaces.screenToWorld(tmpScreen2.x, tmpScreen2.y, tmpWorld);
+        screenToWorld(tmpScreen2, tmpWorld);
         return tmpWorld.x;
     }
 
     private float visibleWorldMinY() {
         localToScreen(0f, 0f, tmpScreen);
-        coordSpaces.screenToWorld(tmpScreen.x, tmpScreen.y, tmpWorld);
+        screenToWorld(tmpScreen, tmpWorld);
         return tmpWorld.y;
     }
 
     private float visibleWorldMaxY() {
         localToScreen(0f, getHeight(), tmpScreen2);
-        coordSpaces.screenToWorld(tmpScreen2.x, tmpScreen2.y, tmpWorld);
+        screenToWorld(tmpScreen2, tmpWorld);
         return tmpWorld.y;
+    }
+
+    private void screenToWorld(Vector2 screen, Vector2 out) {
+        if (projectionViewport == null) {
+            coordSpaces.screenToWorld(screen.x, screen.y, out);
+        } else {
+            out.set(screen);
+            projectionViewport.unproject(out);
+        }
     }
 
     private void localToScreen(float localX, float localY, Vector2 out) {

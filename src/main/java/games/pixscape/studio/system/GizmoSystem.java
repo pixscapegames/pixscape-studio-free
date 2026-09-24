@@ -1093,10 +1093,8 @@ public final class GizmoSystem extends BaseSystem {
 
             Color pointColor;
             if (closable) {
-                float closeRadiusWorld = HandleHelper.pxToWorld(
-                        ctx.cam,
-                        GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + 2f
-                );
+                float closeRadiusWorld = ctx.pxToWorld(
+                        GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + 2f);
                 readMouseWorld(tmpMouseWorld);
                 float dx = tmpMouseWorld.x - p.x;
                 float dy = tmpMouseWorld.y - p.y;
@@ -1560,7 +1558,7 @@ public final class GizmoSystem extends BaseSystem {
         if (wheel == null || anchorA == null
                 || !resolvePhysicsPose(joint.aEid, tmpPhysicsPoseA)) return;
 
-        float axisLen = HandleHelper.pxToWorld(ctx.cam, 20f);
+        float axisLen = ctx.pxToWorld(20f);
         float cos = MathUtils.cos(tmpPhysicsPoseA.rotationRad);
         float sin = MathUtils.sin(tmpPhysicsPoseA.rotationRad);
         float dx = wheel.axisX * cos - wheel.axisY * sin;

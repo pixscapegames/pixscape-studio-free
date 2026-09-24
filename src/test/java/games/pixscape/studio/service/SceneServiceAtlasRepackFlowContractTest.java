@@ -164,7 +164,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         );
         String processBody = methodBody(source, "public void processFrame()");
 
-        int process = processBody.indexOf("world.process();");
+        int process = processBody.indexOf("world().process();");
         int consume = processBody.indexOf("particleAvailabilityRefresh.consumeIf(");
         assertTrue(process >= 0);
         assertTrue(consume > process);
@@ -177,15 +177,15 @@ public class SceneServiceAtlasRepackFlowContractTest {
                 StandardCharsets.UTF_8
         );
         String launchBody = methodBody(source, "private void launchAsyncPack()");
-        String pollBody = methodBody(source, "public synchronized RepackArtifact pollReadyAsyncPack()");
+        String pollBody = methodBody(source, "public synchronized Prepared<T> pollReadyAsyncPack()");
         int catchStart = launchBody.indexOf("catch (Exception ex)");
         int finallyStart = launchBody.indexOf("finally", catchStart);
         String failureBody = launchBody.substring(catchStart, finallyStart);
 
         assertTrue(launchBody.contains("if (disposed || generation != requestedGeneration)"));
-        assertFalse(failureBody.contains("readyArtifact ="));
-        assertTrue(pollBody.contains("if (artifact.generation() != requestedGeneration)"));
-        assertTrue(pollBody.contains("artifact.discard();"));
+        assertFalse(failureBody.contains("readyPrepared ="));
+        assertTrue(pollBody.contains("if (prepared.generation() != requestedGeneration)"));
+        assertTrue(pollBody.contains("prepared.discard();"));
         assertTrue(pollBody.contains("return null;"));
     }
 

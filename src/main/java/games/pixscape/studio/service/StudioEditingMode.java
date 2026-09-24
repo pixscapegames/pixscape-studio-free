@@ -6,5 +6,6 @@ public enum StudioEditingMode {
     PHYSICS,
     SPATIAL,
     TILED,
-    LIGHTS
+    LIGHTS,
+    HUD
 }

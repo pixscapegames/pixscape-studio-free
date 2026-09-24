@@ -31,6 +31,24 @@ public final class FolderTreeBuilder {
         return rootNode;
     }
 
+    /** Adds a logical Asset root even before its physical import directory exists. */
+    public static VisTree.Node buildFoldersIncludingEmptyRoot(
+            VisTree tree,
+            FileHandle rootDir,
+            String rootLabel,
+            AssetNode.Root root,
+            AssetMetaDatabase assetSnapshot
+    ) {
+        if (tree == null || rootDir == null) return null;
+        VisTree.Node rootNode = createRootNode(rootLabel, root);
+        tree.add(rootNode);
+        tree.getSelection().add(rootNode);
+        if (rootDir.exists() && rootDir.isDirectory()) {
+            buildRecursive(rootDir, rootDir, rootNode, root, assetSnapshot);
+        }
+        return rootNode;
+    }
+
     public static VisTree.Node buildFolders(
             VisTree tree,
             FileHandle rootDir,
@@ -135,9 +153,9 @@ public final class FolderTreeBuilder {
     }
 
     /**
-     * Uses the read-only asset snapshot only to map physical animation directories
-     * to logical display names. The returned folder remains a navigation node and
-     * deliberately receives neither an Asset ID nor asset presentation metadata.
+     * Uses the read-only asset snapshot to map technical storage directories to
+     * user-facing animation or font names. The returned folder remains a navigation
+     * node and deliberately receives neither an Asset ID nor presentation metadata.
      */
     static AssetNode createNavigationFolderNode(AssetNode.Root root,
                                                 String relativePath,
@@ -151,16 +169,32 @@ public final class FolderTreeBuilder {
                 null
         );
 
-        if (root != AssetNode.Root.ANIMATIONS || assetSnapshot == null) {
-            return node;
-        }
-
-        AssetMeta meta = assetSnapshot.findUniqueBySourceRelPath(
-                StudioFs.DIR_ORIG_ANIMATIONS + "/" + relativePath,
-                AssetType.ANIMATION
-        );
-        if (meta != null && meta.isUserVisible()) {
-            node.name = AssetDisplayInfo.from(meta).displayName();
+        if (assetSnapshot == null) return node;
+        if (root == AssetNode.Root.ANIMATIONS) {
+            AssetMeta meta = assetSnapshot.findUniqueBySourceRelPath(
+                    StudioFs.DIR_ORIG_ANIMATIONS + "/" + relativePath,
+                    AssetType.ANIMATION
+            );
+            if (meta != null && meta.isUserVisible()) {
+                node.name = AssetDisplayInfo.from(meta).displayName();
+            }
+        } else if (root == AssetNode.Root.FONTS || root == AssetNode.Root.SKINS) {
+            String rootDirectory = root == AssetNode.Root.FONTS
+                    ? StudioFs.DIR_ORIG_FONTS : StudioFs.DIR_ORIG_SKINS;
+            AssetType assetType = root == AssetNode.Root.FONTS
+                    ? AssetType.FONT : AssetType.SKIN;
+            String directory = (rootDirectory + "/" + relativePath)
+                    .replace('\\', '/');
+            for (int index = 0; index < assetSnapshot.size(); index++) {
+                AssetMeta meta = assetSnapshot.assetAt(index);
+                if (meta.type() != assetType || !meta.isUserVisible()
+                        || meta.sourceRelPath() == null) continue;
+                FileHandle descriptor = new FileHandle(meta.sourceRelPath());
+                if (directory.equals(descriptor.parent().path().replace('\\', '/'))) {
+                    node.name = descriptor.nameWithoutExtension();
+                    break;
+                }
+            }
         }
         return node;
     }

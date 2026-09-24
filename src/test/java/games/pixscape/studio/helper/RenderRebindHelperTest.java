@@ -27,6 +27,7 @@ import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.scene.SceneEditorContext;
 import org.junit.After;
 import org.junit.Test;
 import sun.misc.Unsafe;
@@ -482,7 +483,10 @@ public class RenderRebindHelperTest {
         Unsafe unsafe = unsafe();
         WorldCanvas canvas =
                 (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
-        setField(unsafe, canvas, "world", world);
+        SceneEditorContext context =
+                (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
+        setField(unsafe, context, "world", world);
+        setField(unsafe, canvas, "sceneEditorContext", context);
         setField(unsafe, canvas, "gpuSnapshotManager", snapshots);
         return canvas;
     }
@@ -544,7 +548,7 @@ public class RenderRebindHelperTest {
                                  String fieldName,
                                  Object value)
             throws Exception {
-        Field field = WorldCanvas.class.getDeclaredField(fieldName);
+        Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         unsafe.putObject(
                 target,

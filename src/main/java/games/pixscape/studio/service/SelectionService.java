@@ -15,7 +15,8 @@ public final class SelectionService {
 
     public enum SelectionSource {
         VIEWPORT,
-        TREE
+        TREE,
+        PROGRAMMATIC
     }
 
     private final World world;
@@ -563,6 +564,11 @@ public final class SelectionService {
 
     private void publish(SelectionSource source) {
         publish(source, getSelectionSnapshot());
+    }
+
+    /** Reprojects this context's retained selection after its document becomes active. */
+    public void publishCurrentSelection() {
+        publish(SelectionSource.PROGRAMMATIC);
     }
 
     private void publish(SelectionSource source, IntArray snapshot) {

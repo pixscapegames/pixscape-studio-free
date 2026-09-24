@@ -60,6 +60,17 @@ public class ImportDialogValidationTest {
         assertFalse(ImportDialogValidation.isParticleFile(handle));
     }
 
+    @Test public void importValidation_jsonIsExplicitSkinCandidateNotImage() throws Exception {
+        File file = File.createTempFile("scene2d-skin", ".json");
+        file.deleteOnExit();
+        FileHandle handle = new FileHandle(file);
+
+        assertTrue(ImportDialogValidation.isSupportedImportFile(handle));
+        assertTrue(ImportDialogValidation.isSkinJsonFile(handle));
+        assertFalse(ImportDialogValidation.isSupportedImage(handle));
+        assertFalse(ImportDialogValidation.isBitmapFontFile(handle));
+    }
+
     @Test
     public void importItem_applySlicingSettingsUpdatesTilesetValues() {
         ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("tiles.png"));

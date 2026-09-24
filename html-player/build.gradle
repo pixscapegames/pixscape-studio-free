@@ -134,6 +134,20 @@ tasks.register('copyGwtDistToTemplate', Copy) {
     exclude '**/.keep'
   }
 
+  // HUD labels use this descriptor from the LibGDX runtime jar in the preview.
+  from({
+    def gdxRuntimeJar = configurations.runtimeClasspath.find {
+      it.name == "gdx-${gdxVersion}.jar"
+    }
+    if (gdxRuntimeJar == null) {
+      throw new GradleException("Unable to locate gdx-${gdxVersion}.jar for the HTML preview template.")
+    }
+    zipTree(gdxRuntimeJar)
+  }) {
+    include 'com/badlogic/gdx/utils/lsans-15.fnt'
+    into 'assets'
+  }
+
   into templateDir
 
   doLast {

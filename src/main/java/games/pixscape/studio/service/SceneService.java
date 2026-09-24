@@ -19,6 +19,7 @@ import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
@@ -34,7 +35,11 @@ import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.configuration.*;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.document.SceneEditorDocument;
+import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.OpenEditorDocument;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
 import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
 import games.pixscape.studio.importer.tmx.TmxSceneImportSession;
@@ -49,6 +54,9 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImpo
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import games.pixscape.studio.service.atlas.*;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRoots;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.asset.ImportDialog;
 import games.pixscape.studio.ui.docking.DockablePanel;
@@ -70,16 +78,12 @@ public final class SceneService {
     private final StudioApplicationAdapter app;
     private final WorldCanvas canvas;
     private final AtlasStudioService atlasStudioService;
-    private final ClipboardService clipboardService;
-    private final HistoryManager historyManager;
     private final SceneAtlasInputService sceneAtlasInputService;
     private final RuntimeAvailabilityService runtimeAvailabilityService;
     private final ProjectConfigSceneMetaBridge sceneMetaBridge;
     private final RecentProjectsService recentProjectsService;
-    private final ResolvedSceneActivationPipeline sceneActivationPipeline;
     private AssetMetaDatabase assetMetaDatabase;
     private TileAnimationsMetaDatabase tileAnimationsMetaDatabase;
-    private boolean currentSceneSaveRequired = false;
 
     /**
      * Single panel for the global library (orig/images).
@@ -97,21 +101,82 @@ public final class SceneService {
         this.app = app;
         this.canvas = canvas;
         this.atlasStudioService = canvas.getAtlasService();
-        this.historyManager = canvas.getHistoryManager();
         this.sceneAtlasInputService = new SceneAtlasInputService();
         this.runtimeAvailabilityService = new RuntimeAvailabilityService();
         this.sceneMetaBridge = new ProjectConfigSceneMetaBridge();
-        this.clipboardService = canvas.getClipboardService();
         this.recentProjectsService = new RecentProjectsService();
-        this.sceneActivationPipeline = new ResolvedSceneActivationPipeline(
-                canvas.getEcsWorld(),
-                canvas.getTileAnimationRegistry(),
-                canvas.getTiledAllocatorService(),
-                historyManager,
-                this::rebuildRenderRuntimeForScene
-        );
 
         registerEditorOpsCallbacks();
+    }
+
+    private SceneEditorContext sceneContext() {
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context == null) context = app.getMostRecentSceneEditorContext();
+        if (context == null || context.isDisposed()) {
+            throw new IllegalStateException("No live Scene editor context is available.");
+        }
+        return context;
+    }
+
+    private ClipboardService clipboardService() {
+        return canvas.getClipboardService();
+    }
+
+    public void pushActiveSceneMetaToUi() {
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context != null) {
+            context.selectionService().publishCurrentSelection();
+        }
+    }
+
+    public void saveSceneDocumentWithProgress(SceneEditorDocument document,
+                                              Runnable onSuccess,
+                                              java.util.function.Consumer<Throwable> onError) {
+        try {
+            saveSceneDocument(document);
+            if (onSuccess != null) onSuccess.run();
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
+    }
+
+    public void saveSceneDocument(SceneEditorDocument document) {
+        Objects.requireNonNull(document, "document");
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        String sceneName = sceneNameFor(document, cfg);
+        if (sceneName == null) {
+            throw new IllegalStateException("Scene document no longer belongs to this project.");
+        }
+
+        SceneEditorContext previous = canvas.getAttachedSceneContext();
+        String previousSceneName = cfg.getCurrentSceneName();
+        boolean hudActive = app.getEditorDocumentManager().isActive(EditorDocumentType.HUD_SCREEN);
+        try {
+            if (!canvas.isAttached(document.context())) canvas.attach(document.context());
+            cfg.setCurrentSceneByName(sceneName);
+            saveCurrentSceneOnly(cfg);
+            document.context().markSaved();
+            saveProjectFile(cfg);
+        } finally {
+            if (previousSceneName != null && cfg.getSceneMeta(previousSceneName) != null) {
+                cfg.setCurrentSceneByName(previousSceneName);
+            }
+            if (previous != null && previous != document.context() && !previous.isDisposed()) {
+                canvas.attach(previous);
+            } else if (hudActive) {
+                canvas.detach();
+            }
+        }
+    }
+
+    private static String sceneNameFor(SceneEditorDocument document, ProjectConfig cfg) {
+        for (String name : cfg.getSceneNames()) {
+            if (document.key().domainId().equals(cfg.canonicalSceneTag(name))) return name;
+        }
+        return null;
     }
 
     public TileAnimationRegistry getTileAnimationRegistry() {
@@ -193,7 +258,7 @@ public final class SceneService {
         assetMetaDatabase = reloadedDatabase;
         canvas.publishAssetMetaDatabase(assetMetaDatabase);
         AnimationAssetEntityReconciler.reconcile(
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 animation.id(),
                 animation,
                 canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
@@ -219,11 +284,34 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     public void markCurrentSceneSaveRequired() {
-        currentSceneSaveRequired = true;
+        sceneContext().markExplicitSaveRequired();
     }
 
     public boolean requiresSaveBeforeLeavingCurrentScene() {
-        return historyManager.isDirty() || currentSceneSaveRequired;
+        return sceneContext().isDirty();
+    }
+
+    public boolean requiresSaveBeforeLeavingAnyScene() {
+        return app.getEditorDocumentManager().documents().stream()
+                .filter(SceneEditorDocument.class::isInstance)
+                .map(SceneEditorDocument.class::cast)
+                .anyMatch(SceneEditorDocument::isDirty);
+    }
+
+    public void saveAllDirtyScenesWithProgress(Stage uiStage,
+                                               Runnable onSuccess,
+                                               java.util.function.Consumer<Throwable> onError) {
+        try {
+            List<SceneEditorDocument> dirty = app.getEditorDocumentManager().documents().stream()
+                    .filter(SceneEditorDocument.class::isInstance)
+                    .map(SceneEditorDocument.class::cast)
+                    .filter(SceneEditorDocument::isDirty)
+                    .toList();
+            for (SceneEditorDocument document : dirty) saveSceneDocument(document);
+            if (onSuccess != null) onSuccess.run();
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
     }
 
     public boolean requiresSaveBeforePreview() {
@@ -304,6 +392,10 @@ public final class SceneService {
                 return true;
             }
 
+            if (currentSceneHudExportIsStale(cfg, runtimeRoot)) {
+                return true;
+            }
+
             Set<Integer> requiredTileAssetIds = runtimeTiledTileAssetIds(cfg, runtimeRoot, root);
             if (!requiredTileAssetIds.isEmpty()) {
                 Path tilesetProfiles = runtimeRoot.resolve(RuntimeFs.FILE_TILESET_PROFILES_JSON);
@@ -317,6 +409,43 @@ public final class SceneService {
         } catch (RuntimeException | IOException ex) {
             return true;
         }
+    }
+
+    private static boolean currentSceneHudExportIsStale(ProjectConfig cfg,
+                                                        Path runtimeRoot) throws IOException {
+        SceneMeta scene = cfg.getCurrentSceneMeta();
+        List<String> screenIds = SceneHudRoots.collect(scene);
+        if (screenIds.isEmpty()) return false;
+
+        if (cfg.projectDirectoryPath == null || cfg.projectDirectoryPath.isBlank()) return true;
+        Path studioRoot = Path.of(cfg.projectDirectoryPath).toAbsolutePath().normalize();
+        Path exportedRoot = runtimeRoot.toAbsolutePath().normalize();
+        for (String screenId : screenIds) {
+            String assetPath = screenId + HudScreenAsset.EXTENSION;
+            Path authoredAsset = resolveInside(studioRoot, assetPath);
+            Path exportedAsset = resolveInside(exportedRoot, assetPath);
+            if (!sameFile(authoredAsset, exportedAsset)) return true;
+
+            JsonValue asset = new JsonReader().parse(Files.readString(authoredAsset));
+            String documentId = asset.getString("documentId", null);
+            if (documentId == null || documentId.isBlank()) continue;
+            if (!sameFile(resolveInside(studioRoot, documentId),
+                    resolveInside(exportedRoot, documentId))) return true;
+        }
+        return false;
+    }
+
+    private static Path resolveInside(Path root, String relative) {
+        Path resolved = root.resolve(relative).normalize();
+        if (Path.of(relative).isAbsolute() || !resolved.startsWith(root)) {
+            throw new IllegalArgumentException("HUD preview path escapes its project: " + relative);
+        }
+        return resolved;
+    }
+
+    private static boolean sameFile(Path authored, Path exported) throws IOException {
+        return Files.isRegularFile(authored) && Files.isRegularFile(exported)
+                && Files.mismatch(authored, exported) == -1L;
     }
 
     private static Set<Integer> runtimeTiledTileAssetIds(ProjectConfig cfg,
@@ -499,7 +628,9 @@ public final class SceneService {
     }
 
     private void clearCurrentSceneSaveRequired() {
-        currentSceneSaveRequired = false;
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context == null) context = app.getMostRecentSceneEditorContext();
+        if (context != null && !context.isDisposed()) context.markSaved();
     }
 
     // ---------------------------------------------------------------------
@@ -556,7 +687,8 @@ public final class SceneService {
         boolean projectDirExistedBeforeAttempt = false;
         ProjectConfig cfg = new ProjectConfig();
         try {
-            clearWorldAndRenderState();
+            app.onHudRuntimeProjectChanging();
+            app.getEditorDocumentManager().clear();
 
             cfg.projectTitle = projectTitle;
             cfg.projectFileName = projectFileName;
@@ -572,11 +704,16 @@ public final class SceneService {
             SceneMeta meta = cfg.getCurrentSceneMeta();
 
             ProjectConfig.setInstance(cfg);
+            String canonicalTag = cfg.canonicalSceneTagCurrent();
+            SceneEditorContext context = canvas.createSceneContext(canonicalTag, meta);
+            canvas.attach(context);
+            context.bindSceneIdentity(canonicalTag);
             bindSceneIdentityAuthorities(meta);
 
             projectDir = StudioFs.requireStudioProjectDir(cfg);
             projectDirExistedBeforeAttempt = projectDir.exists();
             projectDir.mkdirs();
+            app.bindHudRuntimeProject(projectDir);
 
             projectDir.child(StudioFs.DIR_SCENES).mkdirs();
             projectDir.child(StudioFs.DIR_ORIG_IMAGES).mkdirs();
@@ -601,14 +738,14 @@ public final class SceneService {
                     projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
             );
 
-            int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
-            int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
-            app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
+            int indexL = sceneContext().layerService().addLayerTop("Main layer");
+            int layerEntityId = sceneContext().layerService().getLayerEntity(indexL);
+            sceneContext().selectionService().setActivelayerId(layerEntityId);
             EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
 
             saveProjectAndCurrentScene();
 
-            String canonicalTag = cfg.canonicalSceneTagCurrent();
+            app.getEditorDocumentManager().openScene(canonicalTag, meta.getName(), context);
             ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, canonicalTag);
             SceneAtlasLoaderService.packSceneAtlas(cfg, canonicalTag, projectDir);
             refreshAssetsPanel();
@@ -626,7 +763,7 @@ public final class SceneService {
 
             EditorSettings.get().lastProjectPath = projectFile.path();
             recentProjectsService.addRecentProject(projectFile.path());
-            clipboardService.clear();
+            clipboardService().clear();
 
             Gdx.graphics.setTitle("Pixscape 2D Game Studio (" + projectTitle + ")");
             StudioLog.info("Project created: " + projectTitle);
@@ -657,14 +794,17 @@ public final class SceneService {
         FileHandle projectDir = context.projectDir();
         String sceneName = context.sceneName();
 
+        app.onHudRuntimeProjectChanging();
+        app.getEditorDocumentManager().clear();
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
+        app.bindHudRuntimeProject(projectDir);
 
         reloadTileAnimationsFromProject(projectDir);
 
         applyProjectFixedSettings(cfg);
         refreshParticleEffectsRoot(cfg);
-        clipboardService.clear();
+        clipboardService().clear();
 
         try {
             loadScene(cfg, sceneName, projectDir);
@@ -714,9 +854,12 @@ public final class SceneService {
     }
 
     public void unloadProjectToEmptyEditor() {
-        clearWorldAndRenderState();
-        bindSceneIdentityAuthorities(null);
+        app.onHudRuntimeProjectChanging();
+        app.getEditorDocumentManager().clear();
         resetProjectConfigToEmptyState();
+        SceneEditorContext empty = canvas.createSceneContext(null, null);
+        canvas.attach(empty);
+        bindSceneIdentityAuthorities(null);
         refreshAssetsPanel();
         sceneMetaBridge.pushCurrentSceneMetaToUI();
         app.getBottomBar().refreshSelectBox();
@@ -730,56 +873,95 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     void loadScene(ProjectConfig cfg, String sceneName, FileHandle projectDir) {
-        clearWorldAndRenderState();
-
         SceneMeta meta = cfg.getSceneMeta(sceneName);
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
         }
-        bindSceneIdentityAuthorities(meta);
-
-        FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
-
         String canonicalTag = cfg.canonicalSceneTagFor(meta);
         if (canonicalTag == null || canonicalTag.isBlank()) {
             throw new IllegalStateException("Missing canonical scene tag for scene '" + sceneName + "'.");
         }
-        canvas.getPhysicsSelectionReconciler().bindSceneContext(canonicalTag);
-
-        FileHandle sceneFile = scenesDir.child(meta.getFile());
-
-        sceneActivationPipeline.activate(
-                new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
-                        cfg,
-                        meta,
-                        sceneFile,
-                        projectDir,
-                        cfg.projectTitle,
-                        sceneName,
-                        canonicalTag
-                ));
-        ensureAssetMetaDatabaseLoaded();
-        int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(
-                canvas.getEcsWorld(),
-                assetMetaDatabase::findById,
-                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
-                entityId -> EventFlow.i().publish(
-                        new EventFlow.AnimationChanged(entityId, MY_TAG)));
-        if (reconciledAnimations > 0) markCurrentSceneSaveRequired();
-        canvas.requestTiledFallbackValidation();
-        canvas.getIdentityRegistry().rebuild();
-        // UI
-
-        int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
-        if (firstLayerEntityId != -1) {
-            app.getCanvas().getSelectionService().setActivelayerId(firstLayerEntityId);
+        var key = new games.pixscape.studio.document.EditorDocumentKey(
+                games.pixscape.studio.document.EditorDocumentType.SCENE, canonicalTag);
+        var open = app.getEditorDocumentManager().find(key);
+        if (open instanceof games.pixscape.studio.document.SceneEditorDocument) {
+            app.getEditorDocumentManager().activate(key);
+            return;
         }
 
-        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-        app.getCanvas().getSelectionService().clearSelection();
-        refreshAssetsPanel();
-        app.getBottomBar().refreshSelectBox();
+        String previousSceneName = cfg.getCurrentSceneName();
+        SceneEditorContext previousContext = canvas.getAttachedSceneContext();
+        SceneEditorContext candidate = null;
+        try {
+            FileHandle sceneFile = projectDir.child(StudioFs.DIR_SCENES).child(meta.getFile());
+            if (!sceneFile.exists()) {
+                throw new IllegalStateException("Scene file is missing: " + sceneFile.path());
+            }
+            candidate = canvas.createSceneContext(canonicalTag, meta);
+            EventFlow.i().flush();
+            canvas.attach(candidate);
+            cfg.setCurrentSceneByName(sceneName);
+            candidate.bindSceneIdentity(canonicalTag);
+            bindSceneIdentityAuthorities(meta);
+            canvas.getPhysicsSelectionReconciler().bindSceneContext(canonicalTag);
 
+            ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
+                    candidate.world(),
+                    canvas.getTileAnimationRegistry(),
+                    canvas.getTiledAllocatorService(),
+                    candidate.historyManager(),
+                    this::rebuildRenderRuntimeForScene);
+            pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+                    cfg, meta, sceneFile, projectDir, cfg.projectTitle, sceneName, canonicalTag));
+
+            ensureAssetMetaDatabaseLoaded();
+            int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(
+                    candidate.world(),
+                    assetMetaDatabase::findById,
+                    canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
+                    entityId -> EventFlow.i().publish(
+                            new EventFlow.AnimationChanged(entityId, MY_TAG)));
+            if (reconciledAnimations > 0) candidate.markExplicitSaveRequired();
+            canvas.requestTiledFallbackValidation();
+            candidate.identityRegistry().rebuild();
+
+            int firstLayerEntityId = candidate.layerService().getFirstLayerEntity();
+            if (firstLayerEntityId != -1) {
+                candidate.selectionService().setActivelayerId(firstLayerEntityId);
+            }
+            candidate.selectionService().clearSelection();
+            candidate.historyManager().markSaved();
+
+            app.getEditorDocumentManager().openScene(canonicalTag, sceneName, candidate);
+            if (previousContext != null && !isDocumentOwned(previousContext)) {
+                canvas.releaseSceneContext(previousContext);
+                previousContext.dispose();
+            }
+            EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
+            refreshAssetsPanel();
+            app.getBottomBar().refreshSelectBox();
+        } catch (RuntimeException ex) {
+            EventFlow.i().discardPending();
+            if (candidate != null) {
+                canvas.releaseSceneContext(candidate);
+                candidate.dispose();
+            }
+            if (previousSceneName != null && cfg.getSceneMeta(previousSceneName) != null) {
+                cfg.setCurrentSceneByName(previousSceneName);
+            }
+            if (previousContext != null && !previousContext.isDisposed()) {
+                canvas.attach(previousContext);
+            }
+            throw ex;
+        }
+
+    }
+
+    private boolean isDocumentOwned(SceneEditorContext context) {
+        return app.getEditorDocumentManager().documents().stream()
+                .filter(games.pixscape.studio.document.SceneEditorDocument.class::isInstance)
+                .map(games.pixscape.studio.document.SceneEditorDocument.class::cast)
+                .anyMatch(document -> document.context() == context);
     }
 
     // ---------------------------------------------------------------------
@@ -803,7 +985,7 @@ public final class SceneService {
 
         maybeRepackAtlas(plan);
         rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        saveScene(sceneContext().world(), plan.sceneFile(), false);
         saveTileAnimations(plan);
         exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
@@ -843,7 +1025,7 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.async(0.25f, "Repacking atlas...",
                     (progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)));
             steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
-            steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
+            steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(sceneContext().world(), plan.sceneFile(), false)));
             steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
             steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
@@ -880,8 +1062,13 @@ public final class SceneService {
 
         boolean copiedToNewDirectory = !targetProjectDir.path().equals(currentProjectDir.path());
         if (copiedToNewDirectory) {
-            ProjectRenameService.copyProjectDirectory(currentProjectDir, targetProjectDir);
-            cfg.projectDirectoryPath = targetProjectDir.path();
+            app.onHudRuntimeProjectChanging();
+            try {
+                ProjectRenameService.copyProjectDirectory(currentProjectDir, targetProjectDir);
+                cfg.projectDirectoryPath = targetProjectDir.path();
+            } finally {
+                app.bindHudRuntimeProject(StudioFs.requireStudioProjectDir(cfg));
+            }
         }
 
         if (!targetProjectFileName.equals(cfg.projectFileName)) {
@@ -935,7 +1122,7 @@ public final class SceneService {
 
         maybeRepackAtlas(plan);
         rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        saveScene(sceneContext().world(), plan.sceneFile(), false);
         saveTileAnimations(plan);
         exportRuntime(plan.cfg(), plan.studioDir());
         finishSaveWithScene(plan.cfg());
@@ -964,6 +1151,12 @@ public final class SceneService {
     }
 
     private void exportRuntime(ProjectConfig cfg, FileHandle studioDir) {
+        SceneHudRuntimeExport.requireSavedDocuments(cfg,
+                app.getEditorDocumentManager().documents().stream()
+                        .filter(document -> document instanceof HudScreenEditorDocument)
+                        .filter(OpenEditorDocument::isDirty)
+                        .map(document -> ((HudScreenEditorDocument) document).screenId())
+                        .toList());
         FileHandle userRootDir = RuntimeExportPaths.userRootFileHandle(cfg);
         if (userRootDir == null) {
             throw new IllegalStateException("Runtime export root is not configured.");
@@ -976,13 +1169,13 @@ public final class SceneService {
         String log = "saveProjectAndCurrentScene: no current scene, skipping scene save.";
         Gdx.app.log("SceneManager", log);
         EventFlow.i().publish(new EventFlow.LogMessage(log));
-        historyManager.markSaved();
+        sceneContext().historyManager().markSaved();
         clearCurrentSceneSaveRequired();
     }
 
     private void finishSaveWithScene(ProjectConfig cfg) {
         Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + ")");
-        historyManager.markSaved();
+        sceneContext().historyManager().markSaved();
         StudioLog.info("Project saved successfully");
         clearCurrentSceneSaveRequired();
     }
@@ -1017,7 +1210,7 @@ public final class SceneService {
         }
         rebuildSparseFromDense();
 
-        saveScene(canvas.getEcsWorld(), sceneFile, false);
+        saveScene(sceneContext().world(), sceneFile, false);
         if (tileAnimationsMetaDatabase != null) {
             TileAnimationsIO.save(
                     tileAnimationsMetaDatabase,
@@ -1392,10 +1585,20 @@ public final class SceneService {
             return;
         }
 
+        boolean requiresLiveScene = false;
+        for (AssetMeta meta : metasToDelete) {
+            if (meta.type() != AssetType.FONT && meta.type() != AssetType.SKIN) {
+                requiresLiveScene = true;
+                break;
+            }
+        }
         AssetUsageScanner usageScanner = new AssetUsageScanner(
-                canvas.getEcsWorld(),
+                requiresLiveScene ? sceneContext().world() : null,
                 cfg,
-                assetMetaDatabase
+                assetMetaDatabase,
+                app.getEditorDocumentManager().documents().stream()
+                        .filter(HudScreenEditorDocument.class::isInstance)
+                        .map(HudScreenEditorDocument.class::cast).toList()
         );
         for (AssetMeta meta : metasToDelete) {
             AssetUsageScanner.AssetUsageReport usage = usageScanner.scanAsset(meta.id());
@@ -1412,12 +1615,13 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(assetsFile);
-        markCurrentSceneSaveRequired();
+        if (canvas.getAttachedSceneContext() != null) markCurrentSceneSaveRequired();
         StandaloneTextureCache.clear(true);
         canvas.invalidateStandaloneAssetVisuals();
 
         persistRuntimeAvailabilityChange(cfg, runtimeAvailabilityChanged);
         refreshAssetsPanel();
+        app.getHudEditorSession().refreshAssetOptions();
     }
 
     private Array<AssetMeta> resolveAssetsForDeletion(Array<Integer> assetIds) {
@@ -1445,6 +1649,7 @@ public final class SceneService {
         }
 
         FileHandle file = projectDir.child(meta.sourceRelPath());
+        if (meta.type() == AssetType.FONT || meta.type() == AssetType.SKIN) file = file.parent();
         if (!file.exists()) {
             return;
         }
@@ -1479,6 +1684,15 @@ public final class SceneService {
             }
         }
 
+        if (usage != null && usage.documentNames() != null && usage.documentNames().size > 0) {
+            message.append(" Used in HUD document");
+            if (usage.documentNames().size > 1) message.append("s");
+            message.append(": ");
+            for (int i = 0; i < usage.documentNames().size; i++) {
+                if (i > 0) message.append(", ");
+                message.append(usage.documentNames().get(i));
+            }
+        }
         return message.toString();
     }
 
@@ -1497,7 +1711,7 @@ public final class SceneService {
 
         AtlasInputSyncResult syncResult = sceneAtlasInputService.syncSceneAtlasInputForSave(
                 cfg,
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 assetMetaDatabase,
                 tileAnimationsMetaDatabase
         );
@@ -1588,7 +1802,7 @@ public final class SceneService {
     private AtlasInputSyncResult syncSceneAtlasInputForSave(SaveExecutionPlan plan) {
         return sceneAtlasInputService.syncSceneAtlasInputForSave(
                 plan.cfg(),
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 assetMetaDatabase,
                 tileAnimationsMetaDatabase
         );
@@ -1730,7 +1944,7 @@ public final class SceneService {
         AtlasInputSyncResult syncResult =
                 sceneAtlasInputService.syncSceneAtlasInputForSave(
                         cfg,
-                        canvas.getEcsWorld(),
+                        sceneContext().world(),
                         assetMetaDatabase,
                         tileAnimationsMetaDatabase
                 );
@@ -1771,7 +1985,7 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     private void rebuildSparseFromDense() {
-        rebuildSparseFromDense(canvas.getEcsWorld());
+        rebuildSparseFromDense(sceneContext().world());
     }
 
     static void rebuildSparseFromDense(World world) {
@@ -1850,7 +2064,7 @@ public final class SceneService {
     }
 
     private void rebindTiles() {
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
 
@@ -1869,7 +2083,7 @@ public final class SceneService {
     }
 
     private void refreshParticleEffectsRoot(ProjectConfig cfg) {
-        var particleSystem = canvas.getEcsWorld().getSystem(RenderParticleSyncSystem.class);
+        var particleSystem = sceneContext().world().getSystem(RenderParticleSyncSystem.class);
         if (particleSystem == null) return;
 
         FileHandle effectsRoot = null;
@@ -1908,27 +2122,18 @@ public final class SceneService {
         if (cfg == null) return;
         if (sceneName == null || sceneName.isBlank()) return;
 
-        String current = cfg.getCurrentSceneName();
-        if (sceneName.equals(current)) return;
-
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         try {
-            cfg.setCurrentSceneByName(sceneName);
-            saveProjectFile(cfg);
             loadScene(cfg, sceneName, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
             StudioLog.info("Scene opened: " + sceneName);
         } catch (RuntimeException ex) {
-            throw failAfterRollback(
-                    "Failed to switch scene to '" + sceneName + "'.",
-                    ex,
-                    () -> rollbackSceneSwitch(cfg, current, projectDir)
-            );
+            throw new IllegalStateException("Failed to open scene '" + sceneName + "'.", ex);
         }
     }
 
     public void createNewScene(String desiredSceneName) {
-        clipboardService.clear();
+        clipboardService().clear();
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) {
             cfg = new ProjectConfig();
@@ -1936,14 +2141,12 @@ public final class SceneService {
             ProjectConfig.setInstance(cfg);
         }
 
-        if (cfg.getCurrentSceneName() != null) {
-            saveCurrentSceneOnly(cfg);
-        }
-
         String sceneName = cfg.uniqueSceneName(desiredSceneName);
         String previousSceneName = cfg.getCurrentSceneName();
+        SceneEditorContext previousContext = canvas.getAttachedSceneContext();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         String createdSceneFileName = null;
+        SceneEditorContext candidate = null;
         try {
             // fileName is managed by nextSceneIndex in ProjectConfig
             cfg.createSceneMeta(sceneName);
@@ -1953,22 +2156,33 @@ public final class SceneService {
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
             atlasesDir.mkdirs();
 
-            saveProjectFile(cfg);
-
-            clearWorldAndRenderState();
+            String canonicalTag = cfg.canonicalSceneTagFor(meta);
+            candidate = canvas.createSceneContext(canonicalTag, meta);
+            canvas.attach(candidate);
+            candidate.bindSceneIdentity(canonicalTag);
             bindSceneIdentityAuthorities(meta);
-            int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
-            int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
-            app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
+            int indexL = candidate.layerService().addLayerTop("Main layer");
+            int layerEntityId = candidate.layerService().getLayerEntity(indexL);
+            candidate.selectionService().setActivelayerId(layerEntityId);
+            candidate.world().process();
 
             saveCurrentSceneOnly(cfg);
-            loadScene(cfg, sceneName, projectDir);
+            candidate.markSaved();
+            saveProjectFile(cfg);
+            app.getEditorDocumentManager().openScene(canonicalTag, sceneName, candidate);
             assertCurrentSceneMetadataIntegrity(cfg, sceneName, "createNewScene");
             sceneMetaBridge.pushCurrentSceneMetaToUI();
 
             Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + " - " + sceneName + ")");
             StudioLog.info("Scene created: " + sceneName);
         } catch (RuntimeException ex) {
+            if (candidate != null) {
+                canvas.releaseSceneContext(candidate);
+                candidate.dispose();
+            }
+            if (previousContext != null && !previousContext.isDisposed()) {
+                canvas.attach(previousContext);
+            }
             final ProjectConfig rollbackCfg = cfg;
             final String rollbackPreviousSceneName = previousSceneName;
             final String rollbackSceneName = sceneName;
@@ -2273,6 +2487,10 @@ public final class SceneService {
             atlasStudioService.unload(canonicalTag);
 
             cfg.removeSceneMeta(sceneName);
+            app.getEditorDocumentManager().closeNow(
+                    new games.pixscape.studio.document.EditorDocumentKey(
+                            games.pixscape.studio.document.EditorDocumentType.SCENE,
+                            canonicalTag));
 
             if (wasActive) {
                 if (nextSceneName == null || cfg.getSceneMeta(nextSceneName) == null) {
@@ -2770,7 +2988,7 @@ public final class SceneService {
             return false;
         }
 
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
 
@@ -2806,7 +3024,7 @@ public final class SceneService {
             return;
         }
 
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
 
         IntBag tiledLayers = world.getAspectSubscriptionManager()
@@ -2904,6 +3122,7 @@ public final class SceneService {
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
         canvas.publishAssetMetaDatabase(assetMetaDatabase);
         refreshAssetsPanel();
+        app.getHudEditorSession().refreshAssetOptions();
         StudioLog.info("Assets imported: " + importedCount);
     }
 
@@ -2947,7 +3166,102 @@ public final class SceneService {
             case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
+            case FONT -> importBitmapFontAsset(ctx, item);
+            case SKIN -> importScene2dSkinAsset(ctx, item);
         };
+    }
+
+    private int importBitmapFontAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        new games.pixscape.studio.service.asset.BitmapFontAssetImportService(assetMetaDatabase)
+                .importNew(item.file, ctx.projectDir);
+        return 1;
+    }
+
+    private int importScene2dSkinAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        new Scene2dSkinAssetImportService(assetMetaDatabase).importNew(item.file, ctx.projectDir);
+        return 1;
+    }
+
+    public void reimportScene2dSkinAsset(int assetId,
+                                         String expectedSourceRelPath,
+                                         FileHandle expectedProjectDir,
+                                         FileHandle descriptor) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        requireSameProject(expectedProjectDir, projectDir);
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+        AssetMeta original = assetMetaDatabase.findById(assetId);
+        if (original == null || original.type() != AssetType.SKIN
+                || !Objects.equals(original.sourceRelPath(), expectedSourceRelPath)) {
+            throw new IllegalStateException("The selected Skin Asset no longer belongs to the original project context.");
+        }
+        new Scene2dSkinAssetImportService(assetMetaDatabase)
+                .reimport(assetId, descriptor, projectDir);
+        assetMetaDatabase.save(assetsFile);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        try {
+            refreshHudAfterReimport(app.getSceneHudRuntimePreparationService()
+                    .invalidateReimportedSkin(original.sourceRelPath()));
+        } finally { refreshAssetsPanel(); }
+    }
+
+    public void reimportBitmapFontAsset(int assetId,
+                                        String expectedSourceRelPath,
+                                        FileHandle expectedProjectDir,
+                                        FileHandle descriptor) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        requireSameProject(expectedProjectDir, projectDir);
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+        AssetMeta original = assetMetaDatabase.findById(assetId);
+        if (original == null || original.type() != AssetType.FONT
+                || !Objects.equals(original.sourceRelPath(), expectedSourceRelPath)) {
+            throw new IllegalStateException("The selected Font Asset no longer belongs to the original project context.");
+        }
+        new BitmapFontAssetImportService(assetMetaDatabase)
+                .reimport(assetId, descriptor, projectDir);
+        assetMetaDatabase.save(assetsFile);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        try {
+            refreshHudAfterReimport(app.getSceneHudRuntimePreparationService()
+                    .invalidateReimportedFont(assetId));
+        } finally { refreshAssetsPanel(); }
+    }
+
+    private void refreshHudAfterReimport(SceneHudRuntimePreparationService.ReimportImpact impact) {
+        var editor = app.getHudEditorSession();
+        refreshHudAfterReimport(impact, editor.screenId(), editor::reloadResources,
+                editor::markResourcesStale);
+    }
+
+    static void refreshHudAfterReimport(SceneHudRuntimePreparationService.ReimportImpact impact,
+                                        String activeScreen, Runnable reloadResources,
+                                        Runnable markResourcesStale) {
+        if (activeScreen == null) return;
+        if (impact.openScreensToReload().contains(activeScreen)) {
+            reloadResources.run();
+        } else if (impact.uncertainOpenScreens().contains(activeScreen)) {
+            markResourcesStale.run(); // Keep the last valid preview until its usage can be resolved.
+        }
+    }
+
+    static void requireSameProject(FileHandle expectedProjectDir,
+                                   FileHandle currentProjectDir) {
+        if (expectedProjectDir == null || currentProjectDir == null) {
+            throw new IllegalStateException("The project changed before asset reimport completed.");
+        }
+        try {
+            if (!Files.isSameFile(expectedProjectDir.file().toPath(),
+                    currentProjectDir.file().toPath())) {
+                throw new IllegalStateException("The project changed before asset reimport completed.");
+            }
+        } catch (IOException | SecurityException failure) {
+            throw new IllegalStateException("Unable to verify the asset reimport project context.", failure);
+        }
     }
 
     static ImportDialog.ImportType resolveImportType(ImportDialog.ImportItem item) {
@@ -3111,7 +3425,7 @@ public final class SceneService {
         }
 
         AssetUsageScanner usageScanner = new AssetUsageScanner(
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 cfg,
                 assetMetaDatabase
         );
@@ -3494,7 +3808,7 @@ public final class SceneService {
 
         canvas.resetEditingContexts();
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
 
         // Delete all entities
         IntBag bag = world.getAspectSubscriptionManager()
@@ -3514,27 +3828,25 @@ public final class SceneService {
         canvas.getTiledAllocatorService().reset();
 
         // Reset services studio
-        canvas.getSelectionService().clearSelection();
-        canvas.getLayerService().reset();
+        sceneContext().selectionService().clearSelection();
+        sceneContext().layerService().reset();
 
         // Nettoyage caches
         StandaloneTextureCache.clear(true);
         canvas.invalidateStandaloneAssetVisuals();
 
         // Reset historique
-        historyManager.clear();
-        historyManager.historyIds().clear();
         clearCurrentSceneSaveRequired();
     }
 
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
-        canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
+        sceneContext().identityRegistry().bind(sceneContext().world(), meta);
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
     }
 
     private void flushWorldForSerialization() {
         if (canvas == null) return;
-        canvas.getEcsWorld().process();
+        sceneContext().world().process();
     }
 
     // ---------------------------------------------------------------------
@@ -3666,5 +3978,4 @@ public final class SceneService {
     }
 
 }
-
 

@@ -2,7 +2,6 @@ package games.pixscape.studio.ui.tree;
 
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.kotcrab.vis.ui.widget.VisLabel;
-import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTree;
 
 /**
@@ -28,7 +27,7 @@ public class EntityNode extends VisTree.Node {
 
     private final int entityId;
     private final NodeKind kind;
-    private final VisLabel label;
+    private final StudioTreeRow row;
 
     public EntityNode(String name, Drawable icon, int entityId, boolean selectable) {
         this(name, icon, entityId, selectable, NodeKind.ENTITY);
@@ -38,11 +37,9 @@ public class EntityNode extends VisTree.Node {
         super();
         this.entityId = entityId;
         this.kind = kind != null ? kind : NodeKind.ENTITY;
-        this.label = new VisLabel(name);
-        VisTable row = new VisTable();
-        row.add(label).left();
-        row.setUserObject(new NodeRef(entityId, this.kind));
-        setActor(row);
+        this.row = new StudioTreeRow(name);
+        row.actor().setUserObject(new NodeRef(entityId, this.kind));
+        setActor(row.actor());
         if (icon != null) setIcon(icon);
         setSelectable(selectable);
     }
@@ -84,10 +81,10 @@ public class EntityNode extends VisTree.Node {
     }
 
     public VisLabel getLabel() {
-        return label;
+        return row.label();
     }
 
     public void setLabelName(String name) {
-        label.setText(name);
+        row.setText(name);
     }
 }

@@ -1,133 +1,198 @@
 package games.pixscape.studio.ui.main;
 
+import com.badlogic.gdx.utils.Array;
+import com.kotcrab.vis.ui.widget.VisSelectBox;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.SceneEditorDocument;
+import games.pixscape.studio.scene.SceneEditorContext;
+import games.pixscape.studio.service.StudioEditingModeService;
+import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class BottomMenuBarSceneControlsContractTest {
-    private static final Path SOURCE_PATH = Path.of(
-            "src/main/java/games/pixscape/studio/ui/main/BottomMenuBar.java"
-    );
+    @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
+    @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
 
     @Test
-    public void sceneSelectorContainsOnlyConfiguredSceneNames() throws Exception {
-        String source = readSource();
-        String refreshBody = methodBody(source, "public void refreshSelectBox()");
+    public void selectorProjectsTheCompleteCatalogWithoutAnyOpenDocuments() {
+        ProjectConfig config = project("Tutorial", "Demo");
+        config.setCurrentSceneByName("Tutorial");
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
 
-        assertTrue(refreshBody.contains("items.clear();"));
-        assertTrue(refreshBody.contains("items.addAll(cfg.getSceneNames());"));
-        assertFalse(source.contains("\"New...\""));
-    }
+        BottomMenuBar.populateSceneSelector(selector, items, config);
 
-    @Test
-    public void addButtonUsesAddStyleAndIsImmediatelyBeforeDelete() throws Exception {
-        String source = readSource();
-        String constructorBody = methodBody(source, "public BottomMenuBar(StudioApplicationAdapter application)");
-
-        assertTrue(constructorBody.contains("btnAddScene = new Button(VisUI.getSkin(), \"add\");"));
-        assertOrdered(
-                constructorBody,
-                "add(sceneSelectBox).width(120).left();",
-                "add(btnAddScene).padLeft(4).left();",
-                "add(btnDeleteScene).padLeft(4).padRight(100).left();"
-        );
+        assertEquals(2, selector.getItems().size);
+        assertTrue(selector.getItems().contains("Tutorial", false));
+        assertTrue(selector.getItems().contains("Demo", false));
+        assertEquals("Tutorial", selector.getSelected());
+        assertNotNull(selector.getSelected());
+        assertTrue(selector.getSelection().getRequired());
     }
 
     @Test
-    public void addButtonImmediatelyCreatesDefaultNamedSceneWithoutDialog() throws Exception {
-        String source = readSource();
-        String constructorBody = methodBody(source, "public BottomMenuBar(StudioApplicationAdapter application)");
-        String createBody = methodBody(source, "private void createNewScene()");
+    public void selectingAnOpenInactiveSceneIsAStrictNoOp() {
+        ProjectConfig config = project("Tutorial", "Demo");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        SceneEditorDocument tutorial = open(documents, config, "Tutorial");
+        SceneEditorDocument demo = open(documents, config, "Demo");
+        config.setCurrentSceneByName("Demo");
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+        selector.setSelected("Tutorial");
+        AtomicInteger opens = new AtomicInteger();
+        AtomicInteger busyChanges = new AtomicInteger();
 
-        assertTrue(constructorBody.contains("createNewScene();"));
-        assertTrue(createBody.contains("app.getSceneService().createNewScene(\"New Scene\");"));
-        assertTrue(createBody.contains("refreshSelectBox();"));
-        assertFalse(source.contains("NewSceneWindow"));
+        boolean opened = BottomMenuBar.navigateSceneFromSelector(
+                config, documents, selector, items,
+                ignored -> opens.incrementAndGet(),
+                ignored -> busyChanges.incrementAndGet(),
+                "Tutorial");
+
+        assertFalse(opened);
+        assertEquals(0, opens.get());
+        assertEquals(0, busyChanges.get());
+        assertSame(demo, documents.activeDocument());
+        assertSame(tutorial, documents.find(tutorial.key()));
+        assertEquals(2, documents.documents().size());
+        assertEquals("Demo", selector.getSelected());
     }
 
     @Test
-    public void selectingRealSceneUsesExistingSwitchWorkflow() throws Exception {
-        String constructorBody = methodBody(
-                readSource(),
-                "public BottomMenuBar(StudioApplicationAdapter application)"
-        );
+    public void selectingAClosedSceneOpensExactlyOneDocumentAndActivatesIt() {
+        ProjectConfig config = project("Tutorial", "Demo");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        open(documents, config, "Demo");
+        config.setCurrentSceneByName("Demo");
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+        selector.setSelected("Tutorial");
+        AtomicInteger opens = new AtomicInteger();
 
-        assertTrue(constructorBody.contains("if (cur == null || cur.equals(lastValue)) return;"));
-        assertTrue(constructorBody.contains("sceneSwitchWorkflow.request(cur);"));
+        boolean opened = BottomMenuBar.navigateSceneFromSelector(
+                config,
+                documents,
+                selector,
+                items,
+                sceneName -> {
+                    opens.incrementAndGet();
+                    config.setCurrentSceneByName(sceneName);
+                    open(documents, config, sceneName);
+                },
+                selector::setDisabled,
+                "Tutorial");
+        boolean duplicate = BottomMenuBar.navigateSceneFromSelector(
+                config, documents, selector, items,
+                ignored -> opens.incrementAndGet(), selector::setDisabled, "Tutorial");
+
+        assertTrue(opened);
+        assertFalse(duplicate);
+        assertEquals(1, opens.get());
+        assertEquals(2, documents.documents().size());
+        assertEquals(EditorDocumentType.SCENE, documents.activeDocument().type());
+        assertEquals(config.canonicalSceneTag("Tutorial"),
+                documents.activeDocument().key().domainId());
+        assertEquals("Tutorial", selector.getSelected());
+        assertFalse(selector.isDisabled());
     }
 
     @Test
-    public void refreshSelectsCurrentSceneOrFirstRealScene() throws Exception {
-        String refreshBody = methodBody(readSource(), "public void refreshSelectBox()");
+    public void closingTheOnlyScenePreservesNonNullSelectorAndAllowsSameChoiceToReopen() {
+        ProjectConfig config = project("Tutorial");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        SceneEditorDocument first = open(documents, config, "Tutorial");
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
+        BottomMenuBar.populateSceneSelector(selector, items, config);
 
-        assertTrue(refreshBody.contains("items.contains(curName, false)"));
-        assertTrue(refreshBody.contains("sceneSelectBox.getSelection().set(curName);"));
-        assertTrue(refreshBody.contains("lastValue = curName;"));
-        assertTrue(refreshBody.contains("sceneSelectBox.getSelection().set(items.first());"));
-        assertTrue(refreshBody.contains("lastValue = null;"));
+        assertTrue(documents.closeNow(first.key()));
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+
+        assertEquals("Tutorial", selector.getSelected());
+        assertFalse(selector.isDisabled());
+        assertTrue(BottomMenuBar.navigateSceneFromSelector(
+                config,
+                documents,
+                selector,
+                items,
+                sceneName -> {
+                    config.setCurrentSceneByName(sceneName);
+                    open(documents, config, sceneName);
+                },
+                selector::setDisabled,
+                selector.getSelected()));
+        assertEquals(1, documents.documents().size());
+        assertEquals("Tutorial", selector.getSelected());
+        assertFalse(selector.isDisabled());
     }
 
     @Test
-    public void busyStateDisablesSelectorAndAddWhilePreservingDeleteRule() throws Exception {
-        String source = readSource();
-        String busyBody = methodBody(source, "private void setSceneControlsBusy(boolean busy)");
-        String deleteBody = methodBody(source, "private void updateDeleteSceneButtonState()");
+    public void selectorStaysEnabledAndPopulatedWithHudOrNoDocuments() {
+        ProjectConfig config = project("Tutorial", "Demo");
+        config.setCurrentSceneByName("Tutorial");
+        EditorDocumentManager documents = new EditorDocumentManager();
+        HudScreenEditorDocument hud = documents.openHudScreen("hud/main", "HUD");
+        VisSelectBox<String> selector = new VisSelectBox<>("default");
+        Array<String> items = new Array<>();
 
-        assertTrue(source.contains("this::setSceneControlsBusy"));
-        assertTrue(busyBody.contains("sceneSelectBox.setDisabled(busy);"));
-        assertTrue(busyBody.contains("btnAddScene.setDisabled(busy);"));
-        assertTrue(busyBody.contains("updateDeleteSceneButtonState();"));
-        assertTrue(deleteBody.contains("sceneControlsBusy"));
-        assertTrue(deleteBody.contains("cfg.getCurrentSceneName() == null"));
-        assertTrue(deleteBody.contains("cfg.getSceneNames().size <= 1"));
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+        assertSame(hud, documents.activeDocument());
+        assertFalse(selector.isDisabled());
+        assertEquals(2, selector.getItems().size);
+        assertEquals("Tutorial", selector.getSelected());
+
+        assertTrue(documents.closeNow(hud.key()));
+        BottomMenuBar.populateSceneSelector(selector, items, config);
+        assertEquals(null, documents.activeDocument());
+        assertFalse(selector.isDisabled());
+        assertEquals(2, selector.getItems().size);
+        assertEquals("Tutorial", selector.getSelected());
     }
 
     @Test
-    public void creationAlwaysRefreshesCurrentSelection() throws Exception {
-        String source = readSource();
-        String createBody = methodBody(source, "private void createNewScene()");
+    public void popupListHasAnExplicitClickPathForAnUnchangedSelection() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/games/pixscape/studio/ui/main/BottomMenuBar.java"),
+                StandardCharsets.UTF_8);
 
-        assertOrdered(
-                createBody,
-                "app.getSceneService().createNewScene(\"New Scene\");",
-                "refreshSelectBox();"
-        );
+        assertTrue(source.contains("sceneSelectBox.getList().addListener(new ClickListener()"));
+        assertFalse(source.contains("setRequired(false)"));
+        assertFalse(source.contains("getSelection().clear()"));
+        assertFalse(source.contains("lastValue"));
+        assertFalse(source.contains("SceneSwitchWorkflow"));
     }
 
-    private static String readSource() throws Exception {
-        return Files.readString(SOURCE_PATH, StandardCharsets.UTF_8);
+    private static ProjectConfig project(String... names) {
+        ProjectConfig config = new ProjectConfig();
+        for (String name : names) config.createSceneMeta(name);
+        return config;
     }
 
-    private static void assertOrdered(String source, String... fragments) {
-        int previous = -1;
-        for (String fragment : fragments) {
-            int index = source.indexOf(fragment, previous + 1);
-            assertTrue("Missing or out-of-order fragment: " + fragment, index > previous);
-            previous = index;
-        }
-    }
-
-    private static String methodBody(String source, String signaturePrefix) {
-        int signatureIndex = source.indexOf(signaturePrefix);
-        if (signatureIndex < 0) throw new AssertionError("Method signature not found: " + signaturePrefix);
-
-        int bodyStart = source.indexOf('{', signatureIndex);
-        if (bodyStart < 0) throw new AssertionError("Method body start not found: " + signaturePrefix);
-
-        int depth = 0;
-        for (int i = bodyStart; i < source.length(); i++) {
-            char c = source.charAt(i);
-            if (c == '{') depth++;
-            if (c == '}') {
-                depth--;
-                if (depth == 0) return source.substring(bodyStart + 1, i);
-            }
-        }
-        throw new AssertionError("Method body end not found: " + signaturePrefix);
+    private static SceneEditorDocument open(EditorDocumentManager documents,
+                                            ProjectConfig config,
+                                            String sceneName) {
+        String canonical = config.canonicalSceneTag(sceneName);
+        return documents.openScene(
+                canonical,
+                sceneName,
+                new SceneEditorContext(canonical, new StudioEditingModeService()));
     }
 }

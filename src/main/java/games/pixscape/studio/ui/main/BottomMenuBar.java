@@ -16,6 +16,10 @@ import com.kotcrab.vis.ui.VisUI;
 import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.EditorDocumentKey;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -23,6 +27,7 @@ import games.pixscape.studio.ui.preview.PreviewLauncher;
 import games.pixscape.studio.ui.preview.PreviewTarget;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 
 public class BottomMenuBar extends VisTable {
@@ -39,8 +44,7 @@ public class BottomMenuBar extends VisTable {
     private final VisCheckBox rulersVisibilityCheckBox;
     private final Button btnAddScene;
     private final Button btnDeleteScene;
-    private final SceneSwitchWorkflow sceneSwitchWorkflow;
-    private String lastValue = null;
+    private final VisTextButton centerCam;
     private boolean sceneControlsBusy;
 
     public static final float HEIGHT = 32;
@@ -59,6 +63,7 @@ public class BottomMenuBar extends VisTable {
         btnAddScene.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                if (!worldEditingAllowed()) return;
                 createNewScene();
             }
         });
@@ -66,6 +71,7 @@ public class BottomMenuBar extends VisTable {
         btnDeleteScene.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
+                if (!worldEditingAllowed()) return;
                 String sceneName = getSceneNameToDelete();
                 if (sceneName == null || sceneName.isBlank()) return;
                 showDeleteSceneDialog(sceneName);
@@ -77,13 +83,12 @@ public class BottomMenuBar extends VisTable {
         VisLabel panLabel = new VisLabel("Pan:  ");
         panFieldX = new VisLabel();
         panFieldY = new VisLabel();
-        VisTextButton centerCam = new VisTextButton("Center camera");
+        centerCam = new VisTextButton("Center camera");
         centerCam.setColor(CommonLayout.BUTTON_COLOR);
         centerCam.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                camera.position.set(0, 0, 0f);
-                camera.update();
+                app.centerActiveCanvasCamera();
             }
         });
         btnPreview = new VisTextButton("Preview");
@@ -113,44 +118,42 @@ public class BottomMenuBar extends VisTable {
             if (ev.sourceTag() == MY_TAG) return;
             refreshSelectBox();
         });
+        app.getEditorDocumentManager().addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentOpened(OpenEditorDocument document) {
+                if (document.type() == EditorDocumentType.SCENE) refreshSelectBox();
+            }
+
+            @Override public void documentActivated(OpenEditorDocument previous,
+                                                     OpenEditorDocument current) {
+                refreshSelectBox();
+            }
+
+            @Override public void documentClosed(OpenEditorDocument document) {
+                if (document.type() == EditorDocumentType.SCENE) refreshSelectBox();
+            }
+        });
         rulersVisibilityCheckBox = new VisCheckBox("Rulers");
         rulersVisibilityCheckBox.setChecked(true);
         rulersVisibilityCheckBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                app.getDockManager().setRulersVisible(rulersVisibilityCheckBox.isChecked());
+                if (!canvasNavigationAllowed()) return;
+                app.setActiveCanvasRulersVisible(rulersVisibilityCheckBox.isChecked());
             }
         });
 
         sceneSelectBox.setMaxListCount(10);
-        sceneSwitchWorkflow = new SceneSwitchWorkflow(
-                (targetScene, continuation, onCancel, onSaveFailure) ->
-                        app.runAfterCurrentSceneSaveDecision(
-                                "Unsaved Project",
-                                "Do you want to save before switching scenes?",
-                                continuation,
-                                onCancel,
-                                onSaveFailure
-                        ),
-                targetScene -> app.getSceneService().changeSceneNow(targetScene),
-                this::refreshSelectBox,
-                targetScene -> lastValue = targetScene,
-                throwable -> Dialogs.showOKDialog(
-                        getStage(),
-                        "Save failed",
-                        PreviewLaunchSupport.userMessageFor(throwable)
-                ),
-                ex -> Dialogs.showOKDialog(getStage(), "Scene switch failed", ex.getMessage()),
-                this::setSceneControlsBusy
-        );
         sceneSelectBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 if (event.getTarget() != sceneSelectBox) return;
-
-                String cur = sceneSelectBox.getSelected();
-                if (cur == null || cur.equals(lastValue)) return;
-                sceneSwitchWorkflow.request(cur);
+                requestSceneFromSelector(sceneSelectBox.getSelected());
+            }
+        });
+        sceneSelectBox.getList().addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                requestSceneFromSelector(sceneSelectBox.getList().getSelected());
             }
         });
 
@@ -170,6 +173,10 @@ public class BottomMenuBar extends VisTable {
         add(zoomValue).right().padRight(30);
         add(rulersVisibilityCheckBox).right().padRight(100);
         add(centerCam).width(120).right();
+
+        EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class,
+                event -> refreshWorldEditingAvailability());
+        refreshWorldEditingAvailability();
     }
 
     private void showDeleteSceneDialog(String sceneName) {
@@ -309,15 +316,64 @@ public class BottomMenuBar extends VisTable {
 
     private void setSceneControlsBusy(boolean busy) {
         sceneControlsBusy = busy;
-        sceneSelectBox.setDisabled(busy);
-        btnAddScene.setDisabled(busy);
-        updateDeleteSceneButtonState();
+        refreshWorldEditingAvailability();
+    }
+
+    private void requestSceneFromSelector(String sceneName) {
+        if (sceneControlsBusy) return;
+        try {
+            navigateSceneFromSelector(
+                    ProjectConfig.getInstance(),
+                    app.getEditorDocumentManager(),
+                    sceneSelectBox,
+                    items,
+                    app.getSceneService()::changeSceneNow,
+                    this::setSceneControlsBusy,
+                    sceneName);
+        } catch (RuntimeException ex) {
+            Dialogs.showOKDialog(getStage(), "Scene open failed", ex.getMessage());
+        }
+    }
+
+    static boolean navigateSceneFromSelector(ProjectConfig config,
+                                             EditorDocumentManager documents,
+                                             VisSelectBox<String> selector,
+                                             Array<String> targetItems,
+                                             Consumer<String> opener,
+                                             Consumer<Boolean> busyState,
+                                             String sceneName) {
+        if (config == null || documents == null || selector == null || targetItems == null
+                || opener == null || busyState == null
+                || sceneName == null || sceneName.isBlank()) return false;
+        EditorDocumentKey key = sceneDocumentKey(config, sceneName);
+        if (key == null) return false;
+        if (documents.find(key) != null) {
+            populateSceneSelector(selector, targetItems, config);
+            return false;
+        }
+
+        busyState.accept(true);
+        try {
+            opener.accept(sceneName);
+            return true;
+        } finally {
+            busyState.accept(false);
+            populateSceneSelector(selector, targetItems, config);
+        }
+    }
+
+    private static EditorDocumentKey sceneDocumentKey(ProjectConfig config, String sceneName) {
+        if (config == null || sceneName == null || sceneName.isBlank()) return null;
+        String canonicalSceneId = config.canonicalSceneTag(sceneName);
+        if (canonicalSceneId == null || canonicalSceneId.isBlank()) return null;
+        return new EditorDocumentKey(EditorDocumentType.SCENE, canonicalSceneId);
     }
 
     private void updateDeleteSceneButtonState() {
         ProjectConfig cfg = ProjectConfig.getInstance();
         boolean disabled =
                 sceneControlsBusy
+                        || !worldEditingAllowed()
                         || cfg == null
                         || cfg.getCurrentSceneName() == null
                         || cfg.getSceneNames().size <= 1;
@@ -325,37 +381,51 @@ public class BottomMenuBar extends VisTable {
         btnDeleteScene.setDisabled(disabled);
     }
 
-    public void refreshSelectBox() {
-        items.clear();
+    private boolean worldEditingAllowed() {
+        return app.getCanvas().getStudioEditingModeService().allowsWorldEditingActions();
+    }
 
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg != null) {
-            items.addAll(cfg.getSceneNames());
-        }
-
-        sceneSelectBox.getSelection().setProgrammaticChangeEvents(false);
-        sceneSelectBox.setItems(items);
-
-        if (cfg != null && cfg.getCurrentSceneMeta() != null) {
-            String curName = cfg.getCurrentSceneMeta().getName();
-            if (curName != null && items.contains(curName, false)) {
-                sceneSelectBox.getSelection().set(curName);
-                lastValue = curName;
-            } else if (items.size > 0) {
-                sceneSelectBox.getSelection().set(items.first());
-                lastValue = items.first();
-            } else {
-                lastValue = null;
-            }
-        } else if (items.size > 0) {
-            sceneSelectBox.getSelection().set(items.first());
-            lastValue = items.first();
-        } else {
-            lastValue = null;
-        }
-
-        sceneSelectBox.getSelection().setProgrammaticChangeEvents(true);
+    private void refreshWorldEditingAvailability() {
+        sceneSelectBox.setDisabled(sceneControlsBusy);
+        btnAddScene.setDisabled(sceneControlsBusy || !worldEditingAllowed());
+        centerCam.setDisabled(!canvasNavigationAllowed());
+        rulersVisibilityCheckBox.setDisabled(!canvasNavigationAllowed());
         updateDeleteSceneButtonState();
+    }
+
+    private boolean canvasNavigationAllowed() {
+        return worldEditingAllowed() || app.hudCanvasActive();
+    }
+
+    public void refreshSelectBox() {
+        populateSceneSelector(sceneSelectBox, items, ProjectConfig.getInstance());
+        updateDeleteSceneButtonState();
+    }
+
+    static void populateSceneSelector(VisSelectBox<String> selector,
+                                      Array<String> targetItems,
+                                      ProjectConfig config) {
+        targetItems.clear();
+
+        if (config != null) {
+            targetItems.addAll(config.getSceneNames());
+        }
+
+        selector.getSelection().setProgrammaticChangeEvents(false);
+        selector.setItems(targetItems);
+
+        if (config != null && config.getCurrentSceneMeta() != null) {
+            String curName = config.getCurrentSceneMeta().getName();
+            if (curName != null && targetItems.contains(curName, false)) {
+                selector.getSelection().set(curName);
+            } else if (targetItems.size > 0) {
+                selector.getSelection().set(targetItems.first());
+            }
+        } else if (targetItems.size > 0) {
+            selector.getSelection().set(targetItems.first());
+        }
+
+        selector.getSelection().setProgrammaticChangeEvents(true);
     }
 
 

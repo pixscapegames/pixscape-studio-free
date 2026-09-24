@@ -41,6 +41,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
         layers = new LayerService(
                 world, null, new HistoryIdRegistry(), identities);
         editingModes = new StudioEditingModeService();
+        editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         selection = new SelectionService(world, layers, editingModes);
 
         tiledLayer = world.create();

@@ -20,6 +20,9 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Scaling;
 import com.kotcrab.vis.ui.widget.*;
+import com.kotcrab.vis.ui.VisUI;
+import com.kotcrab.vis.ui.widget.file.FileChooser;
+import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
 import games.pixscape.runtime.helper.RuntimeFs;
@@ -36,11 +39,13 @@ import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.gameobject.GameObjectAssetItem;
 import games.pixscape.studio.service.gameobject.GameObjectBrowserService;
 import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
+import games.pixscape.studio.service.hud.HudScreenDeletionService;
 import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioFileChooser;
 import games.pixscape.studio.ui.property.entityproperties.AnimationClipsDialog;
 
 import java.util.function.Consumer;
@@ -67,6 +72,7 @@ public final class AssetsThumbsView extends VisTable {
     // state
     private final Array<AssetNode> currentAssets = new Array<>();
     private Consumer<AssetNode> selectionListener;
+    private Consumer<AssetNode> openListener;
     private static Cursor currentCursor;
 
     private float tileSize = 48f;
@@ -81,6 +87,7 @@ public final class AssetsThumbsView extends VisTable {
 
     private PopupMenu activeAssetMenu;
     private final GameObjectBrowserService gameObjectBrowserService = new GameObjectBrowserService();
+    private final HudScreenDeletionService hudScreenDeletionService = new HudScreenDeletionService();
 
     private TiledAnimationFrameRemoveListener tiledAnimationFrameRemoveListener;
     private TiledAnimationFrameDurationChangeListener tiledAnimationFrameDurationChangeListener;
@@ -151,6 +158,10 @@ public final class AssetsThumbsView extends VisTable {
 
     public void setTileSelectionListener(Consumer<AssetNode> listener) {
         this.selectionListener = listener;
+    }
+
+    public void setOpenListener(Consumer<AssetNode> listener) {
+        this.openListener = listener;
     }
 
     public void setCreateTiledAnimationListener(Runnable listener) {
@@ -309,6 +320,15 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
+        if (folder.root == AssetNode.Root.HUD) {
+            currentLayoutStrategy = galleryLayoutStrategy;
+            currentLayoutStrategy.configureScrollPane(scroll);
+            loadHudScreens();
+            layoutDirty = true;
+            rebuildGrid();
+            return;
+        }
+
         if (folder.kind != AssetNode.Kind.FOLDER) {
             currentLayoutStrategy = galleryLayoutStrategy;
             currentLayoutStrategy.configureScrollPane(scroll);
@@ -343,6 +363,11 @@ public final class AssetsThumbsView extends VisTable {
             );
             currentAssets.add(node);
         }
+    }
+
+    private void loadHudScreens() {
+        currentAssets.addAll(games.pixscape.studio.service.hud.HudScreenAssetBrowser.scan(
+                StudioFs.requireStudioProjectDir(ProjectConfig.getInstance())));
     }
 
     private void loadTiledAnimations() {
@@ -601,6 +626,9 @@ public final class AssetsThumbsView extends VisTable {
             case PARTICLES -> StudioFs.DIR_ORIG_EFFECTS + "/" + node.path;
             case TILES -> StudioFs.DIR_ORIG_TILES + "/" + node.path;
             case GAME_OBJECTS -> null;
+            case HUD -> null;
+            case FONTS -> StudioFs.DIR_ORIG_FONTS + "/" + node.path;
+            case SKINS -> StudioFs.DIR_ORIG_SKINS + "/" + node.path;
         };
     }
 
@@ -616,6 +644,7 @@ public final class AssetsThumbsView extends VisTable {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 handleAssetSelectionClick(node);
+                if (getTapCount() == 2 && openListener != null) openListener.accept(node);
                 event.stop();
             }
         });
@@ -765,6 +794,32 @@ public final class AssetsThumbsView extends VisTable {
 
             case GAME_OBJECT -> {
                 contentActor = buildGameObjectThumb(node);
+            }
+
+            case HUD_SCREEN -> {
+                VisLabel name = new VisLabel("HUD\n" + node.name);
+                name.setAlignment(Align.center);
+                name.setWrap(true);
+                contentActor = name;
+            }
+
+            case FONT -> {
+                VisLabel name = new VisLabel("FONT\n" + node.name);
+                name.setAlignment(Align.center);
+                name.setWrap(true);
+                contentActor = name;
+            }
+
+            case SKIN -> {
+                VisLabel name = new VisLabel(node.name);
+                name.setAlignment(Align.center);
+                name.setWrap(true);
+                VisImage icon = new VisImage(VisUI.getSkin().getDrawable("icon-file-text"));
+                icon.setScaling(Scaling.fit);
+                VisTable preview = new VisTable(false);
+                preview.add(icon).size(24f).padBottom(2f).row();
+                preview.add(name).growX();
+                contentActor = preview;
             }
 
             default -> {
@@ -1130,7 +1185,7 @@ public final class AssetsThumbsView extends VisTable {
         if (node == null) return false;
 
         return switch (node.kind) {
-            case IMAGE, ANIMATION, PARTICLE, GAME_OBJECT, TILED_ANIMATION -> true;
+            case IMAGE, ANIMATION, PARTICLE, GAME_OBJECT, TILED_ANIMATION, HUD_SCREEN, FONT, SKIN -> true;
             default -> false;
         };
     }
@@ -1154,13 +1209,27 @@ public final class AssetsThumbsView extends VisTable {
             menu.addItem(editClips);
         }
 
+        if (node.kind == AssetNode.Kind.SKIN || node.kind == AssetNode.Kind.FONT) {
+            MenuItem reimport = new MenuItem("Reimport...");
+            reimport.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    if (node.kind == AssetNode.Kind.FONT) showReimportFontChooser(node);
+                    else showReimportSkinChooser(node);
+                }
+            });
+            menu.addItem(reimport);
+        }
+
         Array<AssetNode> deleteTargets = deleteTargetsFor(node);
         String deleteLabel = deleteLabelFor(node, deleteTargets);
         MenuItem delete = new MenuItem(deleteLabel);
         delete.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                if (node.kind == AssetNode.Kind.GAME_OBJECT) {
+                if (node.kind == AssetNode.Kind.HUD_SCREEN) {
+                    showDeleteHudScreenDialog(node);
+                } else if (node.kind == AssetNode.Kind.GAME_OBJECT) {
                     showDeleteGameObjectDialog(deleteTargets);
                 } else if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
                     if (tiledAnimationDeleteListener != null) {
@@ -1176,6 +1245,72 @@ public final class AssetsThumbsView extends VisTable {
         menu.showMenu(getStage(), stageX, stageY);
 
         activeAssetMenu = menu;
+    }
+
+    private void showReimportSkinChooser(AssetNode node) {
+        if (node == null || node.assetId <= 0 || getStage() == null) return;
+        ProjectConfig project = ProjectConfig.getInstance();
+        FileHandle projectDir;
+        try {
+            projectDir = StudioFs.requireStudioProjectDir(project);
+        } catch (RuntimeException failure) {
+            showSimpleErrorDialog(failure.getMessage() != null
+                    ? failure.getMessage() : "Skin reimport is unavailable.");
+            return;
+        }
+        int assetId = node.assetId;
+        String sourceRelPath = node.assetInfo != null
+                ? node.assetInfo.sourcePath() : buildSourceRelPath(node);
+        FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setSize(900, 650);
+        chooser.setListener(new FileChooserAdapter() {
+            @Override
+            public void selected(Array<FileHandle> files) {
+                if (files == null || files.size == 0) return;
+                try {
+                    app.getSceneService().reimportScene2dSkinAsset(
+                            assetId, sourceRelPath, projectDir, files.first());
+                } catch (RuntimeException failure) {
+                    showSimpleErrorDialog(failure.getMessage() != null
+                            ? failure.getMessage() : "Skin reimport failed.");
+                }
+            }
+        });
+        getStage().addActor(chooser.fadeIn());
+    }
+
+    private void showReimportFontChooser(AssetNode node) {
+        if (node == null || node.assetId <= 0 || getStage() == null) return;
+        ProjectConfig project = ProjectConfig.getInstance();
+        FileHandle projectDir;
+        try {
+            projectDir = StudioFs.requireStudioProjectDir(project);
+        } catch (RuntimeException failure) {
+            showSimpleErrorDialog(failure.getMessage() != null
+                    ? failure.getMessage() : "Font reimport is unavailable.");
+            return;
+        }
+        int assetId = node.assetId;
+        String sourceRelPath = node.assetInfo != null
+                ? node.assetInfo.sourcePath() : buildSourceRelPath(node);
+        FileChooser chooser = new StudioFileChooser(FileChooser.Mode.OPEN);
+        chooser.setMultiSelectionEnabled(false);
+        chooser.setSize(900, 650);
+        chooser.setListener(new FileChooserAdapter() {
+            @Override
+            public void selected(Array<FileHandle> files) {
+                if (files == null || files.size == 0) return;
+                try {
+                    app.getSceneService().reimportBitmapFontAsset(
+                            assetId, sourceRelPath, projectDir, files.first());
+                } catch (RuntimeException failure) {
+                    showSimpleErrorDialog(failure.getMessage() != null
+                            ? failure.getMessage() : "Font reimport failed.");
+                }
+            }
+        });
+        getStage().addActor(chooser.fadeIn());
     }
 
     private Array<AssetNode> deleteTargetsFor(AssetNode node) {
@@ -1205,6 +1340,7 @@ public final class AssetsThumbsView extends VisTable {
 
         return switch (node.kind) {
             case GAME_OBJECT -> "Delete Game Object";
+            case HUD_SCREEN -> "Delete HUD Screen \"" + node.name + "\"";
             case TILED_ANIMATION -> "Delete";
             default -> "Delete \"" + node.name + "\"";
         };
@@ -1226,6 +1362,8 @@ public final class AssetsThumbsView extends VisTable {
             case IMAGE -> first.root == AssetNode.Root.TILES ? "tiles" : "images";
             case ANIMATION -> "animations";
             case PARTICLE -> "particle effects";
+            case FONT -> "fonts";
+            case SKIN -> "skins";
             case GAME_OBJECT -> "Game Objects";
             default -> "assets";
         };
@@ -1349,13 +1487,134 @@ public final class AssetsThumbsView extends VisTable {
         dialog.show(getStage());
     }
 
+    private void showDeleteHudScreenDialog(AssetNode node) {
+        if (node == null || node.kind != AssetNode.Kind.HUD_SCREEN) return;
+
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        FileHandle projectDir;
+        try {
+            projectDir = StudioFs.requireStudioProjectDir(cfg);
+            HudScreenDeletionService.UsageReport usage =
+                    hudScreenDeletionService.inspectUsage(projectDir, cfg, node.path);
+            if (usage.used()) {
+                showHudScreenInUseDialog(node, usage);
+                return;
+            }
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            showHudScreenDeleteError(failure);
+            return;
+        }
+
+        boolean dirty = app != null && app.getEditorDocumentManager() != null
+                && app.getEditorDocumentManager().find(new games.pixscape.studio.document.EditorDocumentKey(
+                games.pixscape.studio.document.EditorDocumentType.HUD_SCREEN, node.path))
+                instanceof games.pixscape.studio.document.HudScreenEditorDocument document
+                && document.isDirty();
+        VisDialog dialog = new StudioDialog("Delete HUD Screen") {
+            @Override
+            protected void result(Object object) {
+                if (!Boolean.TRUE.equals(object)) return;
+                try {
+                    // The confirmation may have been visible while another Scene was edited.
+                    // delete() intentionally checks persisted and live references again here.
+                    HudScreenDeletionService.DeletionResult deletion =
+                            hudScreenDeletionService.delete(projectDir, cfg, node.path);
+                    completeHudScreenDeletion(deletion,
+                            () -> closeDeletedHudDocument(node.path),
+                            () -> {
+                                if (currentFolder != null) showForNode(currentFolder);
+                            },
+                            AssetsThumbsView.this::showHudScreenCleanupWarning);
+                } catch (HudScreenDeletionService.HudScreenInUseException inUse) {
+                    showHudScreenInUseDialog(node, inUse.usage());
+                } catch (IllegalArgumentException | IllegalStateException failure) {
+                    showHudScreenDeleteError(failure);
+                }
+            }
+        };
+        String message = "Delete HUD Screen \"" + node.name + "\"?\n\nThis action cannot be undone.";
+        if (dirty) {
+            message += "\n\nUnsaved changes in its open HUD document will be discarded.";
+        }
+        dialog.text(message);
+        dialog.button("Delete", true);
+        dialog.button("Cancel", false);
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        dialog.show(getStage());
+    }
+
+    private void showHudScreenInUseDialog(AssetNode node, HudScreenDeletionService.UsageReport usage) {
+        VisDialog dialog = new StudioDialog("HUD Screen In Use");
+        VisLabel explanation = new VisLabel("Cannot delete HUD Screen \"" + node.name
+                + "\" because it is still used by the following scene associations:");
+        explanation.setWrap(true);
+        dialog.getContentTable().add(explanation).width(440f).left().row();
+
+        VisTable references = new VisTable();
+        references.top().left();
+        for (HudScreenDeletionService.SceneReference reference : usage.references()) {
+            references.add(new VisLabel("• " + reference.sceneName() + " — "
+                    + reference.referenceType())).left().expandX().fillX().row();
+        }
+        VisScrollPane scroll = new VisScrollPane(references);
+        scroll.setFadeScrollBars(false);
+        dialog.getContentTable().add(scroll).width(440f).height(Math.min(220f,
+                Math.max(52f, usage.references().size() * 26f))).padTop(10f).row();
+        dialog.button("OK");
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        dialog.show(getStage());
+    }
+
+    private void showHudScreenDeleteError(RuntimeException failure) {
+        VisDialog dialog = new StudioDialog("Delete HUD Screen");
+        String message = failure.getMessage();
+        dialog.text(message != null && !message.isBlank()
+                ? message
+                : "HUD Screen deletion could not be completed.");
+        dialog.button("OK");
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        dialog.show(getStage());
+    }
+
+    private void showHudScreenCleanupWarning(HudScreenDeletionService.DeletionResult deletion) {
+        VisDialog dialog = new StudioDialog("HUD Screen Deleted");
+        StringBuilder message = new StringBuilder("The HUD Screen was deleted, but some temporary files remain:");
+        for (String path : deletion.temporaryFilesRemaining()) {
+            message.append("\n- ").append(path);
+        }
+        dialog.text(message.toString());
+        dialog.button("OK");
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        dialog.show(getStage());
+    }
+
+    static void completeHudScreenDeletion(HudScreenDeletionService.DeletionResult deletion,
+                                          Runnable closeDocument, Runnable refreshAssets,
+                                          Consumer<HudScreenDeletionService.DeletionResult> showWarning) {
+        if (deletion == null || !deletion.deletionAcquired()) {
+            throw new IllegalArgumentException("A completed HUD Screen deletion is required.");
+        }
+        closeDocument.run();
+        refreshAssets.run();
+        if (deletion.hasCleanupWarning()) showWarning.accept(deletion);
+    }
+
+    private void closeDeletedHudDocument(String screenId) {
+        if (app == null || app.getEditorDocumentManager() == null) return;
+        app.getEditorDocumentManager().closeNow(new games.pixscape.studio.document.EditorDocumentKey(
+                games.pixscape.studio.document.EditorDocumentType.HUD_SCREEN, screenId));
+    }
+
     private Array<DeleteAssetTarget> resolveDeleteTargets(Array<AssetNode> nodes, AssetMetaDatabase db) {
         Array<DeleteAssetTarget> targets = new Array<>();
-        AssetUsageScanner usageScanner = new AssetUsageScanner(
-                app.getCanvas().getEcsWorld(),
-                ProjectConfig.getInstance(),
-                db
-        );
 
         for (AssetNode node : nodes) {
             String sourceRelPath = node.assetInfo != null
@@ -1372,6 +1631,18 @@ public final class AssetsThumbsView extends VisTable {
                 continue;
             }
 
+            AssetMeta meta = db.findById(assetId);
+            if (meta == null) {
+                Gdx.app.error("AssetDelete", "Asset metadata not found for " + sourceRelPath);
+                continue;
+            }
+            com.artemis.World usageWorld = meta.type() == AssetType.FONT || meta.type() == AssetType.SKIN
+                    ? null : app.getCanvas().getEcsWorld();
+            AssetUsageScanner usageScanner = new AssetUsageScanner(
+                    usageWorld, ProjectConfig.getInstance(), db,
+                    app.getEditorDocumentManager().documents().stream()
+                            .filter(games.pixscape.studio.document.HudScreenEditorDocument.class::isInstance)
+                            .map(games.pixscape.studio.document.HudScreenEditorDocument.class::cast).toList());
             AssetUsageScanner.AssetUsageReport report = usageScanner.scanAsset(assetId);
 
             targets.add(new DeleteAssetTarget(node, assetId, sourceRelPath, report));
@@ -1523,6 +1794,17 @@ public final class AssetsThumbsView extends VisTable {
 
     public AssetNode getSelectedNode() {
         return selectedNode;
+    }
+
+    void selectHudScreen(String screenId) {
+        for (AssetNode node : currentAssets) {
+            if (node.kind == AssetNode.Kind.HUD_SCREEN
+                    && java.util.Objects.equals(node.path, screenId)) {
+                clearMultiSelection();
+                setSelectedNode(node);
+                return;
+            }
+        }
     }
 
     private void refreshSelectionVisuals() {
@@ -1679,6 +1961,12 @@ public final class AssetsThumbsView extends VisTable {
                 p.tileAnimationId = data.tileAnimationId;
                 buildTiledAnimationGhost(p, data);
             }
+            case HUD_SCREEN -> {
+                p.type = "hud-screen";
+                p.path = data.path;
+                p.guid = data.name;
+                buildHudScreenGhost(p);
+            }
             default -> {
                 return null;
             }
@@ -1697,6 +1985,9 @@ public final class AssetsThumbsView extends VisTable {
             case PARTICLES -> StudioFs.DIR_ORIG_EFFECTS + "/" + data.path;
             case TILES -> StudioFs.DIR_ORIG_TILES + "/" + data.path;
             case GAME_OBJECTS -> null;
+            case HUD -> null;
+            case FONTS -> StudioFs.DIR_ORIG_FONTS + "/" + data.path;
+            case SKINS -> StudioFs.DIR_ORIG_SKINS + "/" + data.path;
         };
 
         if (sourceRelPath == null) return -1;
@@ -1717,6 +2008,9 @@ public final class AssetsThumbsView extends VisTable {
             case PARTICLES -> AssetType.PARTICLE;
             case TILES -> AssetType.TILE;
             case GAME_OBJECTS -> null;
+            case HUD -> null;
+            case FONTS -> AssetType.FONT;
+            case SKINS -> AssetType.SKIN;
         };
     }
 
@@ -1874,9 +2168,14 @@ public final class AssetsThumbsView extends VisTable {
             case ANIMATIONS -> projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS).child(data.path);
             case PARTICLES -> null;
             case GAME_OBJECTS -> null;
+            case HUD -> null;
+            case FONTS -> null;
+            case SKINS -> null;
         };
         if (file != null && file.exists()) {
             Pixmap pm = new Pixmap(file);
+            p.imageWidth = pm.getWidth();
+            p.imageHeight = pm.getHeight();
             p.ghostPixmap = pm;
             p.hotspotX = Math.min(6, pm.getWidth() - 1);
             p.hotspotY = Math.min(6, pm.getHeight() - 1);
@@ -1894,6 +2193,23 @@ public final class AssetsThumbsView extends VisTable {
         p.ghostPixmap = pm;
         p.hotspotX = 8;
         p.hotspotY = 8;
+        setGhostCursor(p);
+    }
+
+    private void buildHudScreenGhost(DragPayload p) {
+        Pixmap pm = new Pixmap(48, 48, Pixmap.Format.RGBA8888);
+        pm.setColor(0f, 0f, 0f, 0f);
+        pm.fill();
+        pm.setColor(0.12f, 0.13f, 0.16f, 0.9f);
+        pm.fillRectangle(4, 4, 40, 40);
+        pm.setColor(0.55f, 0.78f, 1f, 1f);
+        pm.drawRectangle(4, 4, 40, 40);
+        pm.drawRectangle(8, 9, 32, 8);
+        pm.drawRectangle(8, 21, 20, 18);
+        pm.drawRectangle(31, 21, 9, 18);
+        p.ghostPixmap = pm;
+        p.hotspotX = 6;
+        p.hotspotY = 6;
         setGhostCursor(p);
     }
 

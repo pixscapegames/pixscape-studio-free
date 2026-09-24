@@ -3,6 +3,8 @@ package games.pixscape.studio.ui.preview;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -41,6 +43,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     private StudioFrameProfiler frameProfiler;
     private FrameSystemProfiler systemProfiler;
     private Stage uiStage;
+    private PreviewInputAdapter previewInput;
     private RenderStatsOverlay statsOverlay;
     private PreviewLoadingUi loadingUi;
     private SceneLoadHandle sceneLoad;
@@ -112,6 +115,9 @@ public final class PreviewWindow extends ApplicationAdapter {
         box2d = engine.getBox2dWorldService();
 
         uiStage = new StudioStage(new ScreenViewport());
+        previewInput = new PreviewInputAdapter();
+        Gdx.input.setInputProcessor(new InputMultiplexer(
+                engine.getHudInputProcessor(), previewInput, uiStage, dragSystem.inputProcessor()));
 
         statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats());
 
@@ -220,7 +226,7 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void pause() {
-
+        if (dragSystem != null) dragSystem.cancelInput();
     }
 
     @Override
@@ -267,6 +273,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     @Override
     public void dispose() {
         sceneLoad = null;
+        if (dragSystem != null) dragSystem.cancelInput();
         if (loadingUi != null) {
             loadingUi.dispose();
             loadingUi = null;
@@ -285,6 +292,7 @@ public final class PreviewWindow extends ApplicationAdapter {
             engine.dispose();
             engine = null;
         }
+        dragSystem = null;
         PreviewLauncher.notifyClosed();
     }
 
@@ -297,6 +305,8 @@ public final class PreviewWindow extends ApplicationAdapter {
         OrthographicCamera cam = engine.getCamera();
         if (cam == null) return;
 
+        previewInput.synchronizeHudKeyboardFocus(engine.hasHudKeyboardFocus());
+
         float safeDt = Math.min(dt, CAMERA_DT_MAX);
 
         float dx = 0f;
@@ -306,25 +316,25 @@ public final class PreviewWindow extends ApplicationAdapter {
         // the larger the zoom (zoomed out), the more world units are traversed.
         float moveSpeed = CAMERA_PAN_SPEED_SCREEN * cam.zoom;
 
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) dx -= moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) dx += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.UP)) dy += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) dy -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.LEFT)) dx -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.RIGHT)) dx += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.UP)) dy += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.DOWN)) dy -= moveSpeed * safeDt;
 
         cam.position.x += dx;
         cam.position.y += dy;
 
         float zoomDelta = 0f;
-        if (Gdx.input.isKeyPressed(Input.Keys.PLUS) || Gdx.input.isKeyPressed(Input.Keys.EQUALS)) {
+        if (previewInput.isPressed(Input.Keys.PLUS) || previewInput.isPressed(Input.Keys.EQUALS)) {
             zoomDelta -= CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.MINUS)) {
+        if (previewInput.isPressed(Input.Keys.MINUS)) {
             zoomDelta += CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_ADD)) {
+        if (previewInput.isPressed(Input.Keys.NUMPAD_ADD)) {
             zoomDelta -= CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_SUBTRACT)) {
+        if (previewInput.isPressed(Input.Keys.NUMPAD_SUBTRACT)) {
             zoomDelta += CAMERA_ZOOM_SPEED * safeDt;
         }
 
@@ -339,7 +349,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     }
 
     private void handleBenchToggle() {
-        if (!Gdx.input.isKeyJustPressed(Input.Keys.F9)) return;
+        if (!previewInput.consumeBenchToggle()) return;
 
         benchMode = !benchMode;
 
@@ -353,6 +363,47 @@ public final class PreviewWindow extends ApplicationAdapter {
 
         // Studio: bench => VSync OFF (otherwise Studio can cap the preview)
         PreviewLauncher.setStudioVSync(!benchMode);
+    }
+
+    static final class PreviewInputAdapter extends InputAdapter {
+        private final com.badlogic.gdx.utils.IntSet pressed = new com.badlogic.gdx.utils.IntSet();
+        private boolean benchToggle;
+
+        @Override public boolean keyDown(int keycode) {
+            if (!isPreviewKey(keycode)) return false;
+            if (keycode == Input.Keys.F9) benchToggle = true;
+            else pressed.add(keycode);
+            return true;
+        }
+
+        @Override public boolean keyUp(int keycode) {
+            if (!isPreviewKey(keycode)) return false;
+            pressed.remove(keycode);
+            return true;
+        }
+
+        boolean isPressed(int keycode) {
+            if (!Gdx.input.isKeyPressed(keycode)) pressed.remove(keycode);
+            return pressed.contains(keycode);
+        }
+
+        void synchronizeHudKeyboardFocus(boolean focused) {
+            if (focused) pressed.clear();
+        }
+
+        boolean consumeBenchToggle() {
+            boolean requested = benchToggle;
+            benchToggle = false;
+            return requested;
+        }
+
+        private static boolean isPreviewKey(int keycode) {
+            return keycode == Input.Keys.LEFT || keycode == Input.Keys.RIGHT
+                    || keycode == Input.Keys.UP || keycode == Input.Keys.DOWN
+                    || keycode == Input.Keys.PLUS || keycode == Input.Keys.EQUALS
+                    || keycode == Input.Keys.MINUS || keycode == Input.Keys.NUMPAD_ADD
+                    || keycode == Input.Keys.NUMPAD_SUBTRACT || keycode == Input.Keys.F9;
+        }
     }
 
     private void snapCameraToPixelGrid(OrthographicCamera cam) {

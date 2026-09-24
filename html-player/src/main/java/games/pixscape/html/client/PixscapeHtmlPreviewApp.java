@@ -39,6 +39,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
     private Stage uiStage;
     private SpriteBatch uiBatch;
     private RenderStatsOverlay statsOverlay;
+    private PreviewInputAdapter previewInput;
 
     private boolean benchMode;
     private final FrameTimePercentiles frameTimes = new FrameTimePercentiles(600);
@@ -89,7 +90,10 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         box2d = engine.getBox2dWorldService();
         uiBatch = new SpriteBatch();
         uiStage = new Stage(new ScreenViewport(), uiBatch);
-        Gdx.input.setInputProcessor(new InputMultiplexer(new PreviewInputAdapter(), uiStage));
+        previewInput = new PreviewInputAdapter();
+        Gdx.input.setInputProcessor(new InputMultiplexer(
+                engine.getHudInputProcessor(), previewInput, uiStage,
+                dragSystem.inputProcessor()));
         statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats());
         statsOverlay.setEnabled(false);
         benchMode = false;
@@ -180,6 +184,11 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
     }
 
     @Override
+    public void pause() {
+        if (dragSystem != null) dragSystem.cancelInput();
+    }
+
+    @Override
     public void resize(int width, int height) {
         if (loadingUi != null) loadingUi.resize(width, height);
         if (engine != null) engine.resize(width, height);
@@ -189,6 +198,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
     @Override
     public void dispose() {
         sceneLoad = null;
+        if (dragSystem != null) dragSystem.cancelInput();
         if (loadingUi != null) {
             loadingUi.dispose();
             loadingUi = null;
@@ -209,26 +219,28 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
             engine.dispose();
             engine = null;
         }
+        dragSystem = null;
     }
 
     private void handleCameraControls(float dt) {
         OrthographicCamera cam = engine.getCamera();
         if (cam == null) return;
+        previewInput.synchronizeHudKeyboardFocus(engine.hasHudKeyboardFocus());
         float safeDt = Math.min(dt, CAMERA_DT_MAX);
         float moveSpeed = CAMERA_PAN_SPEED_SCREEN * cam.zoom;
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) cam.position.x -= moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) cam.position.x += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.UP)) cam.position.y += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) cam.position.y -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.LEFT)) cam.position.x -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.RIGHT)) cam.position.x += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.UP)) cam.position.y += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.DOWN)) cam.position.y -= moveSpeed * safeDt;
 
         float zoomDelta = 0f;
-        if (Gdx.input.isKeyPressed(Input.Keys.PLUS)
-                || Gdx.input.isKeyPressed(Input.Keys.EQUALS)
-                || Gdx.input.isKeyPressed(Input.Keys.NUMPAD_ADD)) {
+        if (previewInput.isPressed(Input.Keys.PLUS)
+                || previewInput.isPressed(Input.Keys.EQUALS)
+                || previewInput.isPressed(Input.Keys.NUMPAD_ADD)) {
             zoomDelta -= CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.MINUS)
-                || Gdx.input.isKeyPressed(Input.Keys.NUMPAD_SUBTRACT)) {
+        if (previewInput.isPressed(Input.Keys.MINUS)
+                || previewInput.isPressed(Input.Keys.NUMPAD_SUBTRACT)) {
             zoomDelta += CAMERA_ZOOM_SPEED * safeDt;
         }
         cam.zoom = Math.max(CAMERA_ZOOM_MIN, Math.min(CAMERA_ZOOM_MAX, cam.zoom + zoomDelta));
@@ -236,26 +248,49 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
     }
 
     private void handleBenchToggle() {
-        if (!Gdx.input.isKeyJustPressed(Input.Keys.F9)) return;
+        if (!previewInput.consumeBenchToggle()) return;
         benchMode = !benchMode;
         if (statsOverlay != null) statsOverlay.setEnabled(benchMode);
         frameTimes.reset();
     }
 
     private static final class PreviewInputAdapter extends InputAdapter {
+        private final com.badlogic.gdx.utils.IntSet pressed = new com.badlogic.gdx.utils.IntSet();
+        private boolean benchToggle;
+
         @Override
         public boolean keyDown(int keycode) {
-            return isPreviewKey(keycode);
+            if (!isPreviewKey(keycode)) return false;
+            if (keycode == Input.Keys.F9) benchToggle = true;
+            else pressed.add(keycode);
+            return true;
         }
 
         @Override
         public boolean keyUp(int keycode) {
-            return isPreviewKey(keycode);
+            if (!isPreviewKey(keycode)) return false;
+            pressed.remove(keycode);
+            return true;
         }
 
         @Override
         public boolean scrolled(float amountX, float amountY) {
             return true;
+        }
+
+        boolean isPressed(int keycode) {
+            if (!Gdx.input.isKeyPressed(keycode)) pressed.remove(keycode);
+            return pressed.contains(keycode);
+        }
+
+        void synchronizeHudKeyboardFocus(boolean focused) {
+            if (focused) pressed.clear();
+        }
+
+        boolean consumeBenchToggle() {
+            boolean requested = benchToggle;
+            benchToggle = false;
+            return requested;
         }
 
         private static boolean isPreviewKey(int keycode) {

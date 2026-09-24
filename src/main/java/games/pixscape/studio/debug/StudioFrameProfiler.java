@@ -110,20 +110,6 @@ public final class StudioFrameProfiler {
         phaseNs[phaseId] += Math.max(0L, clock.nanoTime() - startNs);
     }
 
-    public long phaseDurationNs(int phaseId) {
-        if (!enabled || phaseId < 0 || phaseId >= phaseNs.length) return 0L;
-        return phaseNs[phaseId];
-    }
-
-    public long currentFrameElapsedNs() {
-        if (!enabled || !frameOpen) return 0L;
-        return Math.max(0L, clock.nanoTime() - frameStartNs);
-    }
-
-    long nowNs() {
-        return enabled ? clock.nanoTime() : 0L;
-    }
-
     public void endFrame() {
         if (!enabled || !frameOpen) return;
         frameOpen = false;

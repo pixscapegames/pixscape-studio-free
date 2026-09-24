@@ -110,6 +110,30 @@ public class ImmediateLayerCreationTest {
     }
 
     @Test
+    public void hudSelectionCreatesWorldLayerAtTopWithoutChangingExistingOrder() {
+        try (Fixture fixture = new Fixture()) {
+            int bottom = fixture.addLayer("Bottom");
+            int top = fixture.addLayer("Top");
+            AtomicInteger selected = new AtomicInteger(bottom);
+
+            int insertionIndex = LayersPanel.insertionIndexForNewLayer(
+                    fixture.layers, bottom, LayersPanel.EntryKind.HUD);
+            fixture.history.execute(new CreateLayerCommand(
+                    fixture.layers, insertionIndex, "New Layer", bottom, selected::set));
+
+            assertEquals(2, insertionIndex);
+            assertEquals(bottom, fixture.layers.getLayerEntity(0));
+            assertEquals(top, fixture.layers.getLayerEntity(1));
+            assertEquals(selected.get(), fixture.layers.getLayerEntity(2));
+
+            fixture.history.undo();
+            assertEquals(bottom, selected.get());
+            assertEquals(bottom, fixture.layers.getLayerEntity(0));
+            assertEquals(top, fixture.layers.getLayerEntity(1));
+        }
+    }
+
+    @Test
     public void productionUiHasOneImmediateCreationPathAndNoDialogOrRequest() throws Exception {
         Path sourceRoot = Path.of("src/main/java");
         String layersPanel = Files.readString(sourceRoot.resolve(

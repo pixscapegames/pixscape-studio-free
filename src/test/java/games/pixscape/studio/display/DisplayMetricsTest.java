@@ -42,10 +42,29 @@ public class DisplayMetricsTest {
 
         metrics.update(0, 0, 0, 0);
 
+        assertEquals(0, metrics.logicalWidth());
+        assertEquals(0, metrics.logicalHeight());
+        assertEquals(0, metrics.framebufferWidth());
+        assertEquals(0, metrics.framebufferHeight());
         assertEquals(2f, metrics.scaleX(), EPSILON);
         assertEquals(2f, metrics.scaleY(), EPSILON);
         assertTrue(Float.isFinite(metrics.scaleX()));
         assertTrue(Float.isFinite(metrics.scaleY()));
+    }
+
+    @Test
+    public void validInvalidValidLifecycleRecoversCurrentDimensions() {
+        DisplayMetrics metrics = metrics(1920, 1080, 2880, 1620);
+
+        metrics.update(0, 0, 0, 0);
+        metrics.update(1600, 900, 3200, 1800);
+
+        assertEquals(1600, metrics.logicalWidth());
+        assertEquals(900, metrics.logicalHeight());
+        assertEquals(3200, metrics.framebufferWidth());
+        assertEquals(1800, metrics.framebufferHeight());
+        assertEquals(2f, metrics.scaleX(), EPSILON);
+        assertEquals(2f, metrics.scaleY(), EPSILON);
     }
 
     @Test

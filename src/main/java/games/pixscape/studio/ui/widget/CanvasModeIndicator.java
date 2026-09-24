@@ -9,13 +9,14 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.StudioEditingMode;
 import games.pixscape.studio.service.StudioEditingModeService;
 
-/** Stable, non-interactive canvas overlay showing the authoritative Studio editing mode. */
+/** Decorative canvas overlay showing the authoritative Studio editing mode. */
 public final class CanvasModeIndicator extends VisTable implements Disposable {
     private static final String NORMAL_BACKGROUND = "canvas-mode-background-normal";
     private static final String SPECIALIZED_BACKGROUND = "canvas-mode-background";
 
     private final VisTable content = new VisTable();
     private final VisLabel label = new VisLabel("", "canvas-mode-label");
+    private final StudioEditingModeService modeService;
     private StudioEditingMode mode;
     private boolean tiledCursorValid;
     private int tiledCursorGX;
@@ -26,6 +27,7 @@ public final class CanvasModeIndicator extends VisTable implements Disposable {
             event -> updateTiledCursor(event.valid(), event.gx(), event.gy());
 
     public CanvasModeIndicator(StudioEditingModeService modeService) {
+        this.modeService = modeService;
         setTouchable(Touchable.disabled);
         content.setTouchable(Touchable.disabled);
         label.setTouchable(Touchable.disabled);
@@ -41,6 +43,7 @@ public final class CanvasModeIndicator extends VisTable implements Disposable {
     }
 
     private void update(StudioEditingMode mode) {
+        setVisible(modeService.hasActiveSceneDocument() || modeService.hasActiveHudDocument());
         if (this.mode != mode) tiledCursorValid = false;
         this.mode = mode;
         updateText();
@@ -63,7 +66,9 @@ public final class CanvasModeIndicator extends VisTable implements Disposable {
     }
 
     private void updateText() {
-        if (mode != StudioEditingMode.TILED) {
+        if (mode == StudioEditingMode.HUD) {
+            label.setText("MODE: HUD");
+        } else if (mode != StudioEditingMode.TILED) {
             label.setText("Mode: " + displayName(mode));
         } else if (tiledCursorValid) {
             label.setText("Mode: Tiled    Tile: (" + tiledCursorGX + ", " + tiledCursorGY + ")");
@@ -79,6 +84,7 @@ public final class CanvasModeIndicator extends VisTable implements Disposable {
             case SPATIAL -> "Spatial";
             case TILED -> "Tiled";
             case LIGHTS -> "Lights";
+            case HUD -> "HUD";
         };
     }
 

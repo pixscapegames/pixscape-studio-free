@@ -5,7 +5,9 @@ public enum AssetType {
     ANIMATION("animation"),
     PARTICLE("particle"),
     TILESET("tileset"),
-    TILE("tile");
+    TILE("tile"),
+    FONT("font"),
+    SKIN("skin");
 
     private final String wireName;
 

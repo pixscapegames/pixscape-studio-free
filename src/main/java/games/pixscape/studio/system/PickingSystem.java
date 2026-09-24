@@ -359,7 +359,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         boolean leftPressed = inputState.leftJustPressed();
-        boolean leftDown = inputState.isLeftDown() || Gdx.input.isButtonPressed(Input.Buttons.LEFT);
+        boolean leftDown = inputState.isLeftDown();
         boolean leftReleased = inputState.leftJustReleased();
 
         if (isSpatialBlockModeActive()) {
@@ -926,10 +926,8 @@ public final class PickingSystem extends BaseSystem {
         float[] verts = tmpFixtureBoxWorldCorners;
         SpatialBlockProjection.projectTopFootprint(tiled.data, block, verts);
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                worldCam,
-                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
-        );
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
         float topCx = (verts[0] + verts[2] + verts[4] + verts[6]) * 0.25f;
         float topCy = (verts[1] + verts[3] + verts[5] + verts[7]) * 0.25f;
@@ -1181,7 +1179,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         float tolWorld = Math.max(PICK_TOLERANCE_PX, HOVER_TOLER_PX)
-                * HandleHelper.worldUnitsPerPixel(worldCam);
+                * coordSpaces.worldUnitsPerPixel();
 
         FixtureHit fixtureHit = findTopmostFixtureHit(mx, my, tolWorld);
         if (fixtureHit != null) {
@@ -1221,7 +1219,7 @@ public final class PickingSystem extends BaseSystem {
     private boolean tryPickVisibleFixture(float mx, float my) {
         if (!isFixturePickingEnabled() || physicsService == null) return false;
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         FixtureHit hit = findTopmostFixtureHit(mx, my, tolWorld);
         if (hit == null) return false;
 
@@ -1339,7 +1337,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private int hitTestJointAnchorHandle(int jointEid, PhysicsJointComponent base, float mx, float my) {
-        float tol = (JOINT_PICK_TOL_PX + 2f) * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tol = (JOINT_PICK_TOL_PX + 2f) * coordSpaces.worldUnitsPerPixel();
         float tol2 = tol * tol;
 
         if (base.type == PhysicsJointComponent.TYPE_DISTANCE) {
@@ -1471,7 +1469,7 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectBoxCornerHover(
-                worldCam,
+                coordSpaces.worldUnitsPerPixel(),
                 tmpFixtureVerts,
                 mx,
                 my,
@@ -1535,7 +1533,8 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpA);
         float hx = tmpA.x + physicsService.computeShapeRadiusWU(fixture);
         float hy = tmpA.y;
-        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
         return HandleHelper.insideSquare(mx, my, hx, hy, halfWidthorld) ? InputManipulationContext.Handle.E : InputManipulationContext.Handle.NONE;
     }
 
@@ -1740,7 +1739,7 @@ public final class PickingSystem extends BaseSystem {
                 corners,
                 mx,
                 my,
-                HandleHelper.worldUnitsPerPixel(worldCam));
+                coordSpaces.worldUnitsPerPixel());
     }
 
     static int detectQuadVertexHover(float[] corners,
@@ -2025,7 +2024,7 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectPolygonVertexHover(
-                worldCam,
+                coordSpaces.worldUnitsPerPixel(),
                 tmpFixtureVerts,
                 vertexCount,
                 mx,
@@ -2437,10 +2436,8 @@ public final class PickingSystem extends BaseSystem {
 
         // Clic gauche = add point ou close+commit
         if (inputState.leftJustPressed()) {
-            float closeRadiusWorld = HandleHelper.pxToWorld(
-                    worldCam,
-                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
-            );
+            float closeRadiusWorld = coordSpaces.pixelsToWorld(
+                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
             if (polygonDrawSession.tryCloseFromPoint(mx, my, closeRadiusWorld)) {
                 commitPolygonDrawSession();
@@ -2870,7 +2867,7 @@ public final class PickingSystem extends BaseSystem {
             if (!reachedFreeMoveThreshold(
                     dx,
                     dy,
-                    HandleHelper.worldUnitsPerPixel(worldCam))) {
+                    coordSpaces.worldUnitsPerPixel())) {
                 return false;
             }
             translatingActive = true;
@@ -2968,7 +2965,7 @@ public final class PickingSystem extends BaseSystem {
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
         if (fixture == null) return false;
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         PhysicsFixturePickingService.PickResult picked =
                 pickFixtureOnBody(bodyEid, mx, my, tolWorld);
         if (picked.physicsShapeId == physicsShapeId
@@ -3393,7 +3390,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
 
         int bestEntity = -1;
         int bestLayerIndex = Integer.MIN_VALUE;
@@ -3439,7 +3436,7 @@ public final class PickingSystem extends BaseSystem {
 
         IntBag particleBag = particleSubscription.getEntities();
         int[] particleData = particleBag.getData();
-        float particleRadius = particleMarkerHitRadiusWorld(worldCam);
+        float particleRadius = particleMarkerHitRadiusWorld(coordSpaces.worldUnitsPerPixel());
         float particleRadius2 = particleRadius * particleRadius;
         for (int i = 0, n = particleBag.size(); i < n; i++) {
             int e = particleData[i];
@@ -3479,10 +3476,6 @@ public final class PickingSystem extends BaseSystem {
                 tmp2Vec.x, tmp2Vec.y)
                 : isPolylineHit(polyline.vertices, transform, mouseX, mouseY, toleranceWorld,
                 tmp2Vec.x, tmp2Vec.y);
-    }
-
-    static float particleMarkerHitRadiusWorld(OrthographicCamera camera) {
-        return particleMarkerHitRadiusWorld(HandleHelper.worldUnitsPerPixel(camera));
     }
 
     static float particleMarkerHitRadiusWorld(float worldUnitsPerPixel) {
@@ -3630,7 +3623,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = sub.getEntities();
         int[] data = bag.getData();
 
-        float tolWorld = JOINT_PICK_TOL_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = JOINT_PICK_TOL_PX * coordSpaces.worldUnitsPerPixel();
         float tol2 = tolWorld * tolWorld;
         int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
 
@@ -3782,7 +3775,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = sub.getEntities();
         int[] data = bag.getData();
 
-        float wpp = HandleHelper.worldUnitsPerPixel(worldCam);
+        float wpp = coordSpaces.worldUnitsPerPixel();
         float halfWidthorld = (LIGHT_ICON_SIZE_PX * 0.5f + LIGHT_PICK_TOL_PX) * wpp;
 
         int bestEntity = -1;
@@ -3866,10 +3859,8 @@ public final class PickingSystem extends BaseSystem {
         float[] obb = computeOBBWorldCorners(entityId);
         if (obb == null) return InputManipulationContext.Handle.NONE;
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                worldCam,
-                (GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX)
-        );
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
         if (HandleHelper.insideSquare(mx, my, HandleLayout.swX(obb), HandleLayout.swY(obb), halfWidthorld))
             return InputManipulationContext.Handle.SW;
@@ -3881,8 +3872,8 @@ public final class PickingSystem extends BaseSystem {
             return InputManipulationContext.Handle.NW;
 
         if (mGameObject.has(entityId)) {
-            float rotateOffsetWorld = HandleHelper.pxToWorld(
-                    worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
+            float rotateOffsetWorld = coordSpaces.pixelsToWorld(
+                    GizmoDrawHelper.ROTATE_OFFSET_PX);
             return hitTestGameObjectRotateHandle(
                     obb, mx, my, halfWidthorld, rotateOffsetWorld, tmp2);
         }
@@ -3896,7 +3887,7 @@ public final class PickingSystem extends BaseSystem {
         if (HandleHelper.insideSquare(mx, my, HandleLayout.midWX(obb), HandleLayout.midWY(obb), halfWidthorld))
             return InputManipulationContext.Handle.W;
 
-        float rotateOffsetWorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
+        float rotateOffsetWorld = coordSpaces.pixelsToWorld(GizmoDrawHelper.ROTATE_OFFSET_PX);
         HandleLayout.rotateHandle(obb, rotateOffsetWorld, tmp2);
 
         if (HandleHelper.insideSquare(mx, my, tmp2[0], tmp2[1], halfWidthorld)) {
@@ -3928,7 +3919,8 @@ public final class PickingSystem extends BaseSystem {
         if (t == null) return false;
 
         computeLightRadiusHandleWorld(entityId, t, tmp2Vec);
-        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
         if (!HandleHelper.insideSquare(mx, my, tmp2Vec.x, tmp2Vec.y, halfWidthorld)) return false;
 
         lightRadiusEntityId = entityId;
@@ -4059,7 +4051,7 @@ public final class PickingSystem extends BaseSystem {
 
     private float[] computeOBBWorldCorners(int e) {
         if (mGameObject.has(e)) {
-            float half = HandleHelper.pxToWorld(worldCam, 8f);
+            float half = coordSpaces.pixelsToWorld(8f);
             return gameObjectGizmoGeometry != null
                     && gameObjectGizmoGeometry.writeWorldCorners(e, half, tmpCorners)
                     ? tmpCorners : null;
@@ -4079,7 +4071,7 @@ public final class PickingSystem extends BaseSystem {
         if (!mGameObject.has(entityId) || !isSelectableInViewport(entityId)) return null;
         float[] corners = computeOBBWorldCorners(entityId);
         if (corners == null) return null;
-        float tolerance = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolerance = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         return isDisplayedObbHit(corners, mouseX, mouseY, tolerance) ? entityId : null;
     }
 

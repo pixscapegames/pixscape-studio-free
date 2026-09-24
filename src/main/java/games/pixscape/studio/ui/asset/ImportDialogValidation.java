@@ -20,7 +20,8 @@ final class ImportDialogValidation {
 
     static boolean isSupportedImportFile(FileHandle file) {
         if (file == null || !file.exists() || file.isDirectory()) return false;
-        return isSupportedImage(file) || isParticleFile(file) || isTsxFile(file);
+        return isSupportedImage(file) || isParticleFile(file) || isTsxFile(file)
+                || isBitmapFontFile(file) || isSkinJsonFile(file);
     }
 
     static boolean isSupportedImage(FileHandle file) {
@@ -39,6 +40,18 @@ final class ImportDialogValidation {
         if (file == null || !file.exists() || file.isDirectory()) return false;
         String ext = file.extension() == null ? "" : file.extension().toLowerCase();
         return "tsx".equals(ext);
+    }
+
+    static boolean isBitmapFontFile(FileHandle file) {
+        if (file == null || !file.exists() || file.isDirectory()) return false;
+        String ext = file.extension() == null ? "" : file.extension().toLowerCase();
+        return "fnt".equals(ext);
+    }
+
+    static boolean isSkinJsonFile(FileHandle file) {
+        if (file == null || !file.exists() || file.isDirectory()) return false;
+        String ext = file.extension() == null ? "" : file.extension().toLowerCase();
+        return "json".equals(ext);
     }
 
     static int[] readImageDimensions(FileHandle file) {

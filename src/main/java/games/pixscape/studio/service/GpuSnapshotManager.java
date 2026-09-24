@@ -233,6 +233,28 @@ public final class GpuSnapshotManager {
         }
     }
 
+    /** Rebinds the cached snapshot for the Scene attached to the shared render surface. */
+    public void bindActiveSnapshot(String sceneTag) {
+        verifyTag(sceneTag);
+        bindSnapshot(sceneTag, activeSnapshots.get(sceneTag));
+    }
+
+    /** Releases every GPU publication owned by a Scene document that has been closed. */
+    public void releaseScene(String sceneTag) {
+        verifyTag(sceneTag);
+        PreparedAtlasPublication prepared = preparedPublications.remove(sceneTag);
+        if (prepared != null) prepared.close();
+
+        AtlasRuntimeService.TextureArrayBundle snapshot = activeSnapshots.remove(sceneTag);
+        if (snapshot != null) deferDispose(snapshot);
+        dirtyTags.remove(sceneTag);
+        dirtyInfos.remove(sceneTag);
+        lastSyncAtNsByScene.remove(sceneTag);
+        rebuildCountByScene.remove(sceneTag);
+
+        if (sceneTag.equals(boundSceneTag)) bindSnapshot(sceneTag, null);
+    }
+
     ReplacementResult replaceActiveSnapshot(String sceneTag,
                                             AtlasRuntimeService.TextureArrayBundle next) {
         return replaceActiveSnapshot(sceneTag, next, false);

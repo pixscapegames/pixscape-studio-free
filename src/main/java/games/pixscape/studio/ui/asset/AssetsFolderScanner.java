@@ -38,6 +38,9 @@ public final class AssetsFolderScanner {
             case PARTICLES -> projectDir.child(StudioFs.DIR_ORIG_EFFECTS);
             case TILES -> projectDir.child(StudioFs.DIR_ORIG_TILES);
             case GAME_OBJECTS -> projectDir.child(StudioFs.DIR_GAME_OBJECTS);
+            case HUD -> projectDir.child(games.pixscape.runtime.hud.HudScreenAssetId.DIRECTORY);
+            case FONTS -> projectDir.child(StudioFs.DIR_ORIG_FONTS);
+            case SKINS -> projectDir.child(StudioFs.DIR_ORIG_SKINS);
         };
 
         if (!baseDir.exists() || !baseDir.isDirectory())
@@ -198,6 +201,24 @@ public final class AssetsFolderScanner {
                             rel,
                             meta
                     ));
+                }
+
+                case FONTS -> {
+                    if (!ext.equals("fnt")) continue;
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_FONTS + "/" + rel, AssetType.FONT);
+                    if (!isUserVisible(meta)) continue;
+                    out.add(AssetNode.fromAssetMeta(AssetNode.Kind.FONT,
+                            AssetNode.Root.FONTS, rel, meta));
+                }
+
+                case SKINS -> {
+                    if (!ext.equals("json")) continue;
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_SKINS + "/" + rel, AssetType.SKIN);
+                    if (!isUserVisible(meta)) continue;
+                    out.add(AssetNode.fromAssetMeta(AssetNode.Kind.SKIN,
+                            AssetNode.Root.SKINS, rel, meta));
                 }
             }
         }

@@ -1,6 +1,5 @@
 package games.pixscape.studio.helper;
 
-import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -81,13 +80,6 @@ public final class ShapeHelper {
 
     public static float worldUnitsPerPixel(OrthographicCamera cam, int screenWidth) {
         return (cam.viewportWidth * cam.zoom) / screenWidth;
-    }
-
-    /**
-     * Use viewport screenWidth if possible (fallback to Gdx.graphics.getWidth).
-     */
-    public static int screenWidthFallback() {
-        return Gdx.graphics != null ? Gdx.graphics.getWidth() : 1;
     }
 
     public static void drawDashedLineWorld(

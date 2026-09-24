@@ -7,7 +7,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
@@ -46,7 +45,6 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private GameObjectHierarchySystem gameObjectHierarchy;
 
     private final Vector2 tmpMouseWorld = new Vector2();
-    private final Vector3 tmpMouse3 = new Vector3();
     private final Vector2 tmpDisplayOffset = new Vector2();
     private final Vector2 tmpWorldPosition = new Vector2();
 
@@ -254,8 +252,6 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     }
 
     private void readMouseWorld(Vector2 out) {
-        tmpMouse3.set(Gdx.input.getX(), Gdx.input.getY(), 0f);
-        worldCam.unproject(tmpMouse3);
-        out.set(tmpMouse3.x, tmpMouse3.y);
+        ctx.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), out);
     }
 }

@@ -8,6 +8,7 @@ import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.scene.SceneEditorContext;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -131,9 +132,11 @@ public class AlignServiceTest {
     private static WorldCanvas buildCanvas(World world, SelectionService selection, HistoryManager history) throws Exception {
         sun.misc.Unsafe unsafe = getUnsafe();
         WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
-        setField(canvas, "world", world);
-        setField(canvas, "selectionService", selection);
-        setField(canvas, "historyManager", history);
+        SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
+        setField(context, "world", world);
+        setField(context, "selectionService", selection);
+        setField(context, "historyManager", history);
+        setField(canvas, "sceneEditorContext", context);
         return canvas;
     }
 

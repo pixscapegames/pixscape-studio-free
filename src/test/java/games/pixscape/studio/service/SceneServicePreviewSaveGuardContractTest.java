@@ -24,8 +24,8 @@ public class SceneServicePreviewSaveGuardContractTest {
         String leavingBody = methodBody(source, "public boolean requiresSaveBeforeLeavingCurrentScene()");
         String requiresBody = methodBody(source, "public boolean requiresSaveBeforePreview()");
 
-        assertTrue(markBody.contains("currentSceneSaveRequired = true;"));
-        assertTrue(leavingBody.contains("historyManager.isDirty() || currentSceneSaveRequired"));
+        assertTrue(markBody.contains("sceneContext().markExplicitSaveRequired();"));
+        assertTrue(leavingBody.contains("sceneContext().isDirty()"));
         assertFalse(leavingBody.contains("isRuntimeExportMissingOrUnusableForPreview"));
         assertTrue(requiresBody.contains("requiresSaveBeforeLeavingCurrentScene()"));
         assertTrue(requiresBody.contains("isRuntimeExportMissingOrUnusableForPreview(ProjectConfig.getInstance())"));
@@ -44,6 +44,28 @@ public class SceneServicePreviewSaveGuardContractTest {
         Path exportRoot = Files.createTempDirectory("preview-present-runtime-export");
         ProjectConfig cfg = projectConfig(exportRoot);
         writeUsableRuntimeExport(exportRoot);
+
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void changedSavedHudRequiresRuntimeExportBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-stale-saved-hud");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.getCurrentSceneMeta().defaultHudScreenId = "hud/Test3";
+        writeUsableRuntimeExport(exportRoot);
+        writeHud(cfg, exportRoot, "old HUD", "new HUD");
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void matchingSavedHudDoesNotRequireRuntimeExportBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-current-saved-hud");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        cfg.getCurrentSceneMeta().defaultHudScreenId = "hud/Test3";
+        writeUsableRuntimeExport(exportRoot);
+        writeHud(cfg, exportRoot, "current HUD", "current HUD");
 
         assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
     }
@@ -230,6 +252,19 @@ public class SceneServicePreviewSaveGuardContractTest {
         Files.writeString(runtimeRoot.resolve(RuntimeExport.PROJECT_JSON), runtimeProjectJson(currentSceneName));
         Files.writeString(runtimeRoot.resolve("scenes").resolve("scene1.json"), mainSceneJson);
         Files.writeString(runtimeRoot.resolve("scenes").resolve("scene2.json"), "{\"entities\":{}}");
+    }
+
+    private static void writeHud(ProjectConfig cfg, Path exportRoot,
+                                 String exportedDocument, String authoredDocument) throws Exception {
+        String asset = "{\"documentId\":\"hud/Test3.json\"}";
+        Path studioHud = Path.of(cfg.projectDirectoryPath).resolve("hud");
+        Path runtimeHud = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("hud");
+        Files.createDirectories(studioHud);
+        Files.createDirectories(runtimeHud);
+        Files.writeString(studioHud.resolve("Test3.hudscreen"), asset);
+        Files.writeString(runtimeHud.resolve("Test3.hudscreen"), asset);
+        Files.writeString(studioHud.resolve("Test3.json"), authoredDocument);
+        Files.writeString(runtimeHud.resolve("Test3.json"), exportedDocument);
     }
 
     private static void writeEmptyTilesetProfiles(Path exportRoot) throws Exception {
