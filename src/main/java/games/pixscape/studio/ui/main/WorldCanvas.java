@@ -2469,6 +2469,16 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         return physicsService;
     }
 
+    /** Returns the Physics service bound to an initialized context without attaching it to the canvas. */
+    PhysicsService physicsServiceFor(SceneEditorContext context) {
+        Objects.requireNonNull(context, "context");
+        SceneBinding binding = sceneBindings.get(context);
+        if (binding == null || binding.physicsService == null) {
+            throw new IllegalStateException("Scene context has no Physics service binding.");
+        }
+        return binding.physicsService;
+    }
+
     public boolean isScenePhysicsEnabled() {
         ProjectConfig config = ProjectConfig.getInstance();
         SceneMeta meta = config != null ? config.getCurrentSceneMeta() : null;

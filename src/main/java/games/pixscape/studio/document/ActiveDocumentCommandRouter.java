@@ -29,16 +29,6 @@ public final class ActiveDocumentCommandRouter {
 
     public ActiveDocumentCommandRouter(EditorDocumentManager manager,
                                        SceneCommands sceneCommands,
-                                       HudSave hudSave) {
-        this(manager, sceneCommands, hudSave, new GameObjectCommands() {
-            @Override public void save(GameObjectEditorDocument document) { }
-            @Override public boolean undo(GameObjectEditorDocument document) { return false; }
-            @Override public boolean redo(GameObjectEditorDocument document) { return false; }
-        });
-    }
-
-    public ActiveDocumentCommandRouter(EditorDocumentManager manager,
-                                       SceneCommands sceneCommands,
                                        HudSave hudSave,
                                        GameObjectCommands gameObjectCommands) {
         this.manager = Objects.requireNonNull(manager, "manager");

@@ -59,6 +59,7 @@ import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 import games.pixscape.studio.service.hud.HudImageAuthoringService;
 import games.pixscape.studio.service.hud.SceneHudAssociationService;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 import games.pixscape.studio.ui.StudioStage;
 import games.pixscape.studio.ui.asset.AssetsPanel;
@@ -777,21 +778,14 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     /** Publishes only the isolated Game Object edit context; no project Scene is read or changed. */
     private void saveGameObjectDocument(GameObjectEditorDocument document) {
-        SceneEditorContext previous = canvas.getAttachedSceneContext();
-        boolean restorePrevious = previous != document.context();
-        if (restorePrevious) canvas.attach(document.context());
-        try {
-            IntArray root = new IntArray(new int[]{document.rootEntityId()});
-            var graph = new EntityGraphCaptureService(document.context().world()).captureForGameObject(root);
-            canvas.getGameObjectAssetService().saveGameObject(document.assetFile(), graph);
-            document.context().markSaved();
-            EventFlow.i().publish(new EventFlow.GameObjectsChanged(EventFlow.tag(this)));
-        } finally {
-            if (restorePrevious) {
-                if (previous != null && !previous.isDisposed()) canvas.attach(previous);
-                else canvas.detach();
-            }
-        }
+        SceneEditorContext context = document.context();
+        IntArray root = new IntArray(new int[]{document.rootEntityId()});
+        var graph = new EntityGraphCaptureService(context.world()).captureForGameObject(root);
+        new GameObjectAssetService(
+                context.world(), null, null, null, null, null,
+                canvas.physicsServiceFor(context)).saveGameObject(document.assetFile(), graph);
+        context.markSaved();
+        EventFlow.i().publish(new EventFlow.GameObjectsChanged(EventFlow.tag(this)));
     }
 
     private void saveAllDirtyGameObjectDocuments() {
@@ -1301,38 +1295,27 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     private void requestDirtyHudClose(HudScreenEditorDocument document) {
-        Dialogs.showOptionDialog(
-                uiStage,
-                "Unsaved HUD",
-                "Save changes to \"" + document.title() + "\" before closing?",
-                Dialogs.OptionDialogType.YES_NO_CANCEL,
-                new OptionDialogListener() {
-                    @Override public void yes() {
-                        try {
-                            hudDocumentPersistenceService.save(
-                                    StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), document);
-                            hudEditorSession.refreshDocumentMetadata(document);
-                            editorDocumentManager.closeNow(document.key());
-                        } catch (RuntimeException failure) {
-                            Dialogs.showOKDialog(uiStage, "Save failed",
-                                    PreviewLaunchSupport.userMessageFor(failure));
-                        }
-                    }
-                    @Override public void no() { editorDocumentManager.closeNow(document.key()); }
-                    @Override public void cancel() { }
-                });
+        requestDirtyAssetClose(document, "Unsaved HUD", () -> {
+            hudDocumentPersistenceService.save(
+                    StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), document);
+            hudEditorSession.refreshDocumentMetadata(document);
+        });
     }
 
     private void requestDirtyGameObjectClose(GameObjectEditorDocument document) {
+        requestDirtyAssetClose(document, "Unsaved Game Object", () -> saveGameObjectDocument(document));
+    }
+
+    private void requestDirtyAssetClose(OpenEditorDocument document, String dialogTitle, Runnable save) {
         Dialogs.showOptionDialog(
                 uiStage,
-                "Unsaved Game Object",
+                dialogTitle,
                 "Save changes to \"" + document.title() + "\" before closing?",
                 Dialogs.OptionDialogType.YES_NO_CANCEL,
                 new OptionDialogListener() {
                     @Override public void yes() {
                         try {
-                            saveGameObjectDocument(document);
+                            save.run();
                             editorDocumentManager.closeNow(document.key());
                         } catch (RuntimeException failure) {
                             Dialogs.showOKDialog(uiStage, "Save failed",

@@ -40,7 +40,7 @@ public class ActiveDocumentCommandRouterTest {
         }, document -> {
             hudSave.set(document);
             document.editSession().markSaved();
-        });
+        }, unexpectedGameObjectCommands());
 
         assertTrue(router.undo());
         assertEquals(0f, hudB.document().root.actor.width, 0f);
@@ -96,12 +96,49 @@ public class ActiveDocumentCommandRouterTest {
         assertSame(gameObject, redone.get());
     }
 
+    @Test
+    public void failedGameObjectSaveReportsFailureAndLeavesTheDocumentOpen() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        GameObjectEditorDocument gameObject = new GameObjectEditorDocument(
+                "enemy", "enemy", new FileHandle("build/test-gameobjects/enemy.gameobject"),
+                context("game-object"), 1);
+        manager.openGameObject(gameObject);
+        RuntimeException failure = new RuntimeException("write failed");
+        ActiveDocumentCommandRouter router = new ActiveDocumentCommandRouter(
+                manager, noOpSceneCommands(), document -> { }, new ActiveDocumentCommandRouter.GameObjectCommands() {
+                    @Override public void save(GameObjectEditorDocument document) { throw failure; }
+                    @Override public boolean undo(GameObjectEditorDocument document) { return false; }
+                    @Override public boolean redo(GameObjectEditorDocument document) { return false; }
+                });
+        AtomicReference<Throwable> reported = new AtomicReference<>();
+
+        router.save(null, reported::set);
+
+        assertSame(failure, reported.get());
+        assertSame(gameObject, manager.find(gameObject.key()));
+        assertSame(gameObject, manager.activeDocument());
+    }
+
     private static ActiveDocumentCommandRouter.SceneCommands noOpSceneCommands() {
         return new ActiveDocumentCommandRouter.SceneCommands() {
             @Override public void save(SceneEditorDocument document, Runnable onSuccess,
                                        Consumer<Throwable> onFailure) { }
             @Override public boolean undo(SceneEditorDocument document) { return false; }
             @Override public boolean redo(SceneEditorDocument document) { return false; }
+        };
+    }
+
+    private static ActiveDocumentCommandRouter.GameObjectCommands unexpectedGameObjectCommands() {
+        return new ActiveDocumentCommandRouter.GameObjectCommands() {
+            @Override public void save(GameObjectEditorDocument document) {
+                throw new AssertionError("Unexpected Game Object save.");
+            }
+            @Override public boolean undo(GameObjectEditorDocument document) {
+                throw new AssertionError("Unexpected Game Object undo.");
+            }
+            @Override public boolean redo(GameObjectEditorDocument document) {
+                throw new AssertionError("Unexpected Game Object redo.");
+            }
         };
     }
 
