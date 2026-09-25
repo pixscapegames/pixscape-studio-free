@@ -2,11 +2,16 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.utils.IntArray;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
@@ -21,6 +26,46 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class RemovePhysicsBodyCommandTest {
+    @Test
+    public void deletingGameObjectDestroysWheelJointsInBox2dAndUndoRecreatesThem() {
+        GdxNativesLoader.load();
+        GearHarness harness = new GearHarness();
+        try {
+            int root = harness.world.create();
+            harness.world.getMapper(TransformComponent.class).create(root).scaleX = 1f;
+            harness.world.getMapper(TransformComponent.class).get(root).scaleY = 1f;
+            int chassis = harness.body(0f, PhysicsBodyComponent.DYNAMIC);
+            int wheelA = harness.body(100f, PhysicsBodyComponent.DYNAMIC);
+            int wheelB = harness.body(200f, PhysicsBodyComponent.DYNAMIC);
+            harness.world.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "car";
+            for (int[] member : new int[][]{{root, 10}, {chassis, 11}, {wheelA, 12}, {wheelB, 13}}) {
+                harness.world.getMapper(PixscapeIdentityComponent.class).create(member[0]).stableId = member[1];
+                harness.world.getMapper(EntityIndexComponent.class).create(member[0]).layerIndex = 0;
+            }
+            harness.world.getMapper(GameObjectMemberComponent.class).create(chassis).parentStableId = 10;
+            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelA).parentStableId = 10;
+            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelB).parentStableId = 10;
+            int jointA = harness.physics.createWheelJoint(chassis, wheelA, 50f, 0f);
+            int jointB = harness.physics.createWheelJoint(chassis, wheelB, 150f, 0f);
+            Assert.assertTrue(jointA >= 0 && jointB >= 0);
+            harness.processPhysics();
+            Assert.assertEquals(2, harness.box2d.world.getJointCount());
+            long rootHistory = harness.historyIds.ensureForEntity(root);
+            harness.history.execute(DeleteEntitiesCommandFactory.create(harness.world, harness.historyIds,
+                    new IntArray(new int[]{root}), null));
+            harness.processPhysics();
+            Assert.assertEquals(0, harness.box2d.world.getJointCount());
+            harness.history.undo();
+            harness.processPhysics();
+            Assert.assertEquals(2, harness.box2d.world.getJointCount());
+            harness.history.redo();
+            harness.processPhysics();
+            Assert.assertEquals(0, harness.box2d.world.getJointCount());
+            Assert.assertEquals(-1, harness.historyIds.entityOfHistoryId(rootHistory));
+        } finally {
+            harness.close();
+        }
+    }
     @Test
     public void repeatedRemoveUndoRestoresBodyShapeAndJointIdentities() {
         Harness harness = new Harness();

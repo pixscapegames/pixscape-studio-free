@@ -1,6 +1,7 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.artemis.Aspect;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
@@ -8,6 +9,11 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
@@ -22,6 +28,186 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class DeleteGameObjectHierarchyCommandTest {
+    @Test
+    public void repeatedWheelJointHierarchyDeletionDoesNotLeaveOrphansOnReusedEcsIds() {
+        Fixture f = new Fixture();
+        try {
+            int firstBodyId = -1;
+            for (int cycle = 0; cycle < 4; cycle++) {
+                int root = f.root(10 + cycle * 10, -1);
+                int chassis = f.body(11 + cycle * 10, 10 + cycle * 10);
+                int wheelA = f.body(12 + cycle * 10, 10 + cycle * 10);
+                int wheelB = f.body(13 + cycle * 10, 10 + cycle * 10);
+                int jointA = f.wheelJoint(chassis, wheelA);
+                int jointB = f.wheelJoint(chassis, wheelB);
+                f.process();
+                if (cycle == 0) firstBodyId = chassis;
+                if (cycle > 0) assertEquals(firstBodyId, chassis);
+                assertEquals(2, f.jointCount());
+                f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                        new IntArray(new int[]{root}), null));
+                f.process();
+                assertEquals(0, f.jointCount());
+                assertFalse(f.world.getEntityManager().isActive(jointA));
+                assertFalse(f.world.getEntityManager().isActive(jointB));
+            }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void deletingOneOfTwoCarsPreservesOtherJointsAndUndoRedoRemapsEndpoints() {
+        Fixture f = new Fixture();
+        try {
+            int rootA = f.root(10, -1);
+            int bodyA = f.body(11, 10);
+            int wheelA = f.body(12, 10);
+            int wheelB = f.body(13, 10);
+            int jointA = f.wheelJoint(bodyA, wheelA);
+            int jointB = f.wheelJoint(bodyA, wheelB);
+            int rootB = f.root(20, -1);
+            int bodyB = f.body(21, 20);
+            int otherWheelA = f.body(22, 20);
+            int otherWheelB = f.body(23, 20);
+            int otherJointA = f.wheelJoint(bodyB, otherWheelA);
+            int otherJointB = f.wheelJoint(bodyB, otherWheelB);
+            f.process();
+            long bodyHistory = f.history.historyIds().ensureForEntity(bodyA);
+            long wheelAHistory = f.history.historyIds().ensureForEntity(wheelA);
+            long wheelBHistory = f.history.historyIds().ensureForEntity(wheelB);
+            long jointAHistory = f.history.historyIds().ensureForEntity(jointA);
+            long jointBHistory = f.history.historyIds().ensureForEntity(jointB);
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    new IntArray(new int[]{rootA}), null));
+            f.process();
+            assertEquals(2, f.jointCount());
+            assertTrue(f.world.getEntityManager().isActive(rootB));
+            assertTrue(f.world.getEntityManager().isActive(otherJointA));
+            assertTrue(f.world.getEntityManager().isActive(otherJointB));
+            for (int cycle = 0; cycle < 3; cycle++) {
+                f.history.undo();
+                f.process();
+                int restoredBody = f.history.historyIds().entityOfHistoryId(bodyHistory);
+                int restoredWheelA = f.history.historyIds().entityOfHistoryId(wheelAHistory);
+                int restoredWheelB = f.history.historyIds().entityOfHistoryId(wheelBHistory);
+                int restoredJointA = f.history.historyIds().entityOfHistoryId(jointAHistory);
+                int restoredJointB = f.history.historyIds().entityOfHistoryId(jointBHistory);
+                assertEquals(4, f.jointCount());
+                f.assertEndpoints(restoredJointA, restoredBody, restoredWheelA);
+                f.assertEndpoints(restoredJointB, restoredBody, restoredWheelB);
+                f.assertEndpoints(otherJointA, bodyB, otherWheelA);
+                f.assertEndpoints(otherJointB, bodyB, otherWheelB);
+                f.history.redo();
+                f.process();
+                assertEquals(2, f.jointCount());
+                assertEquals(-1, f.history.historyIds().entityOfHistoryId(jointAHistory));
+                assertEquals(-1, f.history.historyIds().entityOfHistoryId(jointBHistory));
+            }
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void externalJointAndNestedMultiSelectionDeleteOnlyOnceAndRestoreExternalEndpoint() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(10, -1);
+            int nested = f.root(20, 10);
+            int innerBody = f.body(21, 20);
+            int externalBody = f.core(30, EntityKind.SPRITE, 0);
+            f.world.getMapper(PhysicsBodyComponent.class).create(externalBody);
+            int joint = f.wheelJoint(innerBody, externalBody);
+            f.process();
+            long jointHistory = f.history.historyIds().ensureForEntity(joint);
+            long innerHistory = f.history.historyIds().ensureForEntity(innerBody);
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    new IntArray(new int[]{root, nested, innerBody, root}), null));
+            f.process();
+            assertEquals(0, f.jointCount());
+            assertTrue(f.world.getEntityManager().isActive(externalBody));
+            f.history.undo();
+            f.process();
+            assertEquals(1, f.jointCount());
+            f.assertEndpoints(f.history.historyIds().entityOfHistoryId(jointHistory),
+                    f.history.historyIds().entityOfHistoryId(innerHistory), externalBody);
+            f.history.redo();
+            f.process();
+            assertEquals(0, f.jointCount());
+            assertTrue(f.world.getEntityManager().isActive(externalBody));
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void dependentGearJointRestoresItsSourceJointReferences() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(10, -1);
+            int body = f.body(11, 10);
+            int wheelA = f.body(12, 10);
+            int wheelB = f.body(13, 10);
+            int sourceA = f.revoluteJoint(body, wheelA);
+            int sourceB = f.revoluteJoint(body, wheelB);
+            int gearId = f.world.create();
+            PhysicsJointComponent gearBase = f.world.getMapper(PhysicsJointComponent.class).create(gearId);
+            gearBase.type = PhysicsJointComponent.TYPE_GEAR;
+            gearBase.aEid = wheelA;
+            gearBase.bEid = wheelB;
+            PhysicsGearJointComponent gear = f.world.getMapper(PhysicsGearJointComponent.class).create(gearId);
+            gear.joint1Eid = sourceA;
+            gear.joint2Eid = sourceB;
+            f.process();
+            long sourceAHistory = f.history.historyIds().ensureForEntity(sourceA);
+            long sourceBHistory = f.history.historyIds().ensureForEntity(sourceB);
+            long gearHistory = f.history.historyIds().ensureForEntity(gearId);
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    new IntArray(new int[]{root}), null));
+            f.process();
+            assertEquals(0, f.jointCount());
+            f.history.undo();
+            f.process();
+            assertEquals(3, f.jointCount());
+            PhysicsGearJointComponent restoredGear = f.world.getMapper(PhysicsGearJointComponent.class)
+                    .get(f.history.historyIds().entityOfHistoryId(gearHistory));
+            assertEquals(f.history.historyIds().entityOfHistoryId(sourceAHistory), restoredGear.joint1Eid);
+            assertEquals(f.history.historyIds().entityOfHistoryId(sourceBHistory), restoredGear.joint2Eid);
+            f.history.redo();
+            f.process();
+            assertEquals(0, f.jointCount());
+        } finally {
+            f.close();
+        }
+    }
+
+    @Test
+    public void physicsOnGameObjectRootSurvivesDeletionUndo() {
+        Fixture f = new Fixture();
+        try {
+            int root = f.root(10, -1);
+            f.world.getMapper(PhysicsBodyComponent.class).create(root);
+            int wheel = f.body(11, 10);
+            int joint = f.wheelJoint(root, wheel);
+            f.process();
+            long rootHistory = f.history.historyIds().ensureForEntity(root);
+            long wheelHistory = f.history.historyIds().ensureForEntity(wheel);
+            long jointHistory = f.history.historyIds().ensureForEntity(joint);
+            f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
+                    new IntArray(new int[]{root}), null));
+            f.process();
+            f.history.undo();
+            f.process();
+            int restoredRoot = f.history.historyIds().entityOfHistoryId(rootHistory);
+            assertTrue(f.world.getMapper(GameObjectComponent.class).has(restoredRoot));
+            assertTrue(f.world.getMapper(PhysicsBodyComponent.class).has(restoredRoot));
+            f.assertEndpoints(f.history.historyIds().entityOfHistoryId(jointHistory),
+                    restoredRoot, f.history.historyIds().entityOfHistoryId(wheelHistory));
+        } finally {
+            f.close();
+        }
+    }
     @Test public void deletesAndRestoresLeafSprite() { assertLeaf(EntityKind.SPRITE); }
     @Test public void deletesAndRestoresLeafAnimation() { assertLeaf(EntityKind.ANIMATION); }
     @Test public void deletesAndRestoresLeafPointLight() { assertLeaf(EntityKind.POINT_LIGHT); }
@@ -226,6 +412,43 @@ public class DeleteGameObjectHierarchyCommandTest {
                 default -> { }
             }
             return entityId;
+        }
+
+        int body(int stableId, int parentStableId) {
+            int entityId = member(stableId, parentStableId, EntityKind.SPRITE, 0);
+            world.getMapper(PhysicsBodyComponent.class).create(entityId);
+            return entityId;
+        }
+
+        int wheelJoint(int bodyA, int bodyB) {
+            int entityId = world.create();
+            PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(entityId);
+            joint.type = PhysicsJointComponent.TYPE_WHEEL;
+            joint.aEid = bodyA;
+            joint.bEid = bodyB;
+            world.getMapper(PhysicsWheelJointComponent.class).create(entityId);
+            return entityId;
+        }
+
+        int revoluteJoint(int bodyA, int bodyB) {
+            int entityId = world.create();
+            PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).create(entityId);
+            joint.type = PhysicsJointComponent.TYPE_REVOLUTE;
+            joint.aEid = bodyA;
+            joint.bEid = bodyB;
+            world.getMapper(PhysicsRevoluteJointComponent.class).create(entityId);
+            return entityId;
+        }
+
+        int jointCount() {
+            return world.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size();
+        }
+
+        void assertEndpoints(int jointEntityId, int expectedA, int expectedB) {
+            PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class).get(jointEntityId);
+            assertEquals(expectedA, joint.aEid);
+            assertEquals(expectedB, joint.bEid);
         }
 
         int core(int stableId, EntityKind kind, int z) {

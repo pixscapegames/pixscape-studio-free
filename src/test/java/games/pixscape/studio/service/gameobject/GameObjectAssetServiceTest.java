@@ -2,6 +2,7 @@ package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.artemis.Aspect;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
@@ -35,6 +36,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ConvertSelectionToGameObjectCommand;
+import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
@@ -508,6 +510,57 @@ public class GameObjectAssetServiceTest {
         int copiedBody = copy.sourceToCreated().get(assetBody.sourceEntityId, -1);
         Assert.assertEquals(100, physicsShapeId(world, copiedBody));
         Assert.assertNotEquals(physicsShapeId(world, body), physicsShapeId(world, copiedBody));
+    }
+
+    @Test
+    public void repeatedWheelJointAssetDropsAndDeletesKeepExactlyTwoJoints() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int layer = world.create();
+        world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
+        world.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        world.process();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        meta.nextPhysicsShapeId = 50;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        identities.rebuild();
+        HistoryManager history = new HistoryManager(32);
+        GameObjectAsset asset = physicalHierarchyAsset();
+        GameObjectAsset.GameObjectEntityData secondWheel = authored(3, 1, false, 6f, 0f, 0);
+        secondWheel.physicsBody = new GameObjectAsset.PhysicsBodyData();
+        secondWheel.physicsShapes.add(assetShape(10, 1f));
+        asset.entities.add(secondWheel);
+        for (int i = 0; i < 2; i++) {
+            GameObjectAsset.GameObjectJointData joint = new GameObjectAsset.GameObjectJointData();
+            joint.jointLocalId = i + 1;
+            joint.type = PhysicsJointComponent.TYPE_WHEEL;
+            joint.bodyALocalEntityId = 1;
+            joint.bodyBLocalEntityId = i + 2;
+            joint.wheel = new GameObjectAsset.WheelJointData();
+            joint.wheel.axisY = 1f;
+            asset.joints.add(joint);
+        }
+        FileHandle file = new FileHandle(temp.newFile("car.gameobject"));
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
+        loader.save(file, asset);
+        GameObjectAssetService service = new GameObjectAssetService(
+                world, history, identities, null, null, null, new PhysicsService(world, null, meta));
+
+        for (int cycle = 0; cycle < 3; cycle++) {
+            EntityGraphInstantiationResult dropped = service.instantiateGameObject(
+                    file, "car", 4, cycle * 10f, 0f);
+            world.process();
+            Assert.assertEquals(2, world.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+            int root = dropped.sourceToCreated().get(1, -1);
+            history.execute(DeleteEntitiesCommandFactory.create(world, history.historyIds(),
+                    new IntArray(new int[]{root}), null));
+            world.process();
+            Assert.assertEquals(0, world.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+            Assert.assertEquals(2, loader.load(file).joints.size());
+        }
     }
 
     @Test

@@ -12,6 +12,10 @@
 * HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
 * HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
 
+### Fixed
+
+* Deleting a Game Object hierarchy now removes its dependent Physics joints in the same undoable operation and restores joint endpoints correctly on undo.
+
 ## 0.4.0 - HUD and Multi-Scene Editing
 
 ### Added

@@ -4,7 +4,6 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.LongArray;
-import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
@@ -40,7 +39,7 @@ public final class DeleteEntitiesCommand implements Command {
      * Initializers capturing full state of deleted entities.
      */
     private final List<GenericEntityInitializer> inits = new ArrayList<>();
-    private final List<JointSnapshot> jointSnapshots = new ArrayList<>();
+    private final List<JointHistorySnapshot> jointSnapshots = new ArrayList<>();
     private final IntConsumer onRestoredEntity;
 
     public DeleteEntitiesCommand(World world, HistoryIdRegistry historyIds, IntArray entityIdsToDelete) {
@@ -79,7 +78,7 @@ public final class DeleteEntitiesCommand implements Command {
             historyIdsToDelete.add(id);
 
             if (mJoint.has(e)) {
-                jointSnapshots.add(JointSnapshot.capture(world, historyIds, e));
+                jointSnapshots.add(JointHistorySnapshot.capture(world, historyIds, e));
             } else {
                 jointSnapshots.add(null);
             }
@@ -126,7 +125,7 @@ public final class DeleteEntitiesCommand implements Command {
         }
 
         for (int i = 0; i < jointSnapshots.size(); i++) {
-            JointSnapshot snap = jointSnapshots.get(i);
+            JointHistorySnapshot snap = jointSnapshots.get(i);
             if (snap == null) continue;
 
             int jointEid = recreated.get(i);
@@ -157,50 +156,6 @@ public final class DeleteEntitiesCommand implements Command {
         }
 
         return out;
-    }
-
-    private static final class JointSnapshot {
-        long aHistoryId, bHistoryId;
-        boolean hasGear;
-        long gearJoint1HistoryId, gearJoint2HistoryId;
-
-        static JointSnapshot capture(World world, HistoryIdRegistry historyIds, int jointEid) {
-            var mJoint = world.getMapper(PhysicsJointComponent.class);
-            PhysicsJointComponent base = mJoint.getSafe(jointEid, null);
-            if (base == null) return null;
-
-            JointSnapshot snap = new JointSnapshot();
-            snap.aHistoryId = (base.aEid >= 0) ? historyIds.ensureForEntity(base.aEid) : -1L;
-            snap.bHistoryId = (base.bEid >= 0) ? historyIds.ensureForEntity(base.bEid) : -1L;
-
-            var mGear = world.getMapper(PhysicsGearJointComponent.class);
-            PhysicsGearJointComponent gear = mGear.getSafe(jointEid, null);
-            if (gear != null) {
-                snap.hasGear = true;
-                snap.gearJoint1HistoryId = gear.joint1Eid >= 0
-                        ? historyIds.ensureForEntity(gear.joint1Eid)
-                        : -1L;
-                snap.gearJoint2HistoryId = gear.joint2Eid >= 0
-                        ? historyIds.ensureForEntity(gear.joint2Eid)
-                        : -1L;
-            }
-
-            return snap;
-        }
-
-        void restore(World world, HistoryIdRegistry historyIds, int jointEid) {
-            var mJoint = world.getMapper(PhysicsJointComponent.class);
-            PhysicsJointComponent base = mJoint.get(jointEid);
-            base.aEid = historyIds.entityOfHistoryId(aHistoryId);
-            base.bEid = historyIds.entityOfHistoryId(bHistoryId);
-
-            if (hasGear) {
-                var mGear = world.getMapper(PhysicsGearJointComponent.class);
-                PhysicsGearJointComponent gear = mGear.get(jointEid);
-                gear.joint1Eid = historyIds.entityOfHistoryId(gearJoint1HistoryId);
-                gear.joint2Eid = historyIds.entityOfHistoryId(gearJoint2HistoryId);
-            }
-        }
     }
 
 }
