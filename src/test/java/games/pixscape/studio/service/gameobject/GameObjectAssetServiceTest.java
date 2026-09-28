@@ -595,6 +595,7 @@ public class GameObjectAssetServiceTest {
         GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
         Assert.assertEquals(0f, asset.entities.get(0).transform.x, 0f);
         Assert.assertEquals(0f, asset.entities.get(0).transform.y, 0f);
+        Assert.assertEquals(0, asset.entities.get(0).entityIndex.zIndex);
         Assert.assertEquals(120f, world.getMapper(TransformComponent.class)
                 .get(selection.getFirstSelectedEntityId()).x, 0f);
         Assert.assertEquals(0f, asset.entities.get(1).transform.x, 0f);
@@ -821,7 +822,7 @@ public class GameObjectAssetServiceTest {
     private static GameObjectAsset hierarchyAsset() {
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 100;
-        GameObjectAsset.GameObjectEntityData root = authored(100, -1, true, 10f, 20f, 2);
+        GameObjectAsset.GameObjectEntityData root = authored(100, -1, true, 0f, 0f, 0);
         root.transform.rotationRad = 0.75f;
         root.transform.scaleX = 2f;
         root.transform.scaleY = 2f;

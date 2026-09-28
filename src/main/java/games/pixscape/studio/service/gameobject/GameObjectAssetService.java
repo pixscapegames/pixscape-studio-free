@@ -972,6 +972,7 @@ public final class GameObjectAssetService {
                 }
                 entity.transform.x = 0f;
                 entity.transform.y = 0f;
+                if (entity.entityIndex != null) entity.entityIndex.zIndex = 0;
                 return;
             }
         }
