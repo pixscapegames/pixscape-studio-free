@@ -93,6 +93,12 @@ public class ResolvedPhysicsPoseTest {
         Assert.assertTrue(pose.resolvedWorldToLocal(body, resolved.x, resolved.y, local));
         Assert.assertEquals(0f, local.x, EPSILON);
         Assert.assertEquals(0f, local.y, EPSILON);
+
+        float clickX = resolved.x + MathUtils.cos(resolved.rotationRad) * 32f;
+        float clickY = resolved.y + MathUtils.sin(resolved.rotationRad) * 32f;
+        Assert.assertTrue(pose.resolvedWorldToLocal(body, clickX, clickY, local));
+        Assert.assertEquals(32f, local.x, EPSILON);
+        Assert.assertEquals(0f, local.y, EPSILON);
     }
 
     @Test

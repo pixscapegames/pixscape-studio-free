@@ -255,10 +255,9 @@ public final class StudioContextMenu extends InputListener {
         addBoxShape.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmpStage);
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.addBoxFixture(finalBodyEid, tmpStage.x, tmpStage.y);
+                ops.addBoxFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });
@@ -268,10 +267,9 @@ public final class StudioContextMenu extends InputListener {
         addCircleShape.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmpStage);
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.addCircleFixture(finalBodyEid, tmpStage.x, tmpStage.y);
+                ops.addCircleFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });
@@ -283,7 +281,7 @@ public final class StudioContextMenu extends InputListener {
             public void clicked(InputEvent event, float x, float y) {
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.beginAddPolygonFixture(finalBodyEid);
+                ops.beginAddPolygonFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });

@@ -27,6 +27,21 @@ public class StudioContextMenuLightContractTest {
         assertTrue(edit.contains("ops.deleteEntities(selectionService.getSelectionSnapshot())"));
     }
 
+    @Test
+    public void shapeActionsUseTheWorldPointCapturedWhenTheMenuOpens() throws Exception {
+        String source = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java"),
+                StandardCharsets.UTF_8);
+        String open = methodBody(source, "public boolean touchDown(InputEvent event, float x, float y, int pointer, int button)");
+        String shapes = methodBody(source, "private void showShapeMenu()");
+
+        assertTrue(open.indexOf("storeClickWorld(event);") < open.indexOf("buildMenu();"));
+        assertTrue(shapes.contains("ops.addBoxFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y)"));
+        assertTrue(shapes.contains("ops.addCircleFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y)"));
+        assertTrue(shapes.contains("ops.beginAddPolygonFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y)"));
+        assertFalse(shapes.contains("Gdx.input.getX()"));
+    }
+
     private static String methodBody(String source, String signaturePrefix) {
         int signatureIndex = source.indexOf(signaturePrefix);
         if (signatureIndex < 0) throw new AssertionError("Method signature not found: " + signaturePrefix);

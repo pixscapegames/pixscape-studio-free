@@ -10,7 +10,6 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
@@ -48,6 +47,7 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
+import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.spatial.*;
@@ -854,8 +854,7 @@ public class EditorOpsImpl implements EditorOps {
         PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
 
-        fixture.geometry.offsetX = 0f;
-        fixture.geometry.offsetY = 0f;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -876,8 +875,7 @@ public class EditorOpsImpl implements EditorOps {
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         fixture.geometry.radius = 0.5f;
 
-        fixture.geometry.offsetX = 0f;
-        fixture.geometry.offsetY = 0f;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -890,29 +888,21 @@ public class EditorOpsImpl implements EditorOps {
         ));
     }
 
-    private void worldToBodyLocalPx(int bodyEid, float worldX, float worldY, Vector2 out) {
-        TransformComponent t = world.getMapper(TransformComponent.class).getSafe(bodyEid, null);
-        if (t == null) {
-            out.set(0f, 0f);
-            return;
-        }
-
-        float dx = worldX - t.x;
-        float dy = worldY - t.y;
-
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-
-        float localX = dx * cos + dy * sin;
-        float localY = -dx * sin + dy * cos;
-
-        out.set(localX, localY);
+    static boolean placeFixtureAtWorld(World world, int bodyEid,
+                                       float worldX, float worldY, PhysicsShapeData fixture, Vector2 scratch) {
+        if (!new ResolvedPhysicsPose(world).resolvedWorldToLocal(bodyEid, worldX, worldY, scratch)) return false;
+        float ppm = ProjectConfig.getInstance().getCurrentSceneMeta().pixelsPerMeter;
+        if (!Float.isFinite(ppm) || ppm <= 0f) return false;
+        fixture.geometry.offsetX = scratch.x / ppm;
+        fixture.geometry.offsetY = scratch.y / ppm;
+        return true;
     }
 
     @Override
-    public void beginAddPolygonFixture(int bodyEid) {
+    public void beginAddPolygonFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
         polygonDrawSession.beginCreate(bodyEid);
+        polygonDrawSession.addPoint(worldX, worldY);
     }
 
     @Override

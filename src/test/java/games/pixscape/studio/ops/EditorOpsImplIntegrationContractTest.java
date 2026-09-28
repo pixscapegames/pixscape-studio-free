@@ -80,18 +80,25 @@ public class EditorOpsImplIntegrationContractTest {
     }
 
     @Test
-    public void addFixtureFlows_centerFixturesOnBody_andPushThroughHistoryCommands() throws Exception {
+    public void addFixtureFlows_placeFixturesAtClick_andPushThroughHistoryCommands() throws Exception {
         String source = readEditorOpsImpl();
         String addBox = methodBody(source, "public void addBoxFixture(int bodyEid, float worldX, float worldY)");
         String addCircle = methodBody(source, "public void addCircleFixture(int bodyEid, float worldX, float worldY)");
 
-        assertTrue(addBox.contains("fixture.geometry.offsetX = 0f;"));
-        assertTrue(addBox.contains("fixture.geometry.offsetY = 0f;"));
+        assertTrue(addBox.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)"));
         assertTrue(addBox.contains("historyManager.execute(new AddFixtureCommand("));
 
-        assertTrue(addCircle.contains("fixture.geometry.offsetX = 0f;"));
-        assertTrue(addCircle.contains("fixture.geometry.offsetY = 0f;"));
+        assertTrue(addCircle.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)"));
         assertTrue(addCircle.contains("historyManager.execute(new AddFixtureCommand("));
+    }
+
+    @Test
+    public void polygonCreationStartsAtTheContextClick() throws Exception {
+        String source = readEditorOpsImpl();
+        String polygon = methodBody(source,
+                "public void beginAddPolygonFixture(int bodyEid, float worldX, float worldY)");
+        assertTrue(polygon.contains("polygonDrawSession.beginCreate(bodyEid);"));
+        assertTrue(polygon.contains("polygonDrawSession.addPoint(worldX, worldY);"));
     }
 
     @Test
