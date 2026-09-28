@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import com.kotcrab.vis.ui.VisUI;
@@ -121,6 +122,20 @@ public final class AnimationClipsDialog extends StudioDialog {
         r.startModel.setValue(clamp(start));
         r.endModel.setValue(clamp(end));
         r.flipBox.setChecked(flipX);
+        r.nameField.addListener(new FocusListener() {
+            @Override
+            public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+                if (!focused) refreshList();
+            }
+        });
+        ChangeListener rangeChanged = new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                refreshList();
+            }
+        };
+        r.startSpinner.addListener(rangeChanged);
+        r.endSpinner.addListener(rangeChanged);
         installTooltip(r.removeButton, "Delete clip");
         r.removeButton.addListener(new ChangeListener() {
             @Override
@@ -144,7 +159,14 @@ public final class AnimationClipsDialog extends StudioDialog {
         listTable.add(new VisLabel("Flip")).left().pad(2);
         listTable.add(new VisLabel("")).right().pad(2).row();
 
-        for (Row r : rows) {
+        Array<Row> displayRows = new Array<>(rows);
+        displayRows.sort((a, b) -> {
+            int byStart = Integer.compare(a.startModel.getValue(), b.startModel.getValue());
+            if (byStart != 0) return byStart;
+            int byEnd = Integer.compare(a.endModel.getValue(), b.endModel.getValue());
+            return byEnd != 0 ? byEnd : a.nameField.getText().compareTo(b.nameField.getText());
+        });
+        for (Row r : displayRows) {
             listTable.add(r.nameField).growX().pad(2);
             listTable.add(r.startSpinner).width(110).pad(2);
             listTable.add(r.endSpinner).width(110).pad(2);
@@ -162,7 +184,8 @@ public final class AnimationClipsDialog extends StudioDialog {
         Runnable reveal = () -> {
             listTable.validate();
             scroll.validate();
-            scroll.setScrollPercentY(1f);
+            scroll.scrollTo(row.nameField.getX(), row.nameField.getY(),
+                    row.nameField.getWidth(), row.nameField.getHeight(), false, false);
             scroll.updateVisualScroll();
             if (getStage() != null) getStage().setKeyboardFocus(row.nameField);
         };
