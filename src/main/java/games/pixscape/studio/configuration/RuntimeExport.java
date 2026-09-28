@@ -8,6 +8,8 @@ import games.pixscape.runtime.animation.AnimationDefData;
 import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.loading.ContentLayerValidator;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.asset.*;
@@ -73,9 +75,34 @@ public final class RuntimeExport {
             throw new GdxRuntimeException("studioCfg.projectFileName is blank");
         }
 
+        validateContentLayerInputs(studioCfg, studioProjectDir);
+
         // All HUD resolution, source capture and packing must succeed before removing the old export.
         try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
             return exportPrepared(studioCfg, studioProjectDir, userProjectDir, hud);
+        }
+    }
+
+    private static void validateContentLayerInputs(ProjectConfig cfg, FileHandle studioProjectDir) {
+        ObjectMap<String, SceneMeta> scenes = cfg.getScenesMap();
+        if (scenes != null) {
+            for (ObjectMap.Entry<String, SceneMeta> entry : scenes) {
+                SceneMeta scene = entry.value;
+                if (scene == null || scene.file == null) continue;
+                FileHandle file = studioProjectDir.child(StudioFs.DIR_SCENES)
+                        .child(RuntimeFs.filenameOnly(scene.file));
+                if (file.exists()) {
+                    ContentLayerValidator.validateSerializedScene(file.readString("UTF-8"),
+                            "Scene '" + file.path() + "'");
+                }
+            }
+        }
+        FileHandle gameObjects = studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS);
+        if (gameObjects.exists()) {
+            GameObjectAssetLoader loader = new GameObjectAssetLoader();
+            for (FileHandle file : gameObjects.list()) {
+                if (file.name().endsWith(GameObjectAsset.EXTENSION)) loader.load(file);
+            }
         }
     }
 

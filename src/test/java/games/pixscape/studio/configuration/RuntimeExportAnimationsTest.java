@@ -186,7 +186,6 @@ public class RuntimeExportAnimationsTest {
                       "components": {
                         "LayerComponent": {
                           "layerIndex": 0,
-                          "type": 3,
                           "spatialEnabled": true
                         },
                         "TiledLayerComponent": {
@@ -217,6 +216,7 @@ public class RuntimeExportAnimationsTest {
         JsonValue tiled = components.get("TiledLayerComponent");
 
         assertTrue(layer.getBoolean("spatialEnabled", false));
+        assertFalse(layer.has("type"));
         assertTrue(tiled.getBoolean("spatialEnabled", false));
         assertEquals(2.5f, tiled.getFloat("defaultTileAltitude", 0f), 0.0001f);
         assertEquals(16f, tiled.getFloat("defaultTileHeight", 0f), 0.0001f);
@@ -241,7 +241,6 @@ public class RuntimeExportAnimationsTest {
                       "components": {
                         "LayerComponent": {
                           "layerIndex": 0,
-                          "type": 3,
                           "spatialEnabled": true
                         },
                         "TiledLayerComponent": {

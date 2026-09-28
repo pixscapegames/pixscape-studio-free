@@ -1243,6 +1243,9 @@ public final class SceneService {
                 ? world.getAspectSubscriptionManager().get(Aspect.all(EntityIndexComponent.class)).getEntities()
                 : world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
 
+        games.pixscape.runtime.loading.ContentLayerValidator.validateWorld(
+                world, "Scene '" + outFile.path() + "'");
+
         SaveFileFormat format = new SaveFileFormat(entitiesToSave);
         SceneVolatileStateSnapshot volatileState = clearVolatileSceneStateForSave(world, entitiesToSave);
         try {
