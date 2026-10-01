@@ -173,6 +173,51 @@ public class HudInteractiveTestModeTest {
         }
     }
 
+    @Test public void newlyCreatedHudFillsEditAndTestSurfacesAfterReopen() throws Exception {
+        FileHandle project = new FileHandle(temporary.newFolder("created-adaptive"));
+        String id = new HudScreenAssetAuthoringService().create(project, "adaptive");
+        HudDocumentPersistenceService persistence = new HudDocumentPersistenceService();
+        var created = persistence.load(project, id);
+        HudDocumentEditSession edit = new HudDocumentEditSession(created.asset(), created.document());
+        edit.edit("Add stretch content", candidate -> {
+            var cell = candidate.root.table.rows.get(0).cells.get(0);
+            cell.content = new HudNode("stretched", HudNodeKind.STACK);
+            cell.constraints.expandX = true;
+            cell.constraints.expandY = true;
+            cell.constraints.fillX = true;
+            cell.constraints.fillY = true;
+            return candidate;
+        });
+        persistence.save(project, edit);
+        edit.close();
+
+        var reopened = persistence.load(project, id);
+        HudScreenEditorDocument document = new HudScreenEditorDocument(
+                id, "Adaptive", reopened.asset(), reopened.document());
+        HudEditorSession session = new HudEditorSession(
+                AssetMetaDatabase::new, HudInteractiveTestModeTest::inertBatch);
+        try {
+            session.open(project, document);
+            assertTrue(session.configurePreview(new Rectangle(10f, 20f, 800f, 600f)));
+            assertEquals(800f, session.materializedHud().root().getWidth(), .001f);
+            assertEquals(600f, session.materializedHud().actor("stretched").getHeight(), .001f);
+
+            assertTrue(session.enterTestMode());
+            assertEquals(800f, session.testActor("root").getWidth(), .001f);
+            assertEquals(600f, session.testActor("stretched").getHeight(), .001f);
+            assertTrue(session.configurePreview(new Rectangle(10f, 20f, 400f, 300f)));
+            assertEquals(400f, session.testActor("root").getWidth(), .001f);
+            assertEquals(300f, session.testActor("stretched").getHeight(), .001f);
+
+            session.exitTestMode();
+            assertTrue(session.configurePreview(new Rectangle(10f, 20f, 800f, 600f)));
+            assertEquals(800f, session.materializedHud().root().getWidth(), .001f);
+            assertEquals(600f, session.materializedHud().actor("stretched").getHeight(), .001f);
+        } finally {
+            session.dispose();
+        }
+    }
+
     @Test public void listSelectionAndItemsStayTransientAcrossTestSessions() throws Exception {
         FileHandle project = new FileHandle(temporary.newFolder("list-mode"));
         HudNode root = new HudNode("root", HudNodeKind.GROUP);

@@ -8,8 +8,6 @@ import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.hud.HudScreenAssetLoader;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.studio.io.AtomicTextPublication;
 import games.pixscape.studio.io.StudioIO;
 
@@ -40,7 +38,7 @@ public final class HudScreenAssetAuthoringService {
         HudScreenAsset asset = new HudScreenAsset();
         asset.documentId = documentId;
         asset.validate();
-        HudDocumentV1 document = new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP));
+        HudDocumentV1 document = HudLayoutAuthoring.newScreenDocument();
 
         try {
             AtomicTextPublication.publish(java.util.List.of(

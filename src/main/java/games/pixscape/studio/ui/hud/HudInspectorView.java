@@ -18,6 +18,7 @@ import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import com.kotcrab.vis.ui.widget.VisTextField;
+import com.kotcrab.vis.ui.widget.Tooltip;
 import games.pixscape.runtime.hud.document.HudChild;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudTableCell;
@@ -165,6 +166,10 @@ public final class HudInspectorView extends VisTable {
     }
 
     private void addSkinChoice() {
+        addSkinChoice("Skin");
+    }
+
+    private void addSkinChoice(String label) {
         String originScreenId = session.screenId();
         String currentSkinId = session.asset() != null ? session.asset().skinId : null;
         List<SkinChoice> options = new java.util.ArrayList<>();
@@ -213,7 +218,7 @@ public final class HudInspectorView extends VisTable {
                 }
             }
         });
-        addFormLabel("Skin");
+        addFormLabel(label);
         add(box).growX().left().row();
         if (hasSkinDiagnostic(originScreenId)) {
             VisLabel diagnostic = new VisLabel(skinDiagnostic);
@@ -250,6 +255,8 @@ public final class HudInspectorView extends VisTable {
     private void addNodeProperties(HudNode node) {
         String nodeId = node.id;
         HudDocumentV1 currentDocument = session.document();
+        boolean root = session.validation() != null && session.validation().isValid()
+                && session.validation().validatedDocument().document().root == node;
         HudChild relation = HudLayoutAuthoring.childRelation(currentDocument, nodeId);
         HudTableCell ownerCell = HudLayoutAuthoring.containingCell(session.document(), nodeId);
         HudNode resultOwner = HudLayoutAuthoring.resultButtonOwner(session.document(), nodeId);
@@ -262,7 +269,10 @@ public final class HudInspectorView extends VisTable {
         if (node.kind != HudNodeKind.DIALOG) {
             addVisibilityProperty(session.screenId(), nodeId, node.visible);
         }
-        if (placement == null || placement == HudPlacementKind.FREE) {
+        if (root) {
+            addReadOnly("Size", "Viewport");
+            addSkinChoice("Default skin");
+        } else if (placement == null || placement == HudPlacementKind.FREE) {
             addNumber("Width", "hudWidthField", nodeId, nodeValue(nodeId, current -> current.actor.width),
                     value -> edit(nodeId, (current, ignored) -> current.actor.width = value), 1, nonNegative());
             addNumber("Height", "hudHeightField", nodeId, nodeValue(nodeId, current -> current.actor.height),
@@ -578,6 +588,9 @@ public final class HudInspectorView extends VisTable {
         addCellChecks("Expand", "hudExpandX", "hudExpandY", cellId,
                 current -> current.constraints.expandX, current -> current.constraints.expandY,
                 (current, x, y) -> { current.constraints.expandX = x; current.constraints.expandY = y; });
+        addCellChecks("Uniform", "hudUniformX", "hudUniformY", cellId,
+                current -> current.constraints.uniformX, current -> current.constraints.uniformY,
+                (current, x, y) -> { current.constraints.uniformX = x; current.constraints.uniformY = y; });
         addCellChoice("Horizontal align", "hudHorizontalAlign", cellId,
                 current -> current.constraints.horizontalAlign, HudHorizontalAlign.values(),
                 HudInspectorView::enumLabel,
@@ -1915,6 +1928,16 @@ public final class HudInspectorView extends VisTable {
         x.setChecked(Boolean.TRUE.equals(cellValue(cellId, xReader).get()));
         VisCheckBox y = new VisCheckBox("Y:"); y.setName(yName);
         y.setChecked(Boolean.TRUE.equals(cellValue(cellId, yReader).get()));
+        String tooltip = switch (label) {
+            case "Expand" -> "Assigns a share of extra space to the row or column.";
+            case "Fill" -> "Stretches the widget within its cell, subject to its constraints.";
+            case "Uniform" -> "Matches minimum and preferred sizes with other uniform cells on this axis.";
+            default -> null;
+        };
+        if (tooltip != null) {
+            new Tooltip.Builder(tooltip).target(x).build();
+            new Tooltip.Builder(tooltip).target(y).build();
+        }
         ChangeListener listener = new ChangeListener() {
             @Override public void changed(ChangeEvent event, Actor actor) {
                 if (refreshing || !isCurrentCell(cellId)) return;

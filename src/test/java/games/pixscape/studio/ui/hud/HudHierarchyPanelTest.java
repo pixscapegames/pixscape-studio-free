@@ -31,6 +31,9 @@ import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.service.hud.HudEditorSession;
 import games.pixscape.studio.service.hud.HudLayoutAuthoring;
 import games.pixscape.studio.service.hud.HudOverlayGeometry;
+import games.pixscape.studio.service.hud.HudScreenAssetAuthoringService;
+import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
+import games.pixscape.studio.service.hud.HudDocumentEditSession;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -54,6 +57,75 @@ public class HudHierarchyPanelTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+
+    @Test public void createdAndReopenedRootCellSelectsFromItemsAndCanvasStage() throws Exception {
+        var project = Gdx.files.absolute(temporary.getRoot().getAbsolutePath());
+        String id = new HudScreenAssetAuthoringService().create(project, "stage-cells");
+        var persistence = new HudDocumentPersistenceService();
+        var loaded = persistence.load(project, id);
+        var edit = new HudDocumentEditSession(loaded.asset(), loaded.document());
+        edit.edit("Add occupied root cell", candidate -> {
+            HudNode widget = new HudNode("widget", HudNodeKind.GROUP);
+            widget.actor.width = 20f;
+            widget.actor.height = 10f;
+            candidate.root.table.rows.get(0).cells.get(0).content = widget;
+            return candidate;
+        });
+        persistence.save(project, edit);
+        edit.close();
+        loaded = persistence.load(project, id);
+        EditorDocumentManager manager = new EditorDocumentManager();
+        HudScreenEditorDocument document = manager.openHudScreen(new HudScreenEditorDocument(
+                id, "Stage cells", loaded.asset(), loaded.document()));
+        String cellId = document.document().root.table.rows.get(0).cells.get(0).id;
+        Graphics previousGraphics = Gdx.graphics;
+        Gdx.graphics = logicalGraphics(200, 200);
+        HudEditorSession session = new HudEditorSession(AssetMetaDatabase::new,
+                HudHierarchyPanelTest::inertBatch);
+        Stage stage = null;
+        try {
+            session.open(project, document);
+            var configure = HudEditorSession.class.getDeclaredMethod("configurePreview", Rectangle.class);
+            configure.setAccessible(true);
+            assertTrue((Boolean) configure.invoke(session, new Rectangle(0f, 0f, 200f, 200f)));
+            HudPanelTestSupport.DeferredUi deferred = new HudPanelTestSupport.DeferredUi();
+            HudHierarchyPanel hierarchy = new HudHierarchyPanel(session, manager, deferred::post);
+            stage = new Stage(new ScreenViewport(), inertBatch());
+            stage.getViewport().update(200, 200, true);
+            HudCanvasInputHost host = new HudCanvasInputHost(session);
+            host.setBounds(0f, 0f, 200f, 200f);
+            host.activateHudInput();
+            stage.addActor(host);
+            hierarchy.setBounds(0f, 0f, 200f, 200f);
+            stage.addActor(hierarchy);
+            hierarchy.validate();
+            hierarchy.tree().validate();
+            hierarchy.scroller().layout();
+            click(stage, hierarchy.tree().findCell(cellId), 12f, Input.Buttons.LEFT, 200);
+            assertEquals(cellId, session.selectedCellId());
+            assertEquals(cellId, document.selectedCellId());
+            HudInspectorView inspector = new HudInspectorView(session);
+            assertNotNull(inspector.findActor("hudPadLeftField"));
+            assertTrue(session.selectionTargets().stream().anyMatch(target ->
+                    cellId.equals(target.nodeId()) && target.selected()));
+            deferred.runAll();
+            assertSame(hierarchy.tree().findCell(cellId), hierarchy.tree().getSelectedNode());
+            hierarchy.remove();
+            session.selectNode("root");
+            deferred.runAll();
+            stage.touchDown(10, 190, 0, Input.Buttons.LEFT);
+            stage.touchUp(10, 190, 0, Input.Buttons.LEFT);
+            assertEquals(cellId, session.selectedCellId());
+            assertNotNull(inspector.findActor("hudPadLeftField"));
+            stage.touchDown(100, 100, 0, Input.Buttons.LEFT);
+            stage.touchUp(100, 100, 0, Input.Buttons.LEFT);
+            assertEquals("widget", session.selectedNodeId());
+        } finally {
+            if (stage != null) stage.dispose();
+            session.dispose();
+            Gdx.graphics = previousGraphics;
+        }
+    }
 
     @Test
     public void projectsRealParentChildTreeAndStringIdIndex() throws Exception {

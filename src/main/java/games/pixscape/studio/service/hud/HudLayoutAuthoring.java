@@ -849,6 +849,16 @@ public final class HudLayoutAuthoring {
         throw new IllegalStateException("No available HUD node ID for " + prefix + ".");
     }
 
+    /** Creates a new HUD with a viewport-sized root Table and one editable cell. */
+    public static HudDocumentV1 newScreenDocument() {
+        HudNode root = new HudNode("root", HudNodeKind.TABLE);
+        root.table = newTableLayout(root, 1, 1, false);
+        HudTableCell cell = root.table.rows.get(0).cells.get(0);
+        cell.constraints.expandX = true;
+        cell.constraints.expandY = true;
+        return new HudDocumentV1(root);
+    }
+
     /** Creates the complete first-version explicit grid without publishing any document mutation. */
     public static HudTableLayout newTableLayout(HudNode root, int rows, int columns,
                                                  boolean applyCreationMinimums) {

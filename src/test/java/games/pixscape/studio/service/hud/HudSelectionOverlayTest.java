@@ -123,6 +123,22 @@ public class HudSelectionOverlayTest {
         assertEquals(20f, target.height(), 0.001f);
     }
 
+    @Test public void newlyCreatedAndReopenedRootCellIsPickable() throws Exception {
+        var project = Gdx.files.absolute(temporary.getRoot().getAbsolutePath());
+        String id = new HudScreenAssetAuthoringService().create(project, "pickable");
+        var loaded = new HudDocumentPersistenceService().load(project, id);
+        var editor = new HudScreenEditorDocument(id, "Pickable", loaded.asset(), loaded.document());
+        Fixture f = open(editor, new AssetMetaDatabase());
+        String cellId = editor.document().root.table.rows.get(0).cells.get(0).id;
+        HudSelectionTarget cell = target(f.session.selectionTargets(), cellId);
+        assertNotNull(cell);
+        assertEquals(HudSelectionTarget.Type.CELL, cell.type());
+        assertTrue(cell.width() > 0f);
+        assertTrue(cell.height() > 0f);
+        assertTrue(f.session.selectOverlayTargetAt(50f, 50f));
+        assertEquals(cellId, f.session.selectedCellId());
+    }
+
     @Test public void childClickSelectsStableIdWithoutHistoryOrDirtyState() throws Exception {
         Fixture f = open(nestedDocument(), "hud/main");
         f.session.selectNode("root");

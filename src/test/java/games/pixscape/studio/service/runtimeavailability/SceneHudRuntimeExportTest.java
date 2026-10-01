@@ -77,7 +77,9 @@ public class SceneHudRuntimeExportTest {
         f.export();
         assertTrue(f.runtime.child("hud/main.hudscreen").exists());
         assertEquals("root", new HudDocumentCodec().read(f.runtime.child("hud/main.json")).root.id);
-        assertFalse(f.runtime.child("hud/unrelated.hudscreen").exists());
+        HudScreenAsset standalone = new games.pixscape.runtime.hud.HudScreenAssetLoader()
+                .load(f.runtime, "hud/unrelated");
+        assertTrue(f.runtime.child(standalone.atlasId).exists());
         assertFalse(f.runtime.child("skins/unused.json").exists());
         assertFalse(f.runtime.child("atlases/hud/scene1/unlisted.png").exists());
         assertDescriptorMembership(f.runtime.child("atlases/hud/scene1"));
@@ -86,6 +88,27 @@ public class SceneHudRuntimeExportTest {
         assertEquals(config, new Json().toJson(f.cfg));
         assertEquals(asset.atlasId, new JsonReader().parse(f.runtime.child("hud/main.hudscreen")).getString("atlasId"));
         f.noCandidates(); noTemporaryArtifacts(f.runtime);
+    }
+
+    @Test public void autonomousMenuIsExportedWithItsResourcesWithoutSceneAssociation() throws Exception {
+        Fixture f = fixture();
+        f.withSkin(false);
+        HudScreenAsset menu = new HudScreenAsset();
+        menu.skinId = "skins/game.json";
+        f.save("menu", menu, label());
+
+        f.export();
+
+        FileHandle descriptor = f.runtime.child("hud/menu.hudscreen");
+        assertTrue(descriptor.exists());
+        assertTrue(f.runtime.child("hud/menu.json").exists());
+        HudScreenAsset exported = new games.pixscape.runtime.hud.HudScreenAssetLoader()
+                .load(f.runtime, "hud/menu");
+        assertNotNull(exported.atlasId);
+        assertTrue(f.runtime.child(exported.atlasId).exists());
+        assertTrue(f.runtime.child("skins/game.json").exists());
+        assertDescriptorMembership(f.runtime.child(exported.atlasId).parent());
+        f.noCandidates();
     }
 
     @Test public void requiredSkinAndFontDescriptorsKeepPathsButBuildOnlySourcesStayPrivate() throws Exception {
@@ -261,7 +284,7 @@ public class SceneHudRuntimeExportTest {
         assertDescriptorMembership(f.runtime.child("atlases/hud/scene1")); f.noCandidates();
     }
 
-    @Test public void selectedDirtyDocumentsAreRejectedWithoutSavingButUnrelatedDirtyDocumentsAreAllowed() throws Exception {
+    @Test public void dirtyExportedHudDocumentsAreRejectedWithoutSaving() throws Exception {
         Fixture f = fixture(); f.save("main", new HudScreenAsset(), group()); f.select("hud/main");
         HudScreenAsset editorAsset = new HudScreenAsset();
         editorAsset.documentId = "hud/main.json";
@@ -269,12 +292,19 @@ public class SceneHudRuntimeExportTest {
         editor.editSession().edit("Unsaved change", ignored -> new HudDocumentV1(new HudNode("unsaved", HudNodeKind.GROUP)));
         int history = editor.editSession().historySize(); byte[] saved = f.root.child("hud/main.json").readBytes();
         try {
-            SceneHudRuntimeExport.requireSavedDocuments(f.cfg, List.of(editor.screenId()));
+            SceneHudRuntimeExport.requireSavedDocuments(f.root, f.cfg, List.of(editor.screenId()));
             fail("Must require ordinary save before export");
         } catch (IllegalStateException expected) { assertTrue(expected.getMessage().contains("Save selected HUD screen 'hud/main'")); }
         assertTrue(editor.isDirty()); assertEquals(history, editor.editSession().historySize());
         assertArrayEquals(saved, f.root.child("hud/main.json").readBytes());
-        SceneHudRuntimeExport.requireSavedDocuments(f.cfg, List.of("hud/unrelated"));
+        f.save("unrelated", new HudScreenAsset(), group());
+        try {
+            SceneHudRuntimeExport.requireSavedDocuments(f.root, f.cfg, List.of("hud/unrelated"));
+            fail("Saved autonomous HUDs must also be saved before export");
+        } catch (IllegalStateException expected) {
+            assertTrue(expected.getMessage().contains("hud/unrelated"));
+        }
+        SceneHudRuntimeExport.requireSavedDocuments(f.root, f.cfg, List.of("hud/unsaved-draft"));
         // File-only callers have no editor override API; their authoritative input is the saved document.
         f.export();
         assertEquals("root", new HudDocumentCodec().read(f.runtime.child("hud/main.json")).root.id);

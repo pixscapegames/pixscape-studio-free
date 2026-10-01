@@ -208,8 +208,11 @@ public class HudInspectorViewTest {
         assertTitle(view, "TABLE");
         List<String> labels = labels(view);
         assertTrue(labels.contains("Node ID:"));
-        assertTrue(labels.contains("Width:"));
-        assertTrue(labels.contains("Height:"));
+        assertTrue(labels.contains("Size:"));
+        assertTrue(labels.contains("Viewport"));
+        assertTrue(labels.contains("Default skin:"));
+        assertFalse(labels.contains("Width:"));
+        assertFalse(labels.contains("Height:"));
         assertFalse(labels.contains("Kind:"));
     }
 
@@ -225,9 +228,14 @@ public class HudInspectorViewTest {
                 "orig/skins/3/bad.json", AssetMeta.AssetScope.USER);
         var screenAsset = asset("hud/main");
         screenAsset.skinId = first.sourceRelPath();
+        HudNode root = new HudNode("root", HudNodeKind.GROUP);
+        HudNode button = new HudNode("button", HudNodeKind.TEXT_BUTTON);
+        button.textButton = new HudTextButtonData();
+        button.textButton.text = "Go";
+        button.textButton.styleName = "primary";
+        root.children.add(HudChild.free(button, new HudFreePlacement()));
         HudScreenEditorDocument document = new HudScreenEditorDocument(
-                "hud/main", "HUD", screenAsset, new HudDocumentV1(
-                new HudNode("root", HudNodeKind.GROUP)));
+                "hud/main", "HUD", screenAsset, new HudDocumentV1(root));
         HudEditorSession session = HudPanelTestSupport.projectedSession(document,
                 new HudEditorSession(() -> database));
         HudPanelTestSupport.bindSkinValidatingPreview(session, document,
@@ -247,6 +255,11 @@ public class HudInspectorViewTest {
         assertEquals(first.sourceRelPath(), document.asset().skinId);
         assertTrue(document.editSession().redo());
         assertEquals(second.sourceRelPath(), document.asset().skinId);
+        assertEquals("primary", document.document().root.children.get(0).node.textButton.styleName);
+
+        session.selectNode("root");
+        assertEquals(secondLabel,
+                ((VisSelectBox<?>) view.findActor("hudScreenSkin")).getSelected().toString());
 
         skin = view.findActor("hudScreenSkin");
         skin.setSelectedIndex(choiceIndex(skin, "Bad"));
@@ -261,6 +274,15 @@ public class HudInspectorViewTest {
         assertEquals(second.sourceRelPath(), document.asset().skinId);
         assertEquals(1, document.editSession().historySize());
         assertNotNull(view.findActor("hudScreenSkinError"));
+
+        skin = view.findActor("hudScreenSkin");
+        skin.setSelectedIndex(choiceIndex(skin, firstLabel));
+        assertEquals(first.sourceRelPath(), document.asset().skinId);
+        assertTrue(document.editSession().undo());
+        assertEquals(second.sourceRelPath(), document.asset().skinId);
+        assertTrue(document.editSession().redo());
+        assertEquals(first.sourceRelPath(), document.asset().skinId);
+        assertEquals("primary", document.document().root.children.get(0).node.textButton.styleName);
     }
 
     @Test
@@ -599,6 +621,16 @@ public class HudInspectorViewTest {
         cell = relation(document.document().root, "child").cell;
         assertTrue(cell.fillX);
         assertFalse(cell.fillY);
+
+        VisCheckBox uniformX = view.findActor("hudUniformX");
+        uniformX.setChecked(true);
+        cell = relation(document.document().root, "child").cell;
+        assertTrue(cell.uniformX);
+        assertFalse(cell.uniformY);
+        assertTrue(document.editSession().undo());
+        assertFalse(relation(document.document().root, "child").cell.uniformX);
+        assertTrue(document.editSession().redo());
+        assertTrue(relation(document.document().root, "child").cell.uniformX);
 
         int historyBeforeInvalid = document.editSession().historySize();
         SimpleFloatField currentLeft = view.findActor("hudPadLeftField");
@@ -1810,8 +1842,8 @@ public class HudInspectorViewTest {
         VisCheckBox visible = view.findActor("hudVisible");
         view.setSize(310f, view.getPrefHeight());
         view.validate();
-        Actor width = view.findActor("hudWidthField");
-        assertEquals(width.getX(), visible.getX(), 0.01f);
+        Actor skin = view.findActor("hudScreenSkin");
+        assertEquals(skin.getX(), visible.getX(), 0.01f);
         assertEquals(visible.getPrefWidth(), visible.getWidth(), 0.01f);
         assertTrue(visible.isChecked());
         visible.setChecked(false);

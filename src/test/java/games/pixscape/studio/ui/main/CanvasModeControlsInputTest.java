@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.main;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -28,6 +29,59 @@ import static org.junit.Assert.*;
 public class CanvasModeControlsInputTest {
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
+
+    @Test public void hudSurfaceFollowsDockCenterWithZeroOneOrTwoRightPanels()
+            throws Exception {
+        try (DockingTestFixture fixture = DockingTestFixture.create()) {
+            fixture.studioStage.getViewport().update(1200, 800, true);
+            fixture.shell.setFillParent(true);
+            fixture.studioStage.addActor(fixture.shell);
+            StudioApplicationAdapter adapter = DockingTestFixture.field(
+                    fixture.manager, "app", StudioApplicationAdapter.class);
+            var stageField = StudioApplicationAdapter.class.getDeclaredField("uiStage");
+            stageField.setAccessible(true);
+            stageField.set(adapter, fixture.studioStage);
+            var dockField = StudioApplicationAdapter.class.getDeclaredField("dockManager");
+            dockField.setAccessible(true);
+            dockField.set(adapter, fixture.manager);
+            var metricsField = StudioApplicationAdapter.class.getDeclaredField("displayMetrics");
+            metricsField.setAccessible(true);
+            var metrics = (games.pixscape.studio.display.DisplayMetrics) metricsField.get(adapter);
+            metrics.update(1200, 800, 1200, 800);
+            var resolve = StudioApplicationAdapter.class.getDeclaredMethod(
+                    "resolveCenterBoundsLogical", boolean.class);
+            resolve.setAccessible(true);
+            var boundsField = StudioApplicationAdapter.class.getDeclaredField("centerBoundsLogical");
+            boundsField.setAccessible(true);
+            float twoPanels = assertHudCenter(fixture, adapter, resolve, boundsField);
+            fixture.manager.hide(fixture.properties);
+            float onePanel = assertHudCenter(fixture, adapter, resolve, boundsField);
+            assertEquals(twoPanels, onePanel, 1f);
+            fixture.manager.hide(fixture.layers);
+            float noPanels = assertHudCenter(fixture, adapter, resolve, boundsField);
+            assertTrue(noPanels > onePanel);
+            fixture.manager.show(fixture.properties);
+            assertEquals(onePanel, assertHudCenter(fixture, adapter, resolve, boundsField), 1f);
+            fixture.manager.hide(fixture.items);
+            assertTrue(assertHudCenter(fixture, adapter, resolve, boundsField) > onePanel);
+        }
+    }
+
+    private static float assertHudCenter(DockingTestFixture fixture,
+                                         StudioApplicationAdapter adapter,
+                                         java.lang.reflect.Method resolve,
+                                         java.lang.reflect.Field boundsField) throws Exception {
+        fixture.studioStage.act(0f);
+        fixture.shell.validate();
+        assertTrue((Boolean) resolve.invoke(adapter, false));
+        Rectangle hud = (Rectangle) boundsField.get(adapter);
+        Stack center = fixture.manager.getCenterStack();
+        Vector2 origin = center.localToStageCoordinates(new Vector2());
+        assertEquals(origin.x + RulerActor.LEFT_WIDTH, hud.x, 1f);
+        assertEquals(origin.x + center.getWidth(), hud.x + hud.width, 1f);
+        assertTrue(hud.height > 0f);
+        return hud.width;
+    }
 
     @Test public void layoutKeepsIndicatorNaturalAndRemovesHudActionOutsideHud() throws Exception {
         EventFlow.i().flush();

@@ -39,9 +39,9 @@ final class HudSelectionOverlayProjection {
         if (cellsById != null) {
             for (Map.Entry<String, Cell<?>> entry : cellsById.entrySet()) {
                 HudTableCell source = findCell(document.root, entry.getKey());
-                // An occupied cell remains reachable through its widget's regular actor target;
-                // only a blank native cell becomes a selectable canvas surface.
-                if (source == null || source.content != null) continue;
+                // The allocated cell remains selectable around its widget. Actor targets are
+                // appended afterwards and keep priority over the widget's visible bounds.
+                if (source == null) continue;
                 Rectangle bounds = HudOverlayGeometry.visibleCellBoundsInOverlay(entry.getValue(), overlay,
                         new Rectangle());
                 if (usable(bounds)) targets.add(HudSelectionTarget.from(entry.getKey(),

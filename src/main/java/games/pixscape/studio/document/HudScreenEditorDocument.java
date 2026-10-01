@@ -4,10 +4,9 @@ import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.studio.service.hud.HudDocumentEditSession;
 import games.pixscape.studio.service.hud.HudEditorSession;
+import games.pixscape.studio.service.hud.HudLayoutAuthoring;
 
 /** Authoritative per-tab HUD authoring/history state, lightweight when its preview is detached. */
 public final class HudScreenEditorDocument extends OpenEditorDocument implements AutoCloseable {
@@ -79,6 +78,6 @@ public final class HudScreenEditorDocument extends OpenEditorDocument implements
     }
 
     private static HudDocumentV1 defaultDocument() {
-        return new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP));
+        return HudLayoutAuthoring.newScreenDocument();
     }
 }

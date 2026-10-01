@@ -33,13 +33,24 @@ public final class SceneHudRuntimeExport {
     public SceneHudRuntimeExport() { this(new SceneHudAtlasBuilder()); }
     SceneHudRuntimeExport(SceneHudAtlasBuilder builder) { this.builder = Objects.requireNonNull(builder); }
 
-    /** UI precondition: export reads saved files, and must not silently substitute dirty selected HUDs. */
-    public static void requireSavedDocuments(ProjectConfig config, Iterable<String> dirtyScreenIds) {
-        var selected = new TreeSet<String>();
+    /** UI precondition: export reads saved files for every authored HUD screen. */
+    public static void requireSavedDocuments(FileHandle project, ProjectConfig config,
+                                             Iterable<String> dirtyScreenIds) {
+        var selected = authoredScreenIds(project);
         for (String name : config.getSceneNames()) selected.addAll(SceneHudRoots.collect(config.getSceneMeta(name)));
         for (String id : dirtyScreenIds) if (selected.contains(HudScreenAssetId.normalize(id)))
             throw new IllegalStateException("Save selected HUD screen '" + HudScreenAssetId.normalize(id)
                     + "' before exporting runtime.");
+    }
+
+    private static TreeSet<String> authoredScreenIds(FileHandle project) {
+        var ids = new TreeSet<String>();
+        FileHandle hudDirectory = project.child(HudScreenAssetId.DIRECTORY);
+        if (hudDirectory.exists()) for (FileHandle descriptor : hudDirectory.list(
+                HudScreenAsset.EXTENSION.substring(1))) {
+            if (!descriptor.isDirectory()) ids.add(HudScreenAssetId.normalize(descriptor.nameWithoutExtension()));
+        }
+        return ids;
     }
 
     /** Completes every Scene build before the caller may replace its previous Runtime export. */
@@ -61,7 +72,10 @@ public final class SceneHudRuntimeExport {
             scenes.put(tag, roots);
             allRoots.addAll(roots);
         }
-        if (scenes.isEmpty()) return new PreparedExport(null, List.of());
+        var standaloneRoots = authoredScreenIds(project);
+        standaloneRoots.removeAll(allRoots);
+        allRoots.addAll(standaloneRoots);
+        if (allRoots.isEmpty()) return new PreparedExport(null, List.of());
 
         var database = AssetMetaDatabase.load(project.child(StudioFs.FILE_ASSETS_JSON));
         var collector = new SceneHudDependencyCollector();
@@ -86,7 +100,8 @@ public final class SceneHudRuntimeExport {
             json.setTypeName(null);
             json.setOutputType(JsonWriter.OutputType.json);
             for (var screen : closure.selectedHudScreens()) {
-                var asset = screen.asset();
+                var asset = standaloneRoots.contains(screen.screenId())
+                        ? standaloneAsset(screen.asset(), screen.screenId()) : screen.asset();
                 writeArtifact(artifacts, paths, screen.screenId() + HudScreenAsset.EXTENSION,
                         json.prettyPrint(asset).getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 writeArtifact(artifacts, paths, asset.documentId,
@@ -104,20 +119,12 @@ public final class SceneHudRuntimeExport {
                         sources.child(font.descriptorPath()).readBytes());
             }
             for (var scene : scenes.entrySet()) {
-                var selected = collector.collect(sources, database, scene.getValue(), screens);
-                var plan = new SceneHudPackInputProjector().project(sources, selected);
-                requireDrawableSources(sources, selected, plan);
-                FileHandle inputs = workspace.child("inputs").child(scene.getKey());
-                var manifest = new SceneHudPackInputMaterializer().materialize(sources, inputs, plan);
-                FileHandle output = SceneHudEnvironmentPaths.liveDirectory(artifacts, scene.getKey());
-                String descriptorPath = "atlases/hud/" + scene.getKey() + "/hud.atlas";
-                if (paths.stream().anyMatch(path -> path.startsWith("atlases/hud/" + scene.getKey() + "/")))
-                    throw new IllegalArgumentException("Authored artifact overlaps generated Scene HUD output: " + scene.getKey());
-                builder.build(inputs, manifest, output);
-                // Descriptor membership, not guessed filenames or a recursive output-directory copy.
-                var atlas = new TextureAtlasData(output.child("hud.atlas"), output, false);
-                paths.add(descriptorPath);
-                for (var page : atlas.getPages()) paths.add("atlases/hud/" + scene.getKey() + "/" + page.name);
+                pack(sources, database, collector, screens, workspace, artifacts, paths,
+                        scene.getValue(), "atlases/hud/" + scene.getKey());
+            }
+            for (String id : standaloneRoots) {
+                pack(sources, database, collector, screens, workspace, artifacts, paths,
+                        List.of(id), standaloneAtlasDirectory(id));
             }
             return new PreparedExport(workspace, List.copyOf(paths));
         } catch (RuntimeException | Error failure) {
@@ -125,6 +132,42 @@ public final class SceneHudRuntimeExport {
             catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
             throw failure;
         }
+    }
+
+    private void pack(FileHandle sources, AssetMetaDatabase database,
+                      SceneHudDependencyCollector collector, List<SceneHudScreenSnapshot> screens,
+                      FileHandle workspace, FileHandle artifacts, TreeSet<String> paths,
+                      List<String> roots, String outputPath) {
+        var selected = collector.collect(sources, database, roots, screens);
+        var plan = new SceneHudPackInputProjector().project(sources, selected);
+        requireDrawableSources(sources, selected, plan);
+        FileHandle inputs = workspace.child("inputs").child(outputPath);
+        var manifest = new SceneHudPackInputMaterializer().materialize(sources, inputs, plan);
+        FileHandle output = child(artifacts, outputPath);
+        if (paths.stream().anyMatch(path -> path.startsWith(outputPath + "/")))
+            throw new IllegalArgumentException("Authored artifact overlaps generated HUD output: " + outputPath);
+        builder.build(inputs, manifest, output);
+        // Descriptor membership, not guessed filenames or a recursive output-directory copy.
+        var atlas = new TextureAtlasData(output.child("hud.atlas"), output, false);
+        paths.add(outputPath + "/hud.atlas");
+        for (var page : atlas.getPages()) paths.add(outputPath + "/" + page.name);
+    }
+
+    private static HudScreenAsset standaloneAsset(HudScreenAsset authored, String id) {
+        HudScreenAsset exported = new HudScreenAsset();
+        exported.schemaVersion = authored.schemaVersion;
+        exported.documentId = authored.documentId;
+        exported.skinId = authored.skinId;
+        exported.textureProfileId = authored.textureProfileId;
+        exported.atlasId = standaloneAtlasDirectory(id) + "/hud.atlas";
+        exported.validate();
+        return exported;
+    }
+
+    private static String standaloneAtlasDirectory(String id) {
+        java.util.UUID stable = java.util.UUID.nameUUIDFromBytes(
+                id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return "atlases/hud/screens/" + stable;
     }
 
     private static void requireDrawableSources(FileHandle sources, SceneHudDependencyClosure closure,

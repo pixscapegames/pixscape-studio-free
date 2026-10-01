@@ -247,11 +247,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                         return true;
                     }
                 },
-                hud -> {
-                    hudDocumentPersistenceService.save(
-                            StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), hud);
-                    hudEditorSession.refreshDocumentMetadata(hud);
-                },
+                this::saveHudDocument,
                 new ActiveDocumentCommandRouter.GameObjectCommands() {
                     @Override public void save(GameObjectEditorDocument document) {
                         saveGameObjectDocument(document);
@@ -550,12 +546,22 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     private void saveAllDirtyHudDocuments() {
         FileHandle projectDir = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        boolean saved = false;
         for (OpenEditorDocument document : editorDocumentManager.documents()) {
             if (document instanceof HudScreenEditorDocument hud && hud.isDirty()) {
                 hudDocumentPersistenceService.save(projectDir, hud);
                 hudEditorSession.refreshDocumentMetadata(hud);
+                saved = true;
             }
         }
+        if (saved) sceneService.exportRuntimeAfterHudSave();
+    }
+
+    private void saveHudDocument(HudScreenEditorDocument hud) {
+        hudDocumentPersistenceService.save(
+                StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), hud);
+        hudEditorSession.refreshDocumentMetadata(hud);
+        sceneService.exportRuntimeAfterHudSave();
     }
 
     public WorldCanvas getCanvas() {
@@ -991,13 +997,12 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         dockRootRightLogical.set(dockRoot.getWidth(), 0f);
         dockRoot.localToStageCoordinates(dockRootRightLogical);
         if (!Float.isFinite(dockRootRightLogical.x)) return false;
-        // A docked panel may retain the center host's preferred width for one layout pass while
-        // its floating window is being created.  World canvas already uses the Dock root's edge;
-        // HUD must use that same available workspace rectangle.
+        // The world canvas retains its existing workspace bounds. HUD authoring and TEST use
+        // the actual center Stack, which excludes docked panels on either side.
         int right = Math.round(dockRootRightLogical.x);
         int top = Math.round(centerOriginLogical.y + center.getHeight());
         centerStackBoundsLogical.set(x, y, centerRight - x, top - y);
-        centerBoundsLogical.set(x, y, right - x, top - y);
+        centerBoundsLogical.set(x, y, sceneDocument ? right - x : centerRight - x, top - y);
         if (!sceneDocument) {
             hudCanvasBounds(centerBoundsLogical, dockManager.isRulersVisible(), centerBoundsLogical);
         }
@@ -1292,11 +1297,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     private void requestDirtyHudClose(HudScreenEditorDocument document) {
-        requestDirtyAssetClose(document, "Unsaved HUD", () -> {
-            hudDocumentPersistenceService.save(
-                    StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()), document);
-            hudEditorSession.refreshDocumentMetadata(document);
-        });
+        requestDirtyAssetClose(document, "Unsaved HUD", () -> saveHudDocument(document));
     }
 
     private void requestDirtyGameObjectClose(GameObjectEditorDocument document) {

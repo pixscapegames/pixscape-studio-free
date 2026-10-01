@@ -1150,8 +1150,14 @@ public final class SceneService {
         }
     }
 
+    /** A HUD document Save also refreshes the game's derived assets. */
+    public void exportRuntimeAfterHudSave() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        exportRuntime(cfg, StudioFs.requireStudioProjectDir(cfg));
+    }
+
     private void exportRuntime(ProjectConfig cfg, FileHandle studioDir) {
-        SceneHudRuntimeExport.requireSavedDocuments(cfg,
+        SceneHudRuntimeExport.requireSavedDocuments(studioDir, cfg,
                 app.getEditorDocumentManager().documents().stream()
                         .filter(document -> document instanceof HudScreenEditorDocument)
                         .filter(OpenEditorDocument::isDirty)

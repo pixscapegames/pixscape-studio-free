@@ -24,7 +24,7 @@ public class RuntimeExportHudMetadataTest {
     @BeforeClass public static void loadNatives() { GdxNativesLoader.load(); }
 
     @Test
-    public void exportPreservesCanonicalDirectHudMetadataAndExportsOnlySelectedHudArtifacts() throws Exception {
+    public void exportPreservesCanonicalDirectHudMetadataAndIncludesStandaloneHudArtifacts() throws Exception {
         ExportFixture fixture = newFixture();
         fixture.scene().defaultHudScreenId = "  hud\\status  ";
         Path authoredHud = fixture.studioDir().resolve("hud");
@@ -32,7 +32,10 @@ public class RuntimeExportHudMetadataTest {
         Files.writeString(authoredHud.resolve("status.hudscreen"), "{\"schemaVersion\":1,\"documentId\":\"hud/status.json\"}", StandardCharsets.UTF_8);
         Files.writeString(authoredHud.resolve("status.json"),
                 new HudDocumentCodec().write(new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP))), StandardCharsets.UTF_8);
-        Files.writeString(authoredHud.resolve("unrelated.hudscreen"), "{}", StandardCharsets.UTF_8);
+        Files.writeString(authoredHud.resolve("unrelated.hudscreen"),
+                "{\"schemaVersion\":1,\"documentId\":\"hud/unrelated.json\"}", StandardCharsets.UTF_8);
+        Files.writeString(authoredHud.resolve("unrelated.json"),
+                new HudDocumentCodec().write(new HudDocumentV1(new HudNode("root", HudNodeKind.GROUP))), StandardCharsets.UTF_8);
 
         var exported = RuntimeExport.exportRuntime(
                 fixture.config(), new FileHandle(fixture.studioDir().toFile()), new FileHandle(fixture.userDir().toFile()));
@@ -45,7 +48,11 @@ public class RuntimeExportHudMetadataTest {
         Path runtime = fixture.userDir().resolve(RuntimeExport.RUNTIME_DIR_NAME);
         assertTrue(Files.exists(runtime.resolve("hud/status.hudscreen")));
         assertTrue(Files.exists(runtime.resolve("hud/status.json")));
-        assertFalse(Files.exists(runtime.resolve("hud/unrelated.hudscreen")));
+        assertTrue(Files.exists(runtime.resolve("hud/unrelated.hudscreen")));
+        assertTrue(Files.exists(runtime.resolve("hud/unrelated.json")));
+        String standaloneAtlas = new JsonReader().parse(new FileHandle(
+                runtime.resolve("hud/unrelated.hudscreen").toFile())).getString("atlasId");
+        assertTrue(Files.exists(runtime.resolve(standaloneAtlas)));
         assertTrue(Files.exists(runtime.resolve("atlases/hud/scene1/hud.atlas")));
         assertFalse(new JsonReader().parse(runtimeProject).has("sceneHudFormatVersion"));
         assertEquals("  hud\\status  ", fixture.scene().defaultHudScreenId);
