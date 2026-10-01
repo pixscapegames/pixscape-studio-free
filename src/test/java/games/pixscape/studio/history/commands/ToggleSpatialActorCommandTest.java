@@ -50,6 +50,170 @@ public class ToggleSpatialActorCommandTest {
     }
 
     @Test
+    public void technicalLightActivationAndDisableLeaveNoOrphanAndUndoRestoresIt() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        PhysicsShapeData source = new PhysicsShapeData();
+        source.geometry = new PhysicsGeometryData();
+        source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        source.geometry.radius = 0.05f;
+        source.spatialFootprint = true;
+        source.technicalSpatialLight = true;
+        source.sensor = true;
+        source.maskBits = 0;
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true));
+        PhysicsBodyComponent body = harness.world.getMapper(PhysicsBodyComponent.class).get(entityId);
+        Assert.assertTrue(body.technicalSpatialLight);
+        Assert.assertEquals(PhysicsBodyComponent.DYNAMIC, body.type);
+        Assert.assertEquals(0f, body.gravityScale, 0f);
+        Assert.assertTrue(marked(harness.world, entityId).technicalSpatialLight);
+        int shapeId = marked(harness.world, entityId).physicsShapeId;
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                false, false, null, true));
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
+
+        harness.history.undo();
+        Assert.assertEquals(shapeId, marked(harness.world, entityId).physicsShapeId);
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class)
+                .get(entityId).technicalSpatialLight);
+        harness.history.redo();
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true));
+        Assert.assertEquals(1, harness.world.getMapper(PhysicsShapesComponent.class)
+                .get(entityId).shapes.size);
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class)
+                .get(entityId).technicalSpatialLight);
+    }
+
+    @Test
+    public void technicalLightAltitudeEditAndActivationUndoRedoKeepFixedHeight() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        PhysicsShapeData source = footprint(0.05f, 0f, 0f);
+        source.technicalSpatialLight = true;
+        source.sensor = true;
+        source.maskBits = 0;
+        source.groupIndex = 0;
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true));
+        SpatialHeightComponent spatial = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
+        Assert.assertEquals(0f, spatial.altitude, 0f);
+        Assert.assertEquals(ToggleSpatialActorCommand.TECHNICAL_LIGHT_HEIGHT_PX, spatial.height, 0f);
+
+        EditSpatialHeightCommand.Snapshot before = EditSpatialHeightCommand.Snapshot.capture(spatial);
+        harness.history.execute(new EditSpatialHeightCommand(
+                harness.world, harness.historyIds, entityId, before, before.withAltitude(18.5f)));
+        Assert.assertEquals(18.5f, spatial.altitude, 0f);
+        Assert.assertEquals(ToggleSpatialActorCommand.TECHNICAL_LIGHT_HEIGHT_PX, spatial.height, 0f);
+
+        harness.history.undo();
+        Assert.assertEquals(0f, spatial.altitude, 0f);
+        harness.history.undo();
+        Assert.assertFalse(harness.world.getMapper(SpatialHeightComponent.class).has(entityId));
+        Assert.assertFalse(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        harness.history.redo();
+        spatial = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
+        Assert.assertEquals(ToggleSpatialActorCommand.TECHNICAL_LIGHT_HEIGHT_PX, spatial.height, 0f);
+        harness.history.redo();
+        Assert.assertEquals(18.5f, spatial.altitude, 0f);
+        Assert.assertEquals(ToggleSpatialActorCommand.TECHNICAL_LIGHT_HEIGHT_PX, spatial.height, 0f);
+    }
+
+    @Test
+    public void activatingTechnicalLightPreservesAuthoredAltitudeAndUndoRestoresOldHeight() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        SpatialHeightComponent spatial = harness.world.getMapper(SpatialHeightComponent.class).create(entityId);
+        spatial.altitude = 25f;
+        spatial.height = 9f;
+        PhysicsShapeData source = footprint(0.05f, 0f, 0f);
+        source.technicalSpatialLight = true;
+        source.sensor = true;
+        source.maskBits = 0;
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true));
+        Assert.assertEquals(25f, spatial.altitude, 0f);
+        Assert.assertEquals(ToggleSpatialActorCommand.TECHNICAL_LIGHT_HEIGHT_PX, spatial.height, 0f);
+        harness.history.undo();
+        Assert.assertEquals(25f, spatial.altitude, 0f);
+        Assert.assertEquals(9f, spatial.height, 0f);
+    }
+
+    @Test
+    public void technicalLightPreservesPreexistingCompatibleBody() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        harness.historyIds.ensureForEntity(entityId);
+        PhysicsBodyComponent body = harness.world.getMapper(PhysicsBodyComponent.class).create(entityId);
+        PhysicsService.initDefaultBody(body);
+        body.type = PhysicsBodyComponent.DYNAMIC;
+        body.gravityScale = 0f;
+        body.fixedRotation = false;
+        PhysicsShapeData source = new PhysicsShapeData();
+        source.geometry = new PhysicsGeometryData();
+        source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        source.geometry.radius = 0.05f;
+        source.spatialFootprint = true;
+        source.technicalSpatialLight = true;
+        source.sensor = true;
+        source.maskBits = 0;
+
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true));
+        Assert.assertFalse(body.technicalSpatialLight);
+        Assert.assertFalse(body.fixedRotation);
+        harness.history.execute(new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                false, false, null, true));
+        Assert.assertTrue(harness.world.getMapper(PhysicsBodyComponent.class).has(entityId));
+        Assert.assertFalse(body.technicalSpatialLight);
+    }
+
+    @Test
+    public void incompatiblePreexistingLightBodyIsLeftUntouched() {
+        Harness harness = new Harness();
+        int entityId = harness.world.create();
+        PhysicsBodyComponent body = harness.world.getMapper(PhysicsBodyComponent.class).create(entityId);
+        PhysicsService.initDefaultBody(body);
+        body.gravityScale = 2f;
+        PhysicsShapeData source = new PhysicsShapeData();
+        source.geometry = new PhysicsGeometryData();
+        source.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        source.geometry.radius = 0.05f;
+        source.spatialFootprint = true;
+        source.technicalSpatialLight = true;
+        source.sensor = true;
+        source.maskBits = 0;
+
+        ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
+                harness.world, harness.historyIds, harness.physics, entityId,
+                true, true, source, true);
+        harness.history.execute(command);
+
+        Assert.assertTrue(command.isNoop());
+        Assert.assertEquals(2f, body.gravityScale, 0f);
+        Assert.assertFalse(body.technicalSpatialLight);
+        Assert.assertFalse(harness.world.getMapper(PhysicsShapesComponent.class).has(entityId));
+    }
+
+    @Test
     public void disableRemovesOnlyMarkedCircleAndUndoRestoresExactState() {
         Harness harness = new Harness();
         int entityId = harness.world.create();

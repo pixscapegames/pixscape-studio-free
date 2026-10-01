@@ -49,6 +49,7 @@ public final class GenericEntitySnapshotData {
     public float spatialAltitude;
     public float spatialHeight;
     public boolean hasPhysicsBody;
+    public boolean technicalSpatialLightBody;
     public int bodyType;
     public boolean fixedRotation, bullet, allowSleep, awake;
     public float gravityScale, linearDamping, angularDamping;

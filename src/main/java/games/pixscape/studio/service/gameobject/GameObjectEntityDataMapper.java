@@ -168,6 +168,7 @@ final class GameObjectEntityDataMapper {
         }
         if (data.physicsBody != null) {
             snapshot.hasPhysicsBody = true;
+            snapshot.technicalSpatialLightBody = data.physicsBody.technicalSpatialLight;
             snapshot.bodyType = data.physicsBody.type;
             snapshot.fixedRotation = data.physicsBody.fixedRotation;
             snapshot.bullet = data.physicsBody.bullet;
@@ -190,6 +191,7 @@ final class GameObjectEntityDataMapper {
                 target.groupIndex = source.groupIndex;
                 target.enabled = source.enabled;
                 target.spatialFootprint = source.spatialFootprint;
+                target.technicalSpatialLight = source.technicalSpatialLight;
                 snapshot.shapes.add(target);
             }
         }
@@ -292,6 +294,7 @@ final class GameObjectEntityDataMapper {
             data.physicsBody.allowSleep = source.allowSleep;
             data.physicsBody.awake = source.awake;
             data.physicsBody.gravityScale = source.gravityScale;
+            data.physicsBody.technicalSpatialLight = source.technicalSpatialLightBody;
             data.physicsBody.linearDamping = source.linearDamping;
             data.physicsBody.angularDamping = source.angularDamping;
             for (int i = 0; i < source.shapes.size; i++) {
@@ -313,6 +316,7 @@ final class GameObjectEntityDataMapper {
                 target.groupIndex = shape.groupIndex;
                 target.enabled = shape.enabled;
                 target.spatialFootprint = shape.spatialFootprint;
+                target.technicalSpatialLight = shape.technicalSpatialLight;
                 data.physicsShapes.add(target);
             }
         }

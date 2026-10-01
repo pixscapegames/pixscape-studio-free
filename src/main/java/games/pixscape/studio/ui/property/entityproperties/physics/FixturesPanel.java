@@ -672,7 +672,7 @@ public final class FixturesPanel extends CollapsibleWidget {
         for (int i = 0, n = fixtures.shapes.size; i < n; i++) {
             PhysicsShapeData f = fixtures.shapes.get(i);
             if (f == null) continue;
-            if (f.physicsShapeId == physicsShapeId) return f;
+            if (f.physicsShapeId == physicsShapeId && !f.technicalSpatialLight) return f;
         }
         return null;
     }

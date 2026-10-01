@@ -122,6 +122,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     // --- Physics ---
     protected boolean hasPhysicsBody;
+    protected boolean physTechnicalSpatialLight;
     protected int physBodyType = PhysicsBodyComponent.DYNAMIC;
     protected boolean physFixedRotation = false;
     protected boolean physBullet = false;
@@ -383,6 +384,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         if (mPhysBody.has(e)) {
             PhysicsBodyComponent body = mPhysBody.get(e);
             hasPhysicsBody = true;
+            physTechnicalSpatialLight = body.technicalSpatialLight;
             physBodyType = body.type;
             physFixedRotation = body.fixedRotation;
             physBullet = body.bullet;
@@ -701,6 +703,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         if (hasPhysicsBody) {
             PhysicsBodyComponent body = mPhysBody.has(e) ? mPhysBody.get(e) : mPhysBody.create(e);
             body.type = physBodyType;
+            body.technicalSpatialLight = physTechnicalSpatialLight;
             body.fixedRotation = physFixedRotation;
             body.bullet = physBullet;
             body.allowSleep = physAllowSleep;
@@ -919,6 +922,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.spatialAltitude = spatialAltitude;
         out.spatialHeight = spatialHeight;
         out.hasPhysicsBody = hasPhysicsBody;
+        out.technicalSpatialLightBody = physTechnicalSpatialLight;
         out.bodyType = physBodyType;
         out.fixedRotation = physFixedRotation;
         out.bullet = physBullet;
@@ -1070,6 +1074,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         spatialHeight = in.spatialHeight;
         capturedZIndex = in.hasEntityIndex;
         hasPhysicsBody = in.hasPhysicsBody;
+        physTechnicalSpatialLight = in.technicalSpatialLightBody;
         physBodyType = in.bodyType;
         physFixedRotation = in.fixedRotation;
         physBullet = in.bullet;
@@ -1589,9 +1594,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                         "Clipboard source contains multiple Spatial Actor footprints.");
             }
             hasPhysicsShapes = physicsShapes.size > 0;
-            if (hadFootprint && !hasPhysicsShapes) {
+            if (hadFootprint && !hasPhysicsShapes
+                    && (physTechnicalSpatialLight || (!hasPointLight && !hasConeLight))) {
                 hasPhysicsBody = false;
             }
+            physTechnicalSpatialLight = false;
             preparedPhysicsCandidate = null;
         }
         return this;
@@ -1699,6 +1706,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
         // --- Physics ---
         copy.hasPhysicsBody = this.hasPhysicsBody;
+        copy.physTechnicalSpatialLight = this.physTechnicalSpatialLight;
         copy.physBodyType = this.physBodyType;
         copy.physFixedRotation = this.physFixedRotation;
         copy.physBullet = this.physBullet;

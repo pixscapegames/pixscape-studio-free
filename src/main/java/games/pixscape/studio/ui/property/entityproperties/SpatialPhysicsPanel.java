@@ -25,6 +25,7 @@ import games.pixscape.studio.history.commands.EditSpatialHeightCommand;
 import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.physics.SpatialLightPhysicsSupport;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -36,6 +37,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final VisLabel validationLabel = new VisLabel("");
     private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
+    private final CollapsibleVisTable heightBlock = new CollapsibleVisTable(true);
     private final FloatField altitudeField;
     private final FloatField heightField;
 
@@ -70,6 +72,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
 
                 boolean enable = enabledBox.isChecked();
                 boolean eligibleForActivation = isEligibleForActivation(entityId);
+                EntityMetaComponent meta = ctx.mMeta.getSafe(entityId, null);
+                EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
+                boolean technicalLight = isLightKind(kind);
                 ToggleSpatialActorCommand command = new ToggleSpatialActorCommand(
                         ctx.world,
                         ctx.history.historyIds(),
@@ -77,12 +82,19 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                         entityId,
                         enable,
                         eligibleForActivation,
-                        enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
+                        enable && eligibleForActivation
+                                ? technicalLight ? createLightFootprint() : createDefaultFootprint(entityId)
+                                : null,
+                        technicalLight
                 );
                 if (command.isNoop()) {
                     validationLabel.setText(enable
-                            ? "Spatial Actor requires valid visual bounds and one valid footprint."
-                            : "Spatial Actor state contains conflicting footprints.");
+                            ? technicalLight
+                                ? "Spatial light requires Physics, a Spatial Layer, and a compatible body and footprint."
+                                : "Spatial Actor requires valid visual bounds and one valid footprint."
+                            : technicalLight
+                                ? "Spatial light has attached joints or conflicting footprints."
+                                : "Spatial Actor state contains conflicting footprints.");
                     validationBlock.show(true);
                 } else {
                     validationLabel.setText("");
@@ -105,8 +117,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
 
-        details.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
-        details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
+        VisTable heightDetails = heightBlock.content();
+        heightDetails.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
+        heightDetails.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
+        details.add(heightBlock).colspan(2).left().row();
 
         validationBlock.content().add(validationLabel).left().row();
         root.add(enabledBox).left().row();
@@ -122,6 +136,20 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         refreshFromModel(entityId);
     }
 
+    public boolean isSectionApplicable(int eid) {
+        if (eid < 0) return false;
+        if (isSpatialActor(eid)) return true;
+        if (ctx.layerService == null) return false;
+        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class)
+                .getSafe(effectiveLayerEntity(eid), null);
+        if (index == null) return false;
+        int layerEntityId = ctx.layerService.getLayerEntity(index.getLayerIndex());
+        LayerComponent layer = layerEntityId >= 0
+                ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
+                : null;
+        return LayerService.isSpatialActorLayer(layer);
+    }
+
     public void refreshFromModel(int eid) {
         internalRefresh = true;
         try {
@@ -129,6 +157,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             enabledBox.setChecked(actor);
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
+            EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
+            heightBlock.show(meta == null || !isLightKind(meta.kind));
             altitudeField.setEntityId(eid);
             heightField.setEntityId(eid);
             altitudeField.refreshFromModel();
@@ -145,6 +175,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
 
     private boolean isSpatialActor(int eid) {
         return hasSpatialHeight(eid) || hasMarkedFootprint(eid);
+    }
+
+    static boolean isLightKind(EntityKind kind) {
+        return kind == EntityKind.POINT_LIGHT || kind == EntityKind.CONE_LIGHT;
     }
 
     private boolean hasMarkedFootprint(int eid) {
@@ -192,7 +226,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             LayerComponent layer) {
         return scene != null
                 && scene.physicsEnabled
-                && (kind == EntityKind.SPRITE || kind == EntityKind.ANIMATION)
+                && (kind == EntityKind.SPRITE || kind == EntityKind.ANIMATION
+                    || kind == EntityKind.POINT_LIGHT || kind == EntityKind.CONE_LIGHT)
                 && index != null
                 && LayerService.isSpatialActorLayer(layer);
     }
@@ -205,6 +240,23 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         return dimensions != null && transform != null && scene != null
                 ? createDefaultFootprint(dimensions, transform, scene.pixelsPerMeter)
                 : null;
+    }
+
+    static PhysicsShapeData createLightFootprint() {
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.geometry.radius = SpatialLightPhysicsSupport.FIXED_FOOTPRINT_RADIUS_M;
+        shape.geometry.offsetX = 0f;
+        shape.geometry.offsetY = 0f;
+        shape.enabled = true;
+        shape.sensor = true;
+        shape.spatialFootprint = true;
+        shape.technicalSpatialLight = true;
+        shape.categoryBits = 0x0001;
+        shape.maskBits = 0;
+        shape.groupIndex = 0;
+        return shape;
     }
 
     static PhysicsShapeData createDefaultFootprint(

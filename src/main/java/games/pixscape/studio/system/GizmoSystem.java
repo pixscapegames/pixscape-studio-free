@@ -772,6 +772,10 @@ public final class GizmoSystem extends BaseSystem {
         for (int i = 0, n = compiled.fixtures.size; i < n; i++) {
             CompiledFixtureData fixture = compiled.fixtures.get(i);
             if (fixture == null) continue;
+            if (games.pixscape.studio.service.physics.SpatialLightPhysicsSupport
+                    .isTechnicalFixture(mFixDefs.getSafe(bodyEid, null), fixture.physicsShapeId)) {
+                continue;
+            }
 
             if (shouldHideEditedFixture(bodyEid, fixture.physicsShapeId)) {
                 continue;

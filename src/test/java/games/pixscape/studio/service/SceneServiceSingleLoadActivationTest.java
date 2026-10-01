@@ -12,10 +12,13 @@ import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
@@ -29,6 +32,7 @@ import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.physics.SpatialLightPhysicsSupport;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.property.TiledMapProperties;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
@@ -127,6 +131,40 @@ public class SceneServiceSingleLoadActivationTest {
     }
 
     @Test
+    public void activationRestoresExpandedLightFootprintsBeforePhysicsCompilationAndSave()
+            throws Exception {
+        Fixture fixture = fixture("light-footprints", "Main");
+        SceneMeta meta = fixture.cfg.getSceneMeta("Main");
+        meta.physicsEnabled = true;
+        meta.pixelsPerMeter = 100f;
+        FileHandle sceneFile = fixture.sceneFile("Main");
+        writeScene(sceneFile, new int[]{1, 1}, new int[]{111, 222});
+
+        World authored = serializationWorld();
+        SceneLoader.loadScene(authored, sceneFile, false, meta);
+        authored.process();
+        addExpandedSpatialLight(authored, true, 1000, 200f, 2f);
+        addExpandedSpatialLight(authored, false, 1001, 250f, 2.5f);
+        meta.nextEntityStableId = 1002;
+        meta.nextPhysicsShapeId = 1002;
+        authored.process();
+        SceneService.saveScene(authored, sceneFile, false);
+        authored.dispose();
+
+        World active = serializationWorld();
+        assertEquals(2, activate(active, fixture, "Main",
+                new AtomicInteger(), new AtomicInteger()));
+        assertFixedLightFootprints(active);
+
+        SceneService.saveScene(active, sceneFile, false);
+        clear(active);
+        assertEquals(0, activate(active, fixture, "Main",
+                new AtomicInteger(), new AtomicInteger()));
+        assertFixedLightFootprints(active);
+        active.dispose();
+    }
+
+    @Test
     public void twoValidSceneSwitches_preserveTiledContentsAcrossAtoBtoA() throws Exception {
         Fixture fixture = fixture("scene-switch", "A", "B");
         writeScene(fixture.sceneFile("A"), new int[]{37, 19}, new int[]{301, 302});
@@ -197,7 +235,7 @@ public class SceneServiceSingleLoadActivationTest {
         active.dispose();
     }
 
-    private static void activate(World world,
+    private static int activate(World world,
                                  Fixture fixture,
                                  String sceneName,
                                  AtomicInteger loads,
@@ -231,7 +269,7 @@ public class SceneServiceSingleLoadActivationTest {
                             target, file, editMode, loadedMeta);
                 }
         );
-        pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+        int restored = pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
                 fixture.cfg,
                 fixture.cfg.getSceneMeta(sceneName),
                 fixture.sceneFile(sceneName),
@@ -242,6 +280,62 @@ public class SceneServiceSingleLoadActivationTest {
         ));
         identities.rebuild();
         identities.bind(null, null);
+        return restored;
+    }
+
+    private static void addExpandedSpatialLight(
+            World world, boolean point, int stableId, float lightRadiusPx, float fixtureRadiusM) {
+        int entityId = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(entityId).stableId = stableId;
+        world.getMapper(EntityIndexComponent.class).create(entityId).layerIndex = 0;
+        TransformComponent transform = world.getMapper(TransformComponent.class).create(entityId);
+        transform.x = 12f;
+        transform.y = 34f;
+        if (point) world.getMapper(PointLightComponent.class).create(entityId).radius = lightRadiusPx;
+        else world.getMapper(ConeLightComponent.class).create(entityId).radius = lightRadiusPx;
+        world.getMapper(SpatialHeightComponent.class).create(entityId).height = 1f;
+        PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(entityId);
+        body.type = PhysicsBodyComponent.DYNAMIC;
+        body.gravityScale = 0f;
+        body.technicalSpatialLight = true;
+        PhysicsShapeData shape = new PhysicsShapeData();
+        shape.physicsShapeId = stableId;
+        shape.geometry = new PhysicsGeometryData();
+        shape.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        shape.geometry.radius = fixtureRadiusM;
+        shape.spatialFootprint = true;
+        shape.technicalSpatialLight = true;
+        shape.sensor = true;
+        shape.maskBits = 0;
+        shape.groupIndex = 0;
+        world.getMapper(PhysicsShapesComponent.class).create(entityId).shapes.add(shape);
+    }
+
+    private static void assertFixedLightFootprints(World world) {
+        IntBag lights = world.getAspectSubscriptionManager()
+                .get(Aspect.all(SpatialHeightComponent.class, PhysicsBodyComponent.class))
+                .getEntities();
+        assertEquals(2, lights.size());
+        for (int i = 0; i < lights.size(); i++) {
+            int entityId = lights.get(i);
+            PhysicsShapeData shape = world.getMapper(PhysicsShapesComponent.class)
+                    .get(entityId).shapes.first();
+            assertEquals(SpatialLightPhysicsSupport.FIXED_FOOTPRINT_RADIUS_M,
+                    shape.geometry.radius, 0f);
+            assertEquals(0f, shape.geometry.offsetX, 0f);
+            assertEquals(0f, shape.geometry.offsetY, 0f);
+            assertTrue(shape.sensor);
+            assertEquals(0, shape.maskBits);
+            assertEquals(0, shape.groupIndex);
+            PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).get(entityId);
+            assertEquals(PhysicsBodyComponent.DYNAMIC, body.type);
+            assertEquals(0f, body.gravityScale, 0f);
+            assertEquals(0.05f, world.getMapper(PhysicsCompiledFixturesComponent.class)
+                    .get(entityId).fixtures.first().radius, 0f);
+            TransformComponent transform = world.getMapper(TransformComponent.class).get(entityId);
+            assertEquals(12f, transform.x, 0f);
+            assertEquals(34f, transform.y, 0f);
+        }
     }
 
     private static void writeScene(FileHandle sceneFile, int[] counts, int[] assetIds) {

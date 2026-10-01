@@ -18,11 +18,13 @@ import games.pixscape.studio.service.SpatialActorShapeSupport;
 /** Atomically enables or disables the authored Spatial Actor state for one entity. */
 public final class ToggleSpatialActorCommand
         implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
+    static final float TECHNICAL_LIGHT_HEIGHT_PX = 1f;
     private final World world;
     private final HistoryIdRegistry historyIds;
     private final PhysicsService physicsService;
     private final long entityHistoryId;
     private final boolean enable;
+    private final boolean technicalLight;
     private final boolean bodyExisted;
     private final BodySnapshot bodyBefore;
     private final SpatialSnapshot spatialBefore;
@@ -38,10 +40,24 @@ public final class ToggleSpatialActorCommand
             boolean enable,
             boolean eligibleForActivation,
             PhysicsShapeData defaultFootprint) {
+        this(world, historyIds, physicsService, entityId, enable,
+                eligibleForActivation, defaultFootprint, false);
+    }
+
+    public ToggleSpatialActorCommand(
+            World world,
+            HistoryIdRegistry historyIds,
+            PhysicsService physicsService,
+            int entityId,
+            boolean enable,
+            boolean eligibleForActivation,
+            PhysicsShapeData defaultFootprint,
+            boolean technicalLight) {
         this.world = world;
         this.historyIds = historyIds;
         this.physicsService = physicsService;
         this.enable = enable;
+        this.technicalLight = technicalLight;
 
         boolean valid = world != null
                 && historyIds != null
@@ -64,13 +80,19 @@ public final class ToggleSpatialActorCommand
         this.shapesAfter = valid ? copy(shapesBefore) : new Array<>(true, 0, PhysicsShapeData.class);
 
         boolean prepared = valid && entityHistoryId > 0L;
+        if (prepared && enable && technicalLight && body != null
+                && !body.technicalSpatialLight
+                && (body.type != PhysicsBodyComponent.DYNAMIC || body.gravityScale != 0f)) {
+            prepared = false;
+        }
         if (prepared && enable) {
             int markedIndex = SpatialActorShapeSupport.findFootprint(shapesAfter, 0);
             if (markedIndex >= 0
                     && SpatialActorShapeSupport.findFootprint(shapesAfter, markedIndex + 1) >= 0) {
                 prepared = false;
             } else if (markedIndex >= 0) {
-                prepared = structurallyValidMarked(shapesAfter.get(markedIndex));
+                prepared = (!technicalLight || shapesAfter.get(markedIndex).technicalSpatialLight)
+                        && structurallyValidMarked(shapesAfter.get(markedIndex));
             } else if (defaultFootprint == null) {
                 prepared = false;
             } else {
@@ -82,6 +104,12 @@ public final class ToggleSpatialActorCommand
             }
         } else if (prepared) {
             prepared = SpatialActorShapeSupport.removeFootprint(shapesAfter);
+            if (prepared && technicalLight && body != null && body.technicalSpatialLight
+                    && shapesAfter.size == 0
+                    && physicsService.collectJointsAffectedByBodyRemoval(
+                        entityId, new com.badlogic.gdx.utils.IntArray(false, 1)).size > 0) {
+                prepared = false;
+            }
         }
         this.noop = !prepared || sameTargetState();
     }
@@ -136,7 +164,14 @@ public final class ToggleSpatialActorCommand
         }
 
         ComponentMapper<PhysicsBodyComponent> bodies = world.getMapper(PhysicsBodyComponent.class);
-        boolean targetBodyPresent = applyingAfter ? (enable || bodyExisted) : bodyExisted;
+        boolean removingTechnicalBody = technicalLight && applyingAfter && !enable
+                && bodyBefore != null && bodyBefore.technicalSpatialLight
+                && targetShapes.size == 0
+                && physicsService.collectJointsAffectedByBodyRemoval(
+                        entityId, new com.badlogic.gdx.utils.IntArray(false, 1)).size == 0;
+        boolean targetBodyPresent = applyingAfter
+                ? (enable || bodyExisted && !removingTechnicalBody)
+                : bodyExisted;
         if (targetBodyPresent) {
             if (!bodies.has(entityId)) {
                 PhysicsBodyComponent body = bodies.create(entityId);
@@ -145,8 +180,18 @@ public final class ToggleSpatialActorCommand
             PhysicsBodyComponent body = bodies.get(entityId);
             if (applyingAfter && enable) {
                 if (bodyExisted) bodyBefore.apply(body);
-                body.gravityScale = 0f;
-                body.fixedRotation = true;
+                if (technicalLight && !bodyExisted) {
+                    body.type = PhysicsBodyComponent.DYNAMIC;
+                    body.technicalSpatialLight = true;
+                }
+                if (!technicalLight || !bodyExisted) {
+                    body.gravityScale = 0f;
+                    body.fixedRotation = true;
+                }
+            } else if (applyingAfter && technicalLight && bodyBefore != null
+                    && bodyBefore.technicalSpatialLight) {
+                bodyBefore.apply(body);
+                body.technicalSpatialLight = false;
             } else if (bodyBefore != null) {
                 bodyBefore.apply(body);
             }
@@ -167,6 +212,9 @@ public final class ToggleSpatialActorCommand
                 height.height = 1f;
             } else if (spatialBefore != null) {
                 spatialBefore.apply(height);
+            }
+            if (applyingAfter && enable && technicalLight) {
+                height.height = TECHNICAL_LIGHT_HEIGHT_PX;
             }
         } else if (heights.has(entityId)) {
             heights.remove(entityId);
@@ -268,6 +316,7 @@ public final class ToggleSpatialActorCommand
         final float gravityScale;
         final float linearDamping;
         final float angularDamping;
+        final boolean technicalSpatialLight;
 
         private BodySnapshot(PhysicsBodyComponent body) {
             type = body.type;
@@ -278,6 +327,7 @@ public final class ToggleSpatialActorCommand
             gravityScale = body.gravityScale;
             linearDamping = body.linearDamping;
             angularDamping = body.angularDamping;
+            technicalSpatialLight = body.technicalSpatialLight;
         }
 
         static BodySnapshot capture(PhysicsBodyComponent body) {
@@ -293,6 +343,7 @@ public final class ToggleSpatialActorCommand
             body.gravityScale = gravityScale;
             body.linearDamping = linearDamping;
             body.angularDamping = angularDamping;
+            body.technicalSpatialLight = technicalSpatialLight;
         }
     }
 }

@@ -936,7 +936,8 @@ public class ItemTreePanel extends DockablePanel {
         entityNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
         tree.registerNode(entityNode, entityId);
 
-        if (mBody.has(entityId)) {
+        if (mBody.has(entityId) && !games.pixscape.studio.service.physics.SpatialLightPhysicsSupport
+                .hasOnlyTechnicalBody(world, entityId)) {
             PhysicsBodyComponent body = mBody.get(entityId);
             String type = switch (body.type) {
                 case STATIC -> "Static";

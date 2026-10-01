@@ -4,6 +4,7 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import com.artemis.World;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.service.PhysicsService;
@@ -22,6 +23,7 @@ public final class PhysicsFixturePickingService {
     }
 
     private final PhysicsService physicsService;
+    private final World world;
     private final ResolvedPhysicsPose resolvedPose;
     private final Vector2 tmpCenter = new Vector2();
     private final float[] vertexScratch = new float[16];
@@ -35,6 +37,7 @@ public final class PhysicsFixturePickingService {
             throw new IllegalArgumentException("physicsService cannot be null.");
         }
         this.physicsService = physicsService;
+        this.world = world;
         this.resolvedPose = world != null ? new ResolvedPhysicsPose(world) : null;
     }
 
@@ -50,6 +53,7 @@ public final class PhysicsFixturePickingService {
         for (int i = compiled.fixtures.size - 1; i >= 0; i--) {
             CompiledFixtureData fixture = compiled.fixtures.get(i);
             if (fixture != null
+                    && !isTechnicalFixture(bodyEntityId, fixture.physicsShapeId)
                     && hitTest(bodyEntityId, fixture, worldX, worldY, toleranceWU)) {
                 result.bodyEntityId = bodyEntityId;
                 result.physicsShapeId = fixture.physicsShapeId;
@@ -58,6 +62,11 @@ public final class PhysicsFixturePickingService {
             }
         }
         return result;
+    }
+
+    private boolean isTechnicalFixture(int bodyEntityId, int shapeId) {
+        return world != null && SpatialLightPhysicsSupport.isTechnicalFixture(
+                world.getMapper(PhysicsShapesComponent.class).getSafe(bodyEntityId, null), shapeId);
     }
 
     private boolean hitTest(

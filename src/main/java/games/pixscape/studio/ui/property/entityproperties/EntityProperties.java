@@ -320,9 +320,12 @@ public class EntityProperties extends VisTable {
         repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
 
         boolean physicsApplicable = isPhysicsApplicable();
-        spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));
+        spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim,
+                kind == EntityKind.POINT_LIGHT || kind == EntityKind.CONE_LIGHT));
         if (isGameObject) spatialSection.setApplicable(false);
-        physicsSection.setApplicable(!isGameObject && physicsApplicable);
+        boolean technicalBody = games.pixscape.studio.service.physics.SpatialLightPhysicsSupport
+                .hasOnlyTechnicalBody(ctx.world, currentEntityId);
+        physicsSection.setApplicable(!isGameObject && physicsApplicable && !technicalBody);
 
         invalidateHierarchy();
     }
@@ -331,8 +334,8 @@ public class EntityProperties extends VisTable {
         return kind != EntityKind.PARTICLE && hasMaterial;
     }
 
-    private boolean isSpatialApplicable(boolean isSprite, boolean isAnim) {
-        return ((isSprite || isAnim) && isEntityInSpatialEnabledLayer())
+    private boolean isSpatialApplicable(boolean isSprite, boolean isAnim, boolean isLight) {
+        return ((isSprite || isAnim || isLight) && isEntityInSpatialEnabledLayer())
                 || hasSpatialActorState();
     }
 

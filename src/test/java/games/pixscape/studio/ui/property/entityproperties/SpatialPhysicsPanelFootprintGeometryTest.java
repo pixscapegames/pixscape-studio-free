@@ -23,6 +23,39 @@ public class SpatialPhysicsPanelFootprintGeometryTest {
     private static final float PPM = 100f;
 
     @Test
+    public void bothLightKindsUseAFilteredSourceCenteredFootprint() {
+        Assert.assertTrue(SpatialPhysicsPanel.isLightKind(EntityKind.POINT_LIGHT));
+        Assert.assertTrue(SpatialPhysicsPanel.isLightKind(EntityKind.CONE_LIGHT));
+        Assert.assertFalse(SpatialPhysicsPanel.isLightKind(EntityKind.SPRITE));
+        Assert.assertFalse(SpatialPhysicsPanel.isLightKind(EntityKind.ANIMATION));
+        SceneMeta scene = new SceneMeta();
+        scene.physicsEnabled = true;
+        EntityIndexComponent index = new EntityIndexComponent();
+        LayerComponent layer = new LayerComponent();
+        layer.spatialEnabled = true;
+        Assert.assertTrue(SpatialPhysicsPanel.canActivateSpatialPhysics(
+                scene, EntityKind.POINT_LIGHT, index, layer));
+        Assert.assertTrue(SpatialPhysicsPanel.canActivateSpatialPhysics(
+                scene, EntityKind.CONE_LIGHT, index, layer));
+        layer.spatialEnabled = false;
+        Assert.assertFalse(SpatialPhysicsPanel.canActivateSpatialPhysics(
+                scene, EntityKind.POINT_LIGHT, index, layer));
+
+        PhysicsShapeData footprint = SpatialPhysicsPanel.createLightFootprint();
+        Assert.assertEquals(0.05f, footprint.geometry.radius, 0f);
+        Assert.assertEquals(0.1f, footprint.geometry.radius * 2f, 0f);
+        Assert.assertEquals(0f, footprint.geometry.offsetX, 0f);
+        Assert.assertEquals(0f, footprint.geometry.offsetY, 0f);
+        Assert.assertTrue(footprint.sensor);
+        Assert.assertTrue(footprint.technicalSpatialLight);
+        Assert.assertEquals(0, footprint.maskBits);
+        Assert.assertEquals(0, footprint.groupIndex);
+        footprint.physicsShapeId = 1;
+        footprint.validateStructure();
+        Assert.assertEquals(0.05f, SpatialPhysicsPanel.createLightFootprint().geometry.radius, 0f);
+    }
+
+    @Test
     public void usesHalfVisualWidthAsDiameterAtZeroOriginAndUnitScale() {
         assertFootprint(100f, 60f, 0f, 0f, 1f, 1f,
                 0.5f, 0.25f, 0.5f, 0.25f, 0f);

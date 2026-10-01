@@ -5,6 +5,8 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -13,6 +15,42 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class GenericEntityInitializerPhysicsJointTest {
+
+    @Test
+    public void technicalSpatialLightOwnershipSurvivesCloneAndClearsOnNonSpatialPaste() {
+        World world = world();
+        int source = world.create();
+        PhysicsBodyComponent body = world.getMapper(PhysicsBodyComponent.class).create(source);
+        body.technicalSpatialLight = true;
+        body.gravityScale = 0f;
+        PhysicsShapeData sensor = new PhysicsShapeData();
+        sensor.physicsShapeId = 1;
+        sensor.geometry = new PhysicsGeometryData();
+        sensor.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        sensor.geometry.radius = 0.05f;
+        sensor.spatialFootprint = true;
+        sensor.technicalSpatialLight = true;
+        sensor.sensor = true;
+        sensor.maskBits = 0;
+        world.getMapper(PhysicsShapesComponent.class).create(source).shapes.add(sensor);
+
+        GenericEntityInitializer copied = new GenericEntityInitializer(world);
+        copied.syncFrom(source);
+        int clone = world.create();
+        copied.init(clone);
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class)
+                .get(clone).technicalSpatialLight);
+        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class)
+                .get(clone).shapes.first().technicalSpatialLight);
+
+        GenericEntityInitializer pasted = new GenericEntityInitializer(world);
+        pasted.syncFrom(source);
+        pasted.normalizeClipboardSpatial(false);
+        int nonSpatial = world.create();
+        pasted.init(nonSpatial);
+        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(nonSpatial));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(nonSpatial));
+    }
 
     @Test public void copiesDistanceJointComponents() { World w = world(); int src = w.create(); base(w, src, PhysicsJointComponent.TYPE_DISTANCE); PhysicsDistanceJointComponent c = w.getMapper(PhysicsDistanceJointComponent.class).create(src); c.lengthM = 4.2f; c.frequencyHz = 2.3f; c.dampingRatio = 0.7f; int clone = clone(w, src); assertBase(w, clone, PhysicsJointComponent.TYPE_DISTANCE); Assert.assertTrue(w.getMapper(PhysicsDistanceJointComponent.class).has(clone)); PhysicsDistanceJointComponent out = w.getMapper(PhysicsDistanceJointComponent.class).get(clone); Assert.assertEquals(4.2f, out.lengthM, 0f); Assert.assertEquals(2.3f, out.frequencyHz, 0f); Assert.assertEquals(0.7f, out.dampingRatio, 0f); }
     @Test public void copiesWheelJointComponents() { World w = world(); int src = w.create(); base(w, src, PhysicsJointComponent.TYPE_WHEEL); PhysicsWheelJointComponent c = w.getMapper(PhysicsWheelJointComponent.class).create(src); c.axisX = 0.4f; c.axisY = 0.9f; c.enableMotor = true; c.motorSpeedRad = 1.2f; c.maxMotorTorque = 7.8f; c.frequencyHz = 5.5f; c.dampingRatio = 0.6f; int clone = clone(w, src); assertBase(w, clone, PhysicsJointComponent.TYPE_WHEEL); Assert.assertTrue(w.getMapper(PhysicsWheelJointComponent.class).has(clone)); PhysicsWheelJointComponent out = w.getMapper(PhysicsWheelJointComponent.class).get(clone); Assert.assertEquals(0.4f, out.axisX, 0f); Assert.assertEquals(0.9f, out.axisY, 0f); Assert.assertTrue(out.enableMotor); Assert.assertEquals(1.2f, out.motorSpeedRad, 0f); Assert.assertEquals(7.8f, out.maxMotorTorque, 0f); Assert.assertEquals(5.5f, out.frequencyHz, 0f); Assert.assertEquals(0.6f, out.dampingRatio, 0f); }

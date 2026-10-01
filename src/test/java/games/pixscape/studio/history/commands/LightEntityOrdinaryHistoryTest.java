@@ -7,12 +7,53 @@ import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import org.junit.Assert;
 import org.junit.Test;
 
 public class LightEntityOrdinaryHistoryTest {
+
+    @Test
+    public void deletingSpatialConeLightAndUndoRestoresTechnicalRepresentation() {
+        World world = new World(new WorldConfiguration());
+        HistoryManager history = new HistoryManager(8);
+        PhysicsService physics = new PhysicsService(world, null, new SceneMeta());
+        int entity = createConeLight(world, 3);
+        PhysicsShapeData footprint = new PhysicsShapeData();
+        footprint.geometry = new PhysicsGeometryData();
+        footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        footprint.geometry.radius = 0.05f;
+        footprint.spatialFootprint = true;
+        footprint.technicalSpatialLight = true;
+        footprint.sensor = true;
+        footprint.maskBits = 0;
+        history.execute(new ToggleSpatialActorCommand(world, history.historyIds(), physics,
+                entity, true, true, footprint, true));
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class)
+                .get(entity).technicalSpatialLight);
+
+        history.execute(new DeleteEntitiesCommand(
+                world, history.historyIds(), new IntArray(new int[]{entity})));
+        world.process();
+        Assert.assertEquals(0, coneLightCount(world));
+        history.undo();
+        world.process();
+
+        int restored = firstConeLight(world);
+        Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class)
+                .get(restored).technicalSpatialLight);
+        Assert.assertTrue(world.getMapper(PhysicsShapesComponent.class)
+                .get(restored).shapes.first().technicalSpatialLight);
+        Assert.assertTrue(world.getMapper(SpatialHeightComponent.class).has(restored));
+    }
 
     @Test
     public void lightMovesBetweenOrdinaryLayersWithUndoRedo() {

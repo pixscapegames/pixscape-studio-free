@@ -165,11 +165,14 @@ public class GameObjectAssetServiceTest {
     public void capturePersistsAutonomousSpatialFootprintAndHeight() throws Exception {
         World world = new World(new WorldConfiguration());
         int root = entity(world, 1, -1, true, 0f, 0);
-        world.getMapper(PhysicsBodyComponent.class).create(root);
+        world.getMapper(PhysicsBodyComponent.class).create(root).technicalSpatialLight = true;
         PhysicsShapeData footprint = manualShape(77, 2f);
         footprint.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         footprint.geometry.radius = 2f;
         footprint.spatialFootprint = true;
+        footprint.technicalSpatialLight = true;
+        footprint.sensor = true;
+        footprint.maskBits = 0;
         world.getMapper(PhysicsShapesComponent.class).create(root).shapes.add(footprint);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(root);
         height.altitude = 4f;
@@ -183,6 +186,10 @@ public class GameObjectAssetServiceTest {
 
         GameObjectAsset.GameObjectEntityData restored = new GameObjectAssetLoader().load(file).entities.get(0);
         Assert.assertTrue(restored.physicsShapes.get(0).spatialFootprint);
+        Assert.assertTrue(restored.physicsBody.technicalSpatialLight);
+        Assert.assertTrue(restored.physicsShapes.get(0).technicalSpatialLight);
+        Assert.assertTrue(restored.physicsShapes.get(0).sensor);
+        Assert.assertEquals(0, restored.physicsShapes.get(0).maskBits);
         Assert.assertEquals(4f, restored.spatialHeight.altitude, 0f);
         Assert.assertEquals(6f, restored.spatialHeight.height, 0f);
     }

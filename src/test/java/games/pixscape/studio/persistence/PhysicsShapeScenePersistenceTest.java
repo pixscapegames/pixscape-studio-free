@@ -5,8 +5,10 @@ import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
@@ -19,6 +21,57 @@ import org.junit.Test;
 import java.io.File;
 
 public class PhysicsShapeScenePersistenceTest {
+    @Test
+    public void sceneRoundTripRetainsTechnicalLightOwnershipAndFilter() {
+        World source = world();
+        int entityId = source.create();
+        PhysicsBodyComponent body = source.getMapper(PhysicsBodyComponent.class).create(entityId);
+        body.type = PhysicsBodyComponent.DYNAMIC;
+        body.gravityScale = 0f;
+        body.technicalSpatialLight = true;
+        SpatialHeightComponent spatial = source.getMapper(SpatialHeightComponent.class).create(entityId);
+        spatial.altitude = 18.5f;
+        spatial.height = 1f;
+        PhysicsShapesComponent shapes = source.getMapper(PhysicsShapesComponent.class).create(entityId);
+        PhysicsShapeData circle = new PhysicsShapeData();
+        circle.physicsShapeId = 1;
+        circle.geometry = new PhysicsGeometryData();
+        circle.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
+        circle.geometry.radius = 0.05f;
+        circle.spatialFootprint = true;
+        circle.technicalSpatialLight = true;
+        circle.sensor = true;
+        circle.maskBits = 0;
+        circle.groupIndex = 0;
+        shapes.shapes.add(circle);
+        source.process();
+        FileHandle file = new FileHandle(new File(
+                System.getProperty("java.io.tmpdir"), "pixscape-spatial-light-roundtrip.json"));
+        SceneService.saveScene(source, file, false);
+
+        World loaded = world();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.physicsEnabled = true;
+        meta.nextPhysicsShapeId = 2;
+        SceneLoader.loadScene(loaded, file, false, meta);
+        int loadedEntity = loaded.getAspectSubscriptionManager()
+                .get(com.artemis.Aspect.all(PhysicsShapesComponent.class))
+                .getEntities().get(0);
+        Assert.assertTrue(loaded.getMapper(PhysicsBodyComponent.class)
+                .get(loadedEntity).technicalSpatialLight);
+        SpatialHeightComponent restoredSpatial = loaded.getMapper(SpatialHeightComponent.class)
+                .get(loadedEntity);
+        Assert.assertEquals(18.5f, restoredSpatial.altitude, 0f);
+        Assert.assertEquals(1f, restoredSpatial.height, 0f);
+        PhysicsShapeData restored = loaded.getMapper(PhysicsShapesComponent.class)
+                .get(loadedEntity).shapes.first();
+        Assert.assertTrue(restored.technicalSpatialLight);
+        Assert.assertTrue(restored.sensor);
+        Assert.assertEquals(0, restored.maskBits);
+        Assert.assertEquals(0, restored.groupIndex);
+        Assert.assertEquals(0.05f, restored.geometry.radius, 0f);
+    }
+
     @Test
     public void scenePersistsSourcesButNotCompiledCacheAndRestoresLiveCacheAfterSave() {
         World world = world();

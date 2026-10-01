@@ -59,6 +59,8 @@ public final class ConeLightProperties extends VisTable {
 
     // === Light blocks ===
     private final CollapsibleVisTable coneBlock = new CollapsibleVisTable(true);
+    private final SpatialPhysicsPanel spatialPanel;
+    private final ToggleSection spatialSection;
 
     private final VisCheckBox enabledCheckBox;
     private final UiBinders.CheckBoxBinder enabledBinder;
@@ -89,6 +91,8 @@ public final class ConeLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
+        spatialPanel = new SpatialPhysicsPanel(ctx);
+        spatialSection = new ToggleSection("Spatial", spatialPanel);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -237,6 +241,7 @@ public final class ConeLightProperties extends VisTable {
         coneContent.add(falloffField).width(120).left().row();
 
         add(coneBlock).growX().left().row();
+        add(spatialSection).growX().left().pad(0).row();
 
         EventFlow.i().subscribe(EventFlow.EntityChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
@@ -244,6 +249,13 @@ public final class ConeLightProperties extends VisTable {
         });
         EventFlow.i().subscribe(EventFlow.CustomPropertiesChanged.class, evt -> {
             if (evt.entityId() == currentEntityId) customPropertiesRow.refresh();
+        });
+        EventFlow.i().subscribe(EventFlow.SpatialHeightChanged.class, evt -> {
+            if (evt.entityId() != currentEntityId) return;
+            refreshSpatialSection();
+        });
+        EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
+            if (currentEntityId >= 0) refreshSpatialSection();
         });
     }
 
@@ -337,9 +349,16 @@ public final class ConeLightProperties extends VisTable {
         softnessField.setEntityId(entityId);
         falloffField.setEntityId(entityId);
         pickerBinder.setEntityId(entityId);
+        refreshSpatialSection();
 
         refreshTagsLabel();
         customPropertiesRow.setEntityId(entityId);
+    }
+
+    private void refreshSpatialSection() {
+        spatialPanel.setEntityId(currentEntityId);
+        spatialSection.setApplicable(spatialPanel.isSectionApplicable(currentEntityId));
+        invalidateHierarchy();
     }
 
     private void refreshTagsLabel() {

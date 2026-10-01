@@ -127,11 +127,12 @@ public class ResolvedSceneActivationPipelineIntegrationContractTest {
                         + "ResolvedSceneActivationPipeline.java"),
                 StandardCharsets.UTF_8
         );
-        String body = methodBody(source, "void activate(");
+        String body = methodBody(source, "int activate(");
 
         assertOrdered(body,
                 "sceneLoader.load(",
                 "world.process();",
+                "SpatialLightPhysicsSupport.restoreFixedFootprints(world)",
                 "SceneLoader.forceFullRenderDirty(world);",
                 "resolveTiledLayersForActivation(",
                 "validateAndCompileSpatialBlocksForActivation(",

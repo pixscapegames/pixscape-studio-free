@@ -9,6 +9,9 @@ import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import org.junit.Assert;
 import org.junit.Test;
@@ -34,6 +37,9 @@ public class LightEntityFactoryTest {
         Assert.assertEquals(80f, light.radius, 0f);
         Assert.assertEquals(1.25f, light.intensity, 0f);
         Assert.assertEquals(1.75f, light.falloff, 0f);
+        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entity));
         world.dispose();
 
     }
@@ -56,6 +62,9 @@ public class LightEntityFactoryTest {
         Assert.assertEquals(90f, light.radius, 0f);
         Assert.assertEquals(55f, light.coneAngleDeg, 0f);
         Assert.assertEquals(0.3f, light.softness, 0f);
+        Assert.assertFalse(world.getMapper(PhysicsBodyComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(PhysicsShapesComponent.class).has(entity));
+        Assert.assertFalse(world.getMapper(SpatialHeightComponent.class).has(entity));
         world.dispose();
     }
 

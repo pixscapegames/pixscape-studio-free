@@ -198,6 +198,7 @@ public final class RemovePhysicsBodyCommand
         boolean bullet;
         boolean allowSleep;
         boolean awake;
+        boolean technicalSpatialLight;
         float gravityScale;
         float linearDamping;
         float angularDamping;
@@ -209,6 +210,7 @@ public final class RemovePhysicsBodyCommand
             snapshot.bullet = body.bullet;
             snapshot.allowSleep = body.allowSleep;
             snapshot.awake = body.awake;
+            snapshot.technicalSpatialLight = body.technicalSpatialLight;
             snapshot.gravityScale = body.gravityScale;
             snapshot.linearDamping = body.linearDamping;
             snapshot.angularDamping = body.angularDamping;
@@ -221,6 +223,7 @@ public final class RemovePhysicsBodyCommand
             body.bullet = bullet;
             body.allowSleep = allowSleep;
             body.awake = awake;
+            body.technicalSpatialLight = technicalSpatialLight;
             body.gravityScale = gravityScale;
             body.linearDamping = linearDamping;
             body.angularDamping = angularDamping;
