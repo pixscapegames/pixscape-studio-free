@@ -11,6 +11,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisImageButton;
@@ -31,6 +32,7 @@ import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import games.pixscape.runtime.render.ShaderVariant;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -45,6 +47,71 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 public class ShaderManagerDialogSkinTest {
+
+    @Test
+    public void declarationSurvivesSaveAndReopenWithStableOrderAndEditedDefault() throws Exception {
+        ProjectConfig previous = ProjectConfig.getInstance();
+        File projectDir = temporaryFolder.newFolder("parameter-declaration-project");
+        ProjectConfig config = new ProjectConfig();
+        config.projectFileName = "parameter-declaration-project";
+        config.projectDirectoryPath = projectDir.getAbsolutePath();
+        ProjectConfig.setInstance(config);
+        try {
+            ShaderManagerDialog first = new ShaderManagerDialog(null);
+            Object material = field(first, "typeBox", VisSelectBox.class).getItems().first();
+            privateMethod("createNewShaderAsset", String.class, material.getClass())
+                    .invoke(first, "pair", material);
+            FileHandle metadata = new FileHandle(new File(projectDir,
+                    "orig/shaders/custom/material/pair/shader.json"));
+            Array<ShaderFloatParam> declaration = new Array<>();
+            declaration.add(new ShaderFloatParam("u_gain", 0.25f));
+            declaration.add(new ShaderFloatParam("u_speed", 2f));
+            Method write = privateMethod("buildShaderJson", String.class, material.getClass(),
+                    FileHandle.class, Array.class);
+            metadata.writeString((String) write.invoke(first, "pair", material, metadata, declaration), false, "UTF-8");
+
+            ShaderManagerDialog reopened = new ShaderManagerDialog(null);
+            Method read = privateMethod("readParameters", FileHandle.class, String.class);
+            @SuppressWarnings("unchecked")
+            Array<ShaderFloatParam> loaded = (Array<ShaderFloatParam>) read.invoke(reopened, metadata, "pair");
+            Assert.assertEquals("u_gain", loaded.get(0).name);
+            Assert.assertEquals(0.25f, loaded.get(0).value, 0f);
+            Assert.assertEquals("u_speed", loaded.get(1).name);
+            loaded.get(0).value = 0.75f;
+            metadata.writeString((String) write.invoke(reopened, "pair", material, metadata, loaded), false, "UTF-8");
+            @SuppressWarnings("unchecked")
+            Array<ShaderFloatParam> edited = (Array<ShaderFloatParam>) read.invoke(
+                    new ShaderManagerDialog(null), metadata, "pair");
+            Assert.assertEquals(0.75f, edited.get(0).value, 0f);
+        } finally {
+            ProjectConfig.setInstance(previous);
+        }
+    }
+
+    @Test
+    public void renamingDeclarationRejectsSavedEntityValueUnderOldName() throws Exception {
+        File project = temporaryFolder.newFolder("parameter-reference-project");
+        FileHandle root = new FileHandle(project);
+        FileHandle metadata = root.child("orig/shaders/custom/material/pair/shader.json");
+        metadata.writeString("{\"parameters\":{\"u_gain\":1.0}}", false, "UTF-8");
+        root.child("scenes/example.json").writeString(
+                "{\"ShaderParamsComponent\":{\"floats\":[{\"name\":\"u_gain\",\"value\":2.0}]}}",
+                false, "UTF-8");
+        ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+        Array<ShaderFloatParam> renamed = new Array<>();
+        renamed.add(new ShaderFloatParam("u_power", 1f));
+        Field edited = ShaderManagerDialog.class.getDeclaredField("editedParameters");
+        edited.setAccessible(true);
+        edited.set(dialog, renamed);
+        Method validate = privateMethod("validateDeclarationChange", String.class,
+                FileHandle.class, FileHandle.class);
+        try {
+            validate.invoke(dialog, "pair", metadata, root);
+            Assert.fail("Stored value was not protected");
+        } catch (InvocationTargetException expected) {
+            Assert.assertTrue(expected.getCause().getMessage().contains("Saved entities"));
+        }
+    }
 
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
@@ -211,7 +278,7 @@ public class ShaderManagerDialogSkinTest {
         assertCodeEditors(field(dialog, "vertEditors", ObjectMap.class));
         assertCodeEditors(field(dialog, "fragEditors", ObjectMap.class));
         Assert.assertEquals(1, countLabels(dialog,
-                "Material shaders can use #include \"pixscape_common.glsl\"."));
+                "Material floats: #include \"pixscape_entity_params.glsl\", then pixscapeEntityFloat(PIXSCAPE_PARAM_<name>)."));
     }
 
     @Test
@@ -312,6 +379,7 @@ public class ShaderManagerDialogSkinTest {
 
             FileHandle sourceDir = new FileHandle(
                     new File(projectDir, "orig/shaders/custom/material/source_shader"));
+            sourceDir.child("shader.json").writeString("{\"parameters\":{\"u_gain\":0.5,\"u_speed\":2.0}}", false, "UTF-8");
             sourceDir.child("desktop-gl30.vert").writeString("old disk vertex", false, "UTF-8");
             sourceDir.child("includes/common/nested.glsl").writeString("nested include", false, "UTF-8");
             sourceDir.child("includes/root.glsl").writeString("root include", false, "UTF-8");
@@ -359,6 +427,8 @@ public class ShaderManagerDialogSkinTest {
             String json = targetDir.child("shader.json").readString("UTF-8");
             Assert.assertTrue(json.contains("\"name\": \"editor_copy\""));
             Assert.assertTrue(json.contains("\"kind\": \"material\""));
+            Assert.assertTrue(json.contains("\"u_gain\""));
+            Assert.assertTrue(json.contains("\"u_speed\""));
 
             FileHandle sourceWithoutIncludes = new FileHandle(new File(projectDir, "source-without-includes"));
             sourceWithoutIncludes.mkdirs();

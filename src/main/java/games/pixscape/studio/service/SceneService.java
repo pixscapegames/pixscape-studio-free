@@ -392,6 +392,20 @@ public final class SceneService {
                 return true;
             }
 
+            String sceneTag = cfg.canonicalSceneTag(currentSceneName);
+            if (sceneTag != null && !sceneTag.isBlank()
+                    && cfg.projectDirectoryPath != null && !cfg.projectDirectoryPath.isBlank()) {
+                FileHandle atlasInput = new FileHandle(Path.of(cfg.projectDirectoryPath)
+                        .resolve(StudioFs.DIR_ATLASES).resolve(StudioFs.DIR_INPUT)
+                        .resolve(sceneTag).toFile());
+                if (atlasInput.exists() && !games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
+                        atlasInput,
+                        new FileHandle(runtimeRoot.resolve(RuntimeFs.DIR_ATLASES)
+                                .resolve(sceneTag + ".atlas").toFile()))) {
+                    return true;
+                }
+            }
+
             if (currentSceneHudExportIsStale(cfg, runtimeRoot)) {
                 return true;
             }
@@ -1791,6 +1805,16 @@ public final class SceneService {
             return;
         }
 
+        if (syncResult.changed()) {
+            // A pending worker may have enumerated the input before this sync added an image.
+            atlasStudioService.requestAsyncPack(
+                    canonicalTag,
+                    AsyncAtlasRepackCoordinator.RepackReason.SAVE
+            );
+            waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+            return;
+        }
+
         if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
             Gdx.app.log("AtlasStudioService",
                     "Save atlas repack using pending pack scene=" + canonicalTag);
@@ -1873,7 +1897,8 @@ public final class SceneService {
             }
         }
 
-        return true;
+        return games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
+                atlasesDir.child(StudioFs.DIR_INPUT).child(sceneTag), atlasFile);
     }
 
     static Array<String> atlasPageFileNames(FileHandle atlasFile) {
@@ -2108,6 +2133,7 @@ public final class SceneService {
         // shaders root = project STUDIO directory
         FileHandle shadersRoot = StudioFs.requireStudioProjectDir(cfg);
         ShaderRegistry.reloadForProject(shadersRoot, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
 
         // MSAA (restart required)

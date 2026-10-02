@@ -216,6 +216,11 @@ public final class AtlasStudioService extends AtlasRuntimeService {
         long textureArrayUploadNs = 0L;
         long atlasAssemblyNs = 0L;
         try {
+            FileHandle currentInput = atlasesDir.child(StudioFs.DIR_INPUT).child(tag);
+            if (!SceneAtlasCoverage.coversInput(currentInput, artifact.atlasFile())) {
+                requestAsyncPack(tag, AsyncAtlasRepackCoordinator.RepackReason.GENERIC);
+                return;
+            }
             GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
             if (snapshotManager == null) {
                 throw new IllegalStateException("GPU snapshot manager is unavailable.");

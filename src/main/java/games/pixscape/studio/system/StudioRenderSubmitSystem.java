@@ -7,8 +7,6 @@ import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
-import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
@@ -103,8 +101,6 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         int curShaderIdx = -1;
         int curBlendId = Integer.MIN_VALUE;
         float curPackedColor = Float.NaN;
-        int lastParamsHash = 0;
-        boolean hasLastParamsHash = false;
 
         for (int i = 0; i < size; i++) {
             int layerIdx = frameQueue.layerIndex[i];
@@ -130,7 +126,6 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     curShaderIdx = -1;
                     curBlendId = Integer.MIN_VALUE;
                     curPackedColor = Float.NaN;
-                    hasLastParamsHash = false;
                 }
 
                 final int shaderIdx = frameQueue.shader[i];
@@ -144,7 +139,6 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     if (sh != curShader) {
                         metricsBatch.setShader(sh, stats);
                         curShader = sh;
-                        hasLastParamsHash = false;
 
                         if (curShader != null) {
                             setUniform1f(curShader, "u_time", time);
@@ -152,11 +146,14 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                             setUniformAmbientMul(curShader);
                         }
                     }
+                    metricsBatch.setParameterLayout(ShaderRegistry.getParameterLayout(shaderIdx), stats);
                 }
 
                 final int blendId = frameQueue.blend[i];
                 if (blendId != curBlendId) {
+                    int flushesBeforeBlend = stats.flushes;
                     metricsBatch.flush(stats);
+                    if (stats.flushes > flushesBeforeBlend) stats.flushStateChanges++;
                     BlendMode blendMode = BlendMode.fromId(blendId);
                     Blend.apply(blendMode);
                     metricsBatch.setBlendMode(
@@ -174,21 +171,8 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     curPackedColor = packedColor;
                 }
 
-                if (curShader != null && mShaderParams != null) {
-                    final int entityId = frameQueue.sourceEntity[i];
-                    if (entityId >= 0 && mShaderParams.has(entityId)) {
-                        ShaderParamsComponent params = mShaderParams.get(entityId);
-                        if (params != null && params.floats != null && params.floats.size > 0) {
-                            int h = hashShaderParams(params.floats);
-                            if (!hasLastParamsHash || h != lastParamsHash) {
-                                metricsBatch.flush(stats);
-                                applyShaderParams(curShader, params.floats);
-                                lastParamsHash = h;
-                                hasLastParamsHash = true;
-                            }
-                        }
-                    }
-                }
+                ShaderParamsComponent params = entityParameters(i);
+                metricsBatch.setEntityParameters(params == null ? null : params.floats, stats);
 
                 byte repeat = frameQueue.repeatFlags[i];
                 if ((repeat & RenderRepeatFlags.ANY) == 0) {
@@ -206,6 +190,8 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
             Texture tex = TextureRegistry.getByHandle(texHandle);
             if (tex == null) continue;
+            // An unpacked texture uses the temporary 2D preview shader until atlas repack.
+            // Its material shader and parameter table become active on the atlas path above.
 
             final int blendId = frameQueue.blend[i];
             if (!standaloneOpen) {
@@ -515,38 +501,10 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         shader.setUniformf("u_ambientMul", r, g, b);
     }
 
-    private static int hashShaderParams(Array<ShaderFloatParam> floats) {
-        if (floats == null || floats.size == 0) {
-            return 0;
-        }
-        int h = 0x9E3779B9;
-
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-            if (param == null || param.name == null || param.name.length() == 0) {
-                continue;
-            }
-            int kh = param.name.hashCode();
-            int vh = Float.floatToIntBits(param.value);
-            int x = kh * 0x85EBCA6B ^ vh * 0xC2B2AE35;
-            x ^= (x >>> 16);
-            h ^= x;
-            h = Integer.rotateLeft(h, 13) * 5 + 0xE6546B64;
-        }
-        return h;
-    }
-
-    private void applyShaderParams(ShaderProgram shader, Array<ShaderFloatParam> floats) {
-        if (shader == null || floats == null || floats.size == 0) {
-            return;
-        }
-        for (int i = 0; i < floats.size; i++) {
-            ShaderFloatParam param = floats.get(i);
-            if (param == null || param.name == null || param.name.isEmpty()) {
-                continue;
-            }
-            setUniform1f(shader, param.name, param.value);
-        }
+    private ShaderParamsComponent entityParameters(int index) {
+        int entityId = frameQueue.sourceEntity[index];
+        return mShaderParams != null && entityId >= 0 && mShaderParams.has(entityId)
+                ? mShaderParams.get(entityId) : null;
     }
 
     private void setUniform1f(ShaderProgram shader, String name, float value) {

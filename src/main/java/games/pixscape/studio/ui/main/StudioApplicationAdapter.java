@@ -172,6 +172,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 projectDir,
                 StudioFs.DIR_ORIG_SHADERS
         );
+        ShaderRegistry.saveProjectIndices();
 
         CursorDrawHelper.init();
 
@@ -1331,6 +1332,31 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return null;
     }
 
+    /** Guards declaration rename/removal against unsaved entity overrides in open documents. */
+    public boolean hasOpenShaderParameterReference(String shaderName, String parameterName) {
+        if (editorDocumentManager == null) return false;
+        for (OpenEditorDocument document : editorDocumentManager.documents()) {
+            SceneEditorContext context = documentContext(document);
+            if (context == null) continue;
+            com.artemis.World world = context.world();
+            var materials = world.getMapper(games.pixscape.runtime.component.RenderMaterialComponent.class);
+            var parameters = world.getMapper(games.pixscape.runtime.component.ShaderParamsComponent.class);
+            com.artemis.utils.IntBag entities = world.getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all(games.pixscape.runtime.component.RenderMaterialComponent.class,
+                            games.pixscape.runtime.component.ShaderParamsComponent.class)).getEntities();
+            for (int i = 0; i < entities.size(); i++) {
+                int entity = entities.get(i);
+                if (!shaderName.equals(ShaderRegistry.getName(materials.get(entity).getShaderIdx()))) continue;
+                var component = parameters.get(entity);
+                if (component.floats == null) continue;
+                for (var value : component.floats) {
+                    if (value != null && parameterName.equals(value.name)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isWorldDocument(OpenEditorDocument document) {
         return document instanceof SceneEditorDocument || document instanceof GameObjectEditorDocument;
     }
@@ -1456,6 +1482,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 ? StudioFs.requireStudioProjectDir(cfg)
                 : null;
         ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 

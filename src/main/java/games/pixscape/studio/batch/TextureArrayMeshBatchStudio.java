@@ -5,8 +5,13 @@ import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.render.batch.MetricsBatch;
+import games.pixscape.runtime.render.batch.ShaderParameterLayout;
+import games.pixscape.runtime.render.batch.ShaderParameterRows;
+import games.pixscape.runtime.render.batch.ShaderParameterTexture;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 
@@ -21,12 +26,12 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * 3: a_layer     (float) -> float
  * <p>
  * CPU format (float[]):
- * pos2 + uv2 + colorPacked1 + layer1 = 6 floats / vertex
+ * pos2 + uv2 + colorPacked1 + layer1 + paramId1 = 7 floats / vertex
  */
 public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
     // pos2 + uv2 + colorPacked1 + layer1 = 6 floats
-    private static final int VERT_STRIDE = 6;
+    private static final int VERT_STRIDE = 7;
     private static final int REGION_RESOLVE_CACHE_CAPACITY = 64;
 
     private final Mesh mesh;
@@ -47,6 +52,11 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
     // Uniform-location cache (avoids string lookups and setUniformMatrix during flush)
     private int uProjTransLoc = -1;
     private int uArrayLoc = -1;
+    private int uEntityParamsLoc = -1;
+    private boolean parameterUniformDirty = true;
+    private final ShaderParameterRows parameterRows = new ShaderParameterRows(ShaderParameterRows.DEFAULT_CAPACITY);
+    private final ShaderParameterTexture parameterTexture;
+    private ShaderParameterLayout parameterLayout = ShaderParameterLayout.EMPTY;
 
     private final Matrix4 combined = new Matrix4();
     private RenderStats stats;
@@ -65,7 +75,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
             new RegionResolveCache(REGION_RESOLVE_CACHE_CAPACITY);
 
     public TextureArrayMeshBatchStudio(int maxQuads) {
-        this.maxQuads = Math.max(64, maxQuads);
+        if (maxQuads < 1 || maxQuads > 16383) {
+            throw new IllegalArgumentException("Quad capacity must be between 1 and 16383: " + maxQuads);
+        }
+        this.maxQuads = maxQuads;
         int maxVerts = this.maxQuads * 4;
         int maxIndices = this.maxQuads * 6;
 
@@ -78,7 +91,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                         new VertexAttribute(Usage.Position, 2, "a_position"),
                         new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
                         VertexAttribute.ColorPacked(),
-                        new VertexAttribute(Usage.Generic, 1, "a_layer")
+                        new VertexAttribute(Usage.Generic, 1, "a_layer"),
+                        new VertexAttribute(Usage.Generic, 1, "a_paramId")
                 )
         );
 
@@ -97,6 +111,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         mesh.setIndices(idx);
 
         this.verts = new float[maxVerts * VERT_STRIDE];
+        this.parameterTexture = ShaderParameterTexture.hasLiveContext()
+                ? new ShaderParameterTexture(parameterRows.capacity()) : null;
     }
 
     // --------------------------------------------------------------------
@@ -112,6 +128,9 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         this.projDirty = true;  // projection may differ on each begin()
         this.textureArrayBound = false; // GL state can be changed between passes
         this.arrayUniformDirty = true;
+        this.parameterUniformDirty = true;
+        this.parameterLayout = ShaderParameterLayout.EMPTY;
+        this.parameterRows.setLayout(parameterLayout);
         this.regionResolveCache.clear();
         this.regionResolveCache.clearStats();
         syncRegionResolveCacheStats(stats);
@@ -122,6 +141,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
     @Override
     public void end(RenderStats stats) {
+        if (quadCount > 0 && stats != null) stats.flushEnd++;
         flush(stats);
         this.stats = null;
         this.drawing = false;
@@ -135,6 +155,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
     @Override
     public void close() {
         mesh.dispose();
+        if (parameterTexture != null) parameterTexture.close();
     }
 
     @Override
@@ -142,6 +163,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         if (sh == null) throw new IllegalArgumentException("TextureArrayMeshBatchStudio.setShader(null) called");
         if (sh == shader) return;
 
+        if (quadCount > 0 && stats != null) stats.flushStateChanges++;
         flush(stats);
         shader = sh;
 
@@ -151,6 +173,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         // New shader: u_projTrans and u_array are per-program and must be resent.
         projDirty = true;
         arrayUniformDirty = true;
+        parameterUniformDirty = true;
 
         // If begin/end is active, configure the new program immediately.
         if (drawing) {
@@ -158,6 +181,29 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         }
 
         if (stats != null) stats.shaderSwitches++;
+    }
+
+    @Override
+    public void setParameterLayout(ShaderParameterLayout layout, RenderStats stats) {
+        ShaderParameterLayout next = layout == null ? ShaderParameterLayout.EMPTY : layout;
+        if (next == parameterLayout) return;
+        if (quadCount > 0 && stats != null) stats.flushStateChanges++;
+        flush(stats);
+        parameterLayout = next;
+        parameterRows.setLayout(next);
+    }
+
+    @Override
+    public void setEntityParameters(Array<ShaderFloatParam> parameters, RenderStats stats) {
+        if (parameterRows.setEntityParameters(parameters) < 0) {
+            if (stats != null) stats.flushParameterCapacity++;
+            boolean hadQuads = quadCount > 0;
+            flush(stats);
+            if (!hadQuads) parameterRows.afterFlush();
+            if (parameterRows.setEntityParameters(parameters) < 0) {
+                throw new IllegalStateException("Parameter row could not be added after a flush");
+            }
+        }
     }
 
     @Override
@@ -212,6 +258,11 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         // => prepareDrawState will send u_projTrans only if projDirty = true
         prepareDrawState(s);
 
+        if (uEntityParamsLoc >= 0) {
+            if (parameterTexture == null) throw new IllegalStateException("Parameter texture was not created with a GL30 context");
+            parameterTexture.upload(parameterRows);
+        }
+
         mesh.render(shader, GL20.GL_TRIANGLES, 0, quadCount * 6);
 
         if (s != null) {
@@ -223,6 +274,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
         vertCount = 0;
         quadCount = 0;
+        parameterRows.afterFlush();
     }
 
     @Override
@@ -285,6 +337,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         // (for shader variants, -1 => do not set)
         this.uProjTransLoc = sh.getUniformLocation("u_projTrans");
         this.uArrayLoc = sh.getUniformLocation("u_array");
+        this.uEntityParamsLoc = sh.getUniformLocation("u_entityParams");
     }
 
     /**
@@ -327,6 +380,10 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
             if (uArrayLoc >= 0) shader.setUniformi(uArrayLoc, 0);
             arrayUniformDirty = false;
         }
+        if (parameterUniformDirty) {
+            if (uEntityParamsLoc >= 0) shader.setUniformi(uEntityParamsLoc, ShaderParameterTexture.TEXTURE_UNIT);
+            parameterUniformDirty = false;
+        }
     }
 
     private void drawTextureArrayQuad(int textureHandle,
@@ -341,6 +398,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         }
 
         float fl = (float) layer;
+        float paramId = parameterRows.currentId();
 
         // Correct UVs if pages do not all have the same size
 
@@ -358,6 +416,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = vv2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
+        verts[o++] = paramId;
 
         // TL
         verts[o++] = x2;
@@ -366,6 +425,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = vv;
         verts[o++] = colorPacked;
         verts[o++] = fl;
+        verts[o++] = paramId;
 
         // TR
         verts[o++] = x3;
@@ -374,6 +434,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = vv;
         verts[o++] = colorPacked;
         verts[o++] = fl;
+        verts[o++] = paramId;
 
         // BR
         verts[o++] = x4;
@@ -382,6 +443,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = vv2;
         verts[o++] = colorPacked;
         verts[o++] = fl;
+        verts[o++] = paramId;
 
         vertCount += 4;
         quadCount += 1;

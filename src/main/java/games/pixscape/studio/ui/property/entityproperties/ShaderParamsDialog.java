@@ -11,9 +11,13 @@ import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
+import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.history.commands.ChangeShaderParametersCommand;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.modal.StudioModalWindow;
+import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.widget.ValidationHooks;
 
 public class ShaderParamsDialog extends StudioModalWindow {
@@ -24,6 +28,7 @@ public class ShaderParamsDialog extends StudioModalWindow {
     private final World world;
     private final int entityId;
     private final String shaderName;
+    private final HistoryManager history;
 
     private final ComponentMapper<ShaderParamsComponent> mParams;
 
@@ -42,11 +47,16 @@ public class ShaderParamsDialog extends StudioModalWindow {
     private final Array<Row> rows = new Array<>();
 
     public ShaderParamsDialog(World world, int entityId, String shaderName) {
+        this(world, entityId, shaderName, null);
+    }
+
+    public ShaderParamsDialog(World world, int entityId, String shaderName, HistoryManager history) {
         super("Shader parameters - " + shaderName);
 
         this.world = world;
         this.entityId = entityId;
         this.shaderName = shaderName;
+        this.history = history;
 
         this.mParams = world.getMapper(ShaderParamsComponent.class);
 
@@ -58,7 +68,7 @@ public class ShaderParamsDialog extends StudioModalWindow {
         VisTable root = new VisTable(true);
         root.pad(8);
 
-        root.add(new VisLabel("Uniform parameters (float)")).left().colspan(2).row();
+        root.add(new VisLabel("Entity parameters (float)")).left().colspan(2).row();
 
         paramsTable = new VisTable(true);
         paramsTable.top();
@@ -243,17 +253,21 @@ public class ShaderParamsDialog extends StudioModalWindow {
 
         if (hasInvalidRow) return;
 
-        ShaderParamsComponent comp = mParams.get(entityId);
-        if (comp == null) {
-            comp = mParams.create(entityId);
+        ShaderParameterLayout layout = ShaderRegistry.getParameterLayout(ShaderRegistry.indexOf(shaderName));
+        boolean[] seen = new boolean[layout.size()];
+        for (Row row : rows) {
+            String name = row.nameField.getText().trim();
+            if (name.isEmpty()) continue;
+            int slot = layout.slot(name);
+            if (slot < 0 || seen[slot]) {
+                Dialogs.showErrorDialog(getStage(), "Shader '" + shaderName
+                        + "' has no unique entity float parameter '" + name + "'.");
+                return;
+            }
+            seen[slot] = true;
         }
 
-        if (comp.floats == null) {
-            comp.floats = new Array<>();
-        } else {
-            comp.floats.clear();
-        }
-
+        Array<ShaderFloatParam> values = new Array<>();
         for (Row row : rows) {
             String name = row.nameField.getText().trim();
             String valStr = row.valueField.getText().trim();
@@ -261,8 +275,12 @@ public class ShaderParamsDialog extends StudioModalWindow {
             if (name.isEmpty() && valStr.isEmpty()) continue;
 
             float v = Float.parseFloat(valStr);
-            comp.floats.add(new ShaderFloatParam(name, v));
+            values.add(new ShaderFloatParam(name, v));
         }
+
+        ChangeShaderParametersCommand command = new ChangeShaderParametersCommand(world, entityId, values);
+        if (history != null) history.execute(command);
+        else command.redo();
 
         fadeOut();
     }

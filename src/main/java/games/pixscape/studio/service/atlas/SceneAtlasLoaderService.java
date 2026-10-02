@@ -57,6 +57,7 @@ public final class SceneAtlasLoaderService {
             }
 
             AtlasPackingService.packScene(inputDir, outputDir, canonicalTag);
+            SceneAtlasCoverage.requireComplete(inputDir, outputDir.child(canonicalTag + ".atlas"));
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
         }
     }

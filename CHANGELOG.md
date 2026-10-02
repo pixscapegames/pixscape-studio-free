@@ -4,10 +4,13 @@
 
 ### Breaking changes
 
+* Custom material shaders must migrate per-entity values from float uniforms to the parameter table in both GLSL targets.
 * HUD screen assets from the fixed-resolution development format must be recreated; there is no automatic migration.
 
 ### Changed
 
+* Studio Free batches compatible material entities across different float values, reuses identical parameter rows, and keeps the standalone texture preview usable during atlas repack.
+* Shader Manager now edits ordered float declarations and defaults (up to 16); entity values remain in Material > Parameters with undo and dirty tracking.
 * HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
 * HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
 * HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
