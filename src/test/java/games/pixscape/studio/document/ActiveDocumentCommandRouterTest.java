@@ -1,9 +1,6 @@
 package games.pixscape.studio.document;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
 import org.junit.Test;

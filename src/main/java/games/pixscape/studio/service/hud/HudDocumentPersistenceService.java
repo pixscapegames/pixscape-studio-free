@@ -8,15 +8,15 @@ import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.hud.HudScreenAssetLoader;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.studio.io.StudioIO;
-import games.pixscape.studio.io.AtomicTextPublication;
+import games.pixscape.runtime.hud.document.HudValidationResult;
 import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.io.AtomicTextPublication;
+import games.pixscape.studio.io.StudioIO;
 
-import java.util.Objects;
-import java.util.List;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /** Loads and atomically persists the authored state of one HUD editor document. */
 public final class HudDocumentPersistenceService {

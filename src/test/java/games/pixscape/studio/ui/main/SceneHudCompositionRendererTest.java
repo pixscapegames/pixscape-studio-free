@@ -1,7 +1,7 @@
 package games.pixscape.studio.ui.main;
 
-import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Rectangle;
 import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
@@ -20,9 +20,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SceneHudCompositionRendererTest {
     @Test public void associationResolutionUsesCanonicalSceneAndHudIdentity() {

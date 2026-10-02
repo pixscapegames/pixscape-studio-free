@@ -1,9 +1,10 @@
 package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
+import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.runtime.hud.HudTextureProfile;
+
 import java.io.IOException;
 
 /** One TexturePacker configuration authority for generated Studio atlases. */

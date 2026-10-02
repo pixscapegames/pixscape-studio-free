@@ -1,11 +1,11 @@
 package games.pixscape.studio.ui.hud;
 
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector2;
 import games.pixscape.studio.service.hud.HudEditorSession;
 
 /** Transparent Studio-stage input surface owned exclusively by the active HUD workspace. */

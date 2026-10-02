@@ -7,8 +7,8 @@ import games.pixscape.runtime.component.DimensionsComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.ui.main.WorldCanvas;
 import games.pixscape.studio.scene.SceneEditorContext;
+import games.pixscape.studio.ui.main.WorldCanvas;
 import org.junit.Test;
 
 import java.lang.reflect.Field;

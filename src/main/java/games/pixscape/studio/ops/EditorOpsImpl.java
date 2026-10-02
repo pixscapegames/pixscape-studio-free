@@ -1,9 +1,7 @@
 package games.pixscape.studio.ops;
 
 import com.artemis.ComponentMapper;
-import com.artemis.Aspect;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
@@ -13,7 +11,6 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
@@ -38,8 +35,8 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.history.initializer.AbstractCommonInitializer;
-import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GameObjectRootInitializer;
+import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.SceneService;
@@ -47,9 +44,9 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
-import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
+import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.spatial.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 

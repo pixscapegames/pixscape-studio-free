@@ -2,10 +2,10 @@ package games.pixscape.studio.scene;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Disposable;
-import games.pixscape.studio.configuration.SceneMeta;
-import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.event.EventFlow;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioEditingMode;

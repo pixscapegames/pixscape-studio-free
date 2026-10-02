@@ -16,8 +16,8 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ChangeShaderParametersCommand;
 import games.pixscape.studio.ui.config.CommonLayout;
-import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ValidationHooks;
 
 public class ShaderParamsDialog extends StudioModalWindow {

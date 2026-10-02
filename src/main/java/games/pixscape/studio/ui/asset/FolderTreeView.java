@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -25,6 +23,7 @@ import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.function.Consumer;
 

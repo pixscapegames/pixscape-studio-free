@@ -1,6 +1,6 @@
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.security.MessageDigest
 
 plugins {
   id 'application'

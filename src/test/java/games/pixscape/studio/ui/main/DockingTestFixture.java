@@ -1,9 +1,9 @@
 package games.pixscape.studio.ui.main;
 
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisSplitPane;
 import com.kotcrab.vis.ui.widget.VisTable;
@@ -11,10 +11,10 @@ import games.pixscape.studio.document.EditorDocumentKey;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
-import games.pixscape.studio.ui.document.EditorDocumentHost;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
 import games.pixscape.studio.ui.docking.DockablePanel;
+import games.pixscape.studio.ui.document.EditorDocumentHost;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;

@@ -21,6 +21,7 @@ import games.pixscape.studio.history.HistoryManager.SupportsNoop;
 import games.pixscape.studio.history.commands.ChangeLayerOrderCommand;
 import games.pixscape.studio.history.commands.CreateLayerCommand;
 import games.pixscape.studio.history.commands.DeleteLayerCommand;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.LayerService.LayerUI;
 import games.pixscape.studio.service.SelectionService;
@@ -29,7 +30,6 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
-import games.pixscape.studio.scene.SceneEditorContext;
 
 import java.util.Objects;
 import java.util.function.BooleanSupplier;

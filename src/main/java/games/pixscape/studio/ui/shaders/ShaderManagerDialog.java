@@ -1,27 +1,23 @@
 package games.pixscape.studio.ui.shaders;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.JsonReader;
-import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.JsonWriter;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.*;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneListener;
-import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.component.ShaderFloatParam;
+import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.render.ShaderMode;
-import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import games.pixscape.runtime.render.ShaderVariant;
+import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.ShaderSourcePreprocessor;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -29,8 +25,8 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
-import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
 
 public class ShaderManagerDialog extends StudioModalWindow {

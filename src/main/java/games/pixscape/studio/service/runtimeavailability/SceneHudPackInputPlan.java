@@ -1,11 +1,6 @@
 package games.pixscape.studio.service.runtimeavailability;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /** Immutable, file-free description of the entries a future Scene HUD pack must materialize. */
 public final class SceneHudPackInputPlan {

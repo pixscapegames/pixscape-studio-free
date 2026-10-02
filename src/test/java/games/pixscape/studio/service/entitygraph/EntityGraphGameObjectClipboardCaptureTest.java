@@ -4,34 +4,20 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsPrismaticJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class EntityGraphGameObjectClipboardCaptureTest {
 

@@ -1,9 +1,11 @@
 package games.pixscape.studio.service.atlas;
 
 import org.junit.Test;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.junit.Assert.*;
 
 public class AsyncAtlasRepackCoordinatorTest {

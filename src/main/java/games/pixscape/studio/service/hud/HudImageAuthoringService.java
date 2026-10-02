@@ -1,12 +1,12 @@
 package games.pixscape.studio.service.hud;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.runtime.hud.document.HudFreePlacement;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.service.atlas.HudImageAssetRef;
 import games.pixscape.studio.ui.asset.AssetNode;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
 
 import java.util.ArrayList;
 import java.util.List;

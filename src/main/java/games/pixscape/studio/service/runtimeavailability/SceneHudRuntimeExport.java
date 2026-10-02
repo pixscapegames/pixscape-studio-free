@@ -6,25 +6,20 @@ import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.badlogic.gdx.utils.JsonWriter;
+import games.pixscape.runtime.hud.HudBitmapFontResource;
 import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.HudScreenAssetId;
-import games.pixscape.runtime.hud.HudBitmapFontResource;
 import games.pixscape.runtime.hud.document.HudDocumentCodec;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.runtime.hud.document.HudImageReferences;
+import games.pixscape.runtime.hud.document.HudImageSource;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioFs;
+
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeSet;
+import java.util.*;
 
 /** Saved-state, file-only export preparation. Never consumes or publishes Studio live atlases. */
 public final class SceneHudRuntimeExport {

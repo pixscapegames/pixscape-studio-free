@@ -6,17 +6,16 @@ import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioIO;
+import games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
+import games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.BitmapFontMaterialization;
+import games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.MaterializedEntry;
+import games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.SemanticMetadata;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.zip.Deflater;
-import games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
-import games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.*;
 
 /** Pure CPU/file preparation. Does not pack, load textures or publish any live atlas.
  * Callers must serialize materializations to the same generated output directory. */

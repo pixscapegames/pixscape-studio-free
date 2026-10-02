@@ -13,9 +13,7 @@ import org.junit.Test;
 
 import java.lang.reflect.Proxy;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class WorldCanvasPanTest {
     private Graphics previousGraphics;

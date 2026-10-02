@@ -1,16 +1,7 @@
 package games.pixscape.studio.service.hud;
 
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudDocumentCodec;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudPlacementKind;
-import games.pixscape.runtime.hud.document.HudTableCell;
-import games.pixscape.runtime.hud.document.HudTableRow;
-import games.pixscape.runtime.hud.document.HudWindowAction;
-import games.pixscape.runtime.hud.document.HudWindowActionKind;
+import games.pixscape.runtime.hud.document.*;
 import games.pixscape.studio.ui.config.CommonLayout;
 import org.junit.Test;
 
@@ -18,11 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HudLayoutAuthoringTest {
     @Test public void movingAndSwappingCellContentsKeepsCellIdentityConstraintsAndSubtrees() {

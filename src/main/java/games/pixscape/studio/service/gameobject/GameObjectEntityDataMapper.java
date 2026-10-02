@@ -1,13 +1,8 @@
 package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.PixscapeTagComponent;
-import games.pixscape.runtime.component.RenderRepeatComponent;
-import games.pixscape.runtime.component.ShaderFloatParam;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;

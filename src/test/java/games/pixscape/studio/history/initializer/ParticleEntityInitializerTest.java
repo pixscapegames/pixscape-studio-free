@@ -2,14 +2,7 @@ package games.pixscape.studio.history.initializer;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.AABBComponent;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.model.EntityKind;
 import org.junit.Test;

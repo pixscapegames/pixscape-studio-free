@@ -3,7 +3,6 @@ package games.pixscape.studio.configuration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.io.StudioFs;

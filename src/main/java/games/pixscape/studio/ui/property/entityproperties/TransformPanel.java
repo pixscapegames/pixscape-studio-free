@@ -1,13 +1,13 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
-import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.FloatField;

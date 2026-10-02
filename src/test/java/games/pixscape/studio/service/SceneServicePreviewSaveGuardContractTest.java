@@ -1,8 +1,8 @@
 package games.pixscape.studio.service;
 
+import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
-import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import org.junit.Test;
 
 import javax.imageio.ImageIO;

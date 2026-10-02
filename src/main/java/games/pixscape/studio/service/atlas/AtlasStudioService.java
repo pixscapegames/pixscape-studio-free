@@ -12,9 +12,9 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.studio.service.ProjectFileCleanupService;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.PreparedAtlasPublication;
+import games.pixscape.studio.service.ProjectFileCleanupService;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.ui.main.WorldCanvas;
 

@@ -1,7 +1,7 @@
 package games.pixscape.studio.ui.hud;
 
-import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.studio.ui.modal.StudioDialog;

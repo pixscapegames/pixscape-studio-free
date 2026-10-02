@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;

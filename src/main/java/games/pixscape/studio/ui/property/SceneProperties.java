@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.property;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
@@ -28,6 +26,7 @@ import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.*;
 
 import java.util.ArrayList;

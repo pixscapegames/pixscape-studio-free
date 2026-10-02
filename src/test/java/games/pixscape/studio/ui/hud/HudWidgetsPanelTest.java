@@ -1,20 +1,14 @@
 package games.pixscape.studio.ui.hud;
 
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.ui.HorizontalGroup;
+import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudDocumentCodec;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudPlacementKind;
-import games.pixscape.runtime.hud.document.HudTableCell;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.studio.service.hud.HudLayoutAuthoring;
+import games.pixscape.runtime.hud.document.*;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.service.hud.HudEditorSession;
+import games.pixscape.studio.service.hud.HudLayoutAuthoring;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
@@ -25,12 +19,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HudWidgetsPanelTest {
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }

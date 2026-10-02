@@ -1,7 +1,7 @@
 package games.pixscape.studio.system;
 
-import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.OrientedBoundsComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;

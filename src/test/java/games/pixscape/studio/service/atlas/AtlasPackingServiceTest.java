@@ -1,14 +1,15 @@
 package games.pixscape.studio.service.atlas;
 
-import games.pixscape.runtime.hud.HudTextureProfile;
-import org.junit.Test;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
+import games.pixscape.runtime.hud.HudTextureProfile;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+
 import static org.junit.Assert.*;
 
 public class AtlasPackingServiceTest {

@@ -2,9 +2,9 @@ package games.pixscape.studio.service;
 
 import games.pixscape.studio.event.EventFlow;
 
-import java.util.function.Consumer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Single Studio authority for the active interactive editing context. */
 public final class StudioEditingModeService {

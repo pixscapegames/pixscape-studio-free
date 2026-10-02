@@ -1,7 +1,6 @@
 package games.pixscape.studio.asset;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
