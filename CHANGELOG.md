@@ -17,6 +17,8 @@
 
 ### Fixed
 
+* Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
+* Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.
 * Deleting a Game Object hierarchy now removes its dependent Physics joints in the same undoable operation and restores joint endpoints correctly on undo.
 
 ## 0.4.0 - HUD and Multi-Scene Editing

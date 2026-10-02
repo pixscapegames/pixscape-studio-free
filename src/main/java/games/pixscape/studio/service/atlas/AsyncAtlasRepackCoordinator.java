@@ -191,6 +191,10 @@ public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
         return requestedGeneration;
     }
 
+    public synchronized String currentTargetKey() {
+        return requestedTargetKey;
+    }
+
     public synchronized void dispose() {
         if (disposed) return;
         disposed = true;

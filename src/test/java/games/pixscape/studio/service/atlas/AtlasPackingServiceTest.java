@@ -44,6 +44,31 @@ public class AtlasPackingServiceTest {
         assertEquals(0xff267bd9, page.getRGB(car.left + 4, car.top + 4));
     }
 
+    @Test public void mutationInsidePackBoundaryRejectsObsoleteOutput() throws Exception {
+        FileHandle input = new FileHandle(temporaryFolder.newFolder("changing"));
+        FileHandle obsolete = new FileHandle(temporaryFolder.newFolder("obsolete"));
+        FileHandle current = new FileHandle(temporaryFolder.newFolder("current"));
+        writeSolidPng(input.child("driver.png"), 0xff00ff00);
+        try {
+            SceneAtlasLoaderService.packWithInputSnapshot(input, obsolete.child("scene.atlas"),
+                    "scene", () -> {
+                        AtlasPackingService.packScene(input, obsolete, "scene");
+                        try {
+                            writeSolidPng(input.child("car.png"), 0xff267bd9);
+                        } catch (Exception failure) {
+                            throw new IllegalStateException(failure);
+                        }
+                    });
+            fail("A pack cannot publish an atlas for changed inputs");
+        } catch (SceneAtlasLoaderService.InputsChangedDuringPackException expected) {
+            assertTrue(expected.getMessage().contains("scene"));
+        }
+        assertFalse(SceneAtlasCoverage.coversInput(input, obsolete.child("scene.atlas")));
+        SceneAtlasLoaderService.packWithInputSnapshot(input, current.child("scene.atlas"),
+                "scene", () -> AtlasPackingService.packScene(input, current, "scene"));
+        assertTrue(SceneAtlasCoverage.coversInput(input, current.child("scene.atlas")));
+    }
+
     private static void writeSolidPng(FileHandle output, int argb) throws Exception {
         output.parent().mkdirs();
         BufferedImage image = new BufferedImage(16, 12, BufferedImage.TYPE_INT_ARGB);

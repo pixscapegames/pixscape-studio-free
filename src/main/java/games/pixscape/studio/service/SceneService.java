@@ -1808,29 +1808,33 @@ public final class SceneService {
 
         if (syncResult.changed()) {
             // A pending worker may have enumerated the input before this sync added an image.
-            atlasStudioService.requestAsyncPack(
+            Gdx.app.log("AtlasStudioService", "Save atlas repack scene=" + canonicalTag + " reason=inputs-changed");
+            long generation = atlasStudioService.requestAsyncPack(
                     canonicalTag,
                     AsyncAtlasRepackCoordinator.RepackReason.SAVE
             );
-            waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+            waitForAsyncPackCompletion(canonicalTag, generation, progress, onDone, onError);
             return;
         }
 
         if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
             Gdx.app.log("AtlasStudioService",
                     "Save atlas repack using pending pack scene=" + canonicalTag);
-            waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+            waitForAsyncPackCompletion(canonicalTag, atlasStudioService.currentPackGeneration(),
+                    progress, onDone, onError);
             return;
         }
 
         progress.update(0.30f, "Queueing atlas repack (1/1)...");
 
-        atlasStudioService.requestAsyncPack(
+        Gdx.app.log("AtlasStudioService", "Save atlas repack scene=" + canonicalTag
+                + " reason=atlas-missing-or-invalid");
+        long generation = atlasStudioService.requestAsyncPack(
                 canonicalTag,
                 AsyncAtlasRepackCoordinator.RepackReason.SAVE
         );
 
-        waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+        waitForAsyncPackCompletion(canonicalTag, generation, progress, onDone, onError);
     }
 
     private AtlasInputSyncResult syncSceneAtlasInputForSave(SaveExecutionPlan plan) {
@@ -1888,17 +1892,7 @@ public final class SceneService {
         FileHandle atlasFile = atlasesDir.child(StudioFs.withExt(sceneTag, StudioFs.EXT_ATLAS));
         if (!atlasFile.exists() || atlasFile.isDirectory() || atlasFile.length() <= 0L) return false;
 
-        Array<String> pageFileNames = atlasPageFileNames(atlasFile);
-        if (pageFileNames.size == 0) return false;
-
-        for (String pageFileName : pageFileNames) {
-            FileHandle pageFile = atlasesDir.child(pageFileName);
-            if (!pageFile.exists() || pageFile.isDirectory() || pageFile.length() <= 0L) {
-                return false;
-            }
-        }
-
-        return games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
+        return atlasStudioService.coversCurrentInput(sceneTag,
                 atlasesDir.child(StudioFs.DIR_INPUT).child(sceneTag), atlasFile);
     }
 
@@ -1928,6 +1922,7 @@ public final class SceneService {
     }
 
     private void waitForAsyncPackCompletion(String canonicalTag,
+                                            long generation,
                                             SaveProgressRunner.ProgressHandle progress,
                                             Runnable onDone,
                                             java.util.function.Consumer<Throwable> onError) {
@@ -1935,22 +1930,34 @@ public final class SceneService {
             atlasStudioService.updateAsyncPack();
             atlasStudioService.applyIfPackReady();
 
+            long currentGeneration = atlasStudioService.currentPackGeneration();
+            if (currentGeneration != generation) {
+                if (!canonicalTag.equals(atlasStudioService.currentPackSceneTag())) {
+                    throw new IllegalStateException("Atlas pack for scene '" + canonicalTag
+                            + "' was superseded by another scene");
+                }
+                generation = currentGeneration;
+            }
+
+            if (packPublishedOrThrow(canonicalTag, generation,
+                    atlasStudioService.lastPackCompletion(),
+                    atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag))) {
+                progress.update(0.60f, "Repacking atlas (1/1): done");
+                onDone.run();
+                return;
+            }
+
             if (atlasStudioService.isPackInProgress()) {
                 progress.update(0.45f, "Repacking atlas (1/1)...");
             } else if (atlasStudioService.isPackRequested()) {
                 progress.update(0.35f, "Waiting atlas repack slot (1/1)...");
             }
 
-            if (!canvas.getAtlasService().hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
-                progress.update(0.60f, "Repacking atlas (1/1): done");
-                onDone.run();
-                return;
-            }
-
+            final long awaitedGeneration = generation;
             Timer.schedule(new com.badlogic.gdx.utils.Timer.Task() {
                 @Override
                 public void run() {
-                    waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+                    waitForAsyncPackCompletion(canonicalTag, awaitedGeneration, progress, onDone, onError);
                 }
             }, 1f / 60f);
         } catch (Throwable t) {
@@ -1960,6 +1967,21 @@ public final class SceneService {
                 Gdx.app.error("SceneManager", "Async atlas save step failed", t);
             }
         }
+    }
+
+    static boolean packPublishedOrThrow(String sceneTag, long generation,
+                                        AtlasStudioService.PackCompletion completion,
+                                        boolean pending) {
+        if (completion != null && completion.generation() == generation
+                && sceneTag.equals(completion.sceneTag())) {
+            if (completion.failure() != null) throw new IllegalStateException(
+                    "Atlas pack failed for scene '" + sceneTag + "' generation " + generation,
+                    completion.failure());
+            return true;
+        }
+        if (!pending) throw new IllegalStateException("Atlas pack ended without publication for scene '"
+                + sceneTag + "' generation " + generation);
+        return false;
     }
 
     private void repackSceneAtlas(ProjectConfig cfg,
