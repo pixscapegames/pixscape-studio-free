@@ -911,9 +911,8 @@ public final class SceneService {
                     canvas.getTiledAllocatorService(),
                     candidate.historyManager(),
                     this::rebuildRenderRuntimeForScene);
-            int restoredLightFootprints = pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+            pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
                     cfg, meta, sceneFile, projectDir, cfg.projectTitle, sceneName, canonicalTag));
-            if (restoredLightFootprints > 0) candidate.markExplicitSaveRequired();
 
             ensureAssetMetaDatabaseLoaded();
             int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(

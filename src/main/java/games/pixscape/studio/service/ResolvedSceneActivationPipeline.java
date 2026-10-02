@@ -22,7 +22,6 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.service.physics.SpatialLightPhysicsSupport;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
 import games.pixscape.studio.service.spatial.SpatialWallAuthoringValidator;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
@@ -65,7 +64,7 @@ final class ResolvedSceneActivationPipeline {
         this.sceneLoader = sceneLoader;
     }
 
-    int activate(ResolvedSceneTarget target) {
+    void activate(ResolvedSceneTarget target) {
         Box2dSyncSystem box2dSync = world.getSystem(Box2dSyncSystem.class);
         if (box2dSync != null) {
             box2dSync.setEnabled(false);
@@ -74,7 +73,6 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
-        int restoredLightFootprints = SpatialLightPhysicsSupport.restoreFixedFootprints(world);
         // Populate all persisted bounds through the normal dirty-driven geometry system.
         SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(
@@ -94,7 +92,6 @@ final class ResolvedSceneActivationPipeline {
         renderRuntimeRebuilder.rebuild(
                 target.config(), target.canonicalTag(), target.projectDir());
         world.process();
-        return restoredLightFootprints;
     }
 
     static void resolveTiledLayersForActivation(World world,
