@@ -1,8 +1,8 @@
 package games.pixscape.studio.helper;
 
 import com.badlogic.gdx.graphics.Color;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;

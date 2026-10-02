@@ -1,6 +1,7 @@
 package games.pixscape.studio.service;
 
 import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -10,8 +11,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

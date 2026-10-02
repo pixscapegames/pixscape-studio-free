@@ -18,6 +18,12 @@ public final class SceneAtlasLoaderService {
     private SceneAtlasLoaderService() {
     }
 
+    public static final class InputsChangedDuringPackException extends IllegalStateException {
+        public InputsChangedDuringPackException(String sceneTag) {
+            super("Scene atlas inputs changed during pack: " + sceneTag);
+        }
+    }
+
     /**
      * Packs the scene atlas.
      */
@@ -30,7 +36,7 @@ public final class SceneAtlasLoaderService {
         packSceneAtlasToDirectory(cfg, canonicalTag, projectDir, atlasesRoot);
     }
 
-    public static void packSceneAtlasToDirectory(ProjectConfig cfg,
+    public static SceneAtlasCoverage.Validation packSceneAtlasToDirectory(ProjectConfig cfg,
                                                  String canonicalTag,
                                                  FileHandle projectDir,
                                                  FileHandle outputDir) {
@@ -56,9 +62,22 @@ public final class SceneAtlasLoaderService {
                 InternalAssets.copyWhitePixelTo(whitePixel);
             }
 
-            AtlasPackingService.packScene(inputDir, outputDir, canonicalTag);
+            final String packedTag = canonicalTag;
+            SceneAtlasCoverage.Validation validation = packWithInputSnapshot(
+                    inputDir, outputDir.child(canonicalTag + ".atlas"), canonicalTag,
+                    () -> AtlasPackingService.packScene(inputDir, outputDir, packedTag));
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
+            return validation;
         }
+    }
+
+    static SceneAtlasCoverage.Validation packWithInputSnapshot(
+            FileHandle inputDir, FileHandle atlasFile, String sceneTag, Runnable pack) {
+        SceneAtlasCoverage.InputSnapshot before = SceneAtlasCoverage.snapshot(inputDir);
+        pack.run();
+        SceneAtlasCoverage.InputSnapshot after = SceneAtlasCoverage.snapshot(inputDir);
+        if (!before.sameFiles(after)) throw new InputsChangedDuringPackException(sceneTag);
+        return SceneAtlasCoverage.validate(before, atlasFile);
     }
 
     /**

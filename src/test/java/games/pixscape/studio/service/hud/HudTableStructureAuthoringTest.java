@@ -1,17 +1,7 @@
 package games.pixscape.studio.service.hud;
 
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudDocumentCodec;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
-import games.pixscape.runtime.hud.document.HudWindowData;
-import games.pixscape.runtime.hud.document.HudDialogData;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudTableCell;
-import games.pixscape.runtime.hud.document.HudTableLayout;
+import games.pixscape.runtime.hud.document.*;
 import org.junit.Test;
 
 import static games.pixscape.studio.service.hud.HudLayoutAuthoring.StructureAction.*;

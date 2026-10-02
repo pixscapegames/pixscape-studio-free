@@ -4,6 +4,7 @@ import com.badlogic.gdx.files.FileHandle;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
 import static org.junit.Assert.*;
 
 public class AtomicDirectoryPublicationTest {

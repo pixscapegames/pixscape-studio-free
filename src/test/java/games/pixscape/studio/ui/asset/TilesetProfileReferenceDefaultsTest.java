@@ -1,6 +1,5 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 

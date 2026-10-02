@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.main;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -14,16 +12,17 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentKey;
+import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.OpenEditorDocument;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.preview.PreviewLauncher;
 import games.pixscape.studio.ui.preview.PreviewTarget;
 

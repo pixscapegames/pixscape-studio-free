@@ -1,24 +1,23 @@
 package games.pixscape.studio.configuration;
 
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import com.badlogic.gdx.utils.GdxNativesLoader;
-import games.pixscape.runtime.hud.document.*;
-import games.pixscape.runtime.loading.RuntimeProjectIO;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentV1;
+import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.HudNodeKind;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.io.StudioFs;
-import org.junit.Test;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class RuntimeExportHudMetadataTest {
     @BeforeClass public static void loadNatives() { GdxNativesLoader.load(); }

@@ -24,7 +24,6 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.util.dialog.OptionDialogListener;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.service.ShaderRegistry;
@@ -32,14 +31,8 @@ import games.pixscape.studio.OsFilesDropTarget;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
-import games.pixscape.studio.document.EditorDocumentManager;
-import games.pixscape.studio.document.ActiveDocumentCommandRouter;
-import games.pixscape.studio.document.EditorDocumentType;
-import games.pixscape.studio.document.GameObjectEditorDocument;
-import games.pixscape.studio.document.HudScreenEditorDocument;
-import games.pixscape.studio.document.OpenEditorDocument;
-import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.display.DisplayMetrics;
+import games.pixscape.studio.document.*;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.CursorDrawHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
@@ -49,17 +42,17 @@ import games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.logging.StudioLogCapture;
 import games.pixscape.studio.logging.StudioLogLevel;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
-import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
-import games.pixscape.studio.service.hud.HudEditorSession;
-import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
-import games.pixscape.studio.service.hud.HudImageAuthoringService;
-import games.pixscape.studio.service.hud.SceneHudAssociationService;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.gameobject.GameObjectAssetService;
+import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
+import games.pixscape.studio.service.hud.HudEditorSession;
+import games.pixscape.studio.service.hud.HudImageAuthoringService;
+import games.pixscape.studio.service.hud.SceneHudAssociationService;
 import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 import games.pixscape.studio.ui.StudioStage;
 import games.pixscape.studio.ui.asset.AssetsPanel;
@@ -67,13 +60,9 @@ import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
 import games.pixscape.studio.ui.document.EditorDocumentHost;
+import games.pixscape.studio.ui.hud.*;
 import games.pixscape.studio.ui.layer.LayersPanel;
-import games.pixscape.studio.ui.hud.HudCanvasInputHost;
-import games.pixscape.studio.ui.hud.HudCanvasStatusOverlay;
-import games.pixscape.studio.ui.hud.HudAssetDropController;
-import games.pixscape.studio.ui.hud.HudWidgetDragController;
-import games.pixscape.studio.ui.hud.HudWidgetsPanel;
-import games.pixscape.studio.ui.hud.HudTestInputRouter;
+import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.preview.HtmlPreviewLauncher;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 import games.pixscape.studio.ui.tree.ItemTreePanel;
@@ -172,6 +161,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 projectDir,
                 StudioFs.DIR_ORIG_SHADERS
         );
+        ShaderRegistry.saveProjectIndices();
 
         CursorDrawHelper.init();
 
@@ -1331,6 +1321,31 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return null;
     }
 
+    /** Guards declaration rename/removal against unsaved entity overrides in open documents. */
+    public boolean hasOpenShaderParameterReference(String shaderName, String parameterName) {
+        if (editorDocumentManager == null) return false;
+        for (OpenEditorDocument document : editorDocumentManager.documents()) {
+            SceneEditorContext context = documentContext(document);
+            if (context == null) continue;
+            com.artemis.World world = context.world();
+            var materials = world.getMapper(games.pixscape.runtime.component.RenderMaterialComponent.class);
+            var parameters = world.getMapper(games.pixscape.runtime.component.ShaderParamsComponent.class);
+            com.artemis.utils.IntBag entities = world.getAspectSubscriptionManager()
+                    .get(com.artemis.Aspect.all(games.pixscape.runtime.component.RenderMaterialComponent.class,
+                            games.pixscape.runtime.component.ShaderParamsComponent.class)).getEntities();
+            for (int i = 0; i < entities.size(); i++) {
+                int entity = entities.get(i);
+                if (!shaderName.equals(ShaderRegistry.getName(materials.get(entity).getShaderIdx()))) continue;
+                var component = parameters.get(entity);
+                if (component.floats == null) continue;
+                for (var value : component.floats) {
+                    if (value != null && parameterName.equals(value.name)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private static boolean isWorldDocument(OpenEditorDocument document) {
         return document instanceof SceneEditorDocument || document instanceof GameObjectEditorDocument;
     }
@@ -1456,6 +1471,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 ? StudioFs.requireStudioProjectDir(cfg)
                 : null;
         ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 

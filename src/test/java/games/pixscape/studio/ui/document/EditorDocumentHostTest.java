@@ -1,25 +1,20 @@
 package games.pixscape.studio.ui.document;
 
 import com.badlogic.gdx.files.FileHandle;
-import com.kotcrab.vis.ui.widget.VisTable;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.kotcrab.vis.ui.VisUI;
+import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane.TabbedPaneStyle;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneListener;
+import games.pixscape.studio.document.*;
+import games.pixscape.studio.scene.SceneEditorContext;
+import games.pixscape.studio.service.StudioEditingModeService;
+import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import games.pixscape.studio.document.EditorDocumentKey;
-import games.pixscape.studio.document.EditorDocumentManager;
-import games.pixscape.studio.document.HudScreenEditorDocument;
-import games.pixscape.studio.document.GameObjectEditorDocument;
-import games.pixscape.studio.document.OpenEditorDocument;
-import games.pixscape.studio.document.SceneEditorDocument;
-import games.pixscape.studio.ui.config.CommonLayout;
-import games.pixscape.studio.scene.SceneEditorContext;
-import games.pixscape.studio.service.StudioEditingModeService;
-import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicInteger;

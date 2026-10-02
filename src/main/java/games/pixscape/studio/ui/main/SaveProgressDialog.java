@@ -1,9 +1,9 @@
 package games.pixscape.studio.ui.main;
 
-import com.kotcrab.vis.ui.widget.VisLabel;
-import com.kotcrab.vis.ui.widget.VisProgressBar;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisProgressBar;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
 public final class SaveProgressDialog extends StudioDialog {

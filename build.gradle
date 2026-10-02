@@ -1,6 +1,6 @@
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.security.MessageDigest
 
 plugins {
   id 'application'
@@ -111,6 +111,17 @@ tasks.named('run', JavaExec).configure {
 
 tasks.named('test', Test).configure {
   useJUnit()
+  exclude '**/StudioShaderParameterGlSmokeTest.class'
+}
+
+tasks.register('studioShaderParameterGlSmoke', Test) {
+  description = 'Runs the Studio texture-array parameter batch through a real desktop GL30 context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/StudioShaderParameterGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
 }
 
 tasks.register('distFat', Jar) {

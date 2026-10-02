@@ -10,18 +10,16 @@ import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.service.atlas.AtlasPackingService;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import java.nio.file.Files;
+import java.util.*;
+
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
-import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.*;
+import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.BitmapFontMaterialization;
 import static org.junit.Assert.*;
 
 public class SceneHudAtlasBuilderTest {

@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -188,6 +189,10 @@ public final class AsyncAtlasRepackCoordinator<T extends AutoCloseable> {
 
     public synchronized long currentGeneration() {
         return requestedGeneration;
+    }
+
+    public synchronized String currentTargetKey() {
+        return requestedTargetKey;
     }
 
     public synchronized void dispose() {

@@ -1,12 +1,12 @@
 package games.pixscape.studio.ui.hud;
 
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.kotcrab.vis.ui.VisUI;
+import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.document.HudDocumentValidator;
 import games.pixscape.runtime.hud.document.HudResourceCatalog;
 import games.pixscape.runtime.hud.document.HudValidationResult;
-import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.service.hud.HudAuthoringResources;
 import games.pixscape.studio.service.hud.HudEditRejectedException;

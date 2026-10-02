@@ -1,10 +1,6 @@
 package games.pixscape.studio.service.entitygraph;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public record EntityGraph(List<EntityGraphEntry> entries) {
     public EntityGraph(List<EntityGraphEntry> entries) {

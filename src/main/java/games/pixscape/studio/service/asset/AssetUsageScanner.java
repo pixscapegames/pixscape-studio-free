@@ -9,29 +9,29 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntSet;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.hud.HudScreenAsset;
+import games.pixscape.runtime.hud.document.HudDocumentCodec;
+import games.pixscape.runtime.hud.document.HudDocumentValidator;
+import games.pixscape.runtime.hud.document.HudFontReferences;
+import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.document.HudScreenEditorDocument;
-import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudDocumentCodec;
-import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudFontReferences;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.io.StudioFs;
 
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.List;
+import java.util.Objects;
 
 public final class AssetUsageScanner {
 

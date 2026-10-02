@@ -13,11 +13,7 @@ import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class DocumentDockPanelCoordinatorTest {
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }

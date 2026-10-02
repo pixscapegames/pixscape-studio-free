@@ -5,17 +5,10 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudBitmapFontResource;
+import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
-import games.pixscape.runtime.hud.document.HudImageData;
-import games.pixscape.runtime.hud.document.HudImageSource;
-import games.pixscape.runtime.hud.document.HudImageButtonData;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
+import games.pixscape.runtime.hud.document.*;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -27,12 +20,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class SceneHudPackInputProjectorTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();

@@ -1,44 +1,25 @@
 package games.pixscape.studio.ui.hud;
 
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.g2d.Batch;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
-import com.badlogic.gdx.scenes.scene2d.InputListener;
-import com.badlogic.gdx.scenes.scene2d.Group;
-import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.*;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.MenuItem;
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudCellConstraints;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudContainerData;
-import games.pixscape.runtime.hud.document.HudDialogData;
-import games.pixscape.runtime.hud.document.HudDialogResultButton;
-import games.pixscape.runtime.hud.document.HudTextButtonData;
-import games.pixscape.runtime.hud.document.HudWindowData;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
+import games.pixscape.runtime.hud.document.*;
+import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.HudScreenEditorDocument;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.service.hud.HudEditorSession;
-import games.pixscape.studio.service.hud.HudLayoutAuthoring;
-import games.pixscape.studio.service.hud.HudOverlayGeometry;
-import games.pixscape.studio.service.hud.HudScreenAssetAuthoringService;
-import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
-import games.pixscape.studio.service.hud.HudDocumentEditSession;
+import games.pixscape.studio.service.hud.*;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Proxy;
@@ -46,12 +27,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HudHierarchyPanelTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();

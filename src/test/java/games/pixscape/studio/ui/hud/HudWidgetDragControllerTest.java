@@ -9,48 +9,33 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.scenes.scene2d.ui.Window;
 import com.badlogic.gdx.scenes.scene2d.utils.BaseDrawable;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.VisLabel;
-import com.kotcrab.vis.ui.widget.VisTextField;
 import com.kotcrab.vis.ui.widget.VisTextButton;
-import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import games.pixscape.studio.ui.modal.StudioDialog;
+import com.kotcrab.vis.ui.widget.VisTextField;
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudCellConstraints;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
-import games.pixscape.runtime.hud.document.HudLabelData;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudPlacementKind;
-import games.pixscape.runtime.hud.document.HudScrollPaneData;
-import games.pixscape.runtime.hud.document.HudWindowData;
-import games.pixscape.runtime.hud.document.HudDialogData;
+import games.pixscape.runtime.hud.document.*;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.service.hud.HudEditorSession;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.lang.reflect.Proxy;
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /** Exercises the actual Scene2D source/target lifecycle, not a hand-built controller payload. */
 public class HudWidgetDragControllerTest {

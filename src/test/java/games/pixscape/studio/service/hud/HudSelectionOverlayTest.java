@@ -1,10 +1,6 @@
 package games.pixscape.studio.service.hud;
 
-import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.Application;
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Graphics;
-import com.badlogic.gdx.Input;
+import com.badlogic.gdx.*;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.graphics.GL20;
@@ -19,44 +15,23 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.document.HudCellConstraints;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudFreePlacement;
-import games.pixscape.runtime.hud.document.HudImageData;
-import games.pixscape.runtime.hud.document.HudImageSource;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudPlacementKind;
-import games.pixscape.runtime.hud.document.HudScrollPaneData;
-import games.pixscape.runtime.hud.document.HudWindowData;
-import games.pixscape.runtime.hud.document.HudDialogData;
+import games.pixscape.runtime.hud.document.*;
 import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.ui.hud.HudCanvasInputHost;
-import games.pixscape.studio.ui.hud.HudCanvasSelectionInputListener;
+import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Rule;
-import org.junit.Test;
+import games.pixscape.studio.ui.hud.HudCanvasInputHost;
+import games.pixscape.studio.ui.hud.HudCanvasSelectionInputListener;
+import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HudSelectionOverlayTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();

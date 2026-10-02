@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.contextmenu;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -14,7 +12,6 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -27,18 +24,16 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
-import games.pixscape.studio.service.ClipboardService;
-import games.pixscape.studio.service.CoordSpaces;
-import games.pixscape.studio.service.LayerService;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.StudioEditingModeService;
-import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.gameobject.GameObjectAssetService;
+import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
-import games.pixscape.studio.ui.main.WorldCanvas;
 import games.pixscape.studio.ui.layer.AddTiledMapDialog;
+import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");

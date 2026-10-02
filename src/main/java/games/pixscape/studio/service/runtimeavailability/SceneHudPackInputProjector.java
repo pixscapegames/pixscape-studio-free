@@ -5,22 +5,13 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont.BitmapFontData;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import games.pixscape.runtime.hud.HudBitmapFontResource;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudBuiltInTextButtonStyle;
-import games.pixscape.runtime.hud.HudBitmapFontResource;
-import games.pixscape.runtime.hud.document.HudChild;
-import games.pixscape.runtime.hud.document.HudImageSource;
-import games.pixscape.runtime.hud.document.HudImageData;
-import games.pixscape.runtime.hud.document.HudImageReferences;
-import games.pixscape.runtime.hud.document.HudNode;
+import games.pixscape.runtime.hud.document.*;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Projects a logical HUD dependency closure into collision-checked future pack inputs.

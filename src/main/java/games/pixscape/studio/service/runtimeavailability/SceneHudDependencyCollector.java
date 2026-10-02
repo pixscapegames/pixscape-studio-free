@@ -8,13 +8,7 @@ import com.badlogic.gdx.utils.JsonValue;
 import games.pixscape.runtime.hud.HudResourceRequirements;
 import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.HudScreenAssetId;
-import games.pixscape.runtime.hud.document.HudDocumentV1;
-import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudImageSource;
-import games.pixscape.runtime.hud.document.HudImageData;
-import games.pixscape.runtime.hud.document.HudImageReferences;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudValidationResult;
+import games.pixscape.runtime.hud.document.*;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.AssetType;
@@ -22,13 +16,7 @@ import games.pixscape.studio.service.atlas.HudImageAssetRef;
 import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeSet;
+import java.util.*;
 
 /**
  * Resolves explicit Scene HUD roots into a deterministic, authored-resource dependency closure.

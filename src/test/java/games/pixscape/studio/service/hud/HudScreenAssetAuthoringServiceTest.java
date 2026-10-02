@@ -1,21 +1,13 @@
 package games.pixscape.studio.service.hud;
 
-import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
-import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.HudScreenAssetLoader;
-import games.pixscape.runtime.hud.HudMaterializer;
-import games.pixscape.runtime.hud.HudResourceRequirements;
-import games.pixscape.runtime.hud.HudResources;
-import games.pixscape.runtime.hud.document.HudDocumentValidator;
-import games.pixscape.runtime.hud.document.HudHorizontalAlign;
-import games.pixscape.runtime.hud.document.HudNode;
-import games.pixscape.runtime.hud.document.HudNodeKind;
-import games.pixscape.runtime.hud.document.HudVerticalAlign;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import games.pixscape.runtime.hud.*;
+import games.pixscape.runtime.hud.document.*;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;

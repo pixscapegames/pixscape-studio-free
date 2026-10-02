@@ -1,11 +1,8 @@
 package games.pixscape.studio.service.runtimeavailability;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
+
+import java.util.*;
 
 /** In-memory reconstruction contract; paths are relative to the published input directory.
  * No final page or coordinates are known here. No mutable editor/GL objects are retained. */

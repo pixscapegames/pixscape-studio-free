@@ -3,24 +3,13 @@ package games.pixscape.studio.ui.tree;
 import com.artemis.EntitySubscription;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.service.SelectionService;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class ItemTreePanelMembershipTest {
 

@@ -1,9 +1,13 @@
 package games.pixscape.studio.service;
 
+import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.service.atlas.AtlasStudioService;
 import org.junit.Test;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -46,6 +50,60 @@ public class SceneServicePreviewSaveGuardContractTest {
         writeUsableRuntimeExport(exportRoot);
 
         assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void exportedAtlasMissingVisibleCarRequiresSaveBeforePreview() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-missing-car-region");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot);
+        String tag = cfg.canonicalSceneTag("Main");
+        Path studioInput = Path.of(cfg.projectDirectoryPath, "atlases", "input", tag);
+        Path packInput = Files.createTempDirectory("preview-car-pack-input");
+        Path runtimeAtlases = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("atlases");
+        Files.createDirectories(studioInput);
+        Files.createDirectories(runtimeAtlases);
+        writePng(studioInput.resolve("driver__a1698.png"), 0xff00ff00);
+        writePng(studioInput.resolve("car__a1697.png"), 0xff267bd9);
+        writePng(packInput.resolve("driver__a1698.png"), 0xff00ff00);
+        TexturePacker.process(new TexturePacker.Settings(), packInput.toString(), runtimeAtlases.toString(), tag);
+
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+        writePng(packInput.resolve("car__a1697.png"), 0xff267bd9);
+        TexturePacker.process(new TexturePacker.Settings(), packInput.toString(), runtimeAtlases.toString(), tag);
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    @Test
+    public void failedSameNamePackRequiresSaveBeforePreviewAfterRestart() throws Exception {
+        Path exportRoot = Files.createTempDirectory("preview-stale-atlas-pixels");
+        ProjectConfig cfg = projectConfig(exportRoot);
+        writeUsableRuntimeExport(exportRoot);
+        String tag = cfg.canonicalSceneTag("Main");
+        Path studioInput = Path.of(cfg.projectDirectoryPath, "atlases", "input", tag);
+        Path runtimeAtlases = exportRoot.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("atlases");
+        Files.createDirectories(studioInput);
+        Files.createDirectories(runtimeAtlases);
+        writePng(studioInput.resolve("A.png"), 0xffff0000);
+        TexturePacker.process(new TexturePacker.Settings(), studioInput.toString(),
+                runtimeAtlases.toString(), tag);
+        assertFalse(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+
+        writePng(studioInput.resolve("A.png"), 0xff267bd9);
+        AtlasStudioService atlasService = new AtlasStudioService(null);
+        try {
+            atlasService.markRepackRequired(new com.badlogic.gdx.files.FileHandle(
+                    Path.of(cfg.projectDirectoryPath).toFile()), tag);
+        } finally {
+            atlasService.disposeAsyncPack();
+        }
+        assertTrue(SceneService.isRuntimeExportMissingOrUnusableForPreview(cfg));
+    }
+
+    private static void writePng(Path path, int argb) throws Exception {
+        BufferedImage image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) image.setRGB(x, y, argb);
+        ImageIO.write(image, "png", path.toFile());
     }
 
     @Test

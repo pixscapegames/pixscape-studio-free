@@ -15,9 +15,7 @@ import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class TopMenuBarWidgetsAvailabilityTest {
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }

@@ -8,11 +8,7 @@ import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
-import games.pixscape.runtime.hud.HudMaterializer;
-import games.pixscape.runtime.hud.HudResourceRequirements;
-import games.pixscape.runtime.hud.HudResources;
-import games.pixscape.runtime.hud.HudScreenAsset;
-import games.pixscape.runtime.hud.MaterializedHud;
+import games.pixscape.runtime.hud.*;
 import games.pixscape.runtime.hud.document.HudDocumentV1;
 import games.pixscape.runtime.hud.document.HudNode;
 import games.pixscape.runtime.hud.document.HudNodeKind;
@@ -23,11 +19,7 @@ import org.junit.rules.TemporaryFolder;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HudRootGroupAuthoringPipelineTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();

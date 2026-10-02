@@ -1,8 +1,8 @@
 package games.pixscape.studio.service.physics;
 
+import com.artemis.World;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
-import com.artemis.World;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.CompiledFixtureData;

@@ -1,8 +1,9 @@
 package games.pixscape.studio.service.atlas;
 
-import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.helper.InternalAssets;
+import games.pixscape.studio.io.StudioIO;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -70,7 +71,7 @@ final class AtlasInputFileSync {
     }
 
     static boolean copyIfDifferent(FileHandle source, FileHandle dest) {
-        return games.pixscape.studio.io.StudioIO.copyIfDifferent(source, dest);
+        return StudioIO.copyIfDifferent(source, dest);
     }
 
     private static Set<String> requiredFileNames(Set<String> requiredPaths) {

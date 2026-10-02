@@ -1,21 +1,12 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.World;
 import com.artemis.Aspect;
+import com.artemis.World;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsRevoluteJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsWheelJointComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.component.EntityMetaComponent;
@@ -23,9 +14,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.model.EntityKind;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class DeleteGameObjectHierarchyCommandTest {
     @Test

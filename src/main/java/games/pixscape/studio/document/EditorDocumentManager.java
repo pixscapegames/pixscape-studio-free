@@ -2,12 +2,7 @@ package games.pixscape.studio.document;
 
 import games.pixscape.studio.scene.SceneEditorContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /** Sole Studio authority for ordered open documents and the active editor document. */
 public final class EditorDocumentManager {

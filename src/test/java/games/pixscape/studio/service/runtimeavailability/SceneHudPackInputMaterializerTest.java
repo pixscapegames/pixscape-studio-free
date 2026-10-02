@@ -9,16 +9,19 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.studio.helper.InternalAssets;
-import java.nio.file.Files;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
-import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.*;
+import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.MaterializedEntry;
+import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.SemanticMetadata;
 import static org.junit.Assert.*;
 
 public class SceneHudPackInputMaterializerTest {

@@ -1,9 +1,5 @@
 package games.pixscape.studio.ui.main;
 
-import games.pixscape.studio.ui.modal.Dialogs;
-
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.artemis.BaseSystem;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
@@ -31,6 +27,7 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.loading.WorldBootstrapResult;
 import games.pixscape.runtime.loading.WorldConfigFactory;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;
@@ -55,8 +52,8 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.debug.StudioFrameProfiler;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.CameraPan;
+import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.input.InputState;
@@ -65,16 +62,15 @@ import games.pixscape.studio.ops.EditorOps;
 import games.pixscape.studio.ops.EditorOpsImpl;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.*;
-import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
-import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
-import games.pixscape.studio.service.gameobject.GameObjectAssetService;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
 import games.pixscape.studio.service.tiled.*;
@@ -83,13 +79,14 @@ import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
-import games.pixscape.studio.ui.tree.ItemTreePanel;
+import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.TextInputWidget;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
-import java.util.Objects;
 import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.IntFunction;
 
 public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcessor,

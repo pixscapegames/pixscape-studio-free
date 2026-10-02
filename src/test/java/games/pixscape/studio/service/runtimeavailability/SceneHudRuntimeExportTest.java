@@ -6,27 +6,36 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import com.badlogic.gdx.utils.Json;
 import com.badlogic.gdx.utils.JsonReader;
+import games.pixscape.runtime.hud.HudBitmapFontResource;
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import games.pixscape.runtime.hud.HudBuiltInSliderStyle;
-import games.pixscape.runtime.hud.HudBitmapFontResource;
 import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.document.*;
-import games.pixscape.studio.asset.*;
-import games.pixscape.studio.configuration.*;
-import games.pixscape.studio.document.*;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.document.EditorDocumentManager;
+import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.studio.service.atlas.*;
+import games.pixscape.studio.service.atlas.AsyncAtlasRepackCoordinator;
+import games.pixscape.studio.service.atlas.AtlasPackingService;
+import games.pixscape.studio.service.atlas.ControlledAtlasExecutor;
 import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
-import java.awt.image.BufferedImage;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
-import javax.imageio.ImageIO;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+
 import static org.junit.Assert.*;
 
 public class SceneHudRuntimeExportTest {

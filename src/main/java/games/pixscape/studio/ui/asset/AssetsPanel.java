@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
@@ -12,6 +10,7 @@ import games.pixscape.studio.service.hud.HudScreenAssetAuthoringService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.ArrayList;
 import java.util.List;

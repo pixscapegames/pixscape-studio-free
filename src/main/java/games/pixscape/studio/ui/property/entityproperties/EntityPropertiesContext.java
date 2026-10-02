@@ -12,15 +12,15 @@ import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TagRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AnimationAssetMeta;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
+import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 

@@ -4,16 +4,22 @@
 
 ### Breaking changes
 
+* Custom material shaders must migrate per-entity values from float uniforms to the parameter table in both GLSL targets.
 * HUD screen assets from the fixed-resolution development format must be recreated; there is no automatic migration.
 
 ### Changed
 
+* Studio Free batches compatible material entities across different float values, reuses identical parameter rows, and keeps the standalone texture preview usable during atlas repack.
+* Shader Manager now edits ordered float declarations and defaults (up to 16); entity values remain in Material > Parameters with undo and dirty tracking.
 * HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
 * HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
 * HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
 
 ### Fixed
 
+* Failed scene atlas packs now retain a restart-safe repack requirement until matching pixels are published; unchanged saves still skip packing.
+* Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
+* Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.
 * Deleting a Game Object hierarchy now removes its dependent Physics joints in the same undoable operation and restores joint endpoints correctly on undo.
 
 ## 0.4.0 - HUD and Multi-Scene Editing

@@ -5,7 +5,6 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.file.FileChooser;
 import com.kotcrab.vis.ui.widget.file.FileChooserAdapter;
@@ -17,6 +16,7 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.RecentProjectsService;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.modal.StudioFileChooser;
 import games.pixscape.studio.ui.modal.StudioModalWindow;
 

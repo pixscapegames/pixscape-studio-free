@@ -2,12 +2,12 @@ package games.pixscape.studio.service.hud;
 
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
-import com.badlogic.gdx.math.Rectangle;
-import games.pixscape.studio.helper.ShapeHelper;
 import com.kotcrab.vis.ui.widget.VisLabel;
+import games.pixscape.studio.helper.ShapeHelper;
 
 import java.util.List;
 import java.util.Objects;

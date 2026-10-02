@@ -8,10 +8,29 @@ import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
 
 public class SceneServiceSaveAtlasRepackSkipTest {
+
+    @Test
+    public void changedInputsAndPendingWorkAvoidOldAtlasCoverageValidation() throws Exception {
+        FileHandle studioDir = studioDir();
+        AtomicInteger validations = new AtomicInteger();
+        java.util.function.BooleanSupplier coverage = () -> {
+            validations.incrementAndGet();
+            return true;
+        };
+        assertFalse(SceneService.shouldSkipSaveAtlasRepack(studioDir, "scene",
+                new AtlasInputSyncResult(true, 1, 0), false, coverage));
+        assertFalse(SceneService.shouldSkipSaveAtlasRepack(studioDir, "scene",
+                AtlasInputSyncResult.unchanged(), true, coverage));
+        assertEquals(0, validations.get());
+        assertTrue(SceneService.shouldSkipSaveAtlasRepack(studioDir, "scene",
+                AtlasInputSyncResult.unchanged(), false, coverage));
+        assertEquals(1, validations.get());
+    }
 
     @Test
     public void saveWithUnchangedInputsAndUsableAtlasSkipsRepack() throws Exception {

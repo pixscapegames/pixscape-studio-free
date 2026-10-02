@@ -13,20 +13,21 @@ import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
-import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.event.GetScrollListener;
-import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.OpenEditorDocument;
+import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.event.GetScrollListener;
+import games.pixscape.studio.event.LoseScroolListener;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.IconResolver;
-import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.system.UiRefreshDispatchSystem;
 import games.pixscape.studio.ui.docking.DockablePanel;
-import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.hud.HudInspectorView;
+import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.property.entityproperties.ConeLightProperties;
 import games.pixscape.studio.ui.property.entityproperties.EntityProperties;
 import games.pixscape.studio.ui.property.entityproperties.EntityPropertiesContext;
@@ -34,12 +35,11 @@ import games.pixscape.studio.ui.property.entityproperties.PointLightProperties;
 import games.pixscape.studio.ui.property.entityproperties.physics.BodyProperties;
 import games.pixscape.studio.ui.property.entityproperties.physics.FixturesPanel;
 import games.pixscape.studio.ui.property.entityproperties.physics.JointProperties;
-import games.pixscape.studio.scene.SceneEditorContext;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 
 public class PropertiesPanel extends DockablePanel {
 

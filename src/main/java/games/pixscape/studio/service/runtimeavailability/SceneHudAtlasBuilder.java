@@ -5,16 +5,12 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
 import games.pixscape.runtime.hud.HudTextureProfile;
 import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.service.atlas.AtlasPackingService;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
+
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackInputPlan.*;
 import static games.pixscape.studio.service.runtimeavailability.SceneHudPackMaterializationManifest.*;
 
