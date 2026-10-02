@@ -399,10 +399,11 @@ public final class SceneService {
                 FileHandle atlasInput = new FileHandle(Path.of(cfg.projectDirectoryPath)
                         .resolve(StudioFs.DIR_ATLASES).resolve(StudioFs.DIR_INPUT)
                         .resolve(sceneTag).toFile());
-                if (atlasInput.exists() && !games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
+                if (AtlasStudioService.isRepackRequired(atlasInput)
+                        || (atlasInput.exists() && !games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
                         atlasInput,
                         new FileHandle(runtimeRoot.resolve(RuntimeFs.DIR_ATLASES)
-                                .resolve(sceneTag + ".atlas").toFile()))) {
+                                .resolve(sceneTag + ".atlas").toFile())))) {
                     return true;
                 }
             }
@@ -1741,6 +1742,7 @@ public final class SceneService {
         );
 
         if (syncResult.changed()) {
+            atlasStudioService.markRepackRequired(StudioFs.requireStudioProjectDir(cfg), canonicalTag);
             atlasStudioService.requestAsyncPack(
                     canonicalTag,
                     AsyncAtlasRepackCoordinator.RepackReason.GENERIC
@@ -1756,6 +1758,9 @@ public final class SceneService {
         if (canonicalTag == null || canonicalTag.isBlank()) return;
 
         AtlasInputSyncResult syncResult = syncSceneAtlasInputForSave(plan);
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(plan.studioDir(), canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(plan, syncResult)) {
             logSaveAtlasRepackSkipped(canonicalTag);
@@ -1776,6 +1781,7 @@ public final class SceneService {
                 plan.studioDir(),
                 canvas
         );
+        atlasStudioService.clearRepackRequired(plan.studioDir(), canonicalTag);
     }
 
     private void maybeRepackAtlasAsync(SaveExecutionPlan plan,
@@ -1798,6 +1804,9 @@ public final class SceneService {
         progress.update(0.25f, "Synchronizing atlas input (1/1)...");
 
         AtlasInputSyncResult syncResult = syncSceneAtlasInputForSave(plan);
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(plan.studioDir(), canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(plan, syncResult)) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
@@ -1855,13 +1864,25 @@ public final class SceneService {
     private boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
                                               String sceneTag,
                                               AtlasInputSyncResult syncResult) {
-        return shouldSkipSaveAtlasRepack(
-                studioDir,
-                sceneTag,
-                syncResult,
-                hasUsableSceneAtlas(studioDir, sceneTag),
-                atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag)
-        );
+        return shouldSkipSaveAtlasRepack(studioDir, sceneTag, syncResult,
+                atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag),
+                () -> hasUsableSceneAtlas(studioDir, sceneTag));
+    }
+
+    static boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
+                                             String sceneTag,
+                                             AtlasInputSyncResult syncResult,
+                                             boolean pendingPackForScene,
+                                             java.util.function.BooleanSupplier atlasUsable) {
+        if (studioDir == null || sceneTag == null || sceneTag.isBlank() || syncResult == null
+                || atlasInputsChanged(syncResult)) return false;
+        if (pendingPackForScene) return false;
+        return atlasUsable.getAsBoolean();
+    }
+
+    private static boolean atlasInputsChanged(AtlasInputSyncResult result) {
+        return result != null && (result.changed() || result.copiedCount() > 0
+                || result.deletedCount() > 0);
     }
 
     static boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
@@ -1871,9 +1892,7 @@ public final class SceneService {
                                              boolean pendingPackForScene) {
         if (studioDir == null || sceneTag == null || sceneTag.isBlank()) return false;
         if (syncResult == null) return false;
-        if (syncResult.changed()) return false;
-        if (syncResult.copiedCount() > 0) return false;
-        if (syncResult.deletedCount() > 0) return false;
+        if (atlasInputsChanged(syncResult)) return false;
         if (!atlasUsable) return false;
         return !pendingPackForScene;
     }
@@ -2005,6 +2024,9 @@ public final class SceneService {
                         assetMetaDatabase,
                         tileAnimationsMetaDatabase
                 );
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(projectDir, canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)) {
             logSaveAtlasRepackSkipped(canonicalTag);
@@ -2020,6 +2042,7 @@ public final class SceneService {
         );
 
         reloadAtlasAndRebind(cfg, canonicalTag, projectDir);
+        atlasStudioService.clearRepackRequired(projectDir, canonicalTag);
 
         GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
         if (snapshotManager != null) {

@@ -37,18 +37,14 @@ public class SceneAtlasReuseIntegrationTest {
         SceneAtlasLoaderService.packSceneAtlasToDirectory(null, "scene", project, atlases);
         AtlasStudioService service = new AtlasStudioService(null);
         try {
-            int packs = 0;
             assertTrue(skip(project, input, atlases, service));
             assertTrue(skip(project, input, atlases, service));
-            assertEquals(0, packs);
 
             writePng(input.child("car.png"), 0xff267bd9);
             assertFalse(skip(project, input, atlases, service));
             SceneAtlasLoaderService.packSceneAtlasToDirectory(null, "scene", project, atlases);
-            packs++;
             assertTrue(skip(project, input, atlases, service));
             assertTrue(skip(project, input, atlases, service));
-            assertEquals(1, packs);
 
             FileHandle source = project.child("assets/car.png");
             writePng(source, 0xffaa22cc);
