@@ -228,7 +228,7 @@ public class LinkedPhysicsUiContractTest {
                             () -> new FileHandle("unused-assets.json"),
                             ignored -> {
                             }),
-                    0);
+                    0, meta);
             PhysicsService.initDefaultBody(
                     world.getMapper(PhysicsBodyComponent.class).create(body));
             PhysicsShapesComponent shapes =

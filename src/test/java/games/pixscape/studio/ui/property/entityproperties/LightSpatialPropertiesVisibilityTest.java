@@ -87,7 +87,7 @@ public class LightSpatialPropertiesVisibilityTest {
                     new AnimationAssetAuthoringService(() -> assets,
                             () -> new FileHandle(new File(System.getProperty("java.io.tmpdir"),
                                     "pixscape-light-spatial-ui-assets.json")), ignored -> {}),
-                    0);
+                    0, scene);
 
             int layerEntity = world.create();
             LayerComponent layer = world.getMapper(LayerComponent.class).create(layerEntity);
@@ -112,6 +112,13 @@ public class LightSpatialPropertiesVisibilityTest {
 
             PointLightProperties pointPanel = new PointLightProperties(context);
             ConeLightProperties conePanel = new ConeLightProperties(context);
+            int root = world.create();
+            world.getMapper(games.pixscape.runtime.component.GameObjectComponent.class).create(root);
+            world.getMapper(EntityMetaComponent.class).create(root).kind = EntityKind.GAME_OBJECT;
+            world.getMapper(EntityIndexComponent.class).create(root).layerIndex = 0;
+            world.getMapper(TransformComponent.class).create(root);
+            world.process();
+            new EntityProperties(context).setEntityId(root);
             pointPanel.setEntityId(point);
             conePanel.setEntityId(cone);
             ToggleSection pointSpatial = spatialSection(pointPanel);
@@ -120,6 +127,16 @@ public class LightSpatialPropertiesVisibilityTest {
             assertTrue(coneSpatial.isVisible());
             assertTrue(pointSpatial.getPrefHeight() > 0f);
             assertTrue(coneSpatial.getPrefHeight() > 0f);
+
+            // A standalone editor's own Physics settings remain usable with no current project Scene.
+            config.setCurrentSceneByName(null);
+            pointPanel.setEntityId(point);
+            Field spatialField = PointLightProperties.class.getDeclaredField("spatialPanel");
+            spatialField.setAccessible(true);
+            Field enabledField = SpatialPhysicsPanel.class.getDeclaredField("enabledBox");
+            enabledField.setAccessible(true);
+            assertFalse(((com.kotcrab.vis.ui.widget.VisCheckBox) enabledField.get(
+                    spatialField.get(pointPanel))).isDisabled());
 
             layer.spatialEnabled = false;
             pointPanel.setEntityId(point);

@@ -47,15 +47,15 @@ public class EditorOpsFixturePlacementTest {
             config.getCurrentSceneMeta().pixelsPerMeter = 64f;
             PhysicsShapeData otherSceneShape = PhysicsService.createDefaultShape(1);
             Assert.assertTrue(EditorOpsImpl.placeFixtureAtWorld(
-                    world, bodyEid, 100f, -8f, otherSceneShape, new Vector2()));
-            Assert.assertEquals(0.5f, otherSceneShape.geometry.offsetX, 0.0001f);
+                    world, bodyEid, 100f, -8f, otherSceneShape, new Vector2(), 32f));
+            Assert.assertEquals(1f, otherSceneShape.geometry.offsetX, 0.0001f);
             config.setCurrentSceneByName("Main");
 
             for (int type : new int[] {PhysicsGeometryData.SHAPE_BOX, PhysicsGeometryData.SHAPE_CIRCLE}) {
                 PhysicsShapeData shape = PhysicsService.createDefaultShape(1);
                 shape.geometry.shapeType = type;
                 Assert.assertTrue(EditorOpsImpl.placeFixtureAtWorld(
-                        world, bodyEid, 100f, -8f, shape, new Vector2()));
+                        world, bodyEid, 100f, -8f, shape, new Vector2(), 32f));
                 Assert.assertEquals(1f, shape.geometry.offsetX, 0.0001f);
                 Assert.assertEquals(0f, shape.geometry.offsetY, 0.0001f);
 

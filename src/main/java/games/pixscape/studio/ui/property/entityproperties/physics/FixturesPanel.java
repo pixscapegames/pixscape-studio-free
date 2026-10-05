@@ -11,7 +11,6 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
@@ -809,9 +808,7 @@ public final class FixturesPanel extends CollapsibleWidget {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 100f;
-        SceneMeta meta = cfg.getCurrentSceneMeta();
+        SceneMeta meta = ctx.sceneMeta;
         if (meta == null) return 100f;
         float ppm = meta.pixelsPerMeter;
         return (ppm > 0f) ? ppm : 100f;

@@ -2635,9 +2635,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        return meta.pixelsPerMeter;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private record FixtureHit(int bodyEid, int physicsShapeId, int partIndex) {

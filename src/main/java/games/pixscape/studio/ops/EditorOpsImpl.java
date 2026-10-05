@@ -29,6 +29,7 @@ import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.helper.RenderRebindHelper;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -58,6 +59,7 @@ import java.util.function.IntConsumer;
 public class EditorOpsImpl implements EditorOps {
     private final WorldCanvas canvas;
     private final World world;
+    private final SceneEditorContext editingContext;
     private final HistoryManager historyManager;
     private final HistoryIdRegistry historyIds;
     private final ZOrderRuntimeService zOrderRuntimeService;
@@ -82,6 +84,7 @@ public class EditorOpsImpl implements EditorOps {
     ) {
         this.canvas = canvas;
         this.world = canvas.getEcsWorld();
+        this.editingContext = canvas.getSceneEditorContext();
         this.historyManager = canvas.getHistoryManager();
         this.historyIds = canvas.getHistoryManager().historyIds();
         this.zOrderRuntimeService = canvas.getZOrderService();
@@ -247,6 +250,7 @@ public class EditorOpsImpl implements EditorOps {
                 this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
+        if (sceneTag == null) return createdEntityId;
         String fullRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
         boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);
         boolean alreadyPacked = assetId > 0
@@ -392,7 +396,7 @@ public class EditorOpsImpl implements EditorOps {
                 this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
-        if (!alreadyPacked) {
+        if (!alreadyPacked && sceneTag != null) {
             sceneService.ensureAnimationDirInAtlasInput(sceneTag, animationRelPath);
             atlasStudioService.requestAsyncPack(sceneTag);
         }
@@ -427,9 +431,7 @@ public class EditorOpsImpl implements EditorOps {
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         final String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null || sceneTag.isBlank()) return -1;
-
-        boolean changed = ensureParticleEffectImagesInAtlasInput(effectPath);
+        boolean changed = sceneTag != null && ensureParticleEffectImagesInAtlasInput(effectPath);
         if (changed && atlasInputsChangedListener != null) {
             atlasInputsChangedListener.onSceneAtlasInputsChanged(sceneTag);
         }
@@ -662,9 +664,6 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private int createPointLight(float worldX, float worldY, int parentEntityId) {
-        String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null) return -1;
-
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
         int shaderIdx = ShaderRegistry.indexOf(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
@@ -712,9 +711,6 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private int createConeLight(float worldX, float worldY, int parentEntityId) {
-        String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null) return -1;
-
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
         int shaderIdx = ShaderRegistry.indexOf(RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
@@ -851,7 +847,8 @@ public class EditorOpsImpl implements EditorOps {
         PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
 
-        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)) return;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,
+                editingContext.sceneMeta().pixelsPerMeter)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -872,7 +869,8 @@ public class EditorOpsImpl implements EditorOps {
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         fixture.geometry.radius = 0.5f;
 
-        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)) return;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,
+                editingContext.sceneMeta().pixelsPerMeter)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -886,9 +884,9 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     static boolean placeFixtureAtWorld(World world, int bodyEid,
-                                       float worldX, float worldY, PhysicsShapeData fixture, Vector2 scratch) {
+                                       float worldX, float worldY, PhysicsShapeData fixture, Vector2 scratch,
+                                       float ppm) {
         if (!new ResolvedPhysicsPose(world).resolvedWorldToLocal(bodyEid, worldX, worldY, scratch)) return false;
-        float ppm = ProjectConfig.getInstance().getCurrentSceneMeta().pixelsPerMeter;
         if (!Float.isFinite(ppm) || ppm <= 0f) return false;
         fixture.geometry.offsetX = scratch.x / ppm;
         fixture.geometry.offsetY = scratch.y / ppm;
@@ -1107,15 +1105,12 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private String getCurrentSceneTag() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return null;
-
-        return cfg.canonicalSceneTagCurrent();
+        return editingContext.sceneIdentity();
     }
 
     private void ensureEditorBundleActive() {
         String tag = getCurrentSceneTag();
-        if (snapshotManager != null) {
+        if (snapshotManager != null && tag != null) {
             snapshotManager.markDirty(tag, "editor-bundle-active-required");
         }
     }
@@ -1229,15 +1224,7 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private String resolveSceneAtlasTag(String requestedTag) {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return requestedTag;
-
-        String canonicalTag = cfg.canonicalSceneTagCurrent();
-        if (canonicalTag == null || canonicalTag.isEmpty()) {
-            return requestedTag;
-        }
-
-        return canonicalTag;
+        return getCurrentSceneTag();
     }
 
     private static String fileNameFromPath(String path) {

@@ -17,7 +17,6 @@ import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
@@ -204,8 +203,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
-        ProjectConfig config = ProjectConfig.getInstance();
-        SceneMeta scene = config != null ? config.getCurrentSceneMeta() : null;
+        SceneMeta scene = ctx.sceneMeta;
         return canActivateSpatialPhysics(scene, kind, index, layer);
     }
 
@@ -235,8 +233,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private PhysicsShapeData createDefaultFootprint(int eid) {
         DimensionsComponent dimensions = ctx.mDimensions.getSafe(eid, null);
         TransformComponent transform = ctx.mTransform.getSafe(eid, null);
-        SceneMeta scene = ProjectConfig.getInstance() != null
-                ? ProjectConfig.getInstance().getCurrentSceneMeta() : null;
+        SceneMeta scene = ctx.sceneMeta;
         return dimensions != null && transform != null && scene != null
                 ? createDefaultFootprint(dimensions, transform, scene.pixelsPerMeter)
                 : null;

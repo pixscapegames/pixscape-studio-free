@@ -7,7 +7,6 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.MetaTagsHelper;
@@ -157,7 +156,7 @@ public class EntityProperties extends VisTable {
         });
         EventFlow.i().subscribe(EventFlow.ShaderListChanged.class, evt -> materialPanel.refreshShaderList());
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
-            scenePhysicsEnabled = evt.enabled();
+            syncScenePhysicsEnabled();
             updateSectionsVisibility();
         });
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> {
@@ -344,8 +343,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void syncScenePhysicsEnabled() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        SceneMeta meta = ctx.sceneMeta;
         scenePhysicsEnabled = meta != null && meta.physicsEnabled;
     }
 

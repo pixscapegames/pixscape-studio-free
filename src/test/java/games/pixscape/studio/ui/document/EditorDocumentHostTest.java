@@ -27,6 +27,25 @@ public class EditorDocumentHostTest {
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
 
+    @Test public void rejectedUserActivationRestoresSelectedTabAndKeepsTheDocumentOpen() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        EditorDocumentHost host = new EditorDocumentHost(manager, new VisTable());
+        SceneEditorDocument scene = manager.openScene("scene0", "World", context());
+        GameObjectEditorDocument car = manager.openGameObject(new GameObjectEditorDocument(
+                "car", "car", new FileHandle("car.gameobject"), context(), 1));
+        manager.activate(scene.key());
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                if (current == car) throw new IllegalStateException("Canvas activation rejected");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> host.requestActivation(car.key()));
+        assertSame(scene, manager.activeDocument());
+        assertEquals(scene.key(), host.selectedKey());
+        assertEquals(2, host.documentTabCount());
+        assertFalse(car.context().isDisposed());
+    }
+
     @Test
     public void managerProjectsTabsAndBidirectionalActivationHasNoFeedbackLoop() {
         EditorDocumentManager manager = new EditorDocumentManager();

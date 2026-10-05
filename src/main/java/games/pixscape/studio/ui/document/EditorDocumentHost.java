@@ -62,7 +62,12 @@ public final class EditorDocumentHost extends VisTable {
                     return;
                 }
                 if (!userRemovalInProgress) {
-                    manager.activate(documentTab.document().key());
+                    try {
+                        manager.activate(documentTab.document().key());
+                    } finally {
+                        // VisUI selects before notifying us; a rejected activation restores the model's tab.
+                        selectFromManager(manager.activeDocument());
+                    }
                 }
             }
 

@@ -724,7 +724,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         try {
             // Stable IDs exist only inside this isolated asset-editing World and are never
             // published to ProjectConfig or a project Scene.
-            candidate = canvas.createSceneContext(null, new SceneMeta());
+            SceneMeta editingMeta = new SceneMeta();
+            editingMeta.physicsEnabled = true;
+            editingMeta.gravityY = 0f;
+            candidate = canvas.createSceneContext(null, editingMeta);
             canvas.attach(candidate);
             var asset = canvas.getGameObjectAssetService().loadGameObjectAsset(assetFile);
             int layerIndex = candidate.layerService().addLayerTop("Game Object");
@@ -763,6 +766,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 candidate.dispose();
             }
             if (previous != null && !previous.isDisposed()) canvas.attach(previous);
+            Gdx.app.error("GameObjectEditor", "Failed to open Game Object: " + assetId, failure);
             Dialogs.showOKDialog(uiStage, "Game Object cannot be opened",
                     PreviewLaunchSupport.userMessageFor(failure));
             return null;

@@ -85,10 +85,10 @@ public class EditorOpsImplIntegrationContractTest {
         String addBox = methodBody(source, "public void addBoxFixture(int bodyEid, float worldX, float worldY)");
         String addCircle = methodBody(source, "public void addCircleFixture(int bodyEid, float worldX, float worldY)");
 
-        assertTrue(addBox.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)"));
+        assertTrue(addBox.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,"));
         assertTrue(addBox.contains("historyManager.execute(new AddFixtureCommand("));
 
-        assertTrue(addCircle.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal)"));
+        assertTrue(addCircle.contains("placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,"));
         assertTrue(addCircle.contains("historyManager.execute(new AddFixtureCommand("));
     }
 

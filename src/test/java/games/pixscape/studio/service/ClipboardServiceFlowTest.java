@@ -796,6 +796,7 @@ public class ClipboardServiceFlowTest {
         WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
         SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
         setFieldUnsafe(unsafe, context, "world", world);
+        setFieldUnsafe(unsafe, context, "sceneMeta", ProjectConfig.getInstance().getCurrentSceneMeta());
         setFieldUnsafe(unsafe, context, "selectionService", selection);
         setFieldUnsafe(unsafe, context, "historyManager", history);
         setFieldUnsafe(unsafe, context, "layerService", layers);

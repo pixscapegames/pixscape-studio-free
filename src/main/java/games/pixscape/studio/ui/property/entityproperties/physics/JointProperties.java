@@ -11,6 +11,7 @@ import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditJointBaseCommand;
 import games.pixscape.studio.ops.EditorOps;
@@ -62,7 +63,8 @@ public final class JointProperties extends VisTable {
     private boolean dirty = true;
     private JointSpecificPanel activePanel;
 
-    public JointProperties(World world, HistoryManager history, EditorOps ops, SelectionService selectionService) {
+    public JointProperties(World world, HistoryManager history, EditorOps ops, SelectionService selectionService,
+                           SceneMeta sceneMeta) {
         super(true);
         this.world = world;
         this.history = history;
@@ -107,9 +109,9 @@ public final class JointProperties extends VisTable {
         prismaticPanel = new PrismaticJointPropertiesPanel(world, history);
         wheelPanel = new WheelJointProperties(world, history);
         frictionPanel = new FrictionJointPropertiesPanel(world, history);
-        motorPanel = new MotorJointPropertiesPanel(world, history);
+        motorPanel = new MotorJointPropertiesPanel(world, history, sceneMeta);
         weldPanel = new WeldJointPropertiesPanel(world, history);
-        pulleyPanel = new PulleyJointPropertiesPanel(world, history);
+        pulleyPanel = new PulleyJointPropertiesPanel(world, history, sceneMeta);
         gearPanel = new GearJointPropertiesPanel(world, history);
 
         deleteButton = new VisTextButton("Delete");

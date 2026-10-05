@@ -1810,11 +1810,8 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 100f;
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        if (meta == null) return 100f;
-        return meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {

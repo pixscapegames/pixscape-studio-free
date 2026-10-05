@@ -12,6 +12,67 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class EditorDocumentManagerTest {
+    @Test public void reopeningTheSameDocumentDoesNotDisposeItsContext() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        GameObjectEditorDocument document = manager.openGameObject(gameObject("car", context(null)));
+        assertSame(document, manager.openGameObject(document));
+        assertFalse(document.context().isDisposed());
+    }
+
+    @Test public void failedCloseFallbackKeepsBothDocumentsAndTheirContextsOpen() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        GameObjectEditorDocument first = manager.openGameObject(gameObject("first", context(null)));
+        GameObjectEditorDocument second = manager.openGameObject(gameObject("second", context(null)));
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                if (current == first) throw new IllegalStateException("Fallback unavailable");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.closeNow(second.key()));
+        assertSame(second, manager.activeDocument());
+        assertEquals(List.of(first, second), manager.documents());
+        assertFalse(first.context().isDisposed());
+        assertFalse(second.context().isDisposed());
+    }
+    @Test public void failedGameObjectOpeningDoesNotRetainADisposedTab() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        SceneEditorDocument scene = manager.openScene("scene0", "World", context());
+        GameObjectEditorDocument candidate = gameObject("car", context(null));
+        AtomicReference<OpenEditorDocument> canvasDocument = new AtomicReference<>(scene);
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                canvasDocument.set(current);
+                if (current == candidate) throw new IllegalStateException("Inspector activation failed");
+            }
+        });
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> manager.openGameObject(candidate));
+        assertEquals("Inspector activation failed", failure.getMessage());
+        assertSame(scene, manager.activeDocument());
+        assertSame(scene, canvasDocument.get());
+        assertNull(manager.find(candidate.key()));
+        assertTrue(candidate.context().isDisposed());
+        assertFalse(scene.context().isDisposed());
+    }
+
+    @Test public void failedReactivationPreservesTheOpenDocumentAndPreviousActivationHistory() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        SceneEditorDocument scene = manager.openScene("scene0", "World", context());
+        GameObjectEditorDocument car = manager.openGameObject(gameObject("car", context(null)));
+        HudScreenEditorDocument hud = manager.openHudScreen("hud/main", "HUD");
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                if (current == car) throw new IllegalStateException("Cannot activate");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.activate(car.key()));
+        assertSame(hud, manager.activeDocument());
+        assertFalse(car.context().isDisposed());
+        // Remove the failed target without disturbing the last successful activation order.
+        manager.closeNow(car.key());
+        manager.closeNow(hud.key());
+        assertSame(scene, manager.activeDocument());
+    }
     @Test
     public void sceneAndDistinctHudDocumentsHaveStableOrderAndDuplicateOpenActivates() {
         EditorDocumentManager manager = new EditorDocumentManager();
@@ -68,7 +129,7 @@ public class EditorDocumentManagerTest {
     }
 
     @Test
-    public void listenerOrderingIsOpenThenActivateAndCloseThenFallbackActivate() {
+    public void listenerOrderingPreparesFallbackBeforeReleasingTheClosedContext() {
         EditorDocumentManager manager = new EditorDocumentManager();
         List<String> events = new ArrayList<>();
         manager.addListener(new EditorDocumentManager.Listener() {
@@ -88,7 +149,7 @@ public class EditorDocumentManagerTest {
         manager.requestClose(hud.key());
 
         assertEquals(List.of("open:scene0", "active:scene0", "open:hud/main", "active:hud/main",
-                "close:hud/main", "active:scene0"), events);
+                "active:scene0", "close:hud/main"), events);
     }
 
     @Test

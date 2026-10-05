@@ -48,7 +48,7 @@ public final class ClipboardService {
                 canvas::isScenePhysicsEnabled,
                 canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity);
 
-        EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
+        // This clipboard belongs to one document World; project Scene notifications cannot clear it.
     }
 
     public boolean hasContent() {
