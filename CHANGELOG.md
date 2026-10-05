@@ -17,6 +17,8 @@
 
 ### Fixed
 
+* Spatial volume overlays and inverse resize coordinates now share the Runtime's drawn map plane reference. New volumes at the map altitude align with the selected tile anchors without changing stored altitudes or tile placement.
+
 * Failed scene atlas packs now retain a restart-safe repack requirement until matching pixels are published; unchanged saves still skip packing.
 * Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
 * Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.

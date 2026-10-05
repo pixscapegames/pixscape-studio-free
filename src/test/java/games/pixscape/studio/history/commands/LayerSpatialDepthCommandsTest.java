@@ -208,6 +208,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.data = spatialMap();
         tiled.spatialEnabled = true;
         tiled.defaultTileAltitude = 1f;
+        tiled.data.defaultTileAltitude = 1f;
         tiled.defaultTileHeight = 8f;
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         blocks.blocks.add(spatialWall(1, 1, 1f));
@@ -233,7 +234,8 @@ public class LayerSpatialDepthCommandsTest {
         ));
 
         assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 5f);
-        Assert.assertNotEquals(originalIntercept, projected.intercept[0], 0f);
+        // The command raises both the inherited block and its reference plane: the base stays aligned.
+        Assert.assertEquals(originalIntercept, projected.intercept[0], 0f);
 
         history.undo();
         assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 1f);

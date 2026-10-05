@@ -87,7 +87,7 @@ public final class SpatialBlockProjection {
         Vector2 offset = tmpCellOriginOffset();
         cellOriginOffset(map, offset);
         float logicalX = worldX - offset.x;
-        float logicalY = worldY - offset.y - elevationToWorldYOffset(elevation);
+        float logicalY = worldY - offset.y - map.spatialElevationOffset(elevation);
         out.set(
                 map.projectWorldToTileX(logicalX, logicalY),
                 map.projectWorldToTileY(logicalX, logicalY)
