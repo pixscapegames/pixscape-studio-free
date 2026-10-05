@@ -21,7 +21,10 @@ public final class EditorDocumentManager {
 
     public interface Listener {
         default void documentOpened(OpenEditorDocument document) {}
+        default void validateActivation(OpenEditorDocument current) {}
         default void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {}
+        /** Explicit compensation, including partial work by the failing listener. */
+        default void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {}
         default void documentClosed(OpenEditorDocument document) {}
         default void documentTitleChanged(OpenEditorDocument document) {}
     }
@@ -66,6 +69,13 @@ public final class EditorDocumentManager {
 
     public OpenEditorDocument find(EditorDocumentKey key) { return documents.get(key); }
 
+    /** Cold load/close boundary: every context-owning document participates in ownership. */
+    public boolean ownsContext(SceneEditorContext context) {
+        if (context == null) return false;
+        return documents.values().stream().anyMatch(document ->
+                document instanceof ContextEditorDocument owner && owner.ownsContext(context));
+    }
+
     public OpenEditorDocument open(OpenEditorDocument requested) {
         Objects.requireNonNull(requested, "requested");
         if (requested.type() == EditorDocumentType.SCENE) {
@@ -73,19 +83,11 @@ public final class EditorDocumentManager {
         }
         OpenEditorDocument existing = documents.get(requested.key());
         if (existing != null) {
-            disposeDocument(requested);
+            if (existing != requested) disposeDocument(requested);
             activate(existing.key());
             return existing;
         }
-        documents.put(requested.key(), requested);
-        if (requested instanceof HudScreenEditorDocument hud) {
-            hud.editSession().addListener(() -> notifyTitleChanged(hud));
-        }
-        if (requested instanceof GameObjectEditorDocument gameObject) {
-            gameObject.context().setDirtyStateListener(() -> notifyTitleChanged(gameObject));
-        }
-        notifyOpened(requested);
-        activate(requested.key());
+        publishOpened(requested);
         return requested;
     }
 
@@ -107,10 +109,7 @@ public final class EditorDocumentManager {
             activate(existing.key());
             return existing;
         }
-        documents.put(requested.key(), requested);
-        requested.context().setDirtyStateListener(() -> notifyTitleChanged(requested));
-        notifyOpened(requested);
-        activate(requested.key());
+        publishOpened(requested);
         return requested;
     }
 
@@ -136,13 +135,73 @@ public final class EditorDocumentManager {
     public boolean activate(EditorDocumentKey key) {
         OpenEditorDocument next = documents.get(key);
         if (next == null) return false;
+        validateContext(next);
         if (activeDocument == next) return true;
-        OpenEditorDocument previous = activeDocument;
-        activeDocument = next;
-        activationHistory.remove(key);
-        activationHistory.add(key);
-        for (Listener listener : List.copyOf(listeners)) listener.documentActivated(previous, next);
+        transitionTo(next);
         return true;
+    }
+
+    private void transitionTo(OpenEditorDocument next) {
+        validateContext(next);
+        List<Listener> observers = List.copyOf(listeners);
+        for (Listener listener : observers) listener.validateActivation(next);
+        OpenEditorDocument previous = activeDocument;
+        List<EditorDocumentKey> previousHistory = List.copyOf(activationHistory);
+        activeDocument = next;
+        if (next != null) {
+            activationHistory.remove(next.key());
+            activationHistory.add(next.key());
+        }
+        int attempted = 0;
+        try {
+            for (Listener listener : observers) {
+                attempted++;
+                listener.documentActivated(previous, next);
+            }
+        } catch (RuntimeException failure) {
+            activeDocument = previous;
+            activationHistory.clear();
+            activationHistory.addAll(previousHistory);
+            for (int i = attempted - 1; i >= 0; i--) {
+                try { observers.get(i).activationFailed(previous, next); }
+                catch (RuntimeException rollback) { failure.addSuppressed(rollback); }
+            }
+            throw failure;
+        }
+    }
+
+    private static void validateContext(OpenEditorDocument next) {
+        if (next instanceof ContextEditorDocument owner
+                && (owner.isClosed() || owner.context().isDisposed())) {
+            throw new IllegalStateException("Cannot activate a closed editor context.");
+        }
+    }
+
+    /** Registration transfers ownership; unsuccessful publication releases the new document. */
+    private void publishOpened(OpenEditorDocument requested) {
+        try {
+            validateContext(requested);
+            for (Listener listener : List.copyOf(listeners)) listener.validateActivation(requested);
+            documents.put(requested.key(), requested);
+            if (requested instanceof ContextEditorDocument owner) {
+                owner.context().setDirtyStateListener(() -> notifyTitleChanged(requested));
+            }
+            if (requested instanceof HudScreenEditorDocument hud) {
+                hud.editSession().addListener(() -> notifyTitleChanged(hud));
+            }
+            notifyOpened(requested);
+            activate(requested.key());
+        } catch (RuntimeException failure) {
+            documents.remove(requested.key());
+            activationHistory.remove(requested.key());
+            for (Listener listener : List.copyOf(listeners)) {
+                try { listener.documentClosed(requested); }
+                catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            }
+            try { disposeDocument(requested); }
+            catch (RuntimeException cleanup) { failure.addSuppressed(cleanup); }
+            throw failure;
+        }
     }
 
     public boolean updateTitle(EditorDocumentKey key, String title) {
@@ -183,26 +242,29 @@ public final class EditorDocumentManager {
         OpenEditorDocument document = documents.get(key);
         if (document == null || !document.closeable()) return false;
         boolean wasActive = document == activeDocument;
+        if (wasActive) activateFallback(document);
         documents.remove(key);
         activationHistory.remove(key);
-        notifyClosed(document);
-        if (wasActive) activateFallback(document);
-        disposeDocument(document);
+        try { notifyClosed(document); }
+        finally { disposeDocument(document); }
         return true;
     }
 
     public void clear() {
         if (documents.isEmpty() && activeDocument == null) return;
-        OpenEditorDocument previous = activeDocument;
         List<OpenEditorDocument> closing = new ArrayList<>(documents.values());
+        transitionTo(null);
         documents.clear();
         activationHistory.clear();
-        activeDocument = null;
-        for (OpenEditorDocument document : closing) notifyClosed(document);
-        if (previous != null) {
-            for (Listener listener : List.copyOf(listeners)) listener.documentActivated(previous, null);
+        RuntimeException failure = null;
+        for (OpenEditorDocument document : closing) {
+            try { notifyClosed(document); }
+            catch (RuntimeException cleanup) {
+                if (failure == null) failure = cleanup;
+                else failure.addSuppressed(cleanup);
+            } finally { disposeDocument(document); }
         }
-        for (OpenEditorDocument document : closing) disposeDocument(document);
+        if (failure != null) throw failure;
     }
 
     /** Final teardown path: no fallback/UI callbacks may run while services are being disposed. */
@@ -221,28 +283,32 @@ public final class EditorDocumentManager {
     private void activateFallback(OpenEditorDocument previous) {
         OpenEditorDocument fallback = null;
         for (int i = activationHistory.size() - 1; i >= 0 && fallback == null; i--) {
-            fallback = documents.get(activationHistory.get(i));
+            OpenEditorDocument candidate = documents.get(activationHistory.get(i));
+            if (candidate != previous) fallback = candidate;
         }
-        if (fallback == null && !documents.isEmpty()) fallback = documents.values().iterator().next();
-        activeDocument = fallback;
-        if (fallback != null) {
-            activationHistory.remove(fallback.key());
-            activationHistory.add(fallback.key());
-        }
-        for (Listener listener : List.copyOf(listeners)) listener.documentActivated(previous, fallback);
+        if (fallback == null) fallback = documents.values().stream()
+                .filter(document -> document != previous).findFirst().orElse(null);
+        transitionTo(fallback);
     }
 
     private static void disposeDocument(OpenEditorDocument document) {
-        if (document instanceof SceneEditorDocument scene) scene.close();
+        if (document instanceof ContextEditorDocument owner) owner.close();
         if (document instanceof HudScreenEditorDocument hud) hud.close();
-        if (document instanceof GameObjectEditorDocument gameObject) gameObject.close();
     }
 
     private void notifyOpened(OpenEditorDocument document) {
         for (Listener listener : List.copyOf(listeners)) listener.documentOpened(document);
     }
     private void notifyClosed(OpenEditorDocument document) {
-        for (Listener listener : List.copyOf(listeners)) listener.documentClosed(document);
+        RuntimeException failure = null;
+        for (Listener listener : List.copyOf(listeners)) {
+            try { listener.documentClosed(document); }
+            catch (RuntimeException cleanup) {
+                if (failure == null) failure = cleanup;
+                else failure.addSuppressed(cleanup);
+            }
+        }
+        if (failure != null) throw failure;
     }
     private void notifyTitleChanged(OpenEditorDocument document) {
         for (Listener listener : List.copyOf(listeners)) listener.documentTitleChanged(document);

@@ -5,7 +5,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
 import games.pixscape.studio.service.entitygraph.*;
@@ -19,6 +19,8 @@ public final class ClipboardService {
 
     private final WorldCanvas canvas;
     private final World world;
+    private final games.pixscape.studio.scene.SceneEditorContext editingContext;
+    private final ProjectConfig project = ProjectConfig.getInstance();
     private final SelectionService selectionService;
     private final HistoryManager historyManager;
     private final IdentityRegistry identityRegistry;
@@ -43,16 +45,16 @@ public final class ClipboardService {
 
         this.graphCaptureService = new EntityGraphCaptureService(world);
         this.selectionNormalizer = new ClipboardSelectionNormalizer(world);
+        editingContext = canvas.getSceneEditorContext();
         this.graphInstantiationService = new EntityGraphInstantiationService(
                 world, historyManager, identityRegistry, canvas.getPhysicsService(),
-                canvas::isScenePhysicsEnabled,
-                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity);
+                () -> editingContext.sceneMeta() != null && editingContext.sceneMeta().physicsEnabled,
+                entityId -> canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(editingContext, entityId));
 
-        EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, evt -> clear());
     }
 
     public boolean hasContent() {
-        return !graph.isEmpty();
+        return belongsToCurrentProject() && !graph.isEmpty();
     }
 
     public void clear() {
@@ -61,6 +63,7 @@ public final class ClipboardService {
     }
 
     public boolean copySelection() {
+        if (!belongsToCurrentProject()) return false;
         IntArray normalized = normalizeClipboardSelection();
         if (normalized == null) return false;
         try {
@@ -77,6 +80,7 @@ public final class ClipboardService {
     }
 
     public boolean cutSelection() {
+        if (!belongsToCurrentProject()) return false;
         IntArray normalized = normalizeClipboardSelection();
         if (normalized == null) return false;
         try {
@@ -100,13 +104,15 @@ public final class ClipboardService {
                 world,
                 historyManager.historyIds(),
                 cutEntities,
-                canvas::requestParticleRuntimeAvailabilityRefreshIfParticleEntity));
+                entityId -> canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(
+                        editingContext, entityId)));
         selectionService.clearSelection();
         pasteCount = 0;
         return true;
     }
 
     public boolean paste() {
+        if (!belongsToCurrentProject()) return false;
         if (graph.isEmpty()) {
             return false;
         }
@@ -168,8 +174,14 @@ public final class ClipboardService {
         }
     }
 
+    private boolean belongsToCurrentProject() {
+        if (!editingContext.isDisposed() && ProjectConfig.getInstance() == project) return true;
+        clear();
+        return false;
+    }
+
     private ResolvedClipboardDestination resolveClipboardDestination() {
-        LayerService layers = canvas.getLayerService();
+        LayerService layers = editingContext.layerService();
         if (layers == null) return null;
 
         int layerIndex = selectionService.getActiveLayerIndex();

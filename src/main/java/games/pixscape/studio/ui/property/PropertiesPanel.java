@@ -347,26 +347,27 @@ public class PropertiesPanel extends DockablePanel {
                 selectionService,
                 sceneContext.identityRegistry(),
                 new IconResolver(world),
-                app.getSceneService()::markCurrentSceneSaveRequired,
+                sceneContext::markExplicitSaveRequired,
                 app.getSceneService()::getAssetMeta,
                 canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
                 app.getSceneService()::getAnimationAssetMetas,
                 app.getAnimationAssetAuthoringService(),
-                MY_TAG);
+                MY_TAG, sceneContext.sceneMeta());
         entityProperties = new EntityProperties(ctx);
         bodyProperties = new BodyProperties(ctx);
         fixtureProperties = new FixturesPanel(ctx);
         pointLightProperties = new PointLightProperties(ctx);
         coneLightProperties = new ConeLightProperties(ctx);
         jointProperties = new JointProperties(
-                world, sceneContext.historyManager(), canvas.getEditorOps(), selectionService);
+                world, sceneContext.historyManager(), canvas.getEditorOps(), selectionService,
+                sceneContext.sceneMeta());
         spatialBlockProperties = new SpatialBlockProperties(
                 world,
                 sceneContext.historyManager(),
                 sceneContext.spatialBlockSelectionService(),
                 canvas.getPhysicsService(),
-                app.getSceneService()::markCurrentSceneSaveRequired);
-        Runnable markSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
+                sceneContext::markExplicitSaveRequired);
+        Runnable markSaveRequired = sceneContext::markExplicitSaveRequired;
         layerProperties = new LayerProperties(
                 world, sceneContext.historyManager(), layerService, markSaveRequired);
         sceneProperties = new SceneProperties(

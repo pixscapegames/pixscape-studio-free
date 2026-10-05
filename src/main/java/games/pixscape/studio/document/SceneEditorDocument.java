@@ -5,7 +5,7 @@ import games.pixscape.studio.scene.SceneEditorContext;
 import java.util.Objects;
 
 /** One open Scene tab and the live editor context whose lifecycle it owns. */
-public final class SceneEditorDocument extends OpenEditorDocument implements AutoCloseable {
+public final class SceneEditorDocument extends OpenEditorDocument implements ContextEditorDocument {
     private final SceneEditorContext context;
     private boolean closed;
 

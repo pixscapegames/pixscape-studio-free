@@ -19,7 +19,7 @@ public class StudioWorldConfigSpatialSystemTest {
         String particleFallbackSource = read("src/main/java/games/pixscape/studio/system/StudioParticleFallbackSystem.java");
 
         assertTrue(source.contains("WorldConfigFactory.buildWorld("));
-        assertTrue(source.contains("SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;"));
+        assertTrue(source.contains("SceneMeta sceneMeta = targetSceneMeta;"));
         assertTrue(source.contains("dynamicEntityState = new DynamicEntityRenderState();"));
         assertTrue(source.contains("frameQueue = new FrameRenderQueue();"));
         assertTrue(source.contains("vfxState = new VfxRenderState();"));

@@ -225,7 +225,7 @@ public final class EntityGraphInstantiationService {
                         "Entity graph contains duplicate source entity "
                                 + sourceEntityId + ".");
             }
-            GenericEntityInitializer initializer = entry.initializer().duplicate();
+            GenericEntityInitializer initializer = entry.initializerFor(world);
             GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             if (clipboardTargetLayer != null) {
                 initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);

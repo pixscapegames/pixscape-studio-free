@@ -37,6 +37,7 @@ public final class SceneEditorContext implements Disposable {
     private final EventFlow.SubscriptionScope activeEventScope;
 
     private World world;
+    private SceneMeta sceneMeta;
     private IdentityRegistry identityRegistry;
     private LayerService layerService;
     private SelectionService selectionService;
@@ -76,6 +77,7 @@ public final class SceneEditorContext implements Disposable {
         ensureUsable();
         if (world != null) throw new IllegalStateException("Scene context already owns a World.");
         world = Objects.requireNonNull(ownedWorld, "ownedWorld");
+        this.sceneMeta = sceneMeta;
         identityRegistry = new IdentityRegistry();
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
@@ -131,6 +133,8 @@ public final class SceneEditorContext implements Disposable {
     public long processedFrameCount() { return processedFrameCount; }
 
     public World world() { ensureInitialized(); return world; }
+    /** Technical settings belong to this World, including standalone asset editing Worlds. */
+    public SceneMeta sceneMeta() { ensureInitialized(); return sceneMeta; }
     public HistoryManager historyManager() { ensureUsable(); return historyManager; }
     public SelectionService selectionService() { ensureInitialized(); return selectionService; }
     public LayerService layerService() { ensureInitialized(); return layerService; }
@@ -244,6 +248,7 @@ public final class SceneEditorContext implements Disposable {
         if (identityRegistry != null) identityRegistry.bind(null, null);
         if (world != null) world.dispose();
         world = null;
+        sceneMeta = null;
         selectionService = null;
         layerService = null;
         identityRegistry = null;

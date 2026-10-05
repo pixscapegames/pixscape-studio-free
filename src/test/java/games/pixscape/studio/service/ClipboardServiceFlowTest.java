@@ -42,6 +42,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
+    @Test public void sceneMetadataEventsPreserveClipboardButProjectReplacementClearsIt() throws Exception {
+        Harness h = new Harness();
+        try {
+            int source = createEntity(h.world, 13f, 17f, 0);
+            h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            games.pixscape.studio.event.EventFlow.i().publish(
+                    new games.pixscape.studio.event.EventFlow.CurrentSceneMeta("Other", "", 0));
+            games.pixscape.studio.event.EventFlow.i().flush();
+            Assert.assertTrue(h.clipboard.hasContent());
+            Assert.assertTrue(h.clipboard.paste());
+            ProjectConfig.setInstance(new ProjectConfig());
+            Assert.assertFalse(h.clipboard.hasContent());
+            Assert.assertFalse(h.clipboard.paste());
+        } finally { h.world.dispose(); }
+    }
 
     @Test
     public void copySelection_keepsSelectionAndStoresPasteableSnapshot() throws Exception {
@@ -796,11 +812,13 @@ public class ClipboardServiceFlowTest {
         WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
         SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
         setFieldUnsafe(unsafe, context, "world", world);
+        setFieldUnsafe(unsafe, context, "sceneMeta", ProjectConfig.getInstance().getCurrentSceneMeta());
         setFieldUnsafe(unsafe, context, "selectionService", selection);
         setFieldUnsafe(unsafe, context, "historyManager", history);
         setFieldUnsafe(unsafe, context, "layerService", layers);
         setFieldUnsafe(unsafe, canvas, "sceneEditorContext", context);
         setFieldUnsafe(unsafe, canvas, "physicsService", physicsService);
+        setFieldUnsafe(unsafe, canvas, "sceneBindings", new java.util.IdentityHashMap<>());
         return canvas;
     }
 

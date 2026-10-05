@@ -322,16 +322,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     /** Attaches the one Scene allowed to render, process, and receive world input. */
     public void attach(SceneEditorContext context) {
-        Objects.requireNonNull(context, "context");
-        if (context.isDisposed() || !context.isInitialized()) {
-            throw new IllegalStateException("Cannot attach an unavailable Scene context.");
-        }
+        validateAttachment(context);
         if (sceneEditorContext == context && context.isActive()) return;
-        detach();
         SceneBinding binding = sceneBindings.get(context);
-        if (binding == null) {
-            throw new IllegalStateException("Scene context has no WorldCanvas binding.");
-        }
+        detach();
         SceneBinding.apply(this, binding);
         sceneEditorContext = context;
         if (contextMenu != null) contextMenu.bindSceneContext(this);
@@ -341,6 +335,17 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         restoreView(context);
         context.attached();
         configureViewForAttachedSelection();
+    }
+
+    /** Validates an activation before the document manager or canvas changes state. */
+    public void validateAttachment(SceneEditorContext context) {
+        Objects.requireNonNull(context, "context");
+        if (context.isDisposed() || !context.isInitialized()) {
+            throw new IllegalStateException("Cannot attach an unavailable Scene context.");
+        }
+        if (!sceneBindings.containsKey(context)) {
+            throw new IllegalStateException("Scene context has no WorldCanvas binding.");
+        }
     }
 
     /** Suspends the active Scene without clearing, serializing, or disposing it. */
@@ -614,11 +619,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         gameObjectAssetService = new GameObjectAssetService(
                 world(), historyManager(), identityRegistry(),
-                this::requestParticleRuntimeAvailabilityRefreshIfParticleEntity,
+                entityId -> requestParticleRuntimeAvailabilityRefreshIfParticleEntity(targetContext, entityId),
                 entityId -> {
-                    if (entityId >= 0) selectionService().selectOnly(entityId);
-                    else selectionService().clearSelection();
-                }, selectionService(), physicsService, this::allowsGameObjectAssetPhysics);
+                    if (entityId >= 0) targetContext.selectionService().selectOnly(entityId);
+                    else targetContext.selectionService().clearSelection();
+                }, selectionService(), physicsService, () -> targetSceneMeta != null && targetSceneMeta.physicsEnabled);
 
         // Wiring
         pickingSystem.setSelectionService(selectionService());
@@ -653,7 +658,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             editorOps.setAtlasInputsChangedListener(atlasInputsChangedListener);
         }
 
-        if (sceneMeta != null && sceneMeta.physicsEnabled) {
+        physicsEnabled = sceneMeta != null && sceneMeta.physicsEnabled;
+        if (physicsEnabled) {
             ensureBox2dFromMeta(sceneMeta);
         }
     }
@@ -701,8 +707,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             studioParticleFallbackSystem.invalidateAll();
         }
 
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta sceneMeta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        SceneMeta sceneMeta = sceneEditorContext != null ? sceneEditorContext.sceneMeta() : null;
         if (sceneMeta == null) return;
 
         Array<String> declaredEffectPaths = new Array<>();
@@ -712,7 +717,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 declaredEffectPaths.add(effectPath);
             }
         }
-        String sceneTag = cfg.canonicalSceneTagFor(sceneMeta);
+        String sceneTag = sceneEditorContext.sceneIdentity();
         runtimeParticleSystem.prepareRuntimeAvailability(
                 sceneTag, declaredEffectPaths);
     }
@@ -724,9 +729,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     /** Queues a rebuild when a generic create/restore operation produced a particle entity. */
     public void requestParticleRuntimeAvailabilityRefreshIfParticleEntity(int entityId) {
-        if (getAttachedSceneContext() == null || entityId < 0) return;
-        if (world().getMapper(ParticleEmitterComponent.class).has(entityId)) {
-            requestParticleRuntimeAvailabilityRefresh();
+        requestParticleRuntimeAvailabilityRefreshIfParticleEntity(getAttachedSceneContext(), entityId);
+    }
+
+    public void requestParticleRuntimeAvailabilityRefreshIfParticleEntity(SceneEditorContext context, int entityId) {
+        if (context == null || context.isDisposed() || entityId < 0) return;
+        if (context.world().getMapper(ParticleEmitterComponent.class).has(entityId)) {
+            SceneBinding binding = sceneBindings.get(context);
+            if (binding != null) binding.particleAvailabilityRefresh.request();
         }
     }
 
@@ -1841,25 +1851,28 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private void bindPhysicsDebugEvents() {
 
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, ev -> {
+            if (sceneEditorContext == null || sceneEditorContext.sceneIdentity() == null) return;
             physicsEnabled = ev.enabled();
 
             if (!physicsEnabled) {
                 disableBox2dRuntimeSync();
                 return;
             }
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            SceneMeta meta = sceneEditorContext != null ? sceneEditorContext.sceneMeta() : null;
             ensureBox2dFromMeta(meta);
         });
 
         EventFlow.i().subscribe(EventFlow.ScenePhysicsPixelsPerMeterChanged.class, ev -> {
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            if (sceneEditorContext == null || sceneEditorContext.sceneIdentity() == null) return;
+            SceneMeta meta = sceneEditorContext != null ? sceneEditorContext.sceneMeta() : null;
             if (physicsEnabled) {
                 ensureBox2dFromMeta(meta);
             }
         });
 
         EventFlow.i().subscribe(EventFlow.CurrentSceneMeta.class, ev -> {
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            if (sceneEditorContext == null || sceneEditorContext.sceneIdentity() == null) return;
+            SceneMeta meta = sceneEditorContext != null ? sceneEditorContext.sceneMeta() : null;
 
             physicsEnabled = meta != null && meta.physicsEnabled;
 
@@ -2477,15 +2490,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public boolean isScenePhysicsEnabled() {
-        ProjectConfig config = ProjectConfig.getInstance();
-        SceneMeta meta = config != null ? config.getCurrentSceneMeta() : null;
+        SceneMeta meta = sceneEditorContext != null ? sceneEditorContext.sceneMeta() : null;
         return meta != null && meta.physicsEnabled;
-    }
-
-    /** Isolated Game Object documents have no persisted Scene Physics switch. */
-    private boolean allowsGameObjectAssetPhysics() {
-        return (sceneEditorContext != null && sceneEditorContext.sceneIdentity() == null)
-                || isScenePhysicsEnabled();
     }
 
     public PhysicsSelectionService getPhysicsSelectionService() {

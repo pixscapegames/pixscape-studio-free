@@ -12,7 +12,7 @@ import java.util.Objects;
  * <p>The context is never a project Scene. Its only persisted output is the asset file when
  * the document is explicitly saved.</p>
  */
-public final class GameObjectEditorDocument extends OpenEditorDocument implements AutoCloseable {
+public final class GameObjectEditorDocument extends OpenEditorDocument implements ContextEditorDocument {
     private final SceneEditorContext context;
     private final FileHandle assetFile;
     private final int rootEntityId;

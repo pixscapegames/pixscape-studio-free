@@ -34,6 +34,35 @@ import static org.junit.Assert.*;
 
 public class RenderRebindHelperTest {
 
+    @Test
+    public void assetHistoryRebindUsesItsWorldWithoutInvalidatingAForeignScene() throws Exception {
+        World assetWorld = worldWithDirtyTracker();
+        World sceneWorld = worldWithDirtyTracker();
+        try {
+            Fixture asset = fixture(assetWorld, 7);
+            Fixture scene = fixture(sceneWorld, 7);
+            makeEligibleForFullRenderDirty(asset);
+            makeEligibleForFullRenderDirty(scene);
+            assetWorld.process();
+            sceneWorld.process();
+            assetWorld.getMapper(AssetRefComponent.class).get(asset.entityId).atlasTag = null;
+            Texture standalone = texture(20, 30);
+            ImageAssetMeta meta = new ImageAssetMeta(7, "hero", "orig/images/hero.png", AssetMeta.AssetScope.USER);
+            var atlas = new VisualResolverTestSupport.TrackingAtlasService("main");
+            GpuSnapshotManager snapshots = new GpuSnapshotManager(new AtlasStudioService(null), null);
+            assertEquals("standalone", RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                    canvas(sceneWorld, snapshots), null, resolver(atlas, meta, standalone), asset.entityId, assetWorld));
+            assertTrue(asset.region.valid);
+            assertEquals(TextureRegistry.handleOf(standalone), asset.material.textureHandle);
+            assertFalse(scene.region.valid);
+            assertEquals(0, scene.material.textureHandle);
+            assertFalse(hasSnapshotDirtyReason(snapshots, "main", "history-entity-render-rebind"));
+        } finally {
+            assetWorld.dispose();
+            sceneWorld.dispose();
+        }
+    }
+
     @After
     public void clearTextureRegistry() {
         TextureRegistry.clear();

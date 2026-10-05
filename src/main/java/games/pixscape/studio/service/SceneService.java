@@ -958,7 +958,9 @@ public final class SceneService {
             app.getBottomBar().refreshSelectBox();
         } catch (RuntimeException ex) {
             EventFlow.i().discardPending();
-            if (candidate != null) {
+            // Publication transferred ownership. A later UI failure must not destroy an open document.
+            if (isDocumentOwned(candidate)) throw ex;
+            if (candidate != null && !candidate.isDisposed()) {
                 canvas.releaseSceneContext(candidate);
                 candidate.dispose();
             }
@@ -974,10 +976,7 @@ public final class SceneService {
     }
 
     private boolean isDocumentOwned(SceneEditorContext context) {
-        return app.getEditorDocumentManager().documents().stream()
-                .filter(games.pixscape.studio.document.SceneEditorDocument.class::isInstance)
-                .map(games.pixscape.studio.document.SceneEditorDocument.class::cast)
-                .anyMatch(document -> document.context() == context);
+        return app.getEditorDocumentManager().ownsContext(context);
     }
 
     // ---------------------------------------------------------------------
@@ -2256,8 +2255,13 @@ public final class SceneService {
 
             Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + " - " + sceneName + ")");
             StudioLog.info("Scene created: " + sceneName);
+            if (previousContext != null && !isDocumentOwned(previousContext)) {
+                canvas.releaseSceneContext(previousContext);
+                previousContext.dispose();
+            }
         } catch (RuntimeException ex) {
-            if (candidate != null) {
+            if (isDocumentOwned(candidate)) throw ex;
+            if (candidate != null && !candidate.isDisposed()) {
                 canvas.releaseSceneContext(candidate);
                 candidate.dispose();
             }

@@ -307,7 +307,7 @@ public final class GameObjectAssetService {
         List<Command> commands = new ArrayList<>(ordered.size() + asset.joints.size() + 2);
         for (GameObjectAsset.GameObjectEntityData data : ordered) {
             EntityGraphEntry entry = mapper.toGraphEntry(world, data);
-            GenericEntityInitializer generic = entry.initializer();
+            GenericEntityInitializer generic = entry.initializerFor(world);
             if (data.physicsBody != null) {
                 if (physicsService == null) {
                     throw new IllegalStateException(

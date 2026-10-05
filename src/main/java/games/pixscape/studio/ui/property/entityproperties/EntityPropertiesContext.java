@@ -15,6 +15,7 @@ import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.component.EntityMetaComponent;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
@@ -37,6 +38,7 @@ public final class EntityPropertiesContext {
     public final SelectionService selectionService;
     public final PhysicsSelectionService physicsSelectionService;
     public final PhysicsService physicsService;
+    public final SceneMeta sceneMeta;
     public final PhysicsPolygonAuthoringService physicsPolygonAuthoringService;
     public final IconResolver iconResolver;
     public final Runnable markCurrentSceneSaveRequired;
@@ -83,11 +85,13 @@ public final class EntityPropertiesContext {
                                    IntConsumer refreshAnimationPreview,
                                    Supplier<Array<AnimationAssetMeta>> animationAssets,
                                    AnimationAssetAuthoringService animationAssetAuthoringService,
-                                   int sourceTag) {
+                                   int sourceTag,
+                                   SceneMeta sceneMeta) {
         this.world = Objects.requireNonNull(world, "world");
         this.history = Objects.requireNonNull(history, "history");
         this.physicsSelectionService = Objects.requireNonNull(physicsSelectionService, "physicsSelectionService");
         this.physicsService = Objects.requireNonNull(physicsService, "physicsService");
+        this.sceneMeta = sceneMeta;
         this.physicsPolygonAuthoringService = new PhysicsPolygonAuthoringService(world);
         this.layerService = Objects.requireNonNull(layerService, "layerService");
         this.atlasStudioService = Objects.requireNonNull(atlasStudioService, "atlasStudioService");

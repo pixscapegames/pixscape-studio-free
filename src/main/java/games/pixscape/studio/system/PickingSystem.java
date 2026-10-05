@@ -33,8 +33,6 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -2635,9 +2633,8 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        return meta.pixelsPerMeter;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private record FixtureHit(int bodyEid, int physicsShapeId, int partIndex) {
@@ -4086,11 +4083,6 @@ public final class PickingSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, float[] corners) {
         applyDisplayOffset(entityId, corners, corners != null ? corners.length / 2 : 0);
-    }
-
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
     }
 
     private void updateCursorForHover(InputManipulationContext.Handle hovered,

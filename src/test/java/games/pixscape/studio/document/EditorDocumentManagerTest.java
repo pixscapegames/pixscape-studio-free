@@ -88,7 +88,7 @@ public class EditorDocumentManagerTest {
         manager.requestClose(hud.key());
 
         assertEquals(List.of("open:scene0", "active:scene0", "open:hud/main", "active:hud/main",
-                "close:hud/main", "active:scene0"), events);
+                "active:scene0", "close:hud/main"), events);
     }
 
     @Test
@@ -205,6 +205,106 @@ public class EditorDocumentManagerTest {
 
     private static SceneEditorContext context() {
         return context("scene0");
+    }
+
+    @Test public void ownershipIncludesGameObjectsAndEndsAtClose() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        SceneEditorContext assetContext = context(null);
+        GameObjectEditorDocument asset = manager.openGameObject(gameObject("asset", assetContext));
+        SceneEditorContext temporary = context(null);
+        assertTrue(manager.ownsContext(assetContext));
+        assertFalse(manager.ownsContext(temporary));
+        assertSame(asset, manager.openGameObject(asset));
+        assertFalse(assetContext.isDisposed());
+        manager.closeNow(asset.key());
+        assertFalse(manager.ownsContext(assetContext));
+        assertEquals(1, assetContext.disposeCount());
+        temporary.dispose();
+    }
+
+    @Test public void failedActivationCompensatesPartialObserversWithoutReplayingThem() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        var first = manager.openHudScreen("first", "First");
+        var second = manager.openHudScreen("second", "Second");
+        manager.activate(first.key());
+        AtomicReference<OpenEditorDocument> canvas = new AtomicReference<>(first);
+        AtomicReference<OpenEditorDocument> tab = new AtomicReference<>(first);
+        int[] failures = {0};
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                canvas.set(current);
+            }
+            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+                canvas.set(previous);
+            }
+        });
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                tab.set(current);
+                failures[0]++;
+                throw new IllegalStateException("Inspector failed after changing state");
+            }
+            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+                tab.set(previous);
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.activate(second.key()));
+        assertSame(first, manager.activeDocument());
+        assertSame(first, canvas.get());
+        assertSame(first, tab.get());
+        assertEquals(1, failures[0]);
+        manager.clearForTeardown();
+    }
+
+    @Test public void failedOpeningRemovesRegistrationAndReleasesOnlyTheCandidate() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        var first = manager.openGameObject(gameObject("first", context(null)));
+        var candidate = gameObject("failed", context(null));
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                throw new IllegalStateException("Activation failure");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.openGameObject(candidate));
+        assertSame(first, manager.activeDocument());
+        assertEquals(List.of(first), manager.documents());
+        assertTrue(candidate.isClosed());
+        assertEquals(1, candidate.context().disposeCount());
+        assertFalse(first.context().isDisposed());
+        manager.clearForTeardown();
+    }
+
+    @Test public void failedOpenedNotificationRemovesPartialRegistration() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        var candidate = gameObject("failed", context(null));
+        int[] closed = {0};
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentOpened(OpenEditorDocument document) {
+                throw new IllegalStateException("Tab creation failure");
+            }
+            @Override public void documentClosed(OpenEditorDocument document) { closed[0]++; }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.openGameObject(candidate));
+        assertNull(manager.activeDocument());
+        assertTrue(manager.documents().isEmpty());
+        assertTrue(candidate.isClosed());
+        assertEquals(1, closed[0]);
+    }
+
+    @Test public void rejectedCloseFallbackPreservesTheActiveDocumentAndItsWorld() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        manager.openGameObject(gameObject("first", context(null)));
+        var second = manager.openGameObject(gameObject("second", context(null)));
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void validateActivation(OpenEditorDocument current) {
+                throw new IllegalStateException("Fallback cannot activate");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> manager.closeNow(second.key()));
+        assertSame(second, manager.activeDocument());
+        assertSame(second, manager.find(second.key()));
+        assertFalse(second.context().isDisposed());
+        manager.clearForTeardown();
     }
 
     private static SceneEditorContext context(String identity) {

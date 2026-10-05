@@ -62,7 +62,8 @@ public final class EditorDocumentHost extends VisTable {
                     return;
                 }
                 if (!userRemovalInProgress) {
-                    manager.activate(documentTab.document().key());
+                    try { manager.activate(documentTab.document().key()); }
+                    finally { selectFromManager(manager.activeDocument()); }
                 }
             }
 
@@ -73,6 +74,9 @@ public final class EditorDocumentHost extends VisTable {
                     userRemovalInProgress = true;
                     try {
                         closed = manager.requestClose(documentTab.document().key());
+                    } catch (RuntimeException failure) {
+                        queueUiReconciliation();
+                        throw failure;
                     } finally {
                         userRemovalInProgress = false;
                     }
@@ -93,6 +97,9 @@ public final class EditorDocumentHost extends VisTable {
             }
             @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 if (!userRemovalInProgress) selectFromManager(current);
+            }
+            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+                if (!userRemovalInProgress) selectFromManager(previous);
             }
         });
         rebuildTabs();

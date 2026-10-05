@@ -280,7 +280,7 @@ public class EditPropertiesDialogTest {
                             AssetMetaDatabase::new,
                             () -> new FileHandle("unused-assets.json"),
                             ignored -> { }),
-                    0);
+                    0, sceneMeta);
         }
 
         @Override

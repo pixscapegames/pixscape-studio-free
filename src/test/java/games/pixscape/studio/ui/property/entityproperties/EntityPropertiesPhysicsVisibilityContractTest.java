@@ -11,7 +11,7 @@ import static org.junit.Assert.assertTrue;
 public class EntityPropertiesPhysicsVisibilityContractTest {
 
     @Test
-    public void entityPhysicsSectionReadsCurrentScenePhysicsStateWhenBound() throws Exception {
+    public void entityPhysicsSectionReadsItsBoundContextPhysicsState() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/property/entityproperties/EntityProperties.java");
 
         String constructor = methodBody(source, "public EntityProperties(EntityPropertiesContext ctx)");
@@ -21,8 +21,7 @@ public class EntityPropertiesPhysicsVisibilityContractTest {
         assertTrue(setEntityId.contains("syncScenePhysicsEnabled();"));
 
         String sync = methodBody(source, "private void syncScenePhysicsEnabled()");
-        assertTrue(sync.contains("ProjectConfig.getInstance()"));
-        assertTrue(sync.contains("cfg != null ? cfg.getCurrentSceneMeta() : null"));
+        assertTrue(sync.contains("SceneMeta meta = ctx.sceneMeta;"));
         assertTrue(sync.contains("scenePhysicsEnabled = meta != null && meta.physicsEnabled;"));
 
         String applicable = methodBody(source, "private boolean isPhysicsApplicable()");

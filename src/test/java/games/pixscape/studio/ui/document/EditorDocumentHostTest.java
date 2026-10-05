@@ -24,6 +24,23 @@ import java.util.function.Consumer;
 import static org.junit.Assert.*;
 
 public class EditorDocumentHostTest {
+    @Test public void failedTabActivationRestoresTheSelectionAndManager() {
+        EditorDocumentManager manager = new EditorDocumentManager();
+        EditorDocumentHost host = new EditorDocumentHost(manager, new VisTable());
+        var first = manager.openHudScreen("first", "First");
+        var second = manager.openHudScreen("second", "Second");
+        manager.activate(first.key());
+        manager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
+                throw new IllegalStateException("Inspector failure");
+            }
+        });
+        assertThrows(IllegalStateException.class, () -> host.requestActivation(second.key()));
+        assertSame(first, manager.activeDocument());
+        assertEquals(first.key(), host.selectedKey());
+        assertEquals(2, host.documentTabCount());
+        manager.clearForTeardown();
+    }
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
 

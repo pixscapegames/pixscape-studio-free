@@ -133,7 +133,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         int prepare = refreshBody.indexOf("runtimeParticleSystem.prepareRuntimeAvailability(");
         assertTrue(invalidate >= 0);
         assertTrue(prepare > invalidate);
-        assertTrue(refreshBody.contains("cfg.getCurrentSceneMeta()"));
+        assertTrue(refreshBody.contains("sceneEditorContext.sceneMeta()"));
         assertTrue(refreshBody.contains("sceneMeta.runtimeAvailability.particleEffectPaths"));
         assertTrue(refreshBody.contains("studioParticleFallbackSystem.invalidateAll();"));
     }

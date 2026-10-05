@@ -1598,7 +1598,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer duplicate() {
-        GenericEntityInitializer copy = new GenericEntityInitializer(world);
+        return duplicateFor(world);
+    }
+
+    /** Copies the captured values without retaining the source World; null creates a detached payload. */
+    public GenericEntityInitializer duplicateFor(World destination) {
+        GenericEntityInitializer copy = new GenericEntityInitializer(destination);
 
         // --- TextureRegion ---
         copy.hasTextureRegion = this.hasTextureRegion;

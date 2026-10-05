@@ -12,6 +12,11 @@ public record EntityGraphEntry(
         GenericEntityInitializer initializer,
         PropertySet customProperties) {
 
+    /** Materialization always binds a fresh initializer to the destination World. */
+    public GenericEntityInitializer initializerFor(com.artemis.World destination) {
+        return initializer.duplicateFor(java.util.Objects.requireNonNull(destination, "destination"));
+    }
+
     public EntityGraphEntry(int sourceEntityId, GenericEntityInitializer initializer) {
         this(sourceEntityId, -1, false, "", initializer, null);
     }
@@ -36,6 +41,8 @@ public record EntityGraphEntry(
         if (initializer == null) {
             throw new IllegalArgumentException("Entity graph initializer is required.");
         }
+        // Clipboard payloads keep authored snapshots, never a source World or its mappers.
+        initializer = initializer.duplicateFor(null);
         gameObjectSourceAssetId = gameObjectSourceAssetId != null ? gameObjectSourceAssetId : "";
         customProperties = customProperties != null ? customProperties.copy() : null;
     }

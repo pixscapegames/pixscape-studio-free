@@ -27,8 +27,6 @@ import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.input.InputState;
@@ -1806,11 +1804,8 @@ public final class GizmoSystem extends BaseSystem {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 100f;
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        if (meta == null) return 100f;
-        return meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
@@ -1916,11 +1911,6 @@ public final class GizmoSystem extends BaseSystem {
 
     private boolean isParticleEntity(int e) {
         return mParticle != null && mParticle.has(e);
-    }
-
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
     }
 
     public void setCursor(CursorKind kind, float angleRad, Vector2 mouseWorld) {

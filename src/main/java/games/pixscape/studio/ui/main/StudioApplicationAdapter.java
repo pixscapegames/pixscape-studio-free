@@ -724,7 +724,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         try {
             // Stable IDs exist only inside this isolated asset-editing World and are never
             // published to ProjectConfig or a project Scene.
-            candidate = canvas.createSceneContext(null, new SceneMeta());
+            SceneMeta editingMeta = new SceneMeta();
+            editingMeta.physicsEnabled = true;
+            editingMeta.gravityY = 0f;
+            candidate = canvas.createSceneContext(null, editingMeta);
             canvas.attach(candidate);
             var asset = canvas.getGameObjectAssetService().loadGameObjectAsset(assetFile);
             int layerIndex = candidate.layerService().addLayerTop("Game Object");
@@ -755,14 +758,21 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             candidate.markSaved();
 
             String title = assetFile.nameWithoutExtension();
-            return editorDocumentManager.openGameObject(new GameObjectEditorDocument(
+            GameObjectEditorDocument opened = editorDocumentManager.openGameObject(new GameObjectEditorDocument(
                     assetId, title, assetFile, candidate, rootEntityId));
+            if (previous != null && !editorDocumentManager.ownsContext(previous)) {
+                canvas.releaseSceneContext(previous);
+                previous.dispose();
+            }
+            return opened;
         } catch (RuntimeException failure) {
-            if (candidate != null) {
+            if (editorDocumentManager.ownsContext(candidate)) throw failure;
+            if (candidate != null && !candidate.isDisposed()) {
                 canvas.releaseSceneContext(candidate);
                 candidate.dispose();
             }
             if (previous != null && !previous.isDisposed()) canvas.attach(previous);
+            Gdx.app.error("GameObjectDocument", "Failed to open " + assetFile.path(), failure);
             Dialogs.showOKDialog(uiStage, "Game Object cannot be opened",
                     PreviewLaunchSupport.userMessageFor(failure));
             return null;
@@ -1128,8 +1138,16 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     private void bindEditorDocumentLifecycle() {
         editorDocumentManager.addListener(new EditorDocumentManager.Listener() {
+            @Override public void validateActivation(OpenEditorDocument current) {
+                SceneEditorContext context = documentContext(current);
+                if (context != null) canvas.validateAttachment(context);
+            }
             @Override public void documentActivated(OpenEditorDocument previous, OpenEditorDocument current) {
                 applyDocumentActivation(previous, current);
+            }
+            @Override public void activationFailed(OpenEditorDocument previous, OpenEditorDocument attempted) {
+                // Restore from the authoritative document, not by replaying activation observers.
+                applyDocumentActivation(null, previous);
             }
             @Override public void documentClosed(OpenEditorDocument document) {
                 SceneEditorContext closedContext = documentContext(document);
@@ -1316,8 +1334,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     }
 
     private static SceneEditorContext documentContext(OpenEditorDocument document) {
-        if (document instanceof SceneEditorDocument scene) return scene.context();
-        if (document instanceof GameObjectEditorDocument gameObject) return gameObject.context();
+        if (document instanceof games.pixscape.studio.document.ContextEditorDocument owner) return owner.context();
         return null;
     }
 

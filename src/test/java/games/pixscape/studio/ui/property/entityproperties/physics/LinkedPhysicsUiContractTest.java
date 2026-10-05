@@ -37,6 +37,57 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class LinkedPhysicsUiContractTest {
+    @Test public void fixtureDisplayUsesItsOwnMetadataWithoutAnOpenScene() throws Exception {
+        var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(
+                new games.pixscape.studio.configuration.ProjectConfig());
+        try (Harness harness = new Harness()) {
+            harness.meta.pixelsPerMeter = 32f;
+            harness.world.getMapper(PhysicsShapesComponent.class).get(harness.body).shapes.get(3).geometry.radius = 0.5f;
+            harness.select(4);
+            var fieldHandle = FixturesPanel.class.getDeclaredField("diameterWUField");
+            fieldHandle.setAccessible(true);
+            var field = (VisValidatableTextField) fieldHandle.get(harness.panel);
+            Assert.assertEquals(32f, Float.parseFloat(field.getText()), 0.001f);
+        } finally { games.pixscape.studio.configuration.ProjectConfig.setInstance(previous); }
+    }
+
+    @Test public void motorJointEditsAndHistoryUseTheBoundWorldAndScale() throws Exception {
+        var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        var project = new games.pixscape.studio.configuration.ProjectConfig();
+        project.createSceneMeta("Foreign");
+        project.getCurrentSceneMeta().pixelsPerMeter = 100f;
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(project);
+        World world = new World(new WorldConfiguration());
+        try {
+            SceneMeta editingMeta = new SceneMeta();
+            editingMeta.pixelsPerMeter = 32f;
+            HistoryManager history = new HistoryManager(8);
+            int joint = world.create();
+            var motor = world.getMapper(games.pixscape.runtime.component.physics.PhysicsMotorJointComponent.class)
+                    .create(joint);
+            motor.linearOffsetX = 2f;
+            world.process();
+            var panel = new MotorJointPropertiesPanel(world, history, editingMeta);
+            panel.setJointEid(joint);
+            panel.refreshFromModel();
+            var fieldHandle = MotorJointPropertiesPanel.class.getDeclaredField("linearOffsetXField");
+            fieldHandle.setAccessible(true);
+            var field = (games.pixscape.studio.ui.widget.FloatField) fieldHandle.get(panel);
+            Assert.assertEquals(64f, Float.parseFloat(field.getText()), 0f);
+            field.setText("96");
+            field.commit();
+            Assert.assertEquals(3f, motor.linearOffsetX, 0f);
+            project.getCurrentSceneMeta().pixelsPerMeter = 200f;
+            history.undo();
+            Assert.assertEquals(2f, motor.linearOffsetX, 0f);
+            history.redo();
+            Assert.assertEquals(3f, motor.linearOffsetX, 0f);
+        } finally {
+            world.dispose();
+            games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
+        }
+    }
     @BeforeClass
     public static void loadVisUiSkin() {
         VisUiTestBootstrap.loadSkin();
@@ -228,7 +279,7 @@ public class LinkedPhysicsUiContractTest {
                             () -> new FileHandle("unused-assets.json"),
                             ignored -> {
                             }),
-                    0);
+                    0, meta);
             PhysicsService.initDefaultBody(
                     world.getMapper(PhysicsBodyComponent.class).create(body));
             PhysicsShapesComponent shapes =
