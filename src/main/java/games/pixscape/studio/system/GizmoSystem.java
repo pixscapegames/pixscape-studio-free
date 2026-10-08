@@ -26,6 +26,7 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
@@ -53,6 +54,7 @@ public final class GizmoSystem extends BaseSystem {
     private SelectionService selectionService;
     private PhysicsService physicsService;
     private StudioDisplayOffsetResolver displayOffsetResolver;
+    private StudioEditingModeService editingModeService;
     private final PolygonDrawSession polygonDrawSession;
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
@@ -126,6 +128,7 @@ public final class GizmoSystem extends BaseSystem {
     private final float[] tmpSpatialWallWireframe = new float[SpatialWallWireframe.REQUIRED_OUTPUT_FLOATS];
     private final float[] tmpSpatialStructureSegment = new float[8];
     private final float[] tmpSpatialTileTintVerts = new float[20];
+    private final float[] tmpActorInfluenceQuad = new float[8];
 
     public GizmoSystem(StudioDrawContext worldCtx,
                        InputState inputState,
@@ -170,6 +173,10 @@ public final class GizmoSystem extends BaseSystem {
         this.displayOffsetResolver = displayOffsetResolver;
     }
 
+    public void setEditingModeService(StudioEditingModeService editingModeService) {
+        this.editingModeService = editingModeService;
+    }
+
     @Override
     protected void initialize() {
         gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
@@ -184,6 +191,8 @@ public final class GizmoSystem extends BaseSystem {
         boolean polygonDrawVisible = polygonDrawSession != null && polygonDrawSession.isActive();
         boolean spatialBlockVisible = hasSpatialBlockOverlayWork();
         boolean spatialTileSelectionVisible = hasSpatialTileSelectionWork();
+        boolean focusedSpatialActor = physicsSelectionService != null
+                && physicsSelectionService.getFocusedBodyEid() >= 0;
 
         if (!lassoVisible
                 && !rectPreviewVisible
@@ -194,6 +203,7 @@ public final class GizmoSystem extends BaseSystem {
                 && !jointOverlayVisible
                 && !spatialBlockVisible
                 && !spatialTileSelectionVisible
+                && !focusedSpatialActor
                 && !hoveredEntityVisible
                 && !polygonDrawVisible) {
             return;
@@ -269,6 +279,7 @@ public final class GizmoSystem extends BaseSystem {
             drawSpatialTileSelection();
             drawSelectedSpatialBlockLinkedTiles();
             drawSpatialBlockOverlays();
+            drawSelectedActorInfluenceQuads();
             drawHoveredEntityGizmo(physicsEditMode);
             drawPolygonDrawSession();
 
@@ -317,6 +328,33 @@ public final class GizmoSystem extends BaseSystem {
         } finally {
             ctx.batch.end();
         }
+    }
+
+    private void drawSelectedActorInfluenceQuads() {
+        // Actor/fixture selection exits the block-editing Spatial submode.
+        // Runtime eligibility identifies Spatial actors in Normal and Physics modes too.
+        if (editingModeService != null && !editingModeService.hasActiveSceneDocument()) return;
+        SpatialRenderOrderSystem spatial = world.getSystem(SpatialRenderOrderSystem.class);
+        if (spatial == null) return;
+        for (int entity : selected) drawActorInfluenceQuad(spatial, entity);
+        int focused = physicsSelectionService != null ? physicsSelectionService.getFocusedBodyEid() : -1;
+        if (focused >= 0 && !isSelectedEntity(focused)) drawActorInfluenceQuad(spatial, focused);
+    }
+
+    private void drawActorInfluenceQuad(SpatialRenderOrderSystem spatial, int entity) {
+        if (!spatial.writeActorInfluenceQuad(entity, tmpActorInfluenceQuad)) return;
+        ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_ACTOR_INFLUENCE_COLOR);
+        float thickness = ctx.pxToWorld(1.5f);
+        for (int corner = 0; corner < 4; corner++) {
+            int next = (corner + 1) & 3;
+            ctx.drawer.line(tmpActorInfluenceQuad[corner * 2], tmpActorInfluenceQuad[corner * 2 + 1],
+                    tmpActorInfluenceQuad[next * 2], tmpActorInfluenceQuad[next * 2 + 1], thickness);
+        }
+        // Mark the lower and upper edge centres without edit handles or picking effects.
+        float cx = (tmpActorInfluenceQuad[0] + tmpActorInfluenceQuad[2]) * .5f;
+        float tick = ctx.pxToWorld(4f);
+        ctx.drawer.line(cx, tmpActorInfluenceQuad[1] - tick, cx, tmpActorInfluenceQuad[1] + tick, thickness);
+        ctx.drawer.line(cx - tick, tmpActorInfluenceQuad[5], cx + tick, tmpActorInfluenceQuad[5], thickness);
     }
 
     private boolean hasHoveredEntityWork() {

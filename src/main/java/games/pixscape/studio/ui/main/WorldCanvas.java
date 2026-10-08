@@ -641,6 +641,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gizmoSystem.setLayerService(layerService());
         gizmoSystem.setPhysicsService(physicsService);
         gizmoSystem.setDisplayOffsetResolver(displayOffsetResolver);
+        gizmoSystem.setEditingModeService(studioEditingModeService);
 
         zOrderRuntimeService = new ZOrderRuntimeService(world());
 

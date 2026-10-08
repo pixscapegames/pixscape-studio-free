@@ -78,6 +78,7 @@ public class LayerSpatialDepthCommandsTest {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
         tiled.spatialEnabled = true;
         tiled.defaultTileAltitude = 1f;
+        if (tiled.data != null) tiled.data.defaultTileAltitude = 1f;
         tiled.defaultTileHeight = 8f;
 
         EditTiledLayerSpatialDefaultsCommand.Snapshot before =
@@ -108,7 +109,7 @@ public class LayerSpatialDepthCommandsTest {
     }
 
     @Test
-    public void editTiledLayerSpatialDefaults_resyncsBlocksUsingPreviousDefaultAltitude() {
+    public void editTiledLayerSpatialDefaults_keepsExplicitBlocksEvenWhenEqualToPreviousOrNextDefault() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int layerId = createTiledMap(world, 0);
@@ -116,17 +117,14 @@ public class LayerSpatialDepthCommandsTest {
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
         tiled.spatialEnabled = true;
+        tiled.data = spatialMap();
         tiled.defaultTileAltitude = 0f;
         tiled.defaultTileHeight = 8f;
 
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
-        SpatialBlockData inherited = new SpatialBlockData();
-        inherited.id = 1;
-        inherited.altitude = 0f;
+        SpatialBlockData inherited = spatialWall(1, 1, 0f);
         blocks.blocks.add(inherited);
-        SpatialBlockData explicit = new SpatialBlockData();
-        explicit.id = 2;
-        explicit.altitude = 42f;
+        SpatialBlockData explicit = spatialWall(2, 2, 155f);
         blocks.blocks.add(explicit);
 
         EditTiledLayerSpatialDefaultsCommand.Snapshot before =
@@ -142,16 +140,20 @@ public class LayerSpatialDepthCommandsTest {
                 after
         ));
 
-        Assert.assertEquals(155f, inherited.altitude, 0.0001f);
-        Assert.assertEquals(42f, explicit.altitude, 0.0001f);
+        Assert.assertEquals(0f, inherited.altitude, 0.0001f);
+        Assert.assertEquals(155f, explicit.altitude, 0.0001f);
 
+        Assert.assertSame(inherited, blocks.blocks.first());
         history.undo();
         Assert.assertEquals(0f, inherited.altitude, 0.0001f);
-        Assert.assertEquals(42f, explicit.altitude, 0.0001f);
+        Assert.assertEquals(155f, explicit.altitude, 0.0001f);
+        history.redo();
+        Assert.assertEquals(0f, inherited.altitude, 0f);
+        Assert.assertEquals(155f, explicit.altitude, 0f);
     }
 
     @Test
-    public void editTiledLayerSpatialDefaults_advancesAuthoredRevisionOncePerHistoryTransition() {
+    public void editTiledLayerSpatialDefaults_doesNotRewriteBlocksOrRecompileStructures() {
         World world = new World(new WorldConfiguration());
         HistoryManager history = new HistoryManager(8);
         int layerId = createTiledMap(world, 0);
@@ -159,7 +161,9 @@ public class LayerSpatialDepthCommandsTest {
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(layerId);
         tiled.spatialEnabled = true;
+        tiled.data = spatialMap();
         tiled.defaultTileAltitude = 1f;
+        if (tiled.data != null) tiled.data.defaultTileAltitude = 1f;
         tiled.defaultTileHeight = 8f;
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         SpatialBlockData inherited = spatialWall(1, 1, 1f);
@@ -178,23 +182,23 @@ public class LayerSpatialDepthCommandsTest {
         );
 
         history.execute(command);
-        Assert.assertEquals(1, blocks.revision);
+        Assert.assertEquals(0, blocks.revision);
         Assert.assertEquals(1, history.getCursor());
-        Assert.assertEquals(3f, inherited.altitude, 0f);
+        Assert.assertEquals(1f, inherited.altitude, 0f);
         Assert.assertEquals(42f, explicit.altitude, 0f);
 
         history.undo();
-        Assert.assertEquals(2, blocks.revision);
+        Assert.assertEquals(0, blocks.revision);
         Assert.assertEquals(1f, inherited.altitude, 0f);
         Assert.assertEquals(42f, explicit.altitude, 0f);
 
         history.redo();
-        Assert.assertEquals(3, blocks.revision);
-        Assert.assertEquals(3f, inherited.altitude, 0f);
+        Assert.assertEquals(0, blocks.revision);
+        Assert.assertEquals(1f, inherited.altitude, 0f);
 
         history.undo();
         history.redo();
-        Assert.assertEquals(5, blocks.revision);
+        Assert.assertEquals(0, blocks.revision);
     }
 
     @Test
@@ -208,6 +212,7 @@ public class LayerSpatialDepthCommandsTest {
         tiled.data = spatialMap();
         tiled.spatialEnabled = true;
         tiled.defaultTileAltitude = 1f;
+        if (tiled.data != null) tiled.data.defaultTileAltitude = 1f;
         tiled.defaultTileHeight = 8f;
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(layerId);
         blocks.blocks.add(spatialWall(1, 1, 1f));
@@ -232,7 +237,7 @@ public class LayerSpatialDepthCommandsTest {
                 before.withDefaultAltitude(5f)
         ));
 
-        assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 5f);
+        assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 1f);
         Assert.assertNotEquals(originalIntercept, projected.intercept[0], 0f);
 
         history.undo();
@@ -240,7 +245,7 @@ public class LayerSpatialDepthCommandsTest {
         Assert.assertEquals(originalIntercept, projected.intercept[0], 0f);
 
         history.redo();
-        assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 5f);
+        assertCachesRebuilt(layerId, tiled.data, blocks, compiled, projected, order, overlay, 1f);
     }
 
     @Test
@@ -260,6 +265,7 @@ public class LayerSpatialDepthCommandsTest {
 
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).create(layerId);
         tiled.defaultTileAltitude = 1f;
+        if (tiled.data != null) tiled.data.defaultTileAltitude = 1f;
         tiled.defaultTileHeight = 8f;
         EditTiledLayerSpatialDefaultsCommand noop = new EditTiledLayerSpatialDefaultsCommand(
                 world, history.historyIds(), layerId, before, before);
@@ -491,10 +497,10 @@ public class LayerSpatialDepthCommandsTest {
                                             SpatialTileOrderCache order,
                                             SpatialStructureGeometryCache overlay,
                                             float expectedAltitude) {
-        Assert.assertTrue(compiled.ensure(blocks));
+        Assert.assertFalse(compiled.ensure(blocks));
         Assert.assertTrue(projected.ensure(compiled, map));
         Assert.assertTrue(order.ensure(layerId, map, blocks, compiled));
-        Assert.assertTrue(overlay.synchronize(layerId, blocks, map).published());
+        Assert.assertFalse(overlay.synchronize(layerId, blocks, map).published());
         Assert.assertEquals(expectedAltitude, compiled.structure(0).altitude(), 0f);
         Assert.assertEquals(expectedAltitude, projected.faceAltitude[0], 0f);
         Assert.assertEquals(expectedAltitude, overlay.structure(0).altitude(), 0f);

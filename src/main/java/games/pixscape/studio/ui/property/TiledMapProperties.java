@@ -169,7 +169,7 @@ public final class TiledMapProperties extends VisTable {
         VisTable spatialDefaults = spatialDefaultsBlock.content();
         spatialDefaults.left().top().padTop(5);
         spatialDefaults.defaults().left().top().pad(1);
-        spatialDefaults.add(new VisLabel("Default Altitude:"))
+        spatialDefaults.add(new VisLabel("Drawn Plane Altitude:"))
                 .width(CommonLayout.LABEL_WIDTH).left();
         spatialDefaults.add(defaultAltitudeField)
                 .width(CommonLayout.FIELD_WIDTH).left().row();

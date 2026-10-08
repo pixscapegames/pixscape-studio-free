@@ -3,13 +3,19 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
+import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.spatial.SpatialCompiledLayerCache;
+import games.pixscape.runtime.spatial.SpatialProjectedFaceCache;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
-public final class EditTiledLayerSpatialDefaultsCommand implements Command, HistoryManager.SupportsNoop {
+public final class EditTiledLayerSpatialDefaultsCommand implements Command, HistoryManager.SupportsNoop, OutcomeAwareCommand {
     public record Snapshot(float defaultAltitude, float defaultHeight) {
         public static Snapshot capture(TiledLayerComponent component) {
             if (component == null) return null;
@@ -37,6 +43,7 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
     private final Snapshot before;
     private final Snapshot after;
     private final boolean noop;
+    private final games.pixscape.studio.configuration.SceneMeta documentMeta;
 
     public EditTiledLayerSpatialDefaultsCommand(World world,
                                                 HistoryIdRegistry historyIds,
@@ -44,6 +51,8 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
                                                 Snapshot before,
                                                 Snapshot after) {
         this.world = world;
+        games.pixscape.studio.configuration.ProjectConfig config = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        this.documentMeta = config != null ? config.getCurrentSceneMeta() : null;
         this.historyIds = historyIds;
         this.before = before;
         this.after = after;
@@ -58,7 +67,7 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
 
     @Override
     public String label() {
-        return "Edit Tiled Spatial Defaults";
+        return "Edit Tiled Drawn Plane and Default Height";
     }
 
     @Override
@@ -66,34 +75,75 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         return noop;
     }
 
-    @Override
-    public void redo() {
-        apply(after);
-    }
+    @Override public void redo() { redoOutcome(); }
+    @Override public void undo() { undoOutcome(); }
+    @Override public CommandOutcome executeOutcome() { return apply(after); }
+    @Override public CommandOutcome redoOutcome() { return apply(after); }
+    @Override public CommandOutcome undoOutcome() { return apply(before); }
 
-    @Override
-    public void undo() {
-        apply(before);
-    }
-
-    private void apply(Snapshot snapshot) {
-        if (noop || snapshot == null) return;
+    private CommandOutcome apply(Snapshot snapshot) {
+        if (noop || snapshot == null) return CommandOutcome.NO_CHANGE;
         int entityId = resolveEntityId();
-        if (entityId < 0) return;
-
+        if (entityId < 0) return CommandOutcome.NO_CHANGE;
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
-        if (tiled == null) return;
+        if (tiled == null) return CommandOutcome.NO_CHANGE;
+        if (!Float.isFinite(snapshot.defaultAltitude) || !Float.isFinite(snapshot.defaultHeight)) {
+            return CommandOutcome.REJECTED;
+        }
+        float height = Math.max(0f, snapshot.defaultHeight);
+        if (Float.compare(tiled.defaultTileAltitude, snapshot.defaultAltitude) == 0
+                && Float.compare(tiled.defaultTileHeight, height) == 0) return CommandOutcome.NO_CHANGE;
 
-        float previousDefaultAltitude = tiled.defaultTileAltitude;
-        float previousDefaultHeight = tiled.defaultTileHeight;
+        PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).getSafe(entityId, null);
+        boolean linked = shapes != null && FixtureCommandSupport.containsLinkedShape(shapes.shapes);
+        PreparedPhysicsBodyCandidate physics = null;
+        try {
+            TiledMapLayerData candidate = projectionCandidate(tiled, snapshot.defaultAltitude, height);
+            SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
+            if (blocks != null) {
+                if (SpatialBlockCommandSupport.validateBlocks(world, entityId, blocks.blocks)
+                        != CommandOutcome.APPLIED) return CommandOutcome.REJECTED;
+                SpatialCompiledLayerCache compiled = new SpatialCompiledLayerCache();
+                compiled.ensure(blocks);
+                new SpatialProjectedFaceCache().ensure(compiled, candidate);
+            }
+            if (linked) {
+                PhysicsCompiledFixturesComponent current = world.getMapper(PhysicsCompiledFixturesComponent.class)
+                        .getSafe(entityId, null);
+                if (current == null || !current.valid || tiled.data == null) return CommandOutcome.REJECTED;
+                physics = PhysicsService.prepareBodyCandidate(world, entityId, shapes.shapes,
+                        requireDocumentPixelsPerMeter(), candidate);
+            }
+        } catch (RuntimeException failure) {
+            if (com.badlogic.gdx.Gdx.app != null) com.badlogic.gdx.Gdx.app.error("TiledSpatialDefaults",
+                    "Rejected drawn plane change for map " + entityId + ": " + failure.getMessage());
+            return CommandOutcome.REJECTED;
+        }
+
+        // Blocks already have explicit absolute altitudes. Never infer inheritance from a value.
         tiled.defaultTileAltitude = snapshot.defaultAltitude;
-        tiled.defaultTileHeight = Math.max(0f, snapshot.defaultHeight);
-        boolean defaultsChanged = Float.compare(previousDefaultAltitude, tiled.defaultTileAltitude) != 0
-                || Float.compare(previousDefaultHeight, tiled.defaultTileHeight) != 0;
+        tiled.defaultTileHeight = height;
         syncRuntimeDefaults(tiled);
-        syncInheritedSpatialBlocks(entityId, previousDefaultAltitude, tiled.defaultTileAltitude);
-        if (defaultsChanged) advanceSpatialRevision(entityId);
+        if (linked) SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(world, entityId, shapes.shapes, physics);
         markDirty(entityId);
+        return CommandOutcome.APPLIED;
+    }
+
+    private static TiledMapLayerData projectionCandidate(TiledLayerComponent tiled, float altitude, float height) {
+        TiledMapLayerData source = tiled.data;
+        TiledMapLayerData map = source == null ? tiled.createMapData() : new TiledMapLayerData(
+                source.mapWidth, source.mapHeight, source.tileWidth, source.tileHeight, source.chunkSize, source.projection);
+        if (source != null) { map.originX = source.originX; map.originY = source.originY; }
+        map.defaultTileAltitude = altitude;
+        map.defaultTileHeight = height;
+        return map;
+    }
+
+    private float requireDocumentPixelsPerMeter() {
+        if (documentMeta == null || !Float.isFinite(documentMeta.pixelsPerMeter) || documentMeta.pixelsPerMeter <= 0f) {
+            throw new IllegalStateException("Edited document pixelsPerMeter must be finite and positive.");
+        }
+        return documentMeta.pixelsPerMeter;
     }
 
     private int resolveEntityId() {
@@ -112,26 +162,11 @@ public final class EditTiledLayerSpatialDefaultsCommand implements Command, Hist
         }
     }
 
-    private void syncInheritedSpatialBlocks(int layerEntityId, float previousDefaultAltitude, float nextDefaultAltitude) {
-        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
-        if (blocks == null || blocks.blocks == null) return;
-        for (int i = 0, n = blocks.blocks.size; i < n; i++) {
-            SpatialBlockData block = blocks.blocks.get(i);
-            if (block == null) continue;
-            if (Math.abs(block.altitude - previousDefaultAltitude) > 0.0001f) continue;
-            block.altitude = nextDefaultAltitude;
-        }
-    }
-
-    private void advanceSpatialRevision(int layerEntityId) {
-        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
-        if (blocks != null) blocks.revision++;
-    }
-
     private void markDirty(int entityId) {
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {
             dirty.layer(entityId);
+            dirty.order(entityId);
         }
         EventFlow.i().publish(new EventFlow.LayerSpatialDepthChanged(entityId, EventFlow.tag(this)));
     }

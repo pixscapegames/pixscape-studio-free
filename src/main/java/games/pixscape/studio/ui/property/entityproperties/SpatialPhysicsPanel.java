@@ -1,6 +1,10 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
@@ -37,6 +41,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
     private final FloatField altitudeField;
     private final FloatField heightField;
+    private final SpatialHeightEditPreview heightPreview;
 
     private int entityId = -1;
     private boolean internalRefresh = false;
@@ -44,6 +49,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     public SpatialPhysicsPanel(EntityPropertiesContext ctx) {
         super();
         this.ctx = ctx;
+        heightPreview = new SpatialHeightEditPreview(ctx.world);
 
         altitudeField = new FloatField(
                 ctx.world,
@@ -53,14 +59,37 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
 
         heightField = new FloatField(
                 ctx.world,
-                eid -> ctx.mSpatialHeight.get(eid).height,
+                heightPreview::authoredHeight,
                 this::hasSpatialHeight
         ).setDisplayDecimals(2);
 
         altitudeField.setApplier((eid, value) ->
                 submitSpatialEdit(eid, snapshot -> snapshot.withAltitude(value)));
-        heightField.setApplier((eid, value) ->
-                submitSpatialEdit(eid, snapshot -> snapshot.withHeight(Math.max(0f, value))));
+        heightField.setApplier((eid, value) -> {
+            heightPreview.restore();
+            submitSpatialEdit(eid, snapshot -> snapshot.withHeight(Math.max(0f, value)));
+        });
+        heightField.setProgrammaticChangeEvents(false);
+        heightField.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (!internalRefresh && entityId >= 0)
+                    heightPreview.updateText(entityId, heightField.getText());
+            }
+        });
+        heightField.addListener(new FocusListener() {
+            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
+                if (!focused) heightPreview.restore();
+            }
+        });
+        heightField.addListener(new InputListener() {
+            @Override public boolean keyDown(InputEvent event, int keycode) {
+                if (keycode == Input.Keys.ESCAPE) {
+                    heightPreview.restore(); heightField.refreshFromModel(); return true;
+                }
+                if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) heightPreview.restore();
+                return false;
+            }
+        });
 
         enabledBox.addListener(new ChangeListener() {
             @Override
@@ -115,9 +144,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     }
 
     public void setEntityId(int entityId) {
+        if (this.entityId != entityId) heightPreview.restore();
         this.entityId = entityId;
         altitudeField.setEntityId(entityId);
-        heightField.setEntityId(entityId);
+        if (!heightPreview.isActive(entityId)) heightField.setEntityId(entityId);
         refreshFromModel(entityId);
     }
 
@@ -129,9 +159,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
             altitudeField.setEntityId(eid);
-            heightField.setEntityId(eid);
+            if (!heightPreview.isActive(eid)) heightField.setEntityId(eid);
             altitudeField.refreshFromModel();
-            heightField.refreshFromModel();
+            if (!heightPreview.isActive(eid)) heightField.refreshFromModel();
         } finally {
             internalRefresh = false;
         }

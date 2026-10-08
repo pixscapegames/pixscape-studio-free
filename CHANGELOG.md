@@ -14,6 +14,9 @@
 * HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
 * HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
 * HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
+* Selected eligible actors in Spatial Layers display the Runtime's H×H influence square as a violet outline in Normal mode and during footprint placement in Physics mode.
+* Height typing and paste preview the influence outline immediately; completion creates one Undo/Redo edit, and cancellation restores the authored height.
+* Map properties identify the drawn-plane altitude explicitly. Spatial overlays and inverse placement use the shared Runtime projection without applying altitude or offsets twice.
 
 ### Fixed
 
@@ -21,6 +24,12 @@
 * Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
 * Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.
 * Deleting a Game Object hierarchy now removes its dependent Physics joints in the same undoable operation and restores joint endpoints correctly on undo.
+* Drawn-plane/default-height edits preserve absolute block altitudes and prepare linked Physics fixtures before publishing one atomic Undo/Redo operation; rejected preparation leaves authored data unchanged.
+
+### Tests
+
+* Added coverage for drawn-plane projection, linked Physics command rollback/Undo/Redo, live height preview and selected-actor influence overlays, including Physics and HUD editing contexts.
+* Uses the stabilized Runtime's local wall continuity and altitude relations. General multi-map composition is not resolved; prototype B is not integrated and known conflicts remain.
 
 ## 0.4.0 - HUD and Multi-Scene Editing
 

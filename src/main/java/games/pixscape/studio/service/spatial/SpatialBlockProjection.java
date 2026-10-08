@@ -8,10 +8,6 @@ public final class SpatialBlockProjection {
     private SpatialBlockProjection() {
     }
 
-    public static float elevationToWorldYOffset(float elevation) {
-        return elevation;
-    }
-
     public static int snapWorldToTileCellX(TiledMapLayerData map, float worldX, float worldY) {
         return map != null ? map.worldToTileX(worldX, worldY) : 0;
     }
@@ -40,18 +36,10 @@ public final class SpatialBlockProjection {
         float y0 = block.y;
         float x1 = block.x + Math.max(0.001f, block.width);
         float y1 = block.y + Math.max(0.001f, block.depth);
-        float yOffset = elevationToWorldYOffset(elevation);
-
-        Vector2 cellOriginOffset = tmpCellOriginOffset();
-        cellOriginOffset(map, cellOriginOffset);
-
-        // TILE_CELL: top, right, bottom, left corners of the grid-cell range.
-        // Other orientations intentionally fall back to this axis-derived box
-        // until their authoring semantics are expanded.
-        projectTileLocal(map, x0, y0, yOffset, cellOriginOffset, out8, 0);
-        projectTileLocal(map, x1, y0, yOffset, cellOriginOffset, out8, 2);
-        projectTileLocal(map, x1, y1, yOffset, cellOriginOffset, out8, 4);
-        projectTileLocal(map, x0, y1, yOffset, cellOriginOffset, out8, 6);
+        projectTileLocal(map, x0, y0, elevation, out8, 0);
+        projectTileLocal(map, x1, y0, elevation, out8, 2);
+        projectTileLocal(map, x1, y1, elevation, out8, 4);
+        projectTileLocal(map, x0, y1, elevation, out8, 6);
     }
 
     public static void projectTileLocal(TiledMapLayerData map,
@@ -72,9 +60,7 @@ public final class SpatialBlockProjection {
                                              float[] out,
                                              int offset) {
         if (map == null || out == null || offset < 0 || offset + 1 >= out.length) return;
-        Vector2 cellOriginOffset = tmpCellOriginOffset();
-        cellOriginOffset(map, cellOriginOffset);
-        projectTileLocal(map, gx, gy, elevationToWorldYOffset(elevation), cellOriginOffset, out, offset);
+        map.projectSpatialPoint(gx, gy, elevation, out, offset);
     }
 
     public static void footprintWorldToTileLocal(TiledMapLayerData map,
@@ -84,42 +70,7 @@ public final class SpatialBlockProjection {
                                                  Vector2 out) {
         if (map == null || out == null) return;
 
-        Vector2 offset = tmpCellOriginOffset();
-        cellOriginOffset(map, offset);
-        float logicalX = worldX - offset.x;
-        float logicalY = worldY - offset.y - elevationToWorldYOffset(elevation);
-        out.set(
-                map.projectWorldToTileX(logicalX, logicalY),
-                map.projectWorldToTileY(logicalX, logicalY)
-        );
-    }
-
-    private static void projectTileLocal(TiledMapLayerData map,
-                                         float gx,
-                                         float gy,
-                                         float yOffset,
-                                         Vector2 cellOriginOffset,
-                                         float[] out,
-                                         int offset) {
-        projectTileLocal(map, gx, gy, yOffset, out, offset);
-    }
-
-    private static void cellOriginOffset(TiledMapLayerData map, Vector2 out) {
-        if (map == null || out == null) return;
-
-        float[] cell = tmpCellVerts();
-        map.tileToCellVertices(0, 0, cell);
-        out.set(cell[0] - map.tileToWorldX(0, 0), cell[1] - map.tileToWorldY(0, 0));
-    }
-
-    private static final ThreadLocal<Vector2> TMP_CELL_ORIGIN_OFFSET = ThreadLocal.withInitial(Vector2::new);
-    private static final ThreadLocal<float[]> TMP_CELL_VERTS = ThreadLocal.withInitial(() -> new float[8]);
-
-    private static Vector2 tmpCellOriginOffset() {
-        return TMP_CELL_ORIGIN_OFFSET.get();
-    }
-
-    private static float[] tmpCellVerts() {
-        return TMP_CELL_VERTS.get();
+        out.set(map.spatialWorldToTileX(worldX, worldY, elevation),
+                map.spatialWorldToTileY(worldX, worldY, elevation));
     }
 }
