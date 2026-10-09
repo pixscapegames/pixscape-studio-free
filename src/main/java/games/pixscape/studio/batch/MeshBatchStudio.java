@@ -29,6 +29,7 @@ public final class MeshBatchStudio implements MetricsBatch {
     private boolean blendingEnabled = false;
     private int blendSrc = GL20.GL_SRC_ALPHA;
     private int blendDst = GL20.GL_ONE_MINUS_SRC_ALPHA;
+    private int blendSrcAlpha = GL20.GL_SRC_ALPHA, blendDstAlpha = GL20.GL_ONE_MINUS_SRC_ALPHA;
 
     private final Matrix4 combined = new Matrix4();
 
@@ -100,12 +101,17 @@ public final class MeshBatchStudio implements MetricsBatch {
     }
 
     @Override
-    public void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats) {
-        if (enabled != blendingEnabled || sfactor != blendSrc || dfactor != blendDst) {
+    public void setBlendMode(boolean enabled, int src, int dst, RenderStats stats) {
+        setBlendMode(enabled, src, dst, src, dst, stats);
+    }
+
+    @Override
+    public void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
+        if (enabled != blendingEnabled || src != blendSrc || dst != blendDst
+                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha) {
             flush(stats);
-            blendingEnabled = enabled;
-            blendSrc = sfactor;
-            blendDst = dfactor;
+            blendingEnabled = enabled; blendSrc = src; blendDst = dst;
+            blendSrcAlpha = srcAlpha; blendDstAlpha = dstAlpha;
             if (stats != null) stats.blendModeSwitches++;
         }
     }
@@ -189,7 +195,7 @@ public final class MeshBatchStudio implements MetricsBatch {
 
         if (blendingEnabled) {
             Gdx.gl.glEnable(GL20.GL_BLEND);
-            Gdx.gl.glBlendFunc(blendSrc, blendDst);
+            Gdx.gl.glBlendFuncSeparate(blendSrc, blendDst, blendSrcAlpha, blendDstAlpha);
         } else {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }

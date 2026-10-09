@@ -112,6 +112,17 @@ tasks.named('run', JavaExec).configure {
 tasks.named('test', Test).configure {
   useJUnit()
   exclude '**/StudioShaderParameterGlSmokeTest.class'
+  exclude '**/StudioLightCompositionGlSmokeTest.class'
+}
+
+tasks.register('studioLightCompositionGlSmoke', Test) {
+  description = 'Runs the Studio world composition through a real desktop GL context.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/StudioLightCompositionGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
 }
 
 tasks.register('studioShaderParameterGlSmoke', Test) {

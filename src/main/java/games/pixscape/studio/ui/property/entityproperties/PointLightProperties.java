@@ -446,7 +446,7 @@ public final class PointLightProperties extends VisTable {
 
     private void markLightDirty(int entityId) {
         if (ctx.dirtyTracker != null) {
-            // radius = taille, falloff = shader param (mat), intensity/couleur = color
+            // Radius affects geometry; falloff/intensity use GPU parameters; color remains packed tint.
             ctx.dirtyTracker.geometry(entityId, GeometryDirty.SIZE);
             ctx.dirtyTracker.color(entityId);
             ctx.dirtyTracker.material(entityId);

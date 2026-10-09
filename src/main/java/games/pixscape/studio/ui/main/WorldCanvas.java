@@ -2225,6 +2225,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         gridStage.draw();
+        prepareLightComposition();
         if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
             String sceneTag = currentSceneTag();
             if (sceneTag != null && !sceneTag.isBlank()) {
@@ -2238,12 +2239,19 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
     }
 
+    private void prepareLightComposition() {
+        games.pixscape.studio.system.StudioRenderSubmitSystem submit =
+                world().getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
+        if (submit != null) submit.prepareComposition();
+    }
+
     private void drawProfiled() {
         spatialInvariantBoundary.prepare(currentSceneTag());
         if (spatialInvariantBoundary.isBlocked()) return;
         long totalStart = frameProfiler.begin(StudioFrameProfiler.DRAW_TOTAL);
         try {
             gridStage.draw();
+            prepareLightComposition();
             if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
                 String sceneTag = currentSceneTag();
                 if (sceneTag != null && !sceneTag.isBlank()) {

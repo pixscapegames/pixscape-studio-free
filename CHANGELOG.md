@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+* Fixed point/cone light intensity above 1 corrupting packed color channels; intensity now scales RGB through the per-entity GPU parameter table, independently of halo alpha.
+
+* Integrated the Runtime world light composition in the editor, preserving the grid background, standalone texture preview fallback, material parameter batching and overlays. The new Runtime RGBA16F capabilities and blend/material compatibility requirements also apply to previews.
+
 ### Breaking changes
 
 * Custom material shaders must migrate per-entity values from float uniforms to the parameter table in both GLSL targets.

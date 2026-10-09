@@ -207,10 +207,15 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
     }
 
     @Override
-    public void setBlendMode(boolean enabled, int srcFunc, int dstFunc, RenderStats stats) {
+    public void setBlendMode(boolean enabled, int src, int dst, RenderStats stats) {
+        setBlendMode(enabled, src, dst, src, dst, stats);
+    }
+
+    @Override
+    public void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
         if (enabled) {
             Gdx.gl.glEnable(GL20.GL_BLEND);
-            Gdx.gl.glBlendFunc(srcFunc, dstFunc);
+            Gdx.gl.glBlendFuncSeparate(src, dst, srcAlpha, dstAlpha);
         } else {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
