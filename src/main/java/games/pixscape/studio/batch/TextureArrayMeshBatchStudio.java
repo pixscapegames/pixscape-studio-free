@@ -153,6 +153,24 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
     }
 
     @Override
+    public void abort() {
+        vertCount = 0;
+        quadCount = 0;
+        shader = null;
+        stats = null;
+        drawing = false;
+        parameterLayout = ShaderParameterLayout.EMPTY;
+        parameterRows.setLayout(parameterLayout);
+        uProjTransLoc = uArrayLoc = uEntityParamsLoc = -1;
+        projDirty = arrayUniformDirty = parameterUniformDirty = true;
+        textureArrayBound = false;
+        regionResolveCache.clear();
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    @Override
     public void close() {
         mesh.dispose();
         if (parameterTexture != null) parameterTexture.close();

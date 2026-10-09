@@ -36,7 +36,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final RenderStatsSink statsSink;
     private final WorldLightComposition composition = new WorldLightComposition();
     private LightParameterBinding lightParameters;
-    private boolean framePrepared;
+    private boolean frameSubmissionAllowed;
     private float time = 0f;
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
@@ -60,6 +60,9 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
     @Override
     protected void initialize() { lightParameters = new LightParameterBinding(world); }
+
+    @Override
+    protected boolean checkProcessing() { return frameSubmissionAllowed; }
 
     @Override
     protected void begin() {
@@ -88,18 +91,19 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
     public void prepareComposition() {
         composition.prepare();
-        framePrepared = true;
     }
+
+    /** Scoped by WorldCanvas only around its draw-time World processing. */
+    public void beginFrameSubmission() { frameSubmissionAllowed = true; }
+    public void endFrameSubmission() { frameSubmissionAllowed = false; }
 
     @Override protected void dispose() { composition.dispose(); standaloneBatch.close(); }
 
     private void render() {
-        // Loading and authoring also process the World, outside the canvas draw boundary.
-        // Only a frame prepared by WorldCanvas may submit to its framebuffer.
-        if (!framePrepared) return;
-        framePrepared = false;
-        composition.beginOriginal();
+        frameSubmissionAllowed = false; // At most one submission inside the canvas scope.
+        Throwable failure = null;
         try {
+            composition.beginOriginal();
             renderPass(LightCompositionPass.ORIGINAL, 0);
             composition.beginField();
             int first = 0;
@@ -108,7 +112,12 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
             composition.compose(meta != null ? meta.ambientMulR : 1f,
                     meta != null ? meta.ambientMulG : 1f, meta != null ? meta.ambientMulB : 1f, stats);
-        } finally { composition.end(); }
+        } catch (RuntimeException | Error error) {
+            failure = error;
+            metricsBatch.abort(error);
+            standaloneBatch.abort(error);
+            throw error;
+        } finally { composition.end(failure); }
     }
 
     private void renderPass(int pass, int first) {

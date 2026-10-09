@@ -2225,7 +2225,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
 
         gridStage.draw();
-        prepareLightComposition();
         if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
             String sceneTag = currentSceneTag();
             if (sceneTag != null && !sceneTag.isBlank()) {
@@ -2233,16 +2232,25 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             }
         }
         EventFlow.i().flush();
-        if (!spatialInvariantBoundary.process(currentSceneTag(), this, this)) return;
+        if (!processDrawFrame()) return;
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.flushDeferredDisposals();
         }
     }
 
-    private void prepareLightComposition() {
+    private boolean processDrawFrame() {
         games.pixscape.studio.system.StudioRenderSubmitSystem submit =
                 world().getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
-        if (submit != null) submit.prepareComposition();
+        // Snapshot synchronization and queued events have completed before granting permission.
+        if (submit != null) {
+            submit.prepareComposition();
+            submit.beginFrameSubmission();
+        }
+        try {
+            return spatialInvariantBoundary.process(currentSceneTag(), this, this);
+        } finally {
+            if (submit != null) submit.endFrameSubmission();
+        }
     }
 
     private void drawProfiled() {
@@ -2251,7 +2259,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         long totalStart = frameProfiler.begin(StudioFrameProfiler.DRAW_TOTAL);
         try {
             gridStage.draw();
-            prepareLightComposition();
             if (gpuSnapshotManager != null && !atlasStudioService.isPackInProgress()) {
                 String sceneTag = currentSceneTag();
                 if (sceneTag != null && !sceneTag.isBlank()) {
@@ -2269,7 +2276,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             if (systemProfiler != null && systemProfiler.enabled()) {
                 systemProfiler.beginFrame();
             }
-            boolean spatialFrameValid = spatialInvariantBoundary.process(currentSceneTag(), this, this);
+            boolean spatialFrameValid = processDrawFrame();
             frameProfiler.end(StudioFrameProfiler.WORLD_PROCESS, phaseStart);
             if (!spatialFrameValid) return;
 

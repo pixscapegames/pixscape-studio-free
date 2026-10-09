@@ -135,6 +135,20 @@ public final class MultiTextureMeshBatchStudio implements MetricsBatch {
     }
 
     @Override
+    public void abort() {
+        vertCount = 0;
+        quadCount = 0;
+        shader = null;
+        stats = null;
+        texToUnit.clear();
+        unitsInUse = 0;
+        Arrays.fill(unitHandle, -1);
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    @Override
     public void close() {
         mesh.dispose();
     }
