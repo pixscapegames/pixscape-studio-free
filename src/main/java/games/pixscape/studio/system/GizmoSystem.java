@@ -415,6 +415,24 @@ public final class GizmoSystem extends BaseSystem {
             drawSpatialWallVolume(ctx.pxToWorld(2f));
         }
 
+        games.pixscape.studio.service.spatial.SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
+        if (linkPreview != null) {
+            for (SpatialBlockData wall : linkPreview.after.blocks) {
+                if (!linkPreview.affected.contains(wall.id) && !linkPreview.reference.contains(wall.id)) continue;
+                ctx.drawer.setColor(linkPreview.reference.contains(wall.id) ? com.badlogic.gdx.graphics.Color.CYAN
+                        : linkPreview.valid ? com.badlogic.gdx.graphics.Color.ORANGE : com.badlogic.gdx.graphics.Color.RED);
+                SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            return;
+        }
+        for (SpatialBlockData wall : component.blocks) if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)) {
+            ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
+            SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+            SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+        }
         if (selectedBlock != null) {
             SpatialWallEditSession activeSession = spatialBlockSelectionService.wallEditSession();
             SpatialBlockData displayedBlock = activeSession.isActive()

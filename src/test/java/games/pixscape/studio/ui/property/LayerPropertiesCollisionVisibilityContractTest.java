@@ -49,8 +49,8 @@ public class LayerPropertiesCollisionVisibilityContractTest {
         String map = read("src/main/java/games/pixscape/studio/ui/property/TiledMapProperties.java");
         assertTrue(map.contains("new VisCheckBox(\"Spatial Depth\")"));
         assertTrue(map.contains("new ToggleTiledMapSpatialDepthCommand("));
-        assertTrue(map.contains("Drawn Plane Altitude:"));
-        assertTrue(map.contains("Default Height:"));
+        assertTrue(map.contains("Altitude:"));
+        assertTrue(map.contains("Default height:"));
     }
 
     @Test

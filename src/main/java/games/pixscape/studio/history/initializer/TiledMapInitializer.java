@@ -61,6 +61,7 @@ public final class TiledMapInitializer implements Initializer {
     private ByteArray tileSpatialOverrides;
 
     private boolean hasSpatialBlocks;
+    private final Array<games.pixscape.runtime.spatial.SpatialBlockLink> spatialLinks = new Array<>(games.pixscape.runtime.spatial.SpatialBlockLink.class);
     private int nextSpatialBlockId = 1;
     private final Array<SpatialBlockData> spatialBlocks = new Array<>(SpatialBlockData[]::new);
 
@@ -166,8 +167,10 @@ public final class TiledMapInitializer implements Initializer {
                 .getSafe(entityId, null);
         hasSpatialBlocks = blocks != null;
         spatialBlocks.clear();
+        spatialLinks.clear();
         if (blocks != null) {
             nextSpatialBlockId = blocks.nextSpatialBlockId;
+            spatialLinks.addAll(games.pixscape.runtime.spatial.SpatialBlockLinks.copy(blocks.links));
             for (int i = 0; i < blocks.blocks.size; i++) spatialBlocks.add(blocks.blocks.get(i).copy());
         }
 
@@ -256,6 +259,7 @@ public final class TiledMapInitializer implements Initializer {
         if (hasSpatialBlocks) {
             SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(entityId);
             blocks.nextSpatialBlockId = nextSpatialBlockId;
+            blocks.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(spatialLinks);
             for (int i = 0; i < spatialBlocks.size; i++) blocks.blocks.add(spatialBlocks.get(i).copy());
         }
 

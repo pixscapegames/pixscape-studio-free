@@ -57,6 +57,7 @@ public final class StudioContextMenu extends InputListener {
     private final Vector2 tmpStage = new Vector2();
     private SpatialBlockPlacementTarget lastRightClickSpatialTarget = SpatialBlockPlacementTarget.invalid();
     private EditorOps ops;
+    private games.pixscape.studio.history.HistoryManager history;
 
     private GameObjectAssetService gameObjectAssetService;
 
@@ -78,6 +79,7 @@ public final class StudioContextMenu extends InputListener {
         this.layerService = canvas.getLayerService();
         this.clipboardService = canvas.getClipboardService();
         this.ops = canvas.getEditorOps();
+        this.history = canvas.getHistoryManager();
 
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
@@ -189,6 +191,7 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(addBlock);
 
+        appendSpatialLinkItems(menu, world, history, spatialBlockSelectionService, stage, layerEntityId);
         MenuItem deleteBlock = new MenuItem("Delete selected spatial block");
         deleteBlock.setDisabled(!spatialBlockSelectionService.hasSelectedBlock());
         deleteBlock.addListener(new ClickListener() {
@@ -201,6 +204,51 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(deleteBlock);
 
         return true;
+    }
+
+    public static void appendSpatialLinkItems(PopupMenu menu, World world,
+                                              games.pixscape.studio.history.HistoryManager history,
+                                              SpatialBlockSelectionService selection, Stage stage, int layerEntityId) {
+        IntArray ids = selection.selectedBlockIds();
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        if (ids.size == 2 && component != null) {
+            MenuItem link = new MenuItem("Lier");
+            games.pixscape.runtime.spatial.SpatialBlockData firstWall = null, secondWall = null;
+            for (games.pixscape.runtime.spatial.SpatialBlockData wall : component.blocks) {
+                if (wall.id == ids.get(0)) firstWall = wall;
+                if (wall.id == ids.get(1)) secondWall = wall;
+            }
+            boolean contact = firstWall != null && secondWall != null
+                    && (games.pixscape.runtime.spatial.SpatialBlockLinks.contactFace(firstWall, secondWall) > 0
+                    || games.pixscape.runtime.spatial.SpatialBlockLinks.overlap(firstWall, secondWall));
+            link.setDisabled(!contact || games.pixscape.studio.service.spatial.SpatialLinkProposal.edgeIndex(
+                    component.links, ids.get(0), ids.get(1)) >= 0);
+            link.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float x, float y) {
+                    if (link.isDisabled()) return;
+                    new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, ids.get(0), ids.get(1), false).show(stage); event.handle();
+                }
+            });
+            menu.addItem(link);
+        } else if (ids.size == 1) {
+            MenuItem hint = new MenuItem("Ctrl-click another volume to link");
+            hint.setDisabled(true);
+            menu.addItem(hint);
+        }
+        if (component != null && ids.size > 0) {
+            for (games.pixscape.runtime.spatial.SpatialBlockLink edge : component.links) {
+                if (!ids.contains(edge.firstBlockId) && !ids.contains(edge.secondBlockId)) continue;
+                if (ids.size == 2 && !(ids.contains(edge.firstBlockId) && ids.contains(edge.secondBlockId))) continue;
+                final int first = edge.firstBlockId, second = edge.secondBlockId;
+                MenuItem unlink = new MenuItem("Délier " + first + " / " + second);
+                unlink.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent event, float x, float y) {
+                        new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, first, second, true).show(stage); event.handle();
+                    }
+                });
+                menu.addItem(unlink);
+            }
+        }
     }
 
     private String spatialTileSelectionValidationMessage(int layerEntityId) {

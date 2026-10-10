@@ -27,6 +27,53 @@ import java.io.File;
 
 public class SpatialBlockScenePersistenceTest {
     @Test
+    public void voluntaryBorderSurvivesRealStudioSaveExportAndRuntimeLoad() throws Exception {
+        World world = worldWithSerialization();
+        int map = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(map).stableId = 1;
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(map);
+        blocks.nextSpatialBlockId = 3;
+        for (int i = 0; i < 2; i++) {
+            SpatialBlockData wall = new SpatialBlockData();
+            wall.id = i + 1; wall.structureId = 1; wall.x = i == 0 ? 1 : 4;
+            wall.y = 1; wall.width = i == 0 ? 3 : 2; wall.depth = .3f; wall.height = 90;
+            wall.beginAuthoredLinkedTileRefs();
+            for (int gx = (int)wall.x; gx < wall.x + wall.width; gx++) wall.addLinkedTileRef(gx, 1, 1);
+            blocks.blocks.add(wall);
+        }
+        blocks.links.add(new games.pixscape.runtime.spatial.SpatialBlockLink(1, 2, 2, 1));
+        world.process();
+        FileHandle file = tempSceneFile("voluntary-border-roundtrip");
+        SceneService.saveScene(world, file, false);
+        java.nio.file.Path projectDir = java.nio.file.Files.createTempDirectory("voluntary-link-export-studio");
+        java.nio.file.Path exportDir = java.nio.file.Files.createTempDirectory("voluntary-link-export-runtime");
+        games.pixscape.studio.configuration.ProjectConfig cfg = new games.pixscape.studio.configuration.ProjectConfig();
+        cfg.projectTitle = "Voluntary link export";
+        cfg.projectFileName = "voluntary-link-export";
+        cfg.exportRootPathDir = exportDir.toString();
+        cfg.createSceneMeta("Main");
+        FileHandle project = new FileHandle(projectDir.toFile());
+        project.child(games.pixscape.studio.io.StudioFs.DIR_SCENES).mkdirs();
+        FileHandle exportedScene = project.child(games.pixscape.studio.io.StudioFs.DIR_SCENES).child("scene1.json");
+        file.copyTo(exportedScene);
+        new games.pixscape.studio.asset.AssetMetaDatabase().save(project.child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON));
+        games.pixscape.studio.configuration.RuntimeExport.exportRuntime(cfg, project, new FileHandle(exportDir.toFile()));
+        file = new FileHandle(exportDir.toFile()).child(games.pixscape.studio.configuration.RuntimeExport.RUNTIME_DIR_NAME)
+                .child(games.pixscape.studio.io.StudioFs.DIR_SCENES).child("scene1.json");
+        Assert.assertTrue(file.exists());
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, sceneMeta()); loaded.process();
+            int id = loaded.getAspectSubscriptionManager().get(Aspect.all(SpatialBlocksComponent.class)).getEntities().get(0);
+            SpatialBlocksComponent restored = loaded.getMapper(SpatialBlocksComponent.class).get(id);
+            Assert.assertEquals(1, restored.links.size);
+            Assert.assertEquals(1, restored.links.first().firstBlockId);
+            Assert.assertEquals(2, restored.links.first().secondBlockId);
+            Assert.assertEquals(4, SpatialStructureCompiler.compile(restored.blocks, restored.links, 1).segmentCount());
+        } finally { loaded.dispose(); world.dispose(); }
+    }
+
+    @Test
     public void lightingPlacementAndLocalGeometrySurviveActualSceneSaveLoad() {
         World world = worldWithSerialization();
         int entity = world.create();

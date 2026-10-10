@@ -211,12 +211,13 @@ public final class SpatialWallEditSession {
         if (!plan.valid) return Evaluation.failure(plan.error);
         SpatialBlocksComponent planned = new SpatialBlocksComponent();
         planned.blocks = copy(plan.walls);
+        planned.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(committed.links);
         SpatialBlockData normalized = find(planned, wallId);
         if (normalized == null || !attachments.preservesAll(normalized, planned)) {
             return Evaluation.failure("The edit would remove an established wall junction.");
         }
         if (compile) {
-            SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(plan.walls, map);
+            SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(plan.walls, committed.links, map);
             if (!compilation.success()) return Evaluation.failure(compilation.diagnostic());
         }
         return Evaluation.success(plan, normalized.copy());
@@ -304,6 +305,7 @@ public final class SpatialWallEditSession {
     private static SpatialBlocksComponent detached(SpatialBlocksComponent source) {
         SpatialBlocksComponent result = new SpatialBlocksComponent();
         result.blocks = SpatialStructureTopology.copyWalls(source);
+        result.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(source != null ? source.links : null);
         result.nextSpatialBlockId = source != null ? source.nextSpatialBlockId : 1;
         result.revision = source != null ? source.revision : 0;
         return result;

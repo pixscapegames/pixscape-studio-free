@@ -15,6 +15,8 @@ import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLink;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
@@ -150,10 +152,17 @@ public final class SpatialBlockCommandSupport {
 
     static CommandOutcome validateBlocks(
             World world, int layerEntityId, Array<SpatialBlockData> snapshot) {
+        SpatialBlocksComponent current = get(world, layerEntityId);
+        return validateBlocks(world, layerEntityId, snapshot,
+                current != null ? current.links : new Array<>(SpatialBlockLink.class));
+    }
+
+    static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
+                                          Array<SpatialBlockLink> links) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
                 .getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
-                snapshot, tiled != null ? tiled.data : null);
+                snapshot, links, tiled != null ? tiled.data : null);
         if (compilation.success()) return CommandOutcome.APPLIED;
         if (Gdx.app != null) {
             Gdx.app.error("SpatialBlockCommand",
@@ -229,7 +238,14 @@ public final class SpatialBlockCommandSupport {
     static CommandOutcome replaceAllValidated(World world,
                                               int layerEntityId,
                                               Array<SpatialBlockData> snapshot) {
-        if (validateBlocks(world, layerEntityId, snapshot) != CommandOutcome.APPLIED) {
+        SpatialBlocksComponent current = get(world, layerEntityId);
+        return replaceAllValidated(world, layerEntityId, snapshot,
+                current != null ? current.links : new Array<>(SpatialBlockLink.class));
+    }
+
+    static CommandOutcome replaceAllValidated(World world, int layerEntityId,
+                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links) {
+        if (validateBlocks(world, layerEntityId, snapshot, links) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
@@ -241,6 +257,7 @@ public final class SpatialBlockCommandSupport {
                 PhysicsShapesComponent.class).getSafe(layerEntityId, null);
         if (!hasLinkedShape(shapes)) {
             component.blocks = replacement;
+            component.links = SpatialBlockLinks.copy(links);
             component.revision++;
             return CommandOutcome.APPLIED;
         }
@@ -270,6 +287,7 @@ public final class SpatialBlockCommandSupport {
         }
 
         component.blocks = replacement;
+        component.links = SpatialBlockLinks.copy(links);
         component.revision++;
         publishStaticTiledPhysicsCandidate(
                 world, layerEntityId, shapes.shapes, prepared);

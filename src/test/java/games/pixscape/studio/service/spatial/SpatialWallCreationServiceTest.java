@@ -109,7 +109,7 @@ public class SpatialWallCreationServiceTest {
     }
 
     @Test
-    public void perpendicularCreationInheritsPreciseThicknessAndUndoRedoPreservesIt() {
+    public void perpendicularCreationKeepsOwnThicknessAndUndoRedoPreservesIt() {
         Fixture f = fixture();
         SpatialBlockData neighbor = addExisting(f, rect(1, 3, 5, 3, 4));
         neighbor.y = 3.35f;
@@ -119,13 +119,13 @@ public class SpatialWallCreationServiceTest {
         Assert.assertTrue(SpatialWallCreationService.executeSelectedRectangle(
                 f.world, f.history, f.blockSelection, f.tileSelection));
         SpatialBlockData created = f.walls.blocks.get(1);
-        Assert.assertEquals(0.25f, created.width, 0f);
-        Assert.assertEquals(3.375f, created.x, 0f);
+        Assert.assertEquals(1f, created.width, 0f);
+        Assert.assertEquals(3f, created.x, 0f);
         f.history.undo();
         Assert.assertEquals(1, f.walls.blocks.size);
         f.history.redo();
-        Assert.assertEquals(0.25f, f.walls.blocks.get(1).width, 0f);
-        Assert.assertEquals(3.375f, f.walls.blocks.get(1).x, 0f);
+        Assert.assertEquals(1f, f.walls.blocks.get(1).width, 0f);
+        Assert.assertEquals(3f, f.walls.blocks.get(1).x, 0f);
     }
 
     @Test
@@ -144,7 +144,7 @@ public class SpatialWallCreationServiceTest {
     }
 
     @Test
-    public void multipleCompatibleNeighborsUseCanonicalThickness() {
+    public void perpendicularNeighborsDoNotSetThickness() {
         Fixture f = fixture();
         SpatialBlockData first = addExisting(f, rect(1, 2, 5, 2, 7));
         first.y = 2.3f;
@@ -156,11 +156,11 @@ public class SpatialWallCreationServiceTest {
 
         Assert.assertTrue(SpatialWallCreationService.executeSelectedRectangle(
                 f.world, f.history, f.blockSelection, f.tileSelection));
-        Assert.assertEquals(0.25f, f.walls.blocks.get(2).width, 0f);
+        Assert.assertEquals(1f, f.walls.blocks.get(2).width, 0f);
     }
 
     @Test
-    public void incompatibleNeighborThicknessesRejectBeforeMutation() {
+    public void differentPerpendicularThicknessesDoNotConflict() {
         Fixture f = fixture();
         SpatialBlockData first = addExisting(f, rect(1, 2, 5, 2, 7));
         first.y = 2.3f;
@@ -170,10 +170,10 @@ public class SpatialWallCreationServiceTest {
         second.depth = 0.5f;
         select(f, rect(3, 2, 3, 5, 0));
 
-        Assert.assertFalse(SpatialWallCreationService.executeSelectedRectangle(
+        Assert.assertTrue(SpatialWallCreationService.executeSelectedRectangle(
                 f.world, f.history, f.blockSelection, f.tileSelection));
-        Assert.assertEquals(2, f.walls.blocks.size);
-        Assert.assertEquals(0, f.history.getCursor());
+        Assert.assertEquals(3, f.walls.blocks.size);
+        Assert.assertEquals(1, f.history.getCursor());
     }
 
     @Test
@@ -181,12 +181,12 @@ public class SpatialWallCreationServiceTest {
         SpatialBlockData left = createOneCellBranch(2, SpatialWallAttachments.Axis.VERTICAL);
         SpatialBlockData right = createOneCellBranch(4, SpatialWallAttachments.Axis.VERTICAL);
 
-        Assert.assertEquals(0.25f, left.width, 0f);
-        Assert.assertEquals(0.25f, right.width, 0f);
+        Assert.assertEquals(1f, left.width, 0f);
+        Assert.assertEquals(1f, right.width, 0f);
         Assert.assertEquals(1f, left.depth, 0f);
         Assert.assertEquals(1f, right.depth, 0f);
-        Assert.assertEquals(SpatialWallAttachments.Axis.VERTICAL, SpatialWallAttachments.determineAxis(left));
-        Assert.assertEquals(SpatialWallAttachments.Axis.VERTICAL, SpatialWallAttachments.determineAxis(right));
+        Assert.assertEquals(SpatialWallAttachments.Axis.HORIZONTAL, SpatialWallAttachments.determineAxis(left));
+        Assert.assertEquals(SpatialWallAttachments.Axis.HORIZONTAL, SpatialWallAttachments.determineAxis(right));
     }
 
     @Test
@@ -194,8 +194,8 @@ public class SpatialWallCreationServiceTest {
         SpatialBlockData upper = createHorizontalOneCellBranch(2);
         SpatialBlockData lower = createHorizontalOneCellBranch(4);
 
-        Assert.assertEquals(0.25f, upper.depth, 0f);
-        Assert.assertEquals(0.25f, lower.depth, 0f);
+        Assert.assertEquals(1f, upper.depth, 0f);
+        Assert.assertEquals(1f, lower.depth, 0f);
         Assert.assertEquals(1f, upper.width, 0f);
         Assert.assertEquals(1f, lower.width, 0f);
         Assert.assertEquals(SpatialWallAttachments.Axis.HORIZONTAL, SpatialWallAttachments.determineAxis(upper));
@@ -234,17 +234,15 @@ public class SpatialWallCreationServiceTest {
     }
 
     @Test
-    public void ambiguousOneCellGestureDefaultsPerpendicularToItsOnlyHost() {
+    public void ambiguousSingleCellOnHostRejectsContainedResult() {
         Fixture f = fixture();
         SpatialBlockData host = addExisting(f, rect(1, 3, 5, 3, 4));
         host.y = 3.35f;
         host.depth = 0.25f;
         select(f, rect(3, 3, 3, 3, 0));
-
-        Assert.assertTrue(SpatialWallCreationService.executeSelectedRectangle(
+        Assert.assertFalse(SpatialWallCreationService.executeSelectedRectangle(
                 f.world, f.history, f.blockSelection, f.tileSelection));
-        Assert.assertEquals(SpatialWallAttachments.Axis.VERTICAL,
-                SpatialWallAttachments.determineAxis(f.walls.blocks.get(1)));
+        Assert.assertEquals(1, f.walls.blocks.size);
     }
 
     private static SpatialBlockData createOneCellBranch(int gx, SpatialWallAttachments.Axis gestureAxis) {

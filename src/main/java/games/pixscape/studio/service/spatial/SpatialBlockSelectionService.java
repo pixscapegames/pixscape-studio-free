@@ -10,6 +10,23 @@ public final class SpatialBlockSelectionService {
 
     private int editingMapEntityId = NO_MAP;
     private int selectedBlockId = NO_BLOCK;
+    private final com.badlogic.gdx.utils.IntArray selectedBlockIds = new com.badlogic.gdx.utils.IntArray();
+    private SpatialLinkProposal linkPreview;
+
+    public com.badlogic.gdx.utils.IntArray selectedBlockIds() { return new com.badlogic.gdx.utils.IntArray(selectedBlockIds); }
+    public boolean isBlockSelected(int id) { return selectedBlockIds.contains(id); }
+    public int selectedBlockCount() { return selectedBlockIds.size; }
+    public SpatialLinkProposal linkPreview() { return linkPreview; }
+    public void setLinkPreview(SpatialLinkProposal preview) { linkPreview = preview; }
+
+    public void toggleBlock(int mapEntityId, int blockId) {
+        if (editingMapEntityId != mapEntityId || selectedBlockIds.size == 0) { selectBlock(mapEntityId, blockId); return; }
+        int index = selectedBlockIds.indexOf(blockId);
+        if (index >= 0) selectedBlockIds.removeIndex(index);
+        else selectedBlockIds.add(blockId);
+        selectedBlockId = selectedBlockIds.size == 0 ? NO_BLOCK : selectedBlockIds.peek();
+        clearEditPreview(); clearHoveredHandle(); publishSelectionChanged();
+    }
     private int hoveredBlockId = NO_BLOCK;
     private SpatialBlockInteractiveEditSupport.ResizeHandle hoveredResizeHandle;
     private boolean hoveredHeightHandle;
@@ -97,6 +114,8 @@ public final class SpatialBlockSelectionService {
         editingMapEntityId = mapEntityId;
         setSpatialModeActive(mapEntityId >= 0);
         selectedBlockId = NO_BLOCK;
+        selectedBlockIds.clear();
+        linkPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -113,6 +132,8 @@ public final class SpatialBlockSelectionService {
         editingMapEntityId = mapEntityId;
         setSpatialModeActive(true);
         selectedBlockId = blockId;
+        selectedBlockIds.clear(); selectedBlockIds.add(blockId);
+        linkPreview = null;
         hoveredBlockId = blockId;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -154,6 +175,8 @@ public final class SpatialBlockSelectionService {
     public void clearSelectionOnly() {
         if (selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         selectedBlockId = NO_BLOCK;
+        selectedBlockIds.clear();
+        linkPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -166,6 +189,8 @@ public final class SpatialBlockSelectionService {
         editingMapEntityId = NO_MAP;
         setSpatialModeActive(false);
         selectedBlockId = NO_BLOCK;
+        selectedBlockIds.clear();
+        linkPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();

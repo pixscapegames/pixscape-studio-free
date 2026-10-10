@@ -607,17 +607,21 @@ public final class PickingSystem extends BaseSystem {
                 selectionService.clearSelection();
                 physicsSelectionService.clear();
                 if (spatialTileSelectionService != null) spatialTileSelectionService.clear();
-                spatialBlockSelectionService.selectBlock(layerEntityId, target.blockId);
+                if (inputState.isCtrl()) spatialBlockSelectionService.toggleBlock(layerEntityId, target.blockId);
+                else spatialBlockSelectionService.selectBlock(layerEntityId, target.blockId);
             }
         }
 
-        if (leftDown && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
-            if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
+        if (leftDown && !inputState.isCtrl()
+                && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
+            if (spatialBlockSelectionService.selectedBlockCount() == 1
+                    && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
                 selectionService.clearSelection();
                 physicsSelectionService.clear();
                 beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, mx, my);
                 if (resizingSpatialBlockActive) spatialPointer.beginResize();
-            } else if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
+            } else if (spatialBlockSelectionService.selectedBlockCount() == 1
+                    && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
                 beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, mx, my);
                 if (movingSpatialBlockActive) {
                     spatialPointer.beginMove(spatialBlockSelectionService.wallEditSession().isSlidingAttachedWall());
