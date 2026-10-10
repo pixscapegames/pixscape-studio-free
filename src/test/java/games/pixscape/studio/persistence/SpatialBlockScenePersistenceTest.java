@@ -27,6 +27,73 @@ import java.io.File;
 
 public class SpatialBlockScenePersistenceTest {
     @Test
+    public void lightingPlacementAndLocalGeometrySurviveActualSceneSaveLoad() {
+        World world = worldWithSerialization();
+        int entity = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = 1;
+        games.pixscape.runtime.component.SurfaceLightingComponent surface = world.getMapper(
+                games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entity);
+        surface.shadowCaster = true;
+        surface.anchorV = .25f;
+        surface.altitude = 42f;
+        games.pixscape.runtime.render.lighting.LocalSurfaceDescription description =
+                new games.pixscape.runtime.render.lighting.LocalSurfaceDescription();
+        description.xyz = new float[]{0, 0, 0, 1, 0, 0, 0, 1, 0};
+        description.uv = new float[]{0, 0, 1, 0, 0, 1};
+        description.normals = new float[]{0, 0, 1, 0, 0, 1, 0, 0, 1};
+        description.triangles = new int[]{0, 1, 2};
+        description.shadowCaster = true;
+        surface.description = description;
+        games.pixscape.runtime.component.TiledLayerComponent map = world.getMapper(
+                games.pixscape.runtime.component.TiledLayerComponent.class).create(entity);
+        map.lightingPlaneAltitude = 128;
+        map.projection = TiledProjection.ISO;
+        map.tileWidth = 64;
+        map.tileHeight = 32;
+        map.mapWidthCells = map.mapHeightCells = 4;
+        map.chunkSize = 4;
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription tile =
+                new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+        tile.assetId = 17;
+        tile.geometry = description.copy();
+        map.lightingDescriptions.add(tile);
+        games.pixscape.runtime.component.light.PointLightComponent light = world.getMapper(
+                games.pixscape.runtime.component.light.PointLightComponent.class).create(entity);
+        light.height = 224;
+        light.shadowQuality = 2;
+        light.shadowResolution = 1024;
+        world.process();
+        FileHandle file = tempSceneFile("lighting-scene-roundtrip");
+        SceneService.saveScene(world, file, false);
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, sceneMeta());
+            loaded.process();
+            int restoredId = loaded.getAspectSubscriptionManager().get(Aspect.all(
+                    games.pixscape.runtime.component.SurfaceLightingComponent.class)).getEntities().get(0);
+            games.pixscape.runtime.component.SurfaceLightingComponent restored = loaded.getMapper(
+                    games.pixscape.runtime.component.SurfaceLightingComponent.class).get(restoredId);
+            Assert.assertTrue(restored.shadowCaster);
+            Assert.assertEquals(.25f, restored.anchorV, 0);
+            Assert.assertEquals(42f, restored.altitude, 0);
+            restored.description.validate();
+            games.pixscape.runtime.component.TiledLayerComponent restoredMap = loaded.getMapper(
+                    games.pixscape.runtime.component.TiledLayerComponent.class).get(restoredId);
+            Assert.assertEquals(128, restoredMap.lightingPlaneAltitude, 0);
+            Assert.assertEquals(17, restoredMap.lightingDescriptions.first().assetId);
+            restoredMap.lightingDescriptions.first().geometry.validate();
+            games.pixscape.runtime.component.light.PointLightComponent restoredLight = loaded.getMapper(
+                    games.pixscape.runtime.component.light.PointLightComponent.class).get(restoredId);
+            Assert.assertEquals(224, restoredLight.height, 0);
+            Assert.assertEquals(2, restoredLight.shadowQuality);
+            Assert.assertEquals(1024, restoredLight.shadowResolution);
+        } finally {
+            loaded.dispose();
+            world.dispose();
+        }
+    }
+
+    @Test
     public void layerCreatedThroughLayerServiceWithSpatialBlockLoadsSuccessfully() {
         World world = worldWithSerialization();
         SceneMetaRuntime meta = sceneMeta();

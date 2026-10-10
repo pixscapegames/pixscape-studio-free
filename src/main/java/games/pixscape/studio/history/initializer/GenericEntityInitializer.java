@@ -101,6 +101,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     // --- Lights ---
     protected boolean hasPointLight;
+    protected SurfaceLightingComponent surfaceLighting;
     protected boolean hasConeLight;
 
     // Point
@@ -108,6 +109,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float pointIntensity = 1f;
     protected float pointRadius = 200f;
     protected float pointFalloff = 1.5f;
+    protected float pointHeight = 128f;
+    protected int pointShadowQuality = 1, pointShadowResolution = 512;
     protected float pointR = 1f, pointG = 0.9f, pointB = 0.2f;
 
     // Cone
@@ -117,6 +120,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float coneAngleDeg = 60f;
     protected float coneSoftness = 0.1f;
     protected float coneFalloff = 1.5f;
+    protected float coneHeight = 128f;
+    protected int coneShadowQuality = 1, coneShadowResolution = 512;
     protected float coneRotationDeg = 0f;
     protected float coneR = 1f, coneG = 0.9f, coneB = 0.2f;
 
@@ -341,6 +346,8 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             spatialHeight = 0f;
         }
 
+        SurfaceLightingComponent lighting = world.getMapper(SurfaceLightingComponent.class).getSafe(e,null);
+        surfaceLighting = lighting == null ? null : lighting.copy();
         // --- PointLight ---
         if (mPL.has(e)) {
             var l = mPL.get(e);
@@ -349,6 +356,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             pointIntensity = l.intensity;
             pointRadius = l.radius;
             pointFalloff = l.falloff;
+            pointHeight=l.height;pointShadowQuality=l.shadowQuality;pointShadowResolution=l.shadowResolution;
             pointR = l.r;
             pointG = l.g;
             pointB = l.b;
@@ -366,6 +374,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             coneAngleDeg = l.coneAngleDeg;
             coneSoftness = l.softness;
             coneFalloff = l.falloff;
+            coneHeight=l.height;coneShadowQuality=l.shadowQuality;coneShadowResolution=l.shadowResolution;
             coneRotationDeg = l.rotationDeg;
             coneR = l.r;
             coneG = l.g;
@@ -658,6 +667,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             if (dirty != null) dirty.order(e);
         }
 
+        if(surfaceLighting!=null){
+            SurfaceLightingComponent target=world.getMapper(SurfaceLightingComponent.class).create(e);
+            copySurface(surfaceLighting,target);
+        }
         // --- PointLight ---
         if (hasPointLight) {
             var l = mPL.has(e) ? mPL.get(e) : mPL.create(e);
@@ -665,6 +678,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             l.intensity = pointIntensity;
             l.radius = pointRadius;
             l.falloff = pointFalloff;
+            l.height=pointHeight;l.shadowQuality=pointShadowQuality;l.shadowResolution=pointShadowResolution;
             l.r = pointR;
             l.g = pointG;
             l.b = pointB;
@@ -685,6 +699,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             l.coneAngleDeg = coneAngleDeg;
             l.softness = coneSoftness;
             l.falloff = coneFalloff;
+            l.height=coneHeight;l.shadowQuality=coneShadowQuality;l.shadowResolution=coneShadowResolution;
             l.rotationDeg = coneRotationDeg;
             l.r = coneR;
             l.g = coneG;
@@ -915,6 +930,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
             out.shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
+        out.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
         out.hasSpatialHeight = hasSpatialHeight;
         out.spatialAltitude = spatialAltitude;
         out.spatialHeight = spatialHeight;
@@ -1065,6 +1081,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             }
             shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
+        surfaceLighting = in.surfaceLighting == null ? null : in.surfaceLighting.copy();
         hasSpatialHeight = in.hasSpatialHeight;
         spatialAltitude = in.spatialAltitude;
         spatialHeight = in.spatialHeight;
@@ -1680,6 +1697,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.spatialHeight = this.spatialHeight;
 
         // --- Lights ---
+        copy.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
         copy.hasPointLight = this.hasPointLight;
         copy.hasConeLight = this.hasConeLight;
 
@@ -1687,6 +1705,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.pointIntensity = this.pointIntensity;
         copy.pointRadius = this.pointRadius;
         copy.pointFalloff = this.pointFalloff;
+        copy.pointHeight=this.pointHeight;copy.pointShadowQuality=this.pointShadowQuality;copy.pointShadowResolution=this.pointShadowResolution;
         copy.pointR = this.pointR;
         copy.pointG = this.pointG;
         copy.pointB = this.pointB;
@@ -1697,6 +1716,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.coneAngleDeg = this.coneAngleDeg;
         copy.coneSoftness = this.coneSoftness;
         copy.coneFalloff = this.coneFalloff;
+        copy.coneHeight=this.coneHeight;copy.coneShadowQuality=this.coneShadowQuality;copy.coneShadowResolution=this.coneShadowResolution;
         copy.coneRotationDeg = this.coneRotationDeg;
         copy.coneR = this.coneR;
         copy.coneG = this.coneG;
@@ -1846,6 +1866,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         data.hasPhysicsShapes = this.hasPhysicsShapes;
         data.hasPhysicsJoint = this.hasPhysicsJoint;
         return data;
+    }
+
+    public static void copySurface(SurfaceLightingComponent source, SurfaceLightingComponent target) {
+        target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
+        target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
+        target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
     }
 
     public static final class PreviewVisualData {

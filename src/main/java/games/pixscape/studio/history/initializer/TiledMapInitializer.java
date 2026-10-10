@@ -49,6 +49,8 @@ public final class TiledMapInitializer implements Initializer {
     private boolean spatialEnabled;
     private float defaultTileAltitude;
     private float defaultTileHeight;
+    private float lightingPlaneAltitude;
+    private final Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions=new Array<>();
     private final IntArray tileXs = new IntArray();
     private final IntArray tileYs = new IntArray();
     private final IntArray tileAssetIds = new IntArray();
@@ -147,6 +149,8 @@ public final class TiledMapInitializer implements Initializer {
         spatialEnabled = tiled.spatialEnabled;
         defaultTileAltitude = tiled.defaultTileAltitude;
         defaultTileHeight = tiled.defaultTileHeight;
+        lightingPlaneAltitude=tiled.lightingPlaneAltitude;
+        copyDescriptions(lightingDescriptions,tiled.lightingDescriptions);
         tiled.ensureSparseTileStorageConsistency();
         copy(tileXs, tiled.tileXs);
         copy(tileYs, tiled.tileYs);
@@ -233,6 +237,8 @@ public final class TiledMapInitializer implements Initializer {
         tiled.spatialEnabled = spatialEnabled;
         tiled.defaultTileAltitude = defaultTileAltitude;
         tiled.defaultTileHeight = defaultTileHeight;
+        tiled.lightingPlaneAltitude=lightingPlaneAltitude;
+        copyDescriptions(tiled.lightingDescriptions,lightingDescriptions);
         copy(tiled.tileXs, tileXs);
         copy(tiled.tileYs, tileYs);
         copy(tiled.tileAssetIds, tileAssetIds);
@@ -326,6 +332,14 @@ public final class TiledMapInitializer implements Initializer {
         return "TiledMap";
     }
 
+    private static void copyDescriptions(Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> target,
+                                         Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> source){
+        target.clear();
+        for(games.pixscape.runtime.render.lighting.TileSurfaceDescription item:source){
+            games.pixscape.runtime.render.lighting.TileSurfaceDescription copy=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+            copy.assetId=item.assetId;copy.geometry=item.geometry==null?null:item.geometry.copy();target.add(copy);
+        }
+    }
     private static void copy(IntArray target, IntArray source) {
         target.clear();
         if (source != null) target.addAll(source);

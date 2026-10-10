@@ -149,9 +149,9 @@ public final class SpatialBlockProperties extends VisTable {
         addTooltip(physicsCollisionBox,
                 "Creates a static physics collision from this Spatial Block footprint.");
         addTooltip(lightOccluderBox,
-                "Stored and compiled; the downstream light-occlusion consumer is not implemented yet.");
+                "Blocks each light through the 2.5D shadow map, independently of image visibility.");
         addTooltip(shadowCasterBox,
-                "Stored and compiled; the downstream shadow consumer is not implemented yet.");
+                "Projects this volume into each light's shadow map.");
         addTooltip(particleOccluderBox,
                 "Stored and compiled; the downstream particle-occlusion consumer is not implemented yet.");
 

@@ -66,6 +66,7 @@ public final class ConeLightProperties extends VisTable {
     private final FloatField intensityField;
     private final FloatField xField;
     private final FloatField yField;
+    private final LightingPanel lightingPanel;
     private final FloatField radiusField;
     private final FloatField coneAngleField;
     private final FloatField rotationField;
@@ -89,6 +90,7 @@ public final class ConeLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
+        lightingPanel = new LightingPanel(ctx,true);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -235,6 +237,7 @@ public final class ConeLightProperties extends VisTable {
         coneContent.add(softnessField).width(120).left().row();
         coneContent.add(new VisLabel("Falloff:"));
         coneContent.add(falloffField).width(120).left().row();
+        coneContent.add(lightingPanel).colspan(2).growX().row();
 
         add(coneBlock).growX().left().row();
 
@@ -248,6 +251,7 @@ public final class ConeLightProperties extends VisTable {
     }
 
     private void onEntityChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         if (op == TransformOp.MOVE) {
             xField.refreshFromModel();
             yField.refreshFromModel();
@@ -328,6 +332,7 @@ public final class ConeLightProperties extends VisTable {
         visibleBinder.setEntityId(entityId);
 
         enabledBinder.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         xField.setEntityId(entityId);
         yField.setEntityId(entityId);
         intensityField.setEntityId(entityId);

@@ -6,6 +6,7 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
 public final class GenericEntitySnapshotData {
+    public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
     public int sourceEntityId;
     public boolean hasTransform;
     public float x, y, rotationRad, scaleX, scaleY, originX, originY;

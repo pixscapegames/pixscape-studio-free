@@ -62,6 +62,7 @@ public final class PointLightProperties extends VisTable {
     private final FloatField falloffField;
     private final FloatField xField;
     private final FloatField yField;
+    private final LightingPanel lightingPanel;
 
     private final ColorPicker picker;
     private final VisImage colorImage = new VisImage(VisUI.getSkin().getDrawable("white"));
@@ -80,6 +81,7 @@ public final class PointLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
+        lightingPanel = new LightingPanel(ctx,true);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -207,6 +209,7 @@ public final class PointLightProperties extends VisTable {
         lightContent.add(radiusField).width(120).left().row();
         lightContent.add(new VisLabel("Falloff:"));
         lightContent.add(falloffField).width(120).left().row();
+        lightContent.add(lightingPanel).colspan(2).growX().row();
 
         add(pointLightBlock).growX().left().row();
 
@@ -220,6 +223,7 @@ public final class PointLightProperties extends VisTable {
     }
 
     private void onEntityChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         if (op == TransformOp.MOVE) {
             xField.refreshFromModel();
             yField.refreshFromModel();
@@ -299,6 +303,7 @@ public final class PointLightProperties extends VisTable {
 
         // light fields
         enabledBinder.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         xField.setEntityId(entityId);
         yField.setEntityId(entityId);
         intensityField.setEntityId(entityId);

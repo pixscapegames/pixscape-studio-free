@@ -55,6 +55,7 @@ public final class TiledMapProperties extends VisTable {
             new CollapsibleVisTable(true, true);
     private final FloatField defaultAltitudeField;
     private final FloatField defaultHeightField;
+    private final FloatField lightingPlaneField;
 
     private int mapEntityId = -1;
     private boolean internalRefresh;
@@ -70,6 +71,11 @@ public final class TiledMapProperties extends VisTable {
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mTiled = world.getMapper(TiledLayerComponent.class);
         this.mPhysicsBody = world.getMapper(PhysicsBodyComponent.class);
+        lightingPlaneField=new FloatField(world,e->mTiled.get(e).lightingPlaneAltitude,this::isValidMap).setDisplayDecimals(2);
+        lightingPlaneField.setApplier((e,v)->{
+            EditLightingCommand command=new EditLightingCommand(world,history.historyIds(),e,EditLightingCommand.Property.MAP_PLANE,v);
+            if(!command.isNoop())history.execute(command);
+        });
 
         top().left();
         defaults().left().top().pad(1);
@@ -165,6 +171,7 @@ public final class TiledMapProperties extends VisTable {
         addProperty("Origin Y:", tiledOriginYSpinner);
         addProperty("Width (cells):", tiledWidthValue);
         addProperty("Height (cells):", tiledHeightValue);
+        addProperty("Lighting plane Z:",lightingPlaneField);
 
         VisTable spatialDefaults = spatialDefaultsBlock.content();
         spatialDefaults.left().top().padTop(5);
@@ -218,6 +225,7 @@ public final class TiledMapProperties extends VisTable {
             originXModel.setStep(Math.max(1, tiled.tileWidth));
             originYModel.setStep(Math.max(1, tiled.tileHeight));
             tiledOriginXBinder.setEntityId(mapEntityId);
+            lightingPlaneField.setEntityId(mapEntityId);
             tiledOriginYBinder.setEntityId(mapEntityId);
 
             boolean collisionsActive = mPhysicsBody.has(mapEntityId);
@@ -247,6 +255,7 @@ public final class TiledMapProperties extends VisTable {
         originXModel.setStep(1);
         originYModel.setStep(1);
         tiledOriginXBinder.setEntityId(-1);
+        lightingPlaneField.setEntityId(-1);
         tiledOriginYBinder.setEntityId(-1);
         collisionsCheckBox.setChecked(false);
         collisionsCheckBox.setDisabled(true);

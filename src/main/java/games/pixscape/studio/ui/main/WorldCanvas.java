@@ -1231,6 +1231,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     gizmoSystem.refreshOverlayMouse();
                     return true;
                 }
+                if (!typing && keycode == Input.Keys.F8 && frameQueue != null) {
+                    frameQueue.lighting.diagnostic=(frameQueue.lighting.diagnostic+1)%4;
+                    return true;
+                }
 
                 // --- Undo / Redo : ALWAYS active, even while typing ---
                 if (ctrl) {

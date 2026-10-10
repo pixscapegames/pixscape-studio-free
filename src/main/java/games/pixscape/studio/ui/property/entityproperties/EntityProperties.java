@@ -49,6 +49,7 @@ public class EntityProperties extends VisTable {
 
     private final TransformPanel transformPanel;
     private final MaterialPanel materialPanel;
+    private final LightingPanel lightingPanel;
     private final AnimationPanel animationPanel;
     private final ParticleFxPanel particleFxPanel;
     private final RepeatablePanel repeatablePanel;
@@ -57,6 +58,7 @@ public class EntityProperties extends VisTable {
 
     private final ToggleSection transformSection;
     private final ToggleSection materialSection;
+    private final ToggleSection lightingSection;
     private final ToggleSection animationSection;
     private final ToggleSection particleSection;
     private final ToggleSection repeatableSection;
@@ -101,6 +103,7 @@ public class EntityProperties extends VisTable {
 
         transformPanel = new TransformPanel(ctx);
         materialPanel = new MaterialPanel(ctx);
+        lightingPanel = new LightingPanel(ctx,false);
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
         repeatablePanel = new RepeatablePanel(ctx);
@@ -118,6 +121,9 @@ public class EntityProperties extends VisTable {
 
         transformSection = new ToggleSection("Transform", transformPanel);
         materialSection = new ToggleSection("Material", materialPanel);
+        CollapsibleWidget lightingContent = new CollapsibleWidget();
+        lightingContent.setTable(lightingPanel);
+        lightingSection = new ToggleSection("Lighting", lightingContent);
         animationSection = new ToggleSection("Animation", animationPanel);
         particleSection = new ToggleSection("Particle FX", particleFxPanel);
         repeatableSection = new ToggleSection("Repeatable", repeatablePanel);
@@ -137,6 +143,7 @@ public class EntityProperties extends VisTable {
         add(gameObjectSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
+        add(lightingSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
         add(particleSection).growX().left().pad(0).row();
         add(repeatableSection).growX().left().pad(0).row();
@@ -266,6 +273,7 @@ public class EntityProperties extends VisTable {
 
         transformPanel.setEntityId(entityId);
         materialPanel.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         animationPanel.setEntityId(entityId);
         particleFxPanel.setEntityId(entityId);
         repeatablePanel.setEntityId(entityId);
@@ -300,6 +308,8 @@ public class EntityProperties extends VisTable {
     }
 
     private void updateSectionsVisibility() {
+        lightingSection.setApplicable(currentEntityId>=0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
+                && !ctx.world.getMapper(ParticleEmitterComponent.class).has(currentEntityId));
         if (currentEntityId < 0) return;
 
         EntityMetaComponent meta = ctx.mMeta.getSafe(currentEntityId, null);
@@ -374,6 +384,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void onFieldsChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         transformPanel.onFieldsChanged(op);
     }
 
