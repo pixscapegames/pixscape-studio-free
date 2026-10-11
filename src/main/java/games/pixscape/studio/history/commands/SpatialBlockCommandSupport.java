@@ -159,11 +159,17 @@ public final class SpatialBlockCommandSupport {
 
     static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
                                           Array<SpatialBlockLink> links) {
+        return validateBlocks(world, layerEntityId, snapshot, links, null);
+    }
+
+    private static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
+                                          Array<SpatialBlockLink> links, java.util.function.Consumer<String> refusal) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
                 .getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
                 snapshot, links, tiled != null ? tiled.data : null);
         if (compilation.success()) return CommandOutcome.APPLIED;
+        if (refusal != null) refusal.accept("Invalid wall geometry: " + compilation.diagnostic());
         if (Gdx.app != null) {
             Gdx.app.error("SpatialBlockCommand",
                     "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
@@ -245,7 +251,13 @@ public final class SpatialBlockCommandSupport {
 
     static CommandOutcome replaceAllValidated(World world, int layerEntityId,
                                                Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links) {
-        if (validateBlocks(world, layerEntityId, snapshot, links) != CommandOutcome.APPLIED) {
+        return replaceAllValidated(world, layerEntityId, snapshot, links, null);
+    }
+
+    static CommandOutcome replaceAllValidated(World world, int layerEntityId,
+                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links,
+                                               java.util.function.Consumer<String> refusal) {
+        if (validateBlocks(world, layerEntityId, snapshot, links, refusal) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
@@ -267,6 +279,7 @@ public final class SpatialBlockCommandSupport {
         if (compiled == null || !compiled.valid) {
             logPhysicsRejection(layerEntityId,
                     "linked body has no valid PhysicsCompiledFixturesComponent");
+            if (refusal != null) refusal.accept("The linked physics body has no valid compiled fixtures. The wall edit was not applied.");
             return CommandOutcome.REJECTED;
         }
 
@@ -281,6 +294,7 @@ public final class SpatialBlockCommandSupport {
                     FixtureCommandSupport.requireCurrentPixelsPerMeter());
         } catch (RuntimeException failure) {
             logPhysicsRejection(layerEntityId, failure.getMessage());
+            if (refusal != null) refusal.accept("Physics validation rejected the wall edit: " + failure.getMessage());
             return CommandOutcome.REJECTED;
         } finally {
             component.blocks = original;

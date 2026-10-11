@@ -400,14 +400,17 @@ public final class GizmoSystem extends BaseSystem {
 
         SpatialBlockData selectedBlock = spatialBlockById(component, selectedBlockId);
         SpatialBlockData hoveredBlock = spatialBlockById(component, hoveredBlockId);
+        SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
+        boolean mergedPreview = linkPreview != null && linkPreview.valid && !linkPreview.unlink;
         spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
         for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
             CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
+            if (mergedPreview && linkPreview.replacesStructure(structure.structureId())) continue;
             ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
             drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
         }
 
-        if (hoveredBlock != null && hoveredBlock.id != selectedBlockId
+        if (linkPreview == null && hoveredBlock != null && hoveredBlock.id != selectedBlockId
                 && !spatialBlockSelectionService.isEditPreviewActive()) {
             SpatialBlockProjection.projectBaseFootprint(tiled.data, hoveredBlock, tmpSpatialBlockBaseVerts);
             SpatialBlockProjection.projectTopFootprint(tiled.data, hoveredBlock, tmpSpatialBlockTopVerts);
@@ -415,8 +418,13 @@ public final class GizmoSystem extends BaseSystem {
             drawSpatialWallVolume(ctx.pxToWorld(2f));
         }
 
-        games.pixscape.studio.service.spatial.SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
         if (linkPreview != null) {
+            if (mergedPreview) {
+                ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
+                for (int i=0;i<linkPreview.previewStructureCount();i++)
+                    drawCompiledStructure(tiled.data,linkPreview.previewStructure(i),ctx.pxToWorld(3f));
+                return;
+            }
             for (SpatialBlockData wall : linkPreview.after.blocks) {
                 if (!linkPreview.affected.contains(wall.id) && !linkPreview.reference.contains(wall.id)) continue;
                 ctx.drawer.setColor(linkPreview.reference.contains(wall.id) ? com.badlogic.gdx.graphics.Color.CYAN

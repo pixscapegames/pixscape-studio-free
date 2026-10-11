@@ -16,6 +16,8 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
     private final long mapHistoryId;
     private final SpatialLinkProposal proposal;
     private final float beforeHeight;
+    private String rejectionReason;
+    public String rejectionReason() { return rejectionReason; }
     private CommandOutcome lastOutcome = CommandOutcome.NO_CHANGE;
 
     public boolean wasApplied() { return lastOutcome == CommandOutcome.APPLIED; }
@@ -28,8 +30,9 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
         beforeHeight = proposal.beforeDefaultHeight;
     }
 
-    @Override public String label() { return proposal.unlink ? "Délier" : "Lier"; }
-    @Override public boolean isNoop() { return !proposal.valid; }
+    @Override public String label() { return proposal.referenceId==0 ? "Edit Spatial Wall" : proposal.unlink ? "Délier" : "Lier"; }
+    @Override public boolean isNoop() { return !proposal.valid || same(proposal.before, proposal.after)
+            && Float.compare(proposal.beforeDefaultHeight, proposal.defaultHeight) == 0; }
     @Override public void redo() { redoOutcome(); }
     @Override public void undo() { undoOutcome(); }
     @Override public CommandOutcome executeOutcome() { return redoOutcome(); }
@@ -37,15 +40,21 @@ public final class SpatialBlockLinkCommand implements Command, OutcomeAwareComma
     @Override public CommandOutcome undoOutcome() { return lastOutcome = publish(proposal.before, beforeHeight, true); }
 
     private CommandOutcome publish(SpatialBlocksComponent target, float height, boolean undo) {
-        if (!proposal.valid) return CommandOutcome.REJECTED;
+        rejectionReason=null;
+        if (!proposal.valid) { rejectionReason=proposal.diagnostic; return CommandOutcome.REJECTED; }
         int map = identities.entityOfHistoryId(mapHistoryId);
-        if (map < 0 || !world.getEntityManager().isActive(map)) return CommandOutcome.NO_CHANGE;
+        if (map < 0 || !world.getEntityManager().isActive(map)) {
+            rejectionReason="The edited map no longer exists."; return CommandOutcome.NO_CHANGE;
+        }
         SpatialBlocksComponent current = world.getMapper(SpatialBlocksComponent.class).getSafe(map, null);
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(map, null);
         if (tiled == null || !same(current, undo ? proposal.after : proposal.before)
                 || Float.compare(tiled.defaultTileHeight, undo ? proposal.defaultHeight : beforeHeight) != 0)
+            {
+            rejectionReason="The volumes or default height changed during the gesture. Start a new manipulation.";
             return CommandOutcome.REJECTED;
-        CommandOutcome result = SpatialBlockCommandSupport.replaceAllValidated(world, map, target.blocks, target.links);
+        }
+        CommandOutcome result = SpatialBlockCommandSupport.replaceAllValidated(world, map, target.blocks, target.links, message -> rejectionReason=message);
         if (result != CommandOutcome.APPLIED) return result;
         tiled.defaultTileHeight = height;
         if (tiled.data != null) {

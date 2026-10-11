@@ -24,6 +24,7 @@ public class StudioLightCompositionGlSmokeTest {
             boolean interrupt;World world;games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle;games.pixscape.studio.batch.TextureArrayMeshBatchStudio batch;Texture texture;
             @Override public void create(){try{
                 games.pixscape.runtime.component.spatial.SpatialBlocksComponent linkedSnapshot=SpatialLinkGlChecks.run();
+                SpatialGestureGlChecks.run();
                 ShaderRegistry.initDefaults();
                 games.pixscape.studio.configuration.ProjectConfig project=new games.pixscape.studio.configuration.ProjectConfig();
                 games.pixscape.studio.configuration.SceneMeta meta=new games.pixscape.studio.configuration.SceneMeta("test","test.json");

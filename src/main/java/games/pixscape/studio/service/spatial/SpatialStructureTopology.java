@@ -87,6 +87,39 @@ public final class SpatialStructureTopology {
         return normalize(before, after, SpatialBlockLinks.copy(current != null ? current.links : new Array<>(SpatialBlockLink.class)), map);
     }
 
+    /** Uses the committed membership and prepared edges; publication still normalizes/compiles. */
+    static Plan previewEdit(SpatialBlocksComponent source, int blockId, SpatialBlockData replacement,
+                            TiledMapLayerData map, SpatialWallThicknessPropagation.Prepared prepared) {
+        Array<SpatialBlockData> after=copyWalls(source);
+        int index=prepared.positions.get(blockId,-1); SpatialBlockData old=source.blocks.get(index);
+        SpatialBlockData edited=replacement.copy();edited.id=blockId;edited.structureId=old.structureId;
+        after.set(index,edited);
+        for(SpatialBlockData wall:after) if(wall.structureId==old.structureId) {
+            wall.height=edited.height;wall.altitude=edited.altitude;
+        }
+        boolean horizontal=SpatialWallAttachments.determineAxis(old)==SpatialWallAttachments.Axis.HORIZONTAL;
+        if(Float.compare(horizontal?old.depth:old.width,horizontal?edited.depth:edited.width)!=0) {
+            String error=SpatialWallThicknessPropagation.apply(source.blocks,after,source.links,blockId,prepared);
+            if(error!=null)return invalid(error,after);
+        }
+        for(SpatialBlockData wall:after) if(wall.structureId==old.structureId) {
+            SpatialWallAuthoringValidator.Result validation=SpatialWallAuthoringValidator.validateWall(wall,map);
+            if(!validation.isValid())return invalid(validation.detail,after);
+        }
+        try {SpatialBlockLinks.validate(after,source.links);} catch(IllegalArgumentException error) {return invalid(error.getMessage(),after);}
+        for(int[] pair:prepared.nearby) {
+            SpatialBlockData a=after.get(pair[0]),b=after.get(pair[1]);
+            SpatialWallGeometry.JunctionClassification classification=SpatialWallGeometry.classifyJunction(a,b,
+                    new SpatialWallGeometry.Bounds(),new SpatialWallGeometry.Bounds(),new SpatialWallGeometry.Junction());
+            if(a.structureId==b.structureId && (classification==SpatialWallGeometry.JunctionClassification.DUPLICATE || classification==SpatialWallGeometry.JunctionClassification.CONTAINMENT || classification==SpatialWallGeometry.JunctionClassification.INVALID))
+                return invalid("Duplicate or contained authored wall rectangles are invalid.",after);
+            if(prepared.connected(a.id,b.id) && !SpatialBlockLinks.overlap(a,b)
+                    && SpatialLinkProposal.edgeIndex(source.links,a.id,b.id)<0)
+                return invalid("An established junction would be removed.",after);
+        }
+        return valid(after);
+    }
+
     public static Plan validate(SpatialBlocksComponent component, TiledMapLayerData map) {
         Array<SpatialBlockData> walls = copyWalls(component);
         Array<SpatialBlockLink> links = component != null ? component.links : new Array<>(SpatialBlockLink.class);

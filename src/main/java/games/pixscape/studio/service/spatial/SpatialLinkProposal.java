@@ -20,6 +20,12 @@ public final class SpatialLinkProposal {
     public float defaultHeight;
     public final float beforeDefaultHeight;
     private final TiledMapLayerData map;
+    private final Array<CompiledSpatialStructure> previewStructures = new Array<>(CompiledSpatialStructure.class);
+    private final Set<Integer> replacedStructures = new HashSet<>();
+
+    public int previewStructureCount() { return previewStructures.size; }
+    public CompiledSpatialStructure previewStructure(int index) { return previewStructures.get(index); }
+    public boolean replacesStructure(int id) { return replacedStructures.contains(id); }
 
     private SpatialLinkProposal(SpatialBlocksComponent source, TiledMapLayerData map, int selectedId, int referenceId, boolean unlink, float defaultHeight) {
         before = copy(source);
@@ -43,6 +49,18 @@ public final class SpatialLinkProposal {
         if (!proposal.valid) return proposal;
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(proposal.after, map);
         if (!compilation.success()) return proposal.failed(compilation.diagnostic());
+        if (!unlink) {
+            Set<Integer> adaptedStructures = new HashSet<>();
+            for (SpatialBlockData wall : proposal.before.blocks)
+                if (proposal.affected.contains(wall.id) || proposal.reference.contains(wall.id))
+                    proposal.replacedStructures.add(wall.structureId);
+            for (SpatialBlockData wall : proposal.after.blocks)
+                if (proposal.affected.contains(wall.id) || proposal.reference.contains(wall.id))
+                    adaptedStructures.add(wall.structureId);
+            for (int i=0;i<compilation.structureCount();i++)
+                if (adaptedStructures.contains(compilation.structure(i).structureId()))
+                    proposal.previewStructures.add(compilation.structure(i));
+        }
         return proposal;
     }
 
@@ -56,12 +74,53 @@ public final class SpatialLinkProposal {
 
     private SpatialLinkProposal failed(String error) { return new SpatialLinkProposal(this, error); }
 
+    /** One cached menu-equivalent preview per stable contact; physical publication runs on release. */
+    static SpatialLinkProposal gesture(SpatialBlocksComponent original, SpatialBlocksComponent contact,
+                                       TiledMapLayerData map, int selected, int fixed, float height) {
+        SpatialLinkProposal result = fixed > 0
+                ? create(contact, map, selected, fixed, false, height)
+                : new SpatialLinkProposal(original, contact, map, selected, height);
+        return fixed > 0 ? new SpatialLinkProposal(original, result) : result;
+    }
+
+    private SpatialLinkProposal(SpatialBlocksComponent original, SpatialLinkProposal result) {
+        before=copy(original); after=result.after; map=result.map;
+        selectedId=result.selectedId;referenceId=result.referenceId;unlink=false;
+        valid=result.valid;diagnostic=result.diagnostic;beforeDefaultHeight=result.beforeDefaultHeight;
+        defaultHeight=result.defaultHeight;affected.addAll(result.affected);reference.addAll(result.reference);
+        previewStructures.addAll(result.previewStructures);replacedStructures.addAll(result.replacedStructures);
+    }
+
+    private SpatialLinkProposal(SpatialBlocksComponent original, SpatialBlocksComponent contact,
+                                TiledMapLayerData map, int selected, float height) {
+        before=copy(original);after=copy(contact);this.map=map;selectedId=selected;referenceId=0;unlink=false;
+        valid=true;diagnostic=null;beforeDefaultHeight=height;defaultHeight=height;
+    }
+
     public static SpatialBlocksComponent copy(SpatialBlocksComponent source) {
         SpatialBlocksComponent copy = new SpatialBlocksComponent();
         copy.blocks = SpatialStructureTopology.copyWalls(source);
         copy.links = source == null ? new Array<>(SpatialBlockLink.class) : SpatialBlockLinks.copy(source.links);
         copy.nextSpatialBlockId = source == null ? 1 : source.nextSpatialBlockId;
         return copy;
+    }
+
+    public String describe() {
+        StringBuilder text=new StringBuilder();
+        text.append(valid ? "Lier ready.\n" : "Lier refused: "+diagnostic+"\n");
+        text.append("Fixed reference: ").append(reference).append("\nAdapted ensemble: ").append(affected).append('\n');
+        IntMap<SpatialBlockData> previous=index(before);
+        for(SpatialBlockData wall:after.blocks) if(affected.contains(wall.id)) {
+            SpatialBlockData old=previous.get(wall.id);
+            text.append('#').append(wall.id).append(" H ").append(old.height).append(" to ").append(wall.height)
+                    .append(" W/D ").append(old.width).append('/').append(old.depth).append(" to ")
+                    .append(wall.width).append('/').append(wall.depth)
+                    .append("\nX ").append(old.x).append("..").append(old.x+old.width).append(" to ")
+                    .append(wall.x).append("..").append(wall.x+wall.width)
+                    .append("; Y ").append(old.y).append("..").append(old.y+old.depth).append(" to ")
+                    .append(wall.y).append("..").append(wall.y+wall.depth).append('\n');
+        }
+        return text.append("Default height: ").append(beforeDefaultHeight).append(" to ").append(defaultHeight).toString();
     }
 
     private String solve() {

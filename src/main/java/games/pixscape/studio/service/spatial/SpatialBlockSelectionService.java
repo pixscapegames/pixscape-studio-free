@@ -54,7 +54,7 @@ public final class SpatialBlockSelectionService {
 
     public void setContextActive(boolean active) {
         contextActive = active;
-        if (!active) clearHover();
+        if (!active) { wallEditSession.cancel(); linkPreview=null; clearHover(); }
     }
 
     public void dispose() {

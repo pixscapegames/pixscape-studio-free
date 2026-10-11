@@ -11,35 +11,75 @@ public final class SpatialWallThicknessPropagation {
 
     public static String apply(Array<SpatialBlockData> before, Array<SpatialBlockData> after,
                                Array<SpatialBlockLink> links, int seedId) {
+        return apply(before, after, links, seedId, prepare(before, links, seedId));
+    }
+
+    /** Prepared once at gesture activation; no connectivity discovery in mouse updates. */
+    public static final class Prepared {
+        final java.util.Set<Long> contacts = new java.util.HashSet<>();
+        final java.util.List<int[]> nearby = new java.util.ArrayList<>();
+        final com.badlogic.gdx.utils.IntIntMap positions = new com.badlogic.gdx.utils.IntIntMap();
+        final java.util.List<int[]> parallel = new java.util.ArrayList<>();
+        final java.util.List<int[]> edges = new java.util.ArrayList<>();
+        final IntMap<Array<SpatialBlockData>> neighbors = new IntMap<>();
+        boolean connected(int a,int b) { return contacts.contains(key(a,b)); }
+    }
+    private static long key(int a,int b) { return ((long)Math.min(a,b)<<32) | (Math.max(a,b)&0xffffffffL); }
+    public static Prepared prepare(Array<SpatialBlockData> before, Array<SpatialBlockLink> links, int seedId) {
+        Prepared prepared=new Prepared(); IntMap<SpatialBlockData> index=index(before);
+        for(int i=0;i<before.size;i++) for(int j=i+1;j<before.size;j++) {
+            SpatialBlockData a=before.get(i),b=before.get(j);
+            if(connected(a,b,links)) {
+                prepared.contacts.add(key(a.id,b.id));prepared.edges.add(new int[]{i,j});
+                if(!prepared.neighbors.containsKey(a.id))prepared.neighbors.put(a.id,new Array<>(SpatialBlockData.class));
+                if(!prepared.neighbors.containsKey(b.id))prepared.neighbors.put(b.id,new Array<>(SpatialBlockData.class));
+                prepared.neighbors.get(a.id).add(b);prepared.neighbors.get(b.id).add(a);
+            }
+        }
+        SpatialBlockData seed=index.get(seedId); if(seed==null)return prepared;
+        for(int i=0;i<before.size;i++)prepared.positions.put(before.get(i).id,i);
+        for(int i=0;i<before.size;i++)for(int j=i+1;j<before.size;j++) {
+            SpatialBlockData a=before.get(i),b=before.get(j);
+            if(a.structureId!=seed.structureId && b.structureId!=seed.structureId)continue;
+            SpatialWallGeometry.LinkedCellBounds x=new SpatialWallGeometry.LinkedCellBounds(),y=new SpatialWallGeometry.LinkedCellBounds();
+            SpatialWallGeometry.extractLinkedCellBounds(a,x);SpatialWallGeometry.extractLinkedCellBounds(b,y);
+            if(x.maxGxExclusive>=y.minGx && y.maxGxExclusive>=x.minGx && x.maxGyExclusive>=y.minGy && y.maxGyExclusive>=x.minGy)
+                prepared.nearby.add(new int[]{i,j});
+        }
+        Set<Integer> visited=new HashSet<>();visited.add(seedId);
+        ArrayDeque<Integer> queue=new ArrayDeque<>();queue.add(seedId);
+        while(!queue.isEmpty()) {
+            int a=queue.remove();
+            for(SpatialBlockData b:before) if(!visited.contains(b.id) && b.structureId==seed.structureId
+                    && horizontal(b)==horizontal(seed) && prepared.connected(a,b.id)) {
+                prepared.parallel.add(new int[]{a,b.id});visited.add(b.id);queue.add(b.id);
+            }
+        }
+        return prepared;
+    }
+
+    public static String apply(Array<SpatialBlockData> before, Array<SpatialBlockData> after,
+                               Array<SpatialBlockLink> links, int seedId, Prepared prepared) {
         IntMap<SpatialBlockData> old = index(before), next = index(after);
         SpatialBlockData seed = old.get(seedId), changedSeed = next.get(seedId);
         if (seed == null || changedSeed == null) return "Missing thickness propagation seed.";
         boolean axis = horizontal(seed);
         float thickness = axis ? changedSeed.depth : changedSeed.width;
         if (horizontal(changedSeed) != axis) {
-            for (SpatialBlockData wall : before) if (wall.id != seedId && connected(seed, wall, links))
+            for (SpatialBlockData wall : before) if (wall.id != seedId && prepared.connected(seed.id, wall.id))
                 return "Thickness adjustment would change the orientation of connected volume " + seedId + ".";
         }
-        Set<Integer> visited = new HashSet<>(); visited.add(seedId);
-        ArrayDeque<Integer> queue = new ArrayDeque<>(); queue.add(seedId);
-        while (!queue.isEmpty()) {
-            int aId = queue.remove(); SpatialBlockData a = old.get(aId), changed = next.get(aId);
-            for (SpatialBlockData b : before) {
-                if (visited.contains(b.id) || b.structureId != seed.structureId || horizontal(b) != axis || !connected(a,b,links)) continue;
-                float aMin = transverse(a), bMin = transverse(b), aMax = aMin + thickness(a), bMax = bMin + thickness(b);
-                float newMin;
-                if (near(aMin,bMin)) newMin = transverse(changed);
-                else if (near(aMax,bMax)) newMin = transverse(changed);
-                else if (near(aMax,bMin)) newMin = transverse(changed) + thickness;
-                else if (near(aMin,bMax)) newMin = transverse(changed) - thickness;
-                else return "Parallel contact bands are ambiguous at volumes " + aId + " / " + b.id + ".";
-                SpatialBlockData target = next.get(b.id);
-                if (axis) { target.y = newMin; target.depth = thickness; }
-                else { target.x = newMin; target.width = thickness; }
-                if (horizontal(target) != axis)
-                    return "Thickness adjustment would change the orientation of connected volume " + b.id + ".";
-                visited.add(b.id); queue.add(b.id);
-            }
+        for (int[] edge : prepared.parallel) {
+            SpatialBlockData a = old.get(edge[0]), b = old.get(edge[1]), changed = next.get(a.id);
+            float aMin=transverse(a), bMin=transverse(b), aMax=aMin+thickness(a), bMax=bMin+thickness(b);
+            float newMin;
+            if(near(aMin,bMin) || near(aMax,bMax)) newMin=transverse(changed);
+            else if(near(aMax,bMin)) newMin=transverse(changed)+thickness;
+            else if(near(aMin,bMax)) newMin=transverse(changed)-thickness;
+            else return "Parallel contact bands are ambiguous at volumes " + a.id + " / " + b.id + ".";
+            SpatialBlockData target=next.get(b.id);
+            if(axis) {target.y=newMin;target.depth=thickness;} else {target.x=newMin;target.width=thickness;}
+            if(horizontal(target)!=axis) return "Thickness adjustment changes a connected wall orientation.";
         }
         Map<String,Float> endpoints = new HashMap<>();
         for (int ai = 0; ai < before.size; ai++) {
@@ -48,9 +88,10 @@ public final class SpatialWallThicknessPropagation {
             SpatialBlockData na = next.get(a.id);
             int min = horizontal(a) ? SpatialBlockLink.MIN_X : SpatialBlockLink.MIN_Y;
             int max = SpatialBlockLinks.opposite(min);
-            for (int bi = 0; bi < before.size; bi++) {
-                SpatialBlockData b = before.get(bi);
-                if (horizontal(a) == horizontal(b) || !connected(a,b,links)) continue;
+            Array<SpatialBlockData> neighbors=prepared.neighbors.get(a.id);
+            for (int bi = 0; neighbors!=null && bi < neighbors.size; bi++) {
+                SpatialBlockData b = neighbors.get(bi);
+                if (horizontal(a) == horizontal(b)) continue;
                 SpatialBlockData nb = next.get(b.id);
                 for (int endpoint : new int[]{min,max}) for (int side : new int[]{min,max}) {
                     if (!near(SpatialBlockLinks.coordinate(a,endpoint),SpatialBlockLinks.coordinate(b,side))) continue;
@@ -67,9 +108,8 @@ public final class SpatialWallThicknessPropagation {
                 else { na.y = low; na.depth = high-low; }
             }
         }
-        for (int i=0;i<before.size;i++) for (int j=i+1;j<before.size;j++) {
-            SpatialBlockData a=before.get(i), b=before.get(j), na=next.get(a.id), nb=next.get(b.id);
-            if (!connected(a,b,links)) continue;
+        for (int[] edge:prepared.edges) {
+            SpatialBlockData a=before.get(edge[0]), b=before.get(edge[1]), na=next.get(a.id), nb=next.get(b.id);
             if (!connected(na,nb,links)) return "A previous junction would be broken: " + a.id + " / " + b.id + ".";
             for (int axisFace : new int[]{1,4}) for (int f : new int[]{axisFace,axisFace*2}) for (int g : new int[]{axisFace,axisFace*2}) {
                 if (near(SpatialBlockLinks.coordinate(a,f),SpatialBlockLinks.coordinate(b,g))

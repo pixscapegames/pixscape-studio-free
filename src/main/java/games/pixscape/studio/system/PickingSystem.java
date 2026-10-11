@@ -204,6 +204,9 @@ public final class PickingSystem extends BaseSystem {
     private boolean movingSpatialBlockActive = false;
     private int movingSpatialBlockLayerEid = -1;
     private int movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
+    private final Vector2 spatialPressWorld=new Vector2();
+    private com.kotcrab.vis.ui.widget.VisLabel spatialGestureHint;
+    private String spatialGestureText;
     private float movingSpatialBlockStartTileX;
     private float movingSpatialBlockStartTileY;
     private boolean resizingSpatialBlockActive = false;
@@ -213,6 +216,10 @@ public final class PickingSystem extends BaseSystem {
     private boolean spatialTileSelectionActive = false;
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
     private final SpatialWallEditSession spatialHandleProbe = new SpatialWallEditSession();
+    private SpatialBlocksComponent spatialProbeSource;
+    private TiledMapLayerData spatialProbeMap;
+    private int spatialProbeRevision=-1, spatialProbeBlock=-1, spatialProbeContent=-1;
+    private float spatialProbeOriginX, spatialProbeOriginY, spatialProbeAltitude;
     private final SpatialPointerInteraction spatialPointer = new SpatialPointerInteraction();
     private int pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
     private int pressedSpatialHandle = SpatialBlockHandle.NONE;
@@ -317,6 +324,14 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if ((movingSpatialBlockActive || resizingSpatialBlockActive) &&
+                (!spatialBlockSelectionService.isEditingActive()
+                || !spatialBlockSelectionService.wallEditSession().isActive()
+                || spatialBlockSelectionService.getEditingMapEntityId() !=
+                (movingSpatialBlockActive ? movingSpatialBlockLayerEid : resizingSpatialBlockLayerEid))) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            clearSpatialBlockMoveState();clearSpatialBlockResizeState();spatialPointer.release();inputState.clearAll();
+        }
         readMouseWorld(tmpMouseWorld);
         float mx = tmpMouseWorld.x;
         float my = tmpMouseWorld.y;
@@ -344,7 +359,7 @@ public final class PickingSystem extends BaseSystem {
             cancelQuadVertexMove();
         }
 
-        if (isPointerOverUI()) {
+        if (isPointerOverUI() && !movingSpatialBlockActive && !resizingSpatialBlockActive) {
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (spatialBlockSelectionService != null) spatialBlockSelectionService.clearHover();
@@ -598,6 +613,7 @@ public final class PickingSystem extends BaseSystem {
             if (SpatialPointerInteraction.clearsWallSelection(target.type)) {
                 spatialBlockSelectionService.clearSelectionOnly();
             }
+            spatialPressWorld.set(mx,my);
             spatialPointer.press(target.type, Gdx.input.getX(), Gdx.input.getY());
             pressedSpatialBlockId = target.blockId;
             pressedSpatialHandle = target.handle;
@@ -618,11 +634,13 @@ public final class PickingSystem extends BaseSystem {
                     && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
                 selectionService.clearSelection();
                 physicsSelectionService.clear();
-                beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, mx, my);
+                beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, spatialPressWorld.x, spatialPressWorld.y);
+                if(resizingSpatialBlockActive)onSpatialBlockResizeDragging(mx,my);
                 if (resizingSpatialBlockActive) spatialPointer.beginResize();
             } else if (spatialBlockSelectionService.selectedBlockCount() == 1
                     && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
-                beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, mx, my);
+                beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, spatialPressWorld.x, spatialPressWorld.y);
+                if(movingSpatialBlockActive)onSpatialBlockMoveDragging(mx,my);
                 if (movingSpatialBlockActive) {
                     spatialPointer.beginMove(spatialBlockSelectionService.wallEditSession().isSlidingAttachedWall());
                 }
@@ -656,6 +674,7 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.clearSelectionOnly();
         }
         spatialPointer.release();
+        inputState.clearAll();
         pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
         pressedSpatialHandle = SpatialBlockHandle.NONE;
         return true;
@@ -770,6 +789,7 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.wallEditSession().cancel();
             return;
         }
+        configureSpatialGesture(tiled);
         movingSpatialBlockActive = true;
         movingSpatialBlockLayerEid = layerEntityId;
         movingSpatialBlockId = blockId;
@@ -793,6 +813,7 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.wallEditSession().cancel();
             return;
         }
+        configureSpatialGesture(tiled);
         resizingSpatialBlockActive = true;
         resizingSpatialBlockLayerEid = layerEntityId;
         resizingSpatialBlockId = blockId;
@@ -814,12 +835,14 @@ public final class PickingSystem extends BaseSystem {
                 afterTileY - movingSpatialBlockStartTileY);
         spatialBlockSelectionService.setEditPreview(
                 spatialBlockSelectionService.wallEditSession().isCandidateValid());
+        updateSpatialGestureHint();
         oldDrag.set(mx, my);
     }
 
     private void onSpatialBlockMoveReleased() {
         spatialBlockSelectionService.wallEditSession().commit(
                 world, historyManager, spatialBlockSelectionService);
+        showSpatialCommitRefusal();
         clearSpatialBlockMoveState();
     }
 
@@ -851,6 +874,7 @@ public final class PickingSystem extends BaseSystem {
         spatialBlockSelectionService.setEditPreview(
                 spatialBlockSelectionService.wallEditSession().isCandidateValid());
 
+        updateSpatialGestureHint();
         oldDrag.set(mx, my);
     }
 
@@ -871,10 +895,12 @@ public final class PickingSystem extends BaseSystem {
     private void onSpatialBlockResizeReleased() {
         spatialBlockSelectionService.wallEditSession().commit(
                 world, historyManager, spatialBlockSelectionService);
+        showSpatialCommitRefusal();
         clearSpatialBlockResizeState();
     }
 
     private void clearSpatialBlockResizeState() {
+        clearSpatialGestureHint();
         resizingSpatialBlockActive = false;
         resizingSpatialBlockLayerEid = -1;
         resizingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
@@ -884,12 +910,56 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void clearSpatialBlockMoveState() {
+        clearSpatialGestureHint();
         movingSpatialBlockActive = false;
         movingSpatialBlockLayerEid = -1;
         movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
         movingSpatialBlockStartTileX = 0f;
         movingSpatialBlockStartTileY = 0f;
         spatialBlockSelectionService.clearEditPreview();
+    }
+
+    private void configureSpatialGesture(TiledLayerComponent tiled) {
+        float[] basis=new float[6];
+        tiled.data.projectSpatialPoint(0,0,tiled.defaultTileAltitude,basis,0);
+        tiled.data.projectSpatialPoint(1,0,tiled.defaultTileAltitude,basis,2);
+        tiled.data.projectSpatialPoint(0,1,tiled.defaultTileAltitude,basis,4);
+        Vector2 origin=coordSpaces.worldToScreen(basis[0],basis[1],new Vector2());
+        Vector2 x=coordSpaces.worldToScreen(basis[2],basis[3],new Vector2());
+        Vector2 y=coordSpaces.worldToScreen(basis[4],basis[5],new Vector2());
+        spatialBlockSelectionService.wallEditSession().configureGesture(tiled.defaultTileHeight,
+                x.x-origin.x,x.y-origin.y,y.x-origin.x,y.y-origin.y);
+    }
+
+    private void updateSpatialGestureHint() {
+        SpatialWallEditSession session=spatialBlockSelectionService.wallEditSession();
+        spatialBlockSelectionService.setLinkPreview(session.gestureProposal());
+        String text=session.gestureMessage();
+        SpatialLinkProposal proposal=session.gestureProposal();
+        if(proposal!=null && proposal.valid || proposal==null && (text==null || !text.startsWith("Ambiguous")))text=null;
+        if(text==null) {
+            if(spatialGestureHint!=null)spatialGestureHint.remove();
+            spatialGestureHint=null;spatialGestureText=null;return;
+        }
+        if(uiStage==null || text.equals(spatialGestureText))return;
+        if(spatialGestureHint==null) {
+            spatialGestureHint=new com.kotcrab.vis.ui.widget.VisLabel("");
+            spatialGestureHint.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
+            uiStage.addActor(spatialGestureHint);
+        }
+        spatialGestureText=text;spatialGestureHint.setText(text);spatialGestureHint.pack();
+        spatialGestureHint.setPosition(12,Math.max(12,uiStage.getHeight()-spatialGestureHint.getHeight()-12));
+        spatialGestureHint.setColor(proposal!=null && !proposal.valid ? com.badlogic.gdx.graphics.Color.RED
+                : com.badlogic.gdx.graphics.Color.WHITE);
+    }
+
+    private void clearSpatialGestureHint() {
+        if(spatialGestureHint!=null)spatialGestureHint.remove();
+        spatialGestureHint=null;spatialGestureText=null;spatialBlockSelectionService.setLinkPreview(null);
+    }
+    private void showSpatialCommitRefusal() {
+        String message=spatialBlockSelectionService.wallEditSession().commitMessage();
+        if(message!=null && uiStage!=null) games.pixscape.studio.ui.modal.Dialogs.showOKDialog(uiStage,spatialBlockSelectionService.wallEditSession().commitTitle(),message);
     }
 
     private SpatialBlockData findSpatialBlock(int layerEntityId, int blockId) {
@@ -977,10 +1047,15 @@ public final class PickingSystem extends BaseSystem {
         if (handle == SpatialBlockHandle.HEIGHT) return true;
         SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);
         SpatialBlockInteractiveEditSupport.ResizeHandle resizeHandle = spatialBlockResizeHandle(handle);
-        boolean available = spatialHandleProbe.begin(layerEntityId, block.id, component, map)
-                && spatialHandleProbe.isHandleEnabled(resizeHandle);
-        spatialHandleProbe.cancel();
-        return available;
+        if(spatialProbeSource!=component || spatialProbeMap!=map || spatialProbeRevision!=component.revision
+                || spatialProbeBlock!=block.id || spatialProbeContent!=map.contentRevision()
+                || spatialProbeOriginX!=map.originX || spatialProbeOriginY!=map.originY || spatialProbeAltitude!=map.defaultTileAltitude) {
+            spatialHandleProbe.begin(layerEntityId,block.id,component,map);
+            spatialProbeSource=component;spatialProbeMap=map;spatialProbeRevision=component.revision;
+            spatialProbeBlock=block.id;spatialProbeContent=map.contentRevision();
+            spatialProbeOriginX=map.originX;spatialProbeOriginY=map.originY;spatialProbeAltitude=map.defaultTileAltitude;
+        }
+        return spatialHandleProbe.isHandleEnabled(resizeHandle);
     }
 
     private record SpatialBlockHit(int blockId) {

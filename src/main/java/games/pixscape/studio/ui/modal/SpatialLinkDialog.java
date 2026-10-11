@@ -69,17 +69,7 @@ public final class SpatialLinkDialog extends StudioDialog {
             text.append(a == b ? "Another connection path remains: same ensemble.\n" : "The ensembles will separate.\n");
             text.append("Dimensions stay unchanged.\n");
         }
-        for (SpatialBlockData after : proposal.after.blocks) if (proposal.affected.contains(after.id)) {
-            SpatialBlockData before = find(proposal.before, after.id);
-            text.append('#').append(after.id).append("  H ").append(before.height).append(" to ").append(after.height)
-                    .append("  W/D ").append(before.width).append('/').append(before.depth)
-                    .append(" to ").append(after.width).append('/').append(after.depth)
-                    .append("\n  X [").append(before.x).append(", ").append(before.x + before.width).append("] to [")
-                    .append(after.x).append(", ").append(after.x + after.width).append("]")
-                    .append("\n  Y [").append(before.y).append(", ").append(before.y + before.depth).append("] to [")
-                    .append(after.y).append(", ").append(after.y + after.depth).append("]\n");
-        }
-        text.append("Default height: ").append(tiled.defaultTileHeight).append(" to ").append(proposal.defaultHeight);
+        text.append(proposal.describe());
         details.setText(text.toString());
         apply.setDisabled(!proposal.valid);
     }
