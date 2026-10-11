@@ -69,7 +69,7 @@ public class StudioLightCompositionGlSmokeTest {
                 games.pixscape.runtime.tiled.TiledMapLayerData linkMap=new games.pixscape.runtime.tiled.TiledMapLayerData(
                         12,12,8,4,4,games.pixscape.runtime.tiled.TiledProjection.ISO);
                 for(games.pixscape.runtime.spatial.SpatialBlockData wall:linkedSnapshot.blocks)wall.shadowCaster=true;
-                MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(linkMap,linkedSnapshot,0);
+                MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(linkMap,linkedSnapshot);
                 light.x=-12;light.y=-12;light.z=120;light.radius=512;light.intensity=3;light.quality=1;
                 Pixmap wallPixmap=new Pixmap(1,1,Pixmap.Format.RGBA8888);wallPixmap.setColor(Color.WHITE);wallPixmap.fill();
                 Texture wallTexture=new Texture(wallPixmap);wallPixmap.dispose();int wallHandle=TextureRegistry.handleOf(wallTexture);
@@ -79,7 +79,7 @@ public class StudioLightCompositionGlSmokeTest {
                 ByteBuffer joined=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,joined);
                 games.pixscape.runtime.component.spatial.SpatialBlocksComponent continuous=new games.pixscape.runtime.component.spatial.SpatialBlocksComponent();
                 games.pixscape.runtime.spatial.SpatialBlockData single=linkedSnapshot.blocks.first().copy();single.width=5;continuous.blocks.add(single);
-                MapLightingGeometry baseline=new MapLightingGeometry();baseline.ensure(linkMap,continuous,0);fillCasters(q.lighting,baseline,wallHandle);
+                MapLightingGeometry baseline=new MapLightingGeometry();baseline.ensure(linkMap,continuous);fillCasters(q.lighting,baseline,wallHandle);
                 submit.prepareComposition();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
                 ByteBuffer reference=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,reference);
                 for(int i=0;i<joined.capacity();i++)Assert.assertEquals("No shadow seam at byte "+i,reference.get(i)&255,joined.get(i)&255,2);

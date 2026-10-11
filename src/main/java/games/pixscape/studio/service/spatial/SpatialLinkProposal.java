@@ -97,6 +97,14 @@ public final class SpatialLinkProposal {
         valid=true;diagnostic=null;beforeDefaultHeight=height;defaultHeight=height;
     }
 
+    /** Exact edit snapshot, with no lateral or vertical link created. */
+    public static SpatialLinkProposal editSnapshot(SpatialBlocksComponent original, SpatialBlocksComponent edited,
+                                                   TiledMapLayerData map, int selected, float beforeHeight, float height) {
+        SpatialLinkProposal result=new SpatialLinkProposal(original,edited,map,selected,beforeHeight);
+        result.defaultHeight=height;
+        return result;
+    }
+
     public static SpatialBlocksComponent copy(SpatialBlocksComponent source) {
         SpatialBlocksComponent copy = new SpatialBlocksComponent();
         copy.blocks = SpatialStructureTopology.copyWalls(source);

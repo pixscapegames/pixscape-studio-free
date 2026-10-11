@@ -231,6 +231,7 @@ public final class SpatialWallEditSession {
             if(applied==null || !applied.valid) {
                 if(applied!=null)commitMessage=applied.diagnostic;
                 applied=SpatialLinkProposal.gesture(committed,contactSnapshot(),map,wallId,0,defaultHeight);
+                if(candidate.height!=before.height)applied.defaultHeight=candidate.height;
             }
             games.pixscape.studio.history.commands.SpatialBlockLinkCommand command=
                     new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world,history.historyIds(),layerEntityId,applied);

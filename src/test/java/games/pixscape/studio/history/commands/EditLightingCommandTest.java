@@ -23,7 +23,7 @@ public class EditLightingCommandTest {
         }
         world.dispose();
     }
-    @Test public void sourceQualityAndMapRegistrationRoundTripThroughHistoryAndJson(){
+    @Test public void sourceQualityAndDrawnPlaneRoundTripThroughHistoryAndJson(){
         World world=new World(new WorldConfiguration());HistoryManager history=new HistoryManager(16);
         int e=world.create();history.historyIds().ensureForEntity(e);
         PointLightComponent light=world.getMapper(PointLightComponent.class).create(e);
@@ -34,9 +34,14 @@ public class EditLightingCommandTest {
         Assert.assertEquals(224,loaded.height,0);Assert.assertEquals(2,loaded.shadowQuality);
         int map=world.create();history.historyIds().ensureForEntity(map);
         TiledLayerComponent tiled=world.getMapper(TiledLayerComponent.class).create(map);
-        history.execute(new EditLightingCommand(world,history.historyIds(),map,EditLightingCommand.Property.MAP_PLANE,128));
-        history.undo();Assert.assertEquals(0,tiled.lightingPlaneAltitude,0);history.redo();
-        Assert.assertEquals(128,json.fromJson(TiledLayerComponent.class,json.toJson(tiled)).lightingPlaneAltitude,0);
+        tiled.projection=games.pixscape.runtime.tiled.TiledProjection.ISO;
+        tiled.tileWidth=32;tiled.tileHeight=16;tiled.mapWidthCells=tiled.mapHeightCells=4;tiled.chunkSize=4;
+        tiled.data=tiled.createMapData();world.process();
+        history.execute(new EditTiledLayerSpatialDefaultsCommand(world,history.historyIds(),map,
+                new EditTiledLayerSpatialDefaultsCommand.Snapshot(0,0),
+                new EditTiledLayerSpatialDefaultsCommand.Snapshot(128,0)));
+        history.undo();Assert.assertEquals(0,tiled.defaultTileAltitude,0);history.redo();
+        Assert.assertEquals(128,json.fromJson(TiledLayerComponent.class,json.toJson(tiled)).defaultTileAltitude,0);
         world.dispose();
     }
     @Test public void localDescriptionsSurvivePersistenceWithIndependentCopies(){

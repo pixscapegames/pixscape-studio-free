@@ -77,6 +77,7 @@ final class SpatialLinkGlChecks {
             SpatialBlocksComponent linkedSnapshot=SpatialLinkProposal.copy(blocks);
             assertEquals(manualBefore,new com.badlogic.gdx.utils.Json().toJson(shapes.shapes.peek()));
             nativeActorPassage(compiled,tiled.data);
+            verticalDialog(world,stage,history,selection,map,blocks,compiled,tiled.data,manualBefore,shapes);
             history.undo();assertEquals(0,blocks.links.size);history.redo();assertEquals(1,blocks.links.size);
             PopupMenu unlinkMenu=new PopupMenu();StudioContextMenu.appendSpatialLinkItems(unlinkMenu,world,history,selection,stage,map);
             MenuItem unlink=null;for(Actor actor:unlinkMenu.getChildren())if(actor instanceof MenuItem && ((MenuItem)actor).getText().toString().startsWith("Délier"))unlink=(MenuItem)actor;
@@ -84,6 +85,48 @@ final class SpatialLinkGlChecks {
             assertEquals(0,blocks.links.size);assertEquals(.3f,blocks.blocks.get(1).depth,0);
             return linkedSnapshot;
         } finally { selection.dispose();world.dispose();stage.dispose();VisUI.dispose();ProjectConfig.setInstance(previous); }
+    }
+
+    private static void verticalDialog(World world,Stage stage,HistoryManager history,
+                                       SpatialBlockSelectionService selection,int map,SpatialBlocksComponent blocks,
+                                       PhysicsCompiledFixturesComponent compiled,TiledMapLayerData data,
+                                       String manual,PhysicsShapesComponent shapes) {
+        int upper=world.create();
+        TiledLayerComponent tiled=world.getMapper(TiledLayerComponent.class).create(upper);
+        tiled.projection=TiledProjection.ISO;tiled.tileWidth=32;tiled.tileHeight=16;
+        tiled.mapWidthCells=tiled.mapHeightCells=12;tiled.chunkSize=4;
+        tiled.defaultTileAltitude=100;tiled.originY=100;tiled.defaultTileHeight=90;tiled.data=tiled.createMapData();
+        for(int y=0;y<12;y++)for(int x=0;x<12;x++)tiled.data.setTile(x,y,1);
+        SpatialBlocksComponent reference=world.getMapper(SpatialBlocksComponent.class).create(upper);
+        SpatialBlockData fixed=wall(1,1,1,1,3,.3f,90);fixed.altitude=100;reference.blocks.add(fixed);reference.nextSpatialBlockId=2;
+        world.process();selection.selectBlock(map,1);
+        PopupMenu menu=new PopupMenu();StudioContextMenu.appendSpatialLinkItems(menu,world,history,selection,stage,map);
+        MenuItem item=null;for(Actor actor:menu.getChildren())if(actor instanceof MenuItem && ((MenuItem)actor).getText().toString().equals("Raccorder"))item=(MenuItem)actor;
+        assertNotNull(item);click(item);
+        games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog dialog=verticalDialog(stage);
+        assertNotNull(dialog);assertTrue(selection.verticalJoinPreview().diagnostic,selection.verticalJoinPreview().valid);
+        assertEquals(2,selection.verticalJoinPreview().affected.size());
+        stage.act(1);stage.draw();assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+        verticalButton(dialog,"Cancel").fire(new ChangeListener.ChangeEvent());stage.act(1);
+        assertNull(selection.verticalJoinPreview());assertEquals(90,blocks.blocks.first().height,0);
+        click(item);dialog=verticalDialog(stage);verticalButton(dialog,"Raccorder").fire(new ChangeListener.ChangeEvent());stage.act(1);
+        assertEquals(100,blocks.blocks.first().height,0);assertEquals(100,blocks.blocks.get(1).height,0);
+        assertEquals(100,world.getMapper(TiledLayerComponent.class).get(map).defaultTileHeight,0);
+        assertEquals(100,fixed.altitude,0);assertEquals(90,fixed.height,0);assertEquals(1,blocks.links.size);
+        assertTrue(compiled.valid);assertEquals(manual,new com.badlogic.gdx.utils.Json().toJson(shapes.shapes.peek()));
+        nativeActorPassage(compiled,data);
+        history.undo();assertEquals(90,blocks.blocks.first().height,0);
+        history.redo();assertEquals(100,blocks.blocks.first().height,0);
+        history.undo();selection.toggleBlock(map,2);
+    }
+    private static games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog verticalDialog(Stage stage) {
+        for(int i=stage.getActors().size-1;i>=0;i--)if(stage.getActors().get(i) instanceof games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog)
+            return (games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog)stage.getActors().get(i);
+        return null;
+    }
+    private static VisTextButton verticalButton(games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog dialog,String text) {
+        for(Actor actor:dialog.getButtonsTable().getChildren())if(actor instanceof VisTextButton && ((VisTextButton)actor).getText().toString().equals(text))return(VisTextButton)actor;
+        throw new AssertionError(text);
     }
 
     private static void nativeActorPassage(PhysicsCompiledFixturesComponent compiled,TiledMapLayerData map) {

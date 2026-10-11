@@ -395,6 +395,22 @@ public final class GizmoSystem extends BaseSystem {
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (component == null || component.blocks == null || tiled == null || tiled.data == null) return;
 
+        games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal vertical=spatialBlockSelectionService.verticalJoinPreview();
+        if(vertical!=null && vertical.selected.entity==layerEntityId) {
+            ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
+            for(SpatialBlockData wall:vertical.candidate.reference.blocks.blocks)if(vertical.referenceMembers.contains(wall.id)) {
+                SpatialBlockProjection.projectBaseFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            ctx.drawer.setColor(vertical.valid?com.badlogic.gdx.graphics.Color.ORANGE:com.badlogic.gdx.graphics.Color.RED);
+            for(SpatialBlockData wall:vertical.after.blocks)if(vertical.affected.contains(wall.id)) {
+                SpatialBlockProjection.projectBaseFootprint(tiled.data,wall,tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(tiled.data,wall,tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            return;
+        }
         int selectedBlockId = spatialBlockSelectionService.getSelectedBlockId();
         int hoveredBlockId = spatialBlockSelectionService.getHoveredBlockId();
 

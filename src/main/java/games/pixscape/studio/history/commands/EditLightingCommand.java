@@ -2,7 +2,6 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.*;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -11,7 +10,7 @@ import games.pixscape.studio.history.*;
 
 /** One authored lighting property, with stable history identity and optional-component restoration. */
 public final class EditLightingCommand implements Command,HistoryManager.SupportsNoop {
-    public enum Property { HEIGHT, QUALITY, RESOLUTION, MAP_PLANE, ALTITUDE, ANCHOR_U, ANCHOR_V,
+    public enum Property { HEIGHT, QUALITY, RESOLUTION, ALTITUDE, ANCHOR_U, ANCHOR_V,
         DIRECTION_X, DIRECTION_Y, RECEIVE, CAST, ALPHA_THRESHOLD }
     private final World world;private final HistoryIdRegistry ids;private final long historyId;
     private final Property property;private final float before,after;private final boolean hadSurface;
@@ -40,7 +39,6 @@ public final class EditLightingCommand implements Command,HistoryManager.Support
         if(property==Property.HEIGHT){if(p!=null)p.height=value;if(c!=null)c.height=value;}
         else if(property==Property.QUALITY){if(p!=null)p.shadowQuality=(int)value;if(c!=null)c.shadowQuality=(int)value;}
         else if(property==Property.RESOLUTION){if(p!=null)p.shadowResolution=(int)value;if(c!=null)c.shadowResolution=(int)value;}
-        else if(property==Property.MAP_PLANE){world.getMapper(TiledLayerComponent.class).get(e).lightingPlaneAltitude=value;}
         else if(undo && !hadSurface)world.getMapper(SurfaceLightingComponent.class).remove(e);
         else{
             SurfaceLightingComponent s=world.getMapper(SurfaceLightingComponent.class).create(e);
@@ -57,7 +55,6 @@ public final class EditLightingCommand implements Command,HistoryManager.Support
         if(property==Property.HEIGHT)return p!=null?p.height:c!=null?c.height:128;
         if(property==Property.QUALITY)return p!=null?p.shadowQuality:c!=null?c.shadowQuality:1;
         if(property==Property.RESOLUTION)return p!=null?p.shadowResolution:c!=null?c.shadowResolution:512;
-        if(property==Property.MAP_PLANE){TiledLayerComponent map=world.getMapper(TiledLayerComponent.class).getSafe(e,null);return map==null?0:map.lightingPlaneAltitude;}
         SurfaceLightingComponent s=world.getMapper(SurfaceLightingComponent.class).getSafe(e,null);
         switch(property){case ALTITUDE:return s==null?0:s.altitude;case ANCHOR_U:return s==null?.5f:s.anchorU;case ANCHOR_V:return s==null?0:s.anchorV;
             case DIRECTION_X:return s==null?1:s.directionX;case DIRECTION_Y:return s==null?-1:s.directionY;

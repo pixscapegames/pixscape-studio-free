@@ -92,6 +92,7 @@ public final class RuntimeExport {
                 FileHandle file = studioProjectDir.child(StudioFs.DIR_SCENES)
                         .child(RuntimeFs.filenameOnly(scene.file));
                 if (file.exists()) {
+                    games.pixscape.runtime.loading.SceneLoader.validateMapLightingConvention(file.readString("UTF-8"),file.path());
                     ContentLayerValidator.validateSerializedScene(file.readString("UTF-8"),
                             "Scene '" + file.path() + "'");
                 }

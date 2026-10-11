@@ -13,11 +13,13 @@ Do not turn the sheet to follow the source: lateral lights reveal its lack of
 thickness. These controls use stable history identity, dirty notifications and
 undo/redo, including removal of a newly created optional component on undo.
 
-Tiled map properties include Lighting plane Z. Register superposed maps
-explicitly; the default tile altitude is a drawing/sorting input and does not
-implicitly establish a shared physical level. Source XYZ and map conversion
-are defined in the Runtime `docs/lighting-2_5d.md` contract. No map or asset IDs
-are special-cased.
+Tiled map `Altitude:` is the absolute altitude of its drawn reference plane.
+Lighting uses the same convention: physical Z equals authored absolute altitude.
+`Default height:` initializes new volumes and is updated atomically when an
+ensemble's height changes; unrelated ensembles are never resized. There is no
+separate Lighting plane Z control. Feature-era files with the removed
+`lightingPlaneAltitude` field require explicit conversion before load/export.
+See Runtime `docs/lighting-2_5d.md` for the full XYZ and local-description contract.
 
 Spatial block Shadow caster or Light occluder enables its complete box as a
 shadow obstacle. Actor occluder still controls image ordering separately.
@@ -57,3 +59,28 @@ standard materials, scoped authorization, interruption, resize, nested targets,
 material failure and recovery. GWT compilation is distinct from a real WebGL
 test; Android/WebGL device sessions and manual EDIT/TEST/Game Object UI sessions
 must be reported separately from automated tests.
+
+## Vertical Raccorder
+
+Select one volume and choose **Raccorder**. The native dialog searches above
+and below, also across maps, and shows all compatible references for choice.
+The selected connected ensemble adapts; the reference ensemble stays fixed.
+Below keeps its base and reaches the reference base. Above keeps its top and
+moves its base to the reference top. All resulting heights must be positive.
+Parallel connected bands align to the reference band. Perpendicular bands
+retain thickness and transverse position; endpoints adjust only where required
+to retain corners. The complete detached preview shows every before/after
+footprint, altitude, top, height and Default height, or a blocking conflict.
+Cancel discards it. Apply is one undo/redo operation, with stale map, reference,
+geometry and physics context refusal; redo restores the recorded result.
+No vertical link, map fusion, tile reassignment or image movement is created.
+
+Only compatible ISO axes/aspect ratios and layer parallax are searched. Cell
+sizes may differ and layers/render indices do not define floors. Search uses
+positive longitudinal overlap and a transverse centre distance of at most
+the larger of one selected-map cell and either band thickness. Nearby choices
+remain explicit; sorting by vertical/transverse gap does not select a floor.
+ORTHO volumes, mixed metrics/parallax, ambiguous square orientations, invalid
+linked regions, contradictory corner constraints and new disjoint connections
+are refused. The command does not fix a map's drawn-plane convention or rebase
+its data. Perform that reviewed preparation separately when necessary.

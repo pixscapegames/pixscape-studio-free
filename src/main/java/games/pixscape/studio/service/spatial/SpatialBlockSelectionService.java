@@ -12,6 +12,9 @@ public final class SpatialBlockSelectionService {
     private int selectedBlockId = NO_BLOCK;
     private final com.badlogic.gdx.utils.IntArray selectedBlockIds = new com.badlogic.gdx.utils.IntArray();
     private SpatialLinkProposal linkPreview;
+    private SpatialVerticalJoinProposal verticalJoinPreview;
+    public SpatialVerticalJoinProposal verticalJoinPreview() {return verticalJoinPreview;}
+    public void setVerticalJoinPreview(SpatialVerticalJoinProposal preview) {verticalJoinPreview=preview;}
 
     public com.badlogic.gdx.utils.IntArray selectedBlockIds() { return new com.badlogic.gdx.utils.IntArray(selectedBlockIds); }
     public boolean isBlockSelected(int id) { return selectedBlockIds.contains(id); }
@@ -54,11 +57,12 @@ public final class SpatialBlockSelectionService {
 
     public void setContextActive(boolean active) {
         contextActive = active;
-        if (!active) { wallEditSession.cancel(); linkPreview=null; clearHover(); }
+        if (!active) { wallEditSession.cancel(); linkPreview=null; verticalJoinPreview=null; clearHover(); }
     }
 
     public void dispose() {
         contextActive = false;
+        linkPreview=null;verticalJoinPreview=null;wallEditSession.cancel();
         EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
     }
 
@@ -116,6 +120,7 @@ public final class SpatialBlockSelectionService {
         selectedBlockId = NO_BLOCK;
         selectedBlockIds.clear();
         linkPreview = null;
+        verticalJoinPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -134,6 +139,7 @@ public final class SpatialBlockSelectionService {
         selectedBlockId = blockId;
         selectedBlockIds.clear(); selectedBlockIds.add(blockId);
         linkPreview = null;
+        verticalJoinPreview = null;
         hoveredBlockId = blockId;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -177,6 +183,7 @@ public final class SpatialBlockSelectionService {
         selectedBlockId = NO_BLOCK;
         selectedBlockIds.clear();
         linkPreview = null;
+        verticalJoinPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();
@@ -185,12 +192,14 @@ public final class SpatialBlockSelectionService {
     }
 
     public void clear() {
+        verticalJoinPreview=null;
         if (editingMapEntityId == NO_MAP && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         editingMapEntityId = NO_MAP;
         setSpatialModeActive(false);
         selectedBlockId = NO_BLOCK;
         selectedBlockIds.clear();
         linkPreview = null;
+        verticalJoinPreview = null;
         hoveredBlockId = NO_BLOCK;
         clearHoveredHandle();
         placementTarget = SpatialBlockPlacementTarget.invalid();

@@ -211,6 +211,15 @@ public final class StudioContextMenu extends InputListener {
                                               SpatialBlockSelectionService selection, Stage stage, int layerEntityId) {
         IntArray ids = selection.selectedBlockIds();
         SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        if(ids.size==1 && component!=null) {
+            MenuItem join=new MenuItem("Raccorder");
+            join.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event,float x,float y) {
+                    new games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog(world,history,selection,layerEntityId,ids.first()).show(stage);event.handle();
+                }
+            });
+            menu.addItem(join);
+        }
         if (ids.size == 2 && component != null) {
             MenuItem link = new MenuItem("Lier");
             games.pixscape.runtime.spatial.SpatialBlockData firstWall = null, secondWall = null;

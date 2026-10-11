@@ -284,20 +284,19 @@ public final class SpatialBlockCommandSupport {
         }
 
         PreparedPhysicsBodyCandidate prepared;
-        Array<SpatialBlockData> original = component.blocks;
-        component.blocks = replacement;
+        SpatialBlocksComponent candidate = new SpatialBlocksComponent();
+        candidate.blocks = replacement;
+        candidate.links = SpatialBlockLinks.copy(links);
         try {
             prepared = PhysicsService.prepareBodyCandidate(
                     world,
                     layerEntityId,
                     shapes.shapes,
-                    FixtureCommandSupport.requireCurrentPixelsPerMeter());
+                    FixtureCommandSupport.requireCurrentPixelsPerMeter(), null, candidate);
         } catch (RuntimeException failure) {
             logPhysicsRejection(layerEntityId, failure.getMessage());
             if (refusal != null) refusal.accept("Physics validation rejected the wall edit: " + failure.getMessage());
             return CommandOutcome.REJECTED;
-        } finally {
-            component.blocks = original;
         }
 
         component.blocks = replacement;
