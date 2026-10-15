@@ -6,6 +6,10 @@ import com.kotcrab.vis.ui.widget.CollapsibleWidget;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
+import com.kotcrab.vis.ui.widget.VisCheckBox;
+import games.pixscape.runtime.component.ParticleEmitterComponent;
+import games.pixscape.studio.history.commands.ChangeParticleFlagsCommand;
+import games.pixscape.studio.ui.widget.UiBinders;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.ui.config.CommonLayout;
 
@@ -13,6 +17,7 @@ public final class ParticleFxPanel extends CollapsibleWidget {
 
     private final EntityPropertiesContext ctx;
     private final VisTable root = new VisTable(true);
+    private final UiBinders.CheckBoxBinder ambientBinder;
 
     private int entityId = -1;
 
@@ -56,10 +61,32 @@ public final class ParticleFxPanel extends CollapsibleWidget {
         root.add(new VisLabel("Particle FX:")).left();
         root.add(playBtn);
         root.add(pauseBtn);
-        root.add(restartBtn);
+        root.add(restartBtn).row();
+
+        // Reuse the native checkbox's ECS binder; the history command owns authored mutation.
+        VisCheckBox ignoreAmbient = new VisCheckBox("Ignore ambient lighting");
+        ignoreAmbient.setName("particle-ignore-ambient-lighting");
+        ambientBinder = new UiBinders.CheckBoxBinder(ctx.world, ignoreAmbient,
+                e -> ctx.world.getMapper(ParticleEmitterComponent.class).has(e),
+                e -> ctx.world.getMapper(ParticleEmitterComponent.class).get(e).ignoreAmbientLighting,
+                this::setIgnoreAmbientLighting);
+        root.add(ignoreAmbient).colspan(4).left().row();
     }
+
+    private void setIgnoreAmbientLighting(int e, boolean ignore) {
+        ParticleEmitterComponent emitter = ctx.world.getMapper(ParticleEmitterComponent.class).get(e);
+        ChangeParticleFlagsCommand.Snapshot before = ChangeParticleFlagsCommand.Snapshot.of(emitter);
+        ChangeParticleFlagsCommand.Snapshot after = ChangeParticleFlagsCommand.Snapshot.of(emitter);
+        after.ignoreAmbientLighting = ignore;
+        ChangeParticleFlagsCommand command = new ChangeParticleFlagsCommand(ctx.world, ctx.history.historyIds());
+        command.addEntry(ctx.history.historyIds().ensureForEntity(e), before, after);
+        if (!command.isNoop()) ctx.history.execute(command);
+    }
+
+    public void refresh() { ambientBinder.refresh(); }
 
     public void setEntityId(int entityId) {
         this.entityId = entityId;
+        ambientBinder.setEntityId(entityId);
     }
 }

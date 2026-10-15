@@ -180,6 +180,9 @@ public class EntityProperties extends VisTable {
             if (evt.entityId() != currentEntityId) return;
             repeatablePanel.refresh();
         });
+        EventFlow.i().subscribe(EventFlow.ParticleFlagsChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) particleFxPanel.refresh();
+        });
 
         materialPanel.refreshShaderList();
         syncScenePhysicsEnabled();

@@ -79,6 +79,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected String particleAtlasTag;
     protected boolean particleAutoStart;
     protected boolean particleLooping;
+    protected boolean particleIgnoreAmbientLighting;
 
     // --- Animation ---
     protected boolean hasAnimation;
@@ -307,12 +308,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             particleAtlasTag = p.atlasTag;
             particleAutoStart = p.autoStart;
             particleLooping = p.looping;
+            particleIgnoreAmbientLighting = p.ignoreAmbientLighting;
         } else {
             hasParticleEmitter = false;
             particleEffectPath = null;
             particleAtlasTag = null;
             particleAutoStart = true;
             particleLooping = true;
+            particleIgnoreAmbientLighting = false;
         }
 
         // --- Animation ---
@@ -640,6 +643,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             p.atlasTag = particleAtlasTag;
             p.autoStart = particleAutoStart;
             p.looping = particleLooping;
+            p.ignoreAmbientLighting = particleIgnoreAmbientLighting;
         }
 
         // --- Animation ---
@@ -1405,6 +1409,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.particleAtlasTag = atlasTag;
         this.particleAutoStart = true;
         this.particleLooping = true;
+        this.particleIgnoreAmbientLighting = false;
 
         return this;
     }
@@ -1668,6 +1673,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.particleAtlasTag = this.particleAtlasTag;
         copy.particleAutoStart = this.particleAutoStart;
         copy.particleLooping = this.particleLooping;
+        copy.particleIgnoreAmbientLighting = this.particleIgnoreAmbientLighting;
 
         // --- Animation ---
         copy.hasAnimation = this.hasAnimation;

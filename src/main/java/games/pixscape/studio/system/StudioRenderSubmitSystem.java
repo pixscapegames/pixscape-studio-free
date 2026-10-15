@@ -1,7 +1,6 @@
 package games.pixscape.studio.system;
 
 import com.artemis.BaseSystem;
-import com.artemis.ComponentMapper;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -23,7 +22,7 @@ import games.pixscape.studio.batch.TextureArrayMeshBatchStudio;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 
-public final class StudioRenderSubmitSystem extends BaseSystem implements ProfiledSystem {
+public final class StudioRenderSubmitSystem extends BaseSystem implements ProfiledSystem, AmbientContributionRenderer.MaterialReplay {
     private static final int MAX_REPEAT_DRAWS_PER_SLOT = 1024;
     private static final float AXIS_EPSILON = 0.0001f;
 
@@ -35,6 +34,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final RenderStats stats;
     private final RenderStatsSink statsSink;
     private final WorldLightComposition composition = new WorldLightComposition();
+    private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
     private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
             new games.pixscape.runtime.render.lighting.LightingRenderer();
     private LightParameterBinding lightParameters;
@@ -43,7 +43,6 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
 
-    private ComponentMapper<ShaderParamsComponent> mShaderParams;
 
     public StudioRenderSubmitSystem(LayerStateSOA layerState,
                                     FrameRenderQueue frameQueue,
@@ -93,6 +92,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
     public void prepareComposition() {
         composition.prepare();
+        ambientContribution.prepare();
         lighting.prepare(world, composition);
     }
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
@@ -101,17 +101,20 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     public void beginFrameSubmission() { frameSubmissionAllowed = true; }
     public void endFrameSubmission() { frameSubmissionAllowed = false; }
 
-    @Override protected void dispose() { lighting.dispose(); composition.dispose(); standaloneBatch.close(); }
+    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose(); standaloneBatch.close(); }
 
     private void render() {
         frameSubmissionAllowed = false; // At most one submission inside the canvas scope.
         Throwable failure = null;
         try {
+            ambientContribution.beginFrame(frameQueue);
             composition.beginOriginal();
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
             renderPass(LightCompositionPass.ORIGINAL, 0);
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
             lighting.render(frameQueue, layerState, cam, composition, stats);
+            if (frameQueue.lighting.diagnostic == 0)
+                ambientContribution.render(frameQueue, cam, composition, stats, this);
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
             SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
             boolean normal=frameQueue.lighting.diagnostic==0;
@@ -122,12 +125,19 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             failure = error;
             metricsBatch.abort(error);
             standaloneBatch.abort(error);
+            ambientContribution.abort();
             lighting.abort();
             throw error;
         } finally { composition.end(failure); }
     }
 
     private void renderPass(int pass, int first) {
+        renderPass(pass, first, frameQueue.size);
+    }
+    @Override public void replayAmbientMaterials(int first, int end) {
+        renderPass(LightCompositionPass.AMBIENT, first, end);
+    }
+    private void renderPass(int pass, int first, int end) {
         cam.update();
 
         AtlasRuntimeService.TextureArrayBundle activeBundle = null;
@@ -135,8 +145,9 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             activeBundle = taBatch.getBundle();
         }
 
-        int size = frameQueue.size;
+        int size = end;
         final boolean hasLayerMeta = layerState.maxLayerIndex() >= 0;
+        final ShaderProgram standardAtlasShader = ShaderRegistry.get(ShaderMode.TEXTURE_ARRAY.defaultShaderName());
 
         boolean atlasOpen = false;
         boolean standaloneOpen = false;
@@ -181,7 +192,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                     curShaderIdx = shaderIdx;
                     ShaderProgram sh = ShaderRegistry.getByIdx(shaderIdx);
                     if (sh == null) {
-                        sh = ShaderRegistry.get(ShaderMode.TEXTURE_ARRAY.defaultShaderName());
+                        sh = standardAtlasShader;
                     }
 
                     if (sh != curShader) {
@@ -199,15 +210,20 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                 }
 
                 final int blendId = frameQueue.blend[i];
-                if (blendId + (light ? 16 : 0) != curBlendId) {
+                if (pass == LightCompositionPass.ORIGINAL)
+                    AmbientContributionRenderer.admit(frameQueue, i, curShader, standardAtlasShader);
+                int materialPass = AmbientContributionRenderer.materialPass(pass, frameQueue, i);
+                if (LightCompositionPass.skip(materialPass, light, blendId)) continue;
+                int blendKey = blendId + (light ? 16 : 0) + materialPass * 32;
+                if (blendKey != curBlendId) {
                     int flushesBeforeBlend = stats.flushes;
                     metricsBatch.flush(stats);
                     if (stats.flushes > flushesBeforeBlend) stats.flushStateChanges++;
-                    LightCompositionPass.apply(pass, light, blendId, metricsBatch, curShader, stats);
-                    curBlendId = blendId + (light ? 16 : 0);
+                    LightCompositionPass.apply(materialPass, light, blendId, metricsBatch, curShader, stats);
+                    curBlendId = blendKey;
                 }
 
-                float packedColor = frameQueue.colorPacked[i];
+                float packedColor = AmbientContributionRenderer.originalColor(frameQueue, i, pass);
                 if (packedColor != curPackedColor) {
                     metricsBatch.setPackedColor(packedColor);
                     curPackedColor = packedColor;
@@ -252,13 +268,18 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                 standaloneOpen = true;
             }
 
-            if (blendId + (light ? 16 : 0) != curBlendId) {
+            if (pass == LightCompositionPass.ORIGINAL)
+                AmbientContributionRenderer.admit(frameQueue, i, standaloneShader, standaloneShader);
+            int materialPass = AmbientContributionRenderer.materialPass(pass, frameQueue, i);
+            if (LightCompositionPass.skip(materialPass, light, blendId)) continue;
+            int blendKey = blendId + (light ? 16 : 0) + materialPass * 32;
+            if (blendKey != curBlendId) {
                 standaloneBatch.flush(stats);
-                LightCompositionPass.apply(pass, light, blendId, standaloneBatch, standaloneShader, stats);
-                curBlendId = blendId + (light ? 16 : 0);
+                LightCompositionPass.apply(materialPass, light, blendId, standaloneBatch, standaloneShader, stats);
+                curBlendId = blendKey;
             }
 
-            standaloneBatch.setPackedColor(frameQueue.colorPacked[i]);
+            standaloneBatch.setPackedColor(AmbientContributionRenderer.originalColor(frameQueue, i, pass));
 
             byte repeat = frameQueue.repeatFlags[i];
             if ((repeat & RenderRepeatFlags.ANY) == 0) {
@@ -535,9 +556,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
 
     private ShaderParamsComponent entityParameters(int index) {
-        int entityId = frameQueue.sourceEntity[index];
-        return mShaderParams != null && entityId >= 0 && mShaderParams.has(entityId)
-                ? mShaderParams.get(entityId) : null;
+        return frameQueue.shaderParameters[index];
     }
 
     private void setUniform1f(ShaderProgram shader, String name, float value) {

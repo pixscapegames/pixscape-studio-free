@@ -368,6 +368,8 @@ public final class EventFlow {
     ) {
     }
 
+    public record ParticleFlagsChanged(int entityId) {}
+
     public enum ParticleControlType {PLAY, PAUSE, RESTART}
 
     // ------------------------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
     public static final class Snapshot {
         public boolean autoStart;
         public boolean looping;
+        public boolean ignoreAmbientLighting;
         public boolean paused;
         public boolean playRequested;
         public boolean restartRequested;
@@ -22,6 +23,7 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
             Snapshot s = new Snapshot();
             s.autoStart = c.autoStart;
             s.looping = c.looping;
+            s.ignoreAmbientLighting = c.ignoreAmbientLighting;
             s.paused = c.paused;
             s.playRequested = c.playRequested;
             s.restartRequested = c.restartRequested;
@@ -30,8 +32,11 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
 
         public boolean equalsState(Snapshot o) {
             if (o == null) return false;
-            return autoStart == o.autoStart
-                    && looping == o.looping
+            return ignoreAmbientLighting == o.ignoreAmbientLighting && equalsPlayback(o);
+        }
+
+        private boolean equalsPlayback(Snapshot o) {
+            return autoStart == o.autoStart && looping == o.looping
                     && paused == o.paused
                     && playRequested == o.playRequested
                     && restartRequested == o.restartRequested;
@@ -87,11 +92,17 @@ public final class ChangeParticleFlagsCommand implements Command, HistoryManager
             if (emitter == null) continue;
 
             Snapshot s = toBefore ? entry.before : entry.after;
-            emitter.autoStart = s.autoStart;
-            emitter.looping = s.looping;
-            emitter.paused = s.paused;
-            emitter.playRequested = s.playRequested;
-            emitter.restartRequested = s.restartRequested;
+            emitter.ignoreAmbientLighting = s.ignoreAmbientLighting;
+            // An ambient-only edit must not restore consumed requests or rewind live playback.
+            if (!entry.before.equalsPlayback(entry.after)) {
+                emitter.autoStart = s.autoStart;
+                emitter.looping = s.looping;
+                emitter.paused = s.paused;
+                emitter.playRequested = s.playRequested;
+                emitter.restartRequested = s.restartRequested;
+            }
+            games.pixscape.studio.event.EventFlow.i().publish(
+                    new games.pixscape.studio.event.EventFlow.ParticleFlagsChanged(entityId));
         }
     }
 }

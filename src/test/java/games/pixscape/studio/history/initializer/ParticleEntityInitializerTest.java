@@ -29,6 +29,7 @@ public class ParticleEntityInitializerTest {
         assertEquals(1f, transform.scaleX, 0f);
         assertEquals(1f, transform.scaleY, 0f);
         assertTrue(world.getMapper(ParticleEmitterComponent.class).has(entity));
+        assertFalse(world.getMapper(ParticleEmitterComponent.class).get(entity).ignoreAmbientLighting);
         assertEquals(EntityKind.PARTICLE,
                 world.getMapper(EntityMetaComponent.class).get(entity).kind);
         assertProxyFree(world, entity);
@@ -42,6 +43,7 @@ public class ParticleEntityInitializerTest {
         sourceTransform.x = 4f;
         sourceTransform.y = 5f;
         world.getMapper(ParticleEmitterComponent.class).create(source).effectPath = "legacy.p";
+        world.getMapper(ParticleEmitterComponent.class).get(source).ignoreAmbientLighting = true;
         world.getMapper(DimensionsComponent.class).create(source);
         world.getMapper(AABBComponent.class).create(source);
         world.getMapper(OrientedBoundsComponent.class).create(source);
@@ -58,6 +60,8 @@ public class ParticleEntityInitializerTest {
         int duplicated = world.create();
         historicalSnapshot.duplicate().init(duplicated);
         assertTrue(world.getMapper(ParticleEmitterComponent.class).has(duplicated));
+        assertTrue(world.getMapper(ParticleEmitterComponent.class).get(duplicated).ignoreAmbientLighting);
+        assertTrue(world.getMapper(ParticleEmitterComponent.class).get(restored).ignoreAmbientLighting);
         assertEquals("legacy.p",
                 world.getMapper(ParticleEmitterComponent.class).get(duplicated).effectPath);
         assertProxyFree(world, duplicated);
