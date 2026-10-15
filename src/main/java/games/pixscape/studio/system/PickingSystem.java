@@ -96,6 +96,10 @@ public final class PickingSystem extends BaseSystem {
 
     private DirtyTrackerSystem dirty;
     private GizmoSystem gizmoSystem;
+    private LightValueGesture lightValueGesture;
+    private LightIconOverlaySystem lightOverlay;
+    private com.kotcrab.vis.ui.widget.VisLabel lightValueHint;
+    private boolean lightValueCursor;
 
     private final Vector2 tmpMouseWorld = new Vector2();
     private final Vector2 tmpUi = new Vector2();
@@ -174,6 +178,11 @@ public final class PickingSystem extends BaseSystem {
     private float lightRotationBeforeRad = 0f;
     private float lightRotationCurrentRad = 0f;
     private boolean lightDragIsCone = false;
+    private float lightRadiusPressDistance, lightRadiusPressAngle;
+    private float lightRadiusHandleOffsetX, lightRadiusHandleOffsetY;
+    private final Vector2 tmpLightAnchor = new Vector2();
+    private float lightInclinationPressAngle, lightInclinationDirection;
+    private boolean lightInclinationEdgeOn;
     private boolean movingPolygonVertexActive = false;
     private boolean resizingCircleActive = false;
     private int resizingCircleBodyEid = -1;
@@ -308,6 +317,8 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        lightValueGesture = new LightValueGesture(world, historyManager);
+        lightOverlay = world.getSystem(LightIconOverlaySystem.class);
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
         resolvedPhysicsPose = new ResolvedPhysicsPose(world);
@@ -324,6 +335,24 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (lightValueCursor) {
+            setCursor(Cursor.SystemCursor.Arrow);
+            lightValueCursor = false;
+        }
+        if (lightOverlay != null) lightOverlay.setValueHandle(-1, null, false);
+        if (lightValueGesture.active()) {
+            processLightValueGesture();
+            return;
+        }
+        if (lightRadiusDragActive && (!isLightEntity(lightRadiusEntityId)
+                || !isSelectableInViewport(lightRadiusEntityId)
+                || selectionService.getSelectionSet().size != 1
+                || !selectionService.getSelectionSet().contains(lightRadiusEntityId)
+                || isTiledModeActive() || isSpatialBlockModeActive()
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))) {
+            cancelLightRadiusDrag();
+            return;
+        }
         if ((movingSpatialBlockActive || resizingSpatialBlockActive) &&
                 (!spatialBlockSelectionService.isEditingActive()
                 || !spatialBlockSelectionService.wallEditSession().isActive()
@@ -337,6 +366,7 @@ public final class PickingSystem extends BaseSystem {
         float my = tmpMouseWorld.y;
 
         if (processPolygonDrawMode(mx, my)) {
+            showLightValueHint(null);
             updateCursorForHover(
                     InputManipulationContext.Handle.NONE,
                     false,
@@ -359,7 +389,8 @@ public final class PickingSystem extends BaseSystem {
             cancelQuadVertexMove();
         }
 
-        if (isPointerOverUI() && !movingSpatialBlockActive && !resizingSpatialBlockActive) {
+        if (isPointerOverUI() && !movingSpatialBlockActive && !resizingSpatialBlockActive && !lightRadiusDragActive) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (spatialBlockSelectionService != null) spatialBlockSelectionService.clearHover();
@@ -372,6 +403,7 @@ public final class PickingSystem extends BaseSystem {
         boolean leftReleased = inputState.leftJustReleased();
 
         if (isSpatialBlockModeActive()) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (processSpatialEscape()) {
@@ -397,6 +429,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (isTiledModeActive()) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             updateCursorForHover(
@@ -420,9 +453,21 @@ public final class PickingSystem extends BaseSystem {
 
         boolean physicsEditMode = isExplicitPhysicsEditMode();
         boolean singleSel = viewportSel.size == 1;
+        if (singleSel && hoverLightValue(mx, my, viewportSel.get(0), leftPressed)) {
+            lastPressHit = null;
+            return;
+        }
+        showLightValueHint(null);
         if (leftPressed && singleSel && tryBeginLightRadiusDrag(mx, my, viewportSel.get(0))) {
             lastPressHit = null;
             return;
+        }
+        if (singleSel && mConeLight.has(viewportSel.first())) {
+            int e=viewportSel.first();
+            computeLightRadiusAnchorWorld(e,mT.get(e),tmpLightAnchor);
+            float half=coordSpaces.pixelsToWorld(LIGHT_ICON_SIZE_PX*.5f+LIGHT_PICK_TOL_PX);
+            if (HandleHelper.insideSquare(mx,my,tmpLightAnchor.x,tmpLightAnchor.y,half))
+                showLightValueHint("Cone axis section (Z: "+formatLightValue(readLightHeight(e))+")");
         }
 
         InputManipulationContext.Handle hovered = resolveHoveredHandle(mx, my, viewportSel);
@@ -2966,8 +3011,15 @@ public final class PickingSystem extends BaseSystem {
             TransformComponent t = mT.get(e);
             if (t == null) continue;
 
-            t.x = t.x + dx;
-            t.y = t.y + dy;
+            if (isLightEntity(e) && gameObjectHierarchy != null) {
+                int parent = gameObjectHierarchy.topology().parentEntityId[e];
+                LightGizmoGeometry.localGroundDelta(gameObjectHierarchy.worldTransforms(), parent, dx, dy, tmp2Vec);
+                t.x += tmp2Vec.x;
+                t.y += tmp2Vec.y;
+            } else {
+                t.x += dx;
+                t.y += dy;
+            }
             if (dirty != null) dirty.geometry(e, GeometryDirty.POSITION);
         }
 
@@ -3864,7 +3916,7 @@ public final class PickingSystem extends BaseSystem {
             resolveLightWorldPosition(e, t, tmp2Vec);
             applyDisplayOffset(e, tmp2Vec);
             float cx = tmp2Vec.x;
-            float cy = tmp2Vec.y;
+            float cy = tmp2Vec.y + readLightHeight(e);
 
             if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWidthorld)) continue;
 
@@ -4002,6 +4054,17 @@ public final class PickingSystem extends BaseSystem {
         TransformComponent transform = mT.getSafe(entityId, null);
         lightRotationBeforeRad = transform != null ? transform.rotationRad : 0f;
         lightRotationCurrentRad = lightRotationBeforeRad;
+        float controlX=tmp2Vec.x,controlY=tmp2Vec.y;
+        computeLightRadiusAnchorWorld(entityId,t,tmpLightAnchor);
+        if (lightDragIsCone) {
+            ConeLightGizmoGeometry.sectionPoint(tmpLightAnchor.x,tmpLightAnchor.y,
+                    resolvedLightWorldRotation(entityId,t),0f,lightRadiusBefore,tmp2Vec);
+        } else LightGizmoGeometry.pointSectionPoint(tmpLightAnchor.x,tmpLightAnchor.y,0f,lightRadiusBefore,tmp2Vec);
+        lightRadiusHandleOffsetX=controlX-tmp2Vec.x;
+        lightRadiusHandleOffsetY=controlY-tmp2Vec.y;
+        float dx=mx-lightRadiusHandleOffsetX-tmpLightAnchor.x,dy=my-lightRadiusHandleOffsetY-tmpLightAnchor.y;
+        lightRadiusPressDistance=LightGizmoGeometry.radiusFromScreenDelta(dx,dy);
+        lightRadiusPressAngle = (float)Math.atan2(dy,dx);
         lightRadiusDragActive = true;
         return true;
     }
@@ -4014,12 +4077,15 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        resolveLightWorldPosition(entityId, t, tmp2Vec);
-        applyDisplayOffset(entityId, tmp2Vec);
-        float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(tmp2Vec.x, tmp2Vec.y, mx, my));
+        if (!leftDown && !leftReleased) { cancelLightRadiusDrag(); return; }
+        computeLightRadiusAnchorWorld(entityId,t,tmpLightAnchor);
+        float dx=mx-lightRadiusHandleOffsetX-tmpLightAnchor.x,dy=my-lightRadiusHandleOffsetY-tmpLightAnchor.y;
+        float distance=LightGizmoGeometry.radiusFromScreenDelta(dx,dy);
+        float newRadius = EditLightRadiusCommand.clamp(lightRadiusBefore
+                + distance - lightRadiusPressDistance);
         float newRotationRad = lightDragIsCone
-                ? localLightRotationForWorldAngle(entityId, t,
-                (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x))
+                ? lightRotationBeforeRad + wrappedAngleDelta(lightRadiusPressAngle,
+                (float)Math.atan2(dy,dx))
                 : lightRotationCurrentRad;
         applyLightOverlayLive(entityId, newRadius, newRotationRad, lightDragIsCone);
         lightRadiusCurrent = newRadius;
@@ -4072,24 +4138,173 @@ public final class PickingSystem extends BaseSystem {
 
     private void computeLightRadiusHandleWorld(int entityId, TransformComponent t, Vector2 out) {
         float radius = readLightRadius(entityId);
-        resolveLightWorldPosition(entityId, t, out);
+        computeLightRadiusAnchorWorld(entityId,t,out);
+        float anchorX=out.x,anchorY=out.y;
         if (mConeLight != null && mConeLight.has(entityId)) {
             float angle = resolvedLightWorldRotation(entityId, t);
-            out.add(MathUtils.cos(angle) * radius, MathUtils.sin(angle) * radius);
+            ConeLightGizmoGeometry.sectionPoint(anchorX,anchorY,angle,0f,radius,out);
         } else {
-            out.x += radius;
+            LightGizmoGeometry.pointSectionPoint(anchorX,anchorY,0f,radius,out);
         }
 
-        applyDisplayOffset(entityId, out);
+        float hx=out.x,hy=out.y;
+        LightGizmoGeometry.radiusControl(anchorX,anchorY,hx,hy,coordSpaces.worldUnitsPerPixel(),out);
+    }
+
+    private void computeLightRadiusAnchorWorld(int entityId, TransformComponent t, Vector2 out) {
+        resolveLightWorldPosition(entityId,t,out);
+        LightGizmoGeometry.source(out.x,out.y,readLightHeight(entityId),out);
+        applyDisplayOffset(entityId,out);
+    }
+
+    private void cancelLightRadiusDrag() {
+        if (lightRadiusDragActive && lightRadiusEntityId>=0 && world.getEntityManager().isActive(lightRadiusEntityId))
+            applyLightOverlayLive(lightRadiusEntityId,lightRadiusBefore,lightRotationBeforeRad,lightDragIsCone);
+        lightRadiusDragActive=false;
+        lightRadiusEntityId=-1;
+        resetPressState();
     }
 
     private void resolveLightWorldPosition(int entityId, TransformComponent transform, Vector2 out) {
         WorldTransformState state = gameObjectHierarchy != null
                 ? gameObjectHierarchy.worldTransforms() : null;
-        if (state != null && state.isResolved(entityId)) {
-            out.set(state.x[entityId], state.y[entityId]);
+        LightGizmoGeometry.ground(state, entityId, transform, mDim.getSafe(entityId, null), out);
+    }
+
+    private float readLightHeight(int e) {
+        return EditLightingCommand.read(world, e, EditLightingCommand.Property.HEIGHT);
+    }
+
+    private boolean hoverLightValue(float mx, float my, int e, boolean pressed) {
+        if (!isLightEntity(e) || !isSelectableInViewport(e)) return false;
+        TransformComponent transform = mT.getSafe(e, null);
+        if (transform == null) return false;
+        resolveLightWorldPosition(e, transform, tmp2Vec);
+        LightGizmoGeometry.source(tmp2Vec.x, tmp2Vec.y, readLightHeight(e), tmp2Vec);
+        applyDisplayOffset(e, tmp2Vec);
+        float wpp = coordSpaces.worldUnitsPerPixel();
+        float sourceX = tmp2Vec.x, sourceY = tmp2Vec.y;
+        if (mConeLight.has(e)) {
+            float direction = resolvedLightWorldRotation(e, transform);
+            ConeLightGizmoGeometry.inclinationArcPoint(sourceX, sourceY, direction,
+                    mConeLight.get(e).inclinationDeg, wpp, tmp2Vec);
+            float hit = ConeLightGizmoGeometry.INCLINATION_PICK_PX * wpp;
+            if (Vector2.dst2(mx, my, tmp2Vec.x, tmp2Vec.y) <= hit * hit) {
+                if (pressed) {
+                    lightValueGesture.begin(e, EditLightingCommand.Property.INCLINATION,
+                            Gdx.input.getX(), Gdx.input.getY(), inputState.isShift());
+                    lightInclinationDirection = direction;
+                    lightInclinationEdgeOn = ConeLightGizmoGeometry.inclinationEdgeOn(direction);
+                    if (!lightInclinationEdgeOn) lightInclinationPressAngle =
+                            ConeLightGizmoGeometry.inclinationPointerAngle(sourceX, sourceY, direction, wpp, mx, my);
+                }
+                if (lightOverlay != null) lightOverlay.setValueHandle(e, EditLightingCommand.Property.INCLINATION, pressed);
+                showLightValueHint("Inclination: " + formatLightValue(mConeLight.get(e).inclinationDeg)
+                        + "°  (Shift: fine)" + (ConeLightGizmoGeometry.inclinationEdgeOn(direction) ? "  drag up/down" : ""));
+                showLightValueCursor(false);
+                return true;
+            }
+        }
+        float dx = (mx - sourceX) / wpp, dy = (my - sourceY) / wpp;
+        boolean intensity = LightGizmoGeometry.intensityHit(dx, dy);
+        if (!intensity && !LightGizmoGeometry.heightHit(dx, dy)) return false;
+        EditLightingCommand.Property property = intensity
+                ? EditLightingCommand.Property.INTENSITY : EditLightingCommand.Property.HEIGHT;
+        if (pressed) lightValueGesture.begin(e, property, Gdx.input.getX(), Gdx.input.getY(), inputState.isShift());
+        if (lightOverlay != null) lightOverlay.setValueHandle(e, property, pressed);
+        showLightValueHint((intensity ? "Intensity: " : "Height: ")
+                + formatLightValue(EditLightingCommand.read(world, e, property)) + "  (Shift: fine)");
+        showLightValueCursor(intensity);
+        return true;
+    }
+
+    private void processLightValueGesture() {
+        int e = lightValueGesture.entity();
+        boolean released = inputState.leftJustReleased();
+        boolean validSelection = selectionService != null && selectionService.getSelectionSet().size == 1
+                && selectionService.getSelectionSet().contains(e) && isSelectableInViewport(e);
+        if (!validSelection || !isLightEntity(e) || isTiledModeActive() || isSpatialBlockModeActive()
+                || (polygonDrawSession != null && polygonDrawSession.isActive())
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)
+                || !inputState.isLeftDown() && !released) {
+            cancelLightValueGesture();
+            return;
+        }
+        boolean intensity = lightValueGesture.property() == EditLightingCommand.Property.INTENSITY;
+        boolean inclination = lightValueGesture.property() == EditLightingCommand.Property.INCLINATION;
+        float delta;
+        if (intensity) {
+            // Relative exposure control, with no invented upper intensity limit.
+            delta = (Gdx.input.getX() - lightValueGesture.pressX()) * .01f;
+        } else if (inclination) {
+            if (lightInclinationEdgeOn) {
+                // A meridian viewed edge-on has no stable angular inverse.
+                delta = lightValueGesture.pressY() - Gdx.input.getY();
+            } else {
+                TransformComponent transform = mT.get(e);
+                computeLightRadiusAnchorWorld(e, transform, tmpLightAnchor);
+                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmp2Vec);
+                float angle = ConeLightGizmoGeometry.inclinationPointerAngle(tmpLightAnchor.x,
+                        tmpLightAnchor.y, lightInclinationDirection, coordSpaces.worldUnitsPerPixel(), tmp2Vec.x, tmp2Vec.y);
+                delta = wrappedAngleDelta(lightInclinationPressAngle, angle) * MathUtils.radiansToDegrees;
+            }
         } else {
-            out.set(transform.x, transform.y);
+            coordSpaces.screenToWorld(lightValueGesture.pressX(), lightValueGesture.pressY(), tmp2Vec);
+            float startY = tmp2Vec.y;
+            coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmp2Vec);
+            delta = tmp2Vec.y - startY;
+        }
+        lightValueGesture.preview(delta);
+        if (lightOverlay != null) lightOverlay.setValueHandle(e, lightValueGesture.property(), true);
+        showLightValueHint((inclination ? "Inclination: " : intensity ? "Intensity: " : "Height: ")
+                + formatLightValue(EditLightingCommand.read(world, e, lightValueGesture.property()))
+                + (inclination ? "°" : ""));
+        showLightValueCursor(intensity);
+        if (released) {
+            lightValueGesture.commit();
+            showLightValueHint(null);
+            resetPressState();
+            setCursor(Cursor.SystemCursor.Arrow);
+        }
+    }
+
+    public void cancelLightValueGesture() {
+        cancelLightRadiusDrag();
+        if (lightValueGesture != null) lightValueGesture.cancel();
+        showLightValueHint(null);
+        if (lightOverlay != null) lightOverlay.setValueHandle(-1, null, false);
+        setCursor(Cursor.SystemCursor.Arrow);
+        osCursorHidden = false;
+        resetPressState();
+    }
+
+    private void showLightValueCursor(boolean intensity) {
+        lightValueCursor = true;
+        if (gizmoSystem != null) gizmoSystem.clearCursor();
+        osCursorHidden = false;
+        setCursor(intensity ? Cursor.SystemCursor.HorizontalResize : Cursor.SystemCursor.VerticalResize);
+    }
+
+    private static String formatLightValue(float value) {
+        return String.format(java.util.Locale.ROOT, "%.3f", value);
+    }
+
+    private void showLightValueHint(String text) {
+        if (text == null) {
+            if (lightValueHint != null) lightValueHint.remove();
+            lightValueHint = null;
+        } else if (uiStage != null) {
+            if (lightValueHint == null) {
+                lightValueHint = new com.kotcrab.vis.ui.widget.VisLabel("");
+                lightValueHint.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
+                uiStage.addActor(lightValueHint);
+            }
+            lightValueHint.setText(text);
+            lightValueHint.pack();
+            coordSpaces.screenToUi(Gdx.input.getX(), Gdx.input.getY(), tmpUi);
+            lightValueHint.setPosition(
+                    Math.max(12f, Math.min(tmpUi.x + 12f, uiStage.getWidth() - lightValueHint.getWidth() - 12f)),
+                    Math.max(12f, tmpUi.y - lightValueHint.getHeight() - 12f));
         }
     }
 
@@ -4098,14 +4313,6 @@ public final class PickingSystem extends BaseSystem {
                 ? gameObjectHierarchy.worldTransforms() : null;
         return state != null && state.isResolved(entityId)
                 ? state.rotationRad[entityId] : transform.rotationRad;
-    }
-
-    /** Converts the pointer's world-space cone angle back to the authored local transform angle. */
-    private float localLightRotationForWorldAngle(int entityId,
-                                                  TransformComponent transform,
-                                                  float worldAngle) {
-        return transform.rotationRad + wrappedAngleDelta(
-                resolvedLightWorldRotation(entityId, transform), worldAngle);
     }
 
     private static float wrappedAngleDelta(float from, float to) {

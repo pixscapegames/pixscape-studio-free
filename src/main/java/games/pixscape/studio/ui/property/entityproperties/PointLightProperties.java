@@ -146,6 +146,7 @@ public final class PointLightProperties extends VisTable {
         );
 
         intensityField = new FloatField(ctx.world, this::readIntensity, this::hasPointLight).setDisplayDecimals(3);
+        intensityField.setName("light-intensity");
         intensityField.setApplier((eid, v) -> setLight(eid, l -> l.intensity = Math.max(0f, v)));
 
         xField = new FloatField(ctx.world, this::readX, this::hasPointLight).setDisplayDecimals(3);
@@ -231,6 +232,7 @@ public final class PointLightProperties extends VisTable {
         }
         if (op == TransformOp.SCALE) {
             radiusField.refreshFromModel();
+            intensityField.refreshFromModel();
         }
     }
 

@@ -13,6 +13,9 @@
 
 ### Added
 
+* Added "Ignore ambient lighting" for particle instances.
+* Added height and intensity handles to point and cone light gizmos, with fine control and undo/redo.
+* Added continuous cone light inclination, with a dedicated arc handle and Properties control.
 * Added tileset reimport using retained source provenance and relative paths, updating matched images while preserving tile IDs, placements and edited properties.
 * Reimport adds new tiles and deletes absent tiles only when confirmed unused; tiles still in use or with uncertain usage are retained.
 * Added automatic detection of case-sensitive `*_n.png` normal-map companions on initial import and reimport, without excluding color files ending in `_N.png`.
@@ -21,6 +24,8 @@
 
 ### Changed
 
+* Light range guides now follow the source height and Runtime projection, including an ellipse for point lights.
+* Updated the embedded HTML player with the lighting fixes, particle ambient exemption and cone inclination.
 * Studio Free batches compatible material entities across different float values, reuses identical parameter rows, and keeps the standalone texture preview usable during atlas repack.
 * Shader Manager now edits ordered float declarations and defaults (up to 16); entity values remain in Material > Parameters with undo and dirty tracking.
 * HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
@@ -32,6 +37,8 @@
 
 ### Fixed
 
+* Fixed lighting alignment on deformed images.
+* Fixed light gizmo picking and movement for parented lights.
 * Fixed scene saves remaining stuck while waiting for atlas repack completion.
 * Failed scene atlas packs now retain a restart-safe repack requirement until matching pixels are published; unchanged saves still skip packing.
 * Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.

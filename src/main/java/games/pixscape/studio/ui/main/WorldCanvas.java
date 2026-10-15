@@ -364,8 +364,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             sceneBindings.put(detached, SceneBinding.capture(this));
             detached.detached();
         }
-        sceneEditorContext = null;
         cancelPointerInteraction();
+        sceneEditorContext = null;
         return detached;
     }
 
@@ -416,6 +416,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void cancelPointerInteraction() {
+        if (sceneEditorContext != null && sceneEditorContext.isInitialized()) {
+            PickingSystem picking = world().getSystem(PickingSystem.class);
+            if (picking != null) picking.cancelLightValueGesture();
+        }
         gridStage.cancelTouchFocus();
         panning = false;
         panPointer = -1;
@@ -1500,6 +1504,14 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 int pointer,
                                 int button) {
 
+                if (event.isTouchFocusCancel()) {
+                    PickingSystem picking = sceneEditorContext != null && sceneEditorContext.isInitialized()
+                            ? world().getSystem(PickingSystem.class) : null;
+                    if (picking != null) picking.cancelLightValueGesture();
+                    inputState.clearAll();
+                    return;
+                }
+
                 if (!worldInputAllowed()) return;
 
                 int rawX = Gdx.input.getX(pointer);
@@ -2295,6 +2307,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private boolean processDrawFrame() {
+        LightIconOverlaySystem lightOverlay = world().getSystem(LightIconOverlaySystem.class);
+        GizmoSystem gizmos = world().getSystem(GizmoSystem.class);
         games.pixscape.studio.system.StudioRenderSubmitSystem submit =
                 world().getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
         // Snapshot synchronization and queued events have completed before granting permission.
@@ -2303,8 +2317,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             submit.beginFrameSubmission();
         }
         try {
+            if (lightOverlay != null) lightOverlay.setDrawingAllowed(true);
+            if (gizmos != null) gizmos.setDrawingAllowed(true);
             return spatialInvariantBoundary.process(currentSceneTag(), this, this);
         } finally {
+            if (lightOverlay != null) lightOverlay.setDrawingAllowed(false);
+            if (gizmos != null) gizmos.setDrawingAllowed(false);
             if (submit != null) submit.endFrameSubmission();
         }
     }

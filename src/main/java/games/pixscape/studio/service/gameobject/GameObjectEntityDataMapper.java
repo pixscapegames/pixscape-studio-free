@@ -72,6 +72,7 @@ final class GameObjectEntityDataMapper {
             data.coneLight.radius = cone.radius;
             data.coneLight.coneAngleDeg = cone.coneAngleDeg;
             data.coneLight.rotationDeg = cone.rotationDeg;
+            data.coneLight.inclinationDeg = cone.inclinationDeg;
             data.coneLight.softness = cone.softness;
             data.coneLight.falloff = cone.falloff;
             data.coneLight.height=cone.height;data.coneLight.shadowQuality=cone.shadowQuality;data.coneLight.shadowResolution=cone.shadowResolution;

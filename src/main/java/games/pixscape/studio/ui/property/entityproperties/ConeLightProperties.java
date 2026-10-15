@@ -16,6 +16,7 @@ import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
+import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.ui.StudioColorPickerFactory;
@@ -70,6 +71,7 @@ public final class ConeLightProperties extends VisTable {
     private final FloatField radiusField;
     private final FloatField coneAngleField;
     private final FloatField rotationField;
+    private final FloatField inclinationField;
     private final FloatField softnessField;
     private final FloatField falloffField;
 
@@ -151,6 +153,7 @@ public final class ConeLightProperties extends VisTable {
         );
 
         intensityField = new FloatField(ctx.world, this::readIntensity, this::hasConeLight).setDisplayDecimals(3);
+        intensityField.setName("light-intensity");
         intensityField.setApplier((eid, v) -> {
             setLight(eid, l -> l.intensity = Math.max(0f, v));
         });
@@ -175,6 +178,18 @@ public final class ConeLightProperties extends VisTable {
 
         rotationField = new FloatField(ctx.world, this::readRotationDeg, this::hasConeLight).setDisplayDecimals(2);
         rotationField.setApplier(this::setRotationDeg);
+
+        inclinationField = new FloatField(ctx.world, eid -> mLight.get(eid).inclinationDeg,
+                this::hasConeLight).setDisplayDecimals(2);
+        inclinationField.setName("light-inclination");
+        inclinationField.setApplier((eid, value) -> {
+            if (!Float.isFinite(value)) return;
+            float inclination = MathUtils.clamp(value, ConeLightComponent.MIN_INCLINATION_DEG,
+                    ConeLightComponent.MAX_INCLINATION_DEG);
+            EditLightingCommand command = new EditLightingCommand(ctx.world, ctx.history.historyIds(),
+                    eid, EditLightingCommand.Property.INCLINATION, inclination);
+            if (!command.isNoop()) ctx.history.execute(command);
+        });
 
         softnessField = new FloatField(ctx.world, this::readSoftness, this::hasConeLight).setDisplayDecimals(3);
         softnessField.setApplier((eid, v) -> {
@@ -217,7 +232,7 @@ public final class ConeLightProperties extends VisTable {
 
         VisTable coneContent = coneBlock.content();
         coneContent.left().top();
-        coneContent.defaults().left().pad(1);
+        coneContent.defaults().left().pad(5);
         coneContent.add(enabledCheckBox).left().colspan(2).row();
         coneContent.add(new VisLabel("X:"));
         coneContent.add(xField).width(120).left().row();
@@ -233,6 +248,8 @@ public final class ConeLightProperties extends VisTable {
         coneContent.add(coneAngleField).width(120).left().row();
         coneContent.add(new VisLabel("Rotation (deg):"));
         coneContent.add(rotationField).width(120).left().row();
+        coneContent.add(new VisLabel("Inclination (deg):"));
+        coneContent.add(inclinationField).width(120).left().row();
         coneContent.add(new VisLabel("Softness:"));
         coneContent.add(softnessField).width(120).left().row();
         coneContent.add(new VisLabel("Falloff:"));
@@ -263,6 +280,8 @@ public final class ConeLightProperties extends VisTable {
         }
         if (op == TransformOp.SCALE) {
             radiusField.refreshFromModel();
+            intensityField.refreshFromModel();
+            inclinationField.refreshFromModel();
         }
     }
 
@@ -339,6 +358,7 @@ public final class ConeLightProperties extends VisTable {
         radiusField.setEntityId(entityId);
         coneAngleField.setEntityId(entityId);
         rotationField.setEntityId(entityId);
+        inclinationField.setEntityId(entityId);
         softnessField.setEntityId(entityId);
         falloffField.setEntityId(entityId);
         pickerBinder.setEntityId(entityId);

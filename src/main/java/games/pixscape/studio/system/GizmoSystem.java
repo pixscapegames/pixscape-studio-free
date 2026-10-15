@@ -43,6 +43,11 @@ import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
 @All({TransformComponent.class})
 public final class GizmoSystem extends BaseSystem {
+    private boolean drawingAllowed;
+
+    public void setDrawingAllowed(boolean allowed) { drawingAllowed = allowed; }
+
+    @Override protected boolean checkProcessing() { return drawingAllowed; }
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
 
     private final StudioDrawContext ctx;

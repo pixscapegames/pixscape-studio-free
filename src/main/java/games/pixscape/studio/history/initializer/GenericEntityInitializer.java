@@ -119,6 +119,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float coneIntensity = 1f;
     protected float coneRadius = 250f;
     protected float coneAngleDeg = 60f;
+    protected float coneInclinationDeg;
     protected float coneSoftness = 0.1f;
     protected float coneFalloff = 1.5f;
     protected float coneHeight = 128f;
@@ -375,6 +376,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             coneIntensity = l.intensity;
             coneRadius = l.radius;
             coneAngleDeg = l.coneAngleDeg;
+            coneInclinationDeg = l.inclinationDeg;
             coneSoftness = l.softness;
             coneFalloff = l.falloff;
             coneHeight=l.height;coneShadowQuality=l.shadowQuality;coneShadowResolution=l.shadowResolution;
@@ -701,6 +703,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             l.intensity = coneIntensity;
             l.radius = coneRadius;
             l.coneAngleDeg = coneAngleDeg;
+            l.inclinationDeg = coneInclinationDeg;
             l.softness = coneSoftness;
             l.falloff = coneFalloff;
             l.height=coneHeight;l.shadowQuality=coneShadowQuality;l.shadowResolution=coneShadowResolution;
@@ -1562,6 +1565,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.coneRadius = Math.max(0f, radius);
         this.coneIntensity = Math.max(0f, intensity);
         this.coneAngleDeg = coneAngleDeg;
+        this.coneInclinationDeg = 0f;
         this.coneSoftness = softness;
         this.coneFalloff = falloff;
         this.coneRotationDeg = rotationRad * com.badlogic.gdx.math.MathUtils.radiansToDegrees;
@@ -1720,6 +1724,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.coneIntensity = this.coneIntensity;
         copy.coneRadius = this.coneRadius;
         copy.coneAngleDeg = this.coneAngleDeg;
+        copy.coneInclinationDeg = this.coneInclinationDeg;
         copy.coneSoftness = this.coneSoftness;
         copy.coneFalloff = this.coneFalloff;
         copy.coneHeight=this.coneHeight;copy.coneShadowQuality=this.coneShadowQuality;copy.coneShadowResolution=this.coneShadowResolution;

@@ -132,6 +132,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.inclinationDeg = value.inclinationDeg;
         result.softness = value.softness; result.falloff = value.falloff;
         result.enabled = value.enabled;
         result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
@@ -144,6 +145,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.inclinationDeg = value.inclinationDeg;
         result.softness = value.softness; result.falloff = value.falloff;
         result.enabled = value.enabled;
         result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
@@ -154,6 +156,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         target.r = value.r; target.g = value.g; target.b = value.b;
         target.intensity = value.intensity; target.radius = value.radius;
         target.coneAngleDeg = value.coneAngleDeg; target.rotationDeg = value.rotationDeg;
+        target.inclinationDeg = value.inclinationDeg;
         target.softness = value.softness; target.falloff = value.falloff;
         target.enabled = value.enabled;
         target.height=value.height;target.shadowQuality=value.shadowQuality;target.shadowResolution=value.shadowResolution;

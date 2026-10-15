@@ -38,6 +38,7 @@ public final class LightingPanel extends VisTable {
     }
     private void field(String label,Property p){
         FloatField f=new FloatField(ctx.world,e->EditLightingCommand.read(ctx.world,e,p),e->e>=0&&ctx.world.getEntityManager().isActive(e)).setDisplayDecimals(3);
+        if(p==Property.HEIGHT)f.setName("light-source-height");
         f.setApplier((e,v)->edit(p,v));fields.add(f);add(new VisLabel(label));add(f).left().row();
     }
     private void check(String label,Property p){
