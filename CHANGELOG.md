@@ -11,6 +11,14 @@
 * Custom material shaders must migrate per-entity values from float uniforms to the parameter table in both GLSL targets.
 * HUD screen assets from the fixed-resolution development format must be recreated; there is no automatic migration.
 
+### Added
+
+* Added tileset reimport using retained source provenance and relative paths, updating matched images while preserving tile IDs, placements and edited properties.
+* Reimport adds new tiles and deletes absent tiles only when confirmed unused; tiles still in use or with uncertain usage are retained.
+* Added automatic detection of case-sensitive `*_n.png` normal-map companions on initial import and reimport, without excluding color files ending in `_N.png`.
+* Imported tile normal maps now drive desktop preview lighting and are included in Runtime exports; tiles with identical color images can keep different normals.
+* Tileset updates refresh the color and dedicated normal atlases of affected scenes.
+
 ### Changed
 
 * Studio Free batches compatible material entities across different float values, reuses identical parameter rows, and keeps the standalone texture preview usable during atlas repack.
@@ -24,6 +32,7 @@
 
 ### Fixed
 
+* Fixed scene saves remaining stuck while waiting for atlas repack completion.
 * Failed scene atlas packs now retain a restart-safe repack requirement until matching pixels are published; unchanged saves still skip packing.
 * Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
 * Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.

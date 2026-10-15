@@ -72,6 +72,16 @@ public final class StandaloneTextureCache {
         return out;
     }
 
+    /** Reload borrowed handles in place so existing editor bindings remain usable. Render thread only. */
+    public static void reloadProjectRelative(java.util.Set<String> paths) {
+        FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        for (String path : paths) {
+            Texture texture = path2tex.get(path);
+            if (texture != null && project.child(path).exists())
+                texture.load(com.badlogic.gdx.graphics.TextureData.Factory.loadFromFile(project.child(path), null, false));
+        }
+    }
+
     public static void clear(boolean disposeTextures) {
         if (disposeTextures) {
             for (Texture t : path2tex.values()) {

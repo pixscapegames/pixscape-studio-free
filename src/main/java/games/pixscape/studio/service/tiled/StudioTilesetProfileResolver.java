@@ -85,9 +85,7 @@ public final class StudioTilesetProfileResolver {
                 tileIds = new IntArray();
                 tileIdsByTilesetId.put(tile.tilesetId, tileIds);
             }
-            if (!tileIds.contains(tile.id())) {
-                tileIds.add(tile.id());
-            }
+            tileIds.add(tile.id());
         }
 
         for (int i = 0; i < assetDb.size(); i++) {
@@ -104,6 +102,10 @@ public final class StudioTilesetProfileResolver {
             tileIds.sort();
             RuntimeTilesetProfile profile = toRuntimeProfile(tileset);
             profile.tileAssetIds = tileIds.toArray();
+            for (int id : profile.tileAssetIds) {
+                TileAssetMeta tile = (TileAssetMeta) assetDb.findById(id);
+                if (tile.normalSourceRelPath != null) profile.normalMapSources.put(id, tile.normalSourceRelPath);
+            }
             profiles.add(profile);
         }
     }

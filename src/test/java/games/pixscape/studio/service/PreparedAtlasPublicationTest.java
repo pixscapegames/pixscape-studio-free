@@ -24,6 +24,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class PreparedAtlasPublicationTest {
+    @Test public void normalPagesAreDecodedBeforeUploadAndStayOutOfColorArray() throws Exception {
+        Path dir=Files.createTempDirectory("prepared-normal-pages");
+        FileHandle color=writeSolidPage(dir.resolve("scene.png"),0xffffffff);
+        FileHandle normal=writeSolidPage(dir.resolve("scene.normals.png"),0x12abefff);
+        String page="\nsize:2,2\nformat:RGBA8888\nfilter:Linear,Linear\nrepeat:none\n";
+        FileHandle descriptor=new FileHandle(dir.resolve("scene.atlas").toFile());
+        descriptor.writeString("scene.png"+page+"color__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        new FileHandle(dir.resolve("scene.normals.atlas").toFile()).writeString("scene.normals.png"+page+"normal__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        PreparedAtlasPublication candidate=PreparedAtlasPublication.prepare("scene",1,descriptor,2);
+        assertEquals(48,candidate.byteSize());assertEquals(2,candidate.layerCount());
+        color.delete();normal.delete();
+        final CountingTexture[] normalTexture={null};
+        PreparedAtlasPublication.Uploaded uploaded=candidate.upload(new FileHandle(dir.toFile()),(file,pixels,metadata)->{
+            CountingTexture texture=fakeTexture(2,2);
+            if(file.name().contains(".normals")){assertEquals(0x12abefff,pixels.getPixel(0,0));normalTexture[0]=texture;}
+            return texture;
+        },layers->{assertEquals(2,layers.size);return fakeTextureArray();});
+        var normals=uploaded.takeNormals();assertNotNull(normals.resolve(7));assertNull(normals.resolve(8));
+        normals.dispose();uploaded.close();candidate.close();assertEquals(1,normalTexture[0].disposeCalls);
+    }
 
     @BeforeClass
     public static void ensureHeadlessApplication() {

@@ -299,6 +299,13 @@ public final class AssetMetaDatabase implements Json.Serializable {
         publishIndexes(candidateIndexes);
     }
 
+    /** Failed file imports must not recycle IDs allocated during preparation. */
+    public void restoreAfterFailedImport(AssetMetaDatabase restored) {
+        int allocatedThrough = nextId;
+        replaceStateFrom(restored);
+        nextId = Math.max(nextId, allocatedThrough);
+    }
+
     private static AssetMeta copyAsset(AssetMeta source) {
         AssetMeta copy = newMeta(
                 source.id(),
@@ -323,6 +330,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
             copyTileset.rows = sourceTileset.rows;
             copyTileset.spacing = sourceTileset.spacing;
             copyTileset.margin = sourceTileset.margin;
+            copyTileset.importSourceUri = sourceTileset.importSourceUri;
+            copyTileset.importKind = sourceTileset.importKind;
             copyTileset.referenceCellWidth = sourceTileset.referenceCellWidth;
             copyTileset.referenceCellHeight = sourceTileset.referenceCellHeight;
             copyTileset.projection = sourceTileset.projection;
@@ -336,6 +345,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
             copyTile.sheetIndex = sourceTile.sheetIndex;
             copyTile.cellX = sourceTile.cellX;
             copyTile.cellY = sourceTile.cellY;
+            copyTile.importSourceKey = sourceTile.importSourceKey;
+            copyTile.normalSourceRelPath = sourceTile.normalSourceRelPath;
         }
         return copy;
     }
@@ -554,6 +565,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 animation.clips = new ObjectMap<>();
             }
             if (asset instanceof TilesetAssetMeta tileset) {
+
                 tileset.normalizeProfileDefaults();
             }
             String normalizedSource = normalizeOptionalSourcePath(asset.sourceRelPath());
@@ -895,6 +907,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 json.writeValue("currentClip", animation.currentClip);
                 writeAnimationClips(json, animation.clips);
             } else if (object instanceof TilesetAssetMeta tileset) {
+
                 tileset.normalizeProfileDefaults();
                 json.writeValue("imageWidth", tileset.imageWidth);
                 json.writeValue("imageHeight", tileset.imageHeight);
@@ -904,6 +917,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 json.writeValue("rows", tileset.rows);
                 json.writeValue("spacing", tileset.spacing);
                 json.writeValue("margin", tileset.margin);
+                json.writeValue("importSourceUri", tileset.importSourceUri);
+                json.writeValue("importKind", tileset.importKind);
                 json.writeValue("referenceCellWidth", tileset.referenceCellWidth);
                 json.writeValue("referenceCellHeight", tileset.referenceCellHeight);
                 json.writeValue("projection", tiledProjectionWireName(tileset.projection));
@@ -918,6 +933,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 json.writeValue("sheetIndex", tile.sheetIndex);
                 json.writeValue("cellX", tile.cellX);
                 json.writeValue("cellY", tile.cellY);
+                json.writeValue("importSourceKey", tile.importSourceKey);
+                json.writeValue("normalSourceRelPath", tile.normalSourceRelPath);
             }
             json.writeObjectEnd();
         }
@@ -951,6 +968,8 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 tileset.rows = jsonData.getInt("rows", 0);
                 tileset.spacing = jsonData.getInt("spacing", 0);
                 tileset.margin = jsonData.getInt("margin", 0);
+                tileset.importSourceUri = jsonData.getString("importSourceUri", null);
+                tileset.importKind = jsonData.getString("importKind", null);
                 tileset.referenceCellWidth =
                         jsonData.getInt("referenceCellWidth", 0);
                 tileset.referenceCellHeight =
@@ -963,12 +982,15 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 tileset.offsetY = jsonData.getInt("offsetY", 0);
                 tileset.renderSize = TilesetRenderSize.fromWireName(
                         jsonData.getString("renderSize", null));
+
                 tileset.normalizeProfileDefaults();
             } else if (meta instanceof TileAssetMeta tile) {
                 tile.tilesetId = jsonData.getInt("tilesetId", -1);
                 tile.sheetIndex = jsonData.getInt("sheetIndex", -1);
                 tile.cellX = jsonData.getInt("cellX", -1);
                 tile.cellY = jsonData.getInt("cellY", -1);
+                tile.importSourceKey = jsonData.getString("importSourceKey", null);
+                tile.normalSourceRelPath = normalizeOptionalSourcePath(jsonData.getString("normalSourceRelPath", null));
             }
             return meta;
         }

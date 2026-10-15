@@ -85,6 +85,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         public int offsetX = 0;
         public int offsetY = 0;
         public TilesetRenderSize renderSize = TilesetRenderSize.NATIVE;
+        public transient games.pixscape.studio.service.asset.TilesetReimportService.Plan tilesetPlan;
 
         private boolean dimensionsResolved;
         transient VisValidatableTextField tileWidthField;
@@ -378,6 +379,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
 
     private void addOrSkip(FileHandle file) {
         if (file == null || !file.exists() || file.isDirectory()) return;
+        if (games.pixscape.studio.service.asset.TilesetReimportService.isNormalCompanion(file.name())) return;
         if (!ImportDialogValidation.isSupportedImportFile(file)) return;
 
         for (int i = 0; i < items.size; i++) {
@@ -948,9 +950,20 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 }
 
                 try {
-                    onImportTilesetDirectory.importDirectory(directory, settings);
-                    dialog.fadeOut();
-                    fadeOut();
+                    if (app == null) {
+                        onImportTilesetDirectory.importDirectory(directory, settings);
+                        dialog.fadeOut(); fadeOut();
+                    } else {
+                        var service = app.getSceneService();
+                        var candidates = service.tilesetImportCandidates(directory,
+                                games.pixscape.studio.io.StudioFs.baseName(directory.name()));
+                        new TilesetImportReviewDialog(candidates,
+                                id -> service.prepareTilesetDirectoryImport(directory, settings, id),
+                                plan -> service.applyTilesetImportPlanWithProgress(plan, getStage(),
+                                        result -> { dialog.fadeOut(); fadeOut(); },
+                                        failure -> setSlicingDialogError(dialog, errorLabel, errorCell,
+                                                ImportDialogApplySupport.userMessageFor(failure)))).show(getStage());
+                    }
                 } catch (IllegalArgumentException ex) {
                     setSlicingDialogError(dialog, errorLabel, errorCell, ImportDialogApplySupport.userMessageFor(ex));
                 } catch (RuntimeException ex) {
@@ -2081,6 +2094,35 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             }
         }
 
+        reviewTilesetItems(0);
+    }
+
+    private void reviewTilesetItems(int start) {
+        if (app != null) {
+            for (int index = start; index < items.size; index++) {
+                ImportItem item = items.get(index);
+                if (item.type != ImportType.TILESET && item.type != ImportType.TILESET_TSX) continue;
+                try {
+                    var service = app.getSceneService();
+                    FileHandle source = item.file;
+                    String name = games.pixscape.studio.io.StudioFs.baseName(source.name());
+                    if (item.type == ImportType.TILESET_TSX) {
+                        var descriptor = new TsxTilesetImportParser().parse(item.file);
+                        source = descriptor.imageFile(); name = descriptor.name();
+                    }
+                    final int next = index + 1;
+                    new TilesetImportReviewDialog(service.tilesetImportCandidates(source, name),
+                            id -> service.prepareTilesetAtlasImport(item, id),
+                            plan -> { item.tilesetPlan = plan; reviewTilesetItems(next); }).show(getStage());
+                } catch (RuntimeException failure) { setInlineError(ImportDialogApplySupport.userMessageFor(failure)); }
+                return;
+            }
+        }
+        if (app != null) {
+            app.getSceneService().importAssetsWithProgress(items, getStage(), this::fadeOut,
+                    failure -> setInlineError(ImportDialogApplySupport.userMessageFor(failure)));
+            return;
+        }
         ImportDialogApplySupport.applyAndCloseOnSuccess(
                 items,
                 onApply,

@@ -747,6 +747,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             RenderRebindHelper.rebindEntitiesAfterAtlasChange(
                     canvas, null, canvas.getAssetVisualResolver(), result.createdIds(), null);
             candidate.world().process();
+            sceneService.prepareGameObjectNormals(candidate.world(),editingMeta);
             int rootEntityId = result.sourceToCreated().get(asset.rootSourceEntityId, -1);
             if (rootEntityId < 0) {
                 throw new IllegalStateException("Game Object root could not be materialized for editing.");

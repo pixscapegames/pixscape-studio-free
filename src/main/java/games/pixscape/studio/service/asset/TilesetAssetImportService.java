@@ -20,83 +20,11 @@ public final class TilesetAssetImportService {
     }
 
     public TilesetImportResult importAtlas(TilesetAtlasImportRequest request) {
-        Objects.requireNonNull(request, "request");
-
-        FileHandle sourceFile = request.sourceFile();
-        if (!isImage(sourceFile)) {
-            warnUnsupported(sourceFile);
-            return TilesetImportResult.skipped();
-        }
-
-        int tileW = request.tileWidth();
-        int tileH = request.tileHeight();
-        int spacing = request.spacing();
-        int margin = request.margin();
-        validateAtlasSlicing(tileW, tileH, spacing, margin);
-
-        ImageSize size = readImageSize(sourceFile);
-        int imageW = size.width;
-        int imageH = size.height;
-        AtlasGrid grid = calculateAtlasGrid(imageW, imageH, tileW, tileH, spacing, margin);
-
-        String base = atlasBaseName(request);
-        FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateTilesetMeta(
-                base,
-                imageW,
-                imageH,
-                tileW,
-                tileH,
-                grid.columns(),
-                grid.rows(),
-                spacing,
-                margin,
-                request.profileSettings()
-        );
-
-        splitTilesetSource(sourceFile, tilesetDir, tileW, tileH, spacing, margin);
-        Map<Integer, Integer> tileAssetIds = registerSplitTilesAsTileAssets(base, tilesetDir, grid.columns(), tilesetMeta);
-        copyTilesetSourceFile(base, sourceFile, tilesetDir, tilesetMeta);
-
-        return new TilesetImportResult(1, tilesetMeta.id(), StudioFs.PREFIX_TILES + base, tileAssetIds);
+        return new TilesetReimportService(assetMetaDatabase).importNew(request);
     }
 
     public TilesetImportResult importDirectory(TilesetDirectoryImportRequest request) {
-        Objects.requireNonNull(request, "request");
-
-        FileHandle directory = request.directory();
-        if (directory == null || !directory.exists() || !directory.isDirectory()) {
-            StudioLog.warn("Tileset directory import failed: invalid directory.");
-            return TilesetImportResult.skipped();
-        }
-
-        String base = baseName(directory.name());
-        FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
-
-        DirectoryTilesetAnalysis analysis = analyzeDirectory(directory);
-        FileHandle[] sourceTiles = analysis.sourceTiles();
-        if (sourceTiles.length == 0) {
-            StudioLog.warn("Tileset directory import skipped: no PNG files found in " + directory.name());
-            return TilesetImportResult.skipped();
-        }
-
-        TilesetAssetMeta tilesetMeta = createOrUpdateFolderTilesetMeta(
-                base,
-                sourceTiles.length,
-                analysis.referenceTileWidth(),
-                analysis.referenceTileHeight(),
-                request.profileSettings()
-        );
-
-        Map<Integer, Integer> tileAssetIds = registerFolderTilesAsTileAssets(
-                base,
-                tilesetDir,
-                sourceTiles,
-                tilesetMeta
-        );
-
-        return new TilesetImportResult(1, tilesetMeta.id(), StudioFs.PREFIX_TILES + base, tileAssetIds);
+        return new TilesetReimportService(assetMetaDatabase).importNew(request);
     }
 
     public TilesetImportResult importImageCollection(TilesetImageCollectionImportRequest request) {
@@ -108,7 +36,66 @@ public final class TilesetAssetImportService {
             return TilesetImportResult.skipped();
         }
 
+        FileHandle sourceRoot = null;
+        Set<Integer> localIdsSeen = new HashSet<>();
+        for (ImageCollectionTileSource source : sourceTiles) {
+            if (source == null || source.sourceFile() == null) continue;
+            FileHandle color = source.sourceFile();
+            if (TilesetReimportService.isNormalCompanion(color.name())) continue;
+            if (!isImage(color) || source.localTileId() < 0) continue;
+            if (!color.exists() || color.isDirectory())
+                throw new IllegalArgumentException("Collection source file is missing: " + color);
+            if (!localIdsSeen.add(source.localTileId()))
+                throw new IllegalArgumentException("Ambiguous collection local tile ID: " + source.localTileId());
+            TilesetReimportService.size(color);
+            TilesetReimportService.validateNormal(color, TilesetReimportService.companion(color));
+            java.nio.file.Path parent = color.file().toPath().toAbsolutePath().normalize().getParent();
+            if (sourceRoot == null) sourceRoot = new FileHandle(parent.toFile());
+            else {
+                java.nio.file.Path root = sourceRoot.file().toPath();
+                while (root != null && !parent.startsWith(root)) root = root.getParent();
+                if (root == null) throw new IllegalArgumentException("Collection images have no common source directory.");
+                sourceRoot = new FileHandle(root.toFile());
+            }
+        }
+
+        if (sourceRoot == null) return TilesetImportResult.skipped();
+        Map<String, String> sourceKeys = new HashMap<>();
+        for (ImageCollectionTileSource source : sourceTiles) {
+            if (source == null || source.sourceFile() == null || source.localTileId() < 0 || !isImage(source.sourceFile())
+                    || TilesetReimportService.isNormalCompanion(source.sourceFile().name())) continue;
+            String key = TilesetReimportService.relative(sourceRoot, source.sourceFile());
+            String previousKey = sourceKeys.putIfAbsent(key.toLowerCase(Locale.ROOT), key);
+            if (previousKey != null && !previousKey.equals(key))
+                throw new IllegalArgumentException("Ambiguous collection source path: " + key);
+        }
         String base = imageCollectionBaseName(request);
+        AssetMeta previous = assetMetaDatabase.findByLogicalPath(StudioFs.PREFIX_TILES + base);
+        if (previous instanceof TilesetAssetMeta existing) {
+            new TilesetReimportService(assetMetaDatabase).validateProvenance(existing.id());
+            if (!"collection".equals(existing.importKind))
+                throw new IllegalArgumentException("Existing tileset source kind differs. Use the tileset import dialog to import as new.");
+            FileHandle originalRoot = new FileHandle(new java.io.File(java.net.URI.create(existing.importSourceUri)));
+            Map<String, Integer> existingBySource = new HashMap<>();
+            for (int i = 0; i < assetMetaDatabase.size(); i++) {
+                if (assetMetaDatabase.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == existing.id()
+                        && tile.importSourceKey != null && existingBySource.putIfAbsent(tile.importSourceKey, tile.id()) != null)
+                    throw new IllegalArgumentException("Ambiguous existing tileset source: " + tile.importSourceKey);
+            }
+            Map<Integer, Integer> localIds = new LinkedHashMap<>();
+            for (ImageCollectionTileSource item : sourceTiles) {
+                if (item == null || item.sourceFile() == null || TilesetReimportService.isNormalCompanion(item.sourceFile().name())) continue;
+                String key = TilesetReimportService.relative(originalRoot, item.sourceFile());
+                Integer id = existingBySource.get(key);
+                if (key.startsWith("../") || id == null)
+                    throw new IllegalArgumentException("Existing tileset sources differ. Use the tileset import dialog to update or import as new.");
+                localIds.put(item.localTileId(), id);
+            }
+            StudioLog.info("Existing tileset resources reused; use tileset Update to apply source image or normal changes.");
+            return new TilesetImportResult(0, existing.id(), existing.logicalPath(), localIds);
+        }
+        if (request.tilesRoot().child(base).exists())
+            throw new IllegalArgumentException("Tileset directory already exists without matching metadata: " + base);
         FileHandle tilesetDir = prepareTilesetDirectory(request.tilesRoot(), base);
         int tileCount = Math.max(request.tileCount(), imageCollectionTileCount(sourceTiles));
 
@@ -119,6 +106,8 @@ public final class TilesetAssetImportService {
                 request.tileHeight(),
                 request.profileSettings()
         );
+        tilesetMeta.importKind = "collection";
+        tilesetMeta.importSourceUri = TilesetReimportService.sourceUri(sourceRoot);
 
         Map<Integer, Integer> tileAssetIds = registerImageCollectionTilesAsTileAssets(
                 base,
@@ -282,49 +271,6 @@ public final class TilesetAssetImportService {
         return tilesetMeta;
     }
 
-    private Map<Integer, Integer> registerFolderTilesAsTileAssets(String base,
-                                                                  FileHandle tilesetDir,
-                                                                  FileHandle[] sourceTiles,
-                                                                  TilesetAssetMeta tilesetMeta) {
-        Map<Integer, Integer> tileAssetIds = new LinkedHashMap<>();
-        if (sourceTiles == null) return tileAssetIds;
-
-        for (int sheetIndex = 0; sheetIndex < sourceTiles.length; sheetIndex++) {
-            FileHandle src = sourceTiles[sheetIndex];
-            if (src == null || !src.exists() || src.isDirectory()) continue;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String ext = src.extension();
-            String newFileName = sheetIndex + "__a" + tileMeta.id() + "." + ext;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                src.copyTo(dst);
-            }
-
-            assetMetaDatabase.updateSourceRelPath(
-                    tileMeta.id(),
-                    StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
-            );
-            tileMeta.tilesetId = tilesetMeta.id();
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = sheetIndex;
-            tileMeta.cellY = 0;
-            tileAssetIds.put(sheetIndex, tileMeta.id());
-        }
-        return tileAssetIds;
-    }
-
     private Map<Integer, Integer> registerImageCollectionTilesAsTileAssets(String base,
                                                                            FileHandle tilesetDir,
                                                                            List<ImageCollectionTileSource> sourceTiles,
@@ -337,6 +283,7 @@ public final class TilesetAssetImportService {
             if (sourceTile == null || sourceTile.localTileId() < 0) continue;
 
             FileHandle src = sourceTile.sourceFile();
+            if (src != null && TilesetReimportService.isNormalCompanion(src.name())) continue;
             if (!isImage(src) || !src.exists() || src.isDirectory()) {
                 warnUnsupported(src);
                 continue;
@@ -372,6 +319,15 @@ public final class TilesetAssetImportService {
                     tileMeta.id(),
                     StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
             );
+            FileHandle sourceRoot = new FileHandle(new java.io.File(java.net.URI.create(tilesetMeta.importSourceUri)));
+            tileMeta.importSourceKey = TilesetReimportService.relative(sourceRoot, src);
+            FileHandle normal = TilesetReimportService.companion(src);
+            TilesetReimportService.validateNormal(src, normal);
+            if (normal.exists()) {
+                String normalName = "normals/" + tileMeta.id() + ".png";
+                normal.copyTo(tilesetDir.child(normalName));
+                tileMeta.normalSourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + base + "/" + normalName;
+            }
             tileMeta.tilesetId = tilesetMeta.id();
             tileMeta.sheetIndex = localTileId;
             tileMeta.cellX = localTileId;
@@ -382,41 +338,7 @@ public final class TilesetAssetImportService {
         return tileAssetIds;
     }
 
-    private TilesetAssetMeta createOrUpdateTilesetMeta(String base,
-                                                       int imageWidth,
-                                                       int imageHeight,
-                                                       int tileWidth,
-                                                       int tileHeight,
-                                                       int columns,
-                                                       int rows,
-                                                       int spacing,
-                                                       int margin,
-                                                       TilesetProfileImportSettings profileSettings) {
-        String tilesetLogical = StudioFs.PREFIX_TILES + base;
-
-        TilesetAssetMeta tilesetMeta = requireTilesetMeta(
-                assetMetaDatabase.registerIfAbsent(
-                        AssetType.TILESET,
-                        tilesetLogical,
-                        null,
-                        AssetMeta.AssetScope.USER
-                )
-        );
-
-        tilesetMeta.imageWidth = imageWidth;
-        tilesetMeta.imageHeight = imageHeight;
-        tilesetMeta.tileWidth = tileWidth;
-        tilesetMeta.tileHeight = tileHeight;
-        tilesetMeta.columns = columns;
-        tilesetMeta.rows = rows;
-        tilesetMeta.spacing = spacing;
-        tilesetMeta.margin = margin;
-        applyProfileSettings(tilesetMeta, profileSettings);
-
-        return tilesetMeta;
-    }
-
-    private void applyProfileSettings(TilesetAssetMeta tilesetMeta,
+    void applyProfileSettings(TilesetAssetMeta tilesetMeta,
                                       TilesetProfileImportSettings profileSettings) {
         if (tilesetMeta == null) return;
 
@@ -444,90 +366,6 @@ public final class TilesetAssetImportService {
         tilesetMeta.normalizeProfileDefaults();
     }
 
-    private void splitTilesetSource(FileHandle sourceFile,
-                                    FileHandle tilesetDir,
-                                    int tileWidth,
-                                    int tileHeight,
-                                    int spacing,
-                                    int margin) {
-        splitGridImage(
-                sourceFile,
-                tilesetDir,
-                tileWidth,
-                tileHeight,
-                spacing,
-                margin,
-                null
-        );
-    }
-
-    private Map<Integer, Integer> registerSplitTilesAsTileAssets(String base,
-                                                                 FileHandle tilesetDir,
-                                                                 int columns,
-                                                                 TilesetAssetMeta tilesetMeta) {
-        Map<Integer, Integer> tileAssetIds = new LinkedHashMap<>();
-        FileHandle[] files = tilesetDir.list((dir, name) ->
-                name.endsWith(StudioFs.EXT_PNG) && isNumericBaseName(name));
-
-        sortByNumericBaseName(files);
-
-        if (files == null) {
-            return tileAssetIds;
-        }
-
-        for (FileHandle f : files) {
-            int sheetIndex = Integer.parseInt(AssetHelper.removeExtension(f.name()));
-            int cellX = sheetIndex % columns;
-            int cellY = sheetIndex / columns;
-
-            String logical = StudioFs.PREFIX_TILES + base + "/" + sheetIndex;
-
-            TileAssetMeta tileMeta = requireTileMeta(
-                    assetMetaDatabase.registerIfAbsent(
-                            AssetType.TILE,
-                            logical,
-                            null,
-                            AssetMeta.AssetScope.USER
-                    )
-            );
-
-            String newFileName = sheetIndex + "__a" + tileMeta.id() + StudioFs.EXT_PNG;
-            FileHandle dst = tilesetDir.child(newFileName);
-
-            if (!dst.exists()) {
-                f.moveTo(dst);
-            }
-
-            assetMetaDatabase.updateSourceRelPath(
-                    tileMeta.id(),
-                    StudioFs.DIR_ORIG_TILES + "/" + base + "/" + newFileName
-            );
-            tileMeta.tilesetId = tilesetMeta.id();
-            tileMeta.sheetIndex = sheetIndex;
-            tileMeta.cellX = cellX;
-            tileMeta.cellY = cellY;
-            tileAssetIds.put(sheetIndex, tileMeta.id());
-        }
-        return tileAssetIds;
-    }
-
-    private void copyTilesetSourceFile(String base,
-                                       FileHandle sourceFile,
-                                       FileHandle tilesetDir,
-                                       TilesetAssetMeta tilesetMeta) {
-        String sheetFileName = base + "__a" + tilesetMeta.id() + "." + sourceFile.extension();
-        FileHandle sheetDst = tilesetDir.child(sheetFileName);
-
-        if (!sheetDst.exists()) {
-            sourceFile.copyTo(sheetDst);
-        }
-
-        assetMetaDatabase.updateSourceRelPath(
-                tilesetMeta.id(),
-                StudioFs.DIR_ORIG_TILES + "/" + base + "/" + sheetFileName
-        );
-    }
-
     public static DirectoryTilesetAnalysis analyzeDirectory(FileHandle directory) {
         FileHandle[] sourceTiles = listTilesetFolderImages(directory);
         FolderTilesetInfo info = analyzeFolderTileset(sourceTiles);
@@ -544,16 +382,32 @@ public final class TilesetAssetImportService {
             return new FileHandle[0];
         }
 
-        FileHandle[] files = directory.list((dir, name) ->
-                name != null && name.toLowerCase(Locale.ROOT).endsWith(StudioFs.EXT_PNG)
-        );
-
-        if (files == null) {
-            return new FileHandle[0];
-        }
-
-        Arrays.sort(files, (a, b) -> compareNaturally(a.name(), b.name()));
+        List<FileHandle> collected = new ArrayList<>();
+        collectColorImages(directory, collected);
+        FileHandle[] files = collected.toArray(new FileHandle[0]);
+        Arrays.sort(files, (a, b) -> compareNaturally(
+                TilesetReimportService.relative(directory, a), TilesetReimportService.relative(directory, b)));
         return files;
+    }
+
+    private static void collectColorImages(FileHandle directory, List<FileHandle> out) {
+        for (FileHandle file : listImportFiles(directory)) {
+            if (java.nio.file.Files.isSymbolicLink(file.file().toPath()))
+                throw new IllegalArgumentException("Collection contains a symbolic link: " + file.name());
+            if (file.isDirectory()) collectColorImages(file, out);
+            else if (file.name().toLowerCase(Locale.ROOT).endsWith(".png")
+                    && !TilesetReimportService.isNormalCompanion(file.name())) out.add(file);
+        }
+    }
+
+    static FileHandle[] listImportFiles(FileHandle directory) {
+        List<FileHandle> files = new ArrayList<>();
+        try (var entries = java.nio.file.Files.newDirectoryStream(directory.file().toPath())) {
+            for (var entry : entries) files.add(new FileHandle(entry.toFile()));
+        } catch (java.io.IOException | RuntimeException failure) {
+            throw new IllegalArgumentException("Cannot inspect tileset import directory: " + directory, failure);
+        }
+        return files.toArray(FileHandle[]::new);
     }
 
     private static FolderTilesetInfo analyzeFolderTileset(FileHandle[] sourceTiles) {
@@ -680,26 +534,6 @@ public final class TilesetAssetImportService {
         throw new IllegalStateException("Expected TileAssetMeta but got: " + meta);
     }
 
-    private boolean isNumericBaseName(String fileName) {
-        String base = AssetHelper.removeExtension(fileName);
-        if (base == null || base.isBlank()) return false;
-
-        for (int i = 0; i < base.length(); i++) {
-            if (!Character.isDigit(base.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private void sortByNumericBaseName(FileHandle[] files) {
-        if (files == null) return;
-
-        Arrays.sort(files, Comparator.comparingInt(
-                f -> Integer.parseInt(AssetHelper.removeExtension(f.name()))
-        ));
-    }
-
     private static ImageSize readImageSize(FileHandle file) {
         Pixmap pixmap = new Pixmap(file);
         try {
@@ -719,7 +553,7 @@ public final class TilesetAssetImportService {
                 (ext == null || ext.isBlank() ? file.name() : ("." + ext.toLowerCase(Locale.ROOT))));
     }
 
-    private void splitGridImage(FileHandle sourceFile,
+    void splitGridImage(FileHandle sourceFile,
                                 FileHandle outputDir,
                                 int tileWidth,
                                 int tileHeight,
@@ -776,6 +610,7 @@ public final class TilesetAssetImportService {
 
                 Pixmap tile = new Pixmap(rect.width(), rect.height(), source.getFormat());
                 try {
+                    tile.setBlending(Pixmap.Blending.None);
                     tile.drawPixmap(
                             source,
                             0, 0,
@@ -804,38 +639,6 @@ public final class TilesetAssetImportService {
         }
     }
 
-    private AtlasGrid calculateAtlasGrid(int imageWidth,
-                                         int imageHeight,
-                                         int tileWidth,
-                                         int tileHeight,
-                                         int spacing,
-                                         int margin) {
-        TilesetSliceLayout.Layout layout = TilesetSliceLayout.calculate(
-                imageWidth,
-                imageHeight,
-                tileWidth,
-                tileHeight,
-                spacing,
-                margin
-        );
-        if (!layout.hasTiles()) {
-            throw new IllegalStateException(
-                    "Image is smaller than the requested grid size: "
-                            + imageWidth + "x" + imageHeight
-                            + " for tiles " + tileWidth + "x" + tileHeight
-                            + ", spacing=" + spacing
-                            + ", margin=" + margin
-            );
-        }
-
-        return new AtlasGrid(
-                layout.columns(),
-                layout.rows(),
-                layout.unusedRightPixels(),
-                layout.unusedBottomPixels()
-        );
-    }
-
     private String buildSplitTileFileName(String prefix, int index) {
         if (prefix == null || prefix.isBlank()) {
             return index + StudioFs.EXT_PNG;
@@ -849,17 +652,6 @@ public final class TilesetAssetImportService {
 
     private static String baseName(String name) {
         return StudioFs.baseName(name);
-    }
-
-    private String atlasBaseName(TilesetAtlasImportRequest request) {
-        String requestedName = request.tilesetName();
-        if (requestedName != null && !requestedName.isBlank()) {
-            String sanitized = sanitizeBaseName(requestedName);
-            if (!sanitized.isBlank()) {
-                return sanitized;
-            }
-        }
-        return baseName(request.sourceFile().name());
     }
 
     private String imageCollectionBaseName(TilesetImageCollectionImportRequest request) {
@@ -911,6 +703,5 @@ public final class TilesetAssetImportService {
     private record FolderTilesetInfo(int referenceTileWidth, int referenceTileHeight, boolean uniform) {
     }
 
-    private record AtlasGrid(int columns, int rows, int ignoredRightPixels, int ignoredBottomPixels) {
-    }
+
 }

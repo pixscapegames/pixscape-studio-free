@@ -97,6 +97,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     private GpuSnapshotManager gpuSnapshotManager;
     private SceneEditorContext sceneEditorContext;
     private final Map<SceneEditorContext, SceneBinding> sceneBindings = new IdentityHashMap<>();
+    private final java.util.Set<SceneEditorContext> importedRebindPending =
+            java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+    private boolean resourceImportBusy;
+
+    public void setResourceImportBusy(boolean busy) { resourceImportBusy = busy; }
     private final Stage gridStage;
     private final OrthographicCamera camera;
     private static final float MIN_CAMERA_ZOOM = 0.1f;
@@ -334,6 +339,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         }
         restoreView(context);
         context.attached();
+        if (importedRebindPending.remove(context))
+            RenderRebindHelper.rebindAfterAtlasChange(this, context.sceneIdentity(), assetVisualResolver);
         configureViewForAttachedSelection();
     }
 
@@ -367,6 +374,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         if (context == null) return;
         if (sceneEditorContext == context) detach();
         SceneBinding binding = sceneBindings.remove(context);
+        importedRebindPending.remove(context);
         if (binding != null && binding.box2dWorldService != null) {
             binding.box2dWorldService.dispose();
             binding.box2dWorldService = null;
@@ -782,6 +790,48 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 assetMetaDatabase, "assetMetaDatabase");
         bindAssetMetaLookup(published::findById);
         reloadDerivedAssetMetadata(published);
+        for (SceneBinding binding : sceneBindings.values()) {
+            StudioTilesetProfileResolver.reloadRuntimeProfiles(binding.studioTilesetProfiles, published);
+            if (binding.tiledFallbackSystem != null) {
+                binding.tiledFallbackSystem.setAssetMetaLookup(published::findById);
+                binding.tiledFallbackSystem.requestValidation();
+            }
+            if (binding.animationFallbackSystem != null) binding.animationFallbackSystem.setAssetMetaLookup(published::findById);
+            if (binding.animationPreviewRefresher != null) binding.animationPreviewRefresher.setAssetMetaLookup(published::findById);
+            if (binding.tiledGhostPreviewSystem != null) binding.tiledGhostPreviewSystem.setAssetMetaLookup(published::findById);
+        }
+    }
+
+    public void importedAssetPixelsChanged(java.util.Set<Integer> changedIds) {
+        assetVisualResolver.invalidateImportedPixels(changedIds);
+        requestTiledFallbackValidation();
+        for (SceneBinding binding : sceneBindings.values())
+            if (binding.tiledFallbackSystem != null) binding.tiledFallbackSystem.requestValidation();
+        rebindImportedSceneResources();
+    }
+
+    public void rebindImportedSceneResources() {
+        java.util.Set<String> tags = new java.util.HashSet<>();
+        for (String tag : atlasStudioService.listTags()) tags.add(tag);
+        rebindImportedSceneResources(tags);
+    }
+
+    public void rebindImportedSceneResources(java.util.Set<String> atlasTags) {
+        for (SceneEditorContext context : sceneBindings.keySet()) {
+            World world = context.world();
+            var mapper = world.getMapper(TiledLayerComponent.class);
+            var entities = world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(TiledLayerComponent.class)).getEntities();
+            for (int i = 0; i < entities.size(); i++) {
+                TiledLayerComponent tiled = mapper.get(entities.get(i));
+                if (tiled != null && tiled.data != null && atlasTags.contains(tiled.atlasTag))
+                    tiled.data.markAllChunksContentDirty();
+            }
+        }
+        importedRebindPending.addAll(sceneBindings.keySet());
+        if (sceneEditorContext != null) {
+            RenderRebindHelper.rebindAfterAtlasChange(this, sceneEditorContext.sceneIdentity(), assetVisualResolver);
+            importedRebindPending.remove(sceneEditorContext);
+        }
     }
 
     private void reloadDerivedAssetMetadata(AssetMetaDatabase assetMetaDatabase) {
@@ -2175,6 +2225,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     // ---------------------------------------------------------------------
 
     public void act(float dt) {
+        if (resourceImportBusy) return;
         if (getAttachedSceneContext() == null) return;
         if (frameProfiler.isEnabled()) {
             actProfiled(dt);
@@ -2220,6 +2271,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void draw() {
+        if (resourceImportBusy) return;
         if (getAttachedSceneContext() == null) return;
         spatialInvariantBoundary.prepare(currentSceneTag());
         if (spatialInvariantBoundary.isBlocked()) return;
@@ -2854,6 +2906,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
             entry.getKey().dispose();
         }
         sceneBindings.clear();
+        importedRebindPending.clear();
 
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.disposeAll();

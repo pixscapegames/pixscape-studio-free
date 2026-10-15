@@ -257,6 +257,7 @@ public class TiledFallbackValidationLifecycleTest {
                                       TileAnimationRegistry registry)
             throws Exception {
         WorldCanvas canvas = allocate(WorldCanvas.class);
+        setField(canvas, WorldCanvas.class, "sceneBindings", new java.util.IdentityHashMap<>());
         setField(
                 canvas,
                 WorldCanvas.class,

@@ -34,10 +34,40 @@ public final class SceneAtlasInputService {
 
     private static final String TAG = "SceneAtlasInputService";
 
+    public boolean containsImportedColorInput(FileHandle project, String tag, java.util.Set<String> previousPaths) {
+        FileHandle input = inputDir(project, tag);
+        for (String path : previousPaths) if (input.child(new FileHandle(path).name()).exists()) return true;
+        return false;
+    }
+
+    /** Refreshes an already materialized closed Scene's color inputs, without changing its membership. */
+    public void refreshImportedColorInputs(FileHandle project, String tag, java.util.Map<String, String> replacements) {
+        FileHandle input = inputDir(project, tag);
+        for (var entry : replacements.entrySet()) {
+            FileHandle oldInput = input.child(new FileHandle(entry.getKey()).name());
+            if (!oldInput.exists()) continue;
+            if (entry.getValue() == null) {
+                if (!oldInput.delete()) throw new IllegalStateException("Cannot remove obsolete atlas input: " + oldInput);
+            } else {
+                FileHandle source = project.child(entry.getValue());
+                if (!source.exists()) throw new IllegalArgumentException("Imported color resource is missing: " + source);
+                FileHandle dest = input.child(source.name());
+                source.copyTo(dest);
+                if (!dest.equals(oldInput) && !oldInput.delete())
+                    throw new IllegalStateException("Cannot retire changed atlas input: " + oldInput);
+            }
+        }
+    }
+
     public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,
                                                     String sceneTag,
                                                     FileHandle projectDir,
                                                     Set<String> requiredProjectRelativePaths) {
+        return syncSceneAtlasInput(cfg,sceneTag,projectDir,requiredProjectRelativePaths,
+                projectDir!=null && projectDir.child(StudioFs.FILE_ASSETS_JSON).exists()?AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON)):null);
+    }
+    public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,String sceneTag,FileHandle projectDir,
+            Set<String> requiredProjectRelativePaths,AssetMetaDatabase assetDb) {
         if (cfg == null) throw new IllegalArgumentException("cfg is null");
         if (sceneTag == null || sceneTag.isBlank()) throw new IllegalArgumentException("sceneTag is blank");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -47,7 +77,9 @@ public final class SceneAtlasInputService {
                 : Set.of();
 
         AtlasInputSyncResult result = AtlasInputFileSync.sync(
-                projectDir, inputDir(projectDir, sceneTag), required, false);
+                projectDir, inputDir(projectDir, sceneTag), required, false, true);
+        AtlasInputSyncResult normals=NormalAtlasPackingService.sync(projectDir,inputDir(projectDir,sceneTag),assetDb,required);
+        result=new AtlasInputSyncResult(result.changed()||normals.changed(),result.copiedCount()+normals.copiedCount(),result.deletedCount()+normals.deletedCount());
         Gdx.app.log(TAG,
                 "Atlas input synced: scene=" + sceneTag
                         + " changed=" + result.changed()
@@ -64,8 +96,8 @@ public final class SceneAtlasInputService {
             return new AtlasInputSyncResult(false, 0, 0);
         }
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        Set<String> required = collectRequiredAtlasInputPathsForCurrentScene(cfg, world, assetDb, tileAnimationsDb);
-        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required);
+        Set<String> required = collectRequiredAtlasInputPathsForScene(cfg, world, cfg.getCurrentSceneMeta(), assetDb, tileAnimationsDb);
+        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required,assetDb);
     }
 
     public IntSet collectUsedTiledRenderableAssetIds(World world,
@@ -95,8 +127,9 @@ public final class SceneAtlasInputService {
         return used;
     }
 
-    private Set<String> collectRequiredAtlasInputPathsForCurrentScene(ProjectConfig cfg,
+    public Set<String> collectRequiredAtlasInputPathsForScene(ProjectConfig cfg,
                                                                       World world,
+                                                                      SceneMeta scene,
                                                                       AssetMetaDatabase assetDb,
                                                                       TileAnimationsMetaDatabase tileAnimationsDb) {
         Set<String> required = new HashSet<>();
@@ -121,17 +154,17 @@ public final class SceneAtlasInputService {
         IntSet tiledAssetIds = collectUsedTiledRenderableAssetIds(world, tileAnimationsDb);
         IntSet.IntSetIterator it = tiledAssetIds.iterator();
         while (it.hasNext) addAssetMetaSourcePath(cfg, assetDb, required, it.next());
-        addRuntimeAvailabilitySourcePaths(cfg, world, assetDb, tileAnimationsDb, required);
+        addRuntimeAvailabilitySourcePaths(cfg, world, scene, assetDb, tileAnimationsDb, required);
         addParticleImageSourcePaths(cfg, world, required);
         return required;
     }
 
     private void addRuntimeAvailabilitySourcePaths(ProjectConfig cfg,
                                                    World world,
+                                                   SceneMeta scene,
                                                    AssetMetaDatabase assetDb,
                                                    TileAnimationsMetaDatabase tileAnimationsDb,
                                                    Set<String> required) {
-        SceneMeta scene = cfg != null ? cfg.getCurrentSceneMeta() : null;
         SceneRuntimeAvailabilityData availability = scene != null ? scene.runtimeAvailability : null;
         if (availability == null || required == null) return;
 

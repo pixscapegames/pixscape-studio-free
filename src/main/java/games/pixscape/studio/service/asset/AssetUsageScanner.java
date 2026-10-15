@@ -96,6 +96,181 @@ public final class AssetUsageScanner {
         return acc.toReport();
     }
 
+    /** Cold, project-wide deletion proof. Tileset membership is deliberately not a reference. */
+    public java.util.Map<Integer, String> tileRetentionReasons(java.util.Set<Integer> candidates,
+                                                              List<World> openWorlds) {
+        java.util.Map<Integer, String> retained = new java.util.LinkedHashMap<>();
+        if (candidates.isEmpty()) return retained;
+        FileHandle root = resolveProjectDir();
+        java.util.Set<String> scanned = new java.util.HashSet<>();
+        for (String sceneName : projectConfig.getSceneNames()) {
+            SceneMeta meta = projectConfig.getSceneMeta(sceneName);
+            if (meta == null || meta.getFile() == null) {
+                retainUnknown(candidates, retained, "Scene metadata is incomplete: " + sceneName);
+                continue;
+            }
+            scanRetentionFile(root.child(StudioFs.DIR_SCENES).child(meta.getFile()), candidates, retained, scanned);
+            scanRetentionJson(new com.badlogic.gdx.utils.Json().toJson(meta), candidates, retained,
+                    "Scene availability: " + sceneName);
+        }
+        scanRetentionDirectory(root.child(StudioFs.DIR_GAME_OBJECTS), candidates, retained, scanned);
+        scanRetentionDirectory(root.child("prefabs"), candidates, retained, scanned);
+        // Other authored JSON resources (animations, HUD documents, properties and dependency declarations).
+        scanAuthoredJson(root, root, candidates, retained, scanned);
+        JsonValue catalog = new JsonReader().parse(assetMetaDatabase.toSnapshotJson());
+        JsonValue assets = catalog.get("assets");
+        for (JsonValue asset = assets.child; asset != null; asset = asset.next) {
+            String type = asset.getString("type", "");
+            if (!"tile".equalsIgnoreCase(type) && !"tileset".equalsIgnoreCase(type))
+                collectRetentionReferences(asset, false, candidates, retained, "Asset dependency");
+        }
+        for (World open : openWorlds) {
+            try {
+                var manager = open.getSystem(com.artemis.managers.WorldSerializationManager.class);
+                if (manager == null) throw new IllegalStateException("No World serializer");
+                java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+                manager.save(bytes, new com.artemis.io.SaveFileFormat(open.getAspectSubscriptionManager()
+                        .get(Aspect.all()).getEntities()));
+                scanRetentionJson(bytes.toString(java.nio.charset.StandardCharsets.UTF_8), candidates,
+                        retained, "Open unsaved document");
+            } catch (RuntimeException failure) {
+                retainUnknown(candidates, retained, "Cannot inspect an open document: " + failure.getMessage());
+            }
+        }
+        for (HudScreenEditorDocument open : openHudDocuments) {
+            try {
+                scanRetentionJson(new com.badlogic.gdx.utils.Json().toJson(open.document()), candidates,
+                        retained, "Open HUD document: " + open.screenId());
+            } catch (RuntimeException failure) {
+                retainUnknown(candidates, retained, "Cannot inspect an open HUD document");
+            }
+        }
+        return retained;
+    }
+
+    private void scanAuthoredJson(FileHandle root, FileHandle directory, java.util.Set<Integer> ids,
+                                  java.util.Map<Integer, String> retained, java.util.Set<String> scanned) {
+        for (FileHandle file : retentionFiles(directory, ids, retained)) {
+            if (file.isDirectory()) {
+                String name = file.name();
+                if (!name.equals("orig") && !name.equals("atlases") && !name.startsWith(".")
+                        && !name.equals("runtime") && !name.equals("build")
+                        && !name.equals(games.pixscape.studio.configuration.RuntimeExport.RUNTIME_DIR_NAME))
+                    scanAuthoredJson(root, file, ids, retained, scanned);
+            } else if (file.extension().equalsIgnoreCase("json")
+                    && !file.equals(root.child(StudioFs.FILE_ASSETS_JSON))) {
+                scanRetentionFile(file, ids, retained, scanned);
+            }
+        }
+    }
+
+    private void scanRetentionDirectory(FileHandle directory, java.util.Set<Integer> ids,
+                                        java.util.Map<Integer, String> retained, java.util.Set<String> scanned) {
+        if (!directory.exists()) return;
+        for (FileHandle file : retentionFiles(directory, ids, retained)) {
+            if (games.pixscape.studio.service.ProjectFileCleanupService.shouldSkipRuntimeExportFile(file)) continue;
+            if (StudioFs.isImageFile(file.name())) continue;
+            if (file.isDirectory()) scanRetentionDirectory(file, ids, retained, scanned);
+            else scanRetentionFile(file, ids, retained, scanned);
+        }
+    }
+
+    private FileHandle[] retentionFiles(FileHandle directory, java.util.Set<Integer> ids,
+                                         java.util.Map<Integer, String> retained) {
+        if (java.nio.file.Files.isSymbolicLink(directory.file().toPath())) {
+            retainUnknown(ids, retained, "Cannot inspect linked authored directory: " + directory.name());
+            return new FileHandle[0];
+        }
+        java.util.List<FileHandle> files = new java.util.ArrayList<>();
+        try (var entries = java.nio.file.Files.newDirectoryStream(directory.file().toPath())) {
+            for (var path : entries) files.add(new FileHandle(path.toFile()));
+        } catch (java.io.IOException | RuntimeException failure) {
+            retainUnknown(ids, retained, "Cannot inspect authored directory: " + directory.name());
+        }
+        return files.toArray(FileHandle[]::new);
+    }
+
+    private void scanRetentionFile(FileHandle file, java.util.Set<Integer> ids,
+                                   java.util.Map<Integer, String> retained, java.util.Set<String> scanned) {
+        if (!scanned.add(file.file().toPath().toAbsolutePath().normalize().toString())) return;
+        if (!file.exists() || file.isDirectory()) {
+            retainUnknown(ids, retained, "Missing authored resource: " + file.name());
+            return;
+        }
+        try { scanRetentionJson(file.readString("UTF-8"), ids, retained, file.name()); }
+        catch (RuntimeException failure) { retainUnknown(ids, retained, "Cannot read authored resource: " + file.name()); }
+    }
+
+    private void scanRetentionJson(String content, java.util.Set<Integer> ids,
+                                          java.util.Map<Integer, String> retained, String label) {
+        try {
+            JsonValue root = new JsonReader().parse(content);
+            if (!root.isObject() && !root.isArray()) throw new IllegalArgumentException("Invalid authored JSON root");
+            collectRetentionReferences(root, false, ids, retained, label);
+            verifyGameObjectReferences(root, false, ids, retained, label);
+        } catch (RuntimeException failure) {
+            retainUnknown(ids, retained, "Cannot inspect " + label + ": " + failure.getMessage());
+        }
+    }
+
+    private void verifyGameObjectReferences(JsonValue node, boolean gameObjects, java.util.Set<Integer> ids,
+                                            java.util.Map<Integer, String> retained, String label) {
+        String name = node.name == null ? "" : node.name.toLowerCase(java.util.Locale.ROOT);
+        gameObjects = name.equals("gameobjectids") || name.equals("runtimegameobjectids")
+                || (gameObjects && node.name == null);
+        if (node.isString() && (gameObjects || name.equals("gameobjectid")
+                || (name.equals("assetid") && (node.asString().endsWith(".gameobject")
+                    || node.asString().startsWith("gameobjects/"))))) {
+            String value = node.asString();
+            if (!value.isBlank()) {
+                try {
+                    String id = games.pixscape.runtime.gameobject.GameObjectAssetId.normalize(value);
+                    if (!resolveProjectDir().child(id).exists())
+                        retainUnknown(ids, retained, "Missing Game Object dependency in " + label + ": " + id);
+                } catch (RuntimeException failure) {
+                    retainUnknown(ids, retained, "Cannot resolve Game Object dependency in " + label);
+                }
+            }
+        }
+        for (JsonValue child = node.child; child != null; child = child.next)
+            verifyGameObjectReferences(child, gameObjects, ids, retained, label);
+    }
+
+    private static void retainUnknown(java.util.Set<Integer> ids, java.util.Map<Integer, String> retained,
+                                       String reason) {
+        for (int id : ids) retained.putIfAbsent(id, reason);
+    }
+
+    private static void collectRetentionReferences(JsonValue node, boolean reference,
+                                                    java.util.Set<Integer> ids,
+                                                    java.util.Map<Integer, String> retained, String label) {
+        collectRetentionReferences(node, reference, false, ids, retained, label);
+    }
+
+    private static void collectRetentionReferences(JsonValue node, boolean reference, boolean uncertain,
+                                                    java.util.Set<Integer> ids,
+                                                    java.util.Map<Integer, String> retained, String label) {
+        String name = node.name == null ? "" : node.name.toLowerCase(java.util.Locale.ROOT);
+        reference |= name.contains("asset") || name.endsWith("tileid") || name.endsWith("tileids");
+        uncertain |= name.equals("properties") || name.equals("customproperties");
+        if (reference && node.isObject() && node.has("items")) {
+            JsonValue items = node.get("items");
+            int size = node.getInt("size", items.size);
+            if (!items.isArray() || size < 0 || size > items.size) {
+                retainUnknown(ids, retained, "Invalid asset reference bag in " + label); return;
+            }
+            int index = 0;
+            for (JsonValue item = items.child; item != null && index < size; item = item.next, index++)
+                collectRetentionReferences(item, true, uncertain, ids, retained, label);
+            return;
+        }
+        if (node.isNumber() && (reference || uncertain) && ids.contains(node.asInt()))
+            retained.putIfAbsent(node.asInt(), reference ? "Referenced by " + label
+                    : "Cannot exclude a tile reference in authored properties: " + label);
+        for (JsonValue child = node.child; child != null; child = child.next)
+            collectRetentionReferences(child, reference, uncertain, ids, retained, label);
+    }
+
     public AssetUsageReport scanTileset(int tilesetId) {
         if (tilesetId <= 0) {
             return AssetUsageReport.empty();

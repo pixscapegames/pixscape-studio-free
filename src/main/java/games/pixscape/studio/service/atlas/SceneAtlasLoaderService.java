@@ -33,7 +33,8 @@ public final class SceneAtlasLoaderService {
         FileHandle atlasesRoot = projectDir.child(StudioFs.DIR_ATLASES);
         atlasesRoot.mkdirs();
 
-        packSceneAtlasToDirectory(cfg, canonicalTag, projectDir, atlasesRoot);
+        AtlasStudioService.repackImportedScenes(cfg,projectDir,java.util.Set.of(canonicalTag),()->{},()->{},
+                SceneAtlasLoaderService::packSceneAtlasToDirectory);
     }
 
     public static SceneAtlasCoverage.Validation packSceneAtlasToDirectory(ProjectConfig cfg,
@@ -65,7 +66,10 @@ public final class SceneAtlasLoaderService {
             final String packedTag = canonicalTag;
             SceneAtlasCoverage.Validation validation = packWithInputSnapshot(
                     inputDir, outputDir.child(canonicalTag + ".atlas"), canonicalTag,
-                    () -> AtlasPackingService.packScene(inputDir, outputDir, packedTag));
+                    () -> {
+                        AtlasPackingService.packScene(inputDir,outputDir,packedTag);
+                        NormalAtlasPackingService.pack(inputDir,outputDir,packedTag);
+                    });
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
             return validation;
         }
@@ -114,7 +118,6 @@ public final class SceneAtlasLoaderService {
         }
 
         // 2) Load
-        atlasRuntimeService.unload(canonicalTag);
         atlasRuntimeService.load(canonicalTag, atlasFile);
 
         // 3) Rebind after atlas is ready

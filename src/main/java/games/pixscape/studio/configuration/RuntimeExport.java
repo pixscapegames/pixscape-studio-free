@@ -76,6 +76,15 @@ public final class RuntimeExport {
         }
 
         validateContentLayerInputs(studioCfg, studioProjectDir);
+        FileHandle catalog=studioProjectDir.child(StudioFs.FILE_ASSETS_JSON);
+        if(catalog.exists()){
+            AssetMetaDatabase db=AssetMetaDatabase.load(catalog);
+            for(ObjectMap.Entry<String,SceneMeta> entry:studioCfg.getScenesMap()){
+                String tag=studioCfg.canonicalSceneTag(entry.key);
+                if(tag!=null && studioProjectDir.child(StudioFs.DIR_ATLASES).child(tag+".atlas").exists())
+                    games.pixscape.studio.service.atlas.AtlasStudioService.prepareSceneNormals(studioProjectDir,tag,null,db);
+            }
+        }
 
         // All HUD resolution, source capture and packing must succeed before removing the old export.
         try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
@@ -384,6 +393,18 @@ public final class RuntimeExport {
                 runtimeCfg,
                 tileAnimationsDb
         );
+        // The exported registries and Game Objects retain these dependencies even when no Scene is open.
+        for (TileAnimationProjectDefData def : tileAnimationsDb.animations)
+            if (def != null && def.frameAssetIds != null)
+                for (int id : def.frameAssetIds) if (id > 0) runtimeTileAssetIds.add(id);
+        FileHandle exportedGameObjects = runtimeFile.parent().child(StudioFs.DIR_GAME_OBJECTS);
+        if (exportedGameObjects.exists()) for (FileHandle file : exportedGameObjects.list()) {
+            if (!file.name().endsWith(GameObjectAsset.EXTENSION)) continue;
+            GameObjectAsset asset = new GameObjectAssetLoader().load(file);
+            for (GameObjectAsset.GameObjectEntityData entity : asset.entities)
+                if (entity.assetRef != null && assetDb.findById(entity.assetRef.assetId) instanceof TileAssetMeta)
+                    runtimeTileAssetIds.add(entity.assetRef.assetId);
+        }
         IntMap<IntArray> tileIdsByTilesetId = collectRuntimeTileIdsByTileset(assetDb, runtimeTileAssetIds);
 
         JsonValue root = new JsonValue(JsonValue.ValueType.object);
@@ -409,7 +430,32 @@ public final class RuntimeExport {
                     continue;
                 }
                 tileIds.sort();
-                tilesets.addChild(tilesetProfileJson(tileset, tileIds));
+                JsonValue profile = tilesetProfileJson(tileset, tileIds);
+                JsonValue normals = new JsonValue(JsonValue.ValueType.array);
+                for (int i = 0; i < tileIds.size; i++) {
+                    TileAssetMeta tile = (TileAssetMeta) assetDb.findById(tileIds.get(i));
+                    if (tile.normalSourceRelPath == null) continue;
+                    FileHandle source = assetsFile.parent().child(tile.normalSourceRelPath);
+                    FileHandle color = assetsFile.parent().child(tile.sourceRelPath());
+                    if (!source.exists()) throw new GdxRuntimeException("Tile normal resource is missing: " + tile.id());
+                    // Exact source dimensions remain independent of atlas trim, rotation, padding and aliases.
+                    try {
+                        var normalPixels = javax.imageio.ImageIO.read(source.file());
+                        var colorPixels = javax.imageio.ImageIO.read(color.file());
+                        if (normalPixels == null || colorPixels == null
+                                || normalPixels.getWidth() != colorPixels.getWidth()
+                                || normalPixels.getHeight() != colorPixels.getHeight())
+                            throw new GdxRuntimeException("Tile normal dimensions are invalid: " + tile.id());
+                    } catch (java.io.IOException failure) { throw new GdxRuntimeException("Cannot validate tile normal", failure); }
+                    String relative = "normals/" + tile.id() + ".png";
+                    source.copyTo(runtimeFile.parent().child(relative));
+                    JsonValue normal = new JsonValue(JsonValue.ValueType.object);
+                    normal.addChild("tileAssetId", new JsonValue(tile.id()));
+                    normal.addChild("source", new JsonValue(relative));
+                    normals.addChild(normal);
+                }
+                profile.addChild("normalMaps", normals);
+                tilesets.addChild(profile);
             }
         }
         root.addChild("tilesets", tilesets);
