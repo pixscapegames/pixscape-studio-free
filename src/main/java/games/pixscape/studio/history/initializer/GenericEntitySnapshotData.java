@@ -41,7 +41,7 @@ public final class GenericEntitySnapshotData {
     public IntArray animationAssetIds = new IntArray();
     public float animationFps = 12f;
     public boolean animationPlaying = true, animationLoop = true;
-    public float animationStateTime = 0f;
+    public double animationStateTime = 0d;
     public int animationFrame = -1;
     public String animationCurrentClip = "";
     public boolean hasShaderParams;

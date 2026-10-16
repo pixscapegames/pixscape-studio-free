@@ -87,7 +87,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float animFps = 12f;
     protected boolean animPlaying = true;
     protected boolean animLoop = true;
-    protected float animStateTime = 0f;
+    protected double animStateTime = 0d;
     protected int animFrame = -1;
     protected String animCurrentClip = "";
 

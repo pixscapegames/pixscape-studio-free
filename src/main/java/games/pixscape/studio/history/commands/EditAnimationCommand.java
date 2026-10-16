@@ -22,7 +22,7 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
         public float fps = 12f;
         public boolean playing = true;
         public boolean loop = true;
-        public float stateTime;
+        public double stateTime;
         public int frame = -1;
 
         public static Snapshot capture(AnimationComponent animation, AssetRefComponent assetRef) {
@@ -60,7 +60,7 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
                     || Float.compare(fps, other.fps) != 0
                     || playing != other.playing
                     || loop != other.loop
-                    || Float.compare(stateTime, other.stateTime) != 0
+                    || Double.compare(stateTime, other.stateTime) != 0
                     || frame != other.frame
                     || animationAssetIds.size != other.animationAssetIds.size) {
                 return false;

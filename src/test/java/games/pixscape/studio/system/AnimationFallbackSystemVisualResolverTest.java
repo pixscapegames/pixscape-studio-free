@@ -26,6 +26,34 @@ import static org.junit.Assert.assertTrue;
 
 public class AnimationFallbackSystemVisualResolverTest {
 
+    @Test
+    public void standaloneAnimationKeepsAdvancingAtSavedDemoTimeAndHighFrameRate() {
+        AnimationAssetMeta meta = animationMeta();
+        StudioAssetVisualResolver resolver = new StudioAssetVisualResolver(
+                new VisualResolverTestSupport.TrackingAtlasService("main"),
+                id -> meta, new TrackingStandaloneAccess(texture(10, 11), texture(20, 21)));
+        World world = new World(new WorldConfiguration().setSystem(
+                new AnimationFallbackSystem(null, resolver, id -> meta)));
+        try {
+            int entity = createAnimationEntity(world, meta.id());
+            AnimationComponent animation = world.getMapper(AnimationComponent.class).get(entity);
+            animation.stateTime = 100344.64f;
+            double initialTime = animation.stateTime;
+            world.setDelta(0.0025f);
+            int changes = 0;
+            for (int i = 0; i < 400; i++) {
+                int previousFrame = animation.frame;
+                world.process();
+                if (animation.frame != previousFrame) changes++;
+            }
+            assertEquals(initialTime + 400 * (double) world.getDelta(),
+                    animation.stateTime, 0.000001);
+            assertTrue("Standalone playback must keep changing frames", changes >= 10);
+        } finally {
+            world.dispose();
+        }
+    }
+
     @After
     public void clearTextureRegistry() {
         TextureRegistry.clear();

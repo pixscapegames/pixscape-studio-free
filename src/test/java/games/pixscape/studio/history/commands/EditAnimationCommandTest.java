@@ -24,6 +24,7 @@ public class EditAnimationCommandTest {
         animation.currentClip = "idle";
         animation.fps = 12f;
         animation.frame = 2;
+        animation.stateTime = 100344.640123d;
         AssetRefComponent assetRef = world.getMapper(AssetRefComponent.class).create(entityId);
         assetRef.assetId = 17;
 
@@ -50,6 +51,7 @@ public class EditAnimationCommandTest {
         assertArrayEquals(new int[]{17, 31}, animation.animationAssetIds.toArray());
         assertEquals("idle", animation.currentClip);
         assertEquals(2, animation.frame);
+        assertEquals(100344.640123d, animation.stateTime, 0d);
 
         history.redo();
         assertEquals(31, assetRef.assetId);
