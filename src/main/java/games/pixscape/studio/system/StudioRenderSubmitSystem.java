@@ -172,6 +172,17 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
 
             boolean inAtlas = activeBundle != null && activeBundle.handle2layer.containsKey(texHandle);
 
+            // Keep admission for E without breaking a compatible original-image batch.
+            if (pass == LightCompositionPass.ORIGINAL && AmbientContributionRenderer.isIdentityOriginal(frameQueue, i)) {
+                ShaderProgram standard = inAtlas ? standardAtlasShader : ShaderRegistry.get(ShaderMode.TEXTURE_2D.defaultShaderName());
+                ShaderProgram actual = inAtlas ? ShaderRegistry.getByIdx(frameQueue.shader[i]) : standard;
+                if (actual == null) actual = standard;
+                if (standard != null && actual == standard && (inAtlas || TextureRegistry.getByHandle(texHandle) != null)) {
+                    AmbientContributionRenderer.admit(frameQueue, i, actual, standard);
+                    continue;
+                }
+            }
+
             if (inAtlas) {
                 if (standaloneOpen) {
                     standaloneBatch.end(stats);
