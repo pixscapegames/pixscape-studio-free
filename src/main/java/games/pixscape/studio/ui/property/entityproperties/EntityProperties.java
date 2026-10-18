@@ -143,11 +143,11 @@ public class EntityProperties extends VisTable {
         add(gameObjectSection).growX().left().pad(0).row();
         add(transformSection).growX().left().pad(0).row();
         add(materialSection).growX().left().pad(0).row();
-        add(lightingSection).growX().left().pad(0).row();
         add(animationSection).growX().left().pad(0).row();
         add(particleSection).growX().left().pad(0).row();
         add(repeatableSection).growX().left().pad(0).row();
         add(spatialSection).growX().left().pad(0).row();
+        add(lightingSection).growX().left().pad(0).row();
         add(physicsSection).growX().left().pad(0).row();
 
         EventFlow.i().subscribe(EventFlow.EntityChanged.class, evt -> {
@@ -329,7 +329,7 @@ public class EntityProperties extends VisTable {
                 && isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
-        repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
+        repeatableSection.setApplicable(repeatablePanel.isApplicable() && isSprite);
 
         boolean physicsApplicable = isPhysicsApplicable();
         spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));

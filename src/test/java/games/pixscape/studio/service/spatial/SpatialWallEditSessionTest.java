@@ -196,6 +196,23 @@ public class SpatialWallEditSessionTest {
         assertAllHeight(fixture.walls, 15f);
     }
 
+    @Test
+    public void attachedJoinedWallDoesNotSnapBackInsideImageCellsAtZeroMovement() {
+        Fixture fixture = emptyFixture();
+        SpatialBlockData host = wall(1, 4, 1f, 2.25f, 6f, .5f, 1, 7, 2, 3);
+        SpatialBlockData branch = wall(2, 4, 1.975727f, 2f, .5f, 3f, 2, 7, 2, 5);
+        fixture.walls.blocks.add(host);
+        fixture.walls.blocks.add(branch);
+        SpatialWallEditSession session = new SpatialWallEditSession();
+        Assert.assertTrue(session.begin(fixture.layer, branch.id, fixture.walls, fixture.map));
+        Assert.assertTrue(session.isSlidingAttachedWall());
+        Assert.assertEquals(0, session.attachments().clampSlideDelta(0), 0);
+        session.updateMove(0, 0);
+        assertFootprint(branch, session.candidate());
+        Assert.assertEquals(0, fixture.history.getCursor());
+        session.cancel();
+    }
+
     private static Fixture attachedFixture(float neighborOverlap) {
         Fixture fixture = emptyFixture();
         fixture.walls.blocks.add(wall(1, 4, 2f, 2f, 4f, 1f, 2, 6, 2, 3));

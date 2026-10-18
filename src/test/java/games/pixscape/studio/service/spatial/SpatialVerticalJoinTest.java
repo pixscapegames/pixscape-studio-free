@@ -68,7 +68,7 @@ public class SpatialVerticalJoinTest {
             none=SpatialVerticalJoinProposal.search(f.world,f.lower,1);assertTrue(none.diagnostic.contains("unsupported"));
         }
     }
-    @Test public void invalidHeightAndLinkedRegionAreRefusedWithoutMutation() {
+    @Test public void invalidHeightIsRefusedWithoutMutation() {
         try(Fixture f=new Fixture()) {
             f.reference.blocks.first().height=200;String before=new Json().toJson(f.source);
             SpatialVerticalJoinProposal p=f.proposal(f.lower,1,f.upper,1);assertTrue(p.valid);
@@ -78,13 +78,14 @@ public class SpatialVerticalJoinTest {
         }
         try(Fixture f=new Fixture()) {
             f.reference.blocks.first().y=2.8f;f.reference.blocks.first().depth=.3f;
-            // The reference's own row envelope is valid; selected row ends at 3.
+            // Matching both faces is valid even though the selected image row ends at 3.
             f.reference.blocks.first().depth=.15f;
             f.reference.blocks.first().y=2.95f;
             f.reference.blocks.first().beginAuthoredLinkedTileRefs();
             for(int y=2;y<4;y++)for(int x=1;x<4;x++)f.reference.blocks.first().addLinkedTileRef(x,y,1);
-            SpatialVerticalJoinProposal p=f.proposal(f.lower,1,f.upper,1);assertFalse(p.valid);
-            assertTrue(p.diagnostic,p.diagnostic.contains("FOOTPRINT") || p.diagnostic.contains("coverage") || p.diagnostic.contains("Invalid authored wall"));
+            SpatialVerticalJoinProposal p=f.proposal(f.lower,1,f.upper,1);assertTrue(p.diagnostic,p.valid);
+            assertEquals(2.95f,p.after.blocks.first().y,.0001f);
+            assertEquals(.15f,p.after.blocks.first().depth,.0001f);
             assertEquals(.2f,f.source.blocks.first().depth,0);assertFalse(f.history.canUndo());
         }
     }
@@ -141,6 +142,50 @@ public class SpatialVerticalJoinTest {
             assertFalse(command.wasApplied());assertFalse(f.history.canUndo());assertEquals(60,f.source.blocks.first().height,0);
         }
     }
+    @Test public void joinedFacesCanCrossImageAnchorCellsAndSurviveHistoryAndReload() {
+        for(boolean transpose:new boolean[]{false,true}) try(Fixture f=new Fixture()) {
+            TiledLayerComponent lower=f.map(f.lower),upper=f.map(f.upper);
+            for(TiledLayerComponent t:new TiledLayerComponent[]{lower,upper}) {
+                t.tileWidth=256;t.tileHeight=128;t.mapWidthCells=t.mapHeightCells=50;t.originY=0;
+                t.defaultTileAltitude=t==lower?0:158;t.defaultTileHeight=t==lower?158:160;
+                t.data=t.createMapData();
+                for(int y=0;y<50;y++)for(int x=0;x<50;x++)t.data.setTile(x,y,1);
+            }
+            f.source.blocks.clear();f.reference.blocks.clear();
+            SpatialBlockData fixed=wall(19,6,18,20.741352f,8,.25864792f,0,158);
+            SpatialBlockData selected=wall(20,10,22,22,5,1,158,160);
+            if(transpose)for(SpatialBlockData w:new SpatialBlockData[]{fixed,selected}) {
+                float x=w.x,width=w.width;w.x=w.y;w.y=x;w.width=w.depth;w.depth=width;
+                for(SpatialBlockData.LinkedTileRef ref:w.linkedTileRefs) {int gx=ref.gx;ref.gx=ref.gy;ref.gy=gx;}
+            }
+            f.source.blocks.add(fixed);f.source.nextSpatialBlockId=20;
+            f.reference.blocks.add(selected);f.reference.nextSpatialBlockId=21;
+            Json json=new Json();String fixedBefore=json.toJson(f.source),before=json.toJson(f.reference);
+            String refs=json.toJson(selected.linkedTileRefs);
+            SpatialVerticalJoinProposal p=f.proposal(f.upper,20,f.lower,19);
+            assertTrue(p.diagnostic,p.valid);
+            SpatialBlockData joined=p.after.blocks.first();
+            assertEquals(21.975727f,transpose?joined.x:joined.y,.00001f);
+            assertEquals(.25864792f,transpose?joined.width:joined.depth,.00001f);
+            assertEquals(refs,json.toJson(joined.linkedTileRefs));
+            assertEquals(158,joined.altitude,0);assertEquals(318,joined.altitude+joined.height,0);
+            float[] expected=SpatialVerticalJoinProposal.rectangleIn(lower.data,fixed,upper.data);
+            assertEquals(transpose?expected[0]:expected[1],transpose?joined.x:joined.y,0);
+            assertEquals(transpose?expected[2]:expected[3],transpose?joined.width:joined.depth,0);
+            SpatialVerticalJoinCommand c=f.command(p);f.history.execute(c);assertTrue(c.rejectionReason(),c.wasApplied());
+            String after=json.toJson(f.reference);
+            for(int i=0;i<3;i++) {
+                f.history.undo();assertEquals(before,json.toJson(f.reference));
+                f.history.redo();assertEquals(after,json.toJson(f.reference));
+            }
+            SpatialBlocksComponent reloaded=json.fromJson(SpatialBlocksComponent.class,after);
+            assertTrue(SpatialStructureCompilation.tryCompile(reloaded,upper.data).diagnostic(),
+                    SpatialStructureCompilation.tryCompile(reloaded,upper.data).success());
+            assertEquals(after,json.toJson(reloaded));assertEquals(fixedBefore,json.toJson(f.source));
+            assertEquals(1,f.history.getCursor());
+        }
+    }
+
     static SpatialBlockData wall(int id,int structure,float x,float y,float width,float depth,float altitude,float height) {
         SpatialBlockData b=new SpatialBlockData();b.id=id;b.structureId=structure;b.x=x;b.y=y;b.width=width;b.depth=depth;b.altitude=altitude;b.height=height;
         b.beginAuthoredLinkedTileRefs();for(int gy=(int)Math.floor(y);gy<(int)Math.ceil(y+depth);gy++)for(int gx=(int)Math.floor(x);gx<(int)Math.ceil(x+width);gx++)b.addLinkedTileRef(gx,gy,1);

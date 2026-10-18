@@ -3,7 +3,7 @@ package games.pixscape.studio.service.spatial;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 
-/** Continuous transient footprint editing constrained by the authored linked-cell envelope. */
+/** Continuous transient editing within the linked-cell or existing physical envelope. */
 public final class SpatialBlockInteractiveEditSupport {
     public enum ResizeHandle {
         MIN_Y, MAX_X, MAX_Y, MIN_X,
@@ -19,10 +19,12 @@ public final class SpatialBlockInteractiveEditSupport {
         }
         SpatialWallGeometry.LinkedCellBounds linked = new SpatialWallGeometry.LinkedCellBounds();
         if (!SpatialWallGeometry.extractLinkedCellBounds(original, linked)) return false;
-        float maxX = linked.maxGxExclusive - original.width;
-        float maxY = linked.maxGyExclusive - original.depth;
-        wall.x = clamp(original.x + dx, linked.minGx, maxX);
-        wall.y = clamp(original.y + dy, linked.minGy, maxY);
+        // A vertical join can place physical faces outside their image-anchor cells.
+        // Preserve that authored envelope instead of snapping a joined wall on gesture start.
+        float maxX = Math.max(linked.maxGxExclusive, original.x + original.width) - original.width;
+        float maxY = Math.max(linked.maxGyExclusive, original.y + original.depth) - original.depth;
+        wall.x = clamp(original.x + dx, Math.min(linked.minGx, original.x), maxX);
+        wall.y = clamp(original.y + dy, Math.min(linked.minGy, original.y), maxY);
         return Float.compare(wall.x, original.x) != 0 || Float.compare(wall.y, original.y) != 0;
     }
 
@@ -40,34 +42,38 @@ public final class SpatialBlockInteractiveEditSupport {
         float minY = original.y;
         float maxX = original.x + original.width;
         float maxY = original.y + original.depth;
+        float limitMinX = Math.min(linked.minGx, minX);
+        float limitMinY = Math.min(linked.minGy, minY);
+        float limitMaxX = Math.max(linked.maxGxExclusive, maxX);
+        float limitMaxY = Math.max(linked.maxGyExclusive, maxY);
         switch (handle) {
             case MIN_Y:
-                minY = clamp(gy, linked.minGy, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
+                minY = clamp(gy, limitMinY, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
                 break;
             case MAX_X:
-                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGxExclusive);
+                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxX);
                 break;
             case MAX_Y:
-                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGyExclusive);
+                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxY);
                 break;
             case MIN_X:
-                minX = clamp(gx, linked.minGx, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
+                minX = clamp(gx, limitMinX, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
                 break;
             case MIN_X_MIN_Y:
-                minX = clamp(gx, linked.minGx, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
-                minY = clamp(gy, linked.minGy, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
+                minX = clamp(gx, limitMinX, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
+                minY = clamp(gy, limitMinY, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
                 break;
             case MAX_X_MIN_Y:
-                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGxExclusive);
-                minY = clamp(gy, linked.minGy, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
+                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxX);
+                minY = clamp(gy, limitMinY, maxY - SpatialWallGeometry.GEOMETRY_EPSILON);
                 break;
             case MAX_X_MAX_Y:
-                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGxExclusive);
-                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGyExclusive);
+                maxX = clamp(gx, minX + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxX);
+                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxY);
                 break;
             case MIN_X_MAX_Y:
-                minX = clamp(gx, linked.minGx, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
-                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, linked.maxGyExclusive);
+                minX = clamp(gx, limitMinX, maxX - SpatialWallGeometry.GEOMETRY_EPSILON);
+                maxY = clamp(gy, minY + SpatialWallGeometry.GEOMETRY_EPSILON, limitMaxY);
                 break;
         }
         wall.x = minX;

@@ -65,6 +65,7 @@ public final class RepeatablePanel extends CollapsibleWidget {
     private boolean isRepeatableEntity(int eid) {
         return eid >= 0
                 && ctx.world.getEntityManager().isActive(eid)
+                && !ctx.mAnim.has(eid)
                 && ctx.mTexRegion.has(eid)
                 && ctx.mMat.has(eid);
     }

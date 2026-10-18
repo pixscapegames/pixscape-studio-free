@@ -13,6 +13,9 @@
 
 ### Added
 
+* Added actor foot calibration directly in the canvas: two freely movable handles on the selected shadow-casting actor, immediate feedback, Escape cancellation and one Undo/Redo action per gesture.
+* Foot profiles and thickness persist per animation asset and clip, including scene reloads, copies and Game Objects. Missing profiles retain their existing fallback support.
+
 * Added "Ignore ambient lighting" for particle instances.
 * Added height and intensity handles to point and cone light gizmos, with fine control and undo/redo.
 * Added continuous cone light inclination, with a dedicated arc handle and Properties control.
@@ -48,6 +51,8 @@
 
 ### Tests
 
+* Added actor calibration/history and structure-join regression coverage. Native desktop Studio and Preview were executed with the local Runtime; HTML/GWT compilation is separate from real WebGL/GLES validation. See [actor shadow authoring](docs/actor-shadow-authoring.md) for the workflow and remaining rendering limits.
+
 * Added coverage for drawn-plane projection, linked Physics command rollback/Undo/Redo, live height preview and selected-actor influence overlays, including Physics and HUD editing contexts.
 * Uses the stabilized Runtime's local wall continuity and altitude relations. General multi-map composition is not resolved; prototype B is not integrated and known conflicts remain.
 
@@ -62,6 +67,10 @@
   scene tools, undo/redo and inspector, then saved independently without changing placed instances.
 
 ### Improved
+
+* Grouped actor shadow Threshold and Thickness sliders below Cast shadow, aligned Lighting below Spatial, removed obsolete support fields from the inspector and hid ineffective Repeatable controls on animations.
+* Vertical structure joins align height and vertical faces without forcing physical footprints into linked image-anchor cells; subsequent wall editing preserves the joined envelope.
+* Preview uses the finalized Runtime shadow contract: actors cast onto decor and receive decor occlusion, without actor-to-actor shadows or actor self-shadowing; ambient and normal mapping remain available.
 
 * Reduced HUD atlas repacking for composition-only edits.
 * Updated the Pixscape Runtime dependency to 0.2.2.
