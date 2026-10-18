@@ -23,7 +23,7 @@ public final class AssetPreviewCache {
     public static TextureRegion get(AssetNode node) {
         if (node == null) return null;
 
-        String key = node.kind + ":" + node.path;
+        String key = node.root + ":" + node.kind + ":" + node.path;
         Texture tex = cache.get(key);
 
         if (tex == null) {
@@ -55,7 +55,7 @@ public final class AssetPreviewCache {
 
         try {
             return switch (data.kind) {
-                case IMAGE -> loadImage(cfg, projectDir, data);
+                case IMAGE, NORMAL_MAP -> loadImage(cfg, projectDir, data);
                 case ANIMATION -> loadAnimationPreview(cfg, projectDir, data);
                 // FUTUR : PARTICLE, REGION, etc.
                 default -> null;

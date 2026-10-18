@@ -12,6 +12,7 @@ public final class AssetNode {
         FOLDER,
         REGION,
         IMAGE,
+        NORMAL_MAP,
         ANIMATION,              // classic animations
         PARTICLE,
         GAME_OBJECT,

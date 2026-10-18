@@ -823,9 +823,16 @@ public final class AssetsThumbsView extends VisTable {
 
             default -> {
                 TextureRegion region = AssetPreviewCache.get(node);
-                VisImage img = (region != null) ? new VisImage(region) : new VisImage();
-                img.setScaling(Scaling.fit);
-                contentActor = img;
+                if (region == null && node.kind == AssetNode.Kind.NORMAL_MAP) {
+                    VisLabel missing = new VisLabel("Missing normal map\n" + node.name);
+                    missing.setWrap(true);
+                    missing.setAlignment(Align.center);
+                    contentActor = missing;
+                } else {
+                    VisImage img = (region != null) ? new VisImage(region) : new VisImage();
+                    img.setScaling(Scaling.fit);
+                    contentActor = img;
+                }
             }
         }
 

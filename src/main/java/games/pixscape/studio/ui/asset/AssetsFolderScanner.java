@@ -98,7 +98,27 @@ public final class AssetsFolderScanner {
         // --------------------------------------------------------------------
 
         scanRecursive(cfg, db, baseDir, startDir, folder.root, out);
+        if (folder.root == AssetNode.Root.TILES) {
+            appendNormalMaps(db, folder.path, out);
+        }
         return out;
+    }
+
+    /** Normal maps are associated resources, not independent paintable tile assets. */
+    static void appendNormalMaps(AssetMetaDatabase db, String folderPath, Array<AssetNode> out) {
+        String prefix = StudioFs.DIR_ORIG_TILES + "/";
+        String directory = folderPath == null || folderPath.isEmpty() ? "" : folderPath + "/";
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < db.size(); i++) {
+            if (!(db.assetAt(i) instanceof games.pixscape.studio.asset.TileAssetMeta tile)
+                    || !tile.isUserVisible() || tile.normalSourceRelPath == null) continue;
+            String source = tile.normalSourceRelPath;
+            if (!source.startsWith(prefix)) continue;
+            String relative = source.substring(prefix.length());
+            if (!relative.startsWith(directory) || !seen.add(relative)) continue;
+            out.add(new AssetNode(AssetNode.Kind.NORMAL_MAP, AssetNode.Root.TILES,
+                    relative, new FileHandle(relative).name(), null));
+        }
     }
 
     // ------------------------------------------------------------------------

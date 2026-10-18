@@ -40,6 +40,7 @@
 
 ### Fixed
 
+* Fixed tile normal-map thumbnails missing from the Assets panel: associated resources use the existing preview cache, refresh after reload/reimport, and show an explicit missing-resource state without becoming paintable tile assets.
 * Fixed lighting alignment on deformed images.
 * Fixed light gizmo picking and movement for parented lights.
 * Fixed scene saves remaining stuck while waiting for atlas repack completion.
