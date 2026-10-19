@@ -93,7 +93,8 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     public void prepareComposition() {
         composition.prepare();
         ambientContribution.prepare();
-        lighting.prepare(world, composition);
+        lighting.prepare(world,composition,metricsBatch instanceof TextureArrayMeshBatchStudio
+                ?((TextureArrayMeshBatchStudio)metricsBatch).getBundle():null);
     }
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
