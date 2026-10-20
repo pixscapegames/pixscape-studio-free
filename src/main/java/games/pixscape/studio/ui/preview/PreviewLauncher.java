@@ -20,6 +20,14 @@ public final class PreviewLauncher {
     }
 
     private static Lwjgl3Window previewWindow = null;
+    private static PreviewWindow previewApp;
+
+    public static void setTileShadowMode(games.pixscape.runtime.render.lighting.TileShadowMode mode) {
+        if (previewWindow != null && previewApp != null) {
+            PreviewWindow target = previewApp;
+            previewWindow.postRunnable(() -> target.setTileShadowMode(mode));
+        }
+    }
     private static Runnable onClosedCallback;
     private static Lwjgl3Window studioWindow;
     private static Resolution resolution;
@@ -27,7 +35,7 @@ public final class PreviewLauncher {
 
     static void notifyClosed() {
         if (previewWindow != null) {
-            previewWindow = null;
+            previewWindow = null; previewApp = null;
             if (onClosedCallback != null) onClosedCallback.run();
         }
     }
@@ -64,13 +72,14 @@ public final class PreviewLauncher {
         PreviewWindow game = new PreviewWindow(userRootDir);
 
         previewWindow = app.newWindow(game, getDefaultConfiguration(cfg));
+        previewApp = game;
 
         previewWindow.setWindowListener(new Lwjgl3WindowAdapter() {
             @Override
             public boolean closeRequested() {
                 Runnable cb = onClosed;
                 Lwjgl3Window sw = studioWindow;
-                previewWindow = null;
+                previewWindow = null; previewApp = null;
 
                 if (sw != null && cb != null) {
                     sw.postRunnable(cb);
@@ -91,7 +100,7 @@ public final class PreviewLauncher {
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration(ProjectConfig cfg) {
         Lwjgl3ApplicationConfiguration configuration = new Lwjgl3ApplicationConfiguration();
-        configuration.setTitle(STUDIO_TITLE);
+        configuration.setTitle(STUDIO_TITLE + " - " + games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode());
         configuration.setWindowIcon(PixscapeStudioApplication.PIXSCAPE_ICON);
         configuration.setHdpiMode(HdpiMode.Logical);
         if (landscape) {

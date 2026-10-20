@@ -80,6 +80,11 @@ public final class PreviewWindow extends ApplicationAdapter {
         loadingProgress = 0f;
     }
 
+    public void setTileShadowMode(games.pixscape.runtime.render.lighting.TileShadowMode mode) {
+        if (engine != null) engine.setTileShadowMode(mode);
+        Gdx.graphics.setTitle(games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE + " - " + mode);
+    }
+
     private void initializeProject() {
         worldCamera = new OrthographicCamera();
         frameProfiler = StudioFrameProfiler.fromSystemProperties();
@@ -92,6 +97,7 @@ public final class PreviewWindow extends ApplicationAdapter {
         dragSystem.setGrabRadiusMeters(0.25f);
 
         engine = new PixscapeEngine()
+                .setTileShadowMode(games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode())
                 .setWorldCamera(worldCamera)
                 .setSystemProfiler(systemProfiler)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));

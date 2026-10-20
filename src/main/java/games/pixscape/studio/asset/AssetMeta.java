@@ -13,6 +13,7 @@ public abstract class AssetMeta {
     private String logicalPath;
     private String sourceRelPath;
     public AssetScope scope;
+    public com.badlogic.gdx.utils.Array<AlphaRegionMeta> alphaRegions;
 
     protected AssetMeta(AssetType type) {
         this(0, type, null, null, AssetScope.USER);

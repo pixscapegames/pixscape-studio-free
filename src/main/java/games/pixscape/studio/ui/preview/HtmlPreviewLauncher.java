@@ -63,7 +63,8 @@ public final class HtmlPreviewLauncher {
             activeServer = server;
             activeOnClosedCallback = onClosed;
 
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/";
+            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/?tileShadows="
+                    + games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode().name();
             Gdx.app.log("HtmlPreviewLauncher", "HTML preview running at " + url);
             if (onOpened != null) onOpened.run();
             Gdx.net.openURI(url);

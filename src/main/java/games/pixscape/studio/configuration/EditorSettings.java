@@ -8,6 +8,10 @@ import java.nio.file.*;
 import java.util.ArrayList;
 
 public final class EditorSettings {
+    public games.pixscape.runtime.render.lighting.TileShadowMode tileShadowMode = games.pixscape.runtime.render.lighting.TileShadowMode.V3_FIXED;
+    public games.pixscape.runtime.render.lighting.TileShadowMode tileShadowMode() {
+        return tileShadowMode == null ? games.pixscape.runtime.render.lighting.TileShadowMode.V3_FIXED : tileShadowMode;
+    }
     public int msaaSamples = 8;
     public boolean autoRepackAtlases = true;
     public String lastProjectPath;

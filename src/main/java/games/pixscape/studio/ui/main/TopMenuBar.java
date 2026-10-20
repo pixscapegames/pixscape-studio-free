@@ -208,6 +208,46 @@ public class TopMenuBar extends MenuBar {
         // VIEW
         // --------------------------------------------------------------------
         Menu viewMenu = new Menu("View");
+        PopupMenu tileShadows = new PopupMenu();
+        MenuItem tileShadowsItem = new MenuItem("Tile shadows");
+        tileShadowsItem.setSubMenu(tileShadows);
+        viewMenu.addItem(tileShadowsItem);
+        var modes = games.pixscape.runtime.render.lighting.TileShadowMode.values();
+        CheckBoxMenuItem[] choices = new CheckBoxMenuItem[modes.length];
+        String[] labels = {"V2 reference", "V3 alpha plane", "V3 fixed inclination", "V3 progressive inclination"};
+        for (int i = 0; i < modes.length; i++) {
+            final var mode = modes[i];
+            var choice = new CheckBoxMenuItem(labels[i], games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode() == mode);
+            choices[i] = choice;
+            choice.addListener(new ChangeListener() {
+                @Override public void changed(ChangeEvent event, Actor actor) {
+                    games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode = mode;
+                    games.pixscape.studio.configuration.EditorSettings.save();
+                    for (int j = 0; j < choices.length; j++) {
+                        choices[j].check.setProgrammaticChangeEvents(false);
+                        choices[j].check.setChecked(modes[j] == mode);
+                        choices[j].check.setProgrammaticChangeEvents(true);
+                    }
+                    var context = app.getSceneEditorContext();
+                    if (context != null && context.isInitialized()) {
+                        var sync = context.world().getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+                        if (sync != null) sync.setTileShadowMode(mode);
+                    }
+                    games.pixscape.studio.ui.preview.PreviewLauncher.setTileShadowMode(mode);
+                }
+            });
+            tileShadows.addItem(choice);
+        }
+        tileShadows.addSeparator();
+        MenuItem coverage = new MenuItem("Prepared coverage...");
+        onClick(coverage, () -> {
+            var context = app.getSceneEditorContext();
+            if (context == null || !context.isInitialized()) return;
+            var sync = context.world().getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+            if (sync != null) Dialogs.showOKDialog(coverage.getStage(), "Tile shadow coverage", sync.tileShadowDiagnostic());
+        });
+        tileShadows.addItem(coverage);
+
 
         dockManager.register(new LogWindow(), null, false);
 

@@ -85,6 +85,7 @@ public final class StudioAnimationAssets {
                 source.sourceRelPath(),
                 source.scope
         );
+        if(source.alphaRegions!=null){copy.alphaRegions=new Array<>();for(var r:source.alphaRegions)copy.alphaRegions.add(r.copy());}
         copy.frameCount = source.frameCount;
         copy.fps = source.fps;
         copy.currentClip = source.currentClip;

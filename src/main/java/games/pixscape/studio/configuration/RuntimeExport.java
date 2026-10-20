@@ -269,6 +269,8 @@ public final class RuntimeExport {
                 out
         );
 
+        exportAlphaBounds(studioProjectDir.child(StudioFs.FILE_ASSETS_JSON),runtimeDir.child(games.pixscape.runtime.service.AlphaBoundsCatalog.FILE));
+
         // 7) Final project.json write
         hud.copyTo(runtimeDir);
         saveProject(out, runtimeDir, studioCfg);
@@ -344,6 +346,20 @@ public final class RuntimeExport {
         }
 
         TileAnimationsIO.save(runtimeDb, runtimeFile);
+    }
+
+    private static void exportAlphaBounds(FileHandle assetsFile,FileHandle output){
+        AssetMetaDatabase db=AssetMetaDatabase.load(assetsFile);
+        JsonValue root=new JsonValue(JsonValue.ValueType.object),assets=new JsonValue(JsonValue.ValueType.array);root.addChild("assets",assets);
+        for(int i=0;i<db.size();i++){
+            AssetMeta a=db.assetAt(i);if(a.alphaRegions==null||a.alphaRegions.size==0)continue;
+            JsonValue asset=new JsonValue(JsonValue.ValueType.object),regions=new JsonValue(JsonValue.ValueType.array);asset.addChild("assetId",new JsonValue(a.id()));asset.addChild("regions",regions);assets.addChild(asset);
+            for(AlphaRegionMeta r:a.alphaRegions){
+                JsonValue region=new JsonValue(JsonValue.ValueType.object);region.addChild("frame",new JsonValue(r.frame));
+                region.addChild("bounds",new JsonReader().parse(JSON.toJson(r.bounds)));regions.addChild(region);
+            }
+        }
+        StudioIO.writeAtomic(output,out->out.write(root.prettyPrint(JsonWriter.OutputType.json,120).getBytes(StandardCharsets.UTF_8)));
     }
 
     private static void exportAnimations(FileHandle assetsFile, FileHandle runtimeFile) {

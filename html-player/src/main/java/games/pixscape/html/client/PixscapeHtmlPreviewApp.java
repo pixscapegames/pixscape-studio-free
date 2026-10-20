@@ -75,7 +75,14 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         dragSystem.setDampingRatio(0.7f);
         dragSystem.setGrabRadiusMeters(0.25f);
 
+        String tileMode = com.google.gwt.user.client.Window.Location.getParameter("tileShadows");
+        games.pixscape.runtime.render.lighting.TileShadowMode mode = games.pixscape.runtime.render.lighting.TileShadowMode.V3_FIXED;
+        if (tileMode != null) {
+            try { mode = games.pixscape.runtime.render.lighting.TileShadowMode.valueOf(tileMode); }
+            catch (IllegalArgumentException ignored) { Gdx.app.error("Tile shadows", "Unknown tile shadow mode: " + tileMode); }
+        }
         engine = new PixscapeEngine()
+                .setTileShadowMode(mode)
                 .setWorldCamera(worldCamera)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
         engine.setPlatformTarget(PlatformTarget.HTML_WEBGL2);

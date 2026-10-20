@@ -348,6 +348,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
             copyTile.importSourceKey = sourceTile.importSourceKey;
             copyTile.normalSourceRelPath = sourceTile.normalSourceRelPath;
         }
+        if(source.alphaRegions!=null){copy.alphaRegions=new Array<>();for(var r:source.alphaRegions)copy.alphaRegions.add(r.copy());}
         return copy;
     }
 
@@ -513,6 +514,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
     public void save(FileHandle file) {
         if (file == null) throw new IllegalArgumentException("file is null");
 
+        AlphaBoundsPreparation.prepare(this,file.parent());
         version = CURRENT_VERSION;
         normalizeAssetDefaults();
         verifyInternalState();
@@ -936,6 +938,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 json.writeValue("importSourceKey", tile.importSourceKey);
                 json.writeValue("normalSourceRelPath", tile.normalSourceRelPath);
             }
+            if(object.alphaRegions!=null)json.writeValue("alphaRegions",object.alphaRegions,Array.class,AlphaRegionMeta.class);
             json.writeObjectEnd();
         }
 
@@ -992,6 +995,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 tile.importSourceKey = jsonData.getString("importSourceKey", null);
                 tile.normalSourceRelPath = normalizeOptionalSourcePath(jsonData.getString("normalSourceRelPath", null));
             }
+            if(jsonData.has("alphaRegions"))meta.alphaRegions=json.readValue(Array.class,AlphaRegionMeta.class,jsonData.get("alphaRegions"));
             return meta;
         }
 

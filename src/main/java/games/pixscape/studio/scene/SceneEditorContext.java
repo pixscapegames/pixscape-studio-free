@@ -78,6 +78,8 @@ public final class SceneEditorContext implements Disposable {
         if (world != null) throw new IllegalStateException("Scene context already owns a World.");
         world = Objects.requireNonNull(ownedWorld, "ownedWorld");
         this.sceneMeta = sceneMeta;
+        var tileSync = world.getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+        if (tileSync != null) tileSync.setTileShadowMode(games.pixscape.studio.configuration.EditorSettings.get().tileShadowMode());
         identityRegistry = new IdentityRegistry();
         identityRegistry.bind(world, sceneMeta);
         identityRegistry.rebuild();
