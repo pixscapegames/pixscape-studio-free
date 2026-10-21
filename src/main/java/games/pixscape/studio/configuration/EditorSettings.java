@@ -9,6 +9,8 @@ import java.util.ArrayList;
 
 public final class EditorSettings {
     public int msaaSamples = 8;
+    /** Explicit prototype renderer selection, read when creating a scene World. */
+    public boolean forwardLighting = false;
     public boolean autoRepackAtlases = true;
     public String lastProjectPath;
     public ArrayList<String> recentProjectPaths = new ArrayList<>();

@@ -548,7 +548,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 camera,
                                 metricsBatch,
                                 stats,
-                                statsSink
+                                statsSink,
+                                games.pixscape.studio.configuration.EditorSettings.get().forwardLighting
                         ),
                         sceneMeta,
                         0,

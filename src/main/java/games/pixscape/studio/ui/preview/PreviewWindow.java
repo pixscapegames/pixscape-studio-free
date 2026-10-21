@@ -92,6 +92,7 @@ public final class PreviewWindow extends ApplicationAdapter {
         dragSystem.setGrabRadiusMeters(0.25f);
 
         engine = new PixscapeEngine()
+                .setForwardLighting(games.pixscape.studio.configuration.EditorSettings.get().forwardLighting)
                 .setWorldCamera(worldCamera)
                 .setSystemProfiler(systemProfiler)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
