@@ -26,6 +26,45 @@ import java.util.Set;
 import static org.junit.Assert.*;
 
 public class PreviewInputAdapterTest {
+    @Test public void shortcutsFireOncePerPressAndRetainEventOrder() {
+        PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
+        for (int key : new int[]{Input.Keys.F9, Input.Keys.F10, Input.Keys.F11}) {
+            assertTrue(input.keyDown(key));
+            assertEquals(key, input.consumeCommand());
+            assertEquals(-1, input.consumeCommand());
+            for (int repeat = 0; repeat < 20; repeat++) {
+                input.keyDown(key);
+                assertEquals(-1, input.consumeCommand());
+            }
+            input.keyUp(key);
+            input.keyDown(key);
+            assertEquals(key, input.consumeCommand());
+            assertEquals(-1, input.consumeCommand());
+            input.keyUp(key);
+        }
+        input.keyDown(Input.Keys.F10);
+        input.keyDown(Input.Keys.F9);
+        assertEquals(Input.Keys.F10, input.consumeCommand());
+        assertEquals(Input.Keys.F9, input.consumeCommand());
+        assertEquals(-1, input.consumeCommand());
+    }
+
+    @Test public void previewConsumesShortcutsWithoutSendingThemToLowerHandlers() {
+        PreviewWindow.PreviewInputAdapter preview = new PreviewWindow.PreviewInputAdapter();
+        final int[] otherCalls = {0};
+        InputMultiplexer routing = new InputMultiplexer(preview, new InputAdapter() {
+            @Override public boolean keyDown(int key) { otherCalls[0]++; return true; }
+            @Override public boolean keyUp(int key) { otherCalls[0]++; return true; }
+        });
+        routing.keyDown(Input.Keys.F9); routing.keyUp(Input.Keys.F9);
+        routing.keyDown(Input.Keys.F10); routing.keyUp(Input.Keys.F10);
+        assertEquals(0, otherCalls[0]);
+        preview.cancelInput();
+        assertEquals(-1, preview.consumeCommand());
+        preview.keyDown(Input.Keys.F9);
+        assertEquals(Input.Keys.F9, preview.consumeCommand());
+    }
+
     @BeforeClass public static void loadSkin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unloadSkin() { VisUiTestBootstrap.unloadSkin(); }
 

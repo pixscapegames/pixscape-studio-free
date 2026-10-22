@@ -5,6 +5,17 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class RenderStatsTextFormatterTest {
+    @Test public void countsUseStableEnglishThousandsSeparators() {
+        int[] values = {0, 999, 1000, 1758, 1000001, Integer.MAX_VALUE};
+        String[] expected = {"0", "999", "1,000", "1,758", "1,000,001", "2,147,483,647"};
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            out.setLength(0);
+            RenderStatsTextFormatter.appendCount(out, values[i]);
+            Assert.assertEquals(expected[i], out.toString());
+        }
+    }
+
 
     @Test
     public void regionCacheRatioIsZeroWhenNoSamplesExist() {
@@ -77,8 +88,6 @@ public class RenderStatsTextFormatterTest {
 
         StringBuilder out = new StringBuilder();
         RenderStatsTextFormatter.appendGeometryLine(out, stats);
-        out.append('\n');
-        RenderStatsTextFormatter.appendGpuDrawLine(out, stats);
         out.append('\n');
         RenderStatsTextFormatter.appendGpuStateLine(out, stats);
         String formatted = out.toString();

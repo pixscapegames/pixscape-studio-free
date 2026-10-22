@@ -18,10 +18,10 @@ public final class SpatialVerticalJoinDialog extends StudioDialog {
     private final SpatialVerticalJoinProposal.Search search;
     private final SimpleSelectBox<SpatialVerticalJoinProposal.Candidate> references=new SimpleSelectBox<>();
     private final VisLabel details=new VisLabel("");
-    private final VisTextButton apply=new VisTextButton("Raccorder");
+    private final VisTextButton apply=new VisTextButton("Connect to wall");
     private SpatialVerticalJoinProposal proposal;
     public SpatialVerticalJoinDialog(World world,HistoryManager history,SpatialBlockSelectionService selection,int map,int seed) {
-        super("Raccorder - aperçu");this.world=world;this.history=history;this.selection=selection;this.seed=seed;
+        super("Connect to wall - preview");this.world=world;this.history=history;this.selection=selection;this.seed=seed;
         search=SpatialVerticalJoinProposal.search(world,map,seed);
         getContentTable().defaults().pad(5).left();getButtonsTable().defaults().pad(5);
         getContentTable().add(new VisLabel("Fixed reference:")).row();
@@ -44,11 +44,11 @@ public final class SpatialVerticalJoinDialog extends StudioDialog {
         if(Boolean.TRUE.equals(result) && proposal!=null && proposal.valid) {
             if(selection.verticalJoinPreview()!=proposal || selection.getEditingMapEntityId()!=proposal.selected.entity
                     || selection.getSelectedBlockId()!=seed || selection.selectedBlockCount()!=1) {
-                Dialogs.showOKDialog(getStage(),"Raccorder","The editing selection changed. Reopen Raccorder. Nothing was modified.");
+                Dialogs.showOKDialog(getStage(),"Connect to wall","The editing selection changed. Reopen Connect to wall. Nothing was modified.");
                 selection.setVerticalJoinPreview(null);return;
             }
             SpatialVerticalJoinCommand command=new SpatialVerticalJoinCommand(world,history.historyIds(),proposal);history.execute(command);
-            if(!command.wasApplied() && !command.isNoop())Dialogs.showOKDialog(getStage(),"Raccorder",command.rejectionReason());
+            if(!command.wasApplied() && !command.isNoop())Dialogs.showOKDialog(getStage(),"Connect to wall",command.rejectionReason());
         }
         selection.setVerticalJoinPreview(null);
     }

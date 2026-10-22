@@ -51,6 +51,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     private final DisplayMetrics displayMetrics = new DisplayMetrics();
     private boolean displayMetricsInitialized;
     private final FrameTimePercentiles frameTimes = new FrameTimePercentiles(600);
+    private final PreviewFrameCadence cadence = new PreviewFrameCadence();
     private static final long FRAME_STATS_REFRESH_NS = 250_000_000L; // 250ms
     private static final boolean PREVIEW_VSYNC_NORMAL = true;
 
@@ -116,7 +117,8 @@ public final class PreviewWindow extends ApplicationAdapter {
         Gdx.input.setInputProcessor(new InputMultiplexer(
                 engine.getHudInputProcessor(), previewInput, uiStage, dragSystem.inputProcessor()));
 
-        statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats());
+        resetFrameStatistics();
+        statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats(), cadence);
 
         benchMode = false;
         Gdx.graphics.setVSync(PREVIEW_VSYNC_NORMAL);
@@ -132,14 +134,15 @@ public final class PreviewWindow extends ApplicationAdapter {
             return;
         }
 
-        handleBenchToggle();
+        handlePreviewCommands();
 
         long nowNs = System.nanoTime();
         frameTimes.onFrameStart(nowNs);
+        cadence.onFrameStart(nowNs);
 
         // periodic percentile recompute
         if (frameTimes.computeIfDue(nowNs, FRAME_STATS_REFRESH_NS) && statsOverlay != null) {
-            statsOverlay.setFrameTimes(frameTimes.avgMs, frameTimes.p95Ms, frameTimes.p99Ms, frameTimes.maxMs);
+            statsOverlay.setFrameTimes(frameTimes.p95Ms, frameTimes.p99Ms, frameTimes.maxMs);
 
             if (box2d != null) {
                 statsOverlay.setBox2dStats(
@@ -223,12 +226,14 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void pause() {
+        if (previewInput != null) previewInput.cancelInput();
         if (dragSystem != null) dragSystem.cancelInput();
+        resetFrameStatistics();
     }
 
     @Override
     public void resume() {
-
+        resetFrameStatistics();
     }
 
     @Override
@@ -345,30 +350,41 @@ public final class PreviewWindow extends ApplicationAdapter {
         cam.update();
     }
 
-    private void handleBenchToggle() {
-        if (!previewInput.consumeBenchToggle()) return;
+    private void handlePreviewCommands() {
+        int command;
+        while ((command = previewInput.consumeCommand()) != -1) {
+            if (command == Input.Keys.F9) statsOverlay.toggle();
+            else if (command == Input.Keys.F10) statsOverlay.toggleDetails();
+            else if (command == Input.Keys.F11) {
+                // Benchmark pacing is an explicit independent command, never a HUD side effect.
+                benchMode = !benchMode;
+                resetFrameStatistics();
+                Gdx.graphics.setVSync(!benchMode && PREVIEW_VSYNC_NORMAL);
+                PreviewLauncher.setStudioVSync(!benchMode);
+            }
+        }
+    }
 
-        benchMode = !benchMode;
-
-        if (statsOverlay != null) statsOverlay.setEnabled(benchMode);
-
+    private void resetFrameStatistics() {
         frameTimes.reset();
-
-        // Preview : bench => VSync OFF, sinon PREVIEW_VSYNC_NORMAL
-        boolean previewVsync = !benchMode && PREVIEW_VSYNC_NORMAL;
-        Gdx.graphics.setVSync(previewVsync);
-
-        // Studio: bench => VSync OFF (otherwise Studio can cap the preview)
-        PreviewLauncher.setStudioVSync(!benchMode);
+        cadence.reset();
+        if (statsOverlay != null) {
+            statsOverlay.setFrameTimes(0, 0, 0);
+            statsOverlay.refresh();
+        }
     }
 
     static final class PreviewInputAdapter extends InputAdapter {
         private final com.badlogic.gdx.utils.IntSet pressed = new com.badlogic.gdx.utils.IntSet();
-        private boolean benchToggle;
+        private final com.badlogic.gdx.utils.IntSet heldCommands = new com.badlogic.gdx.utils.IntSet();
+        private final com.badlogic.gdx.utils.IntArray commands = new com.badlogic.gdx.utils.IntArray(4);
+        private int nextCommand;
 
         @Override public boolean keyDown(int keycode) {
             if (!isPreviewKey(keycode)) return false;
-            if (keycode == Input.Keys.F9) benchToggle = true;
+            if (isCommand(keycode)) {
+                if (heldCommands.add(keycode)) commands.add(keycode);
+            }
             else pressed.add(keycode);
             return true;
         }
@@ -376,6 +392,7 @@ public final class PreviewWindow extends ApplicationAdapter {
         @Override public boolean keyUp(int keycode) {
             if (!isPreviewKey(keycode)) return false;
             pressed.remove(keycode);
+            heldCommands.remove(keycode);
             return true;
         }
 
@@ -388,10 +405,18 @@ public final class PreviewWindow extends ApplicationAdapter {
             if (focused) pressed.clear();
         }
 
-        boolean consumeBenchToggle() {
-            boolean requested = benchToggle;
-            benchToggle = false;
-            return requested;
+        int consumeCommand() {
+            if (nextCommand < commands.size) return commands.get(nextCommand++);
+            commands.clear(); nextCommand = 0;
+            return -1;
+        }
+
+        void cancelInput() {
+            pressed.clear(); heldCommands.clear(); commands.clear(); nextCommand = 0;
+        }
+
+        private static boolean isCommand(int keycode) {
+            return keycode == Input.Keys.F9 || keycode == Input.Keys.F10 || keycode == Input.Keys.F11;
         }
 
         private static boolean isPreviewKey(int keycode) {
@@ -399,7 +424,7 @@ public final class PreviewWindow extends ApplicationAdapter {
                     || keycode == Input.Keys.UP || keycode == Input.Keys.DOWN
                     || keycode == Input.Keys.PLUS || keycode == Input.Keys.EQUALS
                     || keycode == Input.Keys.MINUS || keycode == Input.Keys.NUMPAD_ADD
-                    || keycode == Input.Keys.NUMPAD_SUBTRACT || keycode == Input.Keys.F9;
+                    || keycode == Input.Keys.NUMPAD_SUBTRACT || isCommand(keycode);
         }
     }
 

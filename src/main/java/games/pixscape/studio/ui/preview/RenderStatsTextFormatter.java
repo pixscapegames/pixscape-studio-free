@@ -8,15 +8,25 @@ final class RenderStatsTextFormatter {
 
     static void appendGeometryLine(StringBuilder out, RenderStats stats) {
         out.append("Geometry: extracted=").append(stats.extractedQuads)
-                .append(" drawn=").append(stats.drawnQuads)
                 .append(" submitted=").append(stats.submittedQuads)
                 .append(" flushed=").append(stats.flushedQuads)
                 .append(" vertices=").append(stats.flushedVertices);
     }
 
-    static void appendGpuDrawLine(StringBuilder out, RenderStats stats) {
-        out.append("GPU/draw: draws=").append(stats.drawCalls)
-                .append(" flushes=").append(stats.flushes);
+    static void appendCount(StringBuilder out, int value) {
+        long magnitude = value;
+        if (magnitude < 0) { out.append('-'); magnitude = -magnitude; }
+        appendGroups(out, magnitude);
+    }
+
+    private static void appendGroups(StringBuilder out, long value) {
+        if (value < 1000) { out.append(value); return; }
+        appendGroups(out, value / 1000);
+        out.append(',');
+        long group = value % 1000;
+        if (group < 100) out.append('0');
+        if (group < 10) out.append('0');
+        out.append(group);
     }
 
     static void appendGpuStateLine(StringBuilder out, RenderStats stats) {

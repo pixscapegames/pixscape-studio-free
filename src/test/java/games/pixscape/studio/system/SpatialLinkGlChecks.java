@@ -101,7 +101,7 @@ final class SpatialLinkGlChecks {
         SpatialBlockData fixed=wall(1,1,1,1,3,.3f,90);fixed.altitude=100;reference.blocks.add(fixed);reference.nextSpatialBlockId=2;
         world.process();selection.selectBlock(map,1);
         PopupMenu menu=new PopupMenu();StudioContextMenu.appendSpatialLinkItems(menu,world,history,selection,stage,map);
-        MenuItem item=null;for(Actor actor:menu.getChildren())if(actor instanceof MenuItem && ((MenuItem)actor).getText().toString().equals("Raccorder"))item=(MenuItem)actor;
+        MenuItem item=null;for(Actor actor:menu.getChildren())if(actor instanceof MenuItem && ((MenuItem)actor).getText().toString().equals("Connect to wall"))item=(MenuItem)actor;
         assertNotNull(item);click(item);
         games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog dialog=verticalDialog(stage);
         assertNotNull(dialog);assertTrue(selection.verticalJoinPreview().diagnostic,selection.verticalJoinPreview().valid);
@@ -109,7 +109,7 @@ final class SpatialLinkGlChecks {
         stage.act(1);stage.draw();assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
         verticalButton(dialog,"Cancel").fire(new ChangeListener.ChangeEvent());stage.act(1);
         assertNull(selection.verticalJoinPreview());assertEquals(90,blocks.blocks.first().height,0);
-        click(item);dialog=verticalDialog(stage);verticalButton(dialog,"Raccorder").fire(new ChangeListener.ChangeEvent());stage.act(1);
+        click(item);dialog=verticalDialog(stage);verticalButton(dialog,"Connect to wall").fire(new ChangeListener.ChangeEvent());stage.act(1);
         assertEquals(100,blocks.blocks.first().height,0);assertEquals(100,blocks.blocks.get(1).height,0);
         assertEquals(100,world.getMapper(TiledLayerComponent.class).get(map).defaultTileHeight,0);
         assertEquals(100,fixed.altitude,0);assertEquals(90,fixed.height,0);assertEquals(1,blocks.links.size);
