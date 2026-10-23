@@ -293,6 +293,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
             s.drawCalls++;
             s.flushedQuads += flushedQuadCount;
             s.flushedVertices += flushedVertexCount;
+            s.bufferUploads++;s.bufferUploadBytes+=(long)flushedVertexCount*VERT_STRIDE*4;
+            s.uploadedVertices+=flushedVertexCount;s.drawnIndices+=(long)flushedQuadCount*6;
         }
 
         vertCount = 0;

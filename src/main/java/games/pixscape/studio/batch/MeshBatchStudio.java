@@ -213,6 +213,8 @@ public final class MeshBatchStudio implements MetricsBatch {
         if (stats != null) {
             stats.flushes++;
             stats.drawCalls++;
+            stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertCount*4;
+            stats.uploadedVertices+=vertCount/VERT_STRIDE_FLOATS;stats.drawnIndices+=quadCount*6;
         }
 
         vertCount = 0;

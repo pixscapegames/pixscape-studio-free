@@ -112,6 +112,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); standaloneBatch.close(); }
 
     private void render() {
+        stats.forwardLighting=forward!=null;
         frameSubmissionAllowed = false; // At most one submission inside the canvas scope.
         if(forward!=null){
             SceneMeta meta=ProjectConfig.getInstance().getCurrentSceneMeta();
@@ -122,11 +123,15 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
             ambientContribution.beginFrame(frameQueue);
             composition.beginOriginal();
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(0);
+            int drawsBefore=stats.drawCalls;
             renderPass(LightCompositionPass.ORIGINAL, 0);
+            stats.colorDraws+=stats.drawCalls-drawsBefore;
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.end(0);
             lighting.render(frameQueue, layerState, cam, composition, stats);
+            drawsBefore=stats.drawCalls;
             if (frameQueue.lighting.diagnostic == 0)
                 ambientContribution.render(frameQueue, cam, composition, stats, this);
+            stats.ambientDraws+=stats.drawCalls-drawsBefore;
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
             SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
             boolean normal=frameQueue.lighting.diagnostic==0;

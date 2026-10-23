@@ -17,15 +17,15 @@ public final class RenderStatsOverlay {
     private static final float PAIR_GAP = 12, COLUMN_GAP = 20, ROW_GAP = 9;
     private static final String[] LABELS = {"FPS", "Avg (5 s)", "Frame avg",
             "P95 (600 frames)", "P99 (600 frames)", "Max (600 frames)", "Quads", "Draws", "Flushes",
-            "Geometry:", "GPU state:", "Region cache:", "Frame queue:", "Tiled chunks:", "Tiled refs:", "Build:", "Box2D:"};
+            "Geometry:", "GPU state:", "Region cache:", "Frame queue:", "Tiled chunks:", "Tiled refs:", "Build:", "Box2D:", "Passes:"};
     private final Stage uiStage;
     private final RenderStats stats;
     private final PreviewFrameCadence cadence;
     private final BitmapFont font = new BitmapFont();
     private final Texture background;
-    private final BitmapFontCache[] lines = new BitmapFontCache[17];
-    private final StringBuilder[] text = new StringBuilder[17];
-    private final BitmapFontCache[] names = new BitmapFontCache[17];
+    private final BitmapFontCache[] lines = new BitmapFontCache[LABELS.length];
+    private final StringBuilder[] text = new StringBuilder[LABELS.length];
+    private final BitmapFontCache[] names = new BitmapFontCache[LABELS.length];
     private final StringBuilder averageLabel = new StringBuilder(32);
     private final GlyphLayout metrics = new GlyphLayout();
     private final float[] labelWidths = new float[3];
@@ -126,9 +126,10 @@ public final class RenderStatsOverlay {
         append2(text[3], p95Ms); text[3].append(" ms");
         append2(text[4], p99Ms); text[4].append(" ms");
         append2(text[5], maxMs); text[5].append(" ms");
-        RenderStatsTextFormatter.appendCount(text[6], stats.drawnQuads);
+        RenderStatsTextFormatter.appendCount(text[6], stats.frameQueueQuads);
         RenderStatsTextFormatter.appendCount(text[7], stats.drawCalls);
         RenderStatsTextFormatter.appendCount(text[8], stats.flushes);
+        text[8].append(stats.forwardLighting?"  [FWD]":"  [LEG]");
         float y = height - 14;
         y = row(0, y, usable, ACCENT);
         y = row(3, y, usable, Color.WHITE);
@@ -141,6 +142,7 @@ public final class RenderStatsOverlay {
             RenderStatsTextFormatter.appendTiledChunksLine(text[13], stats);
             RenderStatsTextFormatter.appendTiledRefsLine(text[14], stats);
             RenderStatsTextFormatter.appendBuildLine(text[15], stats);
+            RenderStatsTextFormatter.appendDrawStagesLine(text[17], stats);
             text[16].append("Box2D: step="); append2(text[16], boxStepMs);
             text[16].append("ms sub=").append(boxSubsteps).append("  bodies:").append(boxBodies)
                     .append("  contacts:").append(boxContacts).append("  joints:").append(boxJoints);

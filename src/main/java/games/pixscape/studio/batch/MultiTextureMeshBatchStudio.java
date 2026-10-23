@@ -330,6 +330,8 @@ public final class MultiTextureMeshBatchStudio implements MetricsBatch {
         if (s != null) {
             s.flushes++;
             s.drawCalls++;
+            s.bufferUploads++;s.bufferUploadBytes+=(long)vertCount*VERT_STRIDE*4;
+            s.uploadedVertices+=vertCount;s.drawnIndices+=quadCount*6;
         }
 
         vertCount = 0;

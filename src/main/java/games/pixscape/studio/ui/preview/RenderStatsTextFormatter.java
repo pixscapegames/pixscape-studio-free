@@ -7,10 +7,11 @@ final class RenderStatsTextFormatter {
     }
 
     static void appendGeometryLine(StringBuilder out, RenderStats stats) {
-        out.append("Geometry: extracted=").append(stats.extractedQuads)
-                .append(" submitted=").append(stats.submittedQuads)
-                .append(" flushed=").append(stats.flushedQuads)
-                .append(" vertices=").append(stats.flushedVertices);
+        out.append("Geometry: vertex uploads=").append(stats.bufferUploads)
+                .append(" bytes=").append(stats.bufferUploadBytes)
+                .append(" uploaded vertices=").append(stats.uploadedVertices)
+                .append(" drawn vertices/indices=").append(stats.drawnVertices).append('/').append(stats.drawnIndices)
+                .append(" (world meshes; preparation excluded)");
     }
 
     static void appendCount(StringBuilder out, int value) {
@@ -30,7 +31,7 @@ final class RenderStatsTextFormatter {
     }
 
     static void appendGpuStateLine(StringBuilder out, RenderStats stats) {
-        out.append("GPU state: texBinds=").append(stats.textureBinds)
+        out.append("GPU state: partial Java calls, NOT GPU totals: texBinds=").append(stats.textureBinds)
                 .append(" texArraySkips=").append(stats.textureArrayBindSkips)
                 .append(" shaderSw=").append(stats.shaderSwitches)
                 .append(" shaderBinds=").append(stats.shaderBinds)
@@ -68,10 +69,18 @@ final class RenderStatsTextFormatter {
     }
 
     static void appendBuildLine(StringBuilder out, RenderStats stats) {
-        out.append("Build: opaque=").append(stats.batchesOpaque)
-                .append(" alpha=").append(stats.batchesAlpha)
+        out.append("Build: opaque=").append(stats.batchesOpaque).append(" alpha=").append(stats.batchesAlpha)
                 .append(" ecsSlots=").append(stats.buildDrawListScannedEcsSlots)
                 .append(" tiledVisibleRefs=").append(stats.buildDrawListScannedTiledSlots);
+    }
+
+    static void appendDrawStagesLine(StringBuilder out, RenderStats stats) {
+        out.append("Passes: ");
+        if(stats.forwardLighting)out.append("world=").append(stats.worldDraws);
+        else out.append("color=").append(stats.colorDraws).append(" receivers=").append(stats.receiverDraws)
+                .append(" accumulation=").append(stats.accumulationDraws).append(" ambient=").append(stats.ambientDraws);
+        out.append(" shadows=").append(stats.shadowDraws).append(" present=").append(stats.presentationDraws)
+                .append("; replays=").append(stats.replayDraws).append(" (included in draws, not flushes)");
     }
 
     static void appendRegionCacheHitRatio(StringBuilder out, long hits, long misses) {
