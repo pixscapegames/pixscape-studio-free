@@ -10,6 +10,34 @@ import static org.junit.Assert.*;
 
 public class StudioSceneInputPipelineContractTest {
     @Test
+    public void cornerEditingKeepsOverviewAndCreationMenuWithoutInstructionOverlay() throws Exception {
+        String menu=read("src/main/java/games/pixscape/studio/ui/contextmenu/StudioContextMenu.java");
+        assertTrue(menu.contains("\"Edit corner profile\""));
+        assertTrue(menu.contains("edit::removeProfile"));
+        String picking=read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
+        assertFalse(picking.contains("showLightValueHint(corner.hint())"));
+        String gizmos=read("src/main/java/games/pixscape/studio/system/GizmoSystem.java");
+        assertFalse(gizmos.contains("{drawCornerProfile();return;}"));
+        assertTrue(gizmos.contains("if(edit.isEditingOccurrence(corner.target()))continue;"));
+        assertTrue(gizmos.contains("if(edit.active())drawCornerProfile();"));
+        String overview=gizmos.substring(gizmos.indexOf("private void drawCornerOverview()"),gizmos.indexOf("private void drawCornerSupport("));
+        assertFalse(overview.contains("filledRectangle"));
+        assertFalse(picking.contains("if(target==null)return corner.active()"));
+    }
+
+    @Test
+    public void cornerPressUsesQueuedStagePointNotAlreadyAdvancedGlobalCursor() throws Exception {
+        String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
+        assertTrue(source.contains("cornerProfilePointerDown(event.getStageX(),event.getStageY())"));
+        assertFalse(source.contains("cornerProfilePointerDown(rawX,rawY)"));
+        String picking = read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
+        int start = picking.indexOf("public boolean cornerProfilePointerDown(");
+        String body = picking.substring(start, picking.indexOf("public void exitCornerProfile()", start));
+        assertFalse(body.contains("Gdx.input"));
+        assertTrue(body.contains("corner.press(vertex,worldX,worldY)"));
+    }
+
+    @Test
     public void hudTouchFocusRunsBeforeStudioAndStudioBeforeScene() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
         int chain = source.indexOf("inputMultiplexer = new InputMultiplexer(");

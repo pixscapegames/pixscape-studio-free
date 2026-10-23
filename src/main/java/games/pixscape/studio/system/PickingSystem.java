@@ -365,6 +365,28 @@ public final class PickingSystem extends BaseSystem {
         float mx = tmpMouseWorld.x;
         float my = tmpMouseWorld.y;
 
+        CornerProfileEditSession corner=spatialBlockSelectionService.cornerProfile();
+        if(corner.active()) {
+            if(!spatialBlockSelectionService.isEditingActive()
+                    || spatialBlockSelectionService.getEditingMapEntityId()!=corner.target().mapId())corner.close();
+            else {
+                corner.synchronize();
+                if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                    if(corner.dragging())corner.cancelGesture();else exitCornerProfile();
+                    inputState.clearAll();showLightValueHint(null);return;
+                }
+                if(corner.active()) {
+                    // InputState coalesces native motion events; compile at most the latest position per frame.
+                    if(corner.dragging()) {
+                        boolean released=inputState.leftJustReleased();
+                        if(inputState.isLeftDown()||released)corner.drag(mx,my);
+                        if(released||!inputState.isLeftDown())corner.release();
+                    }
+                    showLightValueHint(null);return;
+                }
+            }
+        }
+
         if (processPolygonDrawMode(mx, my)) {
             showLightValueHint(null);
             updateCursorForHover(
@@ -591,6 +613,47 @@ public final class PickingSystem extends BaseSystem {
                 && selectionService.isTiledMapEditingTargetActive();
     }
 
+    /** Capture the initial point in Scene2D, before motion events can coalesce into the next frame. */
+    public boolean cornerProfilePointerDown(float worldX,float worldY) {
+        CornerProfileEditSession corner=spatialBlockSelectionService.cornerProfile();
+        if(!corner.active()||!corner.dragging()&&corner.pickVertex(worldX,worldY,coordSpaces.pixelsToWorld(8))<0) {
+            corner.close();
+            if(!spatialBlockSelectionService.isEditingActive()||inputState.isCtrl()||gizmoSystem==null)return false;
+            CornerProfileEditSession.Target target=gizmoSystem.cornerOverview().pickBody(
+                    spatialBlockSelectionService.getEditingMapEntityId(),worldX,worldY,tiledState);
+            // Leave the press untouched so normal volume selection handles this very click.
+            if(target==null)return false;
+            CornerProfileEditSession candidate=new CornerProfileEditSession();
+            if(candidate.inspect(world,tiledState,historyManager,target)!=null||!candidate.openExisting())return false;
+            selectionService.clearSelection();physicsSelectionService.clear();
+            if(spatialTileSelectionService!=null)spatialTileSelectionService.clear();
+            spatialBlockSelectionService.selectBlock(target.mapId(),target.blockId());
+            spatialBlockSelectionService.setCornerProfile(candidate);corner=candidate;
+        }
+        corner.synchronize();
+        if(!corner.active())return false;
+        int vertex=corner.pickVertex(worldX,worldY,coordSpaces.pixelsToWorld(8));
+        if(vertex>=0)corner.press(vertex,worldX,worldY);
+        inputState.leftJustPressed();
+        return true;
+    }
+
+    public void exitCornerProfile() {
+        spatialBlockSelectionService.cornerProfile().close();
+        inputState.clearAll();showLightValueHint(null);
+    }
+
+    public CornerProfileEditSession inspectCornerAt(float x,float y) {
+        int mapId=spatialBlockSelectionService.getEditingMapEntityId();
+        TiledLayerComponent tiled=world.getMapper(TiledLayerComponent.class).getSafe(mapId,null);
+        SpatialCellPicker.Result cell=new SpatialCellPicker.Result();
+        CornerProfileEditSession.Target target=null;
+        if(tiled!=null&&SpatialCellPicker.pickTopmostVisibleOccupiedSprite(tiled.data,tiledState,x,y,cell))
+            target=new CornerProfileEditSession.Target(mapId,cell.gx,cell.gy,tiled.data.getTile(cell.gx,cell.gy),spatialBlockSelectionService.getSelectedBlockId());
+        CornerProfileEditSession edit=new CornerProfileEditSession();
+        edit.inspect(world,tiledState,historyManager,target);return edit;
+    }
+
     private boolean isSpatialBlockModeActive() {
         return spatialBlockSelectionService != null && spatialBlockSelectionService.isEditingActive();
     }
@@ -726,13 +789,15 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private SpatialPointerTarget resolveSpatialPointerTarget(int layerEntityId, float mx, float my) {
-        int handle = detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
+        boolean cornerShown=spatialBlockSelectionService.cornerProfile().active();
+        // Do not leave invisible rectangular handles active underneath the displayed profile.
+        int handle = cornerShown?SpatialBlockHandle.NONE:detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
         if (handle != SpatialBlockHandle.NONE) {
             return SpatialPointerTarget.handle(spatialBlockSelectionService.getSelectedBlockId(), handle);
         }
         SpatialBlockData selected = findSpatialBlock(layerEntityId, spatialBlockSelectionService.getSelectedBlockId());
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
-        if (selected != null && tiled != null && tiled.data != null
+        if (!cornerShown && selected != null && tiled != null && tiled.data != null
                 && SpatialBlockPicking.containsBase(tiled.data, selected, mx, my, tmpFixtureBoxWorldCorners)) {
             return SpatialPointerTarget.wall(SpatialPointerInteraction.Target.SELECTED_FOOTPRINT, selected.id);
         }
@@ -4300,6 +4365,7 @@ public final class PickingSystem extends BaseSystem {
                 uiStage.addActor(lightValueHint);
             }
             lightValueHint.setText(text);
+            lightValueHint.setWrap(false);
             lightValueHint.pack();
             coordSpaces.screenToUi(Gdx.input.getX(), Gdx.input.getY(), tmpUi);
             lightValueHint.setPosition(

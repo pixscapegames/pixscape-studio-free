@@ -23,6 +23,7 @@ public final class SpatialBlockSelectionService {
     public void setLinkPreview(SpatialLinkProposal preview) { linkPreview = preview; }
 
     public void toggleBlock(int mapEntityId, int blockId) {
+        cornerProfile.close();
         if (editingMapEntityId != mapEntityId || selectedBlockIds.size == 0) { selectBlock(mapEntityId, blockId); return; }
         int index = selectedBlockIds.indexOf(blockId);
         if (index >= 0) selectedBlockIds.removeIndex(index);
@@ -37,6 +38,9 @@ public final class SpatialBlockSelectionService {
     private boolean editPreviewActive;
     private boolean editPreviewValid;
     private final SpatialWallEditSession wallEditSession = new SpatialWallEditSession();
+    private CornerProfileEditSession cornerProfile = new CornerProfileEditSession();
+    public CornerProfileEditSession cornerProfile(){return cornerProfile;}
+    public void setCornerProfile(CornerProfileEditSession session){cornerProfile.close();cornerProfile=session;}
 
     private final int eventTag = EventFlow.tag(this);
     private final StudioEditingModeService studioEditingModeService;
@@ -56,11 +60,13 @@ public final class SpatialBlockSelectionService {
     }
 
     public void setContextActive(boolean active) {
+        if(!active)cornerProfile.close();
         contextActive = active;
         if (!active) { wallEditSession.cancel(); linkPreview=null; verticalJoinPreview=null; clearHover(); }
     }
 
     public void dispose() {
+        cornerProfile.close();
         contextActive = false;
         linkPreview=null;verticalJoinPreview=null;wallEditSession.cancel();
         EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
@@ -114,6 +120,7 @@ public final class SpatialBlockSelectionService {
     }
 
     public void enterMap(int mapEntityId) {
+        cornerProfile.close();
         if (editingMapEntityId == mapEntityId && selectedBlockId == NO_BLOCK) return;
         editingMapEntityId = mapEntityId;
         setSpatialModeActive(mapEntityId >= 0);
@@ -130,6 +137,7 @@ public final class SpatialBlockSelectionService {
     }
 
     public void selectBlock(int mapEntityId, int blockId) {
+        cornerProfile.close();
         if (mapEntityId < 0 || blockId <= 0) {
             clearSelectionOnly();
             return;
@@ -179,6 +187,7 @@ public final class SpatialBlockSelectionService {
     }
 
     public void clearSelectionOnly() {
+        cornerProfile.close();
         if (selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         selectedBlockId = NO_BLOCK;
         selectedBlockIds.clear();
@@ -192,6 +201,7 @@ public final class SpatialBlockSelectionService {
     }
 
     public void clear() {
+        cornerProfile.close();
         verticalJoinPreview=null;
         if (editingMapEntityId == NO_MAP && selectedBlockId == NO_BLOCK && hoveredBlockId == NO_BLOCK) return;
         editingMapEntityId = NO_MAP;

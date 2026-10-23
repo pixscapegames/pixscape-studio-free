@@ -123,6 +123,7 @@ public final class StudioContextMenu extends InputListener {
 
     private void buildMenu() {
         menu.clear();
+        if(showCornerProfileMenu())return;
         if (showSpatialBlocksMenu()) {
             return;
         }
@@ -140,6 +141,12 @@ public final class StudioContextMenu extends InputListener {
 
         int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         if (layerEntityId < 0) return false;
+
+        var corner=world.getSystem(games.pixscape.studio.system.PickingSystem.class)
+                .inspectCornerAt(lastRightClickWorld.x,lastRightClickWorld.y);
+        addCornerItem("Edit corner profile",corner.reason(),()-> {
+            if(corner.open())spatialBlockSelectionService.setCornerProfile(corner);
+        });
 
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) {
             MenuItem createFromTiles = new MenuItem("Create Spatial Block from Selected Tiles");
@@ -204,6 +211,35 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(deleteBlock);
 
         return true;
+    }
+
+    private boolean showCornerProfileMenu() {
+        if(spatialBlockSelectionService==null)return false;
+        games.pixscape.studio.service.spatial.CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        edit.synchronize();
+        if(!edit.active())return false;
+        // A context click cancels the detached gesture before offering topology changes.
+        edit.cancelGesture();
+        float tolerance=coordSpaces.pixelsToWorld(8);
+        int vertex=edit.pickVertex(lastRightClickWorld.x,lastRightClickWorld.y,tolerance);
+        int segment=edit.pickSegment(lastRightClickWorld.x,lastRightClickWorld.y,tolerance);
+        if(vertex>=0) addCornerItem("Remove vertex",vertex==0||vertex==edit.vertexCount()-1?"Endpoint locked to wall join":
+                edit.vertexCount()<=4?"Minimum: 3 segments":null,()->edit.remove(vertex));
+        else if(segment>=0)addCornerItem("Add vertex",edit.vertexCount()>=9?"Maximum: 8 segments":null,()->edit.add(segment));
+        addCornerItem("Reset profile",null,edit::reset);
+        addCornerItem("Remove corner profile (all occurrences of this asset in this map)",null,edit::removeProfile);
+        addCornerItem("Exit corner profile",null,()->world.getSystem(games.pixscape.studio.system.PickingSystem.class).exitCornerProfile());
+        return true;
+    }
+    private void addCornerItem(String title,String reason,Runnable action) {
+        MenuItem item=new MenuItem(title);item.setDisabled(reason!=null);
+        if(reason!=null) {
+            // Disabled items may not receive hover; keep the explanation visible in the menu.
+            MenuItem explanation=new MenuItem(reason);explanation.setDisabled(true);
+            menu.addItem(item);menu.addItem(explanation);return;
+        }
+        item.addListener(new ClickListener(){@Override public void clicked(InputEvent event,float x,float y){action.run();event.handle();}});
+        menu.addItem(item);
     }
 
     public static void appendSpatialLinkItems(PopupMenu menu, World world,

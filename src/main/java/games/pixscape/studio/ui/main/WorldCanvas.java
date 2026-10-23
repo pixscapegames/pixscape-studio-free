@@ -1326,6 +1326,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
 
                 // --- Delete : only when not editing a text field ---
+                if(!typing&&spatialBlockSelectionService().cornerProfile().active()
+                        && (keycode==Input.Keys.FORWARD_DEL||keycode==Input.Keys.BACKSPACE))return true;
                 if (!typing) {
                     if (keycode == Input.Keys.FORWARD_DEL || keycode == Input.Keys.BACKSPACE) {
 
@@ -1432,6 +1434,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 int rawY = Gdx.input.getY(pointer);
                 if (button == Input.Buttons.LEFT) {
                     inputState.touchDown(rawX, rawY, pointer, button);
+                    PickingSystem picking=world().getSystem(PickingSystem.class);
+                    // This stage shares the render camera. Use the queued event's world point:
+                    // Gdx.input may already expose the final motion in this input batch.
+                    if(pointer==0&&picking!=null&&picking.cornerProfilePointerDown(event.getStageX(),event.getStageY())) {
+                        return true;
+                    }
                 }
 
                 if (button == Input.Buttons.MIDDLE) {
@@ -1521,6 +1529,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                     PickingSystem picking = sceneEditorContext != null && sceneEditorContext.isInitialized()
                             ? world().getSystem(PickingSystem.class) : null;
                     if (picking != null) picking.cancelLightValueGesture();
+                    spatialBlockSelectionService().cornerProfile().cancelGesture();
                     inputState.clearAll();
                     return;
                 }
@@ -2546,7 +2555,9 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     private void clearHistorySubSelections() {
         physicsSelectionService().clearSelectionOnly();
-        spatialBlockSelectionService().clearSelectionOnly();
+        if(spatialBlockSelectionService().cornerProfile().active()) {
+            spatialBlockSelectionService().cornerProfile().cancelGesture();inputState.clearAll();
+        } else spatialBlockSelectionService().clearSelectionOnly();
         spatialTileSelectionService().clear();
     }
 

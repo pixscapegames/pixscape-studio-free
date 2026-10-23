@@ -65,6 +65,8 @@ public final class GizmoSystem extends BaseSystem {
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final SpatialStructureGeometryCache spatialStructureGeometryCache = new SpatialStructureGeometryCache();
+    private final CornerProfileOverlay cornerOverview = new CornerProfileOverlay();
+    public CornerProfileOverlay cornerOverview(){return cornerOverview;}
     private final SpatialWallEditSession spatialHandleSession = new SpatialWallEditSession();
     private int spatialHandleLayer = -1;
     private int spatialHandleBlock = -1;
@@ -424,14 +426,19 @@ public final class GizmoSystem extends BaseSystem {
         SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
         boolean mergedPreview = linkPreview != null && linkPreview.valid && !linkPreview.unlink;
         spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
+        cornerOverview.synchronize(layerEntityId,tiled,component,tiledState.lightingMaps.get(layerEntityId),spatialStructureGeometryCache);
         for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
             CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
             if (mergedPreview && linkPreview.replacesStructure(structure.structureId())) continue;
             ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-            drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
+            float[] wire=linkPreview==null?cornerOverview.wire(structure.structureId()):null;
+            if(wire==null)drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
+            else for(int p=0;p<wire.length;p+=4)ctx.drawer.line(wire[p],wire[p+1],wire[p+2],wire[p+3],ctx.pxToWorld(1.25f));
         }
+        if(linkPreview==null)drawCornerOverview();
 
         if (linkPreview == null && hoveredBlock != null && hoveredBlock.id != selectedBlockId
+                && !cornerOverview.replacesWall(hoveredBlock.id)
                 && !spatialBlockSelectionService.isEditPreviewActive()) {
             SpatialBlockProjection.projectBaseFootprint(tiled.data, hoveredBlock, tmpSpatialBlockBaseVerts);
             SpatialBlockProjection.projectTopFootprint(tiled.data, hoveredBlock, tmpSpatialBlockTopVerts);
@@ -456,13 +463,14 @@ public final class GizmoSystem extends BaseSystem {
             }
             return;
         }
-        for (SpatialBlockData wall : component.blocks) if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)) {
+        for (SpatialBlockData wall : component.blocks) if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)
+                && !cornerOverview.replacesWall(wall.id)) {
             ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
             SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
             SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
             drawSpatialWallVolume(ctx.pxToWorld(2.5f));
         }
-        if (selectedBlock != null) {
+        if (selectedBlock != null && !spatialBlockSelectionService.cornerProfile().active()) {
             SpatialWallEditSession activeSession = spatialBlockSelectionService.wallEditSession();
             SpatialBlockData displayedBlock = activeSession.isActive()
                     && activeSession.layerEntityId() == layerEntityId
@@ -478,7 +486,8 @@ public final class GizmoSystem extends BaseSystem {
             ctx.drawer.setColor(EditorOverlayPalette.spatialWallColor(
                     true, selectedBlock.id == hoveredBlockId, previewActive,
                     spatialBlockSelectionService.isEditPreviewValid()));
-            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+            if(!cornerOverview.replacesWall(selectedBlock.id)||activeSession.isActive())
+                drawSpatialWallVolume(ctx.pxToWorld(2.5f));
             for (int corner = 0; corner < 4; corner++) {
                 SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialCornerHandle(corner);
                 if (handles != null && handles.isHandleEnabled(handle)) {
@@ -499,6 +508,45 @@ public final class GizmoSystem extends BaseSystem {
                 }
             }
             drawBlockHeightHandle(tmpSpatialBlockTopVerts, EditorOverlayPalette.HANDLE_COLOR);
+        }
+    }
+
+    private void drawCornerProfile() {
+        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        games.pixscape.runtime.render.lighting.RoundedWallSupport support=edit.support();
+        drawCornerSupport(support,edit.base(),edit.height());
+        for(int i=0;i<edit.vertexCount();i++) {
+            ctx.drawer.setColor(!edit.valid()?Color.SCARLET:i==0||i==edit.vertexCount()-1?Color.GOLD:Color.CYAN);
+            float x=edit.screenX(i),y=edit.screenY(i),size=ctx.pxToWorld(8);
+            if(i>0)ctx.drawer.line(edit.screenX(i-1),edit.screenY(i-1),x,y,ctx.pxToWorld(2));
+            ctx.drawer.filledRectangle(x-size*.5f,y-size*.5f,size,size);
+        }
+    }
+
+    private void drawCornerOverview() {
+        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        for(int n=0;n<cornerOverview.size();n++) {
+            CornerProfileOverlay.Corner corner=cornerOverview.corner(n);
+            // Only this occurrence is replaced by the detached preview; keep every other volume visible.
+            if(edit.isEditingOccurrence(corner.target()))continue;
+            drawCornerSupport(corner.support(),corner.base(),corner.height());
+        }
+        if(edit.active())drawCornerProfile();
+    }
+
+    private void drawCornerSupport(games.pixscape.runtime.render.lighting.RoundedWallSupport support,float base,float height) {
+        float width=ctx.pxToWorld(1.2f),top=base+height;
+        ctx.drawer.setColor(.25f,.8f,.85f,.65f);
+        for(int boundary=0;boundary<2;boundary++) {
+            float[] p=boundary==0?support.outerXY:support.innerXY;
+            for(int i=0;i<p.length;i+=2) {
+                float x=p[i]-p[i+1],y=(p[i]+p[i+1])*.5f;
+                ctx.drawer.line(x,y+base,x,y+top,width);
+                if(i+2<p.length) {
+                    float nx=p[i+2]-p[i+3],ny=(p[i+2]+p[i+3])*.5f;
+                    ctx.drawer.line(x,y+base,nx,ny+base,width);ctx.drawer.line(x,y+top,nx,ny+top,width);
+                }
+            }
         }
     }
 

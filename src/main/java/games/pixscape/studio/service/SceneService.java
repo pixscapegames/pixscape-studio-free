@@ -135,12 +135,7 @@ public final class SceneService {
     public void saveSceneDocumentWithProgress(SceneEditorDocument document,
                                               Runnable onSuccess,
                                               java.util.function.Consumer<Throwable> onError) {
-        try {
-            saveSceneDocument(document);
-            if (onSuccess != null) onSuccess.run();
-        } catch (Throwable failure) {
-            if (onError != null) onError.accept(failure);
-        }
+        saveSceneDocumentsWithProgress(app.getUiStage(), List.of(document), onSuccess, onError);
     }
 
     public void saveSceneDocument(SceneEditorDocument document) {
@@ -308,7 +303,36 @@ public final class SceneService {
                     .map(SceneEditorDocument.class::cast)
                     .filter(SceneEditorDocument::isDirty)
                     .toList();
-            for (SceneEditorDocument document : dirty) saveSceneDocument(document);
+            saveSceneDocumentsWithProgress(uiStage, dirty, onSuccess, onError);
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
+    }
+
+    private void saveSceneDocumentsWithProgress(Stage uiStage, List<SceneEditorDocument> documents,
+                                                Runnable onSuccess, java.util.function.Consumer<Throwable> onError) {
+        Array<SaveProgressRunner.Step> steps = new Array<>();
+        for (int i = 0; i < documents.size(); i++) {
+            SceneEditorDocument document = documents.get(i);
+            steps.add(SaveProgressRunner.Step.sync((float) i / documents.size(),
+                    "Saving scene " + (i + 1) + "/" + documents.size() + ": " + document.title(),
+                    () -> saveSceneDocument(document)));
+        }
+        steps.add(SaveProgressRunner.Step.sync(1f, "Finalizing...", () -> {}));
+        runSaveSteps(uiStage, steps, () -> {
+            for (SceneEditorDocument document : documents) saveSceneDocument(document);
+        }, onSuccess, onError);
+    }
+
+    /** One progress/error/continuation boundary for menu Save, tab close and application exit. */
+    static void runSaveSteps(Stage uiStage, Array<SaveProgressRunner.Step> steps, Runnable withoutUi,
+                              Runnable onSuccess, java.util.function.Consumer<Throwable> onError) {
+        if (uiStage != null) {
+            new SaveProgressRunner(uiStage).run(steps, onSuccess, onError);
+            return;
+        }
+        try {
+            withoutUi.run();
             if (onSuccess != null) onSuccess.run();
         } catch (Throwable failure) {
             if (onError != null) onError.accept(failure);
@@ -1022,17 +1046,6 @@ public final class SceneService {
             return;
         }
 
-        if (uiStage == null) {
-            try {
-                executePreparedSavePlan(plan);
-                if (onSuccess != null) onSuccess.run();
-            } catch (Throwable t) {
-                if (onError != null) onError.accept(t);
-            }
-            return;
-        }
-
-        SaveProgressRunner runner = new SaveProgressRunner(uiStage);
         Array<SaveProgressRunner.Step> steps = new Array<>();
 
         steps.add(SaveProgressRunner.Step.sync(0.10f, "Preparing save...", () -> {
@@ -1051,7 +1064,7 @@ public final class SceneService {
             steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
         }
 
-        runner.run(steps, onSuccess, onError);
+        runSaveSteps(uiStage, steps, () -> executePreparedSavePlan(plan), onSuccess, onError);
     }
 
     public void saveProjectAs(FileHandle selectedProjectFile) {

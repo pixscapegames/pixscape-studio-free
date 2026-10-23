@@ -70,6 +70,17 @@ public class SpatialCellPickerTest {
         }
     }
 
+    @Test public void contextPickingUsesOverflowingImageEvenAboveAnOccupiedLogicalCell() {
+        TiledMapLayerData map=isoMap();map.setTile(2,1,5);map.setTile(2,2,12);
+        TiledMapRenderState state=renderState(map);float x=centerX(map,2,1),y=centerY(map,2,1);
+        setVisibleQuad(map,state,2,1,x,y,1);setVisibleQuad(map,state,2,2,x,y,7);
+        Assert.assertTrue(SpatialCellPicker.pickForSpatialSelection(map,state,x,y,result));Assert.assertEquals(1,result.gy);
+        Assert.assertTrue(SpatialCellPicker.pickTopmostVisibleOccupiedSprite(map,state,x,y,result));Assert.assertEquals(2,result.gy);
+        Assert.assertEquals(12,map.getTile(result.gx,result.gy));
+        state.visible[map.tiledRenderRefForTile(2,2)]=false;
+        Assert.assertTrue(SpatialCellPicker.pickTopmostVisibleOccupiedSprite(map,state,x,y,result));Assert.assertEquals(1,result.gy);
+    }
+
     private void assertToward(TiledMapLayerData map, float cx, float cy, int gx, int gy) {
         float nx = centerX(map, gx, gy);
         float ny = centerY(map, gx, gy);
