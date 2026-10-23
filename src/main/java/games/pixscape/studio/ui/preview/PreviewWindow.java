@@ -161,8 +161,12 @@ public final class PreviewWindow extends ApplicationAdapter {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         HdpiUtils.glViewport(0, 0, displayMetrics.logicalWidth(), displayMetrics.logicalHeight());
-        engine.update(dt);
-        engine.render();
+        try{
+            engine.update(dt);
+            engine.render();
+        }catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+            pauseForAdmission(refusal);return;
+        }
 
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
 
@@ -190,6 +194,11 @@ public final class PreviewWindow extends ApplicationAdapter {
                     sceneLoad.update();
                     loadingProgress = sceneProgress(sceneLoad.progress());
                     if (sceneLoad.isFailed()) {
+                        Throwable cause=sceneLoad.failure();
+                        while(cause!=null){
+                            if(cause instanceof games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){pauseForAdmission(refusal);return;}
+                            cause=cause.getCause();
+                        }
                         startupState = StartupState.FAILED;
                         throw new GdxRuntimeException("Desktop preview scene loading failed.",
                                 sceneLoad.failure());
@@ -208,16 +217,26 @@ public final class PreviewWindow extends ApplicationAdapter {
                     startupState = StartupState.RUNNING;
                     return;
                 case FAILED:
+                    if(loadingUi!=null)loadingUi.render(dt,loadingProgress);
                     return;
                 default:
                     throw new IllegalStateException("Unknown preview startup state: " + startupState);
             }
-        } catch (Throwable failure) {
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+            pauseForAdmission(refusal);
+        } catch (RuntimeException failure) {
             startupState = StartupState.FAILED;
             Gdx.app.error("PreviewWindow", "Preview startup failed.", failure);
             if (failure instanceof GdxRuntimeException runtimeFailure) throw runtimeFailure;
             throw new GdxRuntimeException("Preview startup failed.", failure);
         }
+    }
+
+    private void pauseForAdmission(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+        startupState=StartupState.FAILED;
+        Gdx.app.error("PreviewWindow",refusal.getMessage(),refusal);
+        if(loadingUi==null)loadingUi=new PreviewLoadingUi();
+        loadingUi.showFailure(refusal.getMessage());
     }
 
     static float sceneProgress(float sceneProgress) {

@@ -25,9 +25,11 @@ public final class EditTileLightingDescriptionsCommand implements Command, Outco
         Array<TileSurfaceDescription> result=new Array<>(TileSurfaceDescription.class);
         for(TileSurfaceDescription value:values){if(value==null)throw new IllegalArgumentException("Null lighting description");result.add(value.copy());}return result;
     }
-    public static void validate(TiledLayerComponent tiled,SpatialBlocksComponent blocks,Array<TileSurfaceDescription> values){
+    public static void validate(World world,TiledLayerComponent tiled,SpatialBlocksComponent blocks,Array<TileSurfaceDescription> values){
         if(tiled==null||tiled.data==null)throw new IllegalArgumentException("Map must be loaded before editing lighting descriptions");
-        MapLightingGeometry candidate=new MapLightingGeometry();candidate.descriptions(values);candidate.ensure(tiled.data,blocks);
+        games.pixscape.runtime.system.RenderTiledSyncSystem sync=world.getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+        if(sync==null)throw new IllegalArgumentException("Native tile resources are unavailable; lighting candidate cannot be validated");
+        sync.validateLighting(tiled,blocks,values);
     }
     public String rejection(){return rejection;}
     @Override public String label(){return "Edit Tile Lighting Descriptions";}
@@ -40,7 +42,7 @@ public final class EditTileLightingDescriptionsCommand implements Command, Outco
         int entity=ids.entityOfHistoryId(mapId);if(entity<0||!world.getEntityManager().isActive(entity))return CommandOutcome.NO_CHANGE;
         TiledLayerComponent tiled=world.getMapper(TiledLayerComponent.class).getSafe(entity,null);if(tiled==null)return CommandOutcome.NO_CHANGE;
         Array<TileSurfaceDescription> next=copy(snapshot);
-        try{validate(tiled,world.getMapper(SpatialBlocksComponent.class).getSafe(entity,null),next);}
+        try{validate(world,tiled,world.getMapper(SpatialBlocksComponent.class).getSafe(entity,null),next);}
         catch(IllegalArgumentException invalid){rejection=invalid.getMessage();return CommandOutcome.REJECTED;}
         rejection=null;tiled.lightingDescriptions=next;
         DirtyTrackerSystem dirty=world.getSystem(DirtyTrackerSystem.class);if(dirty!=null)dirty.geometry(entity,GeometryDirty.ALL);

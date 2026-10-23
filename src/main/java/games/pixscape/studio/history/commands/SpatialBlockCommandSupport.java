@@ -171,7 +171,7 @@ public final class SpatialBlockCommandSupport {
         if (compilation.success()) {
             if(tiled!=null&&tiled.lightingDescriptions.size>0){
                 SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
-                try{EditTileLightingDescriptionsCommand.validate(tiled,candidate,tiled.lightingDescriptions);}
+                try{EditTileLightingDescriptionsCommand.validate(world,tiled,candidate,tiled.lightingDescriptions);}
                 catch(IllegalArgumentException invalid){
                     if(refusal!=null)refusal.accept(invalid.getMessage());
                     if(Gdx.app!=null)Gdx.app.error("SpatialBlockCommand",invalid.getMessage());

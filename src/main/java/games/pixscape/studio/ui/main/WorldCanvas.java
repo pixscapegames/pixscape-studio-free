@@ -2297,8 +2297,12 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     public void draw() {
         if (resourceImportBusy) return;
         if (getAttachedSceneContext() == null) return;
-        spatialInvariantBoundary.prepare(currentSceneTag());
-        if (spatialInvariantBoundary.isBlocked()) return;
+        spatialInvariantBoundary.prepare(currentSceneTag(),historyManager().getCursor(),
+                atlasStudioService.publicationRevision(currentSceneTag()));
+        spatialInvariantBoundary.process(currentSceneTag(),this::drawPreparedFrame,this);
+    }
+
+    private void drawPreparedFrame(){
         if (frameProfiler.isEnabled()) {
             drawProfiled();
             return;
@@ -2324,14 +2328,15 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         games.pixscape.studio.system.StudioRenderSubmitSystem submit =
                 world().getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
         // Snapshot synchronization and queued events have completed before granting permission.
-        if (submit != null) {
-            submit.prepareComposition();
-            submit.beginFrameSubmission();
-        }
         try {
+            if (submit != null) {
+                submit.prepareComposition();
+                submit.beginFrameSubmission();
+            }
             if (lightOverlay != null) lightOverlay.setDrawingAllowed(true);
             if (gizmos != null) gizmos.setDrawingAllowed(true);
-            return spatialInvariantBoundary.process(currentSceneTag(), this, this);
+            processFrame();
+            return true;
         } finally {
             if (lightOverlay != null) lightOverlay.setDrawingAllowed(false);
             if (gizmos != null) gizmos.setDrawingAllowed(false);
@@ -2859,10 +2864,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     @Override
     public void onSpatialInvariantFailure(RuntimeException failure) {
-        VisDialog dialog = new StudioDialog("Spatial V3 invariant failure");
+        Gdx.app.error("ScenePreview",failure.getMessage(),failure);
+        VisDialog dialog = new StudioDialog("Scene preview paused");
         dialog.setModal(true);
         dialog.setMovable(false);
-        dialog.text(failure.getMessage() + "\n\nThe scene preview has stopped. Reload or correct the scene before continuing.");
+        dialog.text(failure.getMessage() + "\n\nRendering is paused. Correct or undo the edit, or repack missing resources.\nThe preview will retry after that change.");
         dialog.button("OK");
         dialog.show(app.getUiStage());
     }

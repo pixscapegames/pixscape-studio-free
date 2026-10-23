@@ -7,6 +7,18 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class SpatialPreviewInvariantBoundaryTest {
+    @Test public void lightingRefusalRetriesOnlyAfterEditOrResourcePublication(){
+        SpatialPreviewInvariantBoundary boundary=new SpatialPreviewInvariantBoundary();RecordingListener listener=new RecordingListener();
+        boundary.prepare("scene",4,2);
+        Assert.assertFalse(boundary.process("scene",()->{throw new games.pixscape.runtime.render.lighting.LightingAdmissionException("second active light");},listener));
+        boundary.prepare("scene",4,2);Assert.assertFalse(boundary.process("scene",()->Assert.fail("unchanged retry"),listener));
+        boundary.prepare("scene",3,2);Assert.assertTrue(boundary.process("scene",()->{},listener));
+        Assert.assertFalse(boundary.process("scene",()->{throw new games.pixscape.runtime.render.lighting.LightingAdmissionException("missing image");},listener));
+        boundary.prepare("scene",3,3);Assert.assertTrue(boundary.process("scene",()->{},listener));
+    }
+    @Test(expected=AssertionError.class) public void fatalErrorsAreNotSwallowed(){
+        new SpatialPreviewInvariantBoundary().process("scene",()->{throw new AssertionError("fatal");},new RecordingListener());
+    }
     @Test
     public void invariantFailureBlocksSameSceneAndSurfacesExactDiagnosticOnce() {
         SpatialPreviewInvariantBoundary boundary = new SpatialPreviewInvariantBoundary();
