@@ -149,6 +149,9 @@ public class SpatialBlockScenePersistenceTest {
         tile.assetId = 17;
         tile.geometry = description.copy();
         map.lightingDescriptions.add(tile);
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription rounded=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+        rounded.assetId=18;rounded.rounded=new games.pixscape.runtime.render.lighting.RoundedWallDescription();
+        rounded.rounded.centerGX=1.25f;map.lightingDescriptions.add(rounded);
         games.pixscape.runtime.component.light.PointLightComponent light = world.getMapper(
                 games.pixscape.runtime.component.light.PointLightComponent.class).create(entity);
         light.height = 224;
@@ -174,6 +177,9 @@ public class SpatialBlockScenePersistenceTest {
             Assert.assertEquals(map.defaultTileAltitude, restoredMap.defaultTileAltitude, 0);
             Assert.assertEquals(17, restoredMap.lightingDescriptions.first().assetId);
             restoredMap.lightingDescriptions.first().geometry.validate();
+            Assert.assertEquals(2,restoredMap.lightingDescriptions.size);
+            Assert.assertEquals(1.25f,restoredMap.lightingDescriptions.get(1).rounded.centerGX,0);
+            restoredMap.lightingDescriptions.get(1).validate();
             games.pixscape.runtime.component.light.PointLightComponent restoredLight = loaded.getMapper(
                     games.pixscape.runtime.component.light.PointLightComponent.class).get(restoredId);
             Assert.assertEquals(224, restoredLight.height, 0);

@@ -337,8 +337,7 @@ public final class TiledMapInitializer implements Initializer {
                                          Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> source){
         target.clear();
         for(games.pixscape.runtime.render.lighting.TileSurfaceDescription item:source){
-            games.pixscape.runtime.render.lighting.TileSurfaceDescription copy=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
-            copy.assetId=item.assetId;copy.geometry=item.geometry==null?null:item.geometry.copy();target.add(copy);
+            target.add(item.copy());
         }
     }
     private static void copy(IntArray target, IntArray source) {

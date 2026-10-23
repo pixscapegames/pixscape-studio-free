@@ -574,7 +574,9 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             );
             rebindTiles();
 
-            canvas.requestParticleRuntimeAvailabilityRefresh();
+            // Rebind particle pools before the next ECS/render step consumes the new bundle.
+            // Deferring until after that step submits particles with the replaced atlas handles.
+            canvas.refreshParticleRuntimeAvailability();
             completePublishedPack(tag, generation, publishedValidation, projectDir);
         } catch (RuntimeException | Error failure) {
             if(replacingFiles && !runtimePublished)try{

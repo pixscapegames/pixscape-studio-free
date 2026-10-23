@@ -168,7 +168,18 @@ public final class SpatialBlockCommandSupport {
                 .getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
                 snapshot, links, tiled != null ? tiled.data : null);
-        if (compilation.success()) return CommandOutcome.APPLIED;
+        if (compilation.success()) {
+            if(tiled!=null&&tiled.lightingDescriptions.size>0){
+                SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
+                try{EditTileLightingDescriptionsCommand.validate(tiled,candidate,tiled.lightingDescriptions);}
+                catch(IllegalArgumentException invalid){
+                    if(refusal!=null)refusal.accept(invalid.getMessage());
+                    if(Gdx.app!=null)Gdx.app.error("SpatialBlockCommand",invalid.getMessage());
+                    return CommandOutcome.REJECTED;
+                }
+            }
+            return CommandOutcome.APPLIED;
+        }
         if (refusal != null) refusal.accept("Invalid wall geometry: " + compilation.diagnostic());
         if (Gdx.app != null) {
             Gdx.app.error("SpatialBlockCommand",

@@ -68,6 +68,10 @@ public final class TiledSpatialMutationPlanner {
     public Result validateAndCommit(int layerEntityId, TiledMapLayerData map,
                                     SpatialBlocksComponent blocks, TiledMutationPlan plan,
                                     boolean after) {
+        return validateAndCommit(layerEntityId,map,blocks,plan,after,null);
+    }
+    public Result validateAndCommit(int layerEntityId,TiledMapLayerData map,SpatialBlocksComponent blocks,
+            TiledMutationPlan plan,boolean after,com.badlogic.gdx.utils.Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions){
         Result linked = preflight(plan, blocks, after);
         if (!linked.accepted()) return linked;
         if (plan == null || plan.isEmpty()) return accepted();
@@ -89,10 +93,14 @@ public final class TiledSpatialMutationPlanner {
                 compiled.ensure(blocks);
                 new SpatialTileOrderCache().ensure(layerEntityId, map, blocks, compiled);
             }
+            if(lightingDescriptions!=null&&lightingDescriptions.size>0){
+                games.pixscape.runtime.render.lighting.MapLightingGeometry lighting=new games.pixscape.runtime.render.lighting.MapLightingGeometry();
+                lighting.descriptions(lightingDescriptions);lighting.ensure(map,blocks);
+            }
             map.commitAtomicMutation();
             open = false;
             return accepted();
-        } catch (SpatialTileOrderInvariantException invalidCandidate) {
+        } catch (SpatialTileOrderInvariantException | IllegalArgumentException invalidCandidate) {
             if (open) {
                 map.rollbackAtomicMutation();
                 open = false;

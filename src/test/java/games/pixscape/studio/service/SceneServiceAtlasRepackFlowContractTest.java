@@ -108,14 +108,16 @@ public class SceneServiceAtlasRepackFlowContractTest {
         );
         String applyBody = methodBody(source, "public void applyIfPackReady()");
 
-        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas());"));
+        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas(),uploadedNormals)"));
         assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
-        assertTrue(applyBody.contains("canvas.requestParticleRuntimeAvailabilityRefresh();"));
+        assertTrue(applyBody.indexOf("canvas.refreshParticleRuntimeAvailability();")
+                > applyBody.indexOf("snapshotManager.publishPreparedSnapshot("));
+        assertFalse(applyBody.contains("canvas.requestParticleRuntimeAvailabilityRefresh();"));
         assertFalse(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
         assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterPreparedSnapshot(") == 1);
-        assertTrue(occurrences(applyBody, "canvas.requestParticleRuntimeAvailabilityRefresh();") == 1);
+        assertTrue(occurrences(applyBody, "canvas.refreshParticleRuntimeAvailability();") == 1);
     }
 
     @Test
