@@ -16,10 +16,14 @@ final class SpatialPreviewInvariantBoundary {
 
     private boolean blocked;
     private String blockedScene;
-    private int editRevision,resourceRevision;
+    private long editRevision;
+    private int resourceRevision;
+
+    /** Also used by existing entity-change notifications for transient preview restoration. */
+    void invalidate() { blocked=false;blockedScene=null; }
 
     /** Retry only after an authoring operation or successful resource publication. */
-    void prepare(String scene,int edits,int resources){
+    void prepare(String scene,long edits,int resources){
         prepare(scene);
         if(edits!=editRevision||resources!=resourceRevision){blocked=false;blockedScene=null;}
         editRevision=edits;resourceRevision=resources;

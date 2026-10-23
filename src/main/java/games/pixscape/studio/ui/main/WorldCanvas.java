@@ -927,6 +927,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void bindEditorModeChanged() {
+        EventFlow.i().subscribe(EventFlow.EntityChanged.class, ev -> spatialInvariantBoundary.invalidate());
 
         EventFlow.i().subscribe(EventFlow.EditorModeChanged.class, ev -> {
 
@@ -2297,7 +2298,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     public void draw() {
         if (resourceImportBusy) return;
         if (getAttachedSceneContext() == null) return;
-        spatialInvariantBoundary.prepare(currentSceneTag(),historyManager().getCursor(),
+        // Deliver applied preview/restoration notifications even while drawing is paused.
+        long eventStart=frameProfiler.begin(StudioFrameProfiler.EVENT_FLOW_FLUSH);
+        EventFlow.i().flush();
+        frameProfiler.end(StudioFrameProfiler.EVENT_FLOW_FLUSH,eventStart);
+        spatialInvariantBoundary.prepare(currentSceneTag(),historyManager().getMutationRevision(),
                 atlasStudioService.publicationRevision(currentSceneTag()));
         spatialInvariantBoundary.process(currentSceneTag(),this::drawPreparedFrame,this);
     }
@@ -2315,7 +2320,6 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 gpuSnapshotManager.syncIfDirty(sceneTag);
             }
         }
-        EventFlow.i().flush();
         if (!processDrawFrame()) return;
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.flushDeferredDisposals();
@@ -2359,11 +2363,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 }
             }
 
-            long phaseStart = frameProfiler.begin(StudioFrameProfiler.EVENT_FLOW_FLUSH);
-            EventFlow.i().flush();
-            frameProfiler.end(StudioFrameProfiler.EVENT_FLOW_FLUSH, phaseStart);
-
-            phaseStart = frameProfiler.begin(StudioFrameProfiler.WORLD_PROCESS);
+            long phaseStart = frameProfiler.begin(StudioFrameProfiler.WORLD_PROCESS);
             if (systemProfiler != null && systemProfiler.enabled()) {
                 systemProfiler.beginFrame();
             }

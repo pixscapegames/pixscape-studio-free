@@ -27,6 +27,7 @@ import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
@@ -3131,6 +3132,7 @@ public final class SceneService {
                 continue;
             }
 
+            boolean changed=false;
             for (TileChunk chunk : tiled.data.getChunks()) {
                 for (int ly = 0; ly < chunk.chunkHeight; ly++) {
                     for (int lx = 0; lx < chunk.chunkWidth; lx++) {
@@ -3140,6 +3142,7 @@ public final class SceneService {
                         }
 
                         int localIndex = chunk.localIndexFor(lx, ly);
+                        changed=true;
                         chunk.markLocalDirty(localIndex);
 
                         if (lookup != null) {
@@ -3147,6 +3150,13 @@ public final class SceneService {
                         }
                     }
                 }
+            }
+            if(changed){
+                // Definition edits are cold authored mutations, unlike playback frame changes.
+                DirtyTrackerSystem dirty=world.getSystem(DirtyTrackerSystem.class);
+                if(dirty!=null)dirty.geometry(data[i],games.pixscape.runtime.render.GeometryDirty.ALL);
+                EventFlow.i().publish(new EventFlow.EntityChanged(data[i],
+                        games.pixscape.studio.history.commands.TransformOp.SCALE,EventFlow.tag(this)));
             }
         }
     }

@@ -38,6 +38,10 @@ public final class HistoryManager {
     private int opDepth = 0;
     private int cursor = 0;
     private int savedCursor = 0;
+    private long mutationRevision;
+
+    /** Applied mutations only; independent of stack position, grouping and saved state. */
+    public long getMutationRevision() { return mutationRevision; }
 
     // Commande en cours de capture (drag gizmo, etc.)
     private Command capturing = null;
@@ -89,6 +93,7 @@ public final class HistoryManager {
             groupStack.clear();
             cursor = 1;
             savedCursor = 0;
+            mutationRevision++;
         } finally {
             exitOp();
             fireChanged();
@@ -154,6 +159,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("redo executed label=" + safeLabel(c));
+            mutationRevision++;
             if (!redo.isEmpty()) {
                 debug("redo.clear reason=execute label=" + safeLabel(c) + " redoBefore=" + redo.size());
             }
@@ -242,6 +248,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("undo executed label=" + safeLabel(c));
+            mutationRevision++;
             undo.pop();
             redo.push(c);
             cursor--;
@@ -277,6 +284,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("redo executed label=" + safeLabel(c));
+            mutationRevision++;
             redo.pop();
             undo.push(c);
             cursor++;
