@@ -309,6 +309,28 @@ public class SpatialBlockPropertiesTest {
         Assert.assertEquals(8f, walls.blocks.get(1).height, 0f);
     }
 
+    @Test
+    public void silhouetteCasterHasNoProductABToggle() {
+        Fixture fixture = fixture();
+        int layerId = tiledLayer(fixture.world);
+        fixture.history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData barrel = block(1);
+        barrel.structureId = 1;
+        barrel.shadowCaster = true;
+        barrel.beginAuthoredLinkedTileRefs();
+        barrel.addLinkedTileRef(1, 1, 1);
+        fixture.world.getMapper(SpatialBlocksComponent.class).create(layerId).blocks.add(barrel);
+        fixture.selection.selectBlock(layerId, 1);
+        SpatialBlockProperties properties = fixture.properties();
+        properties.setSpatialBlock(layerId, 1);
+
+        VisCheckBox toggle = checkBox(properties, "spatialWallSilhouetteShadowCaster");
+        Assert.assertNull(toggle);
+        Assert.assertTrue(games.pixscape.runtime.render.lighting.MapLightingGeometry.usesSilhouette(barrel));
+        Assert.assertFalse(properties.activeBlock().silhouetteShadowCaster);
+        Assert.assertFalse(fixture.history.canUndo());
+    }
+
     private static VisCheckBox checkBox(SpatialBlockProperties properties, String name) {
         return properties.findActor(name);
     }

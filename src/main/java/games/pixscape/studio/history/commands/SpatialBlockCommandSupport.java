@@ -63,6 +63,7 @@ public final class SpatialBlockCommandSupport {
         target.actorOccluder = source.actorOccluder;
         target.lightOccluder = source.lightOccluder;
         target.shadowCaster = source.shadowCaster;
+        target.silhouetteShadowCaster = source.silhouetteShadowCaster;
         target.particleOccluder = source.particleOccluder;
         target.linkedTileRefsAuthored = source.linkedTileRefsAuthored;
         target.copyLinkedTileRefsFrom(source);
@@ -83,6 +84,7 @@ public final class SpatialBlockCommandSupport {
                 && a.actorOccluder == b.actorOccluder
                 && a.lightOccluder == b.lightOccluder
                 && a.shadowCaster == b.shadowCaster
+                && a.silhouetteShadowCaster == b.silhouetteShadowCaster
                 && a.particleOccluder == b.particleOccluder
                 && sameLinkedTileRefs(a, b);
     }
@@ -169,8 +171,9 @@ public final class SpatialBlockCommandSupport {
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
                 snapshot, links, tiled != null ? tiled.data : null);
         if (compilation.success()) {
-            if(tiled!=null&&tiled.lightingDescriptions.size>0){
-                SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
+            SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
+            if(tiled!=null&&(tiled.lightingDescriptions.size>0
+                    ||games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(candidate))){
                 try{EditTileLightingDescriptionsCommand.validate(world,tiled,candidate,tiled.lightingDescriptions);}
                 catch(IllegalArgumentException invalid){
                     if(refusal!=null)refusal.accept(invalid.getMessage());

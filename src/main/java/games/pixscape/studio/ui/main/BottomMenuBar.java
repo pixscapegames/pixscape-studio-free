@@ -257,6 +257,7 @@ public class BottomMenuBar extends VisTable {
                     cfg,
                     () -> app.setPreviewActive(true),
                     () -> app.setPreviewActive(false),
+                    message -> Dialogs.showOKDialog(getStage(), "Preview failed", message),
                     resolutionSelectBox.getSelected(),
                     landScapeChekBox.isChecked(),
                     cfg.previewTarget

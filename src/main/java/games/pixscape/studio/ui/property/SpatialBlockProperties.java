@@ -390,4 +390,5 @@ public final class SpatialBlockProperties extends VisTable {
     private interface BooleanWriter {
         void write(SpatialBlockData block, boolean value);
     }
+
 }

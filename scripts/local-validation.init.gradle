@@ -1,0 +1,22 @@
+// Opt-in validation only. No publication or changes to product build settings.
+gradle.projectsEvaluated {
+    def studio = gradle.rootProject
+    studio.tasks.register('writeLocalValidationClasspath') {
+        dependsOn studio.tasks.named('classes'), studio.tasks.named('testClasses')
+        doLast {
+            def output = studio.layout.buildDirectory.file('local-validation/runtime-classpath.txt').get().asFile
+            output.parentFile.mkdirs()
+            output.text = studio.sourceSets.main.runtimeClasspath.asPath
+            new File(output.parentFile, 'test-classpath.txt').text = studio.sourceSets.test.runtimeClasspath.asPath
+        }
+    }
+    studio.allprojects { p ->
+        p.tasks.withType(JavaExec).configureEach { task ->
+            if (task.name == 'compileGwt') {
+                maxHeapSize = studio.findProperty('validationGwtHeap') ?: '512m'
+                jvmArgs '-Dgwt.jjs.maxThreads=1'
+                args '-localWorkers', '1'
+            }
+        }
+    }
+}

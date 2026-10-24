@@ -64,6 +64,7 @@ import games.pixscape.studio.ui.hud.*;
 import games.pixscape.studio.ui.layer.LayersPanel;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.preview.HtmlPreviewLauncher;
+import games.pixscape.studio.ui.preview.PreviewLauncher;
 import games.pixscape.studio.ui.property.PropertiesPanel;
 import games.pixscape.studio.ui.tree.ItemTreePanel;
 import games.pixscape.studio.ui.widget.CanvasModeControls;
@@ -76,6 +77,7 @@ import java.util.function.Consumer;
 
 public class StudioApplicationAdapter extends ApplicationAdapter {
     private static final boolean DEBUG_SHUTDOWN = Boolean.getBoolean("pixscape.debug.shutdown");
+    private static final boolean POC_AUTO_PREVIEW = Boolean.getBoolean("pixscape.poc.autoPreview");
     private Stage uiStage;
     private WorldCanvas canvas;
     private TopMenuBar topMenuBar;
@@ -369,6 +371,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 Optional<ProjectOpenFailure> failure = sceneService.tryOpenProject(f, "auto-open last project");
                 if (failure.isEmpty()) {
                     topMenuBar.beginProject();
+                    if (POC_AUTO_PREVIEW) openPocPreview();
                 } else {
                     Gdx.app.error("Studio", "Auto-open failed: " + f.path(), failure.get().cause());
                     topMenuBar.onStart();
@@ -383,6 +386,23 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                     "Project preload failed",
                     warning
             ));
+        }
+    }
+
+    private void openPocPreview() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        try {
+            PreviewLauncher.open(
+                    cfg,
+                    () -> setPreviewActive(true),
+                    () -> setPreviewActive(false),
+                    message -> Dialogs.showOKDialog(uiStage, "Preview failed", message),
+                    new Resolution(cfg.previewWidth, cfg.previewHeight),
+                    cfg.previewLandscape,
+                    cfg.previewTarget
+            );
+        } catch (java.io.IOException failure) {
+            throw new IllegalStateException("POC Preview could not be opened.", failure);
         }
     }
 
@@ -1076,6 +1096,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (disposing) return;
         disposing = true;
         dumpLiveNonDaemonThreads("dispose:start");
+        PreviewLauncher.close();
         HtmlPreviewLauncher.stop();
         if (sceneHudCompositionRenderer != null) {
             sceneHudCompositionRenderer.close();
