@@ -76,7 +76,7 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         dragSystem.setGrabRadiusMeters(0.25f);
 
         engine = new PixscapeEngine()
-                .setForwardLighting("forward".equals(com.google.gwt.user.client.Window.Location.getParameter("lighting")))
+                .setForwardLighting(!"legacy".equalsIgnoreCase(com.google.gwt.user.client.Window.Location.getParameter("lighting")))
                 .setWorldCamera(worldCamera)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
         engine.setPlatformTarget(PlatformTarget.HTML_WEBGL2);

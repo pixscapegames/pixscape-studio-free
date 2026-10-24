@@ -9,8 +9,20 @@ import java.util.ArrayList;
 
 public final class EditorSettings {
     public int msaaSamples = 8;
-    /** Explicit prototype renderer selection, read when creating a scene World. */
-    public boolean forwardLighting = false;
+    /** Read when creating a scene World; an explicitly saved false keeps legacy. */
+    public boolean forwardLighting = true;
+
+    /** Process-local override for comparisons; never changes saved preferences. */
+    public boolean useForwardLighting() {
+        String mode = System.getProperty("pixscape.lighting");
+        if (mode != null) {
+            if ("forward".equalsIgnoreCase(mode)) return true;
+            if ("legacy".equalsIgnoreCase(mode)) return false;
+            throw new IllegalArgumentException("pixscape.lighting must be forward or legacy");
+        }
+        String previousOverride = System.getProperty("pixscape.poc.forwardLighting");
+        return previousOverride == null ? forwardLighting : Boolean.parseBoolean(previousOverride);
+    }
     public boolean autoRepackAtlases = true;
     public String lastProjectPath;
     public ArrayList<String> recentProjectPaths = new ArrayList<>();

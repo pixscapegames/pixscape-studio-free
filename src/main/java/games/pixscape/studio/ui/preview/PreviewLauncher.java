@@ -75,8 +75,7 @@ public final class PreviewLauncher {
         }
 
         try {
-            boolean forwardLighting = Boolean.getBoolean("pixscape.poc.forwardLighting")
-                    || EditorSettings.get().forwardLighting;
+            boolean forwardLighting = EditorSettings.get().useForwardLighting();
             Resolution windowResolution = landscape ? resolution
                     : new Resolution(resolution.height(), resolution.witdht());
             Gdx.app.log("PreviewLauncher", "Studio pid=" + ProcessHandle.current().pid()
