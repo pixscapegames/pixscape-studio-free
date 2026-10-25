@@ -42,6 +42,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final FloatField altitudeField;
     private final FloatField heightField;
     private final SpatialHeightEditPreview heightPreview;
+    private final ActorVolumePanel volumePanel;
 
     private int entityId = -1;
     private boolean internalRefresh = false;
@@ -50,6 +51,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         super();
         this.ctx = ctx;
         heightPreview = new SpatialHeightEditPreview(ctx.world);
+        volumePanel = new ActorVolumePanel(ctx);
 
         altitudeField = new FloatField(
                 ctx.world,
@@ -107,6 +109,19 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                         eligibleForActivation,
                         enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
+                if (enable && eligibleForActivation) {
+                    games.pixscape.runtime.spatial.ActorVolumes volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+                    var animation = ctx.mAnim.getSafe(entityId, null);
+                    if (animation == null) volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
+                    else for (int i=0;i<animation.animationAssetIds.size;i++) {
+                        int asset=animation.animationAssetIds.get(i);
+                        if (!(ctx.assetMetaLookup.apply(asset) instanceof games.pixscape.studio.asset.AnimationAssetMeta meta))
+                            throw new IllegalStateException("Missing animation asset " + asset);
+                        for (String clip:meta.clips.keys())
+                            volumes.put(asset,clip,new games.pixscape.runtime.spatial.ActorVolumeData());
+                    }
+                    command.withVolumes(volumes);
+                }
                 if (command.isNoop()) {
                     validationLabel.setText(enable
                             ? "Spatial Actor requires valid visual bounds and one valid footprint."
@@ -133,8 +148,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
 
-        details.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
+        details.add(new VisLabel("Sorting height:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
+        details.add(volumePanel).colspan(2).growX().row();
 
         validationBlock.content().add(validationLabel).left().row();
         root.add(enabledBox).left().row();
@@ -158,6 +174,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             enabledBox.setChecked(actor);
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
+            volumePanel.refresh(eid);
             altitudeField.setEntityId(eid);
             if (!heightPreview.isActive(eid)) heightField.setEntityId(eid);
             altitudeField.refreshFromModel();

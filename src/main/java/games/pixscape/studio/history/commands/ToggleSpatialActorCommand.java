@@ -29,6 +29,14 @@ public final class ToggleSpatialActorCommand
     private final Array<PhysicsShapeData> shapesBefore;
     private final Array<PhysicsShapeData> shapesAfter;
     private final boolean noop;
+    private games.pixscape.runtime.spatial.ActorVolumes initialVolumes;
+
+    /** Prepared by the activation UI from all attached animation clips, before publication. */
+    public ToggleSpatialActorCommand withVolumes(games.pixscape.runtime.spatial.ActorVolumes volumes) {
+        volumes.validate();
+        initialVolumes = volumes.copy();
+        return this;
+    }
 
     public ToggleSpatialActorCommand(
             World world,
@@ -42,6 +50,16 @@ public final class ToggleSpatialActorCommand
         this.historyIds = historyIds;
         this.physicsService = physicsService;
         this.enable = enable;
+        initialVolumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        if (enable && world != null && entityId >= 0) {
+            games.pixscape.runtime.component.AnimationComponent animation = world.getMapper(
+                    games.pixscape.runtime.component.AnimationComponent.class).getSafe(entityId, null);
+            games.pixscape.runtime.component.AssetRefComponent asset = world.getMapper(
+                    games.pixscape.runtime.component.AssetRefComponent.class).getSafe(entityId, null);
+            initialVolumes.put(asset == null ? 0 : asset.assetId,
+                    animation == null ? null : animation.currentClip,
+                    new games.pixscape.runtime.spatial.ActorVolumeData());
+        }
 
         boolean valid = world != null
                 && historyIds != null
@@ -165,6 +183,7 @@ public final class ToggleSpatialActorCommand
             if (applyingAfter && spatialBefore == null) {
                 height.altitude = 0f;
                 height.height = 1f;
+                height.volumes = initialVolumes.copy();
             } else if (spatialBefore != null) {
                 spatialBefore.apply(height);
             }
@@ -243,19 +262,22 @@ public final class ToggleSpatialActorCommand
     private static final class SpatialSnapshot {
         final float altitude;
         final float height;
+        final games.pixscape.runtime.spatial.ActorVolumes volumes;
 
-        private SpatialSnapshot(float altitude, float height) {
+        private SpatialSnapshot(float altitude, float height, games.pixscape.runtime.spatial.ActorVolumes volumes) {
             this.altitude = altitude;
             this.height = height;
+            this.volumes = volumes == null ? null : volumes.copy();
         }
 
         static SpatialSnapshot capture(SpatialHeightComponent height) {
-            return height == null ? null : new SpatialSnapshot(height.altitude, height.height);
+            return height == null ? null : new SpatialSnapshot(height.altitude, height.height, height.volumes);
         }
 
         void apply(SpatialHeightComponent target) {
             target.altitude = altitude;
             target.height = height;
+            target.volumes = volumes == null ? null : volumes.copy();
         }
     }
 

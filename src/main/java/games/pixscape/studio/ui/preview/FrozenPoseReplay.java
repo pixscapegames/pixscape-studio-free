@@ -28,13 +28,22 @@ public final class FrozenPoseReplay extends ApplicationAdapter {
     private boolean capture=true;
     private int frame;
     private float diagnosticLightX,diagnosticLightY;
+    private final Array<LightingSurface> skinSurfaces=new Array<>();
+    private final Array<float[]> skinOriginals=new Array<>();
+    private final IntArray skinCounts=new IntArray();
+    private final boolean scaffoldOrbit=Boolean.getBoolean("pixscape.diagnostic.scaffoldOrbit");
     FrozenPoseReplay(FileHandle file,FrozenPreviewPose pose){this.file=file;this.pose=pose;}
     public static void main(String[] args){
         System.out.println("FrozenPoseReplay pid="+ProcessHandle.current().pid()+" java="+System.getProperty("java.home")
                 +" runtime="+LightingSurface.class.getProtectionDomain().getCodeSource().getLocation()
                 +" studio="+FrozenPoseReplay.class.getProtectionDomain().getCodeSource().getLocation());
         if(args.length!=1)throw new IllegalArgumentException("Passer le chemin absolu de pose.json");
-        FileHandle file=new FileHandle(args[0]);FrozenPreviewPose pose=FrozenPreviewPose.codec().fromJson(FrozenPreviewPose.class,file);
+        FileHandle file=new FileHandle(args[0]);
+        JsonValue recorded=new JsonReader().parse(file);
+        discardEmptyRetiredActorField(recorded);
+        FrozenPreviewPose pose=FrozenPreviewPose.codec().readValue(FrozenPreviewPose.class,recorded);
+        if(System.getProperty("pixscape.diagnostic.renderer")!=null)
+            pose.forward="forward".equals(System.getProperty("pixscape.diagnostic.renderer"));
         String candidateScene=System.getProperty("pixscape.diagnostic.wallGroupScene");
         if(candidateScene!=null)System.out.print(CapturedWallGroups.apply(pose,new FileHandle(candidateScene)));
         if(pose.version!=1||!file.parent().child("READY").exists())throw new IllegalArgumentException("Capture incomplète/incompatible");
@@ -48,6 +57,14 @@ public final class FrozenPoseReplay extends ApplicationAdapter {
         cfg.setBackBufferConfig(8,8,8,8,16,0,pose.samples);
         cfg.useVsync(true);cfg.setForegroundFPS(30);cfg.setTitle("Pose figée — 0: rendu ; 1..7: diagnostics ; clic: pixel ; Échap: fermer");
         new Lwjgl3Application(new FrozenPoseReplay(file,pose),cfg);
+    }
+    /** Diagnostic archive adapter only; drops only null/inactive retired state, never an active caster. */
+    private static void discardEmptyRetiredActorField(JsonValue node){
+        if(node.isObject()&&node.has("actorShadow")){
+            if(!node.get("actorShadow").isNull()&&node.get("actorShadow").getBoolean("active",false))throw new IllegalArgumentException("Historical actor geometry requires an explicit replay adapter");
+            node.remove("actorShadow");
+        }
+        for(JsonValue child=node.child;child!=null;child=child.next)discardEmptyRetiredActorField(child);
     }
     @Override public void create(){
         try {
@@ -70,6 +87,20 @@ public final class FrozenPoseReplay extends ApplicationAdapter {
                 if(colorHandles.contains(info.handle)){colors.add(t);maxW=Math.max(maxW,t.getWidth());maxH=Math.max(maxH,t.getHeight());}
             }
             var q=pose.queue;
+            if(scaffoldOrbit)for(var caster:q.lighting.casters){var s=caster.surface;
+                if(s.pocSourceBlockId==29){float[] source=s.shadowVertices==null?s.vertices:s.shadowVertices;int count=s.shadowVertices==null?s.vertices.length/8:s.shadowVertexCount;
+                    skinSurfaces.add(s);skinOriginals.add(source.clone());skinCounts.add(count);s.shadowVertices=source.clone();s.shadowVertexCount=count;
+                    System.out.println("SCAFFOLD ref="+caster.tiledRef+" group="+s.shadowGroupId+" vertices="+count);
+                }
+            }
+            if(scaffoldOrbit&&skinSurfaces.size!=3)throw new IllegalStateException("Expected all three scaffold contributions");
+            if(Boolean.getBoolean("pixscape.diagnostic.actorSkinSweep"))for(var caster:q.lighting.casters){
+                var s=caster.surface;
+                if(s.actor && s.shadowVertices!=null && !skinSurfaces.contains(s,true)){
+                    skinSurfaces.add(s);skinOriginals.add(s.shadowVertices.clone());skinCounts.add(s.shadowVertexCount);
+                    System.out.println("ACTOR_SKIN group="+s.shadowGroupId+" vertices="+s.shadowVertexCount);
+                }
+            }
             for(int i=0;i<q.size;i++){q.textureHandle[i]=mapped(handles,q.textureHandle[i]);String name=pose.shaders.get(q.shader[i]);if(name==null)throw new IllegalStateException("Shader non enregistré");q.shader[i]=ShaderRegistry.indexOf(name);}
             for(var e:q.lighting.tiles)remap(e.value,handles);
             for(var e:q.lighting.entities)remap(e.value,handles);
@@ -77,6 +108,7 @@ public final class FrozenPoseReplay extends ApplicationAdapter {
             q.lighting.casterIndex.rebuild(q.lighting,q.lighting.staticCasterCount);
             OrthographicCamera camera=new OrthographicCamera();camera.position.set(pose.cameraPosition);camera.direction.set(pose.cameraDirection);camera.up.set(pose.cameraUp);
             camera.viewportWidth=pose.viewportWidth;camera.viewportHeight=pose.viewportHeight;camera.zoom=pose.zoom;camera.near=pose.near;camera.far=pose.far;camera.update();
+            if(scaffoldOrbit){camera.position.set(-1300,3850,0);camera.zoom=1.5f;camera.update();}
             batch=pose.arrayBatch?new TextureArrayMeshBatch(4096):new MultiTextureMeshBatch(4096);
             if(pose.arrayBatch){bundle=AtlasRuntimeService.buildTextureArrayFromTextures(colors,maxW,maxH,GLCaps.detect());bundle.textureArray.setFilter(Texture.TextureFilter.valueOf(pose.arrayMin),Texture.TextureFilter.valueOf(pose.arrayMag));((TextureArrayMeshBatch)batch).setTextureArrayBundle(bundle);}
             submit=new RenderSubmitSystem(pose.layers,q,camera,pose.ambient[0],pose.ambient[1],pose.ambient[2],batch,new RenderStats(),new RenderStatsSink(100),pose.forward);
@@ -112,10 +144,45 @@ public final class FrozenPoseReplay extends ApplicationAdapter {
                 light.y=diagnosticLightY+(frame==6?-2:frame==7?2:0);}
         }
         String stem="mode-"+mode+(sweep&&frame>=4?"-move-"+frame:"");
-        if(capture){System.setProperty("pixscape.poc.witnessReadback",output.child(stem).path());System.setProperty("pixscape.poc.lightingDiagnostic",Integer.toString(mode));}
+        if(scaffoldOrbit){
+            if(frame>=48){Gdx.app.exit();return;}int step=frame/4,selection=frame%4;
+            var light=pose.queue.lighting.lights.first();double angle=Math.toRadians(step*30);
+            light.x=3072+500*(float)Math.cos(angle);light.y=4480+500*(float)Math.sin(angle);light.z=300;
+            for(int n=0;n<skinSurfaces.size;n++){LightingSurface s=skinSurfaces.get(n);float[] source=skinOriginals.get(n);int count=0;
+                for(int v=0;v<skinCounts.get(n);v+=3){int o=v*8;float sign=source[o+7]-source[o+5]-source[o+6];
+                    if(selection==0||selection==1&&sign<0||selection==2&&sign>0){System.arraycopy(source,o,s.shadowVertices,count*8,24);count+=3;}}
+                s.shadowVertexCount=count;
+            }
+            mode=0;stem="scaffold-"+step+"-"+new String[]{"full","rear","front","off"}[selection];capture=true;
+        }
+        if(Boolean.getBoolean("pixscape.diagnostic.actorSkinSweep")){
+            boolean orbit=Boolean.getBoolean("pixscape.diagnostic.actorSkinOrbit");
+            if(frame>=(orbit?48:3)){Gdx.app.exit();return;}
+            int skinMode=orbit?frame%2:frame;
+            if(orbit&&skinMode==1&&Boolean.getBoolean("pixscape.diagnostic.actorSkinFrontOrbit"))skinMode=2;
+            if(orbit){
+                int step=frame/2;var l=pose.queue.lighting.lights.first();
+                double angle=Math.toRadians(step%12*30);
+                l.x=3221.7805f+500*(float)Math.cos(angle);l.y=3157.8274f+500*(float)Math.sin(angle);
+                l.z=step<12?120:400;
+            }
+            for(int n=0;n<skinSurfaces.size;n++){
+                LightingSurface s=skinSurfaces.get(n);float[] source=skinOriginals.get(n);int count=0;
+                for(int v=0;v<skinCounts.get(n);v+=3){int o=v*8;
+                    float sign=source[o+7]-source[o+5]-source[o+6];
+                    if(skinMode==0 || (skinMode==1?sign<0:sign>0)){
+                        System.arraycopy(source,o,s.shadowVertices,count*8,24);count+=3;
+                    }
+                }
+                s.shadowVertexCount=count;
+                System.out.println("SKIN frame="+frame+" group="+s.shadowGroupId+" vertices="+count);
+            }
+            mode=0;stem=orbit?"orbit-"+(frame/2)+"-"+(skinMode==0?"full":skinMode==1?"rear":"front"):frame==0?"mode-0":frame==1?"rear-only":"front-only";capture=true;
+        }
+        if(capture){if(!scaffoldOrbit&&!Boolean.getBoolean("pixscape.diagnostic.actorSkinOrbit"))System.setProperty("pixscape.poc.witnessReadback",output.child(stem).path());System.setProperty("pixscape.poc.lightingDiagnostic",Integer.toString(mode));}
         Gdx.gl.glClearColor(0,0,0,1);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);Gdx.gl.glViewport(0,0,pose.width,pose.height);world.process();
         if(capture){InteractiveShadowCapture.png(output.child(stem+".png"));System.clearProperty("pixscape.poc.witnessReadback");capture=false;
-            if(mode==0&&frame==0)compare();}
+            if(mode==0&&frame==0&&!scaffoldOrbit&&!Boolean.getBoolean("pixscape.diagnostic.actorSkinOrbit"))compare();}
         frame++;
     }
     private void compare(){

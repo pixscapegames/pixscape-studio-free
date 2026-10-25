@@ -53,6 +53,10 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private int hoveredValueEntity = -1;
     private Property hoveredValueProperty;
     private boolean valueDragging;
+    private final games.pixscape.studio.helper.RotationArc inclinationArc = new games.pixscape.studio.helper.RotationArc();
+    private float arcX,arcY,arcRotation,arcScale;
+    private final games.pixscape.studio.helper.RotationArc.Projection inclinationProjection =
+            (angle,out)->ConeLightGizmoGeometry.inclinationArcPoint(arcX,arcY,arcRotation,angle,arcScale,out);
 
     public void setDrawingAllowed(boolean allowed) { drawingAllowed = allowed; }
     @Override protected boolean checkProcessing() { return drawingAllowed; }
@@ -194,20 +198,13 @@ public final class LightIconOverlaySystem extends IteratingSystem {
     private void drawInclinationHandle(int entity, float x, float y, float rotation, float inclination) {
         float wpp = ctx.wpp();
         ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-        ConeLightGizmoGeometry.inclinationArcPoint(x, y, rotation, -90f, wpp, tmpRadiusControl);
-        float previousX = tmpRadiusControl.x, previousY = tmpRadiusControl.y;
-        for (int i = 1; i <= CONE_SEGMENTS; i++) {
-            ConeLightGizmoGeometry.inclinationArcPoint(x, y, rotation,
-                    -90f + 180f * i / CONE_SEGMENTS, wpp, tmpRadiusControl);
-            ctx.drawer.line(previousX, previousY, tmpRadiusControl.x, tmpRadiusControl.y, wpp);
-            previousX = tmpRadiusControl.x; previousY = tmpRadiusControl.y;
-        }
+        arcX=x;arcY=y;arcRotation=rotation;arcScale=wpp;
+        inclinationArc.draw(ctx.drawer,inclinationProjection,-90f,90f,CONE_SEGMENTS,wpp);
         ConeLightGizmoGeometry.inclinationArcPoint(x, y, rotation, inclination, wpp, tmpRadiusControl);
         valueColor(entity, Property.INCLINATION);
-        ctx.drawer.line(x + ConeLightGizmoGeometry.INCLINATION_OFFSET_X_PX * wpp,
+        games.pixscape.studio.helper.RotationArc.handle(ctx.drawer,x + ConeLightGizmoGeometry.INCLINATION_OFFSET_X_PX * wpp,
                 y + ConeLightGizmoGeometry.INCLINATION_OFFSET_Y_PX * wpp,
                 tmpRadiusControl.x, tmpRadiusControl.y, wpp);
-        ctx.drawer.circle(tmpRadiusControl.x, tmpRadiusControl.y, 4f * wpp, 1.5f * wpp);
     }
 
     @Override

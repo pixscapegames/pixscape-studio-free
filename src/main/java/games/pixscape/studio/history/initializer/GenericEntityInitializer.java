@@ -99,6 +99,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected boolean hasSpatialHeight;
     protected float spatialAltitude;
     protected float spatialHeight;
+    protected games.pixscape.runtime.spatial.ActorVolumes actorVolumes;
 
     // --- Lights ---
     protected boolean hasPointLight;
@@ -344,10 +345,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             hasSpatialHeight = true;
             spatialAltitude = spatial.altitude;
             spatialHeight = spatial.height;
+            actorVolumes = spatial.volumes == null ? null : spatial.volumes.copy();
         } else {
             hasSpatialHeight = false;
             spatialAltitude = 0f;
             spatialHeight = 0f;
+            actorVolumes = null;
         }
 
         SurfaceLightingComponent lighting = world.getMapper(SurfaceLightingComponent.class).getSafe(e,null);
@@ -670,6 +673,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                     : mSpatialHeight.create(e);
             spatial.altitude = spatialAltitude;
             spatial.height = spatialHeight;
+            spatial.volumes = actorVolumes == null ? null : actorVolumes.copy();
             if (dirty != null) dirty.order(e);
         }
 
@@ -941,6 +945,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.hasSpatialHeight = hasSpatialHeight;
         out.spatialAltitude = spatialAltitude;
         out.spatialHeight = spatialHeight;
+        out.actorVolumes = actorVolumes == null ? null : actorVolumes.copy();
         out.hasPhysicsBody = hasPhysicsBody;
         out.bodyType = physBodyType;
         out.fixedRotation = physFixedRotation;
@@ -1092,6 +1097,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         hasSpatialHeight = in.hasSpatialHeight;
         spatialAltitude = in.spatialAltitude;
         spatialHeight = in.spatialHeight;
+        actorVolumes = in.actorVolumes == null ? null : in.actorVolumes.copy();
         capturedZIndex = in.hasEntityIndex;
         hasPhysicsBody = in.hasPhysicsBody;
         physBodyType = in.bodyType;
@@ -1608,6 +1614,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
             hasSpatialHeight = false;
+            actorVolumes = null;
             boolean hadFootprint =
                     SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
             if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
@@ -1705,6 +1712,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.hasSpatialHeight = this.hasSpatialHeight;
         copy.spatialAltitude = this.spatialAltitude;
         copy.spatialHeight = this.spatialHeight;
+        copy.actorVolumes = actorVolumes == null ? null : actorVolumes.copy();
 
         // --- Lights ---
         copy.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
@@ -1883,7 +1891,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
         target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
         target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
-        source.copyActorShadowsTo(target);
     }
 
     public static final class PreviewVisualData {

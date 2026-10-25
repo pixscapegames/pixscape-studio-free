@@ -27,7 +27,8 @@ public class FrozenPreviewPoseTest {
         p.queue.colorPacked[0]=Float.intBitsToFloat(0xfeaabbcc);p.queue.shaderParameters[0]=new games.pixscape.runtime.component.ShaderParamsComponent();
         p.layers=new LayerStateSOA(2);p.layers.touchLayerIndex(1);p.layers.enabled[1]=true;
         LightingSurface s=new LightingSurface(new float[48]);s.vertices[2]=158.66797f;s.receiverBlockIds=new int[]{22,22};s.receiverExclusionIds=new int[]{18,18};
-        s.curveNormals=new float[]{1,2,3};s.forwardTopology=ForwardTopology.NATIVE;s.actorShadow=new ActorShadowGeometry();s.actorShadow.active=true;s.actorShadow.vertexCount=3;s.actorShadow.calibrated[0]=12.5f;
+        s.curveNormals=new float[]{1,2,3};s.forwardTopology=ForwardTopology.NATIVE;s.actorVolume=new ActorVolumeCaster();s.actorVolume.vertexCount=3;s.actorVolume.vertices[0]=12.5f;
+        s.shadowVertices=s.actorVolume.vertices;s.shadowVertexCount=3;
         s.roundedCellKey=115964117016L;p.queue.lighting.tiles.put(940,s);
         LightingFrame.Caster caster=new LightingFrame.Caster();caster.surface=s;caster.texture=27;p.queue.lighting.casters.add(caster);p.queue.lighting.staticCasterCount=1;
         LightingFrame.Light light=new LightingFrame.Light();light.x=3178.87207f;light.resolution=512;light.quality=2;p.queue.lighting.lights.add(light);
@@ -37,7 +38,7 @@ public class FrozenPreviewPoseTest {
         assertEquals(1,restored.queue.size);assertEquals(27,restored.queue.textureHandle[0]);assertEquals(0xfeaabbcc,Float.floatToRawIntBits(restored.queue.colorPacked[0]));
         LightingSurface r=restored.queue.lighting.tiles.get(940);assertArrayEquals(s.vertices,r.vertices,0);assertArrayEquals(s.receiverExclusionIds,r.receiverExclusionIds);
         assertEquals(s.roundedCellKey,r.roundedCellKey);assertEquals(6,r.forwardTopology.vertexCount);assertArrayEquals(s.forwardTopology.weights,r.forwardTopology.weights,0);
-        assertTrue(r.actorShadow.active);assertEquals(12.5f,r.actorShadow.calibrated[0],0);assertEquals(1,restored.layers.maxLayerIndex());
+        assertEquals(3,r.shadowVertexCount);assertEquals(12.5f,r.shadowVertices[0],0);assertEquals(1,restored.layers.maxLayerIndex());
         assertTrue(Float.isNaN(restored.layers.parallaxX[0]));assertEquals(2,restored.queue.lighting.lights.first().quality);
         assertEquals(2.58f,restored.lightIntensities.get(90),0);assertFalse(encoded.contains("\"casterIndex\""));
     }

@@ -18,7 +18,6 @@ public final class LightingPanel extends VisTable {
     private final Array<FloatField> fields=new Array<>();private final Array<VisCheckBox> checks=new Array<>();
     private final Array<Property> checkProperties=new Array<>();
     private SimpleSelectBox<String> quality;private SimpleSelectBox<Integer> resolution;
-    private ActorShadowPanel actorShadow;
     private CollapsibleVisTable casterFields;
     private SimpleFloatSlider threshold;
     private VisLabel thresholdValue;
@@ -47,7 +46,6 @@ public final class LightingPanel extends VisTable {
             new Tooltip.Builder("Alpha threshold for casting shadows. Pixels below this opacity are ignored.").target(threshold).build();
             casterFields.content().add(new VisLabel("Threshold:")).width(CommonLayout.LABEL_WIDTH);
             casterFields.content().add(threshold).width(CommonLayout.FIELD_WIDTH);casterFields.content().add(thresholdValue).row();
-            actorShadow=new ActorShadowPanel(ctx);casterFields.content().add(actorShadow).colspan(3).pad(0).growX().row();
             add(casterFields).colspan(2).pad(0).padLeft(games.pixscape.studio.ui.config.CommonLayout.PAD_LEFT_SUBMENU).growX().row();
             // Legacy receiver support values remain stored, but are not actor authoring controls.
         }
@@ -55,7 +53,7 @@ public final class LightingPanel extends VisTable {
     private float read(Property p){return entity<0?defaultValue(p):EditLightingCommand.read(ctx.world,entity,p);}
     private static float defaultValue(Property p){return p==Property.QUALITY?1:p==Property.RESOLUTION?512:p==Property.HEIGHT?128:0;}
     private void edit(Property p,float value){if(refresh || entity<0)return;
-        if(p==Property.CAST && actorShadow!=null){actorShadow.cancelThicknessPreview();cancelThresholdPreview();}
+        if(p==Property.CAST)cancelThresholdPreview();
         EditLightingCommand command=new EditLightingCommand(ctx.world,ctx.history.historyIds(),entity,p,value);
         if(!command.isNoop())ctx.history.execute(command);
         if(p==Property.CAST)refreshCasterFields();
@@ -72,7 +70,7 @@ public final class LightingPanel extends VisTable {
         c.addListener(new ChangeListener(){@Override public void changed(ChangeEvent event,Actor actor){edit(p,c.isChecked()?1:0);}});
     }
     private void refreshCasterFields(){
-        if(casterFields!=null){casterFields.show(read(Property.CAST)!=0);if(!thresholdPreview){threshold.setDisabled(entity<0 || read(Property.CAST)==0);threshold.refresh();updateThresholdValue();}if(actorShadow!=null)actorShadow.setEntityId(entity);}
+        if(casterFields!=null){casterFields.show(read(Property.CAST)!=0);if(!thresholdPreview){threshold.setDisabled(entity<0 || read(Property.CAST)==0);threshold.refresh();updateThresholdValue();}}
     }
     private void updateThresholdValue(){thresholdValue.setText(String.format(Locale.ROOT,"%.3f",read(Property.ALPHA_THRESHOLD)));}
     private void previewThreshold(float value){
@@ -93,6 +91,6 @@ public final class LightingPanel extends VisTable {
         for(FloatField f:fields)f.setEntityId(e);
         for(int i=0;i<checks.size;i++)checks.get(i).setChecked(read(checkProperties.get(i))!=0);
         if(quality!=null)quality.refresh();if(resolution!=null)resolution.refresh();
-        if(actorShadow!=null)actorShadow.setEntityId(e);refreshCasterFields();
+        refreshCasterFields();
     }finally{refresh=false;}}
 }

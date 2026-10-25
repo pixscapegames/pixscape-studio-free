@@ -82,7 +82,6 @@ import games.pixscape.studio.ui.contextmenu.StudioContextMenu;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.TextInputWidget;
-import games.pixscape.studio.ui.widget.ActorFootCanvasEditor;
 import space.earlygrey.shapedrawer.ShapeDrawer;
 
 import java.util.IdentityHashMap;
@@ -104,7 +103,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
     public void setResourceImportBusy(boolean busy) { resourceImportBusy = busy; }
     private final Stage gridStage;
-    private final ActorFootCanvasEditor actorFootEditor;
+    private final games.pixscape.studio.ui.widget.ActorVolumeCanvasEditor actorVolumeEditor;
     private final OrthographicCamera camera;
     private static final float MIN_CAMERA_ZOOM = 0.1f;
     private static final float MAX_CAMERA_ZOOM = 20f;
@@ -234,8 +233,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         gridStage.addActor(gridActor);
 
         inputState = new InputState();
-        actorFootEditor=new ActorFootCanvasEditor(this,()->worldInputAllowed() && !resourceImportBusy);
-        app.getUiStage().addActor(actorFootEditor);
+        actorVolumeEditor=new games.pixscape.studio.ui.widget.ActorVolumeCanvasEditor(this,()->worldInputAllowed() && !resourceImportBusy);
+        app.getUiStage().addActor(actorVolumeEditor);
         frameProfiler = StudioFrameProfiler.fromSystemProperties();
         systemProfiler = frameProfiler.createSystemProfiler();
         frameProfiler.setSystemProfiler(systemProfiler);
@@ -420,7 +419,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void cancelPointerInteraction() {
-        actorFootEditor.cancel();
+        actorVolumeEditor.cancel();
         if (sceneEditorContext != null && sceneEditorContext.isInitialized()) {
             PickingSystem picking = world().getSystem(PickingSystem.class);
             if (picking != null) picking.cancelLightValueGesture();
@@ -1258,11 +1257,11 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 // Studio dialogs/fields still have priority because uiStage dispatches them first.
                 if (app.hudTestModeActive()) return false;
 
-                if (actorFootEditor.isDragging() && keycode==Input.Keys.ESCAPE) {
-                    actorFootEditor.cancel();event.stop();return true;
+                if(actorVolumeEditor.isDragging() && keycode==Input.Keys.ESCAPE){
+                    actorVolumeEditor.cancel();event.stop();return true;
                 }
-                if (actorFootEditor.isDragging() && ctrl
-                        && (keycode==Input.Keys.Z || keycode==Input.Keys.W || keycode==Input.Keys.Y))actorFootEditor.cancel();
+                if(actorVolumeEditor.isDragging() && ctrl
+                        && (keycode==Input.Keys.Z || keycode==Input.Keys.W || keycode==Input.Keys.Y))actorVolumeEditor.cancel();
 
                 if (hudDeleteKeyGate.keyDown(keycode,
                         () -> !typing && !ctrl && app.deleteFocusedHudNode(focus))) {
@@ -2931,7 +2930,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     public void dispose() {
-        actorFootEditor.cancel();actorFootEditor.remove();
+        actorVolumeEditor.cancel();actorVolumeEditor.remove();
         cancelTiledGesture();
         studioEditingModeService.setActiveSceneSubmodeSink(null);
         gridStage.dispose();

@@ -4254,7 +4254,7 @@ public final class PickingSystem extends BaseSystem {
             ConeLightGizmoGeometry.inclinationArcPoint(sourceX, sourceY, direction,
                     mConeLight.get(e).inclinationDeg, wpp, tmp2Vec);
             float hit = ConeLightGizmoGeometry.INCLINATION_PICK_PX * wpp;
-            if (Vector2.dst2(mx, my, tmp2Vec.x, tmp2Vec.y) <= hit * hit) {
+            if (games.pixscape.studio.helper.RotationArc.hit(mx, my, tmp2Vec.x, tmp2Vec.y, hit)) {
                 if (pressed) {
                     lightValueGesture.begin(e, EditLightingCommand.Property.INCLINATION,
                             Gdx.input.getX(), Gdx.input.getY(), inputState.isShift());
@@ -4382,7 +4382,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private static float wrappedAngleDelta(float from, float to) {
-        return MathUtils.atan2(MathUtils.sin(to - from), MathUtils.cos(to - from));
+        return games.pixscape.studio.helper.RotationArc.delta(from, to);
     }
 
     private boolean isLightEntity(int entityId) {

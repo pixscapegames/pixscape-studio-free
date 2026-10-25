@@ -80,6 +80,14 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
     private final IntConsumer refreshPreview;
     private final Runnable markSaveRequired;
     private final boolean noop;
+    private final games.pixscape.runtime.spatial.ActorVolumes volumesBefore,volumesAfter;
+
+    /** Cold preparation for newly attached animation assets; never called on frame changes. */
+    public EditAnimationCommand withVolumeClips(int asset, Iterable<String> clips) {
+        if(volumesAfter!=null)for(String clip:clips)
+            if(volumesAfter.get(asset,clip)==null)volumesAfter.put(asset,clip,new games.pixscape.runtime.spatial.ActorVolumeData());
+        return this;
+    }
 
     public EditAnimationCommand(World world,
                                 HistoryIdRegistry historyIds,
@@ -89,6 +97,11 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
                                 IntConsumer refreshPreview,
                                 Runnable markSaveRequired) {
         this.world = world;
+        var spatial=world==null?null:world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId,null);
+        volumesBefore=spatial==null || spatial.volumes==null?null:spatial.volumes.copy();
+        volumesAfter=volumesBefore==null?null:volumesBefore.copy();
+        if(volumesAfter!=null && after!=null && volumesAfter.get(after.activeAssetId,after.currentClip)==null)
+            volumesAfter.put(after.activeAssetId,after.currentClip,new games.pixscape.runtime.spatial.ActorVolumeData());
         this.historyIds = historyIds;
         this.entityHistoryId = historyIds != null ? historyIds.ensureForEntity(entityId) : -1L;
         this.before = before != null ? before.copy() : new Snapshot();
@@ -141,6 +154,9 @@ public final class EditAnimationCommand implements Command, HistoryManager.Suppo
         animation.loop = snapshot.loop;
         animation.stateTime = snapshot.stateTime;
         animation.frame = snapshot.frame;
+        var spatial=world.getMapper(games.pixscape.runtime.component.spatial.SpatialHeightComponent.class).getSafe(entityId,null);
+        var volumes=snapshot==before?volumesBefore:volumesAfter;
+        if(spatial!=null && volumes!=null)spatial.volumes=volumes.copy();
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.mark(entityId, DirtyBits.MATERIAL);

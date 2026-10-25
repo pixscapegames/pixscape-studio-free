@@ -79,6 +79,9 @@ public class ToggleSpatialActorCommandTest {
         SpatialHeightComponent height = harness.world.getMapper(SpatialHeightComponent.class).create(entityId);
         height.altitude = 3f;
         height.height = 4f;
+        height.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        height.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
+        height.volumes.staticVolume.orientation = 41f;
 
         harness.history.execute(new ToggleSpatialActorCommand(
                 harness.world, harness.historyIds, harness.physics, entityId,
@@ -102,6 +105,7 @@ public class ToggleSpatialActorCommandTest {
         height = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
         Assert.assertEquals(3f, height.altitude, 0f);
         Assert.assertEquals(4f, height.height, 0f);
+        Assert.assertEquals(41f, height.volumes.staticVolume.orientation, 0f);
     }
 
     @Test

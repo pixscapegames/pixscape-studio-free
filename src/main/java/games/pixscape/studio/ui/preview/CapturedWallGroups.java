@@ -28,6 +28,7 @@ public final class CapturedWallGroups {
         }
         groups.connectWalls();StringBuilder report=new StringBuilder("Candidate construction metadata: "+sceneFile.file().getAbsolutePath()+"\n");
         java.util.IdentityHashMap<LightingSurface,Boolean> seen=new java.util.IdentityHashMap<>();
+        java.util.IdentityHashMap<LightingSurface,Integer> capturedOwners=new java.util.IdentityHashMap<>();
         // Check actual archived caster coordinates against the metadata used for grouping.
         for(var c:pose.queue.lighting.casters){LightingSurface s=c.surface;int owner=s.ownerEntity;
             if(owner<0&&c.tiledRef>=0&&pose.queue.lighting.tiles.get(c.tiledRef)!=null)owner=pose.queue.lighting.tiles.get(c.tiledRef).ownerEntity;
@@ -38,9 +39,28 @@ public final class CapturedWallGroups {
                 float[] min=new float[3],max=new float[3];LightingCoordinates.mapPoint(maps.get(owner),b.x,b.y,b.altitude,min,0);LightingCoordinates.mapPoint(maps.get(owner),b.x+b.width,b.y+b.depth,b.altitude+b.height,max,0);
                 for(int i=0;i<s.vertices.length;i+=8)for(int k=0;k<3;k++)if(s.vertices[i+k]<min[k]-.01f||s.vertices[i+k]>max[k]+.01f)throw new IllegalStateException("Captured support differs from metadata "+owner+":"+b.id);
             }
-            assign(s,owner,ids,groups,seen,report);
+            capturedOwners.put(s,owner);assign(s,owner,ids,groups,seen,report);
         }
-        for(var e:pose.queue.lighting.tiles)assign(e.value,e.value.ownerEntity,ids,groups,seen,report);
+        for(var e:pose.queue.lighting.tiles){capturedOwners.put(e.value,e.value.ownerEntity);assign(e.value,e.value.ownerEntity,ids,groups,seen,report);}
+        // Frozen-replay diagnostic only: split one non-root support AFTER all unions,
+        // including corner connections. Geometry, own exclusion and other groups stay intact.
+        String separate=System.getProperty("pixscape.diagnostic.separateSupport");
+        if(separate!=null){
+            String[] pair=separate.split(":");
+            if(pair.length!=2)throw new IllegalArgumentException("Expected owner:block");
+            int owner=Integer.parseInt(pair[0]),block=Integer.parseInt(pair[1]),key=ids.idFor(owner,block);
+            if(key<=0||groups.group(key)==key)throw new IllegalArgumentException("Expected a grouped non-root support");
+            int changed=0;
+            for(LightingSurface s:seen.keySet()){
+                if(capturedOwners.get(s)==owner){
+                    if(!s.roundedIdentity&&s.pocSourceBlockId==block){s.shadowGroupId=key;changed++;}
+                    if(s.receiverBlockIds!=null)for(int i=0;i<s.receiverBlockIds.length;i++)
+                        if(s.receiverBlockIds[i]==block)s.receiverShadowGroups[i]=key;
+                }
+            }
+            if(changed==0)throw new IllegalArgumentException("Support not present in captured casters");
+            report.append("Separated support ").append(separate).append(" group=").append(key).append(" surfaces=").append(changed).append('\n');
+        }
         return report.toString();
     }
     private static void assign(LightingSurface s,int owner,ShadowExclusionIdentities ids,WallShadowGroups groups,java.util.IdentityHashMap<LightingSurface,Boolean> seen,StringBuilder report){
