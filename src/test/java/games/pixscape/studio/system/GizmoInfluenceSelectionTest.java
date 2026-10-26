@@ -28,7 +28,7 @@ public class GizmoInfluenceSelectionTest {
             h.select(h.actor); h.paint(); Assert.assertTrue(h.draws > 0);
             Assert.assertEquals(StudioEditingMode.NORMAL, h.modes.getCurrentMode());
             float previousTop = h.top;
-            h.height.height = 150; h.world.process(); h.paint();
+            games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(h.height,150); h.world.process(); h.paint();
             Assert.assertEquals(70, h.top - previousTop, .01f);
             h.layer.spatialEnabled = false; h.world.process(); h.paint(); Assert.assertEquals(0, h.draws);
         }
@@ -80,7 +80,7 @@ public class GizmoInfluenceSelectionTest {
             int eid = world.create(); layer = world.getMapper(LayerComponent.class).create(eid); layer.layerIndex=0; layer.spatialEnabled=true;
             actor = world.create(); world.getMapper(EntityIndexComponent.class).create(actor).layerIndex=0;
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor); transform.x=10; transform.y=200;
-            height = world.getMapper(SpatialHeightComponent.class).create(actor); height.height=80;
+            height = world.getMapper(SpatialHeightComponent.class).create(actor); games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,80);
             SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor); footprint.valid=true; footprint.radiusPx=9;
             slot=ecs.acquireSlotForEntity(actor); ecs.enabled[slot]=ecs.visible[slot]=true; ecs.kind[slot]=RenderKind.SPRITE; ecs.textureHandle[slot]=1; ecs.layerIndex[slot]=0;
             modes.activateSceneDocument(StudioEditingMode.NORMAL,0); world.process();

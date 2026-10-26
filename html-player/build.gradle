@@ -62,6 +62,8 @@ tasks.register('compileGwt', JavaExec) {
   description = 'Compile HTML player with GWT.'
 
   dependsOn classes
+  minHeapSize = '128m'
+  maxHeapSize = providers.gradleProperty('htmlGwtMaxHeap').getOrElse('1024m')
   mainClass = 'com.google.gwt.dev.Compiler'
   javaLauncher = javaToolchains.launcherFor {
     languageVersion = JavaLanguageVersion.of(htmlJavaVersion as int)
@@ -91,6 +93,7 @@ tasks.register('compileGwt', JavaExec) {
   args = [
           '-war', layout.buildDirectory.dir('gwt-dist').get().asFile.absolutePath,
           '-style', 'PRETTY',
+          '-localWorkers', '1',
           '-logLevel', 'INFO',
           'games.pixscape.html.GdxDefinition'
   ]

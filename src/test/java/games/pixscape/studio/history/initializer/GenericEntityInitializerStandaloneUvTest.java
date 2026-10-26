@@ -147,7 +147,7 @@ public class GenericEntityInitializerStandaloneUvTest {
         int source = world.create();
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(source);
         spatial.altitude = 3.5f;
-        spatial.height = 12.25f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,12.25f);
 
         GenericEntityInitializer init = new GenericEntityInitializer(world);
         init.syncFrom(source);
@@ -158,7 +158,7 @@ public class GenericEntityInitializerStandaloneUvTest {
         SpatialHeightComponent restoredSpatial =
                 world.getMapper(SpatialHeightComponent.class).get(restored);
         assertEquals(3.5f, restoredSpatial.altitude, 0.0001f);
-        assertEquals(12.25f, restoredSpatial.height, 0.0001f);
+        assertEquals(12.25f, restoredSpatial.rectangles.staticRectangle.height, 0.0001f);
     }
 
 }

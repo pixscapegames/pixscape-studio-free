@@ -63,6 +63,7 @@ public final class SpatialBlockCommandSupport {
         target.actorOccluder = source.actorOccluder;
         target.lightOccluder = source.lightOccluder;
         target.shadowCaster = source.shadowCaster;
+        target.shadeUnlitFaces = source.shadeUnlitFaces;
         target.silhouetteShadowCaster = source.silhouetteShadowCaster;
         target.particleOccluder = source.particleOccluder;
         target.linkedTileRefsAuthored = source.linkedTileRefsAuthored;
@@ -84,6 +85,7 @@ public final class SpatialBlockCommandSupport {
                 && a.actorOccluder == b.actorOccluder
                 && a.lightOccluder == b.lightOccluder
                 && a.shadowCaster == b.shadowCaster
+                && a.shadeUnlitFaces == b.shadeUnlitFaces
                 && a.silhouetteShadowCaster == b.silhouetteShadowCaster
                 && a.particleOccluder == b.particleOccluder
                 && sameLinkedTileRefs(a, b);

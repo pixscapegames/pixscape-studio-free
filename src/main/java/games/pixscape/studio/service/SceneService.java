@@ -1013,14 +1013,8 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     public void saveProjectAndCurrentScene() {
-        final SaveExecutionPlan plan;
-        try {
-            plan = prepareSaveExecutionPlan();
-        } catch (IllegalStateException ex) {
-            logSaveValidationFailure(ex);
-            return;
-        }
-
+        final SaveExecutionPlan plan = prepareSaveExecutionPlan();
+        requireSavePlanCurrent(plan);
         saveProjectFile(plan.cfg());
         if (!plan.hasSceneToSave()) {
             finishSaveWithoutScene();
@@ -1028,11 +1022,11 @@ public final class SceneService {
         }
 
         maybeRepackAtlas(plan);
-        rebuildSparseFromDense();
-        saveScene(sceneContext().world(), plan.sceneFile(), false);
+        rebuildPlannedScene(plan);
+        savePlannedScene(plan);
         saveTileAnimations(plan);
         exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
-        finishSaveWithScene(plan.cfg());
+        finishSaveWithScene(plan);
     }
 
     public void saveProjectAndCurrentSceneWithProgress(Stage uiStage,
@@ -1048,23 +1042,24 @@ public final class SceneService {
 
         Array<SaveProgressRunner.Step> steps = new Array<>();
 
-        steps.add(SaveProgressRunner.Step.sync(0.10f, "Preparing save...", () -> {
+        steps.add(saveStep(plan, 0.10f, "Preparing save...", () -> {
         }));
-        steps.add(SaveProgressRunner.Step.sync(0.20f, "Saving project file...", () -> saveProjectFile(plan.cfg())));
+        steps.add(saveStep(plan, 0.20f, "Saving project file...", () -> saveProjectFile(plan.cfg())));
 
         if (!plan.hasSceneToSave()) {
-            steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", this::finishSaveWithoutScene));
+            steps.add(saveStep(plan, 1.00f, "Finalizing...", this::finishSaveWithoutScene));
         } else {
             steps.add(SaveProgressRunner.Step.async(0.25f, "Repacking atlas...",
                     (progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)));
-            steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
-            steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(sceneContext().world(), plan.sceneFile(), false)));
-            steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
-            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
-            steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
+            steps.add(saveStep(plan, 0.65f, "Rebuilding tiled sparse data...", () -> rebuildPlannedScene(plan)));
+            steps.add(saveStep(plan, 0.75f, "Saving scene...", () -> savePlannedScene(plan)));
+            steps.add(saveStep(plan, 0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
+            steps.add(saveStep(plan, 0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
+            steps.add(saveStep(plan, 1.00f, "Finalizing...", () -> finishSaveWithScene(plan)));
         }
 
-        runSaveSteps(uiStage, steps, () -> executePreparedSavePlan(plan), onSuccess, onError);
+        runSaveSteps(uiStage, steps, () -> executePreparedSavePlan(plan),
+                () -> completePlannedSave(plan, onSuccess, onError), onError);
     }
 
     public void saveProjectAs(FileHandle selectedProjectFile) {
@@ -1112,14 +1107,17 @@ public final class SceneService {
     }
 
     private SaveExecutionPlan prepareSaveExecutionPlan() {
+        return prepareSaveExecutionPlan(true);
+    }
+
+    private SaveExecutionPlan prepareSaveExecutionPlan(boolean requireExportRoot) {
         final ProjectConfig cfg = ProjectConfig.getInstance();
 
-        flushWorldForSerialization();
-
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
         if (cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
             throw new IllegalStateException("saveProjectAndCurrentScene: projectName is empty, abort.");
         }
-        requireValidExportRootOrThrow(cfg, "saveProjectAndCurrentScene");
+        if (requireExportRoot) requireValidExportRootOrThrow(cfg, "saveProjectAndCurrentScene");
 
         final FileHandle studioDir = StudioFs.requireStudioProjectDir(cfg);
         if (studioDir == null) {
@@ -1128,7 +1126,8 @@ public final class SceneService {
 
         final SceneMeta meta = cfg.getCurrentSceneMeta();
         if (meta == null || meta.getName() == null || meta.getName().isEmpty()) {
-            return new SaveExecutionPlan(cfg, studioDir, null, null, null, false);
+            return new SaveExecutionPlan(cfg, studioDir, null, null, null, false,
+                    null, null, null, 0, 0, cfg.exportRootPathDir);
         }
 
         final String sceneName = meta.getName();
@@ -1139,13 +1138,79 @@ public final class SceneService {
         }
 
         final FileHandle scenesDir = studioDir.child(StudioFs.DIR_SCENES);
-        scenesDir.mkdirs();
         final FileHandle sceneFile = scenesDir.child(sceneFileName);
         final String canonicalTag = cfg.canonicalSceneTag(sceneName);
-        return new SaveExecutionPlan(cfg, studioDir, sceneName, sceneFile, canonicalTag, true);
+        SceneEditorContext source = sceneContext();
+        if (canonicalTag == null || !canonicalTag.equals(source.sceneIdentity())
+                || source.sceneMeta() != meta) {
+            throw new IllegalStateException("Select the Scene document before saving or launching Preview; "
+                    + "an asset editor cannot be saved as the project Scene.");
+        }
+        SaveExecutionPlan plan = new SaveExecutionPlan(cfg, studioDir, sceneName, sceneFile,
+                canonicalTag, true, source, source.world(), meta, source.generation(),
+                source.attachCount(), cfg.exportRootPathDir);
+        requireSavePlanCurrent(plan);
+        source.world().process();
+        return plan;
+    }
+
+    /** Validate before any save-side mutation, including delayed atlas callbacks. */
+    private void requireSavePlanCurrent(SaveExecutionPlan plan) {
+        if (ProjectConfig.getInstance() != plan.cfg()
+                || !plan.studioDir().equals(StudioFs.requireStudioProjectDir(plan.cfg()))
+                || !Objects.equals(plan.exportRoot(), plan.cfg().exportRootPathDir)) {
+            throw new IllegalStateException("Save cancelled: the project or its destination changed.");
+        }
+        if (!plan.hasSceneToSave()) {
+            if (plan.cfg().getCurrentSceneMeta() != null)
+                throw new IllegalStateException("Save cancelled: the current Scene changed.");
+            return;
+        }
+        SceneEditorContext source = plan.source();
+        if (source.isDisposed() || source.generation() != plan.sourceGeneration()
+                || source.attachCount() != plan.sourceAttachCount()
+                || sceneContext() != source || source.world() != plan.sourceWorld()
+                || source.sceneMeta() != plan.sourceMeta()
+                || !Objects.equals(source.sceneIdentity(), plan.canonicalTag())
+                || plan.cfg().getCurrentSceneMeta() != plan.sourceMeta()
+                || !Objects.equals(plan.cfg().getCurrentSceneName(), plan.sceneName())
+                || !plan.sceneFile().equals(plan.studioDir().child(StudioFs.DIR_SCENES)
+                        .child(plan.sourceMeta().getFile()))) {
+            throw new IllegalStateException("Save cancelled: the Scene document changed or was closed. "
+                    + "Save again from the intended Scene document.");
+        }
+    }
+
+    private SaveProgressRunner.Step saveStep(SaveExecutionPlan plan, float progress,
+                                             String message, Runnable action) {
+        return SaveProgressRunner.Step.sync(progress, message, () -> {
+            requireSavePlanCurrent(plan);
+            action.run();
+        });
+    }
+
+    private void completePlannedSave(SaveExecutionPlan plan, Runnable onSuccess,
+                                     java.util.function.Consumer<Throwable> onError) {
+        try {
+            requireSavePlanCurrent(plan);
+            if (onSuccess != null) onSuccess.run();
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
+    }
+
+    private void rebuildPlannedScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        rebuildSparseFromDense(plan.sourceWorld());
+    }
+
+    private void savePlannedScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        saveScene(plan.sourceWorld(), plan.sceneFile(), false);
     }
 
     private void executePreparedSavePlan(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         saveProjectFile(plan.cfg());
 
         if (!plan.hasSceneToSave()) {
@@ -1154,20 +1219,15 @@ public final class SceneService {
         }
 
         maybeRepackAtlas(plan);
-        rebuildSparseFromDense();
-        saveScene(sceneContext().world(), plan.sceneFile(), false);
+        rebuildPlannedScene(plan);
+        savePlannedScene(plan);
         saveTileAnimations(plan);
         exportRuntime(plan.cfg(), plan.studioDir());
-        finishSaveWithScene(plan.cfg());
-    }
-
-    private void logSaveValidationFailure(IllegalStateException ex) {
-        Gdx.app.error("SceneManager", ex.getMessage());
-        EventFlow.i().publish(new EventFlow.LogMessage(ex.getMessage()));
-        StudioLog.warn(ex.getMessage());
+        finishSaveWithScene(plan);
     }
 
     private void saveTileAnimations(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         TileAnimationsIO.save(
                 tileAnimationsMetaDatabase,
                 plan.studioDir().child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
@@ -1208,25 +1268,24 @@ public final class SceneService {
         String log = "saveProjectAndCurrentScene: no current scene, skipping scene save.";
         Gdx.app.log("SceneManager", log);
         EventFlow.i().publish(new EventFlow.LogMessage(log));
-        sceneContext().historyManager().markSaved();
-        clearCurrentSceneSaveRequired();
     }
 
-    private void finishSaveWithScene(ProjectConfig cfg) {
-        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + ")");
-        sceneContext().historyManager().markSaved();
+    private void finishSaveWithScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + plan.cfg().projectTitle + ")");
+        plan.source().markSaved();
         StudioLog.info("Project saved successfully");
-        clearCurrentSceneSaveRequired();
     }
 
     private void saveCurrentSceneOnly(ProjectConfig cfg) {
+        SaveExecutionPlan plan = prepareSaveExecutionPlan(false);
+        requireSavePlanCurrent(plan);
         String sceneName = cfg.getCurrentSceneName();
         if (sceneName == null || sceneName.isEmpty()) {
             Gdx.app.log("SceneManager", "saveCurrentSceneOnly: no current scene, skipping.");
             return;
         }
 
-        flushWorldForSerialization();
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         SceneMeta meta = cfg.getCurrentSceneMeta();
@@ -1242,14 +1301,13 @@ public final class SceneService {
             return;
         }
 
-        FileHandle sceneFile = scenesDir.child(fileName);
 
         if (EditorSettings.get().autoRepackAtlases) {
             repackSceneAtlas(cfg, sceneName, projectDir);
         }
-        rebuildSparseFromDense();
+        rebuildPlannedScene(plan);
 
-        saveScene(sceneContext().world(), sceneFile, false);
+        savePlannedScene(plan);
         if (tileAnimationsMetaDatabase != null) {
             TileAnimationsIO.save(
                     tileAnimationsMetaDatabase,
@@ -1768,6 +1826,7 @@ public final class SceneService {
     }
 
     private void maybeRepackAtlas(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         if (!plan.hasSceneToSave()) return;
         if (!EditorSettings.get().autoRepackAtlases) return;
 
@@ -1803,6 +1862,7 @@ public final class SceneService {
                                        SaveProgressRunner.ProgressHandle progress,
                                        Runnable onDone,
                                        java.util.function.Consumer<Throwable> onError) {
+        requireSavePlanCurrent(plan);
         if (!plan.hasSceneToSave() || !EditorSettings.get().autoRepackAtlases) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
             onDone.run();
@@ -1837,14 +1897,14 @@ public final class SceneService {
                     canonicalTag,
                     AsyncAtlasRepackCoordinator.RepackReason.SAVE
             );
-            waitForAsyncPackCompletion(canonicalTag, generation, progress, onDone, onError);
+            waitForAsyncPackCompletion(plan, canonicalTag, generation, progress, onDone, onError);
             return;
         }
 
         if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
             Gdx.app.log("AtlasStudioService",
                     "Save atlas repack using pending pack scene=" + canonicalTag);
-            waitForAsyncPackCompletion(canonicalTag, atlasStudioService.currentPackGeneration(),
+            waitForAsyncPackCompletion(plan, canonicalTag, atlasStudioService.currentPackGeneration(),
                     progress, onDone, onError);
             return;
         }
@@ -1858,13 +1918,14 @@ public final class SceneService {
                 AsyncAtlasRepackCoordinator.RepackReason.SAVE
         );
 
-        waitForAsyncPackCompletion(canonicalTag, generation, progress, onDone, onError);
+        waitForAsyncPackCompletion(plan, canonicalTag, generation, progress, onDone, onError);
     }
 
     private AtlasInputSyncResult syncSceneAtlasInputForSave(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         return sceneAtlasInputService.syncSceneAtlasInputForSave(
                 plan.cfg(),
-                sceneContext().world(),
+                plan.sourceWorld(),
                 assetMetaDatabase,
                 tileAnimationsMetaDatabase
         );
@@ -1955,12 +2016,13 @@ public final class SceneService {
                         + " inputsUnchanged=true atlasValid=true");
     }
 
-    private void waitForAsyncPackCompletion(String canonicalTag,
+    private void waitForAsyncPackCompletion(SaveExecutionPlan plan, String canonicalTag,
                                             long generation,
                                             SaveProgressRunner.ProgressHandle progress,
                                             Runnable onDone,
                                             java.util.function.Consumer<Throwable> onError) {
         try {
+            requireSavePlanCurrent(plan);
             atlasStudioService.updateAsyncPack();
             atlasStudioService.applyIfPackReady();
 
@@ -1991,7 +2053,7 @@ public final class SceneService {
             // Save completion must advance while libGDX's lifecycle Timer is paused.
             // Like the other save steps, poll on the application's next runnable cycle.
             Gdx.app.postRunnable(() -> waitForAsyncPackCompletion(
-                    canonicalTag, awaitedGeneration, progress, onDone, onError));
+                    plan, canonicalTag, awaitedGeneration, progress, onDone, onError));
         } catch (Throwable t) {
             if (onError != null) {
                 onError.accept(t);
@@ -4335,7 +4397,13 @@ public final class SceneService {
                                      String sceneName,
                                      FileHandle sceneFile,
                                      String canonicalTag,
-                                     boolean hasSceneToSave) {
+                                     boolean hasSceneToSave,
+                                     SceneEditorContext source,
+                                     World sourceWorld,
+                                     SceneMeta sourceMeta,
+                                     long sourceGeneration,
+                                     int sourceAttachCount,
+                                     String exportRoot) {
     }
 
     private record AssetImportContext(ProjectConfig cfg, FileHandle projectDir, FileHandle imagesRoot,

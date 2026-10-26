@@ -196,8 +196,7 @@ final class GameObjectEntityDataMapper {
         if (data.spatialHeight != null) {
             snapshot.hasSpatialHeight = true;
             snapshot.spatialAltitude = data.spatialHeight.altitude;
-            snapshot.spatialHeight = data.spatialHeight.height;
-            snapshot.actorVolumes = data.spatialHeight.volumes == null ? null : data.spatialHeight.volumes.copy();
+            snapshot.actorSpatialRectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
         }
         GenericEntityInitializer initializer = new GenericEntityInitializer(world)
                 .applySnapshotData(snapshot);
@@ -320,8 +319,7 @@ final class GameObjectEntityDataMapper {
         if (source.hasSpatialHeight) {
             data.spatialHeight = new GameObjectAsset.SpatialHeightData();
             data.spatialHeight.altitude = source.spatialAltitude;
-            data.spatialHeight.height = source.spatialHeight;
-            data.spatialHeight.volumes = source.actorVolumes == null ? null : source.actorVolumes.copy();
+            data.spatialHeight.rectangles = source.actorSpatialRectangles == null ? null : source.actorSpatialRectangles.copy();
         }
     }
 

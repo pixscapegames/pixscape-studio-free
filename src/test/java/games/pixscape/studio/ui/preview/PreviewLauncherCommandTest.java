@@ -19,7 +19,8 @@ public class PreviewLauncherCommandTest {
                     Path.of("C:\\Preview projects\\fixture\\.pixscape\\preview-diagnostics\\child.log"));
 
             assertEquals(PreviewLauncher.javaExecutable().toString(), command.get(0));
-            assertTrue(command.contains("-Dpixscape.poc.forwardLighting=true"));
+            assertFalse(command.stream().anyMatch(argument -> argument.startsWith("-Dpixscape.poc.")));
+            assertEquals("true", command.get(command.indexOf("--forward-lighting") + 1));
             assertTrue(command.contains("-Dpixscape.preview.session=session-a"));
             assertTrue(command.stream().anyMatch(argument -> argument.startsWith(
                     "-Dpixscape.preview.diagnosticLog=C:\\Preview projects\\fixture\\.pixscape")));

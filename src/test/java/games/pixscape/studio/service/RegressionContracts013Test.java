@@ -20,8 +20,8 @@ public class RegressionContracts013Test {
                 "prepareSaveExecutionPlan()",
                 "saveProjectFile(plan.cfg())",
                 "maybeRepackAtlas(plan)",
-                "rebuildSparseFromDense()",
-                "saveScene(",
+                "rebuildPlannedScene(plan)",
+                "savePlannedScene(plan)",
                 "saveTileAnimations(plan)",
                 "exportRuntimeBestEffort(",
                 "finishSaveWithScene("

@@ -331,6 +331,21 @@ public class SpatialBlockPropertiesTest {
         Assert.assertFalse(fixture.history.canUndo());
     }
 
+    @Test public void faceShadingIsPerVolumeUndoableAndPersisted() {
+        Fixture fixture=fixture();int layer=tiledLayer(fixture.world);
+        fixture.history.historyIds().ensureForEntity(layer);
+        SpatialBlocksComponent walls=fixture.world.getMapper(SpatialBlocksComponent.class).create(layer);
+        walls.blocks.add(wall(1,4,0,0,2,1));walls.blocks.add(wall(2,4,1,0,1,2));
+        fixture.selection.selectBlock(layer,1);SpatialBlockProperties properties=fixture.properties();properties.setSpatialBlock(layer,1);
+        Assert.assertTrue(checkBox(properties,"spatialWallShadeUnlitFaces").isChecked());
+        setChecked(properties,"spatialWallShadeUnlitFaces",false);
+        Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+        Assert.assertFalse(walls.blocks.get(0).copy().shadeUnlitFaces);
+        com.badlogic.gdx.utils.Json json=new com.badlogic.gdx.utils.Json();
+        Assert.assertFalse(json.fromJson(SpatialBlockData.class,json.toJson(walls.blocks.get(0))).shadeUnlitFaces);
+        fixture.history.undo();Assert.assertTrue(walls.blocks.get(0).shadeUnlitFaces);
+        fixture.history.redo();Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+    }
     private static VisCheckBox checkBox(SpatialBlockProperties properties, String name) {
         return properties.findActor(name);
     }

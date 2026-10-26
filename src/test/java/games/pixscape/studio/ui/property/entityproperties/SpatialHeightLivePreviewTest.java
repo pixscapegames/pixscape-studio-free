@@ -33,45 +33,46 @@ public class SpatialHeightLivePreviewTest {
     @BeforeClass public static void skin() { VisUiTestBootstrap.loadSkin(); }
     @AfterClass public static void unload() { VisUiTestBootstrap.unloadSkin(); }
 
-    @Test public void typingUpdatesRuntimeSquareAndEnterCreatesOneUndoableEdit() throws Exception {
+    @Test public void rectangleRowsUseAltitudeColumnsAtDifferentPanelWidths() throws Exception {
         try (Harness h = new Harness()) {
-            h.type("150"); h.world.process(); h.assertSquare(150);
-            Assert.assertFalse(h.history.canUndo());
-            h.panel.refreshFromModel(h.actor); h.panel.setEntityId(h.actor);
-            Assert.assertEquals("150", h.field.getText());
-            h.type("250"); h.world.process(); h.assertSquare(250);
-            h.key(Input.Keys.ENTER);
-            Assert.assertEquals(250, h.height.height, 0);
-            h.history.undo(); h.world.process(); h.assertSquare(80);
-            Assert.assertFalse(h.history.canUndo());
-            h.history.redo(); h.world.process(); h.assertSquare(250);
-            Assert.assertEquals(160, h.height.altitude, 0);
+            Field altitude = SpatialPhysicsPanel.class.getDeclaredField("altitudeField"); altitude.setAccessible(true);
+            FloatField altitudeField = (FloatField) altitude.get(h.panel);
+            com.badlogic.gdx.scenes.scene2d.ui.Table table = (com.badlogic.gdx.scenes.scene2d.ui.Table) h.field.getParent();
+            Assert.assertSame(table, altitudeField.getParent());
+            for (float width : new float[]{220, 360, 600}) {
+                table.setSize(width, table.getPrefHeight()); table.validate();
+                Assert.assertEquals(altitudeField.getX(), h.field.getX(), .001f);
+                for (int i=0;i<6;i++) {
+                    FloatField rectangleField=table.findActor("actor-spatial-rectangle-"+i);
+                    Assert.assertSame(table,rectangleField.getParent());
+                    Assert.assertEquals(altitudeField.getX(),rectangleField.getX(),.001f);
+                    Assert.assertEquals(altitudeField.getWidth(),rectangleField.getWidth(),.001f);
+                }
+                float labelX=Float.NaN;
+                for (com.badlogic.gdx.scenes.scene2d.Actor child:table.getChildren()) {
+                    if (!(child instanceof com.kotcrab.vis.ui.widget.VisLabel label) || !label.getText().toString().endsWith(":")) continue;
+                    if (Float.isNaN(labelX)) labelX=child.getX();
+                    Assert.assertEquals(labelX,child.getX(),.001f);
+                }
+            }
         }
     }
 
-    @Test public void escapeAndInvalidTextRestoreAuthoredHeightWithoutHistory() throws Exception {
-        try (Harness h = new Harness()) {
-            h.type("250"); h.world.process(); h.assertSquare(250);
-            h.key(Input.Keys.ESCAPE); h.world.process(); h.assertSquare(80);
-            h.type("150"); h.type(""); h.world.process(); h.assertSquare(80);
+    @Test public void rectangleHeightEditUpdatesEnvelopeAndIsUndoableWithoutChangingWidthOrAltitude() throws Exception {
+        try(Harness h=new Harness()) {
+            h.assertRectangle(80);
+            h.type("150"); h.key(Input.Keys.ENTER);h.world.process();h.assertRectangle(150);
+            Assert.assertEquals(40,h.height.rectangles.staticRectangle.width,0);
+            Assert.assertEquals(160,h.height.altitude,0);
+            h.history.undo();h.world.process();h.assertRectangle(80);
             Assert.assertFalse(h.history.canUndo());
-            h.type("150"); h.panel.setEntityId(-1); h.world.process(); h.assertSquare(80);
-            Assert.assertEquals(-1, h.field.getEntityId());
-            h.key(Input.Keys.ENTER); Assert.assertFalse(h.history.canUndo());
+            h.history.redo();h.world.process();h.assertRectangle(150);
         }
     }
-
-    @Test public void nativePastePreviewsAndFocusLossCommitsWhileProgrammaticRefreshDoesNotPreview() throws Exception {
-        try (Harness h = new Harness()) {
-            h.field.setText("150"); h.world.process(); h.assertSquare(80);
-            h.field.selectAll();
-            java.lang.reflect.Method paste = com.kotcrab.vis.ui.widget.VisTextField.class.getDeclaredMethod("paste", String.class, boolean.class);
-            paste.setAccessible(true); paste.invoke(h.field, "250", true);
-            h.world.process(); h.assertSquare(250); Assert.assertFalse(h.history.canUndo());
-            com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent event = new com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent();
-            event.setType(com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent.Type.keyboard); event.setFocused(false);
-            h.field.fire(event);
-            h.history.undo(); h.world.process(); h.assertSquare(80);
+    @Test public void cancelledAndInvalidRectangleEditsPreserveSorting() throws Exception {
+        try(Harness h=new Harness()) {
+            h.type("250");h.key(Input.Keys.ESCAPE);h.world.process();h.assertRectangle(80);
+            h.type("-5");h.key(Input.Keys.ENTER);h.world.process();h.assertRectangle(80);
             Assert.assertFalse(h.history.canUndo());
         }
     }
@@ -99,7 +100,10 @@ public class SpatialHeightLivePreviewTest {
             TransformComponent transform = world.getMapper(TransformComponent.class).create(actor);
             transform.x = 10; transform.y = 200;
             height = world.getMapper(SpatialHeightComponent.class).create(actor);
-            height.altitude = 160; height.height = 80;
+            height.altitude = 160;
+            height.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+            height.rectangles.staticRectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+            height.rectangles.staticRectangle.width=40;height.rectangles.staticRectangle.height=80;
             SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
             footprint.valid = true; footprint.radiusPx = 9;
             slot = ecs.acquireSlotForEntity(actor); ecs.enabled[slot] = ecs.visible[slot] = true;
@@ -115,17 +119,16 @@ public class SpatialHeightLivePreviewTest {
                     new IconResolver(world), () -> {}, assets::findById, ignored -> {}, Array::new,
                     new AnimationAssetAuthoringService(() -> assets, () -> null, ignored -> {}), 0, meta));
             world.process(); panel.setEntityId(actor);
-            Field declared = SpatialPhysicsPanel.class.getDeclaredField("heightField"); declared.setAccessible(true);
-            field = (FloatField) declared.get(panel);
+            field = panel.findActor("actor-spatial-rectangle-1");
         }
         void type(String text) {
             field.setText(text);
             field.fire(new com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent());
         }
         void key(int code) { InputEvent event = new InputEvent(); event.setType(InputEvent.Type.keyDown); event.setKeyCode(code); field.fire(event); }
-        void assertSquare(float size) {
-            float[] quad = new float[8]; Assert.assertTrue(spatial.writeActorInfluenceQuad(actor, quad));
-            Assert.assertArrayEquals(new float[]{10-size*.5f,200,10+size*.5f,200,10+size*.5f,200+size,10-size*.5f,200+size}, quad, .001f);
+        void assertRectangle(float height) {
+            float[] quad=new float[8];Assert.assertTrue(spatial.writeActorInfluenceQuad(actor,quad));
+            Assert.assertArrayEquals(new float[]{-10,190,30,190,30,210+height,-10,210+height},quad,.001f);
         }
         @Override public void close() { identities.bind(null, null); world.dispose(); }
     }

@@ -561,7 +561,7 @@ public class ClipboardServiceFlowTest {
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;
-        height.height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
         h.selection.setActivelayerId(spatialLayer);

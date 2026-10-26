@@ -81,7 +81,7 @@ public class ClipboardLayerCompatibilityTest {
 
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).get(pasted);
         Assert.assertEquals(3.5f, height.altitude, 0f);
-        Assert.assertEquals(2.25f, height.height, 0f);
+        Assert.assertEquals(2.25f, height.rectangles.staticRectangle.height, 0f);
         Assert.assertTrue(world.getMapper(PhysicsBodyComponent.class).has(pasted));
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).get(pasted);
         Assert.assertEquals(2, shapes.shapes.size);
@@ -226,7 +226,7 @@ public class ClipboardLayerCompatibilityTest {
         sceneMeta.nextEntityStableId = 1_000;
         int root = gameObject(100, -1);
         int nested = gameObject(200, 100);
-        world.getMapper(SpatialHeightComponent.class).create(nested).height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(world.getMapper(SpatialHeightComponent.class).create(nested),2f);
         world.process();
         EntityGraph graph = new EntityGraphCaptureService(world)
                 .captureGameObjectClipboard(new IntArray(new int[]{root}));
@@ -280,7 +280,7 @@ public class ClipboardLayerCompatibilityTest {
         int entity = physicalActor(true, ordinaryFixture);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(entity);
         height.altitude = 3.5f;
-        height.height = 2.25f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2.25f);
         return entity;
     }
 

@@ -17,7 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -134,10 +133,6 @@ public final class PreviewLauncher {
                                    int glSamples, boolean forwardLighting, Path childLogFile) {
         ArrayList<String> command = new ArrayList<>();
         command.add(javaExecutable().toString());
-        System.getProperties().stringPropertyNames().stream()
-                .filter(name -> name.startsWith("pixscape.poc."))
-                .sorted(Comparator.naturalOrder())
-                .forEach(name -> command.add("-D" + name + "=" + System.getProperty(name)));
         command.add("-D" + PreviewProcessProtocol.SESSION_PROPERTY + "=" + sessionId);
         command.add("-D" + PreviewDiagnosticLog.CHILD_LOG_PROPERTY + "="
                 + childLogFile.toAbsolutePath().normalize());

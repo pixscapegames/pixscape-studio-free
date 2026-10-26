@@ -13,7 +13,7 @@ import games.pixscape.runtime.render.batch.performance.RenderStats;
 public final class RenderStatsOverlay {
     private static final long UI_REFRESH_NS = 250_000_000L;
     private static final Color ACCENT = new Color(.65f, .9f, 1f, 1f);
-    private static final String HELP_PREFIX = "Cadence libre  |  F8: capture diagnostic  |  F9: stats  |  F10: details  |  +/-: zoom  |  Arrows: pan";
+    private static final String HELP_PREFIX = "F9: stats  |  F10: details  |  +/-: zoom  |  Arrows: pan";
     private static final float PAIR_GAP = 12, COLUMN_GAP = 20, ROW_GAP = 9;
     private static final String[] LABELS = {"FPS", "Avg (5 s)", "Frame avg",
             "P95 (600 frames)", "P99 (600 frames)", "Max (600 frames)", "Quads", "Draws", "Flushes",
@@ -21,7 +21,6 @@ public final class RenderStatsOverlay {
     private final Stage uiStage;
     private final RenderStats stats;
     private final PreviewFrameCadence cadence;
-    private final String casterMode;
     private final BitmapFont font = new BitmapFont();
     private final Texture background;
     private final BitmapFontCache[] lines = new BitmapFontCache[LABELS.length];
@@ -38,12 +37,10 @@ public final class RenderStatsOverlay {
     private double p95Ms, p99Ms, maxMs, boxStepMs;
     private int boxSubsteps, boxBodies, boxContacts, boxJoints;
 
-    RenderStatsOverlay(Stage uiStage, RenderStats stats, PreviewFrameCadence cadence,
-                       String casterMode) {
+    RenderStatsOverlay(Stage uiStage, RenderStats stats, PreviewFrameCadence cadence) {
         this.uiStage = uiStage;
         this.stats = stats;
         this.cadence = cadence;
-        this.casterMode = casterMode;
         font.setUseIntegerPositions(true);
         for (int i = 0; i < lines.length; i++) {
             lines[i] = new BitmapFontCache(font);
@@ -118,7 +115,7 @@ public final class RenderStatsOverlay {
         float usable = Math.max(1, width - 24);
         help.setPosition(0, 0);
         help.setColor(Color.WHITE);
-        var helpLayout = help.setText(HELP_PREFIX + "  |  " + casterMode,
+        var helpLayout = help.setText(HELP_PREFIX,
                 12, 0, usable, Align.left, true);
         helpHeight = helpLayout.height; helpWidth = Math.min(width - 8, helpLayout.width + 16);
         help.setPosition(0, helpHeight + 10);

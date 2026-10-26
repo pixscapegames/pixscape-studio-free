@@ -300,7 +300,7 @@ public class LayerSpatialDepthCommandsTest {
         Assert.assertTrue(world.getMapper(LayerComponent.class).get(layerId).spatialEnabled);
         SpatialHeightComponent untouched = world.getMapper(SpatialHeightComponent.class).get(actorId);
         Assert.assertEquals(4f, untouched.altitude, 0.0001f);
-        Assert.assertEquals(10f, untouched.height, 0.0001f);
+        Assert.assertEquals(10f, untouched.rectangles.staticRectangle.height, 0.0001f);
     }
 
     @Test
@@ -451,7 +451,7 @@ public class LayerSpatialDepthCommandsTest {
         index.zIndex = 0;
         SpatialHeightComponent spatial = world.getMapper(SpatialHeightComponent.class).create(actorId);
         spatial.altitude = altitude;
-        spatial.height = height;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(spatial,height);
         return actorId;
     }
 

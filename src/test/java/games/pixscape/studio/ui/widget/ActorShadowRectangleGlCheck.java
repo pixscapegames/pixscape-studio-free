@@ -21,7 +21,7 @@ import java.lang.reflect.*;
 import static org.junit.Assert.*;
 
 /** Explicit opt-in standalone GL check. Creates only an isolated fixture and never opens user scenes. */
-public final class ActorVolumeGlCheck {
+public final class ActorShadowRectangleGlCheck {
     public static void main(String[] args) throws Exception {
         FileHandle root=new FileHandle(args[0]);root.mkdirs();
         System.setProperty("user.home",root.child("home").path());
@@ -36,11 +36,11 @@ public final class ActorVolumeGlCheck {
         db.save(root.child("assets.json"));
         Throwable[] failed={null};
         Lwjgl3ApplicationConfiguration gl=new Lwjgl3ApplicationConfiguration();
-        gl.setTitle("Actor volume isolated UI check");gl.setWindowedMode(1200,850);gl.setInitialVisible(false);
+        gl.setTitle("Actor spatial rectangle isolated UI check");gl.setWindowedMode(1200,850);gl.setInitialVisible(false);
         gl.useVsync(true);gl.setForegroundFPS(30);gl.disableAudio(true);
         gl.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,2);
         new Lwjgl3Application(new ApplicationAdapter(){
-            StudioApplicationAdapter studio;SceneEditorContext ctx;ActorVolumeCanvasEditor overlay;
+            StudioApplicationAdapter studio;SceneEditorContext ctx;ActorSpatialRectangleCanvasEditor overlay;
             Texture texture;int e,frame;float[] angles={0,45,90,37.25f};
             long start=System.nanoTime();
             @Override public void create(){
@@ -63,19 +63,19 @@ public final class ActorVolumeGlCheck {
                     foot.geometry.shapeType=PhysicsGeometryData.SHAPE_CIRCLE;foot.geometry.radius=.2f;foot.spatialFootprint=true;
                     ctx.historyManager().execute(new ToggleSpatialActorCommand(world,ctx.historyManager().historyIds(),
                             canvas.getPhysicsService(),e,true,true,foot));
-                    volume().width=40;volume().depth=24;volume().height=75;
+                    volume().width=40;volume().height=75;
                     // Authored fixture placement, explicitly compensating this image's transparent margin.
                     volume().offsetX=55;volume().offsetY=55;
                     canvas.focusCameraAt(70,35);
                     ((OrthographicCamera)canvas.getGridStage().getCamera()).zoom=.55f;
                     ctx.selectionService().selectOnly(e);world.process();
-                    overlay=(ActorVolumeCanvasEditor)studio.getUiStage().getRoot().findActor("actor-volume-editor");
+                    overlay=(ActorSpatialRectangleCanvasEditor)studio.getUiStage().getRoot().findActor("actor-spatial-rectangle-editor");
                     assertNotNull(overlay);
                     studio.resize(1200,850);
-                    System.out.println("READY pid="+ProcessHandle.current().pid()+" runtime="+ActorVolumeData.class.getProtectionDomain().getCodeSource().getLocation());
+                    System.out.println("READY pid="+ProcessHandle.current().pid()+" runtime="+ActorSpatialRectangleData.class.getProtectionDomain().getCodeSource().getLocation());
                 }catch(Throwable failure){stop(failure);}
             }
-            ActorVolumeData volume(){return ctx.world().getMapper(SpatialHeightComponent.class).get(e).volumes.staticVolume;}
+            ActorSpatialRectangleData volume(){return ctx.world().getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle;}
             @Override public void render(){
                 if(failed[0]!=null)return;
                 try{
@@ -118,8 +118,8 @@ public final class ActorVolumeGlCheck {
                     }
                     if(frame==49){
                         volume().orientation=0;
-                        for(int index=1;index<=4;index++){
-                            positions();ActorVolumeData before=volume().copy();
+                        for(int index=1;index<=3;index++){
+                            positions();ActorSpatialRectangleData before=volume().copy();
                             Vector2 h=handle(index),target=new Vector2(h).add(index==3?-12:12,index==4?18:9);
                             int cursor=ctx.historyManager().getCursor();
                             press(h);drag(target);release(target);
@@ -130,12 +130,12 @@ public final class ActorVolumeGlCheck {
                         System.out.println("PLACEMENT AND SIZE HANDLES PASS");
                     }
                     if(frame==55){assertTrue(positions());capture("zoom-pan.png");}
-                    if(frame==60){System.out.println("PASS actor volume UI");root.child("DONE").writeString("PASS",false);Gdx.app.exit();}
+                    if(frame==60){System.out.println("PASS actor spatial rectangle UI");root.child("DONE").writeString("PASS",false);Gdx.app.exit();}
                 }catch(Throwable failure){stop(failure);}
             }
-            boolean positions() throws Exception{Method m=ActorVolumeCanvasEditor.class.getDeclaredMethod("positions");m.setAccessible(true);return (Boolean)m.invoke(overlay);}
-            Vector2 handle(int i)throws Exception{Field f=ActorVolumeCanvasEditor.class.getDeclaredField("handles");f.setAccessible(true);return new Vector2(((Vector2[])f.get(overlay))[i]);}
-            Vector2 arc(float angle)throws Exception{Method m=ActorVolumeCanvasEditor.class.getDeclaredMethod("arcPoint",float.class,Vector2.class);m.setAccessible(true);Vector2 out=new Vector2();m.invoke(overlay,angle,out);return out;}
+            boolean positions() throws Exception{Method m=ActorSpatialRectangleCanvasEditor.class.getDeclaredMethod("positions");m.setAccessible(true);return (Boolean)m.invoke(overlay);}
+            Vector2 handle(int i)throws Exception{Field f=ActorSpatialRectangleCanvasEditor.class.getDeclaredField("handles");f.setAccessible(true);return new Vector2(((Vector2[])f.get(overlay))[i]);}
+            Vector2 arc(float angle)throws Exception{Method m=ActorSpatialRectangleCanvasEditor.class.getDeclaredMethod("arcPoint",float.class,Vector2.class);m.setAccessible(true);Vector2 out=new Vector2();m.invoke(overlay,angle,out);return out;}
             Vector2 screen(Vector2 point){return studio.getUiStage().stageToScreenCoordinates(new Vector2(point));}
             void press(Vector2 p){Vector2 s=screen(p);assertTrue(studio.getUiStage().touchDown(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT));assertTrue("Native Stage picked rotation handle",overlay.isDragging());}
             void drag(Vector2 p){Vector2 s=screen(p);studio.getUiStage().touchDragged(Math.round(s.x),Math.round(s.y),0);}

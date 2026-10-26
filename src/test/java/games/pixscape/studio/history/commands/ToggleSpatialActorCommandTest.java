@@ -78,10 +78,10 @@ public class ToggleSpatialActorCommandTest {
                 PhysicsService.prepareBodyCandidate(shapes.shapes));
         SpatialHeightComponent height = harness.world.getMapper(SpatialHeightComponent.class).create(entityId);
         height.altitude = 3f;
-        height.height = 4f;
-        height.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
-        height.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
-        height.volumes.staticVolume.orientation = 41f;
+        height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        height.rectangles.staticRectangle.height = 4f;
+        height.rectangles.staticRectangle.orientation = 41f;
 
         harness.history.execute(new ToggleSpatialActorCommand(
                 harness.world, harness.historyIds, harness.physics, entityId,
@@ -104,8 +104,8 @@ public class ToggleSpatialActorCommandTest {
         Assert.assertEquals(spatial.physicsShapeId, marked(harness.world, entityId).physicsShapeId);
         height = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
         Assert.assertEquals(3f, height.altitude, 0f);
-        Assert.assertEquals(4f, height.height, 0f);
-        Assert.assertEquals(41f, height.volumes.staticVolume.orientation, 0f);
+        Assert.assertEquals(4f, height.rectangles.staticRectangle.height, 0f);
+        Assert.assertEquals(41f, height.rectangles.staticRectangle.orientation, 0f);
     }
 
     @Test

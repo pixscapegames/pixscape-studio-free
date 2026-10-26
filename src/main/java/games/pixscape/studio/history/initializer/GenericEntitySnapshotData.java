@@ -48,8 +48,7 @@ public final class GenericEntitySnapshotData {
     public final Array<ShaderFloatParam> shaderFloats = new Array<>();
     public boolean hasSpatialHeight;
     public float spatialAltitude;
-    public float spatialHeight;
-    public games.pixscape.runtime.spatial.ActorVolumes actorVolumes;
+    public games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
     public boolean hasPhysicsBody;
     public int bodyType;
     public boolean fixedRotation, bullet, allowSleep, awake;

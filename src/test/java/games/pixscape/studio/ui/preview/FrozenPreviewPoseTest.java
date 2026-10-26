@@ -27,8 +27,8 @@ public class FrozenPreviewPoseTest {
         p.queue.colorPacked[0]=Float.intBitsToFloat(0xfeaabbcc);p.queue.shaderParameters[0]=new games.pixscape.runtime.component.ShaderParamsComponent();
         p.layers=new LayerStateSOA(2);p.layers.touchLayerIndex(1);p.layers.enabled[1]=true;
         LightingSurface s=new LightingSurface(new float[48]);s.vertices[2]=158.66797f;s.receiverBlockIds=new int[]{22,22};s.receiverExclusionIds=new int[]{18,18};
-        s.curveNormals=new float[]{1,2,3};s.forwardTopology=ForwardTopology.NATIVE;s.actorVolume=new ActorVolumeCaster();s.actorVolume.vertexCount=3;s.actorVolume.vertices[0]=12.5f;
-        s.shadowVertices=s.actorVolume.vertices;s.shadowVertexCount=3;
+        s.curveNormals=new float[]{1,2,3};s.forwardTopology=ForwardTopology.NATIVE;s.actorShadowRectangle=new ActorShadowRectangleCaster();s.actorShadowRectangle.vertexCount=3;s.actorShadowRectangle.vertices[0]=12.5f;
+        s.shadowVertices=s.actorShadowRectangle.vertices;s.shadowVertexCount=3;
         s.roundedCellKey=115964117016L;p.queue.lighting.tiles.put(940,s);
         LightingFrame.Caster caster=new LightingFrame.Caster();caster.surface=s;caster.texture=27;p.queue.lighting.casters.add(caster);p.queue.lighting.staticCasterCount=1;
         LightingFrame.Light light=new LightingFrame.Light();light.x=3178.87207f;light.resolution=512;light.quality=2;p.queue.lighting.lights.add(light);

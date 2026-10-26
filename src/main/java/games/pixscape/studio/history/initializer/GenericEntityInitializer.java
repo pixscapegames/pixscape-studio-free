@@ -98,8 +98,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     // --- Spatial height ---
     protected boolean hasSpatialHeight;
     protected float spatialAltitude;
-    protected float spatialHeight;
-    protected games.pixscape.runtime.spatial.ActorVolumes actorVolumes;
+    protected games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
 
     // --- Lights ---
     protected boolean hasPointLight;
@@ -344,13 +343,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             SpatialHeightComponent spatial = mSpatialHeight.get(e);
             hasSpatialHeight = true;
             spatialAltitude = spatial.altitude;
-            spatialHeight = spatial.height;
-            actorVolumes = spatial.volumes == null ? null : spatial.volumes.copy();
+            actorSpatialRectangles = spatial.rectangles == null ? null : spatial.rectangles.copy();
         } else {
             hasSpatialHeight = false;
             spatialAltitude = 0f;
-            spatialHeight = 0f;
-            actorVolumes = null;
+            actorSpatialRectangles = null;
         }
 
         SurfaceLightingComponent lighting = world.getMapper(SurfaceLightingComponent.class).getSafe(e,null);
@@ -672,8 +669,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                     ? mSpatialHeight.get(e)
                     : mSpatialHeight.create(e);
             spatial.altitude = spatialAltitude;
-            spatial.height = spatialHeight;
-            spatial.volumes = actorVolumes == null ? null : actorVolumes.copy();
+            spatial.rectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
             if (dirty != null) dirty.order(e);
         }
 
@@ -944,8 +940,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         out.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
         out.hasSpatialHeight = hasSpatialHeight;
         out.spatialAltitude = spatialAltitude;
-        out.spatialHeight = spatialHeight;
-        out.actorVolumes = actorVolumes == null ? null : actorVolumes.copy();
+        out.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
         out.hasPhysicsBody = hasPhysicsBody;
         out.bodyType = physBodyType;
         out.fixedRotation = physFixedRotation;
@@ -1096,8 +1091,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         surfaceLighting = in.surfaceLighting == null ? null : in.surfaceLighting.copy();
         hasSpatialHeight = in.hasSpatialHeight;
         spatialAltitude = in.spatialAltitude;
-        spatialHeight = in.spatialHeight;
-        actorVolumes = in.actorVolumes == null ? null : in.actorVolumes.copy();
+        actorSpatialRectangles = in.actorSpatialRectangles == null ? null : in.actorSpatialRectangles.copy();
         capturedZIndex = in.hasEntityIndex;
         hasPhysicsBody = in.hasPhysicsBody;
         physBodyType = in.bodyType;
@@ -1614,7 +1608,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
             hasSpatialHeight = false;
-            actorVolumes = null;
+            actorSpatialRectangles = null;
             boolean hadFootprint =
                     SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
             if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
@@ -1711,8 +1705,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         // --- Spatial height ---
         copy.hasSpatialHeight = this.hasSpatialHeight;
         copy.spatialAltitude = this.spatialAltitude;
-        copy.spatialHeight = this.spatialHeight;
-        copy.actorVolumes = actorVolumes == null ? null : actorVolumes.copy();
+        copy.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
 
         // --- Lights ---
         copy.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();

@@ -29,12 +29,12 @@ public final class ToggleSpatialActorCommand
     private final Array<PhysicsShapeData> shapesBefore;
     private final Array<PhysicsShapeData> shapesAfter;
     private final boolean noop;
-    private games.pixscape.runtime.spatial.ActorVolumes initialVolumes;
+    private games.pixscape.runtime.spatial.ActorSpatialRectangles initialRectangles;
 
     /** Prepared by the activation UI from all attached animation clips, before publication. */
-    public ToggleSpatialActorCommand withVolumes(games.pixscape.runtime.spatial.ActorVolumes volumes) {
-        volumes.validate();
-        initialVolumes = volumes.copy();
+    public ToggleSpatialActorCommand withRectangles(games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles) {
+        rectangles.validate();
+        initialRectangles = rectangles.copy();
         return this;
     }
 
@@ -50,15 +50,15 @@ public final class ToggleSpatialActorCommand
         this.historyIds = historyIds;
         this.physicsService = physicsService;
         this.enable = enable;
-        initialVolumes = new games.pixscape.runtime.spatial.ActorVolumes();
+        initialRectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
         if (enable && world != null && entityId >= 0) {
             games.pixscape.runtime.component.AnimationComponent animation = world.getMapper(
                     games.pixscape.runtime.component.AnimationComponent.class).getSafe(entityId, null);
             games.pixscape.runtime.component.AssetRefComponent asset = world.getMapper(
                     games.pixscape.runtime.component.AssetRefComponent.class).getSafe(entityId, null);
-            initialVolumes.put(asset == null ? 0 : asset.assetId,
+            initialRectangles.put(asset == null ? 0 : asset.assetId,
                     animation == null ? null : animation.currentClip,
-                    new games.pixscape.runtime.spatial.ActorVolumeData());
+                    new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
         }
 
         boolean valid = world != null
@@ -182,8 +182,7 @@ public final class ToggleSpatialActorCommand
                     ? heights.get(entityId) : heights.create(entityId);
             if (applyingAfter && spatialBefore == null) {
                 height.altitude = 0f;
-                height.height = 1f;
-                height.volumes = initialVolumes.copy();
+                height.rectangles = initialRectangles.copy();
             } else if (spatialBefore != null) {
                 spatialBefore.apply(height);
             }
@@ -261,23 +260,20 @@ public final class ToggleSpatialActorCommand
 
     private static final class SpatialSnapshot {
         final float altitude;
-        final float height;
-        final games.pixscape.runtime.spatial.ActorVolumes volumes;
+        final games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
 
-        private SpatialSnapshot(float altitude, float height, games.pixscape.runtime.spatial.ActorVolumes volumes) {
+        private SpatialSnapshot(float altitude, games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles) {
             this.altitude = altitude;
-            this.height = height;
-            this.volumes = volumes == null ? null : volumes.copy();
+            this.rectangles = rectangles == null ? null : rectangles.copy();
         }
 
         static SpatialSnapshot capture(SpatialHeightComponent height) {
-            return height == null ? null : new SpatialSnapshot(height.altitude, height.height, height.volumes);
+            return height == null ? null : new SpatialSnapshot(height.altitude, height.rectangles);
         }
 
         void apply(SpatialHeightComponent target) {
             target.altitude = altitude;
-            target.height = height;
-            target.volumes = volumes == null ? null : volumes.copy();
+            target.rectangles = rectangles == null ? null : rectangles.copy();
         }
     }
 

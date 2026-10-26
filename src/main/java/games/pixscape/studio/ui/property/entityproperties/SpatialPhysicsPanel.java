@@ -40,9 +40,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
     private final FloatField altitudeField;
-    private final FloatField heightField;
-    private final SpatialHeightEditPreview heightPreview;
-    private final ActorVolumePanel volumePanel;
+    private final ActorSpatialRectanglePanel rectanglePanel;
 
     private int entityId = -1;
     private boolean internalRefresh = false;
@@ -50,8 +48,6 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     public SpatialPhysicsPanel(EntityPropertiesContext ctx) {
         super();
         this.ctx = ctx;
-        heightPreview = new SpatialHeightEditPreview(ctx.world);
-        volumePanel = new ActorVolumePanel(ctx);
 
         altitudeField = new FloatField(
                 ctx.world,
@@ -59,40 +55,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                 this::hasSpatialHeight
         ).setDisplayDecimals(2);
 
-        heightField = new FloatField(
-                ctx.world,
-                heightPreview::authoredHeight,
-                this::hasSpatialHeight
-        ).setDisplayDecimals(2);
-
         altitudeField.setApplier((eid, value) ->
                 submitSpatialEdit(eid, snapshot -> snapshot.withAltitude(value)));
-        heightField.setApplier((eid, value) -> {
-            heightPreview.restore();
-            submitSpatialEdit(eid, snapshot -> snapshot.withHeight(Math.max(0f, value)));
-        });
-        heightField.setProgrammaticChangeEvents(false);
-        heightField.addListener(new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                if (!internalRefresh && entityId >= 0)
-                    heightPreview.updateText(entityId, heightField.getText());
-            }
-        });
-        heightField.addListener(new FocusListener() {
-            @Override public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {
-                if (!focused) heightPreview.restore();
-            }
-        });
-        heightField.addListener(new InputListener() {
-            @Override public boolean keyDown(InputEvent event, int keycode) {
-                if (keycode == Input.Keys.ESCAPE) {
-                    heightPreview.restore(); heightField.refreshFromModel(); return true;
-                }
-                if (keycode == Input.Keys.ENTER || keycode == Input.Keys.NUMPAD_ENTER) heightPreview.restore();
-                return false;
-            }
-        });
-
         enabledBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -110,17 +74,17 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                         enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
                 if (enable && eligibleForActivation) {
-                    games.pixscape.runtime.spatial.ActorVolumes volumes = new games.pixscape.runtime.spatial.ActorVolumes();
+                    games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
                     var animation = ctx.mAnim.getSafe(entityId, null);
-                    if (animation == null) volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
+                    if (animation == null) rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
                     else for (int i=0;i<animation.animationAssetIds.size;i++) {
                         int asset=animation.animationAssetIds.get(i);
                         if (!(ctx.assetMetaLookup.apply(asset) instanceof games.pixscape.studio.asset.AnimationAssetMeta meta))
                             throw new IllegalStateException("Missing animation asset " + asset);
                         for (String clip:meta.clips.keys())
-                            volumes.put(asset,clip,new games.pixscape.runtime.spatial.ActorVolumeData());
+                            rectangles.put(asset,clip,new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
                     }
-                    command.withVolumes(volumes);
+                    command.withRectangles(rectangles);
                 }
                 if (command.isNoop()) {
                     validationLabel.setText(enable
@@ -148,9 +112,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
 
-        details.add(new VisLabel("Sorting height:")).width(CommonLayout.LABEL_WIDTH).left();
-        details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
-        details.add(volumePanel).colspan(2).growX().row();
+        rectanglePanel = new ActorSpatialRectanglePanel(ctx, details);
 
         validationBlock.content().add(validationLabel).left().row();
         root.add(enabledBox).left().row();
@@ -159,11 +121,14 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         detailsBlock.show(false);
     }
 
+    @Override public void act(float delta) {
+        super.act(delta);
+        rectanglePanel.refreshCurrentRepresentation();
+    }
+
     public void setEntityId(int entityId) {
-        if (this.entityId != entityId) heightPreview.restore();
         this.entityId = entityId;
         altitudeField.setEntityId(entityId);
-        if (!heightPreview.isActive(entityId)) heightField.setEntityId(entityId);
         refreshFromModel(entityId);
     }
 
@@ -174,11 +139,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             enabledBox.setChecked(actor);
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
-            volumePanel.refresh(eid);
+            rectanglePanel.refresh(eid);
             altitudeField.setEntityId(eid);
-            if (!heightPreview.isActive(eid)) heightField.setEntityId(eid);
             altitudeField.refreshFromModel();
-            if (!heightPreview.isActive(eid)) heightField.refreshFromModel();
         } finally {
             internalRefresh = false;
         }

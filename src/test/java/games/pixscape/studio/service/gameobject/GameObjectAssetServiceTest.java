@@ -159,10 +159,10 @@ public class GameObjectAssetServiceTest {
         world.getMapper(PhysicsShapesComponent.class).create(root).shapes.add(footprint);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(root);
         height.altitude = 4f;
-        height.height = 6f;
-        height.volumes = new games.pixscape.runtime.spatial.ActorVolumes();
-        height.volumes.staticVolume = new games.pixscape.runtime.spatial.ActorVolumeData();
-        height.volumes.staticVolume.orientation = 37.25f;
+        height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        height.rectangles.staticRectangle.height = 6f;
+        height.rectangles.staticRectangle.orientation = 37.25f;
         world.process();
 
         FileHandle file = new FileHandle(temp.getRoot()).child("spatial.gameobject");
@@ -173,8 +173,8 @@ public class GameObjectAssetServiceTest {
         GameObjectAsset.GameObjectEntityData restored = new GameObjectAssetLoader().load(file).entities.get(0);
         Assert.assertTrue(restored.physicsShapes.get(0).spatialFootprint);
         Assert.assertEquals(4f, restored.spatialHeight.altitude, 0f);
-        Assert.assertEquals(6f, restored.spatialHeight.height, 0f);
-        Assert.assertEquals(37.25f, restored.spatialHeight.volumes.staticVolume.orientation, 0f);
+        Assert.assertEquals(6f, restored.spatialHeight.rectangles.staticRectangle.height, 0f);
+        Assert.assertEquals(37.25f, restored.spatialHeight.rectangles.staticRectangle.orientation, 0f);
     }
 
     @Test

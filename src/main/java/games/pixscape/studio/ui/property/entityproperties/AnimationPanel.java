@@ -283,7 +283,7 @@ public final class AnimationPanel extends CollapsibleWidget {
         for(int i=0;i<after.animationAssetIds.size;i++){
             int asset=after.animationAssetIds.get(i);
             AnimationAssetMeta meta=animationMeta(asset);
-            if(meta!=null)command.withVolumeClips(asset,meta.clips.keys());
+            if(meta!=null)command.withShadowRectangleClips(asset,meta.clips.keys());
         }
         ctx.history.execute(command);
         refresh();

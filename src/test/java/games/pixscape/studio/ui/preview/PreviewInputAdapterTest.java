@@ -28,7 +28,7 @@ import static org.junit.Assert.*;
 public class PreviewInputAdapterTest {
     @Test public void shortcutsFireOncePerPressAndRetainEventOrder() {
         PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
-        for (int key : new int[]{Input.Keys.F8, Input.Keys.F9, Input.Keys.F10}) {
+        for (int key : new int[]{Input.Keys.F9, Input.Keys.F10}) {
             assertTrue(input.keyDown(key));
             assertEquals(key, input.consumeCommand());
             assertEquals(-1, input.consumeCommand());
@@ -46,6 +46,13 @@ public class PreviewInputAdapterTest {
         input.keyDown(Input.Keys.F9);
         assertEquals(Input.Keys.F10, input.consumeCommand());
         assertEquals(Input.Keys.F9, input.consumeCommand());
+        assertEquals(-1, input.consumeCommand());
+    }
+
+    @Test public void diagnosticCaptureKeyIsNotConsumedByPreview() {
+        PreviewWindow.PreviewInputAdapter input = new PreviewWindow.PreviewInputAdapter();
+        assertFalse(input.keyDown(Input.Keys.F8));
+        assertFalse(input.keyUp(Input.Keys.F8));
         assertEquals(-1, input.consumeCommand());
     }
 

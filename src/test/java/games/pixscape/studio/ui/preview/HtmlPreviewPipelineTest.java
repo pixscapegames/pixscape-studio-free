@@ -65,6 +65,19 @@ public class HtmlPreviewPipelineTest {
         assertFalse(index.toLowerCase().contains("logo.png"));
     }
 
+    @Test
+    public void packagedPlayerMatchesExplicitTemplate() throws Exception {
+        Path generated=Path.of("src/main/resources/html-preview-template/htmlplayer");
+        Path packaged=Path.of("build/resources/main/html-preview-template/htmlplayer");
+        String bootstrap=Files.readString(generated.resolve("htmlplayer.nocache.js"));
+        assertEquals(bootstrap,Files.readString(packaged.resolve("htmlplayer.nocache.js")));
+        java.util.regex.Matcher hashes=java.util.regex.Pattern.compile("[A-F0-9]{32}").matcher(bootstrap);
+        java.util.Set<String> names=new java.util.HashSet<>();
+        while(hashes.find())names.add(hashes.group()+".cache.js");
+        assertFalse(names.isEmpty());
+        for(String name:names)assertArrayEquals(Files.readAllBytes(generated.resolve(name)),Files.readAllBytes(packaged.resolve(name)));
+    }
+
     private static void write(Path root, String relative) throws Exception {
         Path file = root.resolve(relative);
         Files.createDirectories(file.getParent());
