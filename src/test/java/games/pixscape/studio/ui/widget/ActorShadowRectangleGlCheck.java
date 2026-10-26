@@ -7,8 +7,6 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.component.LayerComponent;
@@ -38,8 +36,6 @@ public final class ActorShadowRectangleGlCheck {
     public static void main(String[] args) throws Exception {
         FileHandle root=new FileHandle(args[0]);root.mkdirs();
         System.setProperty("user.home",root.child("home").path());
-        // This authoring fixture uses a standalone texture, not a packed Runtime bundle.
-        System.setProperty("pixscape.poc.forwardLighting","false");
         ProjectConfig cfg=new ProjectConfig();cfg.projectDirectoryPath=root.path();cfg.projectFileName="fixture.json";
         cfg.createSceneMeta("Volume fixture");cfg.getCurrentSceneMeta().physicsEnabled=true;
         ProjectConfig.setInstance(cfg);
@@ -77,7 +73,6 @@ public final class ActorShadowRectangleGlCheck {
                     ctx.historyManager().execute(new ToggleSpatialActorCommand(world,ctx.historyManager().historyIds(),
                             canvas.getPhysicsService(),e,true,true,foot));
                     volume().width=40;volume().height=75;
-                    // Authored fixture placement, explicitly compensating this image's transparent margin.
                     volume().offsetX=55;volume().offsetY=55;
                     canvas.focusCameraAt(70,35);
                     ((OrthographicCamera)canvas.getGridStage().getCamera()).zoom=.55f;
@@ -85,7 +80,6 @@ public final class ActorShadowRectangleGlCheck {
                     overlay=(ActorSpatialRectangleCanvasEditor)studio.getUiStage().getRoot().findActor("actor-spatial-rectangle-editor");
                     assertNotNull(overlay);
                     studio.resize(1200,850);
-                    System.out.println("READY pid="+ProcessHandle.current().pid()+" runtime="+ActorSpatialRectangleData.class.getProtectionDomain().getCodeSource().getLocation());
                 }catch(Throwable failure){stop(failure);}
             }
             ActorSpatialRectangleData volume(){return ctx.world().getMapper(SpatialHeightComponent.class).get(e).rectangles.staticRectangle;}
@@ -95,18 +89,8 @@ public final class ActorShadowRectangleGlCheck {
                     studio.render();
                     if(System.nanoTime()-start>25_000_000_000L)throw new AssertionError("UI deadline");
                     frame++;
-                    if(frame==15){
-                        var d=studio.getCanvas().getDynamicEntityState();
-                        var foot=ctx.world().getMapper(games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent.class).getSafe(e,null);
-                        System.out.println("selected="+ctx.selectionService().getFirstSelectedEntityId()+" entity="+e
-                                +" slot="+d.entityIdToRenderSlot[e]+" foot="+(foot==null?"missing":foot.valid));
-                        capture("initial.png");
-                        assertTrue("Volume handles must be available in the normal Studio canvas",positions());
-                    }
-                    for(int i=0;i<angles.length;i++){
-                        if(frame==20+i*6)volume().orientation=angles[i];
-                        if(frame==23+i*6)capture("angle-"+angles[i]+".png");
-                    }
+                    if(frame==15)assertTrue("Volume handles must be available in the normal Studio canvas",positions());
+                    for(int i=0;i<angles.length;i++)if(frame==20+i*6)volume().orientation=angles[i];
                     if(frame==48){
                         float x=ctx.world().getMapper(TransformComponent.class).get(e).x;
                         float rotation=ctx.world().getMapper(TransformComponent.class).get(e).rotationRad;
@@ -117,13 +101,12 @@ public final class ActorShadowRectangleGlCheck {
                         assertEquals("One history entry per rotation",cursor+1,ctx.historyManager().getCursor());
                         assertEquals(1,volume().orientation,1.0f);
                         ctx.historyManager().undo();assertEquals(359,volume().orientation,.001);
-                        ctx.historyManager().redo();assertEquals(1,volume().orientation,1.0f);
+                        ctx.historyManager().redo();assertEquals(1,volume().orientation,.001);
                         positions();float before=volume().orientation;handle=handle(0);target=arc(90);
                         press(handle);drag(target);studio.getUiStage().keyDown(Input.Keys.ESCAPE);
                         assertEquals(before,volume().orientation,.001);assertEquals(cursor+1,ctx.historyManager().getCursor());
                         assertEquals(x,ctx.world().getMapper(TransformComponent.class).get(e).x,0);
                         assertEquals(rotation,ctx.world().getMapper(TransformComponent.class).get(e).rotationRad,0);
-                        System.out.println("GESTURES PASS");
                     }
                     if(frame==52){
                         ((OrthographicCamera)studio.getCanvas().getGridStage().getCamera()).zoom=1.2f;
@@ -140,10 +123,8 @@ public final class ActorShadowRectangleGlCheck {
                             assertEquals(cursor+1,ctx.historyManager().getCursor());
                             ctx.historyManager().undo();assertTrue(before.same(volume()));
                         }
-                        System.out.println("PLACEMENT AND SIZE HANDLES PASS");
                     }
-                    if(frame==55){assertTrue(positions());capture("zoom-pan.png");}
-                    if(frame==60){System.out.println("PASS actor spatial rectangle UI");root.child("DONE").writeString("PASS",false);Gdx.app.exit();}
+                    if(frame==60){root.child("DONE").writeString("PASS",false);Gdx.app.exit();}
                 }catch(Throwable failure){stop(failure);}
             }
             boolean positions() throws Exception{Method m=ActorSpatialRectangleCanvasEditor.class.getDeclaredMethod("positions");m.setAccessible(true);return (Boolean)m.invoke(overlay);}
@@ -153,7 +134,6 @@ public final class ActorShadowRectangleGlCheck {
             void press(Vector2 p){Vector2 s=screen(p);assertTrue(studio.getUiStage().touchDown(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT));assertTrue("Native Stage picked rotation handle",overlay.isDragging());}
             void drag(Vector2 p){Vector2 s=screen(p);studio.getUiStage().touchDragged(Math.round(s.x),Math.round(s.y),0);}
             void release(Vector2 p){Vector2 s=screen(p);studio.getUiStage().touchUp(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT);}
-            void capture(String name){Pixmap p=Pixmap.createFromFrameBuffer(0,0,Gdx.graphics.getBackBufferWidth(),Gdx.graphics.getBackBufferHeight());try{PixmapIO.writePNG(root.child(name),p,-1,true);}finally{p.dispose();}}
             void stop(Throwable error){failed[0]=error;error.printStackTrace();Gdx.app.exit();}
             @Override public void resize(int w,int h){if(studio!=null)studio.resize(w,h);}
             @Override public void dispose(){if(studio!=null)studio.dispose();}

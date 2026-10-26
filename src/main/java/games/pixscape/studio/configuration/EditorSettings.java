@@ -12,7 +12,7 @@ public final class EditorSettings {
     /** Read when creating a scene World; an explicitly saved false keeps legacy. */
     public boolean forwardLighting = true;
 
-    /** Process-local override for comparisons; never changes saved preferences. */
+    /** Process-local selection; never changes saved preferences. */
     public boolean useForwardLighting() {
         String mode = System.getProperty("pixscape.lighting");
         if (mode != null) {
@@ -20,8 +20,7 @@ public final class EditorSettings {
             if ("legacy".equalsIgnoreCase(mode)) return false;
             throw new IllegalArgumentException("pixscape.lighting must be forward or legacy");
         }
-        String previousOverride = System.getProperty("pixscape.poc.forwardLighting");
-        return previousOverride == null ? forwardLighting : Boolean.parseBoolean(previousOverride);
+        return forwardLighting;
     }
     public boolean autoRepackAtlases = true;
     public String lastProjectPath;

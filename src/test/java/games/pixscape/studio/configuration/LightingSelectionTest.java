@@ -18,9 +18,7 @@ public class LightingSelectionTest {
 
     @Test public void explicitProcessSelectionDoesNotMutatePreferences() {
         String old = System.getProperty("pixscape.lighting");
-        String poc = System.getProperty("pixscape.poc.forwardLighting");
         try {
-            System.clearProperty("pixscape.poc.forwardLighting");
             System.clearProperty("pixscape.lighting");
             EditorSettings settings = new Json().fromJson(EditorSettings.class, "{forwardLighting:false}");
             assertFalse(settings.useForwardLighting());
@@ -34,11 +32,9 @@ public class LightingSelectionTest {
             System.setProperty("pixscape.lighting", "invalid");
             assertThrows(IllegalArgumentException.class, settings::useForwardLighting);
             System.clearProperty("pixscape.lighting");
-            System.setProperty("pixscape.poc.forwardLighting", "false");
-            assertFalse(settings.useForwardLighting());
+            assertTrue(settings.useForwardLighting());
         } finally {
             restore("pixscape.lighting", old);
-            restore("pixscape.poc.forwardLighting", poc);
         }
     }
     private static void restore(String name, String value) {
