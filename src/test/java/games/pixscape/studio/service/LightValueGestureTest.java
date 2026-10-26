@@ -1,13 +1,17 @@
 package games.pixscape.studio.service;
 
-import com.artemis.*;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.light.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.history.commands.EditLightingCommand.Property;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class LightValueGestureTest {
     @Test public void removingTheConeComponentCancelsInclinationWithoutRewritingAnotherLight() {

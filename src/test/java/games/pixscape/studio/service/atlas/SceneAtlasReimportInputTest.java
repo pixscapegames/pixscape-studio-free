@@ -8,8 +8,10 @@ import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
+
 import java.nio.file.Files;
 import java.util.Set;
+
 import static org.junit.Assert.*;
 
 public class SceneAtlasReimportInputTest {

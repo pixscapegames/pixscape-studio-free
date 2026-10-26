@@ -3,8 +3,12 @@ package games.pixscape.studio.service.spatial;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.RoundedWallDescription;
+import games.pixscape.runtime.render.lighting.RoundedWallSupport;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
+import games.pixscape.runtime.spatial.CompiledSpatialStructure;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
 /** Read-only overview of published corner supports. Rebuilt only at publication/activation boundaries. */

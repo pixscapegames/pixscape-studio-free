@@ -1,13 +1,17 @@
 package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
 import org.junit.Test;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
 
 public class ConeInclinationCopyTest {
     @Test public void genericHistoryCopiesAndGameObjectInitializersKeepInclination() {

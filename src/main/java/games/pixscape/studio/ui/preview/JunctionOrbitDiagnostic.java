@@ -4,11 +4,13 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
-import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.render.lighting.*;
+import games.pixscape.runtime.render.lighting.LightingCoordinates;
+import games.pixscape.runtime.render.lighting.LightingFrame;
+import games.pixscape.runtime.render.lighting.LightingSurface;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 /** Explicit bounded capture tool. Never enabled by the product launcher; no authored writes. */

@@ -5,7 +5,7 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.GeometryDirty;
-import games.pixscape.runtime.render.lighting.*;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 

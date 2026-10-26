@@ -1,14 +1,15 @@
 package games.pixscape.studio.ui.property.entityproperties;
 
-import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.studio.history.commands.EditActorSpatialRectangleCommand;
-import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.widget.FloatField;
+
 import java.util.Objects;
 
 /** Rectangle controls share their parent property table columns; no nested margins or layout. */

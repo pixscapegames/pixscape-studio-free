@@ -7,9 +7,15 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.scenes.scene2d.*;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.*;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
@@ -20,6 +26,7 @@ import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;
 import games.pixscape.studio.ui.main.WorldCanvas;
 import space.earlygrey.shapedrawer.ShapeDrawer;
+
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 

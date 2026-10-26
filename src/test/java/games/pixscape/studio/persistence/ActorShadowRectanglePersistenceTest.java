@@ -1,16 +1,22 @@
 package games.pixscape.studio.persistence;
 
-import com.artemis.*;
+import com.artemis.Aspect;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.loading.*;
-import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.loading.SceneLoader;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.service.SceneService;
-import java.nio.file.Files;
 import org.junit.Test;
+
+import java.nio.file.Files;
+
 import static org.junit.Assert.*;
 
 public class ActorShadowRectanglePersistenceTest {

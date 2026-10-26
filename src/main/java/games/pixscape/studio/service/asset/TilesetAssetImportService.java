@@ -5,7 +5,6 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
-import games.pixscape.studio.helper.AssetHelper;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.log.StudioLog;
 

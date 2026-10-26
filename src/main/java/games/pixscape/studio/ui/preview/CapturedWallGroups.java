@@ -5,7 +5,8 @@ import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.lighting.*;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 /** Explicit candidate replay only. Reads construction metadata; never replaces captured geometry. */
 public final class CapturedWallGroups {

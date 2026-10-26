@@ -1,13 +1,16 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.spatial.*;
-import games.pixscape.studio.history.*;
+import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
+import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.helper.RotationArc;
+import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class ActorShadowRectangleEditingTest {

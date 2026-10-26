@@ -1,18 +1,28 @@
 package games.pixscape.studio.service.spatial;
 
-import com.artemis.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.graphics.OrthographicCamera;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.render.lighting.LightingSurface;
+import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.RoundedWallDescription;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.LightingTestBindings;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.tiled.*;
-import games.pixscape.runtime.tiled.profile.*;
+import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
 import games.pixscape.studio.history.HistoryManager;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class CornerProfileEditSessionTest {

@@ -1,10 +1,12 @@
 package games.pixscape.studio.helper;
 
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class LightGizmoGeometryTest {

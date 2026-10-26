@@ -2,12 +2,17 @@ package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas.TextureAtlasData;
-import games.pixscape.studio.asset.*;
 import games.pixscape.studio.asset.AssetMeta.AssetScope;
-import org.junit.*;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.TileAssetMeta;
+import org.junit.Assert;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import java.awt.image.BufferedImage;
+
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.util.Set;
 
 public class NormalAtlasPackingServiceTest {

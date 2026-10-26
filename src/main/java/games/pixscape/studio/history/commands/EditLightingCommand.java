@@ -2,11 +2,13 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
-import games.pixscape.runtime.component.light.*;
+import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.history.*;
+import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.history.HistoryManager;
 
 /** One authored lighting property, with stable history identity and optional-component restoration. */
 public final class EditLightingCommand implements Command,HistoryManager.SupportsNoop {

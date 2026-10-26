@@ -1,18 +1,26 @@
 package games.pixscape.studio.ui.preview;
 
-import com.badlogic.gdx.*;
+import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;
-import com.badlogic.gdx.utils.*;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.utils.BufferUtils;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.engine.PixscapeEngine;
-import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.render.lighting.LightingRenderer;
+import games.pixscape.runtime.render.lighting.LightingSurface;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.RenderSubmitSystem;
+
 import java.lang.reflect.Field;
 import java.nio.IntBuffer;
-import java.nio.file.*;
 import java.nio.file.Files;
-import java.util.*;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.UUID;
 
 /** F8 request, consumed on exactly one rendered frame. All files stay outside authored scene data. */
 final class InteractiveShadowCapture {

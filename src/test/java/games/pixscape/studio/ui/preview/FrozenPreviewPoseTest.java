@@ -1,9 +1,11 @@
 package games.pixscape.studio.ui.preview;
 
-import org.junit.Test;
-import static org.junit.Assert.*;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.FrameRenderQueue;
+import games.pixscape.runtime.render.LayerStateSOA;
 import games.pixscape.runtime.render.lighting.*;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 public class FrozenPreviewPoseTest {
     @Test public void forwardDiagnosticSourceExposesValuesWithoutReplacingNormalOutput(){

@@ -16,7 +16,7 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class RuntimeExportParticleLightingTest {
     @Test public void exportedInstancesRetainIndependentAmbientParticipation() throws Exception {

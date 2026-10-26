@@ -3,10 +3,13 @@ package games.pixscape.studio.ui.modal;
 import com.artemis.World;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.kotcrab.vis.ui.widget.*;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisScrollPane;
+import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.SpatialVerticalJoinCommand;
-import games.pixscape.studio.service.spatial.*;
+import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal;
 import games.pixscape.studio.ui.widget.SimpleSelectBox;
 
 /** Native choice and detached complete-ensemble preview. Closing discards every preview. */

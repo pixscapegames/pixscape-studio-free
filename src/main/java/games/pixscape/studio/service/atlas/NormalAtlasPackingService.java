@@ -6,8 +6,9 @@ import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.runtime.service.NormalMapAtlas;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
-import java.awt.image.BufferedImage;
+
 import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.*;
 

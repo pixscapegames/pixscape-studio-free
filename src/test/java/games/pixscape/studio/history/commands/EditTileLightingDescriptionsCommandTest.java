@@ -1,16 +1,24 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.lighting.*;
+import games.pixscape.runtime.render.lighting.LocalSurfaceDescription;
+import games.pixscape.runtime.render.lighting.MapLightingGeometry;
+import games.pixscape.runtime.render.lighting.RoundedWallDescription;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.TiledMapInitializer;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class EditTileLightingDescriptionsCommandTest {

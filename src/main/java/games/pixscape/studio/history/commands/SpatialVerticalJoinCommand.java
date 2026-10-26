@@ -5,8 +5,10 @@ import com.badlogic.gdx.utils.Json;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.studio.history.*;
-import games.pixscape.studio.service.spatial.*;
+import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.service.spatial.SpatialLinkProposal;
+import games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal;
 
 /** One vertical edit transaction; redo uses the recorded result, never another search. */
 public final class SpatialVerticalJoinCommand implements Command, OutcomeAwareCommand, HistoryManager.SupportsNoop {

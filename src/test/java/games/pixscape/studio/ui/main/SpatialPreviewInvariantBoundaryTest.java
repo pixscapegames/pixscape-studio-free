@@ -1,26 +1,37 @@
 package games.pixscape.studio.ui.main;
 
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.lighting.LightingAdmissionException;
+import games.pixscape.runtime.render.lighting.LightingSurface;
+import games.pixscape.runtime.render.lighting.RoundedWallDescription;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
+import games.pixscape.runtime.service.AtlasAssetBinding;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.LightingTestBindings;
+import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialConstraintInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileOrderInvariantException;
 import games.pixscape.runtime.spatial.SpatialTileSyncInvariantException;
-import org.junit.Assert;
-import org.junit.Test;
-import com.artemis.*;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.RenderTiledSyncSystem;
-import games.pixscape.runtime.tiled.*;
-import games.pixscape.runtime.tiled.animation.*;
-import games.pixscape.runtime.tiled.profile.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.animation.TileAnimationDef;
+import games.pixscape.runtime.tiled.animation.TileAnimationDefData;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
 import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.service.LightValueGesture;
-import games.pixscape.studio.event.EventFlow;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class SpatialPreviewInvariantBoundaryTest {
     @Test public void actualAnimationRefusalRecoversAfterExactCursorOneZeroOneAndUndoRedo(){

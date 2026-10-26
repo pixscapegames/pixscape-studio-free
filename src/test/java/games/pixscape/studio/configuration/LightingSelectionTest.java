@@ -2,6 +2,7 @@ package games.pixscape.studio.configuration;
 
 import com.badlogic.gdx.utils.Json;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class LightingSelectionTest {

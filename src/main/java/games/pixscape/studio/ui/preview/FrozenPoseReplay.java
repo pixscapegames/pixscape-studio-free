@@ -1,17 +1,31 @@
 package games.pixscape.studio.ui.preview;
 
-import com.artemis.*;
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.render.*;
-import games.pixscape.runtime.render.batch.*;
-import games.pixscape.runtime.render.batch.performance.*;
-import games.pixscape.runtime.render.lighting.*;
-import games.pixscape.runtime.service.*;
+import games.pixscape.runtime.render.InternalTextures;
+import games.pixscape.runtime.render.batch.GLCaps;
+import games.pixscape.runtime.render.batch.MetricsBatch;
+import games.pixscape.runtime.render.batch.MultiTextureMeshBatch;
+import games.pixscape.runtime.render.batch.TextureArrayMeshBatch;
+import games.pixscape.runtime.render.batch.performance.RenderStats;
+import games.pixscape.runtime.render.batch.performance.RenderStatsSink;
+import games.pixscape.runtime.render.lighting.LightingSurface;
+import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.RenderSubmitSystem;
 
 /** Isolated frozen-frame replay: no project loader, animation, physics, scripts or preferences. */

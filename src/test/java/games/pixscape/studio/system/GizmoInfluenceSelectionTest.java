@@ -1,23 +1,37 @@
 package games.pixscape.studio.system;
 
-import com.artemis.*;
+import com.artemis.BaseSystem;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.runtime.component.*;
-import games.pixscape.runtime.component.spatial.*;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.RenderKind;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.studio.helper.StudioDrawContext;
-import games.pixscape.studio.service.*;
+import games.pixscape.studio.service.StudioEditingMode;
+import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import space.earlygrey.shapedrawer.ShapeDrawer;
-import java.lang.reflect.*;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 public class GizmoInfluenceSelectionTest {
     @BeforeClass public static void skin() { VisUiTestBootstrap.loadSkin(); }

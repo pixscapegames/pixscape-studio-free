@@ -2,11 +2,15 @@ package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.studio.asset.*;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.TileAssetMeta;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
 
 public class TileNormalMapBrowserTest {
     @Rule public final TemporaryFolder temporary = new TemporaryFolder();

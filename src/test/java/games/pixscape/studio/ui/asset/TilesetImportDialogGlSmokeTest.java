@@ -1,18 +1,27 @@
 package games.pixscape.studio.ui.asset;
 
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.scenes.scene2d.*;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
-import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.asset.*;
+import com.kotcrab.vis.ui.widget.VisDialog;
+import com.kotcrab.vis.ui.widget.VisSelectBox;
+import com.kotcrab.vis.ui.widget.VisTextButton;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.service.asset.*;
+import games.pixscape.studio.service.asset.TilesetAssetImportService;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import org.junit.Test;
+
 import java.nio.file.Files;
+
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 

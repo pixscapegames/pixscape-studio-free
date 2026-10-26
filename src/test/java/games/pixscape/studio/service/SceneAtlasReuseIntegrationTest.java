@@ -1,15 +1,15 @@
 package games.pixscape.studio.service;
 
-import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
+import com.badlogic.gdx.files.FileHandle;
+import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.service.atlas.AtlasInputSyncResult;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.atlas.SceneAtlasCoverage;
 import games.pixscape.studio.service.atlas.SceneAtlasLoaderService;
-import games.pixscape.studio.io.StudioIO;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;

@@ -1,16 +1,23 @@
 package games.pixscape.studio.configuration;
 
-import com.artemis.*;
-import com.artemis.io.*;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.artemis.io.JsonArtemisSerializer;
+import com.artemis.io.SaveFileFormat;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.render.lighting.*;
+import games.pixscape.runtime.render.lighting.RoundedWallDescription;
+import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
-import java.nio.file.*;
-import static org.junit.Assert.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class RuntimeExportRoundedLightingTest {
     @Test public void cleanExportAndReloadPreserveExplicitRoundedProfile()throws Exception{

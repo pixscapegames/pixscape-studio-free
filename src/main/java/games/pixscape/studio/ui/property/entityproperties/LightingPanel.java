@@ -3,13 +3,20 @@ package games.pixscape.studio.ui.property.entityproperties;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
-import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.history.commands.EditLightingCommand;
-import games.pixscape.studio.history.commands.EditLightingCommand.Property;
-import games.pixscape.studio.ui.widget.*;
-import games.pixscape.studio.ui.config.CommonLayout;
+import com.kotcrab.vis.ui.widget.Tooltip;
+import com.kotcrab.vis.ui.widget.VisCheckBox;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.history.commands.EditLightingCommand;
+import games.pixscape.studio.history.commands.EditLightingCommand.Property;
+import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.widget.CollapsibleVisTable;
+import games.pixscape.studio.ui.widget.FloatField;
+import games.pixscape.studio.ui.widget.SimpleFloatSlider;
+import games.pixscape.studio.ui.widget.SimpleSelectBox;
+
 import java.util.Locale;
 
 /** Authored controls shared by point/cone and ordinary sprite inspectors. */

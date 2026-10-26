@@ -1,9 +1,11 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.*;
+import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.studio.history.HistoryManager;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class ChangeParticleFlagsCommandTest {
     @Test public void ambientToggleUsesOneHistoryEntryAndRestoresPlaybackFlags() {

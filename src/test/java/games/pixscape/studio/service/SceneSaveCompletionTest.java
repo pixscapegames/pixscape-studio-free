@@ -2,9 +2,12 @@ package games.pixscape.studio.service;
 
 import com.badlogic.gdx.utils.Array;
 import org.junit.Test;
+
 import java.util.ArrayList;
 import java.util.List;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class SceneSaveCompletionTest {
     @Test public void headlessSaveCompletesBeforeClosing() {

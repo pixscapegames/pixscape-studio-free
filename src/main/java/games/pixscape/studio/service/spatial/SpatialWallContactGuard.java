@@ -2,7 +2,9 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
+import games.pixscape.runtime.spatial.SpatialWallGeometry;
 
 /** Swept axis-aligned contact query over the gesture's immutable external candidates. */
 final class SpatialWallContactGuard {

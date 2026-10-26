@@ -1,15 +1,21 @@
 package games.pixscape.studio.service.spatial;
 
-import com.artemis.*;
+import com.artemis.Aspect;
+import com.artemis.World;
 import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import games.pixscape.runtime.service.PhysicsService;
-import games.pixscape.runtime.spatial.*;
-import games.pixscape.runtime.tiled.*;
-import java.util.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialWallGeometry;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
+
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /** Cold, detached vertical adaptation. Search and compilation are never frame work. */
 public final class SpatialVerticalJoinProposal {

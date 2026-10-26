@@ -1,8 +1,14 @@
 package games.pixscape.studio.system;
 
-import com.artemis.*;
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.graphics.*;
+import com.artemis.World;
+import com.artemis.WorldConfigurationBuilder;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -11,13 +17,19 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.spatial.SpatialBlockData;
-import games.pixscape.runtime.tiled.*;
+import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.input.InputState;
-import games.pixscape.studio.service.*;
-import games.pixscape.studio.service.physics.*;
-import games.pixscape.studio.service.spatial.*;
+import games.pixscape.studio.service.CoordSpaces;
+import games.pixscape.studio.service.SelectionService;
+import games.pixscape.studio.service.physics.PhysicsSelectionReconciler;
+import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
+import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
+
 import java.lang.reflect.Proxy;
+
 import static org.junit.Assert.*;
 
 /** Native camera, input adapter, picking, stage preview and history lifecycle in the GL smoke. */

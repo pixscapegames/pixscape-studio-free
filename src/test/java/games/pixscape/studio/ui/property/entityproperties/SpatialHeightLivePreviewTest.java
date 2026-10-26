@@ -11,7 +11,10 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
-import games.pixscape.runtime.render.*;
+import games.pixscape.runtime.render.DrawList;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.RenderKind;
+import games.pixscape.runtime.render.TiledMapRenderState;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.SpatialRenderOrderSystem;
@@ -26,7 +29,11 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.ui.widget.FloatField;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import java.lang.reflect.Field;
 
 public class SpatialHeightLivePreviewTest {

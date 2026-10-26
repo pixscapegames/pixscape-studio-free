@@ -3,12 +3,17 @@ package games.pixscape.studio.ui.asset;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
-import com.kotcrab.vis.ui.widget.*;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisScrollPane;
+import com.kotcrab.vis.ui.widget.VisSelectBox;
+import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.studio.asset.TilesetAssetMeta;
 import games.pixscape.studio.service.asset.TilesetReimportService;
 import games.pixscape.studio.ui.modal.StudioDialog;
-import java.util.*;
-import java.util.function.*;
+
+import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntFunction;
 
 /** Explicit update/new/cancel confirmation for a prepared tileset import. */
 final class TilesetImportReviewDialog extends StudioDialog {

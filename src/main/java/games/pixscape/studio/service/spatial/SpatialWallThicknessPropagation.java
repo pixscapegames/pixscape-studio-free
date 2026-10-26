@@ -2,7 +2,11 @@ package games.pixscape.studio.service.spatial;
 
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.spatial.*;
+import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLink;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
+import games.pixscape.runtime.spatial.SpatialWallGeometry;
+
 import java.util.*;
 
 /** Cold rectangular-wall adjustment: parallel bands and attached perpendicular endpoints. */

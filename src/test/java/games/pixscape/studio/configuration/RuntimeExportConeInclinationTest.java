@@ -11,11 +11,13 @@ import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.io.StudioFs;
 import org.junit.Test;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
 
 public class RuntimeExportConeInclinationTest {
     @Test public void sceneAndRuntimeExportKeepContinuousInclinationsAndMissingFieldIsHorizontal() throws Exception {

@@ -1,9 +1,5 @@
 package games.pixscape.studio.ui.preview;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
-import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.*;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
@@ -14,7 +10,6 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import games.pixscape.runtime.configuration.PlatformTarget;
-import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;

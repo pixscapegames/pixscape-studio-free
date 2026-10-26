@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui.preview;
 
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class PreviewFrameCadenceTest {

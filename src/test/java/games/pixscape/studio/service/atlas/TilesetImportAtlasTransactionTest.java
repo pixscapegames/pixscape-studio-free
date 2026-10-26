@@ -9,11 +9,13 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.service.asset.TilesetReimportService;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
+import games.pixscape.studio.service.asset.TilesetReimportService;
 import org.junit.Test;
+
 import java.nio.file.Files;
 import java.util.*;
+
 import static org.junit.Assert.*;
 
 public class TilesetImportAtlasTransactionTest {

@@ -2,16 +2,12 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
-import com.kotcrab.vis.ui.widget.CollapsibleWidget;
-import com.kotcrab.vis.ui.widget.VisLabel;
-import com.kotcrab.vis.ui.widget.VisTable;
-import com.kotcrab.vis.ui.widget.VisTextButton;
-import com.kotcrab.vis.ui.widget.VisCheckBox;
+import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.studio.history.commands.ChangeParticleFlagsCommand;
-import games.pixscape.studio.ui.widget.UiBinders;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.commands.ChangeParticleFlagsCommand;
 import games.pixscape.studio.ui.config.CommonLayout;
+import games.pixscape.studio.ui.widget.UiBinders;
 
 public final class ParticleFxPanel extends CollapsibleWidget {
 

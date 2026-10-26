@@ -9,13 +9,23 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.utils.GdxNativesLoader;
 import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.studio.asset.*;
-import games.pixscape.studio.configuration.*;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.TileAssetMeta;
+import games.pixscape.studio.asset.TilesetAnchor;
+import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 import org.junit.Test;
+
 import java.nio.file.Files;
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import static games.pixscape.studio.service.asset.TilesetAssetImportService.*;
 import static org.junit.Assert.*;
 

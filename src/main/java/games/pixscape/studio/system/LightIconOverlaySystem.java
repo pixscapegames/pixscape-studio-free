@@ -8,24 +8,24 @@ import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
-import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.DimensionsComponent;
+import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.studio.helper.StudioDrawContext;
-import games.pixscape.studio.helper.LightGizmoGeometry;
 import games.pixscape.studio.helper.ConeLightGizmoGeometry;
+import games.pixscape.studio.helper.LightGizmoGeometry;
+import games.pixscape.studio.helper.StudioDrawContext;
 import games.pixscape.studio.history.commands.EditLightingCommand.Property;
-import games.pixscape.studio.ui.config.EditorOverlayPalette;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.StudioDisplayOffsetResolver;
+import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
 public final class LightIconOverlaySystem extends IteratingSystem {
 

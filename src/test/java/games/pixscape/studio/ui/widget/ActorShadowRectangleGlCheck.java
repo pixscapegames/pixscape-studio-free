@@ -1,23 +1,36 @@
 package games.pixscape.studio.ui.widget;
 
-import com.badlogic.gdx.*;
-import com.badlogic.gdx.backends.lwjgl3.*;
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
-import com.badlogic.gdx.scenes.scene2d.*;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.LayerComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.physics.*;
-import games.pixscape.runtime.service.*;
-import games.pixscape.runtime.spatial.*;
-import games.pixscape.studio.asset.*;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.runtime.service.TextureRegistry;
+import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
+import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.asset.AssetMetaDatabase;
+import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.history.commands.*;
+import games.pixscape.studio.history.commands.ToggleSpatialActorCommand;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.scene.SceneEditorContext;
-import games.pixscape.studio.ui.main.*;
-import java.lang.reflect.*;
+import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
 import static org.junit.Assert.*;
 
 /** Explicit opt-in standalone GL check. Creates only an isolated fixture and never opens user scenes. */
