@@ -3,6 +3,7 @@ package games.pixscape.html.client;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.BitmapFontCache;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import games.pixscape.runtime.render.batch.performance.RenderStats;
 
@@ -13,6 +14,10 @@ public final class RenderStatsOverlay {
     private final Stage uiStage;
     private final RenderStats stats;
     private final BitmapFont font;
+    private final BitmapFontCache helpGlyphs;
+    private final BitmapFontCache statsGlyphs;
+    private boolean statsDirty = true;
+    private float cachedHeight = -1f;
 
     private boolean enabled = false;
 
@@ -52,11 +57,18 @@ public final class RenderStatsOverlay {
 
 
     public RenderStatsOverlay(Stage uiStage, RenderStats stats) {
+        this(uiStage, stats, new BitmapFont(Gdx.files.internal("font/default.fnt")));
+    }
+
+    RenderStatsOverlay(Stage uiStage, RenderStats stats, BitmapFont font) {
         this.uiStage = uiStage;
         this.stats = stats;
-        this.font = new BitmapFont(Gdx.files.internal("font/default.fnt"));
+        this.font = font;
         this.font.setColor(Color.WHITE);
         this.font.setUseIntegerPositions(true);
+        helpGlyphs = new BitmapFontCache(font);
+        statsGlyphs = new BitmapFontCache(font);
+        helpGlyphs.setText(HELP_LINE, 10f, 18f);
     }
 
     public void toggle() {
@@ -67,7 +79,7 @@ public final class RenderStatsOverlay {
         this.enabled = enabled;
         if (enabled) {
             // Force an immediate refresh on activation
-            lastUiRefreshNs = 0L;
+            statsDirty = true;
         }
     }
 
@@ -86,33 +98,31 @@ public final class RenderStatsOverlay {
     }
 
     public void render(long nowNs) {
-        float x = 10f;
+        float height = uiStage.getViewport().getWorldHeight();
+        if (enabled && (statsDirty || height != cachedHeight
+                || nowNs - lastUiRefreshNs >= UI_REFRESH_NS)) {
+            rebuildLines();
+            float y = height - 10f;
+            statsGlyphs.clear();
+            statsGlyphs.addText(line1, 10f, y);
+            statsGlyphs.addText(line2, 10f, y - 18f);
+            statsGlyphs.addText(line3, 10f, y - 36f);
+            statsGlyphs.addText(line4, 10f, y - 54f);
+            statsGlyphs.addText(line5, 10f, y - 72f);
+            statsGlyphs.addText(line6, 10f, y - 90f);
+            statsGlyphs.addText(line7, 10f, y - 108f);
+            statsGlyphs.addText(line8, 10f, y - 126f);
+            statsGlyphs.addText(line9, 10f, y - 144f);
+            statsGlyphs.addText(line10, 10f, y - 162f);
+            lastUiRefreshNs = nowNs;
+            cachedHeight = height;
+            statsDirty = false;
+        }
 
         uiStage.getBatch().setProjectionMatrix(uiStage.getViewport().getCamera().combined);
         uiStage.getBatch().begin();
-
-        font.draw(uiStage.getBatch(), HELP_LINE, x, 18f);
-
-        if (enabled) {
-            if (nowNs - lastUiRefreshNs >= UI_REFRESH_NS) {
-                lastUiRefreshNs = nowNs;
-                rebuildLines();
-            }
-
-            float y = uiStage.getViewport().getWorldHeight() - 10f;
-
-            font.draw(uiStage.getBatch(), line1, x, y);
-            font.draw(uiStage.getBatch(), line2, x, y - 18f);
-            font.draw(uiStage.getBatch(), line3, x, y - 36f);
-            font.draw(uiStage.getBatch(), line4, x, y - 54f);
-            font.draw(uiStage.getBatch(), line5, x, y - 72f);
-            font.draw(uiStage.getBatch(), line6, x, y - 90f);
-            font.draw(uiStage.getBatch(), line7, x, y - 108f);
-            font.draw(uiStage.getBatch(), line8, x, y - 126f);
-            font.draw(uiStage.getBatch(), line9, x, y - 144f);
-            font.draw(uiStage.getBatch(), line10, x, y - 162f);
-        }
-
+        helpGlyphs.draw(uiStage.getBatch());
+        if (enabled) statsGlyphs.draw(uiStage.getBatch());
         uiStage.getBatch().end();
     }
 

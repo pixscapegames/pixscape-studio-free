@@ -18,6 +18,10 @@ configurations {
 def gwtVersion = "2.11.0"
 
 dependencies {
+  testImplementation "junit:junit:${junitVersion}"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-headless:${gdxVersion}"
+  testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
+
   implementation "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
 
   implementation "com.badlogicgames.gdx:gdx:${gdxVersion}"
@@ -156,4 +160,9 @@ tasks.register('copyGwtDistToTemplate', Copy) {
   doLast {
     htmlPlayerLibreJs.wrapJavaScriptFiles(templateJsFiles)
   }
+}
+
+// Headless JVM tests need the real libGDX classes, not GWT compilation stubs.
+tasks.named('test', Test) {
+  classpath = classpath.filter { !it.name.startsWith('gdx-backend-gwt-') }
 }
