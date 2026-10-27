@@ -32,8 +32,10 @@ public final class LightingPanel extends VisTable {
     private float thresholdBefore;
     private games.pixscape.studio.ui.widget.SceneNormalMapsCheckBox normalMaps;
     public LightingPanel(EntityPropertiesContext ctx,boolean light){
+        super(light);
         this.ctx=ctx;defaults().left().pad(5);
         if(light){
+            left().top();defaults().pad(1);
             normalMaps=new games.pixscape.studio.ui.widget.SceneNormalMapsCheckBox(ctx.sceneMeta,ctx.history,
                     enabled->ctx.atlasStudioService.prepareSceneNormalMaps(ctx.sceneMeta,enabled),ctx.markCurrentSceneSaveRequired);
             add(normalMaps).colspan(2).left().row();
@@ -41,10 +43,10 @@ public final class LightingPanel extends VisTable {
             field("Source height:",Property.HEIGHT);
             quality=new SimpleSelectBox<>();quality.setItems("None","Hard","PCF");
             quality.bind(()->new String[]{"None","Hard","PCF"}[(int)read(Property.QUALITY)],v->edit(Property.QUALITY,v.equals("Hard")?1:v.equals("PCF")?2:0));
-            add(new VisLabel("Shadows:"));add(quality).left().row();
+            add(new VisLabel("Shadows:")).width(120);add(quality).width(120).left().row();
             resolution=new SimpleSelectBox<>();resolution.setItems(256,512,1024);
             resolution.bind(()->(int)read(Property.RESOLUTION),v->edit(Property.RESOLUTION,v));
-            add(new VisLabel("Resolution:"));add(resolution).left().row();
+            add(new VisLabel("Resolution:")).width(120);add(resolution).width(120).left().row();
         }else{
             check("Receive light",Property.RECEIVE);check("Cast shadow",Property.CAST);
             casterFields=new CollapsibleVisTable(false,true);casterFields.setName("actor-caster-fields");
@@ -74,7 +76,7 @@ public final class LightingPanel extends VisTable {
     private void field(VisTable target,String label,Property p){
         FloatField f=new FloatField(ctx.world,e->EditLightingCommand.read(ctx.world,e,p),e->e>=0&&ctx.world.getEntityManager().isActive(e)).setDisplayDecimals(3);
         if(p==Property.HEIGHT)f.setName("light-source-height");
-        f.setApplier((e,v)->edit(p,v));fields.add(f);target.add(new VisLabel(label));target.add(f).left().row();
+        f.setApplier((e,v)->edit(p,v));fields.add(f);target.add(new VisLabel(label)).width(120);target.add(f).width(120).left().row();
     }
     private void check(String label,Property p){
         // Native checkbox has no ECS wrapper; command owns every authored mutation.

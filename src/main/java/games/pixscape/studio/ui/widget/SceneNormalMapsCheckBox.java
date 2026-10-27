@@ -17,7 +17,7 @@ public final class SceneNormalMapsCheckBox extends VisCheckBox {
     private boolean refreshRequired;
 
     public SceneNormalMapsCheckBox(SceneMeta scene,HistoryManager history,Consumer<Boolean> prepare,Runnable markSaveRequired) {
-        super("Use normal maps — all lights");
+        super("Use normal maps");
         this.scene=scene;
         setName("scene-use-normal-maps");setDisabled(scene==null);refresh();
         new Tooltip.Builder("Applies to all lights in this scene. Restart an open Preview after changing this setting.")

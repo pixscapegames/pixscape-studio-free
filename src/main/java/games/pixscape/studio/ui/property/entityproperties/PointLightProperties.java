@@ -190,20 +190,20 @@ public final class PointLightProperties extends VisTable {
         VisTable lightContent = pointLightBlock.content();
         lightContent.left().top();
         lightContent.defaults().left().pad(1);
-        lightContent.add(enabledCheckBox).left().colspan(2).row();
-        lightContent.add(new VisLabel("X:"));
+        lightContent.add(enabledCheckBox).left().colspan(2).padBottom(10).row();
+        lightContent.add(new VisLabel("X:")).width(120);
         lightContent.add(xField).width(120).left().row();
-        lightContent.add(new VisLabel("Y:"));
+        lightContent.add(new VisLabel("Y:")).width(120);
         lightContent.add(yField).width(120).left().row();
-        lightContent.add(new VisLabel("Color:"));
-        lightContent.add(buttonPicker).left().colspan(2).row();
-        lightContent.add(new VisLabel("Intensity:")).left();
+        lightContent.add(new VisLabel("Color:")).width(120);
+        lightContent.add(buttonPicker).left().row();
+        lightContent.add(new VisLabel("Intensity:")).width(120).left();
         lightContent.add(intensityField).width(120).left().row();
-        lightContent.add(new VisLabel("Radius:"));
+        lightContent.add(new VisLabel("Radius:")).width(120);
         lightContent.add(radiusField).width(120).left().row();
-        lightContent.add(new VisLabel("Falloff:"));
-        lightContent.add(falloffField).width(120).left().row();
-        lightContent.add(lightingPanel).colspan(2).growX().row();
+        lightContent.add(new VisLabel("Falloff:")).width(120).padBottom(10);
+        lightContent.add(falloffField).width(120).left().padBottom(10).row();
+        lightContent.add(lightingPanel).colspan(2).pad(0).left().row();
 
         add(pointLightBlock).growX().left().row();
 

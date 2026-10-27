@@ -225,29 +225,29 @@ public final class ConeLightProperties extends VisTable {
 
         VisTable coneContent = coneBlock.content();
         coneContent.left().top();
-        coneContent.defaults().left().pad(5);
-        coneContent.add(enabledCheckBox).left().colspan(2).row();
-        coneContent.add(new VisLabel("X:"));
+        coneContent.defaults().left().pad(1);
+        coneContent.add(enabledCheckBox).left().colspan(2).padBottom(10).row();
+        coneContent.add(new VisLabel("X:")).width(120);
         coneContent.add(xField).width(120).left().row();
-        coneContent.add(new VisLabel("Y:"));
+        coneContent.add(new VisLabel("Y:")).width(120);
         coneContent.add(yField).width(120).left().row();
-        coneContent.add(new VisLabel("Color:"));
-        coneContent.add(buttonPicker).left().colspan(2).row();
-        coneContent.add(new VisLabel("Intensity:")).left();
+        coneContent.add(new VisLabel("Color:")).width(120);
+        coneContent.add(buttonPicker).left().row();
+        coneContent.add(new VisLabel("Intensity:")).width(120).left();
         coneContent.add(intensityField).width(120).left().row();
-        coneContent.add(new VisLabel("Radius:"));
+        coneContent.add(new VisLabel("Radius:")).width(120);
         coneContent.add(radiusField).width(120).left().row();
-        coneContent.add(new VisLabel("Angle (deg):"));
+        coneContent.add(new VisLabel("Angle (deg):")).width(120);
         coneContent.add(coneAngleField).width(120).left().row();
-        coneContent.add(new VisLabel("Rotation (deg):"));
+        coneContent.add(new VisLabel("Rotation (deg):")).width(120);
         coneContent.add(rotationField).width(120).left().row();
-        coneContent.add(new VisLabel("Inclination (deg):"));
+        coneContent.add(new VisLabel("Inclination (deg):")).width(120);
         coneContent.add(inclinationField).width(120).left().row();
-        coneContent.add(new VisLabel("Softness:"));
+        coneContent.add(new VisLabel("Softness:")).width(120);
         coneContent.add(softnessField).width(120).left().row();
-        coneContent.add(new VisLabel("Falloff:"));
-        coneContent.add(falloffField).width(120).left().row();
-        coneContent.add(lightingPanel).colspan(2).growX().row();
+        coneContent.add(new VisLabel("Falloff:")).width(120).padBottom(10);
+        coneContent.add(falloffField).width(120).left().padBottom(10).row();
+        coneContent.add(lightingPanel).colspan(2).pad(0).left().row();
 
         add(coneBlock).growX().left().row();
 
