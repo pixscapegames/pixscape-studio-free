@@ -139,6 +139,7 @@ public final class ClipboardService {
             }
             return false;
         }
+        if(!historyManager.prepareLightCreation(graph.activeLightCount(),this::paste))return false;
         float dx = (pasteCount + 1) * PASTE_STEP_X;
         float dy = (pasteCount + 1) * PASTE_STEP_Y;
 

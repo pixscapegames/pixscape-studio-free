@@ -42,6 +42,11 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.coneLight = copy(data.coneLight);
     }
 
+    @Override public int activeLightCount() {
+        return games.pixscape.runtime.render.lighting.ActiveLights.isActive(generic.isVisible(),
+                pointLight!=null,pointLight!=null&&pointLight.enabled,coneLight!=null,coneLight!=null&&coneLight.enabled)?1:0;
+    }
+
     GenericEntityInitializer generic() { return generic; }
 
     @Override

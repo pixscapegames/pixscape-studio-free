@@ -29,6 +29,58 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 public class StudioLightCompositionGlSmokeTest {
+    @Test public void sceneRendererSwitchesAtPreparationWithBothNormalLayouts() {
+        final Throwable[] failure={null};
+        Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();
+        config.setInitialVisible(false);config.setWindowedMode(64,32);config.disableAudio(true);
+        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
+        new Lwjgl3Application(new ApplicationAdapter(){@Override public void create(){
+            World world=null;games.pixscape.studio.batch.TextureArrayMeshBatchStudio batch=null;
+            AtlasRuntimeService.TextureArrayBundle bundle=null;Texture texture=null;
+            try {
+                ShaderRegistry.initDefaults();
+                Pixmap pix=new Pixmap(1,1,Pixmap.Format.RGBA8888);pix.setColor(.4f,.7f,.2f,.6f);pix.fill();
+                texture=new Texture(pix);pix.dispose();
+                com.badlogic.gdx.utils.Array<Texture> textures=new com.badlogic.gdx.utils.Array<>();textures.add(texture);
+                bundle=AtlasRuntimeService.buildTextureArrayFromTextures(textures,1,1,GLCaps.detect());
+                batch=new games.pixscape.studio.batch.TextureArrayMeshBatchStudio(16);batch.setTextureArrayBundle(bundle);
+                FrameRenderQueue q=new FrameRenderQueue(4);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
+                OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
+                var meta=new games.pixscape.studio.configuration.SceneMeta();meta.ambientMulR=meta.ambientMulG=meta.ambientMulB=.2f;
+                RenderStats stats=new RenderStats();
+                StudioRenderSubmitSystem submit=new StudioRenderSubmitSystem(layers,q,camera,batch,stats,new RenderStatsSink(100)).setSceneSettings(meta);
+                world=new World(new WorldConfigurationBuilder().with(submit).build());
+                int entity=world.create();world.getMapper(PointLightComponent.class).create(entity);world.process();
+                var history=new games.pixscape.studio.history.HistoryManager(16);history.historyIds().ensureForEntity(entity);
+                history.configureSceneLighting(world,meta,null);
+                q.addQuad(TextureRegistry.handleOf(texture),ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName()),1,
+                        0,0,0,0,0,0,0,32,64,32,64,0,0,0,1,1,Color.toFloatBits(.7f,.4f,.9f,.5f),(byte)0,FrameRenderQueue.SOURCE_ECS,0,entity);
+                float[] vertices=new float[48];int[] corners={0,1,2,0,2,3};float[] x={0,0,64,64},y={0,32,32,0};
+                for(int i=0;i<6;i++){int c=corners[i],o=i*8;vertices[o]=LightingCoordinates.worldX(x[c],y[c],0);vertices[o+1]=LightingCoordinates.worldY(x[c],y[c],0);
+                    vertices[o+3]=c>=2?1:0;vertices[o+4]=c==1||c==2?1:0;vertices[o+7]=1;}
+                LightingSurface surface=new LightingSurface(vertices);surface.forwardTopology=games.pixscape.runtime.render.lighting.ForwardTopology.NATIVE;q.lighting.entities.put(entity,surface);
+                LightingFrame.Light light=new LightingFrame.Light();light.x=0;light.y=0;light.z=128;light.radius=512;light.falloff=1;light.intensity=1;light.r=light.g=light.b=1;light.resolution=512;q.lighting.lights.add(light);
+                byte[][] reference=new byte[2][];
+                for(boolean normals:new boolean[]{true,false}){
+                    meta.useNormalMaps=normals;
+                    for(int cycle=0;cycle<2;cycle++)for(boolean forward:new boolean[]{false,true}){
+                        history.execute(new games.pixscape.studio.history.commands.SetSceneRendererCommand(world,history.historyIds(),meta,forward));
+                        submit.prepareComposition();Object prepared=submit.forwardRenderer();submit.prepareComposition();Assert.assertSame(prepared,submit.forwardRenderer());
+                        Gdx.gl.glViewport(0,0,64,32);Gdx.gl.glClearColor(.1f,.2f,.3f,.4f);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                        submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
+                        ByteBuffer pixels=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixels);
+                        byte[] image=new byte[pixels.capacity()];pixels.get(image);int mode=forward?1:0;
+                        if(reference[mode]==null)reference[mode]=image;else Assert.assertArrayEquals(reference[mode],image);
+                        if(forward)Assert.assertEquals(6L*(normals?104:76),submit.forwardRenderer().uploadedBytes);
+                        Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
+                    }
+                }
+            }catch(Throwable error){failure[0]=error;}
+            finally {if(world!=null)world.dispose();if(batch!=null)batch.close();if(bundle!=null)bundle.textureArray.dispose();if(texture!=null)texture.dispose();ShaderRegistry.disposeAll();games.pixscape.studio.event.EventFlow.i().discardPending();Gdx.app.exit();}
+        }},config);
+        if(failure[0]!=null)throw new AssertionError("Renderer selection GL fixture failed",failure[0]);
+    }
+
     @Test public void litFractionalEdgesAndIndependentLightsRestoreTarget() {
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();
@@ -53,7 +105,7 @@ public class StudioLightCompositionGlSmokeTest {
                 RenderStats stats=new RenderStats();batch=new games.pixscape.studio.batch.TextureArrayMeshBatchStudio(64);
                 com.badlogic.gdx.utils.Array<Texture> textures=new com.badlogic.gdx.utils.Array<>();textures.add(texture);
                 bundle=AtlasRuntimeService.buildTextureArrayFromTextures(textures,1,1,GLCaps.detect());pix.dispose();batch.setTextureArrayBundle(bundle);
-                StudioRenderSubmitSystem submit=new StudioRenderSubmitSystem(layers,q,camera,batch,stats,new RenderStatsSink(100));
+                StudioRenderSubmitSystem submit=new StudioRenderSubmitSystem(layers,q,camera,batch,stats,new RenderStatsSink(100)).setSceneSettings(meta);
                 world=new World(new WorldConfigurationBuilder().with(new BaseSystem(){protected void processSystem(){if(interrupt)throw new IllegalStateException("interrupted");}},submit).build());
                 int entity=world.create();world.getMapper(PointLightComponent.class).create(entity);world.process();
                 q.addQuad(handle,ShaderRegistry.indexOf(ShaderMode.TEXTURE_ARRAY.defaultShaderName()),1,0,0,0,0,

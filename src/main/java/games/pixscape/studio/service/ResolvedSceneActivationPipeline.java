@@ -73,6 +73,7 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
+        if(target.meta().forwardLighting)games.pixscape.runtime.render.lighting.ActiveLights.validateForward(world);
         // Populate all persisted bounds through the normal dirty-driven geometry system.
         SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(
@@ -285,6 +286,7 @@ final class ResolvedSceneActivationPipeline {
         var em = world.getEntityManager();
         ensureHistoryIds(world, historyIds, em, Aspect.all(LayerComponent.class, LayerMetaComponent.class));
         ensureHistoryIds(world, historyIds, em, Aspect.all(EntityIndexComponent.class));
+        historyManager.refreshSceneLighting();
     }
 
     private static void ensureHistoryIds(World world,

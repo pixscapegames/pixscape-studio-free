@@ -518,6 +518,8 @@ public class EditorOpsImpl implements EditorOps {
             int activeLayerIndex,
             int parentEntityId,
             Consumer<Integer> publishCreated) {
+        if(!historyManager.prepareLightCreation(initializer.activeLightCount(),
+                ()->executePreparedCreation(initializer,activeLayerIndex,parentEntityId,publishCreated)))return -1;
         initializer.setIdentityStableId(allocateStableId());
         Consumer<Integer> onCreated = createdEntityId -> {
             if (publishCreated != null) publishCreated.accept(createdEntityId);

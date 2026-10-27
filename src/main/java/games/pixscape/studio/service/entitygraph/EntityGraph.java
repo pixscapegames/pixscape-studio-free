@@ -24,6 +24,10 @@ public record EntityGraph(List<EntityGraphEntry> entries) {
         return new EntityGraph(Collections.emptyList());
     }
 
+    public int activeLightCount() {
+        int count=0;for(EntityGraphEntry entry:entries)count+=entry.initializer().activeLightCount();return count;
+    }
+
     public boolean isEmpty() {
         return entries.isEmpty();
     }

@@ -75,6 +75,8 @@ public final class CreateGameObjectChildCommand implements Command {
         return "Create " + childLabel + " in Game Object";
     }
 
+    @Override public int additionalActiveLights() { return createCommand.additionalActiveLights(); }
+
     @Override
     public void redo() {
         int parent = historyIds.entityOfHistoryId(parentHistoryId);
@@ -299,6 +301,9 @@ public final class CreateGameObjectChildCommand implements Command {
             delegate.syncFrom(sourceEid);
             captured = true;
         }
+
+        @Override
+        public int activeLightCount() { return delegate.activeLightCount(); }
 
         @Override
         public void init(int targetEid) {

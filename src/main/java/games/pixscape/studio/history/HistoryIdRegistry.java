@@ -28,6 +28,14 @@ public final class HistoryIdRegistry {
     }
 
     /** Reserves one fresh history identity for a prepared multi-entity operation. */
+    /** Cold command admission includes creations/deletions not yet processed by Artemis. */
+    public int activeLightCount(World world) {
+        int count=0;
+        for(int entity:entityToHistory.keySet())
+            if(world.getEntityManager().isActive(entity) && games.pixscape.runtime.render.lighting.ActiveLights.isActive(world,entity))count++;
+        return count;
+    }
+
     public long allocateHistoryId() {
         return nextHistoryId();
     }

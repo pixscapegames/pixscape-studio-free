@@ -106,6 +106,9 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected boolean hasConeLight;
 
     // Point
+    @Override public int activeLightCount() {
+        return games.pixscape.runtime.render.lighting.ActiveLights.isActive(isVisible(),hasPointLight,pointEnabled,hasConeLight,coneEnabled)?1:0;
+    }
     protected boolean pointEnabled = true;
     protected float pointIntensity = 1f;
     protected float pointRadius = 200f;

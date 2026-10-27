@@ -118,10 +118,7 @@ public final class PointLightProperties extends VisTable {
                 (int e) -> mVisibility.get(e).isVisible(),
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    var c = mVisibility.getSafe(e, null);
-                    if (c != null && c.visible != v) {
-                        c.visible = v;
-                    }
+                    changeActivation(e,true,v);
                 }
         );
 
@@ -137,11 +134,7 @@ public final class PointLightProperties extends VisTable {
                 },
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    PointLightComponent light = mLight.getSafe(e, null);
-                    if (light != null && light.enabled != v) {
-                        light.enabled = v;
-                        markLightDirty(e);
-                    }
+                    changeActivation(e,false,v);
                 }
         );
 
@@ -449,6 +442,12 @@ public final class PointLightProperties extends VisTable {
         light.g = tmpColor.g;
         light.b = tmpColor.b;
         markLightDirty(entityId);
+    }
+
+    private void changeActivation(int entity,boolean visibility,boolean enabled){
+        ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
+                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));
+        visibleBinder.refresh();enabledBinder.refresh();
     }
 
     private void markLightDirty(int entityId) {

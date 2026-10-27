@@ -21,6 +21,26 @@ import static org.junit.Assert.*;
 
 public class EntityGraphGameObjectInstantiationTest {
 
+    @Test public void duplicateLightWaitsBeforeIdentityReservationAndUndoRestoresForward(){
+        Fixture f=new Fixture();
+        try {
+            int source=f.ordinary(50,0,0,0);
+            f.world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(source);
+            f.history.historyIds().ensureForEntity(source);f.process();
+            EntityGraph graph=f.capture(source);assertEquals(1,graph.activeLightCount());
+            f.sceneMeta.forwardLighting=true;Runnable[] accept={null};
+            f.history.configureSceneLighting(f.world,f.sceneMeta,action->accept[0]=action);
+            int next=f.sceneMeta.nextEntityStableId,entities=f.activeEntityCount();
+            assertEquals(0,f.instantiate(graph,0,10,10).createdIds().size);
+            assertNotNull(accept[0]);assertEquals(next,f.sceneMeta.nextEntityStableId);
+            assertEquals(entities,f.activeEntityCount());assertEquals(0,f.history.getCursor());
+            accept[0].run();f.process();assertFalse(f.sceneMeta.forwardLighting);
+            assertEquals(entities+1,f.activeEntityCount());assertEquals(1,f.history.getCursor());
+            f.history.undo();f.process();assertTrue(f.sceneMeta.forwardLighting);assertEquals(entities,f.activeEntityCount());
+            f.history.redo();f.process();assertFalse(f.sceneMeta.forwardLighting);assertEquals(entities+1,f.activeEntityCount());
+        }finally{f.dispose();games.pixscape.studio.event.EventFlow.i().discardPending();}
+    }
+
     @Test public void capturedHierarchyCanBePastedAfterItsSourceWorldIsDisposed() {
         Fixture source = new Fixture();
         int root = source.root(100, -1, 5f, 7f, 0f, 1f, 0f, 0f, 1, "asset");

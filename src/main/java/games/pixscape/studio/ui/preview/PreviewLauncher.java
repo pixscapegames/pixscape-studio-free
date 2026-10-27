@@ -74,11 +74,11 @@ public final class PreviewLauncher {
         }
 
         try {
-            boolean forwardLighting = EditorSettings.get().useForwardLighting();
+            Boolean forwardLighting = EditorSettings.forwardLightingOverride();
             Resolution windowResolution = landscape ? resolution
                     : new Resolution(resolution.height(), resolution.witdht());
             Gdx.app.log("PreviewLauncher", "Studio pid=" + ProcessHandle.current().pid()
-                    + " renderer=" + (forwardLighting ? "ForwardLightingRenderer" : "LightingRenderer")
+                    + " renderer=" + (forwardLighting == null ? "scene selection" : forwardLighting ? "ForwardLightingRenderer" : "LightingRenderer")
                     + " runtime=" + games.pixscape.runtime.render.lighting.LightingRenderer.class
                     .getProtectionDomain().getCodeSource().getLocation());
             Path userRootPath = userRoot.file().toPath().toAbsolutePath().normalize();
@@ -130,7 +130,7 @@ public final class PreviewLauncher {
     }
 
     static List<String> commandFor(String sessionId, Path userRoot, String sceneName, Resolution resolution,
-                                   int glSamples, boolean forwardLighting, Path childLogFile) {
+                                   int glSamples, Boolean forwardLighting, Path childLogFile) {
         ArrayList<String> command = new ArrayList<>();
         command.add(javaExecutable().toString());
         command.add("-D" + PreviewProcessProtocol.SESSION_PROPERTY + "=" + sessionId);
@@ -149,8 +149,10 @@ public final class PreviewLauncher {
         command.add(Integer.toString(resolution.height()));
         command.add("--gl-samples");
         command.add(Integer.toString(glSamples));
-        command.add("--forward-lighting");
-        command.add(Boolean.toString(forwardLighting));
+        if(forwardLighting!=null){
+            command.add("--forward-lighting");
+            command.add(Boolean.toString(forwardLighting));
+        }
         command.add("--session");
         command.add(sessionId);
         return List.copyOf(command);

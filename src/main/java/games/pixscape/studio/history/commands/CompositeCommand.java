@@ -42,6 +42,12 @@ public final class CompositeCommand implements Command, HistoryManager.SupportsN
         return commands.isEmpty();
     }
 
+    @Override public boolean selectsLegacyBeforeLights(){return !commands.isEmpty() && commands.get(0).selectsLegacyBeforeLights();}
+
+    @Override public int additionalActiveLights() {
+        int count=0;for(Command command:commands)count+=command.additionalActiveLights();return count;
+    }
+
     @Override
     public void redo() {
         int completed = 0;

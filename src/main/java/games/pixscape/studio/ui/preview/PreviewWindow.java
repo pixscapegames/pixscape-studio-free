@@ -36,7 +36,7 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     private final FileHandle userRootDir;
     private final String sceneName;
-    private final boolean forwardLighting;
+    private final Boolean forwardLighting;
     private PixscapeEngine engine;
     private StudioFrameProfiler frameProfiler;
     private FrameSystemProfiler systemProfiler;
@@ -67,7 +67,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     private Box2dWorldService box2d;
 
 
-    public PreviewWindow(FileHandle userRootDir, String sceneName, boolean forwardLighting) {
+    public PreviewWindow(FileHandle userRootDir, String sceneName, Boolean forwardLighting) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         if (sceneName == null || sceneName.isBlank()) throw new GdxRuntimeException("sceneName is blank");
         this.userRootDir = userRootDir;
@@ -104,14 +104,14 @@ public final class PreviewWindow extends ApplicationAdapter {
         dragSystem.setGrabRadiusMeters(0.25f);
 
         engine = new PixscapeEngine()
-                .setForwardLighting(forwardLighting)
                 .setWorldCamera(worldCamera)
                 .setSystemProfiler(systemProfiler)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
+        if(forwardLighting!=null)engine.setForwardLighting(forwardLighting);
         StudioLogLevel.configure(engine);
         StudioLogLevel.setActivePreviewEngine(engine);
         engine.setPlatformTarget(PlatformTarget.DESKTOP_GL30);
-        Gdx.app.log("PreviewWindow", "renderer="+(forwardLighting?"ForwardLightingRenderer":"LightingRenderer")
+        Gdx.app.log("PreviewWindow", "renderer="+(forwardLighting==null?"scene selection":forwardLighting?"ForwardLightingRenderer":"LightingRenderer")
                 +" runtime="+games.pixscape.runtime.render.lighting.LightingRenderer.class.getProtectionDomain().getCodeSource().getLocation());
         engine.loadProject(userRootDir);
         engine.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());

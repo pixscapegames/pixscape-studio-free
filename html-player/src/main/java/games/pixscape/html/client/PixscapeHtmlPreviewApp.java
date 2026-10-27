@@ -76,9 +76,14 @@ public final class PixscapeHtmlPreviewApp extends ApplicationAdapter {
         dragSystem.setGrabRadiusMeters(0.25f);
 
         engine = new PixscapeEngine()
-                .setForwardLighting(!"legacy".equalsIgnoreCase(com.google.gwt.user.client.Window.Location.getParameter("lighting")))
                 .setWorldCamera(worldCamera)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
+        String lightingOverride=com.google.gwt.user.client.Window.Location.getParameter("lighting");
+        if(lightingOverride!=null){
+            if(!"forward".equalsIgnoreCase(lightingOverride) && !"legacy".equalsIgnoreCase(lightingOverride))
+                throw new IllegalArgumentException("lighting must be forward or legacy");
+            engine.setForwardLighting("forward".equalsIgnoreCase(lightingOverride));
+        }
         engine.setPlatformTarget(PlatformTarget.HTML_WEBGL2);
         engine.loadProject(projectJson.parent().parent());
         engine.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());

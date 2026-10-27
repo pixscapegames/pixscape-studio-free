@@ -548,8 +548,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                                 metricsBatch,
                                 stats,
                                 statsSink,
-                                games.pixscape.studio.configuration.EditorSettings.get().useForwardLighting()
-                        ),
+                                sceneMeta != null && sceneMeta.forwardLighting
+                        ).setSceneSettings(sceneMeta).setRenderDomains(dynamicEntityState,tiledState),
                         sceneMeta,
                         0,
                         tileAnimationRegistry,
@@ -604,6 +604,13 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         World assembledWorld = bootstrap.getWorld();
         targetContext.initializeWorld(
                 assembledWorld, tiledAllocatorService, sceneMeta);
+        targetContext.historyManager().configureSceneLighting(assembledWorld,sceneMeta,accept->{
+            games.pixscape.studio.ui.modal.StudioDialog dialog=new games.pixscape.studio.ui.modal.StudioDialog("Forward rendering"){
+                @Override protected void result(Object result){if(Boolean.TRUE.equals(result) && !targetContext.isDisposed())accept.run();}
+            };
+            dialog.text("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
+            dialog.button("Switch to Legacy",true);dialog.button("Cancel",false);dialog.show(app.getUiStage());
+        });
         displayOffsetResolver = new StudioDisplayOffsetResolver(
                 world(), dynamicEntityState, layerState, camera);
         animationPreviewRefresher.bindWorld(world());

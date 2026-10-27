@@ -294,6 +294,12 @@ public final class GameObjectAssetService {
             throw new IllegalStateException(
                     "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
         }
+        int activeLights=0;
+        for(var data:asset.entities)if(games.pixscape.runtime.render.lighting.ActiveLights.isActive(
+                data.visibility==null||data.visibility.visible,data.pointLight!=null,data.pointLight!=null&&data.pointLight.enabled,
+                data.coneLight!=null,data.coneLight!=null&&data.coneLight.enabled))activeLights++;
+        if(!historyManager.prepareLightCreation(activeLights,
+                ()->instantiateGameObject(file,logicalAssetId,destinationLayer,rootWorldX,rootWorldY)))return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size());
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {

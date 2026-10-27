@@ -113,6 +113,8 @@ tasks.named('test', Test).configure {
   useJUnit()
   exclude '**/StudioShaderParameterGlSmokeTest.class'
   exclude '**/StudioLightCompositionGlSmokeTest.class'
+  exclude '**/StudioForwardFallbackGlSmokeTest.class'
+  exclude '**/StudioForwardDropGlSmokeTest.class'
 }
 
 tasks.register('studioLightCompositionGlSmoke', Test) {
@@ -122,6 +124,20 @@ tasks.register('studioLightCompositionGlSmoke', Test) {
   classpath = sourceSets.test.runtimeClasspath
   useJUnit()
   include '**/StudioLightCompositionGlSmokeTest.class'
+  shouldRunAfter tasks.named('test')
+}
+
+tasks.register('studioForwardFallbackGlSmoke', Test) {
+  description = 'Checks mixed Forward pixels and real Studio drops with blocked asynchronous packing.'
+  group = 'verification'
+  testClassesDirs = sourceSets.test.output.classesDirs
+  classpath = sourceSets.test.runtimeClasspath
+  useJUnit()
+  include '**/StudioForwardFallbackGlSmokeTest.class'
+  include '**/StudioForwardDropGlSmokeTest.class'
+  // Each native application owns GLFW and process-global Studio/GL registries.
+  forkEvery = 1
+  maxParallelForks = 1
   shouldRunAfter tasks.named('test')
 }
 

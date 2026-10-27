@@ -19,7 +19,6 @@ import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.studio.batch.MeshBatchStudio;
 import games.pixscape.studio.batch.TextureArrayMeshBatchStudio;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 
 public final class StudioRenderSubmitSystem extends BaseSystem implements ProfiledSystem, AmbientContributionRenderer.MaterialReplay {
@@ -37,11 +36,18 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
     private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
             new games.pixscape.runtime.render.lighting.LightingRenderer();
-    private final games.pixscape.runtime.render.lighting.ForwardLightingRenderer forward;
+    private StudioForwardLightingRenderer forward;
+    private DynamicEntityRenderState dynamicDomain;
+    private TiledMapRenderState tiledDomain;
     private LightParameterBinding lightParameters;
     private boolean frameSubmissionAllowed;
     private float time = 0f;
     private boolean rendererReported;
+    private SceneMeta sceneSettings;
+    public StudioRenderSubmitSystem setSceneSettings(SceneMeta scene){sceneSettings=scene;return this;}
+    public StudioRenderSubmitSystem setRenderDomains(DynamicEntityRenderState dynamic,TiledMapRenderState tiled){
+        dynamicDomain=dynamic;tiledDomain=tiled;return this;
+    }
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
 
@@ -52,11 +58,11 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                                     MetricsBatch batch,
                                     RenderStats stats,
                                     RenderStatsSink statsSink) {
-        this(layerState,frameQueue,cam,batch,stats,statsSink,true);
+        this(layerState,frameQueue,cam,batch,stats,statsSink,false);
     }
     public StudioRenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
                                     MetricsBatch batch,RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
-        this.forward=forwardLighting?new games.pixscape.runtime.render.lighting.ForwardLightingRenderer():null;
+        this.forward=forwardLighting?new StudioForwardLightingRenderer():null;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -98,14 +104,25 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
 
     public void prepareComposition() {
-        SceneMeta meta=ProjectConfig.getInstance().getCurrentSceneMeta();
-        boolean useNormalMaps=meta==null || meta.useNormalMaps;
+        SceneMeta meta=sceneSettings;
+        prepareRendererSelection(meta==null?forward!=null:meta.forwardLighting,meta==null || meta.useNormalMaps);
+    }
+
+    /** Command-time validation/preparation also protects UI changes before publishing the choice. */
+    public void prepareRendererSelection(boolean requested,boolean useNormalMaps) {
         lighting.setUseNormalMaps(useNormalMaps);
-        if(forward!=null){
-            forward.setUseNormalMaps(useNormalMaps);
+        if(requested){
             if(!(metricsBatch instanceof TextureArrayMeshBatchStudio arrayBatch))throw new IllegalArgumentException("Forward lighting requires the Studio color texture-array batch");
-            forward.prepare(world,arrayBatch.getBundle());lighting.prepareShadows(world);
-        }else{composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+            boolean changed=forward==null;
+            StudioForwardLightingRenderer candidate=changed?new StudioForwardLightingRenderer():forward;
+            candidate.setRenderDomains(dynamicDomain,tiledDomain);
+            try {candidate.setUseNormalMaps(useNormalMaps);candidate.prepare(world,arrayBatch.getBundle());lighting.prepareShadows(world);}
+            catch(RuntimeException|Error failure){if(changed)candidate.dispose();throw failure;}
+            forward=candidate;if(changed)rendererReported=false;
+        }else{
+            composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);
+            if(forward!=null){forward.dispose();forward=null;rendererReported=false;}
+        }
         if (!rendererReported) {
             Gdx.app.log("Lighting", "renderer=" + (forward != null ? "forward" : "legacy")
                     + " prepared (Studio; no automatic fallback)");
@@ -125,7 +142,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         stats.forwardLighting=forward!=null;
         frameSubmissionAllowed = false; // At most one submission inside the canvas scope.
         if(forward!=null){
-            SceneMeta meta=ProjectConfig.getInstance().getCurrentSceneMeta();
+            SceneMeta meta=sceneSettings;
             forward.render(frameQueue,layerState,cam,lighting,meta==null?1:meta.ambientMulR,meta==null?1:meta.ambientMulG,meta==null?1:meta.ambientMulB,stats);return;
         }
         Throwable failure = null;
@@ -143,7 +160,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                 ambientContribution.render(frameQueue, cam, composition, stats, this);
             stats.ambientDraws+=stats.drawCalls-drawsBefore;
             if(frameQueue.lighting.timer!=null)frameQueue.lighting.timer.begin(4);
-            SceneMeta meta = ProjectConfig.getInstance().getCurrentSceneMeta();
+            SceneMeta meta = sceneSettings;
             boolean normal=frameQueue.lighting.diagnostic==0;
             composition.compose(normal?(meta != null ? meta.ambientMulR : 1f):0,
                     normal?(meta != null ? meta.ambientMulG : 1f):0, normal?(meta != null ? meta.ambientMulB : 1f):0, stats);

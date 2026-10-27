@@ -37,6 +37,7 @@ public final class LightingPanel extends VisTable {
             normalMaps=new games.pixscape.studio.ui.widget.SceneNormalMapsCheckBox(ctx.sceneMeta,ctx.history,
                     enabled->ctx.atlasStudioService.prepareSceneNormalMaps(ctx.sceneMeta,enabled),ctx.markCurrentSceneSaveRequired);
             add(normalMaps).colspan(2).left().row();
+            add(new games.pixscape.studio.ui.widget.SceneForwardRenderingCheckBox(ctx.world,ctx.sceneMeta,ctx.history)).colspan(2).left().row();
             field("Source height:",Property.HEIGHT);
             quality=new SimpleSelectBox<>();quality.setItems("None","Hard","PCF");
             quality.bind(()->new String[]{"None","Hard","PCF"}[(int)read(Property.QUALITY)],v->edit(Property.QUALITY,v.equals("Hard")?1:v.equals("PCF")?2:0));

@@ -82,7 +82,7 @@ public final class PreviewDesktopApplication {
     }
 
     record Arguments(Path userRoot, String sceneName, int width, int height, int glSamples,
-                     boolean forwardLighting, String sessionId) {
+                     Boolean forwardLighting, String sessionId) {
         static Arguments parse(String[] args) {
             Map<String, String> values = new HashMap<>();
             for (int index = 0; index < args.length; index += 2) {
@@ -94,7 +94,7 @@ public final class PreviewDesktopApplication {
             Path userRoot = Path.of(required(values, "--user-root")).toAbsolutePath().normalize();
             String scene = required(values, "--scene");
             return new Arguments(userRoot, scene, positive(values, "--width"), positive(values, "--height"),
-                    nonNegative(values, "--gl-samples"), Boolean.parseBoolean(required(values, "--forward-lighting")),
+                    nonNegative(values, "--gl-samples"), values.containsKey("--forward-lighting") ? Boolean.valueOf(required(values, "--forward-lighting")) : null,
                     required(values, "--session"));
         }
 
