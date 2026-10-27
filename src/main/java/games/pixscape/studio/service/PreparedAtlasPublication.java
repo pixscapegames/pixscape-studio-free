@@ -73,10 +73,20 @@ public final class PreparedAtlasPublication implements AutoCloseable {
         return prepare(sceneTag, generation, atlasFile, AtlasRuntimeService.fixedLayerSize());
     }
 
+    public static PreparedAtlasPublication prepare(String sceneTag, long generation,
+                                                   FileHandle atlasFile, boolean useNormalMaps) {
+        return prepare(sceneTag,generation,atlasFile,AtlasRuntimeService.fixedLayerSize(),useNormalMaps);
+    }
+
     static PreparedAtlasPublication prepare(String sceneTag,
                                             long generation,
                                             FileHandle atlasFile,
                                             int layerSize) {
+        return prepare(sceneTag,generation,atlasFile,layerSize,true);
+    }
+
+    static PreparedAtlasPublication prepare(String sceneTag,long generation,
+                                                     FileHandle atlasFile,int layerSize,boolean useNormalMaps) {
         if (atlasFile == null) throw new IllegalArgumentException("Atlas file must not be null.");
         long started = System.nanoTime();
         TextureAtlas.TextureAtlasData data = new TextureAtlas.TextureAtlasData(
@@ -89,7 +99,7 @@ public final class PreparedAtlasPublication implements AutoCloseable {
         try {
             long normalStarted=System.nanoTime();
             FileHandle normals=atlasFile.sibling(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
-            if(normals.exists()) {
+            if(useNormalMaps && normals.exists()) {
                 candidate.normalData=new TextureAtlas.TextureAtlasData(normals,normals.parent(),false);
                 for(TextureAtlas.TextureAtlasData.Page page:candidate.normalData.getPages()) {
                     long phase=System.nanoTime();
@@ -461,6 +471,12 @@ public final class PreparedAtlasPublication implements AutoCloseable {
         disposePages(pages);
         pages.clear();
         snapshotLayers.clear();
+    }
+
+    /** A scene option may change while a color publication is being prepared. */
+    public void omitNormalMaps() {
+        for(Pixmap pixels:normalPixels)if(!pixels.isDisposed())pixels.dispose();
+        normalPixels.clear();normalData=null;normalByteSize=0;
     }
 
     private static Texture uploadPageTexture(FileHandle publishedFile,

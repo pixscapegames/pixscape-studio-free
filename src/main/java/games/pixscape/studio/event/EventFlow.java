@@ -299,6 +299,12 @@ public final class EventFlow {
     ) {
     }
 
+    public record SceneNormalMapsChanged(
+            games.pixscape.studio.configuration.SceneMeta scene,
+            int sourceTag
+    ) {
+    }
+
     public record SceneTiledEnabledChanged(
             boolean enabled,
             int sourceTag

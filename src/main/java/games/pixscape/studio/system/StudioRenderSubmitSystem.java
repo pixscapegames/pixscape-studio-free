@@ -98,7 +98,11 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
 
     public void prepareComposition() {
+        SceneMeta meta=ProjectConfig.getInstance().getCurrentSceneMeta();
+        boolean useNormalMaps=meta==null || meta.useNormalMaps;
+        lighting.setUseNormalMaps(useNormalMaps);
         if(forward!=null){
+            forward.setUseNormalMaps(useNormalMaps);
             if(!(metricsBatch instanceof TextureArrayMeshBatchStudio arrayBatch))throw new IllegalArgumentException("Forward lighting requires the Studio color texture-array batch");
             forward.prepare(world,arrayBatch.getBundle());lighting.prepareShadows(world);
         }else{composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}

@@ -43,6 +43,23 @@ public final class AtlasStudioService extends AtlasRuntimeService {
 
     private static final String TAG = "AtlasStudioService";
 
+    /** Cold per-tag lookup; scene documents can retain independent GPU publications. */
+    public static boolean usesNormalMaps(String sceneTag) {
+        for(var entry:ProjectConfig.getInstance().getScenesMap())
+            if(sceneTag.equals(ProjectConfig.sceneDirName(entry.value)))return entry.value.useNormalMaps;
+        return true;
+    }
+
+    /** Command-time normal-only replacement. Color pages and snapshots keep their identity. */
+    public void prepareSceneNormalMaps(games.pixscape.studio.configuration.SceneMeta scene,boolean enabled) {
+        String tag=ProjectConfig.sceneDirName(scene);
+        if(tag==null || getAtlas(tag)==null)return;
+        FileHandle project=StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        if(enabled)prepareSceneNormals(project,tag,null,
+                games.pixscape.studio.asset.AssetMetaDatabase.load(project.child(StudioFs.FILE_ASSETS_JSON)));
+        replaceNormalMaps(tag,enabled?project.child(StudioFs.DIR_ATLASES).child(tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas"):null);
+    }
+
     /** Isolated Game Object authoring uses grouped normal pages and full-image color coordinates. */
     public void prepareAuthoringNormals(FileHandle project,World world,java.util.Set<String> required,
             games.pixscape.studio.asset.AssetMetaDatabase db) {
@@ -406,7 +423,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             FileHandle pngFile = outputDir.child(sceneTag + ".png");
 
             waitForAtlasFiles(atlasFile, pngFile);
-            preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile);
+            preparedPublication = PreparedAtlasPublication.prepare(sceneTag, generation, atlasFile,usesNormalMaps(sceneTag));
 
             return new ScenePrepared(
                     sceneTag,
@@ -520,6 +537,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
             if (preparedPublication == null) {
                 throw new IllegalStateException("Atlas artifact has no prepared publication candidate.");
             }
+            if(!usesNormalMaps(tag))preparedPublication.omitNormalMaps();
             long currentGeneration = repackCoordinator.currentGeneration();
             if (!snapshotManager.acceptPreparedPublication(preparedPublication, currentGeneration)) return;
 
@@ -550,6 +568,11 @@ public final class AtlasStudioService extends AtlasRuntimeService {
                     atlasesDir.child(tag + ".atlas"));
 
             phaseStarted = System.nanoTime();
+            // The option may have been re-enabled since the worker prepared color pages.
+            if(uploadedNormals==null && usesNormalMaps(tag)) {
+                FileHandle normals=atlasesDir.child(tag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX+".atlas");
+                if(normals.exists())uploadedNormals=new games.pixscape.runtime.service.NormalMapAtlas(tag,normals,uploaded.atlas());
+            }
             publishPreparedAtlas(tag, uploaded.takeAtlas(),uploadedNormals);uploadedNormals=null;
             runtimePublished=true;
             atlasPublicationNs = System.nanoTime() - phaseStarted;
@@ -664,7 +687,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     @Override
     public void load(String tag, FileHandle atlasFile) {
         validatedAtlases.remove(tag);
-        super.load(tag, atlasFile);
+        super.load(tag, atlasFile, usesNormalMaps(tag));
         if (assetVisualResolver != null) {
             assetVisualResolver.invalidateAtlasTag(tag);
         }

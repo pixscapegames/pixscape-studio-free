@@ -24,6 +24,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class PreparedAtlasPublicationTest {
+    @Test public void disabledNormalPagesAreNeitherDecodedNorUploaded() throws Exception {
+        Path dir=Files.createTempDirectory("disabled-normal-pages");
+        FileHandle color=writeSolidPage(dir.resolve("scene.png"),0xffffffff);
+        String page="\nsize:2,2\nformat:RGBA8888\nfilter:Linear,Linear\nrepeat:none\n";
+        FileHandle descriptor=new FileHandle(dir.resolve("scene.atlas").toFile());
+        descriptor.writeString("scene.png"+page+"color__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        FileHandle normalDescriptor=new FileHandle(dir.resolve("scene.normals.atlas").toFile());
+        normalDescriptor.writeString("missing-normal.png"+page+"normal__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        PreparedAtlasPublication candidate=PreparedAtlasPublication.prepare("scene",1,descriptor,2,false);
+        assertEquals(32,candidate.byteSize());
+        AtomicInteger uploads=new AtomicInteger();
+        PreparedAtlasPublication.Uploaded uploaded=candidate.upload(new FileHandle(dir.toFile()),(file,pixels,metadata)->{
+            assertEquals("scene.png",file.name());uploads.incrementAndGet();return fakeTexture(2,2);
+        },layers->{assertEquals(2,layers.size);return fakeTextureArray();});
+        assertEquals(1,uploads.get());assertNull(uploaded.takeNormals());
+        assertTrue(color.exists());assertTrue(normalDescriptor.exists());uploaded.close();candidate.close();
+    }
     @Test public void normalPagesAreDecodedBeforeUploadAndStayOutOfColorArray() throws Exception {
         Path dir=Files.createTempDirectory("prepared-normal-pages");
         FileHandle color=writeSolidPage(dir.resolve("scene.png"),0xffffffff);

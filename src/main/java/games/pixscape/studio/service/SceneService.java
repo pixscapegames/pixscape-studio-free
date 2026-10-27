@@ -716,6 +716,10 @@ public final class SceneService {
         return assetMetaDatabase;
     }
     public void prepareGameObjectNormals(World world,SceneMeta editingMeta) {
+        if(!editingMeta.useNormalMaps){
+            world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class).publishAuthoringNormals(null);
+            return;
+        }
         ProjectConfig cfg=ProjectConfig.getInstance();
         java.util.Set<String> required=new SceneAtlasInputService().collectRequiredAtlasInputPathsForScene(
                 cfg,world,editingMeta,assetMetaDatabase,tileAnimationsMetaDatabase);
@@ -2204,7 +2208,8 @@ public final class SceneService {
 
         java.util.Set<String> normalSources=sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(
                 cfg,sceneContext().world(),cfg.getCurrentSceneMeta(),assetMetaDatabase,tileAnimationsMetaDatabase);
-        atlasStudioService.prepareSceneNormals(projectDir,canonicalTag,normalSources,assetMetaDatabase);
+        if(cfg.getCurrentSceneMeta().useNormalMaps)
+            atlasStudioService.prepareSceneNormals(projectDir,canonicalTag,normalSources,assetMetaDatabase);
 
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
 
