@@ -21,8 +21,8 @@ final class ActorSpatialRectanglePanel {
     private String clip;
     ActorSpatialRectanglePanel(EntityPropertiesContext ctx, VisTable table) {
         this.ctx=ctx;
-        table.add(new VisLabel("Spatial rectangle (world pixels)")).colspan(2).row();
-        String[] names={"Width:","Height:","Offset X:","Offset Y:","Offset Z:","Orientation:"};
+        table.add(new VisLabel("Spatial rectangle (local pixels)")).colspan(2).row();
+        String[] names={"Width:","Height:","Rectangle X:","Rectangle Y:","Shadow pivot X:","Shadow pivot Y:"};
         for(int i=0;i<fields.length;i++){
             final int property=i;
             FloatField field=new FloatField(ctx.world,e->read(rectangle(e),property),e->rectangle(e)!=null).setDisplayDecimals(2);
@@ -67,7 +67,7 @@ final class ActorSpatialRectanglePanel {
         }
     }
     static float read(ActorSpatialRectangleData v,int p){if(v==null)return 0;return switch(p){
-        case 0->v.width;case 1->v.height;case 2->v.offsetX;case 3->v.offsetY;case 4->v.offsetZ;default->v.orientation;};}
+        case 0->v.width;case 1->v.height;case 2->v.x;case 3->v.y;case 4->v.pivotX;default->v.pivotY;};}
     static void write(ActorSpatialRectangleData v,int p,float n){switch(p){
-        case 0->v.width=n;case 1->v.height=n;case 2->v.offsetX=n;case 3->v.offsetY=n;case 4->v.offsetZ=n;default->v.orientation=ActorSpatialRectangleData.normalize(n);}}
+        case 0->v.width=n;case 1->v.height=n;case 2->v.x=n;case 3->v.y=n;case 4->v.pivotX=n;default->v.pivotY=n;}}
 }

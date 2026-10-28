@@ -50,7 +50,7 @@ public final class ActorShadowRectangleGlCheck {
         gl.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,2);
         new Lwjgl3Application(new ApplicationAdapter(){
             StudioApplicationAdapter studio;SceneEditorContext ctx;ActorSpatialRectangleCanvasEditor overlay;
-            Texture texture;int e,frame;float[] angles={0,45,90,37.25f};
+            Texture texture;int e,frame;float[] pivots={0,10,-5,7.25f};
             long start=System.nanoTime();
             @Override public void create(){
                 try{
@@ -72,9 +72,9 @@ public final class ActorShadowRectangleGlCheck {
                     foot.geometry.shapeType=PhysicsGeometryData.SHAPE_CIRCLE;foot.geometry.radius=.2f;foot.spatialFootprint=true;
                     ctx.historyManager().execute(new ToggleSpatialActorCommand(world,ctx.historyManager().historyIds(),
                             canvas.getPhysicsService(),e,true,true,foot));
-                    volume().width=40;volume().height=75;
-                    volume().offsetX=55;volume().offsetY=55;
-                    canvas.focusCameraAt(70,35);
+                    volume().width=120;volume().height=120;
+                    volume().x=-60;volume().y=20;volume().pivotY=25;
+                    canvas.focusCameraAt(0,85);
                     ((OrthographicCamera)canvas.getGridStage().getCamera()).zoom=.55f;
                     ctx.selectionService().selectOnly(e);world.process();
                     overlay=(ActorSpatialRectangleCanvasEditor)studio.getUiStage().getRoot().findActor("actor-spatial-rectangle-editor");
@@ -90,30 +90,30 @@ public final class ActorShadowRectangleGlCheck {
                     if(System.nanoTime()-start>25_000_000_000L)throw new AssertionError("UI deadline");
                     frame++;
                     if(frame==15)assertTrue("Volume handles must be available in the normal Studio canvas",positions());
-                    for(int i=0;i<angles.length;i++)if(frame==20+i*6)volume().orientation=angles[i];
+                    for(int i=0;i<pivots.length;i++)if(frame==20+i*6)volume().pivotX=pivots[i];
                     if(frame==48){
                         float x=ctx.world().getMapper(TransformComponent.class).get(e).x;
                         float rotation=ctx.world().getMapper(TransformComponent.class).get(e).rotationRad;
                         int cursor=ctx.historyManager().getCursor();
-                        volume().orientation=359;positions();
-                        Vector2 handle=handle(0),target=arc(1);
+                        volume().pivotX=0;positions();
+                        Vector2 handle=handle(0),target=new Vector2(handle).add(18,10);
                         press(handle);drag(target);release(target);
-                        assertEquals("One history entry per rotation",cursor+1,ctx.historyManager().getCursor());
-                        assertEquals(1,volume().orientation,1.0f);
-                        ctx.historyManager().undo();assertEquals(359,volume().orientation,.001);
-                        ctx.historyManager().redo();assertEquals(1,volume().orientation,.001);
-                        positions();float before=volume().orientation;handle=handle(0);target=arc(90);
+                        assertEquals("One history entry per pivot edit",cursor+1,ctx.historyManager().getCursor());
+                        float edited=volume().pivotX;assertNotEquals(0,edited,0);
+                        ctx.historyManager().undo();assertEquals(0,volume().pivotX,.001);
+                        ctx.historyManager().redo();assertEquals(edited,volume().pivotX,.001);
+                        positions();float before=volume().pivotX;handle=handle(0);target=new Vector2(handle).add(25,15);
                         press(handle);drag(target);studio.getUiStage().keyDown(Input.Keys.ESCAPE);
-                        assertEquals(before,volume().orientation,.001);assertEquals(cursor+1,ctx.historyManager().getCursor());
+                        assertEquals(before,volume().pivotX,.001);assertEquals(cursor+1,ctx.historyManager().getCursor());
                         assertEquals(x,ctx.world().getMapper(TransformComponent.class).get(e).x,0);
                         assertEquals(rotation,ctx.world().getMapper(TransformComponent.class).get(e).rotationRad,0);
                     }
                     if(frame==52){
                         ((OrthographicCamera)studio.getCanvas().getGridStage().getCamera()).zoom=1.2f;
-                        studio.getCanvas().focusCameraAt(20,40);volume().orientation=45;
+                        studio.getCanvas().focusCameraAt(20,40);volume().pivotX=45;
                     }
                     if(frame==49){
-                        volume().orientation=0;
+                        volume().pivotX=0;
                         for(int index=1;index<=3;index++){
                             positions();ActorSpatialRectangleData before=volume().copy();
                             Vector2 h=handle(index),target=new Vector2(h).add(index==3?-12:12,index==4?18:9);
@@ -125,13 +125,17 @@ public final class ActorShadowRectangleGlCheck {
                         }
                     }
                     if(frame==60){root.child("DONE").writeString("PASS",false);Gdx.app.exit();}
+                    if(frame==47 || frame==50 || frame==55){
+                        com.badlogic.gdx.graphics.Pixmap capture=com.badlogic.gdx.graphics.Pixmap.createFromFrameBuffer(0,0,1200,850);
+                        try{com.badlogic.gdx.graphics.PixmapIO.writePNG(root.child("overlay-"+frame+".png"),capture,-1,true);}
+                        finally{capture.dispose();}
+                    }
                 }catch(Throwable failure){stop(failure);}
             }
             boolean positions() throws Exception{Method m=ActorSpatialRectangleCanvasEditor.class.getDeclaredMethod("positions");m.setAccessible(true);return (Boolean)m.invoke(overlay);}
             Vector2 handle(int i)throws Exception{Field f=ActorSpatialRectangleCanvasEditor.class.getDeclaredField("handles");f.setAccessible(true);return new Vector2(((Vector2[])f.get(overlay))[i]);}
-            Vector2 arc(float angle)throws Exception{Method m=ActorSpatialRectangleCanvasEditor.class.getDeclaredMethod("arcPoint",float.class,Vector2.class);m.setAccessible(true);Vector2 out=new Vector2();m.invoke(overlay,angle,out);return out;}
             Vector2 screen(Vector2 point){return studio.getUiStage().stageToScreenCoordinates(new Vector2(point));}
-            void press(Vector2 p){Vector2 s=screen(p);assertTrue(studio.getUiStage().touchDown(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT));assertTrue("Native Stage picked rotation handle",overlay.isDragging());}
+            void press(Vector2 p){Vector2 s=screen(p);assertTrue(studio.getUiStage().touchDown(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT));assertTrue("Native Stage picked pivot handle",overlay.isDragging());}
             void drag(Vector2 p){Vector2 s=screen(p);studio.getUiStage().touchDragged(Math.round(s.x),Math.round(s.y),0);}
             void release(Vector2 p){Vector2 s=screen(p);studio.getUiStage().touchUp(Math.round(s.x),Math.round(s.y),0,Input.Buttons.LEFT);}
             void stop(Throwable error){failed[0]=error;error.printStackTrace();Gdx.app.exit();}

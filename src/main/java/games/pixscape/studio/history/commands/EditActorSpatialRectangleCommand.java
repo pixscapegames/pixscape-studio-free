@@ -21,7 +21,6 @@ public final class EditActorSpatialRectangleCommand implements Command, HistoryM
         this.world=world;this.ids=ids;id=ids.ensureForEntity(entity);this.asset=asset;this.clip=clip;this.save=save;
         SpatialHeightComponent spatial=world.getMapper(SpatialHeightComponent.class).get(entity);
         before=spatial.rectangles.get(asset,clip).copy();this.after=after.copy();this.after.validate();
-        this.after.orientation=ActorSpatialRectangleData.normalize(after.orientation);
     }
     public String label(){return "Edit actor spatial rectangle";}
     public boolean isNoop(){return before.same(after);}

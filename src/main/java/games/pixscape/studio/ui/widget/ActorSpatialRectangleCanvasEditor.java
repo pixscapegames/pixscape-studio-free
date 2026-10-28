@@ -5,7 +5,6 @@ import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -20,7 +19,6 @@ import games.pixscape.runtime.render.lighting.LightingCoordinates;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.ActorSpatialRectangleData;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.studio.helper.RotationArc;
 import games.pixscape.studio.history.commands.EditActorSpatialRectangleCommand;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.ui.config.EditorOverlayPalette;
@@ -34,19 +32,16 @@ import java.util.function.BooleanSupplier;
 public final class ActorSpatialRectangleCanvasEditor extends Actor {
     private final WorldCanvas canvas;
     private final BooleanSupplier available;
-    private final RotationArc arc=new RotationArc();
-    private final RotationArc.Gesture angleGesture=new RotationArc.Gesture();
     private final Vector2 scratch=new Vector2(),pivot=new Vector2();
     private final Vector2[] handles={new Vector2(),new Vector2(),new Vector2(),new Vector2()};
-    private final float[] corners=new float[12],projected=new float[8];
+    private final float[] projected=new float[8];
     private final float[] worldAnchor=new float[3];
-    private final RotationArc.Projection projection=this::arcPoint;
     private ShapeDrawer drawer;
     private SceneEditorContext gestureContext;
     private ActorSpatialRectangleData before,candidate,current;
     private int entity=-1,asset,handle=-1,pointer=-1;
     private String clip;
-    private float anchorX,anchorY,anchorZ,radius,pressX,pressY,factor;
+    private float anchorX,anchorY,anchorZ,pressX,pressY,factor;
     private Stage keyboardStage;
     private Actor previousFocus;
 
@@ -64,22 +59,17 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
                 before=current.copy();candidate=current.copy();handle=picked;pointer=p;
                 factor=Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT)||Gdx.input.isKeyPressed(Input.Keys.SHIFT_RIGHT)?.1f:1f;
                 grid(x,y,scratch);pressX=scratch.x;pressY=scratch.y;
-                angleGesture.begin(pointerAngle(x,y),factor<1);
                 spatial(gestureContext,entity).rectangles.put(asset,clip,candidate);
                 event.stop();return true;
             }
             @Override public void touchDragged(InputEvent event,float x,float y,int p){
                 if(handle<0 || p!=pointer)return;
                 if(!sameTarget() || !positions()){cancel();return;}
-                if(handle==0)candidate.orientation=ActorSpatialRectangleData.normalize(before.orientation+angleGesture.update(pointerAngle(x,y)));
-                else{
-                    grid(x,y,scratch);float dx=(scratch.x-pressX)*factor,dy=(scratch.y-pressY)*factor;
-                    float wx=LightingCoordinates.worldX(dx,dy,0),wy=LightingCoordinates.worldY(dx,dy,0);
-                    float c=MathUtils.cosDeg(before.orientation),s=MathUtils.sinDeg(before.orientation);
-                    if(handle==1){candidate.offsetX=before.offsetX+wx;candidate.offsetY=before.offsetY+wy;}
-                    if(handle==2)candidate.width=Math.max(.01f,before.width+2*(c*wx+s*wy));
-                    if(handle==3)candidate.height=Math.max(.01f,before.height+dy);
-                }
+                grid(x,y,scratch);float dx=(scratch.x-pressX)*factor,dy=(scratch.y-pressY)*factor;
+                if(handle==0){candidate.pivotX=before.pivotX+dx;candidate.pivotY=before.pivotY+dy;}
+                if(handle==1){candidate.x=before.x+dx;candidate.y=before.y+dy;}
+                if(handle==2)candidate.width=Math.max(.01f,before.width+dx);
+                if(handle==3)candidate.height=Math.max(.01f,before.height+dy);
                 event.stop();
             }
             @Override public void touchUp(InputEvent event,float x,float y,int p,int button){
@@ -114,41 +104,26 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
         if(foot==null || !foot.valid)return false;
         games.pixscape.runtime.spatial.ActorSpatialRectanglePlacement.anchor(sx,sy,angle,foot.localOffsetXPx,foot.localOffsetYPx,h.altitude,worldAnchor);
         anchorX=worldAnchor[0];anchorY=worldAnchor[1];anchorZ=worldAnchor[2];
-        current.corners(anchorX,anchorY,anchorZ,corners);
-        for(int i=0;i<4;i++){project(corners[3*i],corners[3*i+1],corners[3*i+2],scratch);projected[2*i]=scratch.x;projected[2*i+1]=scratch.y;}
-        project(anchorX+current.offsetX,anchorY+current.offsetY,anchorZ+current.offsetZ,pivot);
-        handles[1].set(pivot);
-        localPoint(current.width*.5f,0,0,handles[2]);
-        localPoint(0,0,current.height,handles[3]);
-        // Keep the rotation control outside the base even for tiny rectangles, in logical pixels.
-        grid(pivot.x,pivot.y,scratch);float baseX=scratch.x;
-        grid(pivot.x+32,pivot.y,scratch);float minimum=Math.abs(scratch.x-baseX);
-        radius=Math.max(minimum,current.width*.65f);
-        arcPoint(current.orientation,handles[0]);return true;
+        for(int i=0;i<4;i++){
+            localPoint(current.x+(i>=2?current.width:0),current.y+(i==1||i==2?current.height:0),scratch);
+            projected[2*i]=scratch.x;projected[2*i+1]=scratch.y;
+        }
+        localPoint(current.pivotX,current.pivotY,pivot);handles[0].set(pivot);
+        localPoint(current.x+current.width*.5f,current.y+current.height*.5f,handles[1]);
+        localPoint(current.x+current.width,current.y+current.height*.5f,handles[2]);
+        localPoint(current.x+current.width*.5f,current.y+current.height,handles[3]);
+        return true;
     }
-    private void localPoint(float x,float y,float z,Vector2 out){
-        float c=MathUtils.cosDeg(current.orientation),s=MathUtils.sinDeg(current.orientation);
-        project(anchorX+current.offsetX+c*x-s*y,anchorY+current.offsetY+s*x+c*y,anchorZ+current.offsetZ+z,out);
-    }
-    private void arcPoint(float degrees,Vector2 out){
-        project(anchorX+current.offsetX+MathUtils.cosDeg(degrees)*radius,
-                anchorY+current.offsetY+MathUtils.sinDeg(degrees)*radius,anchorZ+current.offsetZ,out);
-    }
-    private void project(float x,float y,float z,Vector2 out){
-        out.set(LightingCoordinates.screenX(x,y),LightingCoordinates.screenY(x,y,z));
+    private void localPoint(float x,float y,Vector2 out){
+        out.set(LightingCoordinates.screenX(anchorX,anchorY)+x,LightingCoordinates.screenY(anchorX,anchorY,anchorZ)+y);
         canvas.getGridStage().stageToScreenCoordinates(out);getStage().screenToStageCoordinates(out);
     }
     private void grid(float x,float y,Vector2 out){
         out.set(x,y);getStage().stageToScreenCoordinates(out);canvas.getGridStage().screenToStageCoordinates(out);
     }
-    private float pointerAngle(float x,float y){
-        grid(pivot.x,pivot.y,scratch);float px=scratch.x,py=scratch.y;
-        grid(x,y,scratch);float dx=scratch.x-px,dy=scratch.y-py;
-        return MathUtils.atan2(LightingCoordinates.worldY(dx,dy,0),LightingCoordinates.worldX(dx,dy,0));
-    }
     private int pick(float x,float y){
         int result=-1;float best=81;
-        for(int i=0;i<handles.length;i++){float distance=handles[i].dst2(x,y);if(distance<best && RotationArc.hit(x,y,handles[i].x,handles[i].y,9)){best=distance;result=i;}}
+        for(int i=0;i<handles.length;i++){float distance=handles[i].dst2(x,y);if(distance<best){best=distance;result=i;}}
         return result;
     }
     private boolean inside(float x,float y){
@@ -195,13 +170,16 @@ public final class ActorSpatialRectangleCanvasEditor extends Actor {
             for(int i=0;i<4;i++){
                 edge(i,(i+1)%4);
             }
-            arc.draw(drawer,projection,0,360,64,1);
             scratch.set(Gdx.input.getX(),Gdx.input.getY());getStage().screenToStageCoordinates(scratch);
             int hover=pick(scratch.x,scratch.y);
             for(int i=0;i<handles.length;i++){
                 drawer.setColor(handle==i?EditorOverlayPalette.WALL_SELECTED_COLOR:
                         hover==i?EditorOverlayPalette.WALL_HOVER_COLOR:EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-                if(i==0)RotationArc.handle(drawer,pivot.x,pivot.y,handles[i].x,handles[i].y,1);
+                if(i==0){
+                    drawer.circle(pivot.x,pivot.y,5,1.5f);
+                    drawer.line(pivot.x-8,pivot.y,pivot.x+8,pivot.y,1.5f);
+                    drawer.line(pivot.x,pivot.y-8,pivot.x,pivot.y+8,1.5f);
+                }
                 else drawer.rectangle(handles[i].x-4,handles[i].y-4,8,8,1.5f);
             }
         }finally{batch.setPackedColor(color);batch.flush();clipEnd();}

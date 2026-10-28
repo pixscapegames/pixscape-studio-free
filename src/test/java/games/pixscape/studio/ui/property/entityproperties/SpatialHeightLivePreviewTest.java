@@ -111,6 +111,7 @@ public class SpatialHeightLivePreviewTest {
             height.rectangles=new games.pixscape.runtime.spatial.ActorSpatialRectangles();
             height.rectangles.staticRectangle=new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
             height.rectangles.staticRectangle.width=40;height.rectangles.staticRectangle.height=80;
+            height.rectangles.staticRectangle.x=-20;
             SpatialPhysicsFootprintComponent footprint = world.getMapper(SpatialPhysicsFootprintComponent.class).create(actor);
             footprint.valid = true; footprint.radiusPx = 9;
             slot = ecs.acquireSlotForEntity(actor); ecs.enabled[slot] = ecs.visible[slot] = true;
@@ -135,7 +136,7 @@ public class SpatialHeightLivePreviewTest {
         void key(int code) { InputEvent event = new InputEvent(); event.setType(InputEvent.Type.keyDown); event.setKeyCode(code); field.fire(event); }
         void assertRectangle(float height) {
             float[] quad=new float[8];Assert.assertTrue(spatial.writeActorInfluenceQuad(actor,quad));
-            Assert.assertArrayEquals(new float[]{-10,190,30,190,30,210+height,-10,210+height},quad,.001f);
+            Assert.assertArrayEquals(new float[]{-10,200,30,200,30,200+height,-10,200+height},quad,.001f);
         }
         @Override public void close() { identities.bind(null, null); world.dispose(); }
     }

@@ -81,7 +81,7 @@ public class ToggleSpatialActorCommandTest {
         height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
         height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
         height.rectangles.staticRectangle.height = 4f;
-        height.rectangles.staticRectangle.orientation = 41f;
+        height.rectangles.staticRectangle.pivotX = 41f;
 
         harness.history.execute(new ToggleSpatialActorCommand(
                 harness.world, harness.historyIds, harness.physics, entityId,
@@ -105,7 +105,7 @@ public class ToggleSpatialActorCommandTest {
         height = harness.world.getMapper(SpatialHeightComponent.class).get(entityId);
         Assert.assertEquals(3f, height.altitude, 0f);
         Assert.assertEquals(4f, height.rectangles.staticRectangle.height, 0f);
-        Assert.assertEquals(41f, height.rectangles.staticRectangle.orientation, 0f);
+        Assert.assertEquals(41f, height.rectangles.staticRectangle.pivotX, 0f);
     }
 
     @Test
