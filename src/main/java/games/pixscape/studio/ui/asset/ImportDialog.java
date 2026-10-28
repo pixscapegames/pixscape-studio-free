@@ -1700,59 +1700,6 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         }
     }
 
-    private void refreshSlicingPreview(VisDialog dialog,
-                                       VisLabel previewLabel,
-                                       VisLabel errorLabel,
-                                       Cell<VisLabel> errorCell,
-                                       ImportItem item,
-                                       Spinner tileWidthSpinner,
-                                       Spinner tileHeightSpinner,
-                                       Spinner marginSpinner,
-                                       Spinner spacingSpinner) {
-        if (previewLabel == null || item == null) return;
-
-        SlicingSettings settings = readSlicingSettings(
-                tileWidthSpinner,
-                tileHeightSpinner,
-                marginSpinner,
-                spacingSpinner
-        );
-        if (settings == null) {
-            previewLabel.setText("Detected tiles: -");
-            setSlicingDialogError(dialog, errorLabel, errorCell, "Use valid slicing values.");
-            return;
-        }
-
-        ImportDialogValidation.TilesetSlicingPreview preview = ImportDialogValidation.calculateTilesetSlicing(
-                item.imageWidth,
-                item.imageHeight,
-                settings.tileWidth(),
-                settings.tileHeight(),
-                settings.spacing(),
-                settings.margin()
-        );
-
-        if (!preview.validSettings()) {
-            previewLabel.setText("Detected tiles: -");
-            setSlicingDialogError(dialog, errorLabel, errorCell, "Image size is unavailable.");
-            return;
-        }
-
-        previewLabel.setText(
-                "Image size: " + preview.imageWidth() + "x" + preview.imageHeight()
-                        + "\nDetected tiles: " + preview.tileCount()
-                        + " (" + preview.columns() + "x" + preview.rows() + ")"
-                        + "\nUnused: right " + preview.unusedRightPixels()
-                        + ", bottom " + preview.unusedBottomPixels()
-        );
-
-        if (!preview.hasTiles()) {
-            setSlicingDialogError(dialog, errorLabel, errorCell, "No tile fits.");
-        } else {
-            setSlicingDialogError(dialog, errorLabel, errorCell, null);
-        }
-    }
-
     private SlicingSettings readSlicingSettings(Spinner tileWidthSpinner,
                                                 Spinner tileHeightSpinner,
                                                 Spinner marginSpinner,

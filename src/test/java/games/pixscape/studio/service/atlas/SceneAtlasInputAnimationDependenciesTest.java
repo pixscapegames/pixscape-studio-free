@@ -97,15 +97,16 @@ public class SceneAtlasInputAnimationDependenciesTest {
                                        World world,
                                        AssetMetaDatabase database) throws Exception {
         Method method = SceneAtlasInputService.class.getDeclaredMethod(
-                "collectRequiredAtlasInputPathsForCurrentScene",
+                "collectRequiredAtlasInputPathsForScene",
                 ProjectConfig.class,
                 World.class,
+                games.pixscape.studio.configuration.SceneMeta.class,
                 AssetMetaDatabase.class,
                 games.pixscape.studio.asset.TileAnimationsMetaDatabase.class
         );
         method.setAccessible(true);
         return (Set<String>) method.invoke(
-                new SceneAtlasInputService(), cfg, world, database, null);
+                new SceneAtlasInputService(), cfg, world, cfg.getCurrentSceneMeta(), database, null);
     }
 
     private static final class Harness {

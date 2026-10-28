@@ -1110,13 +1110,6 @@ public class EditorOpsImpl implements EditorOps {
         return editingContext.sceneIdentity();
     }
 
-    private void ensureEditorBundleActive() {
-        String tag = getCurrentSceneTag();
-        if (snapshotManager != null && tag != null) {
-            snapshotManager.markDirty(tag, "editor-bundle-active-required");
-        }
-    }
-
     private boolean ensureParticleEffectImagesInAtlasInput(String effectPath) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) return false;

@@ -243,15 +243,4 @@ public final class TransformFieldFactory {
                 && mSpriteSource != null && mSpriteSource.has(entityId);
     }
 
-    private static float beforeOriginX(EditTransformCommand.Snapshot snapshot) {
-        TransformComponent temp = new TransformComponent();
-        snapshot.apply(temp);
-        return temp.originX;
-    }
-
-    private static float beforeOriginY(EditTransformCommand.Snapshot snapshot) {
-        TransformComponent temp = new TransformComponent();
-        snapshot.apply(temp);
-        return temp.originY;
-    }
 }

@@ -928,58 +928,6 @@ public final class GizmoSystem extends BaseSystem {
         return null;
     }
 
-    private int computeAuthoredPolygonVertsWU(
-            int bodyEid,
-            float[] localVertsMeters,
-            int count,
-            PhysicsShapeData polygon,
-            float[] out
-    ) {
-        if (bodyEid < 0) return 0;
-        if (localVertsMeters == null || count < 3 || localVertsMeters.length < count * 2) return 0;
-        if (out == null || out.length < count * 2) return 0;
-
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return 0;
-
-        float ppm = resolvePixelsPerMeter();
-
-        float fixtureOffsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float fixtureCos = MathUtils.cos(fixtureAngleRad);
-        float fixtureSin = MathUtils.sin(fixtureAngleRad);
-
-        float bodyCos = MathUtils.cos(t.rotationRad);
-        float bodySin = MathUtils.sin(t.rotationRad);
-
-        for (int i = 0; i < count; i++) {
-            float lx = localVertsMeters[i * 2];
-            float ly = localVertsMeters[i * 2 + 1];
-
-            if (!Float.isFinite(lx) || !Float.isFinite(ly)) {
-                return 0;
-            }
-
-            // Fixture local transform, still in meters.
-            float fx = lx * fixtureCos - ly * fixtureSin + fixtureOffsetX;
-            float fy = lx * fixtureSin + ly * fixtureCos + fixtureOffsetY;
-
-            // Body transform, meters -> world units.
-            float wx = t.x + (fx * bodyCos - fy * bodySin) * ppm;
-            float wy = t.y + (fx * bodySin + fy * bodyCos) * ppm;
-
-            out[i * 2] = wx;
-            out[i * 2 + 1] = wy;
-        }
-
-        remapPhysicsPoints(bodyEid, out, count);
-        applyDisplayOffset(bodyEid, out, count);
-
-        return count;
-    }
-
     private void prepareTempPolygonFixture(
             float[] verts,
             int count,
@@ -1007,107 +955,6 @@ public final class GizmoSystem extends BaseSystem {
         tmpAuthoringFixture.categoryBits = polygon != null ? polygon.categoryBits : (short) 0x0001;
         tmpAuthoringFixture.maskBits = polygon != null ? polygon.maskBits : (short) 0xFFFF;
         tmpAuthoringFixture.groupIndex = polygon != null ? polygon.groupIndex : (short) 0;
-    }
-
-    private static boolean containsFixtureId(int[] ids, int physicsShapeId) {
-        if (ids == null || physicsShapeId <= 0L) return false;
-
-        for (int id : ids) {
-            if (id == physicsShapeId) return true;
-        }
-
-        return false;
-    }
-
-    private void drawAuthoringSourcePolygon(
-            float[] verts,
-            int vertexCount,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (verts == null || vertexCount < 2) return;
-
-        if (selected) {
-            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
-        } else if (focusedBody) {
-            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_FOCUSED_BODY_COLOR);
-        } else {
-            ctx.drawer.setColor(CommonLayout.PHYSICS_BASE_COLOR);
-        }
-
-        float thicknessWU = ctx.wpp() * (selected ? 2.5f : 1.5f);
-
-        for (int i = 0; i < vertexCount; i++) {
-            int j = (i + 1) % vertexCount;
-
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[j * 2];
-            float by = verts[j * 2 + 1];
-
-            ctx.drawer.line(ax, ay, bx, by, thicknessWU);
-        }
-    }
-
-    private void drawThinDecompositionPolygon(
-            float[] verts,
-            int vertexCount,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (verts == null || vertexCount < 2) return;
-
-        // Same visual family, but much more subtle.
-        if (selected) {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.50f);
-        } else if (focusedBody) {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.32f);
-        } else {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.22f);
-        }
-
-        float thicknessWU = ctx.wpp() * (selected ? 1.0f : 0.75f);
-
-        for (int i = 0; i < vertexCount; i++) {
-            int j = (i + 1) % vertexCount;
-
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[j * 2];
-            float by = verts[j * 2 + 1];
-
-            ctx.drawer.line(ax, ay, bx, by, thicknessWU);
-        }
-    }
-
-    private void drawAuthoredPolygonSource(
-            int bodyEid,
-            PhysicsShapeData polygon,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (polygon == null
-                || polygon.geometry == null
-                || polygon.geometry.polygonVertices == null
-                || polygon.geometry.polygonVertexCount < 3
-                || polygon.geometry.polygonVertices.length < polygon.geometry.polygonVertexCount * 2) {
-            return;
-        }
-
-        int floatCount = Math.max(0, polygon.geometry.polygonVertexCount * 2);
-        ensureFixtureVertsCapacity(floatCount);
-
-        int vertexCount = computeAuthoredPolygonVertsWU(
-                bodyEid,
-                polygon.geometry.polygonVertices,
-                polygon.geometry.polygonVertexCount,
-                polygon,
-                tmpFixtureVerts
-        );
-
-        if (vertexCount < 3) return;
-
-        drawAuthoringSourcePolygon(tmpFixtureVerts, vertexCount, focusedBody, selected);
     }
 
     private boolean isDrawableFixtureBody(int bodyEid) {
@@ -1658,24 +1505,6 @@ public final class GizmoSystem extends BaseSystem {
         return true;
     }
 
-    private boolean computeWheelJointGizmoWU(int jointEid, PhysicsJointComponent joint, Vector2 outA, Vector2 outB) {
-        if (joint == null || physicsService == null) return false;
-        if (mWheel.getSafe(jointEid, null) == null) return false;
-
-        int aEid = joint.aEid;
-        int bEid = joint.bEid;
-        if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
-
-        float ppm = resolvePixelsPerMeter();
-
-        if (!computeResolvedBodyAnchor(aEid, joint.anchorAx, joint.anchorAy, outA)
-                || !computeResolvedBodyAnchor(bEid, joint.anchorBx, joint.anchorBy, outB)) return false;
-
-        applyDisplayOffset(aEid, outA);
-        applyDisplayOffset(bEid, outB);
-        return true;
-    }
-
     private void drawWheelAxisOverlay(int jointEid,
                                       PhysicsJointComponent joint,
                                       boolean hovered,
@@ -1920,20 +1749,6 @@ public final class GizmoSystem extends BaseSystem {
 
     private boolean resolvePhysicsPose(int bodyEid, ResolvedPhysicsPose.Pose out) {
         return resolvedPhysicsPose != null && resolvedPhysicsPose.resolve(bodyEid, out);
-    }
-
-    private static float anchorWorldX_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-        float rx_m = localAx_m * cos - localAy_m * sin;
-        return t.x + rx_m * ppm;
-    }
-
-    private static float anchorWorldY_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-        float ry_m = localAx_m * sin + localAy_m * cos;
-        return t.y + ry_m * ppm;
     }
 
     private float resolvePixelsPerMeter() {

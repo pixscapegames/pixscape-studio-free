@@ -1,7 +1,9 @@
 package games.pixscape.studio.ui.main;
 
+import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -32,6 +34,25 @@ public class UniversalLayerAssetDropCapabilityTest {
                 true, false, "tile-asset"));
         assertTrue(WorldCanvas.isAssetPayloadAllowedForEditingContext(
                 true, true, "tiled-animation"));
+    }
+
+    @Test
+    public void tiledDropUsesTheAuthoredLogicalIdForTilesAndAnimations() {
+        DragPayload tile = new DragPayload();
+        tile.type = "tile-asset";
+        tile.assetId = 41;
+        assertEquals(41, WorldCanvas.resolveTiledDropAssetId(tile));
+
+        DragPayload animation = new DragPayload();
+        animation.type = "tiled-animation";
+        animation.assetId = 41;
+        animation.tileAnimationId = 84;
+        assertEquals(84, WorldCanvas.resolveTiledDropAssetId(animation));
+
+        DragPayload other = new DragPayload();
+        other.type = "image-file";
+        other.assetId = 41;
+        assertEquals(-1, WorldCanvas.resolveTiledDropAssetId(other));
     }
 
     @Test

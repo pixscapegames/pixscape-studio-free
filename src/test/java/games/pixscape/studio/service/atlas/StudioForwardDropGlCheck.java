@@ -96,6 +96,18 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
                     history.historyIds(),history.historyIds().ensureForEntity(map),brush.toPlan(),new games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner()));
             frame(canvas);assertDomain(canvas,FrameRenderQueue.SOURCE_TILED,false);
 
+            int animatedTileId=9001;
+            canvas.getTileAnimationRegistry().put(animatedTileId,
+                    new int[]{db.findByLogicalPath("tile").id(),db.findByLogicalPath("tile-frame").id()},
+                    new int[]{100,100});
+            var animatedBrush=new games.pixscape.studio.service.tiled.TiledBrushSession(map);
+            animatedBrush.apply(component,1,0,animatedTileId);
+            history.execute(new games.pixscape.studio.history.commands.TiledBrushCommand(canvas.getEcsWorld(),app.getSceneService(),
+                    history.historyIds(),history.historyIds().ensureForEntity(map),animatedBrush.toPlan(),new games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner()));
+            var tiledHandles=new java.util.HashSet<Integer>();
+            for(int i=0;i<12;i++){frame(canvas);collectDomainTextures(canvas,FrameRenderQueue.SOURCE_TILED,tiledHandles);}
+            assertTrue("An unpacked tiled animation advances through its standalone frame textures",tiledHandles.size()>=3);
+
             int particle=ops.createParticleEffect("spark.p",-25,55);assertTrue(particle>=0);
             for(int i=0;i<5;i++)frame(canvas);
             assertDomain(canvas,FrameRenderQueue.SOURCE_VFX,false);
@@ -151,7 +163,7 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
             assertPending(canvas,failed);assertPacked(canvas,image);
             assertFalse(atlas.hasAsyncPackQueuedOrRunningFor(tag));
             capture(root,"failed-pack.png");
-            System.out.println("Studio Forward blocked-pack validation: image, animated frames, Tiled, additive particles, transform, deletion/undo, superseded requests, publication, failure, Legacy. Captures: "+root.path());
+            System.out.println("Studio Forward blocked-pack validation: image, animated frames, static and animated Tiled frames, additive particles, transform, deletion/undo, superseded requests, publication, failure, Legacy. Captures: "+root.path());
     }
     @Override public void close() throws Exception {
         try{if(app!=null)app.dispose();}finally{globals.close();System.setProperty("user.home",home);ProjectConfig.setInstance(previous);}
@@ -173,6 +185,9 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
         var tile=(TileAssetMeta)db.registerIfAbsent(AssetType.TILE,"tile",null,AssetMeta.AssetScope.USER);
         String tilePath="orig/tiles/tile__a"+tile.id()+".png";db.updateSourceRelPath(tile.id(),tilePath);png(root.child(tilePath),Color.ORANGE);
         tile.tilesetId=set.id();tile.sheetIndex=0;tile.cellX=tile.cellY=0;
+        var tileFrame=(TileAssetMeta)db.registerIfAbsent(AssetType.TILE,"tile-frame",null,AssetMeta.AssetScope.USER);
+        String tileFramePath="orig/tiles/tile-frame__a"+tileFrame.id()+".png";db.updateSourceRelPath(tileFrame.id(),tileFramePath);png(root.child(tileFramePath),Color.PURPLE);
+        tileFrame.tilesetId=set.id();tileFrame.sheetIndex=0;tileFrame.cellX=tileFrame.cellY=0;
         ParticleEmitter emitter=new ParticleEmitter();emitter.setName("spark");emitter.setContinuous(true);emitter.setAdditive(true);
         emitter.setMaxParticleCount(10);emitter.getDuration().setLow(1000);emitter.getEmission().setHigh(20);
         emitter.getLife().setHigh(1000);emitter.getXScale().setHigh(16);emitter.getTransparency().setHigh(1);
@@ -206,6 +221,7 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
     private static void assertPending(WorldCanvas c,int e)throws Exception{int handle=texture(c,e);assertFalse(bundle(c).handle2layer.containsKey(handle));assertNotNull(TextureRegistry.getByHandle(handle));}
     private static void assertPacked(WorldCanvas c,int e)throws Exception{assertTrue(bundle(c).handle2layer.containsKey(texture(c,e)));}
     private static void assertDomain(WorldCanvas c,byte domain,boolean packed)throws Exception{FrameRenderQueue q=queue(c);int count=0;for(int i=0;i<q.size;i++)if(q.sourceDomain[i]==domain){count++;assertEquals(packed,bundle(c).handle2layer.containsKey(q.textureHandle[i]));}assertTrue("Visible domain "+domain,count>0);}
+    private static void collectDomainTextures(WorldCanvas c,byte domain,java.util.Set<Integer> handles)throws Exception{FrameRenderQueue q=queue(c);for(int i=0;i<q.size;i++)if(q.sourceDomain[i]==domain)handles.add(q.textureHandle[i]);}
     private static void publish(ControlledAtlasExecutor executor,AtlasStudioService service)throws Exception{publish(executor,service,true);}
     private static void publish(ControlledAtlasExecutor executor,AtlasStudioService service,boolean success)throws Exception{
         service.updateAsyncPack();while(executor.queued()>0)executor.runNext();service.applyIfPackReady();

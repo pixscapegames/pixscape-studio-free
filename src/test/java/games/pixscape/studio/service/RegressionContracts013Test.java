@@ -31,7 +31,8 @@ public class RegressionContracts013Test {
     @Test
     public void sceneAtlasInput_sync_cleansUnusedInput_andKeepsWhitePixel() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
-        String body = methodBody(source, "public AtlasInputSyncResult syncSceneAtlasInput(");
+        String body = methodBody(source,
+                "public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,String sceneTag,FileHandle projectDir,");
 
         assertTrue(body.contains("AtlasInputFileSync.sync("));
         String shared = read("src/main/java/games/pixscape/studio/service/atlas/AtlasInputFileSync.java");
@@ -57,11 +58,13 @@ public class RegressionContracts013Test {
     @Test
     public void sceneAtlasInput_cleanup_onlyRemovesUnreferencedAssets() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
-        String collectBody = methodBody(source, "private Set<String> collectRequiredAtlasInputPathsForCurrentScene(");
+        String collectBody = methodBody(source, "public Set<String> collectRequiredAtlasInputPathsForScene(");
 
         assertOrdered(collectBody,
                 "Aspect.all(AssetRefComponent.class)",
+                "Aspect.all(AnimationComponent.class)",
                 "collectUsedTiledRenderableAssetIds(world, tileAnimationsDb)",
+                "addRuntimeAvailabilitySourcePaths(cfg, world, scene, assetDb, tileAnimationsDb, required)",
                 "addParticleImageSourcePaths(cfg, world, required)"
         );
     }
@@ -89,23 +92,35 @@ public class RegressionContracts013Test {
     @Test
     public void sceneAtlasInput_cleanup_ignoresPhysicsOnlyData() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
-        String collectBody = methodBody(source, "private Set<String> collectRequiredAtlasInputPathsForCurrentScene(");
+        String collectBody = methodBody(source, "public Set<String> collectRequiredAtlasInputPathsForScene(");
 
         assertFalse(collectBody.contains("Physics"));
         assertFalse(collectBody.contains("Joint"));
     }
 
     @Test
-    public void maybeRepackAtlas_syncsInput_deletesOldPages_packsAndReloads() throws Exception {
+    public void maybeRepackAtlas_syncsInput_delegatesAtomicPublication_andReloads() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
         String body = methodBody(source, "private void maybeRepackAtlas(SaveExecutionPlan plan)");
 
         assertOrdered(body,
                 "syncSceneAtlasInputForSave(plan)",
-                "ProjectFileCleanupService.deleteSceneAtlasFiles",
+                "shouldSkipSaveAtlasRepack(plan, syncResult)",
                 "SceneAtlasLoaderService.packSceneAtlas",
-                "SceneAtlasLoaderService.loadSceneAtlas"
+                "SceneAtlasLoaderService.loadSceneAtlas",
+                "atlasStudioService.clearRepackRequired"
         );
+
+        String loader = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasLoaderService.java");
+        String pack = methodBody(loader, "public static void packSceneAtlas(");
+        assertTrue(pack.contains("AtlasStudioService.repackImportedScenes("));
+        String atomicPublication = read("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java");
+        String publication = methodBody(atomicPublication,
+                "static void repackImportedScenes(ProjectConfig cfg, FileHandle project, java.util.Set<String> tags,");
+        assertOrdered(publication,
+                "packer.pack(cfg, tag, project, output)",
+                "ProjectFileCleanupService.deleteSceneAtlasFiles(project, tag)",
+                "file.copyTo(atlasRoot.child(file.name()))");
     }
 
     @Test

@@ -1069,6 +1069,8 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
                 case "atlas-region" -> handleImageDrop(p, mx, my);
                 case "image-file" -> handleImageFileDrop(p, mx, my);
                 case "gameObject" -> handleGameObjectDrop(p, mx, my);
+                case "tile-asset" -> handleTiledAssetDrop(p, mx, my);
+                case "tiled-animation" -> handleTiledAnimationDrop(p, mx, my);
                 case "hud-screen" -> app.dropHudScreenOnScene(p, getAttachedSceneContext());
             }
             cleanupDndPayload(p);
@@ -2156,6 +2158,62 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         coordSpaces.screenToWorldLogical(screenX, screenY, selectionService().getActiveLayerIndex(), layerService(), tmpWorldPos);
         editorOps.createAnimationSprite(p.path, tmpWorldPos.x, tmpWorldPos.y, p.guid);
 
+    }
+
+    private void handleTiledAssetDrop(DragPayload p, float screenX, float screenY) {
+        placeDroppedTiledAsset(resolveTiledDropAssetId(p), screenX, screenY);
+    }
+
+    private void handleTiledAnimationDrop(DragPayload p, float screenX, float screenY) {
+        placeDroppedTiledAsset(resolveTiledDropAssetId(p), screenX, screenY);
+    }
+
+    static int resolveTiledDropAssetId(DragPayload payload) {
+        if (payload == null || payload.type == null) return -1;
+        return switch (payload.type) {
+            case "tile-asset" -> payload.assetId;
+            case "tiled-animation" -> payload.tileAnimationId;
+            default -> -1;
+        };
+    }
+
+    /**
+     * Drops one logical tile into the selected map through the normal history and validation
+     * boundary. A tiled animation id is intentionally authored as the logical id: the tiled
+     * runtime resolves its current frame for preview rendering.
+     */
+    private void placeDroppedTiledAsset(int assetId, float screenX, float screenY) {
+        if (assetId <= 0) return;
+
+        int mapEntityId = selectionService().getTiledMapEditingTargetEntityId();
+        if (mapEntityId < 0) return;
+
+        TiledLayerComponent tiled = world().getMapper(TiledLayerComponent.class)
+                .getSafe(mapEntityId, null);
+        if (tiled == null || tiled.data == null) return;
+
+        coordSpaces.screenToWorldLogical(
+                screenX,
+                screenY,
+                selectionService().getActiveLayerIndex(),
+                layerService(),
+                tmpWorldPos
+        );
+        int gx = tiled.data.worldToTileX(tmpWorldPos.x, tmpWorldPos.y);
+        int gy = tiled.data.worldToTileY(tmpWorldPos.x, tmpWorldPos.y);
+        if (!tiled.data.isInside(gx, gy)) return;
+
+        tiledPaintService.setActiveTileAssetId(assetId);
+        consumeTiledMutationResult(tiledMutationController.commitRectangle(
+                mapEntityId,
+                tiled,
+                gx,
+                gy,
+                gx,
+                gy,
+                assetId,
+                TileTransformFlags.NONE
+        ));
     }
 
     public void handleGameObjectDrop(DragPayload p, float screenX, float screenY) {

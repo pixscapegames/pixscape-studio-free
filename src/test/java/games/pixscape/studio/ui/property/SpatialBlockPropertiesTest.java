@@ -172,7 +172,7 @@ public class SpatialBlockPropertiesTest {
     }
 
     @Test
-    public void outOfEnvelopePropertyEditIsRejectedWithoutMutation() {
+    public void linkedTileAnchorsPermitPropertyEditsBeyondTheirCellEnvelope() {
         Fixture fixture = fixture();
         int layerId = tiledLayer(fixture.world);
         fixture.history.historyIds().ensureForEntity(layerId);
@@ -189,8 +189,12 @@ public class SpatialBlockPropertiesTest {
 
         properties.submitFootprintEdit(0.9f, null, null, null);
 
+        SpatialBlockData edited = properties.activeBlock();
+        Assert.assertEquals(0.9f, edited.x, 0f);
+        Assert.assertEquals(1, edited.linkedTileRefs.size);
+        Assert.assertTrue(fixture.history.canUndo());
+        fixture.history.undo();
         Assert.assertEquals(1f, properties.activeBlock().x, 0f);
-        Assert.assertFalse(fixture.history.canUndo());
     }
 
     @Test

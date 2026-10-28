@@ -834,27 +834,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     }
 
-    private static float[] copyFloatArray(float[] source, int wantedLength) {
-        int n = Math.max(0, wantedLength);
-        float[] out = new float[n];
-
-        if (source != null && n > 0) {
-            System.arraycopy(source, 0, out, 0, Math.min(source.length, n));
-        }
-
-        return out;
-    }
-
-    private static int[] copyIntArray(int[] source) {
-        if (source == null || source.length == 0) {
-            return new int[0];
-        }
-
-        int[] out = new int[source.length];
-        System.arraycopy(source, 0, out, 0, source.length);
-        return out;
-    }
-
     @Override
     public String label() {
         return "GenericEntity";

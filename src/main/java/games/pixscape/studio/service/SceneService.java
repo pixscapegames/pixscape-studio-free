@@ -2728,17 +2728,6 @@ public final class SceneService {
         }
     }
 
-    private void rollbackSceneSwitch(ProjectConfig cfg, String previousSceneName, FileHandle projectDir) {
-        if (!rollbackSceneSwitchConfigPointer(cfg, previousSceneName)) {
-            unloadProjectToEmptyEditor();
-            return;
-        }
-        saveProjectFile(cfg);
-        loadScene(cfg, previousSceneName, projectDir);
-        sceneMetaBridge.pushCurrentSceneMetaToUI();
-        app.getBottomBar().refreshSelectBox();
-    }
-
     private void rollbackSceneCreate(ProjectConfig cfg,
                                      String previousSceneName,
                                      String createdSceneName,
@@ -4344,11 +4333,6 @@ public final class SceneService {
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
         sceneContext().identityRegistry().bind(sceneContext().world(), meta);
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
-    }
-
-    private void flushWorldForSerialization() {
-        if (canvas == null) return;
-        sceneContext().world().process();
     }
 
     // ---------------------------------------------------------------------

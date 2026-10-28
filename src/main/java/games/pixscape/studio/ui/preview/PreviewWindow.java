@@ -60,8 +60,6 @@ public final class PreviewWindow extends ApplicationAdapter {
     private static final float CAMERA_ZOOM_MIN = 0.2f;
     private static final float CAMERA_ZOOM_MAX = 10f;
 
-    private static final boolean PREVIEW_PIXEL_SNAP = true;
-    private static final float PREVIEW_PIXEL_SNAP_EPSILON = 0.0001f;
 
 
     private Box2dWorldService box2d;
@@ -458,24 +456,6 @@ public final class PreviewWindow extends ApplicationAdapter {
                     || keycode == Input.Keys.MINUS || keycode == Input.Keys.NUMPAD_ADD
                     || keycode == Input.Keys.NUMPAD_SUBTRACT || isCommand(keycode);
         }
-    }
-
-    private void snapCameraToPixelGrid(OrthographicCamera cam) {
-        if (cam == null || !PREVIEW_PIXEL_SNAP) return;
-
-        float step = cameraWorldUnitsPerScreenPixel(cam);
-        if (step <= PREVIEW_PIXEL_SNAP_EPSILON) return;
-
-        cam.position.x = snap(cam.position.x, step);
-        cam.position.y = snap(cam.position.y, step);
-    }
-
-    private static float cameraWorldUnitsPerScreenPixel(OrthographicCamera cam) {
-        return cam.zoom;
-    }
-
-    private static float snap(float value, float step) {
-        return Math.round(value / step) * step;
     }
 
     private void applyPreviewNearestFiltering() {

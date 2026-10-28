@@ -3,7 +3,6 @@ package games.pixscape.studio.service.hud;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Cell;
-import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import games.pixscape.runtime.hud.document.*;
 
 import java.util.ArrayList;
@@ -76,24 +75,6 @@ final class HudSelectionOverlayProjection {
             addIfVisible(targets, actorTarget(selected.id, selectedActor, overlay, true));
         }
         return List.copyOf(targets);
-    }
-
-    private static void addChildTarget(List<Candidate> targets, HudChild child, Actor parentActor,
-                                       Map<String, Actor> actorsByNodeId, Actor overlay) {
-        Actor childActor = actorsByNodeId.get(child.node.id);
-        if (childActor == null) return;
-        if (child.placementKind == HudPlacementKind.CELL && parentActor instanceof Table table) {
-            Cell<?> cell = table.getCell(childActor);
-            if (cell != null) {
-                Rectangle bounds = HudOverlayGeometry.visibleCellBoundsInOverlay(
-                        cell, childActor, overlay, new Rectangle());
-                if (usable(bounds)) targets.add(new Candidate(HudSelectionTarget.from(child.node.id,
-                        HudSelectionTarget.Type.CELL, bounds, false), childActor));
-                return;
-            }
-        }
-        HudSelectionTarget target = actorTarget(child.node.id, childActor, overlay, false);
-        if (usable(target.bounds())) targets.add(new Candidate(target, childActor));
     }
 
     private static void addNodeTarget(List<Candidate> targets, HudNode node,

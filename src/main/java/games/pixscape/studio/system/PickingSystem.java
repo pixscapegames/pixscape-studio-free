@@ -2246,51 +2246,6 @@ public final class PickingSystem extends BaseSystem {
         return true;
     }
 
-    private int computeAuthoredPolygonVertsWU(
-            int bodyEid,
-            float[] localVertsMeters,
-            int count,
-            PhysicsShapeData polygon,
-            float[] out
-    ) {
-        if (bodyEid < 0) return 0;
-        if (localVertsMeters == null || count < 3 || localVertsMeters.length < count * 2) return 0;
-        if (out == null || out.length < count * 2) return 0;
-
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return 0;
-
-        float ppm = resolvePixelsPerMeter();
-
-        float fixtureOffsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float fixtureCos = MathUtils.cos(fixtureAngleRad);
-        float fixtureSin = MathUtils.sin(fixtureAngleRad);
-
-        float bodyCos = MathUtils.cos(t.rotationRad);
-        float bodySin = MathUtils.sin(t.rotationRad);
-
-        for (int i = 0; i < count; i++) {
-            float lx = localVertsMeters[i * 2];
-            float ly = localVertsMeters[i * 2 + 1];
-
-            float fx = lx * fixtureCos - ly * fixtureSin + fixtureOffsetX;
-            float fy = lx * fixtureSin + ly * fixtureCos + fixtureOffsetY;
-
-            float wx = t.x + (fx * bodyCos - fy * bodySin) * ppm;
-            float wy = t.y + (fx * bodySin + fy * bodyCos) * ppm;
-
-            out[i * 2] = wx;
-            out[i * 2 + 1] = wy;
-        }
-
-        remapPhysicsPoints(bodyEid, out, count);
-        applyDisplayOffset(bodyEid, out, count);
-        return count;
-    }
-
     private void applyDisplayOffset(int entityId, float[] verts, int vertexCount) {
         if (displayOffsetResolver != null) {
             displayOffsetResolver.addTo(entityId, verts, vertexCount);
@@ -2357,66 +2312,6 @@ public final class PickingSystem extends BaseSystem {
         }
 
         return out;
-    }
-
-    private void worldToAuthoredSourceLocalMeters(
-            int bodyEid,
-            PhysicsShapeData polygon,
-            float wx,
-            float wy,
-            Vector2 outMeters
-    ) {
-        worldToBodyLocalPx(bodyEid, wx, wy, tmpA);
-
-        float ppm = resolvePixelsPerMeter();
-
-        float bodyLocalX = tmpA.x / ppm;
-        float bodyLocalY = tmpA.y / ppm;
-
-        float offsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float offsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float dx = bodyLocalX - offsetX;
-        float dy = bodyLocalY - offsetY;
-
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-
-        float lx = dx * cos + dy * sin;
-        float ly = -dx * sin + dy * cos;
-
-        outMeters.set(lx, ly);
-    }
-
-    private PhysicsShapeData materialFromAuthoredPolygon(PhysicsShapeData polygon) {
-        PhysicsShapeData fixture = PhysicsService.createDefaultShape(
-                polygon != null && polygon.physicsShapeId > 0
-                        ? polygon.physicsShapeId
-                        : 1);
-
-        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
-        fixture.geometry.polygonVertices = new float[0];
-        fixture.geometry.polygonVertexCount = 0;
-
-        if (polygon == null) {
-            return fixture;
-        }
-
-        fixture.density = polygon.density;
-        fixture.friction = polygon.friction;
-        fixture.restitution = polygon.restitution;
-        fixture.sensor = polygon.sensor;
-
-        fixture.categoryBits = polygon.categoryBits;
-        fixture.maskBits = polygon.maskBits;
-        fixture.groupIndex = polygon.groupIndex;
-
-        fixture.geometry.offsetX = polygon.geometry.offsetX;
-        fixture.geometry.offsetY = polygon.geometry.offsetY;
-        fixture.geometry.angleDegrees = polygon.geometry.angleDegrees;
-
-        return fixture;
     }
 
     private void onPolygonVertexReleased() {
@@ -2807,18 +2702,6 @@ public final class PickingSystem extends BaseSystem {
         }
 
         return ok1 && ok2;
-    }
-
-    private static float rotateX(float x, float y, float angleRad) {
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-        return x * cos - y * sin;
-    }
-
-    private static float rotateY(float x, float y, float angleRad) {
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-        return x * sin + y * cos;
     }
 
     private float resolvePixelsPerMeter() {

@@ -31,7 +31,10 @@ public class StudioWorldConfigSpatialSystemTest {
         assertTrue(source.contains("new StudioRenderSubmitSystem("));
         assertTrue(source.contains("layerState,\n                                frameQueue,\n                                camera,"));
         assertTrue(submitSource.contains("private final FrameRenderQueue frameQueue;"));
-        assertTrue(submitSource.contains("int size = frameQueue.size;"));
+        assertTrue(submitSource.contains("renderPass(pass, first, frameQueue.size);"));
+        assertTrue(submitSource.contains("private void renderPass(int pass, int first, int end)"));
+        assertTrue(submitSource.contains("int size = end;"));
+        assertTrue(submitSource.contains("for (int i = first; i < size; i++)"));
         assertTrue(particleFallbackSource.contains("private final VfxRenderState vfxState;"));
         assertTrue(particleFallbackSource.contains("vfxState.addParticleQuad("));
         assertFalse(particleFallbackSource.contains("private final " + legacyRenderStateName() + " state;"));
@@ -49,11 +52,12 @@ public class StudioWorldConfigSpatialSystemTest {
     @Test
     public void assetImportsRefreshStudioTilesetProfileRegistryFromLiveDatabase() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/SceneService.java");
-        String refreshAfterSave = "assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));\n"
-                + "        canvas.publishAssetMetaDatabase(assetMetaDatabase);\n"
-                + "        refreshAssetsPanel();";
-
-        assertTrue(countOccurrences(source, refreshAfterSave) >= 2);
+        assertPublishesSavedMetadata(
+                methodBody(source, "public void importAssets("),
+                "assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));");
+        assertPublishesSavedMetadata(
+                methodBody(source, "private TilesetImportResult applyTilesetImportPlan("),
+                "assetMetaDatabase.save(project.child(StudioFs.FILE_ASSETS_JSON));");
     }
 
     @Test
@@ -136,17 +140,14 @@ public class StudioWorldConfigSpatialSystemTest {
         return "RenderState" + "SOA";
     }
 
-    private static int countOccurrences(String source, String needle) {
-        int count = 0;
-        int from = 0;
-        while (true) {
-            int index = source.indexOf(needle, from);
-            if (index < 0) {
-                return count;
-            }
-            count++;
-            from = index + needle.length();
-        }
+    private static void assertPublishesSavedMetadata(String method, String saveStatement) {
+        int save = method.indexOf(saveStatement);
+        int publish = method.indexOf("canvas.publishAssetMetaDatabase(assetMetaDatabase);");
+        int refresh = method.indexOf("refreshAssetsPanel();", publish);
+
+        assertTrue(save >= 0);
+        assertTrue(save < publish);
+        assertTrue(publish < refresh);
     }
 
     private static String methodBody(String source, String signaturePrefix) {

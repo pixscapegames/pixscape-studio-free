@@ -30,25 +30,41 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void automaticCurrentSceneRepackSynchronizesOnceAndDecidesBeforePacking() throws Exception {
+    public void automaticCurrentSceneRepackSynchronizesOnceAndDelegatesAtomicPublicationBeforeLoading() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "private void repackSceneAtlas(");
 
         int sync = methodBody.indexOf("sceneAtlasInputService.syncSceneAtlasInputForSave(");
         int skip = methodBody.indexOf("shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)");
-        int delete = methodBody.indexOf("ProjectFileCleanupService.deleteSceneAtlasFiles(");
         int pack = methodBody.indexOf("SceneAtlasLoaderService.packSceneAtlas(");
+        int reload = methodBody.indexOf("reloadAtlasAndRebind(cfg, canonicalTag, projectDir);");
 
         assertTrue(sync >= 0);
         assertTrue(skip > sync);
-        assertTrue(delete > skip);
-        assertTrue(pack > delete);
+        assertTrue(pack > skip);
+        assertTrue(reload > pack);
         assertTrue(occurrences(methodBody, "sceneAtlasInputService.syncSceneAtlasInputForSave(") == 1);
         String skipGuard = methodBody(
                 methodBody.substring(skip),
                 "shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)"
         );
         assertTrue(skipGuard.contains("return;"));
+
+        String loader = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasLoaderService.java"),
+                StandardCharsets.UTF_8
+        );
+        String packMethod = methodBody(loader, "public static void packSceneAtlas(");
+        assertTrue(packMethod.contains("AtlasStudioService.repackImportedScenes("));
+        String reloadMethod = methodBody(source, "private void reloadAtlasAndRebind(");
+        assertTrue(reloadMethod.contains("rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);"));
+        String rebuildMethod = methodBody(source, "private void rebuildRenderRuntimeForScene(");
+        assertTrue(rebuildMethod.contains("SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);"));
+        String atlasService = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java"),
+                StandardCharsets.UTF_8
+        );
+        assertTrue(atlasService.contains("ProjectFileCleanupService.deleteSceneAtlasFiles(project, tag);"));
     }
 
     @Test

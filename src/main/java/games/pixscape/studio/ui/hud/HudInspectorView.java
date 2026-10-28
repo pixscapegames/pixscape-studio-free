@@ -2098,22 +2098,6 @@ public final class HudInspectorView extends VisTable {
         add(check).colspan(2).left().row();
     }
 
-    private void addChecks(String label, String xName, String yName, String nodeId,
-                           Supplier<Boolean> xReader, Supplier<Boolean> yReader, PairBooleanWriter writer) {
-        VisCheckBox x = new VisCheckBox("X:"); x.setName(xName); x.setChecked(Boolean.TRUE.equals(xReader.get()));
-        VisCheckBox y = new VisCheckBox("Y:"); y.setName(yName); y.setChecked(Boolean.TRUE.equals(yReader.get()));
-        ChangeListener listener = new ChangeListener() {
-            @Override public void changed(ChangeEvent event, Actor actor) {
-                if (refreshing || !isCurrentTarget(nodeId)) return;
-                edit(nodeId, (node, relation) -> writer.write(node, relation, x.isChecked(), y.isChecked()));
-            }
-        };
-        x.addListener(listener); y.addListener(listener);
-        VisTable row = new VisTable(); row.defaults().left().padRight(6f); row.add(x); row.add(y);
-        addFormLabel(label);
-        add(row).padLeft(CommonLayout.PAD_LEFT_SUBMENU).left().row();
-    }
-
     private void addPair(String label, String firstLabel, Actor first, String secondLabel, Actor second) {
         HorizontalGroup group = new HorizontalGroup()
                 .space(6f)
@@ -2314,7 +2298,6 @@ public final class HudInspectorView extends VisTable {
     private enum CellDimension { MIN_WIDTH, MIN_HEIGHT, PREF_WIDTH, PREF_HEIGHT }
     @FunctionalInterface private interface ChoiceWriter<E> { void write(HudNode node, HudChild relation, E selected); }
     @FunctionalInterface private interface BooleanWriter { void write(HudNode node, HudChild relation, boolean checked); }
-    @FunctionalInterface private interface PairBooleanWriter { void write(HudNode node, HudChild relation, boolean x, boolean y); }
     @FunctionalInterface private interface CellPairBooleanWriter { void write(HudTableCell cell, boolean x, boolean y); }
     @FunctionalInterface private interface CellChoiceWriter<E> { void write(HudTableCell cell, E selected); }
 }

@@ -424,16 +424,6 @@ public final class FolderTreeView extends VisTable {
         // Protect the logical root "Tiles"
     }
 
-    private AssetNode assetNodeFromEventTarget(Actor actor) {
-        for (Actor a = actor; a != null; a = a.getParent()) {
-            Object uo = a.getUserObject();
-            if (uo instanceof AssetNode assetNode) {
-                return assetNode;
-            }
-        }
-        return null;
-    }
-
     private void hookContextMenu(StudioApplicationAdapter app) {
         tree.addCaptureListener(new InputListener() {
             @Override

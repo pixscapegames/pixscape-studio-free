@@ -62,7 +62,7 @@ public class SpatialBlockLinkCommandTest {
         }
     }
 
-    @Test public void mismatchedBasesAndLinkedEnvelopeFailWithoutMutationOrHistory() {
+    @Test public void mismatchedBasesRejectAtomicallyAndLinkedPhysicalEnvelopeMayCrossAnchorCells() {
         try (Fixture f = new Fixture()) {
             f.add(wall(1,1,1,1,3,.3f,90)); f.add(wall(2,2,4,1,2,.15f,60));
             f.block(2).altitude=10;
@@ -70,7 +70,9 @@ public class SpatialBlockLinkCommandTest {
             SpatialLinkProposal p = f.propose(2,1,false); assertFalse(p.valid); assertTrue(p.diagnostic.contains("altitude"));
             f.execute(p); assertEquals(before,new Json().toJson(f.blocks)); assertFalse(f.history.canUndo());
             f.block(2).altitude=0; f.block(1).depth=1.3f; f.block(1).addLinkedTileRef(1,2,1); f.block(1).addLinkedTileRef(2,2,1); f.block(1).addLinkedTileRef(3,2,1);
-            p=f.propose(2,1,false); assertFalse(p.valid); assertTrue(p.diagnostic,p.diagnostic.contains("FOOTPRINT") || p.diagnostic.contains("REGION"));
+            p=f.propose(2,1,false); assertTrue(p.diagnostic,p.valid);
+            f.execute(p); assertEquals(1,f.blocks.links.size); assertTrue(f.history.canUndo());
+            assertTrue(SpatialStructureCompilation.tryCompile(f.blocks,f.tiled.data).success());
         }
     }
 

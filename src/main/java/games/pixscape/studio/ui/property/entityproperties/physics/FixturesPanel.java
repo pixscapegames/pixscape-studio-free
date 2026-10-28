@@ -32,7 +32,6 @@ import java.util.function.Consumer;
 public final class FixturesPanel extends CollapsibleWidget {
 
     private static final float MIN_SHAPE_HALF_M = 0.001f;
-    private static final int PROPERTY_COLUMN_COUNT = 3;
     private static final Array<String> SHAPES = Array.with("Box", "Circle", "Polygon");
 
     private final EntityPropertiesContext ctx;
