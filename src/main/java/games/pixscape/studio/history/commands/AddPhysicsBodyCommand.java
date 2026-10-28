@@ -2,16 +2,16 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
-import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 

@@ -5,11 +5,7 @@ import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.component.AnimationComponent;
 import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.studio.asset.AnimationAssetMeta;
-import games.pixscape.studio.asset.AnimationClipMeta;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.*;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import org.junit.Test;
@@ -17,9 +13,7 @@ import org.junit.Test;
 import java.nio.file.Files;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class EditAnimationAssetFpsCommandTest {
 

@@ -328,6 +328,35 @@ public class StudioAssetVisualResolverTest {
         }, paths);
     }
 
+    @Test
+    public void importedPixelsInvalidateOnlyChangedAssetsUntilAtlasReplacement() {
+        AssetMetaDatabase db=new AssetMetaDatabase();
+        AssetMeta first=register(db,AssetType.TILE,"tiles/terrain/0","orig/tiles/terrain/0.png");
+        AssetMeta second=register(db,AssetType.TILE,"tiles/terrain/1","orig/tiles/terrain/1.png");
+        Texture standaloneTexture=texture(8,8), oldPacked=texture(16,16), newPacked=texture(32,32);
+        TrackingStandaloneAccess standalone=new TrackingStandaloneAccess(); standalone.textures.put(first.sourceRelPath(),standaloneTexture);
+        final TextureAtlas[] current={new TextureAtlas()};
+        final AtlasAssetBinding[] firstBinding={binding(first.id(),"first",oldPacked)};
+        AtlasAssetBinding unchanged=binding(second.id(),"second",oldPacked);
+        games.pixscape.runtime.service.AtlasRuntimeService atlas=new games.pixscape.runtime.service.AtlasRuntimeService() {
+            @Override public com.badlogic.gdx.utils.Array<String> listTags() { return new com.badlogic.gdx.utils.Array<>(new String[]{"scene1"}); }
+            @Override public TextureAtlas getAtlas(String tag) { return current[0]; }
+            @Override public AtlasAssetBinding resolveBinding(int id,String tag) { return id==first.id()?firstBinding[0]:unchanged; }
+        };
+        StudioAssetVisualResolver resolver=new StudioAssetVisualResolver(atlas,db::findById,standalone);
+        assertSame(oldPacked,resolver.resolveFirst(first.id(),"scene1").texture());
+        resolver.invalidateImportedPixels(java.util.Set.of(first.id()));
+        resolver.invalidateAtlasTag("scene1"); // Cache clearing alone must not make old pixels current.
+        assertSame(standaloneTexture,resolver.resolveFirst(first.id(),"scene1").texture());
+        assertSame(oldPacked,resolver.resolveFirst(second.id(),"scene1").texture());
+        current[0]=new TextureAtlas(); firstBinding[0]=binding(first.id(),"first",newPacked);
+        resolver.invalidateAtlasTag("scene1");
+        assertSame(newPacked,resolver.resolveFirst(first.id(),"scene1").texture());
+        resolver.invalidateImportedPixels(java.util.Set.of(first.id())); current[0]=null;
+        resolver.invalidateAll(); current[0]=new TextureAtlas();
+        assertSame(newPacked,resolver.resolveFirst(first.id(),"scene1").texture());
+    }
+
     private static AssetMeta register(AssetMetaDatabase db,
                                       AssetType type,
                                       String logicalPath,

@@ -15,9 +15,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SelectionServiceTiledMapEditingTargetTest {
     private World world;
@@ -41,6 +39,7 @@ public class SelectionServiceTiledMapEditingTargetTest {
         layers = new LayerService(
                 world, null, new HistoryIdRegistry(), identities);
         editingModes = new StudioEditingModeService();
+        editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         selection = new SelectionService(world, layers, editingModes);
 
         tiledLayer = world.create();

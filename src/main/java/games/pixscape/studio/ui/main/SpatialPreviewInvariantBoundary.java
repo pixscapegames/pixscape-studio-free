@@ -16,6 +16,18 @@ final class SpatialPreviewInvariantBoundary {
 
     private boolean blocked;
     private String blockedScene;
+    private long editRevision;
+    private int resourceRevision;
+
+    /** Also used by existing entity-change notifications for transient preview restoration. */
+    void invalidate() { blocked=false;blockedScene=null; }
+
+    /** Retry only after an authoring operation or successful resource publication. */
+    void prepare(String scene,long edits,int resources){
+        prepare(scene);
+        if(edits!=editRevision||resources!=resourceRevision){blocked=false;blockedScene=null;}
+        editRevision=edits;resourceRevision=resources;
+    }
 
     void prepare(String scene) {
         if (blocked && !same(blockedScene, scene)) {
@@ -30,17 +42,8 @@ final class SpatialPreviewInvariantBoundary {
         try {
             processor.processFrame();
             return true;
-        } catch (SpatialConstraintInvariantException failure) {
-            blocked = true;
-            blockedScene = scene;
-            listener.onSpatialInvariantFailure(failure);
-            return false;
-        } catch (SpatialTileOrderInvariantException failure) {
-            blocked = true;
-            blockedScene = scene;
-            listener.onSpatialInvariantFailure(failure);
-            return false;
-        } catch (SpatialTileSyncInvariantException failure) {
+        } catch (SpatialConstraintInvariantException | SpatialTileOrderInvariantException
+                 | SpatialTileSyncInvariantException | games.pixscape.runtime.render.lighting.LightingAdmissionException failure) {
             blocked = true;
             blockedScene = scene;
             listener.onSpatialInvariantFailure(failure);

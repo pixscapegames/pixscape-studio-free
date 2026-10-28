@@ -71,7 +71,7 @@ public final class SpatialStructureGeometryCache {
                 }
                 Entry staged = new Entry(structureId);
                 staged.capture(component);
-                staged.compiled = SpatialStructureCompiler.compile(component.blocks, structureId);
+                staged.compiled = SpatialStructureCompiler.compile(component.blocks, component.links, structureId);
                 staging.add(staged);
                 stagedCompilations++;
                 changed = true;
@@ -263,6 +263,7 @@ public final class SpatialStructureGeometryCache {
     }
 
     private static final class Entry {
+        com.badlogic.gdx.utils.Array<games.pixscape.runtime.spatial.SpatialBlockLink> links = new com.badlogic.gdx.utils.Array<>(games.pixscape.runtime.spatial.SpatialBlockLink.class);
         final int structureId;
         final Array<SpatialBlockData> snapshots = new Array<>(SpatialBlockData[]::new);
         CompiledSpatialStructure compiled;
@@ -270,6 +271,13 @@ public final class SpatialStructureGeometryCache {
         Entry(int structureId) { this.structureId = structureId; }
 
         boolean matches(SpatialBlocksComponent component) {
+            if (component != null) {
+                if (links.size != component.links.size) return false;
+                for (int i = 0; i < links.size; i++) {
+                    games.pixscape.runtime.spatial.SpatialBlockLink a = links.get(i), b = component.links.get(i);
+                    if (a.firstBlockId != b.firstBlockId || a.secondBlockId != b.secondBlockId || a.firstFace != b.firstFace || a.secondFace != b.secondFace) return false;
+                }
+            }
             int polygonVertexCount = count(component, structureId);
             if (polygonVertexCount != snapshots.size) return false;
             for (int i = 0; i < snapshots.size; i++) {
@@ -281,6 +289,7 @@ public final class SpatialStructureGeometryCache {
         }
 
         void capture(SpatialBlocksComponent component) {
+            links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(component != null ? component.links : null);
             snapshots.clear();
             if (component == null || component.blocks == null) return;
             for (int i = 0; i < component.blocks.size; i++) {

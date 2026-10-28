@@ -1,6 +1,5 @@
 package games.pixscape.studio.service;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.math.Vector2;
 import games.pixscape.runtime.render.DynamicEntityRenderState;

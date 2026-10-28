@@ -65,7 +65,7 @@ public final class SpatialCellPicker {
         return logicalFound;
     }
 
-    private static boolean pickTopmostVisibleOccupiedSprite(TiledMapLayerData map,
+    public static boolean pickTopmostVisibleOccupiedSprite(TiledMapLayerData map,
                                                              TiledMapRenderState tiledState,
                                                              float worldX,
                                                              float worldY,

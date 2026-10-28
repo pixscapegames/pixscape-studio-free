@@ -1,9 +1,8 @@
 package games.pixscape.studio.service.gameobject;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.IntIntMap;
-import games.pixscape.runtime.component.physics.*;
+import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;

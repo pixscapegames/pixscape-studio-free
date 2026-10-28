@@ -1,7 +1,6 @@
 package games.pixscape.studio.ui.asset;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.TilesetAnchor;
 import games.pixscape.studio.asset.TilesetRenderSize;
@@ -58,6 +57,17 @@ public class ImportDialogValidationTest {
         assertTrue(ImportDialogValidation.isTsxFile(handle));
         assertFalse(ImportDialogValidation.isSupportedImage(handle));
         assertFalse(ImportDialogValidation.isParticleFile(handle));
+    }
+
+    @Test public void importValidation_jsonIsExplicitSkinCandidateNotImage() throws Exception {
+        File file = File.createTempFile("scene2d-skin", ".json");
+        file.deleteOnExit();
+        FileHandle handle = new FileHandle(file);
+
+        assertTrue(ImportDialogValidation.isSupportedImportFile(handle));
+        assertTrue(ImportDialogValidation.isSkinJsonFile(handle));
+        assertFalse(ImportDialogValidation.isSupportedImage(handle));
+        assertFalse(ImportDialogValidation.isBitmapFontFile(handle));
     }
 
     @Test

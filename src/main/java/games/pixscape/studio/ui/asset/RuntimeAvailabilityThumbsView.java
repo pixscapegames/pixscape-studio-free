@@ -185,7 +185,7 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
             }
         });
 
-        Tooltip tip = new Tooltip.Builder(item.label)
+        Tooltip tip = new Tooltip.Builder(item.tooltipText())
                 .target(tile)
                 .build();
         tip.setAppearDelayTime(0f);
@@ -549,6 +549,11 @@ public final class RuntimeAvailabilityThumbsView extends VisTable {
                     previewFile,
                     -1
             );
+        }
+
+        private String tooltipText() {
+            return category == RuntimeAvailabilityCategory.GAME_OBJECTS
+                    ? StudioFs.removeExtension(gameObjectFile.name()) : label;
         }
 
         private static RuntimeAvailabilityItem tiledAnimation(int id, String name) {

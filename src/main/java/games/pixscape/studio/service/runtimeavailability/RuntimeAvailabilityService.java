@@ -1,5 +1,6 @@
 package games.pixscape.studio.service.runtimeavailability;
 
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.AssetMetaDatabase;
 import games.pixscape.studio.asset.TileAssetMeta;
@@ -7,7 +8,6 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.configuration.SceneRuntimeAvailabilityData;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.runtime.gameobject.GameObjectAssetId;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -129,6 +129,8 @@ public final class RuntimeAvailabilityService {
                 case PARTICLE -> removeDeletedParticle(entry.value, meta.sourceRelPath());
                 case TILE -> removeTiledTile(entry.value, meta.id());
                 case TILESET -> false;
+                case FONT -> false;
+                case SKIN -> false;
             };
         }
         return changed;

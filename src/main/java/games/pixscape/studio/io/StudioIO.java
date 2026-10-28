@@ -20,6 +20,17 @@ public final class StudioIO {
         if (parent != null && !parent.exists()) parent.mkdirs();
     }
 
+    /** Ordinary binary copy extracted from atlas input sync. Timestamp/size is a cache hint,
+     * not a content comparison; callers needing exact fresh bytes use a fresh destination. */
+    public static boolean copyIfDifferent(FileHandle source, FileHandle dest) {
+        if (source == null || dest == null || !source.exists() || source.isDirectory()) return false;
+        if (dest.exists() && !dest.isDirectory() && dest.length() == source.length()
+                && dest.lastModified() >= source.lastModified()) return false;
+        ensureParentDir(dest);
+        source.copyTo(dest);
+        return true;
+    }
+
     public static String readUtf8(FileHandle file) {
         if (file == null) throw new IllegalArgumentException("file is null");
         return file.readString("UTF-8");
@@ -70,8 +81,19 @@ public final class StudioIO {
         } catch (Exception ignored) {
         }
 
-        if (target.exists()) target.delete();
-        tmp.moveTo(target);
+        try {
+            try {
+                java.nio.file.Files.move(tmp.file().toPath(), target.file().toPath(),
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                java.nio.file.Files.move(tmp.file().toPath(), target.file().toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (java.io.IOException failure) {
+            if (tmp.exists()) tmp.delete();
+            throw new RuntimeException("Atomic replace failed: " + target.path(), failure);
+        }
 
         if (!target.exists()) {
             throw new RuntimeException("Atomic replace failed: " + target.path());

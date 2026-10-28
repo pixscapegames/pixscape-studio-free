@@ -41,7 +41,9 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         SPRITESHEET,
         TILESET,
         TILESET_TSX,
-        PARTICLE_EFFECT
+        PARTICLE_EFFECT,
+        FONT,
+        SKIN
     }
 
     private static final float DIALOG_MIN_W = 1000f;
@@ -83,6 +85,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         public int offsetX = 0;
         public int offsetY = 0;
         public TilesetRenderSize renderSize = TilesetRenderSize.NATIVE;
+        public transient games.pixscape.studio.service.asset.TilesetReimportService.Plan tilesetPlan;
 
         private boolean dimensionsResolved;
         transient VisValidatableTextField tileWidthField;
@@ -340,6 +343,11 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     private void addDroppedEntry(FileHandle entry) {
         if (entry == null || !entry.exists()) return;
 
+        if (!entry.isDirectory()) {
+            addOrSkip(entry);
+            return;
+        }
+
         Array<FileHandle> supported = new Array<>();
         collectSupportedFiles(entry, supported);
 
@@ -361,13 +369,17 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             return;
         }
 
-        if (ImportDialogValidation.isSupportedImportFile(entry)) {
+        // JSON files are only accepted when explicitly selected: recursively importing a
+        // folder must not reinterpret arbitrary project JSON as Scene2D Skins.
+        if (ImportDialogValidation.isSupportedImportFile(entry)
+                && !ImportDialogValidation.isSkinJsonFile(entry)) {
             out.add(entry);
         }
     }
 
     private void addOrSkip(FileHandle file) {
         if (file == null || !file.exists() || file.isDirectory()) return;
+        if (games.pixscape.studio.service.asset.TilesetReimportService.isNormalCompanion(file.name())) return;
         if (!ImportDialogValidation.isSupportedImportFile(file)) return;
 
         for (int i = 0; i < items.size; i++) {
@@ -384,6 +396,8 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private static ImportType guessType(FileHandle file) {
+        if (ImportDialogValidation.isBitmapFontFile(file)) return ImportType.FONT;
+        if (ImportDialogValidation.isSkinJsonFile(file)) return ImportType.SKIN;
         if (ImportDialogValidation.isParticleFile(file)) return ImportType.PARTICLE_EFFECT;
         if (ImportDialogValidation.isTsxFile(file)) return ImportType.TILESET_TSX;
         if (ImportDialogValidation.isSupportedImage(file)) return ImportType.IMAGE;
@@ -396,7 +410,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         listTable.defaults().pad(4).top();
 
         if (items.size == 0) {
-            listTable.add(new VisLabel("drop files here  (.png, .p, .tsx)"))
+            listTable.add(new VisLabel("drop files here  (.png, .p, .tsx, .fnt, .json)"))
                     .left()
                     .pad(6)
                     .colspan(4)
@@ -481,6 +495,18 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private Actor buildTypeActor(ImportItem item) {
+        if (ImportDialogValidation.isBitmapFontFile(item.file)) {
+            VisLabel label = new VisLabel("Bitmap font");
+            label.setColor(0.85f, 0.85f, 0.85f, 1f);
+            return label;
+        }
+        if (ImportDialogValidation.isSkinJsonFile(item.file)) {
+            SimpleSelectBox<ImportType> typeBox = new SimpleSelectBox<>();
+            typeBox.setItems(ImportType.SKIN);
+            typeBox.setSelected(ImportType.SKIN);
+            item.type = ImportType.SKIN;
+            return typeBox;
+        }
         if (ImportDialogValidation.isParticleFile(item.file)) {
             VisLabel label = new VisLabel("Particle effect");
             label.setColor(0.85f, 0.85f, 0.85f, 1f);
@@ -521,6 +547,18 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             wrap.left();
             wrap.add(errorLabel).left().width(COL_DETAILS_W - 8f).fillX();
             return wrap;
+        }
+
+        if (ImportDialogValidation.isBitmapFontFile(item.file)) {
+            VisLabel label = new VisLabel("BMFont descriptor and PNG pages");
+            label.setColor(0.78f, 0.78f, 0.78f, 1f);
+            return label;
+        }
+
+        if (item.type == ImportType.SKIN) {
+            VisLabel label = new VisLabel("Scene2D Skin bundle");
+            label.setColor(0.78f, 0.78f, 0.78f, 1f);
+            return label;
         }
 
         if (ImportDialogValidation.isParticleFile(item.file)) {
@@ -912,9 +950,20 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                 }
 
                 try {
-                    onImportTilesetDirectory.importDirectory(directory, settings);
-                    dialog.fadeOut();
-                    fadeOut();
+                    if (app == null) {
+                        onImportTilesetDirectory.importDirectory(directory, settings);
+                        dialog.fadeOut(); fadeOut();
+                    } else {
+                        var service = app.getSceneService();
+                        var candidates = service.tilesetImportCandidates(directory,
+                                games.pixscape.studio.io.StudioFs.baseName(directory.name()));
+                        new TilesetImportReviewDialog(candidates,
+                                id -> service.prepareTilesetDirectoryImport(directory, settings, id),
+                                plan -> service.applyTilesetImportPlanWithProgress(plan, getStage(),
+                                        result -> { dialog.fadeOut(); fadeOut(); },
+                                        failure -> setSlicingDialogError(dialog, errorLabel, errorCell,
+                                                ImportDialogApplySupport.userMessageFor(failure)))).show(getStage());
+                    }
                 } catch (IllegalArgumentException ex) {
                     setSlicingDialogError(dialog, errorLabel, errorCell, ImportDialogApplySupport.userMessageFor(ex));
                 } catch (RuntimeException ex) {
@@ -1651,59 +1700,6 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
         }
     }
 
-    private void refreshSlicingPreview(VisDialog dialog,
-                                       VisLabel previewLabel,
-                                       VisLabel errorLabel,
-                                       Cell<VisLabel> errorCell,
-                                       ImportItem item,
-                                       Spinner tileWidthSpinner,
-                                       Spinner tileHeightSpinner,
-                                       Spinner marginSpinner,
-                                       Spinner spacingSpinner) {
-        if (previewLabel == null || item == null) return;
-
-        SlicingSettings settings = readSlicingSettings(
-                tileWidthSpinner,
-                tileHeightSpinner,
-                marginSpinner,
-                spacingSpinner
-        );
-        if (settings == null) {
-            previewLabel.setText("Detected tiles: -");
-            setSlicingDialogError(dialog, errorLabel, errorCell, "Use valid slicing values.");
-            return;
-        }
-
-        ImportDialogValidation.TilesetSlicingPreview preview = ImportDialogValidation.calculateTilesetSlicing(
-                item.imageWidth,
-                item.imageHeight,
-                settings.tileWidth(),
-                settings.tileHeight(),
-                settings.spacing(),
-                settings.margin()
-        );
-
-        if (!preview.validSettings()) {
-            previewLabel.setText("Detected tiles: -");
-            setSlicingDialogError(dialog, errorLabel, errorCell, "Image size is unavailable.");
-            return;
-        }
-
-        previewLabel.setText(
-                "Image size: " + preview.imageWidth() + "x" + preview.imageHeight()
-                        + "\nDetected tiles: " + preview.tileCount()
-                        + " (" + preview.columns() + "x" + preview.rows() + ")"
-                        + "\nUnused: right " + preview.unusedRightPixels()
-                        + ", bottom " + preview.unusedBottomPixels()
-        );
-
-        if (!preview.hasTiles()) {
-            setSlicingDialogError(dialog, errorLabel, errorCell, "No tile fits.");
-        } else {
-            setSlicingDialogError(dialog, errorLabel, errorCell, null);
-        }
-    }
-
     private SlicingSettings readSlicingSettings(Spinner tileWidthSpinner,
                                                 Spinner tileHeightSpinner,
                                                 Spinner marginSpinner,
@@ -2045,6 +2041,35 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
             }
         }
 
+        reviewTilesetItems(0);
+    }
+
+    private void reviewTilesetItems(int start) {
+        if (app != null) {
+            for (int index = start; index < items.size; index++) {
+                ImportItem item = items.get(index);
+                if (item.type != ImportType.TILESET && item.type != ImportType.TILESET_TSX) continue;
+                try {
+                    var service = app.getSceneService();
+                    FileHandle source = item.file;
+                    String name = games.pixscape.studio.io.StudioFs.baseName(source.name());
+                    if (item.type == ImportType.TILESET_TSX) {
+                        var descriptor = new TsxTilesetImportParser().parse(item.file);
+                        source = descriptor.imageFile(); name = descriptor.name();
+                    }
+                    final int next = index + 1;
+                    new TilesetImportReviewDialog(service.tilesetImportCandidates(source, name),
+                            id -> service.prepareTilesetAtlasImport(item, id),
+                            plan -> { item.tilesetPlan = plan; reviewTilesetItems(next); }).show(getStage());
+                } catch (RuntimeException failure) { setInlineError(ImportDialogApplySupport.userMessageFor(failure)); }
+                return;
+            }
+        }
+        if (app != null) {
+            app.getSceneService().importAssetsWithProgress(items, getStage(), this::fadeOut,
+                    failure -> setInlineError(ImportDialogApplySupport.userMessageFor(failure)));
+            return;
+        }
         ImportDialogApplySupport.applyAndCloseOnSuccess(
                 items,
                 onApply,

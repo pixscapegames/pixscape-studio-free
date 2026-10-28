@@ -128,6 +128,8 @@ public final class EntityGraphInstantiationService {
             return EntityGraphInstantiationResult.empty();
         }
 
+        if(!historyManager.prepareLightCreation(graph.activeLightCount(),
+                ()->instantiate(graph,activeLayerIndex,dx,dy,commandName,clipboardTargetLayer)))return EntityGraphInstantiationResult.empty();
         IntIntMap sourceToCreated = new IntIntMap();
         IntMap<GenericEntitySnapshotData> snapshots = new IntMap<>();
         List<PreparedEntity> preparedEntities = prepareEntities(
@@ -225,7 +227,7 @@ public final class EntityGraphInstantiationService {
                         "Entity graph contains duplicate source entity "
                                 + sourceEntityId + ".");
             }
-            GenericEntityInitializer initializer = entry.initializer().duplicate();
+            GenericEntityInitializer initializer = entry.initializerFor(world);
             GenericEntitySnapshotData snapshot = initializer.toSnapshotData(sourceEntityId);
             if (clipboardTargetLayer != null) {
                 initializer.normalizeClipboardSpatial(clipboardTargetLayer.spatialEnabled);

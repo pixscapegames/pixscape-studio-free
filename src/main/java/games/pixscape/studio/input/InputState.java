@@ -10,7 +10,8 @@ public final class InputState extends InputAdapter {
     private boolean leftDown;
     private boolean dragging;
     private boolean dragStarted;
-    private boolean leftJustReleased; // <--- nouveau flag
+    private boolean leftJustPressed;
+    private boolean leftJustReleased;
 
     // --- current state getters ---
     public int getMouseX() {
@@ -49,7 +50,11 @@ public final class InputState extends InputAdapter {
     }
 
     public boolean leftJustPressed() {
-        return Gdx.input.isButtonJustPressed(Input.Buttons.LEFT);
+        if (leftJustPressed) {
+            leftJustPressed = false;
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -67,6 +72,15 @@ public final class InputState extends InputAdapter {
         return Gdx.input.isKeyJustPressed(Input.Keys.DEL);
     }
 
+    /** Drops transient pointer state when the shared canvas detaches from a Scene. */
+    public void clearAll() {
+        leftDown = false;
+        dragging = false;
+        dragStarted = false;
+        leftJustPressed = false;
+        leftJustReleased = false;
+    }
+
     // --- input events ---
 
     @Override
@@ -77,7 +91,7 @@ public final class InputState extends InputAdapter {
             leftDown = true;
             dragging = false;
             dragStarted = false;
-            // reset the release flag just in case
+            leftJustPressed = true;
             leftJustReleased = false;
         }
         return false;

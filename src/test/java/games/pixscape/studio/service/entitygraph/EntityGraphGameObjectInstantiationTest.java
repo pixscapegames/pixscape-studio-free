@@ -1,16 +1,11 @@
 package games.pixscape.studio.service.entitygraph;
 
-import com.artemis.ComponentMapper;
 import com.artemis.Aspect;
+import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
@@ -22,13 +17,58 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class EntityGraphGameObjectInstantiationTest {
+
+    @Test public void duplicateLightWaitsBeforeIdentityReservationAndUndoRestoresForward(){
+        Fixture f=new Fixture();
+        try {
+            int source=f.ordinary(50,0,0,0);
+            f.world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(source);
+            f.history.historyIds().ensureForEntity(source);f.process();
+            EntityGraph graph=f.capture(source);assertEquals(1,graph.activeLightCount());
+            f.sceneMeta.forwardLighting=true;Runnable[] accept={null};
+            f.history.configureSceneLighting(f.world,f.sceneMeta,action->accept[0]=action);
+            int next=f.sceneMeta.nextEntityStableId,entities=f.activeEntityCount();
+            assertEquals(0,f.instantiate(graph,0,10,10).createdIds().size);
+            assertNotNull(accept[0]);assertEquals(next,f.sceneMeta.nextEntityStableId);
+            assertEquals(entities,f.activeEntityCount());assertEquals(0,f.history.getCursor());
+            accept[0].run();f.process();assertFalse(f.sceneMeta.forwardLighting);
+            assertEquals(entities+1,f.activeEntityCount());assertEquals(1,f.history.getCursor());
+            f.history.undo();f.process();assertTrue(f.sceneMeta.forwardLighting);assertEquals(entities,f.activeEntityCount());
+            f.history.redo();f.process();assertFalse(f.sceneMeta.forwardLighting);assertEquals(entities+1,f.activeEntityCount());
+        }finally{f.dispose();games.pixscape.studio.event.EventFlow.i().discardPending();}
+    }
+
+    @Test public void capturedHierarchyCanBePastedAfterItsSourceWorldIsDisposed() {
+        Fixture source = new Fixture();
+        int root = source.root(100, -1, 5f, 7f, 0f, 1f, 0f, 0f, 1, "asset");
+        int child = source.member(200, 100, 3f, 4f, 0f, 1f, 0f, 0f, 2);
+        source.properties.create(child).properties = new PropertySet().putObjectStableId("root", 100);
+        source.process();
+        EntityGraph graph = source.capture(root);
+        source.dispose();
+        Fixture target = new Fixture();
+        try {
+            int existing = target.ordinary(500, 99f, 99f, 0);
+            target.process();
+            var result = target.instantiate(graph, 2, 10f, 20f);
+            target.process();
+            int pastedRoot = result.sourceToCreated().get(1, -1);
+            int pastedChild = result.sourceToCreated().get(2, -1);
+            assertHierarchy(target, pastedRoot, pastedChild, 2, 15f, 27f, 3f, 4f, 1, 2);
+            assertEquals(target.identities.get(pastedRoot).stableId,
+                    target.properties.get(pastedChild).properties.getObjectStableId("root", -1));
+            assertEquals(99f, target.transforms.get(existing).x, 0f);
+            target.history.undo();
+            target.process();
+            target.history.redo();
+            target.process();
+            assertHierarchy(target, result.sourceToCreated().get(1, -1), result.sourceToCreated().get(2, -1),
+                    2, 15f, 27f, 3f, 4f, 1, 2);
+        } finally { target.dispose(); }
+    }
 
     @Test
     public void pasteBuildsHierarchyWithFreshStableAndHistoryIdsAndUndoRedoRestoresThem() {

@@ -1,11 +1,7 @@
 package games.pixscape.studio.service.asset;
 
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.studio.asset.AnimationAssetMeta;
-import games.pixscape.studio.asset.AnimationClipMeta;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
+import games.pixscape.studio.asset.*;
 import org.junit.Test;
 
 import java.nio.file.Files;

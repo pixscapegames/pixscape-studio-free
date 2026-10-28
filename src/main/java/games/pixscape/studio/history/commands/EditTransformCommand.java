@@ -2,8 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
+import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.system.DirtyTrackerSystem;

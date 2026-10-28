@@ -7,21 +7,15 @@ import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.ObjectMap;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.AssetRefComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.render.DirtyBits;
-import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.service.AtlasRuntimeService;
+import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.asset.ImageAssetMeta;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 import games.pixscape.studio.service.asset.VisualResolverTestSupport;
@@ -39,6 +33,35 @@ import static games.pixscape.studio.service.asset.VisualResolverTestSupport.text
 import static org.junit.Assert.*;
 
 public class RenderRebindHelperTest {
+
+    @Test
+    public void assetHistoryRebindUsesItsWorldWithoutInvalidatingAForeignScene() throws Exception {
+        World assetWorld = worldWithDirtyTracker();
+        World sceneWorld = worldWithDirtyTracker();
+        try {
+            Fixture asset = fixture(assetWorld, 7);
+            Fixture scene = fixture(sceneWorld, 7);
+            makeEligibleForFullRenderDirty(asset);
+            makeEligibleForFullRenderDirty(scene);
+            assetWorld.process();
+            sceneWorld.process();
+            assetWorld.getMapper(AssetRefComponent.class).get(asset.entityId).atlasTag = null;
+            Texture standalone = texture(20, 30);
+            ImageAssetMeta meta = new ImageAssetMeta(7, "hero", "orig/images/hero.png", AssetMeta.AssetScope.USER);
+            var atlas = new VisualResolverTestSupport.TrackingAtlasService("main");
+            GpuSnapshotManager snapshots = new GpuSnapshotManager(new AtlasStudioService(null), null);
+            assertEquals("standalone", RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                    canvas(sceneWorld, snapshots), null, resolver(atlas, meta, standalone), asset.entityId, assetWorld));
+            assertTrue(asset.region.valid);
+            assertEquals(TextureRegistry.handleOf(standalone), asset.material.textureHandle);
+            assertFalse(scene.region.valid);
+            assertEquals(0, scene.material.textureHandle);
+            assertFalse(hasSnapshotDirtyReason(snapshots, "main", "history-entity-render-rebind"));
+        } finally {
+            assetWorld.dispose();
+            sceneWorld.dispose();
+        }
+    }
 
     @After
     public void clearTextureRegistry() {
@@ -482,7 +505,10 @@ public class RenderRebindHelperTest {
         Unsafe unsafe = unsafe();
         WorldCanvas canvas =
                 (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
-        setField(unsafe, canvas, "world", world);
+        SceneEditorContext context =
+                (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
+        setField(unsafe, context, "world", world);
+        setField(unsafe, canvas, "sceneEditorContext", context);
         setField(unsafe, canvas, "gpuSnapshotManager", snapshots);
         return canvas;
     }
@@ -544,7 +570,7 @@ public class RenderRebindHelperTest {
                                  String fieldName,
                                  Object value)
             throws Exception {
-        Field field = WorldCanvas.class.getDeclaredField(fieldName);
+        Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         unsafe.putObject(
                 target,

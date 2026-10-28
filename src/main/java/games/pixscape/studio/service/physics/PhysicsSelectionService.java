@@ -23,6 +23,15 @@ public final class PhysicsSelectionService {
     private int selectedJointEid = NO_JOINT;
     private final StudioEditingModeService studioEditingModeService;
     private final int eventTag = EventFlow.tag(this);
+    private boolean contextActive = true;
+    private final EventFlow.Listener<EventFlow.TiledMapEditingTargetChanged> tiledTargetListener = evt -> {
+        if (!contextActive) return;
+        if (evt.mapEntityId() >= 0
+                && focusedBodyEid >= 0
+                && focusedBodyEid != evt.mapEntityId()) {
+            clear();
+        }
+    };
 
     public PhysicsSelectionService() {
         this(null);
@@ -30,13 +39,17 @@ public final class PhysicsSelectionService {
 
     public PhysicsSelectionService(StudioEditingModeService studioEditingModeService) {
         this.studioEditingModeService = studioEditingModeService;
-        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
-            if (evt.mapEntityId() >= 0
-                    && focusedBodyEid >= 0
-                    && focusedBodyEid != evt.mapEntityId()) {
-                clear();
-            }
-        });
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
+    }
+
+    public void setContextActive(boolean active) {
+        contextActive = active;
+        if (!active) clearHover();
+    }
+
+    public void dispose() {
+        contextActive = false;
+        EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
     }
 
     public int getFocusedBodyEid() {

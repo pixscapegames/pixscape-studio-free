@@ -4,14 +4,7 @@ import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.backends.headless.HeadlessApplication;
 import com.badlogic.gdx.backends.headless.HeadlessApplicationConfiguration;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.GL30;
-import com.badlogic.gdx.graphics.PixmapIO;
-import com.badlogic.gdx.graphics.Texture;
-import com.badlogic.gdx.graphics.TextureArray;
-import com.badlogic.gdx.graphics.TextureArrayData;
-import com.badlogic.gdx.graphics.TextureData;
+import com.badlogic.gdx.graphics.*;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntIntMap;
@@ -28,13 +21,46 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThrows;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class PreparedAtlasPublicationTest {
+    @Test public void disabledNormalPagesAreNeitherDecodedNorUploaded() throws Exception {
+        Path dir=Files.createTempDirectory("disabled-normal-pages");
+        FileHandle color=writeSolidPage(dir.resolve("scene.png"),0xffffffff);
+        String page="\nsize:2,2\nformat:RGBA8888\nfilter:Linear,Linear\nrepeat:none\n";
+        FileHandle descriptor=new FileHandle(dir.resolve("scene.atlas").toFile());
+        descriptor.writeString("scene.png"+page+"color__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        FileHandle normalDescriptor=new FileHandle(dir.resolve("scene.normals.atlas").toFile());
+        normalDescriptor.writeString("missing-normal.png"+page+"normal__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        PreparedAtlasPublication candidate=PreparedAtlasPublication.prepare("scene",1,descriptor,2,false);
+        assertEquals(32,candidate.byteSize());
+        AtomicInteger uploads=new AtomicInteger();
+        PreparedAtlasPublication.Uploaded uploaded=candidate.upload(new FileHandle(dir.toFile()),(file,pixels,metadata)->{
+            assertEquals("scene.png",file.name());uploads.incrementAndGet();return fakeTexture(2,2);
+        },layers->{assertEquals(2,layers.size);return fakeTextureArray();});
+        assertEquals(1,uploads.get());assertNull(uploaded.takeNormals());
+        assertTrue(color.exists());assertTrue(normalDescriptor.exists());uploaded.close();candidate.close();
+    }
+    @Test public void normalPagesAreDecodedBeforeUploadAndStayOutOfColorArray() throws Exception {
+        Path dir=Files.createTempDirectory("prepared-normal-pages");
+        FileHandle color=writeSolidPage(dir.resolve("scene.png"),0xffffffff);
+        FileHandle normal=writeSolidPage(dir.resolve("scene.normals.png"),0x12abefff);
+        String page="\nsize:2,2\nformat:RGBA8888\nfilter:Linear,Linear\nrepeat:none\n";
+        FileHandle descriptor=new FileHandle(dir.resolve("scene.atlas").toFile());
+        descriptor.writeString("scene.png"+page+"color__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        new FileHandle(dir.resolve("scene.normals.atlas").toFile()).writeString("scene.normals.png"+page+"normal__a7\nbounds:0,0,2,2\n",false,"UTF-8");
+        PreparedAtlasPublication candidate=PreparedAtlasPublication.prepare("scene",1,descriptor,2);
+        assertEquals(48,candidate.byteSize());assertEquals(2,candidate.layerCount());
+        color.delete();normal.delete();
+        final CountingTexture[] normalTexture={null};
+        PreparedAtlasPublication.Uploaded uploaded=candidate.upload(new FileHandle(dir.toFile()),(file,pixels,metadata)->{
+            CountingTexture texture=fakeTexture(2,2);
+            if(file.name().contains(".normals")){assertEquals(0x12abefff,pixels.getPixel(0,0));normalTexture[0]=texture;}
+            return texture;
+        },layers->{assertEquals(2,layers.size);return fakeTextureArray();});
+        var normals=uploaded.takeNormals();assertNotNull(normals.resolve(7));assertNull(normals.resolve(8));
+        normals.dispose();uploaded.close();candidate.close();assertEquals(1,normalTexture[0].disposeCalls);
+    }
 
     @BeforeClass
     public static void ensureHeadlessApplication() {

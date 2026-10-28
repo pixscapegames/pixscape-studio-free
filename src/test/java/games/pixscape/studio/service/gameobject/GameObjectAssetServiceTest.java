@@ -1,27 +1,14 @@
 package games.pixscape.studio.service.gameobject;
 
+import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.PixscapeTagComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
-import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
@@ -35,10 +22,11 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ConvertSelectionToGameObjectCommand;
+import games.pixscape.studio.history.commands.DeleteEntitiesCommandFactory;
+import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
-import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -47,6 +35,75 @@ import org.junit.rules.TemporaryFolder;
 
 public class GameObjectAssetServiceTest {
     @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+    @Test public void lightAssetInsertionIsConfirmedBeforeReservingSceneIds()throws Exception {
+        World source=new World(new WorldConfiguration()),target=new World(new WorldConfiguration());
+        try {
+            int root=entity(source,10,-1,true,0,0),child=entity(source,11,10,false,0,1);
+            source.getMapper(PointLightComponent.class).create(child);source.process();
+            FileHandle file=new FileHandle(temp.getRoot()).child("lamp.gameobject");
+            new GameObjectAssetService(source).saveGameObject(file,new EntityGraphCaptureService(source).captureForGameObject(new IntArray(new int[]{root})));
+            int layer=target.create();target.getMapper(LayerComponent.class).create(layer).layerIndex=3;target.getMapper(LayerMetaComponent.class).create(layer);
+            int existing=entity(target,50,-1,false,0,0);target.getMapper(ConeLightComponent.class).create(existing);target.process();
+            var meta=new games.pixscape.studio.configuration.SceneMeta();meta.nextEntityStableId=1000;meta.forwardLighting=true;
+            IdentityRegistry identities=new IdentityRegistry();identities.bind(target,meta);identities.rebuild();
+            HistoryManager history=new HistoryManager(16);history.historyIds().ensureForEntity(existing);Runnable[] accept={null};
+            history.configureSceneLighting(target,meta,action->accept[0]=action);
+            GameObjectAssetService service=new GameObjectAssetService(target,history,identities,null,null);
+            Assert.assertEquals(0,service.instantiateGameObject(file,"lamp",3,0,0).createdIds().size);
+            Assert.assertEquals(1000,meta.nextEntityStableId);Assert.assertEquals(0,history.getCursor());Assert.assertNotNull(accept[0]);
+            accept[0].run();target.process();Assert.assertFalse(meta.forwardLighting);Assert.assertEquals(2,history.historyIds().activeLightCount(target));
+            history.undo();target.process();Assert.assertTrue(meta.forwardLighting);Assert.assertEquals(1,history.historyIds().activeLightCount(target));
+            history.redo();target.process();Assert.assertFalse(meta.forwardLighting);Assert.assertEquals(2,history.historyIds().activeLightCount(target));
+        } finally {source.dispose();target.dispose();games.pixscape.studio.event.EventFlow.i().discardPending();}
+    }
+
+    @Test
+    public void savingAnEditedCopyLeavesPlacedObjectsUntouchedAndUpdatesFutureInstances()
+            throws Exception {
+        World placedWorld = new World(new WorldConfiguration());
+        int placedRoot = entity(placedWorld, 11, -1, true, 0f, 0);
+        int placedChild = entity(placedWorld, 12, 11, false, 4f, 1);
+        placedWorld.getMapper(GameObjectComponent.class).get(placedRoot).sourceAssetId =
+                "gameobjects/enemy.gameobject";
+        placedWorld.process();
+        FileHandle assetFile = new FileHandle(temp.getRoot()).child("enemy.gameobject");
+        new GameObjectAssetService(placedWorld).saveGameObject(assetFile,
+                new EntityGraphCaptureService(placedWorld).captureForGameObject(
+                        new IntArray(new int[]{placedRoot})));
+
+        // The asset editor works in a different World from the placed instance.
+        World editorWorld = new World(new WorldConfiguration());
+        int editorRoot = entity(editorWorld, 101, -1, true, 0f, 0);
+        int editorChild = entity(editorWorld, 102, 101, false, 4f, 1);
+        editorWorld.process();
+        editorWorld.getMapper(TransformComponent.class).get(editorChild).x = 42f;
+        new GameObjectAssetService(editorWorld).saveGameObject(assetFile,
+                new EntityGraphCaptureService(editorWorld).captureForGameObject(
+                        new IntArray(new int[]{editorRoot})));
+
+        Assert.assertEquals(4f, placedWorld.getMapper(TransformComponent.class)
+                .get(placedChild).x, 0f);
+        Assert.assertEquals(42f, new GameObjectAssetLoader().load(assetFile)
+                .entities.get(1).transform.x, 0f);
+
+        World futureWorld = new World(new WorldConfiguration());
+        int layer = futureWorld.create();
+        futureWorld.getMapper(LayerComponent.class).create(layer).layerIndex = 3;
+        futureWorld.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 1000;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(futureWorld, meta);
+        identities.rebuild();
+        EntityGraphInstantiationResult future = new GameObjectAssetService(
+                futureWorld, new HistoryManager(16), identities, null, null)
+                .instantiateGameObject(assetFile, "enemy", 3, 0f, 0f);
+        futureWorld.process();
+        int futureChild = future.sourceToCreated().get(2, -1);
+        Assert.assertEquals(42f, futureWorld.getMapper(TransformComponent.class)
+                .get(futureChild).x, 0f);
+    }
 
     @Test
     public void hierarchyUsesAssetLocalIdsAndPreservesAuthoredState() throws Exception {
@@ -124,7 +181,10 @@ public class GameObjectAssetServiceTest {
         world.getMapper(PhysicsShapesComponent.class).create(root).shapes.add(footprint);
         SpatialHeightComponent height = world.getMapper(SpatialHeightComponent.class).create(root);
         height.altitude = 4f;
-        height.height = 6f;
+        height.rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        height.rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+        height.rectangles.staticRectangle.height = 6f;
+        height.rectangles.staticRectangle.pivotX = 37.25f;
         world.process();
 
         FileHandle file = new FileHandle(temp.getRoot()).child("spatial.gameobject");
@@ -135,7 +195,8 @@ public class GameObjectAssetServiceTest {
         GameObjectAsset.GameObjectEntityData restored = new GameObjectAssetLoader().load(file).entities.get(0);
         Assert.assertTrue(restored.physicsShapes.get(0).spatialFootprint);
         Assert.assertEquals(4f, restored.spatialHeight.altitude, 0f);
-        Assert.assertEquals(6f, restored.spatialHeight.height, 0f);
+        Assert.assertEquals(6f, restored.spatialHeight.rectangles.staticRectangle.height, 0f);
+        Assert.assertEquals(37.25f, restored.spatialHeight.rectangles.staticRectangle.pivotX, 0f);
     }
 
     @Test
@@ -464,6 +525,96 @@ public class GameObjectAssetServiceTest {
     }
 
     @Test
+    public void repeatedWheelJointAssetDropsAndDeletesKeepExactlyTwoJoints() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int layer = world.create();
+        world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
+        world.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        world.process();
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        meta.nextPhysicsShapeId = 50;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        identities.rebuild();
+        HistoryManager history = new HistoryManager(32);
+        GameObjectAsset asset = physicalHierarchyAsset();
+        GameObjectAsset.GameObjectEntityData secondWheel = authored(3, 1, false, 6f, 0f, 0);
+        secondWheel.physicsBody = new GameObjectAsset.PhysicsBodyData();
+        secondWheel.physicsShapes.add(assetShape(10, 1f));
+        asset.entities.add(secondWheel);
+        for (int i = 0; i < 2; i++) {
+            GameObjectAsset.GameObjectJointData joint = new GameObjectAsset.GameObjectJointData();
+            joint.jointLocalId = i + 1;
+            joint.type = PhysicsJointComponent.TYPE_WHEEL;
+            joint.bodyALocalEntityId = 1;
+            joint.bodyBLocalEntityId = i + 2;
+            joint.wheel = new GameObjectAsset.WheelJointData();
+            joint.wheel.axisY = 1f;
+            asset.joints.add(joint);
+        }
+        FileHandle file = new FileHandle(temp.newFile("car.gameobject"));
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
+        loader.save(file, asset);
+        GameObjectAssetService service = new GameObjectAssetService(
+                world, history, identities, null, null, null, new PhysicsService(world, null, meta));
+
+        for (int cycle = 0; cycle < 3; cycle++) {
+            EntityGraphInstantiationResult dropped = service.instantiateGameObject(
+                    file, "car", 4, cycle * 10f, 0f);
+            world.process();
+            Assert.assertEquals(2, world.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+            int root = dropped.sourceToCreated().get(1, -1);
+            history.execute(DeleteEntitiesCommandFactory.create(world, history.historyIds(),
+                    new IntArray(new int[]{root}), null));
+            world.process();
+            Assert.assertEquals(0, world.getAspectSubscriptionManager()
+                    .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size());
+            Assert.assertEquals(2, loader.load(file).joints.size());
+        }
+    }
+
+    @Test
+    public void convertingSelectionPublishesAnOriginRootWhileKeepingScenePlacement() throws Exception {
+        World world = new World(new WorldConfiguration());
+        int layer = world.create();
+        world.getMapper(LayerComponent.class).create(layer).layerIndex = 6;
+        world.getMapper(LayerMetaComponent.class).create(layer).locked = false;
+        int first = entity(world, 10, -1, false, 120f, 1);
+        int second = entity(world, 11, -1, false, 180f, 0);
+        world.getMapper(EntityIndexComponent.class).get(first).layerIndex = 6;
+        world.getMapper(EntityIndexComponent.class).get(second).layerIndex = 6;
+        world.process();
+
+        SceneMetaRuntime meta = new SceneMetaRuntime();
+        meta.nextEntityStableId = 100;
+        IdentityRegistry identities = new IdentityRegistry();
+        identities.bind(world, meta);
+        identities.rebuild();
+        SelectionService selection = new SelectionService(world, null);
+        selection.selectOnly(first);
+        selection.selectAdd(second);
+        GameObjectAssetService service = new GameObjectAssetService(
+                world, new HistoryManager(8), identities, null, null, selection, null);
+        FileHandle assetFile = new FileHandle(temp.getRoot()).child("origin.gameobject");
+
+        service.convertSelectionToGameObject(assetFile,
+                new FileHandle(temp.getRoot()).child("origin.png"),
+                "gameobjects/origin.gameobject",
+                preview -> preview.writeString("preview", false, "UTF-8"));
+
+        GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.y, 0f);
+        Assert.assertEquals(0, asset.entities.get(0).entityIndex.zIndex);
+        Assert.assertEquals(120f, world.getMapper(TransformComponent.class)
+                .get(selection.getFirstSelectedEntityId()).x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(1).transform.x, 0f);
+        Assert.assertEquals(60f, asset.entities.get(2).transform.x, 0f);
+    }
+
+    @Test
     public void jointedPhysicalSelectionIsUnavailableBeforeAnyAssetIsWritten() throws Exception {
         World world = new World(new WorldConfiguration());
         int first = entity(world, 10, -1, false, 0f, 0);
@@ -594,6 +745,9 @@ public class GameObjectAssetServiceTest {
         Assert.assertTrue(previewFile.exists());
         GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
         Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, asset.schemaVersion);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.x, 0f);
+        Assert.assertEquals(0f, asset.entities.get(0).transform.y, 0f);
+        Assert.assertEquals(3f, asset.entities.get(1).transform.x, 0f);
         Assert.assertEquals(1, asset.entities.get(1).physicsShapes.get(0).localShapeId);
         Assert.assertEquals(77, physicsShapeId(world, member));
         Assert.assertEquals(11, stable(world, root));
@@ -680,7 +834,7 @@ public class GameObjectAssetServiceTest {
     private static GameObjectAsset hierarchyAsset() {
         GameObjectAsset asset = new GameObjectAsset();
         asset.rootSourceEntityId = 100;
-        GameObjectAsset.GameObjectEntityData root = authored(100, -1, true, 10f, 20f, 2);
+        GameObjectAsset.GameObjectEntityData root = authored(100, -1, true, 0f, 0f, 0);
         root.transform.rotationRad = 0.75f;
         root.transform.scaleX = 2f;
         root.transform.scaleY = 2f;

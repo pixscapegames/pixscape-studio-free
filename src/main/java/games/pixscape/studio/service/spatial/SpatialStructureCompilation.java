@@ -29,11 +29,16 @@ public final class SpatialStructureCompilation {
 
     public static Result tryCompile(SpatialBlocksComponent component, TiledMapLayerData map) {
         Array<SpatialBlockData> walls = SpatialStructureTopology.copyWalls(component);
-        return tryCompile(walls, map);
+        return tryCompile(walls, component != null ? component.links : new Array<>(SpatialBlockLink.class), map);
     }
 
     public static Result tryCompile(Array<SpatialBlockData> walls, TiledMapLayerData map) {
+        return tryCompile(walls, new Array<>(SpatialBlockLink.class), map);
+    }
+
+    public static Result tryCompile(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledMapLayerData map) {
         SpatialBlocksComponent detached = new SpatialBlocksComponent();
+        detached.links = SpatialBlockLinks.copy(links);
         detached.blocks = new Array<>(SpatialBlockData[]::new);
         if (walls != null) {
             for (int i = 0; i < walls.size; i++) {
@@ -49,7 +54,7 @@ public final class SpatialStructureCompilation {
         CompiledSpatialStructure[] staged = new CompiledSpatialStructure[structureIds.length];
         try {
             for (int i = 0; i < structureIds.length; i++) {
-                staged[i] = SpatialStructureCompiler.compile(detached.blocks, structureIds[i]);
+                staged[i] = SpatialStructureCompiler.compile(detached.blocks, detached.links, structureIds[i]);
             }
             if (map != null) {
                 detached.revision = 1;

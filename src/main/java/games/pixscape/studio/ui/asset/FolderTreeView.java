@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
@@ -25,6 +23,7 @@ import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 import java.util.function.Consumer;
 
@@ -35,6 +34,7 @@ public final class FolderTreeView extends VisTable {
     private PopupMenu activeContextMenu;
 
     private Consumer<AssetNode> selectionListener;
+    private Runnable newHudScreenListener;
 
     private boolean tileMode = false;
     private ProjectConfig currentCfg;
@@ -98,8 +98,18 @@ public final class FolderTreeView extends VisTable {
         }
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(currentCfg);
+        AssetMetaDatabase assetSnapshot = AssetMetaDatabase.load(
+                projectDir.child(StudioFs.FILE_ASSETS_JSON)
+        );
 
         addGameObjectsNode();
+        addHudScreensNode();
+
+        FolderTreeBuilder.buildFoldersIncludingEmptyRoot(tree, projectDir.child(StudioFs.DIR_ORIG_FONTS),
+                "Fonts", AssetNode.Root.FONTS, assetSnapshot);
+
+        FolderTreeBuilder.buildFoldersIncludingEmptyRoot(tree, projectDir.child(StudioFs.DIR_ORIG_SKINS),
+                "Skins", AssetNode.Root.SKINS, assetSnapshot);
 
         FolderTreeBuilder.buildFolders(
                 tree,
@@ -115,9 +125,6 @@ public final class FolderTreeView extends VisTable {
                 AssetNode.Root.PARTICLES
         );
 
-        AssetMetaDatabase assetSnapshot = AssetMetaDatabase.load(
-                projectDir.child(StudioFs.FILE_ASSETS_JSON)
-        );
         FolderTreeBuilder.buildFolders(
                 tree,
                 projectDir.child(StudioFs.DIR_ORIG_ANIMATIONS),
@@ -153,6 +160,14 @@ public final class FolderTreeView extends VisTable {
         label.setUserObject(data);
         tree.add(new VisTree.Node(label) {
         });
+    }
+
+    private void addHudScreensNode() {
+        AssetNode data = new AssetNode(
+                AssetNode.Kind.FOLDER, AssetNode.Root.HUD, "", "HUD Screens", null);
+        VisLabel label = new VisLabel(data.name);
+        label.setUserObject(data);
+        tree.add(new VisTree.Node(label) { });
     }
 
     private void addTiledAnimationsLogicalNode() {
@@ -313,6 +328,10 @@ public final class FolderTreeView extends VisTable {
         this.selectionListener = listener;
     }
 
+    public void setNewHudScreenListener(Runnable listener) {
+        this.newHudScreenListener = listener;
+    }
+
     public AssetNode getSelectedFolder() {
         VisTree.Node node = (VisTree.Node) tree.getSelection().first();
         if (node == null || node.getActor() == null) return null;
@@ -405,16 +424,6 @@ public final class FolderTreeView extends VisTable {
         // Protect the logical root "Tiles"
     }
 
-    private AssetNode assetNodeFromEventTarget(Actor actor) {
-        for (Actor a = actor; a != null; a = a.getParent()) {
-            Object uo = a.getUserObject();
-            if (uo instanceof AssetNode assetNode) {
-                return assetNode;
-            }
-        }
-        return null;
-    }
-
     private void hookContextMenu(StudioApplicationAdapter app) {
         tree.addCaptureListener(new InputListener() {
             @Override
@@ -440,7 +449,35 @@ public final class FolderTreeView extends VisTable {
                     return true;
                 }
 
+                if (assetNode.kind == AssetNode.Kind.FOLDER
+                        && assetNode.root == AssetNode.Root.HUD
+                        && (assetNode.path == null || assetNode.path.isBlank())) {
+                    showHudScreensContextMenu(event.getStageX(), event.getStageY());
+                    event.stop();
+                    return true;
+                }
+
                 return false;
+            }
+        });
+    }
+
+    private void showHudScreensContextMenu(float stageX, float stageY) {
+        if (getStage() == null || newHudScreenListener == null) return;
+        PopupMenu menu = new PopupMenu();
+        MenuItem createItem = new MenuItem("New HUD Screen...");
+        createItem.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeEvent event, Actor actor) {
+                newHudScreenListener.run();
+            }
+        });
+        menu.addItem(createItem);
+        Gdx.app.postRunnable(() -> {
+            if (getStage() != null) {
+                closeActiveContextMenu();
+                activeContextMenu = menu;
+                menu.showMenu(getStage(), stageX, stageY);
             }
         });
     }

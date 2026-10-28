@@ -7,7 +7,6 @@ import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.MetaTagsHelper;
@@ -50,6 +49,7 @@ public class EntityProperties extends VisTable {
 
     private final TransformPanel transformPanel;
     private final MaterialPanel materialPanel;
+    private final LightingPanel lightingPanel;
     private final AnimationPanel animationPanel;
     private final ParticleFxPanel particleFxPanel;
     private final RepeatablePanel repeatablePanel;
@@ -58,6 +58,7 @@ public class EntityProperties extends VisTable {
 
     private final ToggleSection transformSection;
     private final ToggleSection materialSection;
+    private final ToggleSection lightingSection;
     private final ToggleSection animationSection;
     private final ToggleSection particleSection;
     private final ToggleSection repeatableSection;
@@ -102,6 +103,7 @@ public class EntityProperties extends VisTable {
 
         transformPanel = new TransformPanel(ctx);
         materialPanel = new MaterialPanel(ctx);
+        lightingPanel = new LightingPanel(ctx,false);
         animationPanel = new AnimationPanel(ctx);
         particleFxPanel = new ParticleFxPanel(ctx);
         repeatablePanel = new RepeatablePanel(ctx);
@@ -119,6 +121,9 @@ public class EntityProperties extends VisTable {
 
         transformSection = new ToggleSection("Transform", transformPanel);
         materialSection = new ToggleSection("Material", materialPanel);
+        CollapsibleWidget lightingContent = new CollapsibleWidget();
+        lightingContent.setTable(lightingPanel);
+        lightingSection = new ToggleSection("Lighting", lightingContent);
         animationSection = new ToggleSection("Animation", animationPanel);
         particleSection = new ToggleSection("Particle FX", particleFxPanel);
         repeatableSection = new ToggleSection("Repeatable", repeatablePanel);
@@ -142,6 +147,7 @@ public class EntityProperties extends VisTable {
         add(particleSection).growX().left().pad(0).row();
         add(repeatableSection).growX().left().pad(0).row();
         add(spatialSection).growX().left().pad(0).row();
+        add(lightingSection).growX().left().pad(0).row();
         add(physicsSection).growX().left().pad(0).row();
 
         EventFlow.i().subscribe(EventFlow.EntityChanged.class, evt -> {
@@ -157,7 +163,7 @@ public class EntityProperties extends VisTable {
         });
         EventFlow.i().subscribe(EventFlow.ShaderListChanged.class, evt -> materialPanel.refreshShaderList());
         EventFlow.i().subscribe(EventFlow.ScenePhysicsEnabledChanged.class, evt -> {
-            scenePhysicsEnabled = evt.enabled();
+            syncScenePhysicsEnabled();
             updateSectionsVisibility();
         });
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> {
@@ -173,6 +179,9 @@ public class EntityProperties extends VisTable {
         EventFlow.i().subscribe(EventFlow.RenderRepeatChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
             repeatablePanel.refresh();
+        });
+        EventFlow.i().subscribe(EventFlow.ParticleFlagsChanged.class, evt -> {
+            if (evt.entityId() == currentEntityId) particleFxPanel.refresh();
         });
 
         materialPanel.refreshShaderList();
@@ -267,6 +276,7 @@ public class EntityProperties extends VisTable {
 
         transformPanel.setEntityId(entityId);
         materialPanel.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         animationPanel.setEntityId(entityId);
         particleFxPanel.setEntityId(entityId);
         repeatablePanel.setEntityId(entityId);
@@ -301,6 +311,8 @@ public class EntityProperties extends VisTable {
     }
 
     private void updateSectionsVisibility() {
+        lightingSection.setApplicable(currentEntityId>=0 && ctx.world.getMapper(RenderMaterialComponent.class).has(currentEntityId)
+                && !ctx.world.getMapper(ParticleEmitterComponent.class).has(currentEntityId));
         if (currentEntityId < 0) return;
 
         EntityMetaComponent meta = ctx.mMeta.getSafe(currentEntityId, null);
@@ -317,7 +329,7 @@ public class EntityProperties extends VisTable {
                 && isMaterialApplicable(kind, ctx.mMat.has(currentEntityId)));
         animationSection.setApplicable(isAnim);
         particleSection.setApplicable(isParticle);
-        repeatableSection.setApplicable(repeatablePanel.isApplicable() && (isSprite || isAnim));
+        repeatableSection.setApplicable(repeatablePanel.isApplicable() && isSprite);
 
         boolean physicsApplicable = isPhysicsApplicable();
         spatialSection.setApplicable(isSpatialApplicable(isSprite, isAnim));
@@ -341,8 +353,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void syncScenePhysicsEnabled() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg != null ? cfg.getCurrentSceneMeta() : null;
+        SceneMeta meta = ctx.sceneMeta;
         scenePhysicsEnabled = meta != null && meta.physicsEnabled;
     }
 
@@ -376,6 +387,7 @@ public class EntityProperties extends VisTable {
     }
 
     private void onFieldsChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         transformPanel.onFieldsChanged(op);
     }
 

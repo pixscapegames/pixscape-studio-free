@@ -1,10 +1,6 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
-import com.artemis.EntitySubscription;
-import com.artemis.World;
-import com.artemis.WorldConfiguration;
+import com.artemis.*;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntMap;
@@ -21,12 +17,7 @@ import games.pixscape.studio.history.initializer.Initializer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /** Regression coverage for particle history transitions that intentionally omit structural flushes. */
 public class ParticleHistoryIdentityNoFlushTest {

@@ -8,14 +8,13 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
@@ -251,6 +250,87 @@ public class SpatialLinkedPhysicsCommandsTest {
         Assert.assertSame(original, blocks.blocks);
         Assert.assertEquals(2, blocks.blocks.first().x, 0f);
         Assert.assertEquals(revision, blocks.revision);
+    }
+
+    @Test
+    public void drawnPlaneUndoRedoMovesFixturesWithoutRewritingAbsoluteBlocksOrExplicitZero() {
+        Harness h = new Harness(true);
+        TiledLayerComponent tiled = h.world.getMapper(TiledLayerComponent.class).get(h.owner);
+        tiled.data.setTileSpatialOverride(2, 3, 0f, 12f, 0);
+        SpatialBlockData first = h.block(7), second = h.block(8);
+        second.altitude = 128f;
+        int revision = h.blocks().revision, allocator = h.blocks().nextSpatialBlockId;
+        float[] before = vertices(h.compiled());
+        int shapeId = h.shapes().shapes.first().physicsShapeId;
+        EditTiledLayerSpatialDefaultsCommand.Snapshot state = EditTiledLayerSpatialDefaultsCommand.Snapshot.capture(tiled);
+        h.history.execute(new EditTiledLayerSpatialDefaultsCommand(h.world,h.history.historyIds(),h.owner,state,
+                state.withDefaultAltitude(128f)));
+        float[] after = vertices(h.compiled());
+        Assert.assertFalse(java.util.Arrays.equals(before,after));
+        for(int i=0;i<before.length;i+=2) {
+            Assert.assertEquals(before[i],after[i],.0001f);
+            Assert.assertEquals(before[i+1]-128f/meta.pixelsPerMeter,after[i+1],.0001f);
+        }
+        for(int loop=0;loop<3;loop++) {
+            Assert.assertEquals(128f,tiled.defaultTileAltitude,0f);
+            Assert.assertEquals(0f,first.altitude,0f); Assert.assertEquals(128f,second.altitude,0f);
+            Assert.assertSame(first,h.block(7)); Assert.assertSame(second,h.block(8));
+            Assert.assertEquals(revision,h.blocks().revision);
+            Assert.assertEquals(allocator,h.blocks().nextSpatialBlockId);
+            Assert.assertTrue(tiled.data.hasTileSpatialOverride(2,3));
+            Assert.assertEquals(0f,tiled.data.getTileAltitude(2,3),0f);
+            Assert.assertEquals(128f,tiled.data.getTileAltitude(1,1),0f);
+            Assert.assertEquals(shapeId,h.shapes().shapes.first().physicsShapeId);
+            h.history.undo(); Assert.assertArrayEquals(before,vertices(h.compiled()),.0001f);
+            h.history.redo(); Assert.assertArrayEquals(after,vertices(h.compiled()),.0001f);
+        }
+        h.world.dispose();
+    }
+
+    @Test
+    public void drawnPlanePreparationFailureLeavesAllPublishedStateAndHistoryUntouched() {
+        Harness h = new Harness(true);
+        TiledLayerComponent tiled = h.world.getMapper(TiledLayerComponent.class).get(h.owner);
+        SpatialBlocksComponent blocks=h.blocks();
+        PhysicsShapesComponent shapes=h.shapes();
+        PhysicsCompiledFixturesComponent compiled=h.compiled();
+        CompiledFixtureData fixture=compiled.fixtures.first();
+        int revision=blocks.revision, generation=compiled.generation;
+        float[] before=vertices(compiled);
+        meta.pixelsPerMeter=0;
+        EditTiledLayerSpatialDefaultsCommand.Snapshot state=EditTiledLayerSpatialDefaultsCommand.Snapshot.capture(tiled);
+        h.history.execute(new EditTiledLayerSpatialDefaultsCommand(h.world,h.history.historyIds(),h.owner,state,
+                state.withDefaultAltitude(128f)));
+        Assert.assertEquals(0,h.history.getCursor());
+        Assert.assertEquals(0f,tiled.defaultTileAltitude,0f);
+        Assert.assertEquals(0f,tiled.data.defaultTileAltitude,0f);
+        Assert.assertEquals(revision,blocks.revision);
+        Assert.assertSame(shapes,h.shapes()); Assert.assertSame(compiled,h.compiled());
+        Assert.assertSame(fixture,compiled.fixtures.first()); Assert.assertEquals(generation,compiled.generation);
+        Assert.assertArrayEquals(before,vertices(compiled),0f);
+        h.world.dispose();
+    }
+
+    @Test
+    public void planeCommandKeepsEditedDocumentScaleWhenActiveDocumentChanges() {
+        Harness h=new Harness(true);
+        TiledLayerComponent tiled=h.world.getMapper(TiledLayerComponent.class).get(h.owner);
+        float[] before=vertices(h.compiled());
+        EditTiledLayerSpatialDefaultsCommand.Snapshot state=EditTiledLayerSpatialDefaultsCommand.Snapshot.capture(tiled);
+        EditTiledLayerSpatialDefaultsCommand command=new EditTiledLayerSpatialDefaultsCommand(
+                h.world,h.history.historyIds(),h.owner,state,state.withDefaultAltitude(128));
+        ProjectConfig other=new ProjectConfig();other.createSceneMeta("Other");
+        other.getCurrentSceneMeta().pixelsPerMeter=200;
+        ProjectConfig.setInstance(other);
+        h.history.execute(command);
+        float[] after=vertices(h.compiled());
+        for(int i=0;i<before.length;i+=2) {
+            Assert.assertEquals(before[i],after[i],.0001f);
+            Assert.assertEquals(before[i+1]-128/meta.pixelsPerMeter,after[i+1],.0001f);
+        }
+        h.history.undo();Assert.assertArrayEquals(before,vertices(h.compiled()),.0001f);
+        Assert.assertEquals(200f,other.getCurrentSceneMeta().pixelsPerMeter,0f);
+        h.world.dispose();
     }
 
     private final class Harness {

@@ -46,24 +46,38 @@ public final class SpatialTileSelectionService {
     private float gestureDx;
     private float gestureDy;
     private final NormalizedSelection normalized = new NormalizedSelection();
+    private boolean contextActive = true;
+    private final EventFlow.Listener<EventFlow.TiledMapEditingTargetChanged> tiledTargetListener = evt -> {
+        if (contextActive && evt.mapEntityId() != mapEntityId) clear();
+    };
+    private final EventFlow.Listener<EventFlow.EditorModeChanged> editorModeListener = evt -> {
+        if (contextActive && evt.mode() != EventFlow.EditorMode.TILE) clear();
+    };
+    private final EventFlow.Listener<EventFlow.SceneMapResized> mapResizedListener = evt -> {
+        if (contextActive) clear();
+    };
+    private final EventFlow.Listener<EventFlow.SpatialBlockSelectionChanged> blockSelectionListener = evt -> {
+        if (contextActive && evt.mapEntityId() != mapEntityId) clear();
+    };
 
     public SpatialTileSelectionService() {
-        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
-            if (evt.mapEntityId() != mapEntityId) {
-                clear();
-            }
-        });
-        EventFlow.i().subscribe(EventFlow.EditorModeChanged.class, evt -> {
-            if (evt.mode() != EventFlow.EditorMode.TILE) {
-                clear();
-            }
-        });
-        EventFlow.i().subscribe(EventFlow.SceneMapResized.class, evt -> clear());
-        EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, evt -> {
-            if (evt.mapEntityId() != mapEntityId) {
-                clear();
-            }
-        });
+        EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
+        EventFlow.i().subscribe(EventFlow.EditorModeChanged.class, editorModeListener);
+        EventFlow.i().subscribe(EventFlow.SceneMapResized.class, mapResizedListener);
+        EventFlow.i().subscribe(EventFlow.SpatialBlockSelectionChanged.class, blockSelectionListener);
+    }
+
+    public void setContextActive(boolean active) {
+        contextActive = active;
+        if (!active) clearHover();
+    }
+
+    public void dispose() {
+        contextActive = false;
+        EventFlow.i().unsubscribe(EventFlow.TiledMapEditingTargetChanged.class, tiledTargetListener);
+        EventFlow.i().unsubscribe(EventFlow.EditorModeChanged.class, editorModeListener);
+        EventFlow.i().unsubscribe(EventFlow.SceneMapResized.class, mapResizedListener);
+        EventFlow.i().unsubscribe(EventFlow.SpatialBlockSelectionChanged.class, blockSelectionListener);
     }
 
     public void beginDrag(int mapEntityId, int gx, int gy) {

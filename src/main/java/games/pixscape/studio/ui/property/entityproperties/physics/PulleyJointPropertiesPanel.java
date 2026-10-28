@@ -5,7 +5,6 @@ import com.artemis.World;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.physics.PhysicsPulleyJointComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
@@ -17,6 +16,7 @@ public final class PulleyJointPropertiesPanel extends JointTypeProperties {
     private final World world;
     private final ComponentMapper<PhysicsPulleyJointComponent> mPulley;
     private final HistoryManager history;
+    private final SceneMeta sceneMeta;
 
     private final FloatField groundAxField;
     private final FloatField groundAyField;
@@ -26,10 +26,11 @@ public final class PulleyJointPropertiesPanel extends JointTypeProperties {
     private final FloatField lengthBField;
     private final FloatField ratioField;
 
-    public PulleyJointPropertiesPanel(World world, HistoryManager history) {
+    public PulleyJointPropertiesPanel(World world, HistoryManager history, SceneMeta sceneMeta) {
         this.world = world;
         this.mPulley = world.getMapper(PhysicsPulleyJointComponent.class);
         this.history = history;
+        this.sceneMeta = sceneMeta;
 
         groundAxField = new FloatField(world, this::readGroundAxPx, this::isPulleyJoint).setDisplayDecimals(3);
         groundAxField.setApplier((jid, v) -> setPulley(jid, p -> p.groundAx = pxToM(v)));
@@ -167,9 +168,7 @@ public final class PulleyJointPropertiesPanel extends JointTypeProperties {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        return meta.pixelsPerMeter;
+        return sceneMeta != null ? sceneMeta.pixelsPerMeter : 100f;
     }
 
     private float mToPx(float meters) {

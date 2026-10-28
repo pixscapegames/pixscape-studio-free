@@ -7,34 +7,27 @@ import com.artemis.managers.WorldSerializationManager;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.AnimationComponent;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.QuadDeformComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.physics.PhysicsGeometryData;
-import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.service.PhysicsService;
-import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.physics.PhysicsGeometryData;
+import games.pixscape.runtime.physics.PhysicsShapeData;
+import games.pixscape.runtime.property.PropertySet;
+import games.pixscape.runtime.service.IdentityRegistry;
+import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
@@ -49,6 +42,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 public class ClipboardServiceFlowTest {
+    @Test public void sceneMetadataEventsPreserveClipboardButProjectReplacementClearsIt() throws Exception {
+        Harness h = new Harness();
+        try {
+            int source = createEntity(h.world, 13f, 17f, 0);
+            h.selection.selectOnly(source);
+            Assert.assertTrue(h.clipboard.copySelection());
+            games.pixscape.studio.event.EventFlow.i().publish(
+                    new games.pixscape.studio.event.EventFlow.CurrentSceneMeta("Other", "", 0));
+            games.pixscape.studio.event.EventFlow.i().flush();
+            Assert.assertTrue(h.clipboard.hasContent());
+            Assert.assertTrue(h.clipboard.paste());
+            ProjectConfig.setInstance(new ProjectConfig());
+            Assert.assertFalse(h.clipboard.hasContent());
+            Assert.assertFalse(h.clipboard.paste());
+        } finally { h.world.dispose(); }
+    }
 
     @Test
     public void copySelection_keepsSelectionAndStoresPasteableSnapshot() throws Exception {
@@ -552,7 +561,7 @@ public class ClipboardServiceFlowTest {
         int source = physicalEntity(h.world, 0, true);
         SpatialHeightComponent height = h.world.getMapper(SpatialHeightComponent.class).create(source);
         height.altitude = 4f;
-        height.height = 2f;
+        games.pixscape.runtime.spatial.SpatialRectangleTestData.setHeight(height,2f);
         h.selection.selectOnly(source);
         Assert.assertTrue(h.clipboard.copySelection());
         h.selection.setActivelayerId(spatialLayer);
@@ -801,11 +810,15 @@ public class ClipboardServiceFlowTest {
             PhysicsService physicsService) throws Exception {
         Unsafe unsafe = getUnsafe();
         WorldCanvas canvas = (WorldCanvas) unsafe.allocateInstance(WorldCanvas.class);
-        setFieldUnsafe(unsafe, canvas, "world", world);
-        setFieldUnsafe(unsafe, canvas, "selectionService", selection);
-        setFieldUnsafe(unsafe, canvas, "historyManager", history);
-        setFieldUnsafe(unsafe, canvas, "layerService", layers);
+        SceneEditorContext context = (SceneEditorContext) unsafe.allocateInstance(SceneEditorContext.class);
+        setFieldUnsafe(unsafe, context, "world", world);
+        setFieldUnsafe(unsafe, context, "sceneMeta", ProjectConfig.getInstance().getCurrentSceneMeta());
+        setFieldUnsafe(unsafe, context, "selectionService", selection);
+        setFieldUnsafe(unsafe, context, "historyManager", history);
+        setFieldUnsafe(unsafe, context, "layerService", layers);
+        setFieldUnsafe(unsafe, canvas, "sceneEditorContext", context);
         setFieldUnsafe(unsafe, canvas, "physicsService", physicsService);
+        setFieldUnsafe(unsafe, canvas, "sceneBindings", new java.util.IdentityHashMap<>());
         return canvas;
     }
 
@@ -817,7 +830,7 @@ public class ClipboardServiceFlowTest {
 
     private static void setFieldUnsafe(
             Unsafe unsafe, Object target, String fieldName, Object value) throws Exception {
-        Field field = WorldCanvas.class.getDeclaredField(fieldName);
+        Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
         unsafe.putObject(target, unsafe.objectFieldOffset(field), value);
     }

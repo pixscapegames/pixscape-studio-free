@@ -2,11 +2,7 @@ package games.pixscape.studio.service;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.RenderMaterialComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;

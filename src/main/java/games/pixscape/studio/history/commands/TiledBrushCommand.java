@@ -48,7 +48,8 @@ public final class TiledBrushCommand implements Command {
         }
         SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).getSafe(entityId, null);
         TiledSpatialMutationPlanner.Result result =
-                planner.validateAndCommit(entityId, comp.data, blocks, plan, after);
+                planner.validateAndCommit(entityId, comp.data, blocks, plan, after,comp.lightingDescriptions,
+                        () -> EditTileLightingDescriptionsCommand.validate(world,comp,blocks,comp.lightingDescriptions));
         if (!result.accepted()) throw new TiledMutationRejectedException(result.rejection());
 
         ProjectConfig cfg = ProjectConfig.getInstance();

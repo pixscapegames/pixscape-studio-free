@@ -2,28 +2,15 @@ package games.pixscape.studio.helper;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import games.pixscape.runtime.component.AABBComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.hierarchy.GameObjectCompositionState;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
 import games.pixscape.runtime.service.IdentityRegistry;
-import games.pixscape.runtime.system.DirtyFlushSystem;
-import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.system.GameObjectCompositionSystem;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
-import games.pixscape.runtime.system.UpdateWorldGeometrySystem;
+import games.pixscape.runtime.system.*;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class GameObjectGizmoGeometryTest {
 

@@ -70,6 +70,29 @@ public class SpatialBlockInteractiveEditSupportTest {
         assertSameRefs(original, moved);
     }
 
+    @Test
+    public void joinedWallOutsideImageCellsDoesNotSnapDuringMoveOrResize() {
+        SpatialBlockData original = wall(22, 22, 27, 23);
+        original.y = 21.975727f;
+        original.depth = .25864792f;
+        SpatialBlockData edited = original.copy();
+        Assert.assertFalse(SpatialBlockInteractiveEditSupport.move(edited, original, 0, 0));
+        Assert.assertEquals(original.y, edited.y, 0);
+        SpatialBlockInteractiveEditSupport.move(edited, original, .1f, 0);
+        Assert.assertEquals(original.y, edited.y, 0);
+        for (SpatialBlockInteractiveEditSupport.ResizeHandle handle : SpatialBlockInteractiveEditSupport.ResizeHandle.values()) {
+            edited = original.copy();
+            boolean maxX = handle.name().contains("MAX_X"), maxY = handle.name().contains("MAX_Y");
+            SpatialBlockInteractiveEditSupport.resize(edited, original, handle,
+                    original.x + (maxX ? original.width : 0), original.y + (maxY ? original.depth : 0));
+            Assert.assertEquals(original.x, edited.x, 0);
+            Assert.assertEquals(original.y, edited.y, 0);
+            Assert.assertEquals(original.width, edited.width, .00001f);
+            Assert.assertEquals(original.depth, edited.depth, .00001f);
+            assertSameRefs(original, edited);
+        }
+    }
+
     private static SpatialBlockData wall(int minX, int minY, int maxXExclusive, int maxYExclusive) {
         SpatialBlockData wall = new SpatialBlockData();
         wall.id = 1;

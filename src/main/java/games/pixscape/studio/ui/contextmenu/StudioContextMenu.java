@@ -1,7 +1,5 @@
 package games.pixscape.studio.ui.contextmenu;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
@@ -14,7 +12,6 @@ import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.studio.ui.modal.Dialogs;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
@@ -27,46 +24,53 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ops.EditorOps;
-import games.pixscape.studio.service.ClipboardService;
-import games.pixscape.studio.service.CoordSpaces;
-import games.pixscape.studio.service.LayerService;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.physics.PhysicsSelectionService;
+import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.gameobject.GameObjectAssetService;
+import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.spatial.SpatialBlockPlacementTarget;
 import games.pixscape.studio.service.spatial.SpatialBlockSelectionService;
 import games.pixscape.studio.service.spatial.SpatialTileSelectionService;
-import games.pixscape.studio.ui.main.WorldCanvas;
 import games.pixscape.studio.ui.layer.AddTiledMapDialog;
+import games.pixscape.studio.ui.main.WorldCanvas;
+import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 public final class StudioContextMenu extends InputListener {
     private static final boolean DEBUG_WHEEL_CREATE = Boolean.getBoolean("pixscape.debug.wheelJointCreate");
 
     private final Stage stage;
-    private final SelectionService selectionService;
-    private final PhysicsSelectionService physicsSelectionService;
-    private final SpatialBlockSelectionService spatialBlockSelectionService;
-    private final SpatialTileSelectionService spatialTileSelectionService;
-    private final LayerService layerService;
-    private final ClipboardService clipboardService;
-    private final World world;
+    private SelectionService selectionService;
+    private PhysicsSelectionService physicsSelectionService;
+    private SpatialBlockSelectionService spatialBlockSelectionService;
+    private SpatialTileSelectionService spatialTileSelectionService;
+    private LayerService layerService;
+    private ClipboardService clipboardService;
+    private World world;
     private final CoordSpaces coordSpaces;
+    private final StudioEditingModeService editingModeService;
 
-    private final ComponentMapper<PhysicsBodyComponent> mBody;
-    private final ComponentMapper<PhysicsJointComponent> mJointBase;
+    private ComponentMapper<PhysicsBodyComponent> mBody;
+    private ComponentMapper<PhysicsJointComponent> mJointBase;
 
     private final PopupMenu menu = new PopupMenu();
     private final Vector2 lastRightClickWorld = new Vector2();
     private final Vector2 tmpStage = new Vector2();
     private SpatialBlockPlacementTarget lastRightClickSpatialTarget = SpatialBlockPlacementTarget.invalid();
-    private final EditorOps ops;
+    private EditorOps ops;
+    private games.pixscape.studio.history.HistoryManager history;
 
-    private final GameObjectAssetService gameObjectAssetService;
+    private GameObjectAssetService gameObjectAssetService;
 
     private final int MY_TAG = EventFlow.tag(this);
 
     public StudioContextMenu(WorldCanvas canvas, Stage stage) {
         this.stage = stage;
+        this.coordSpaces = canvas.getCoordSpaces();
+        this.editingModeService = canvas.getStudioEditingModeService();
+        bindSceneContext(canvas);
+    }
+
+    public void bindSceneContext(WorldCanvas canvas) {
         this.world = canvas.getEcsWorld();
         this.selectionService = canvas.getSelectionService();
         this.physicsSelectionService = canvas.getPhysicsSelectionService();
@@ -74,8 +78,8 @@ public final class StudioContextMenu extends InputListener {
         this.spatialTileSelectionService = canvas.getSpatialTileSelectionService();
         this.layerService = canvas.getLayerService();
         this.clipboardService = canvas.getClipboardService();
-        this.coordSpaces = canvas.getCoordSpaces();
         this.ops = canvas.getEditorOps();
+        this.history = canvas.getHistoryManager();
 
         this.mBody = world.getMapper(PhysicsBodyComponent.class);
         this.mJointBase = world.getMapper(PhysicsJointComponent.class);
@@ -86,6 +90,7 @@ public final class StudioContextMenu extends InputListener {
     @Override
     public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
         if (button != Input.Buttons.RIGHT) return false;
+        if (!editingModeService.allowsWorldEditingActions()) return false;
 
         // Only open the global context menu when right-clicking on the stage background.
         // If a UI widget is the target, let that widget handle the event.
@@ -118,6 +123,7 @@ public final class StudioContextMenu extends InputListener {
 
     private void buildMenu() {
         menu.clear();
+        if(showCornerProfileMenu())return;
         if (showSpatialBlocksMenu()) {
             return;
         }
@@ -135,6 +141,12 @@ public final class StudioContextMenu extends InputListener {
 
         int layerEntityId = spatialBlockSelectionService.getEditingMapEntityId();
         if (layerEntityId < 0) return false;
+
+        var corner=world.getSystem(games.pixscape.studio.system.PickingSystem.class)
+                .inspectCornerAt(lastRightClickWorld.x,lastRightClickWorld.y);
+        addCornerItem("Edit corner profile",corner.reason(),()-> {
+            if(corner.open())spatialBlockSelectionService.setCornerProfile(corner);
+        });
 
         if (spatialTileSelectionService != null && spatialTileSelectionService.hasSelection()) {
             MenuItem createFromTiles = new MenuItem("Create Spatial Block from Selected Tiles");
@@ -186,6 +198,7 @@ public final class StudioContextMenu extends InputListener {
         });
         menu.addItem(addBlock);
 
+        appendSpatialLinkItems(menu, world, history, spatialBlockSelectionService, stage, layerEntityId);
         MenuItem deleteBlock = new MenuItem("Delete selected spatial block");
         deleteBlock.setDisabled(!spatialBlockSelectionService.hasSelectedBlock());
         deleteBlock.addListener(new ClickListener() {
@@ -198,6 +211,89 @@ public final class StudioContextMenu extends InputListener {
         menu.addItem(deleteBlock);
 
         return true;
+    }
+
+    private boolean showCornerProfileMenu() {
+        if(spatialBlockSelectionService==null)return false;
+        games.pixscape.studio.service.spatial.CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        edit.synchronize();
+        if(!edit.active())return false;
+        // A context click cancels the detached gesture before offering topology changes.
+        edit.cancelGesture();
+        float tolerance=coordSpaces.pixelsToWorld(8);
+        int vertex=edit.pickVertex(lastRightClickWorld.x,lastRightClickWorld.y,tolerance);
+        int segment=edit.pickSegment(lastRightClickWorld.x,lastRightClickWorld.y,tolerance);
+        if(vertex>=0) addCornerItem("Remove vertex",vertex==0||vertex==edit.vertexCount()-1?"Endpoint locked to wall join":
+                edit.vertexCount()<=4?"Minimum: 3 segments":null,()->edit.remove(vertex));
+        else if(segment>=0)addCornerItem("Add vertex",edit.vertexCount()>=9?"Maximum: 8 segments":null,()->edit.add(segment));
+        addCornerItem("Reset profile",null,edit::reset);
+        addCornerItem("Remove corner profile (all occurrences of this asset in this map)",null,edit::removeProfile);
+        addCornerItem("Exit corner profile",null,()->world.getSystem(games.pixscape.studio.system.PickingSystem.class).exitCornerProfile());
+        return true;
+    }
+    private void addCornerItem(String title,String reason,Runnable action) {
+        MenuItem item=new MenuItem(title);item.setDisabled(reason!=null);
+        if(reason!=null) {
+            // Disabled items may not receive hover; keep the explanation visible in the menu.
+            MenuItem explanation=new MenuItem(reason);explanation.setDisabled(true);
+            menu.addItem(item);menu.addItem(explanation);return;
+        }
+        item.addListener(new ClickListener(){@Override public void clicked(InputEvent event,float x,float y){action.run();event.handle();}});
+        menu.addItem(item);
+    }
+
+    public static void appendSpatialLinkItems(PopupMenu menu, World world,
+                                              games.pixscape.studio.history.HistoryManager history,
+                                              SpatialBlockSelectionService selection, Stage stage, int layerEntityId) {
+        IntArray ids = selection.selectedBlockIds();
+        SpatialBlocksComponent component = world.getMapper(SpatialBlocksComponent.class).getSafe(layerEntityId, null);
+        if(ids.size==1 && component!=null) {
+            MenuItem join=new MenuItem("Connect to wall");
+            join.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event,float x,float y) {
+                    new games.pixscape.studio.ui.modal.SpatialVerticalJoinDialog(world,history,selection,layerEntityId,ids.first()).show(stage);event.handle();
+                }
+            });
+            menu.addItem(join);
+        }
+        if (ids.size == 2 && component != null) {
+            MenuItem link = new MenuItem("Lier");
+            games.pixscape.runtime.spatial.SpatialBlockData firstWall = null, secondWall = null;
+            for (games.pixscape.runtime.spatial.SpatialBlockData wall : component.blocks) {
+                if (wall.id == ids.get(0)) firstWall = wall;
+                if (wall.id == ids.get(1)) secondWall = wall;
+            }
+            boolean contact = firstWall != null && secondWall != null
+                    && (games.pixscape.runtime.spatial.SpatialBlockLinks.contactFace(firstWall, secondWall) > 0
+                    || games.pixscape.runtime.spatial.SpatialBlockLinks.overlap(firstWall, secondWall));
+            link.setDisabled(!contact || games.pixscape.studio.service.spatial.SpatialLinkProposal.edgeIndex(
+                    component.links, ids.get(0), ids.get(1)) >= 0);
+            link.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float x, float y) {
+                    if (link.isDisabled()) return;
+                    new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, ids.get(0), ids.get(1), false).show(stage); event.handle();
+                }
+            });
+            menu.addItem(link);
+        } else if (ids.size == 1) {
+            MenuItem hint = new MenuItem("Ctrl-click another volume to link");
+            hint.setDisabled(true);
+            menu.addItem(hint);
+        }
+        if (component != null && ids.size > 0) {
+            for (games.pixscape.runtime.spatial.SpatialBlockLink edge : component.links) {
+                if (!ids.contains(edge.firstBlockId) && !ids.contains(edge.secondBlockId)) continue;
+                if (ids.size == 2 && !(ids.contains(edge.firstBlockId) && ids.contains(edge.secondBlockId))) continue;
+                final int first = edge.firstBlockId, second = edge.secondBlockId;
+                MenuItem unlink = new MenuItem("Délier " + first + " / " + second);
+                unlink.addListener(new ClickListener() {
+                    @Override public void clicked(InputEvent event, float x, float y) {
+                        new games.pixscape.studio.ui.modal.SpatialLinkDialog(world, history, selection, layerEntityId, first, second, true).show(stage); event.handle();
+                    }
+                });
+                menu.addItem(unlink);
+            }
+        }
     }
 
     private String spatialTileSelectionValidationMessage(int layerEntityId) {
@@ -247,10 +343,9 @@ public final class StudioContextMenu extends InputListener {
         addBoxShape.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmpStage);
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.addBoxFixture(finalBodyEid, tmpStage.x, tmpStage.y);
+                ops.addBoxFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });
@@ -260,10 +355,9 @@ public final class StudioContextMenu extends InputListener {
         addCircleShape.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmpStage);
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.addCircleFixture(finalBodyEid, tmpStage.x, tmpStage.y);
+                ops.addCircleFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });
@@ -275,7 +369,7 @@ public final class StudioContextMenu extends InputListener {
             public void clicked(InputEvent event, float x, float y) {
                 physicsSelectionService.focusBody(finalBodyEid);
                 physicsSelectionService.clearSelectionOnly();
-                ops.beginAddPolygonFixture(finalBodyEid);
+                ops.beginAddPolygonFixture(finalBodyEid, lastRightClickWorld.x, lastRightClickWorld.y);
                 event.handle();
             }
         });

@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowConfiguration;
+import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.utils.Array;
@@ -28,6 +29,7 @@ public final class DockManager {
     // zones
     private final VisTable left = new VisTable();
     private final Stack centerStack = new Stack();
+    private final Actor centerHost;
     private final VisTable rulersAndCanvasPlaceholder = new VisTable(true);
     private final VisTable modeOverlay = new VisTable();
     private final CanvasModeIndicator modeIndicator;
@@ -76,9 +78,10 @@ public final class DockManager {
         centerStack.add(rulersAndCanvasPlaceholder);
         centerStack.add(modeOverlay);
         rebuildCenterOverlay();
+        centerHost = app.createDockCenterHost(centerStack);
 
         rightSplit = new VisSplitPane(rightTop, rightBottom, true);
-        topSplit = new VisSplitPane(left, centerStack, false);
+        topSplit = new VisSplitPane(left, centerHost, false);
         rootSplit = new VisSplitPane(topSplit, bottom, true);
 
         rightSplit.setTouchable(Touchable.childrenOnly);
@@ -355,7 +358,7 @@ public final class DockManager {
         if (hasLeft) {
             topArea.add(left).width(280f).growY();
         }
-        topArea.add(centerStack).grow();
+        topArea.add(centerHost).grow().minWidth(0f);
 
         if (hasRight) {
             topArea.add(rightSplit).width(342f).growY();
@@ -410,7 +413,7 @@ public final class DockManager {
         return modeIndicator;
     }
 
-    Stack getCenterStack() {
+    public Stack getCenterStack() {
         return centerStack;
     }
 
@@ -418,7 +421,7 @@ public final class DockManager {
         return modeIndicatorTopPadding;
     }
 
-    boolean isRulersVisible() {
+    public boolean isRulersVisible() {
         return rulersVisible;
     }
 }

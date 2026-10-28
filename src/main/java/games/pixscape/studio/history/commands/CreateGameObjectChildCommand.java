@@ -3,13 +3,7 @@ package games.pixscape.studio.history.commands;
 import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.utils.IntBag;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
@@ -80,6 +74,8 @@ public final class CreateGameObjectChildCommand implements Command {
     public String label() {
         return "Create " + childLabel + " in Game Object";
     }
+
+    @Override public int additionalActiveLights() { return createCommand.additionalActiveLights(); }
 
     @Override
     public void redo() {
@@ -305,6 +301,9 @@ public final class CreateGameObjectChildCommand implements Command {
             delegate.syncFrom(sourceEid);
             captured = true;
         }
+
+        @Override
+        public int activeLightCount() { return delegate.activeLightCount(); }
 
         @Override
         public void init(int targetEid) {

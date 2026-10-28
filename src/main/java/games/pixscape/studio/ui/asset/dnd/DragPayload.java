@@ -18,6 +18,8 @@ public final class DragPayload {
     public int tileAnimationId = -1;
     public int rows = 1;
     public int columns = 1;
+    public int imageWidth = 0;
+    public int imageHeight = 0;
     public Op op = Op.COPY;
 
     // --- NEW: for an atlas region ---

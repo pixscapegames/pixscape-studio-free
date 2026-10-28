@@ -1,20 +1,16 @@
 package games.pixscape.studio.ops;
 
 import com.artemis.ComponentMapper;
-import com.artemis.Aspect;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
-import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
-import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
@@ -39,9 +35,10 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.history.initializer.AbstractCommonInitializer;
-import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.history.initializer.GameObjectRootInitializer;
+import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.GpuSnapshotManager;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.SelectionService;
@@ -50,6 +47,7 @@ import games.pixscape.studio.service.atlas.AtlasStudioService;
 import games.pixscape.studio.service.physics.PhysicsPolygonAuthoringService;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
+import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
 import games.pixscape.studio.service.spatial.*;
 import games.pixscape.studio.ui.main.WorldCanvas;
 
@@ -61,6 +59,7 @@ import java.util.function.IntConsumer;
 public class EditorOpsImpl implements EditorOps {
     private final WorldCanvas canvas;
     private final World world;
+    private final SceneEditorContext editingContext;
     private final HistoryManager historyManager;
     private final HistoryIdRegistry historyIds;
     private final ZOrderRuntimeService zOrderRuntimeService;
@@ -85,6 +84,7 @@ public class EditorOpsImpl implements EditorOps {
     ) {
         this.canvas = canvas;
         this.world = canvas.getEcsWorld();
+        this.editingContext = canvas.getSceneEditorContext();
         this.historyManager = canvas.getHistoryManager();
         this.historyIds = canvas.getHistoryManager().historyIds();
         this.zOrderRuntimeService = canvas.getZOrderService();
@@ -250,6 +250,7 @@ public class EditorOpsImpl implements EditorOps {
                 this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
+        if (sceneTag == null) return createdEntityId;
         String fullRelPath = StudioFs.DIR_ORIG_IMAGES + "/" + relativePath;
         boolean inputChanged = sceneService.ensureImageInAtlasInput(sceneTag, fullRelPath);
         boolean alreadyPacked = assetId > 0
@@ -395,7 +396,7 @@ public class EditorOpsImpl implements EditorOps {
                 this::rebindHistoryEntityRenderAssets);
 
         // --- Async atlas workflow ---
-        if (!alreadyPacked) {
+        if (!alreadyPacked && sceneTag != null) {
             sceneService.ensureAnimationDirInAtlasInput(sceneTag, animationRelPath);
             atlasStudioService.requestAsyncPack(sceneTag);
         }
@@ -430,9 +431,7 @@ public class EditorOpsImpl implements EditorOps {
 
         ProjectConfig cfg = ProjectConfig.getInstance();
         final String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null || sceneTag.isBlank()) return -1;
-
-        boolean changed = ensureParticleEffectImagesInAtlasInput(effectPath);
+        boolean changed = sceneTag != null && ensureParticleEffectImagesInAtlasInput(effectPath);
         if (changed && atlasInputsChangedListener != null) {
             atlasInputsChangedListener.onSceneAtlasInputsChanged(sceneTag);
         }
@@ -519,6 +518,8 @@ public class EditorOpsImpl implements EditorOps {
             int activeLayerIndex,
             int parentEntityId,
             Consumer<Integer> publishCreated) {
+        if(!historyManager.prepareLightCreation(initializer.activeLightCount(),
+                ()->executePreparedCreation(initializer,activeLayerIndex,parentEntityId,publishCreated)))return -1;
         initializer.setIdentityStableId(allocateStableId());
         Consumer<Integer> onCreated = createdEntityId -> {
             if (publishCreated != null) publishCreated.accept(createdEntityId);
@@ -550,7 +551,7 @@ public class EditorOpsImpl implements EditorOps {
     public int addTiledMap(int layerEntityId, int mapWidth, int mapHeight,
                            TiledProjection projection, int tileWidth, int tileHeight, int chunkSize) {
         AddTiledMapCommand command = new AddTiledMapCommand(
-                canvas.getLayerService(), layerEntityId, mapWidth, mapHeight, projection,
+                editingContext.layerService(), layerEntityId, mapWidth, mapHeight, projection,
                 tileWidth, tileHeight, chunkSize,
                 mapEntityId -> {
                     if (mapEntityId >= 0) {
@@ -570,7 +571,7 @@ public class EditorOpsImpl implements EditorOps {
         if (mapEntityId < 0 || !world.getMapper(TiledLayerComponent.class).has(mapEntityId)) return;
         int previousTarget = selectionService.getTiledMapEditingTargetEntityId();
         historyManager.execute(new DeleteTiledMapCommand(
-                canvas.getLayerService(), mapEntityId,
+                editingContext.layerService(), mapEntityId,
                 restoredMapEntityId -> {
                     selectionService.clearSelection();
                     if (restoredMapEntityId >= 0 && previousTarget == mapEntityId) {
@@ -665,9 +666,6 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private int createPointLight(float worldX, float worldY, int parentEntityId) {
-        String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null) return -1;
-
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
         int shaderIdx = ShaderRegistry.indexOf(RuntimeFs.TEXTURE_ARRAY_POINTLIGHT);
@@ -715,9 +713,6 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private int createConeLight(float worldX, float worldY, int parentEntityId) {
-        String sceneTag = getCurrentSceneTag();
-        if (sceneTag == null) return -1;
-
         int activeLayerIndex = selectionService.getActiveLayerIndex();
 
         int shaderIdx = ShaderRegistry.indexOf(RuntimeFs.TEXTURE_ARRAY_CONELIGHT);
@@ -854,8 +849,8 @@ public class EditorOpsImpl implements EditorOps {
         PhysicsShapeData fixture = PhysicsService.createDefaultShape(1);
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_BOX;
 
-        fixture.geometry.offsetX = 0f;
-        fixture.geometry.offsetY = 0f;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,
+                editingContext.sceneMeta().pixelsPerMeter)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -876,8 +871,8 @@ public class EditorOpsImpl implements EditorOps {
         fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_CIRCLE;
         fixture.geometry.radius = 0.5f;
 
-        fixture.geometry.offsetX = 0f;
-        fixture.geometry.offsetY = 0f;
+        if (!placeFixtureAtWorld(world, bodyEid, worldX, worldY, fixture, tmpLocal,
+                editingContext.sceneMeta().pixelsPerMeter)) return;
 
         historyManager.execute(new AddFixtureCommand(
                 world,
@@ -890,29 +885,21 @@ public class EditorOpsImpl implements EditorOps {
         ));
     }
 
-    private void worldToBodyLocalPx(int bodyEid, float worldX, float worldY, Vector2 out) {
-        TransformComponent t = world.getMapper(TransformComponent.class).getSafe(bodyEid, null);
-        if (t == null) {
-            out.set(0f, 0f);
-            return;
-        }
-
-        float dx = worldX - t.x;
-        float dy = worldY - t.y;
-
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-
-        float localX = dx * cos + dy * sin;
-        float localY = -dx * sin + dy * cos;
-
-        out.set(localX, localY);
+    static boolean placeFixtureAtWorld(World world, int bodyEid,
+                                       float worldX, float worldY, PhysicsShapeData fixture, Vector2 scratch,
+                                       float ppm) {
+        if (!new ResolvedPhysicsPose(world).resolvedWorldToLocal(bodyEid, worldX, worldY, scratch)) return false;
+        if (!Float.isFinite(ppm) || ppm <= 0f) return false;
+        fixture.geometry.offsetX = scratch.x / ppm;
+        fixture.geometry.offsetY = scratch.y / ppm;
+        return true;
     }
 
     @Override
-    public void beginAddPolygonFixture(int bodyEid) {
+    public void beginAddPolygonFixture(int bodyEid, float worldX, float worldY) {
         if (bodyEid < 0) return;
         polygonDrawSession.beginCreate(bodyEid);
+        polygonDrawSession.addPoint(worldX, worldY);
     }
 
     @Override
@@ -1099,7 +1086,7 @@ public class EditorOpsImpl implements EditorOps {
 
     private void ensureHandleBoundToTextureArray(int textureHandle) {
         String tag = getCurrentSceneTag();
-        if (snapshotManager != null) {
+        if (snapshotManager != null && tag != null) {
             boolean alreadyPublished = snapshotManager
                     .isHandlePublishedInCurrentBundle(tag, textureHandle);
             if (!alreadyPublished) {
@@ -1109,36 +1096,26 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private void rebindHistoryEntityRenderAssets(int entityId) {
-        canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(entityId);
+        canvas.requestParticleRuntimeAvailabilityRefreshIfParticleEntity(editingContext, entityId);
         String sceneTag = getCurrentSceneTag();
         RenderRebindHelper.rebindHistoryEntityRenderAssets(
                 canvas,
                 sceneTag,
                 canvas.getAssetVisualResolver(),
-                entityId
+                entityId, world
         );
     }
 
     private String getCurrentSceneTag() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return null;
-
-        return cfg.canonicalSceneTagCurrent();
-    }
-
-    private void ensureEditorBundleActive() {
-        String tag = getCurrentSceneTag();
-        if (snapshotManager != null) {
-            snapshotManager.markDirty(tag, "editor-bundle-active-required");
-        }
+        return editingContext.sceneIdentity();
     }
 
     private boolean ensureParticleEffectImagesInAtlasInput(String effectPath) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) return false;
 
-        String sceneName = cfg.getCurrentSceneName();
-        if (sceneName == null || sceneName.isEmpty()) return false;
+        String canonicalTag = getCurrentSceneTag();
+        if (canonicalTag == null) return false;
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         FileHandle effectsRoot = projectDir.child(StudioFs.DIR_ORIG_EFFECTS);
@@ -1171,13 +1148,6 @@ public class EditorOpsImpl implements EditorOps {
         }
 
         if (rawPaths.isEmpty()) return false;
-
-        String canonicalTag = cfg.canonicalSceneTag(sceneName);
-        if (canonicalTag == null || canonicalTag.isEmpty()) {
-            Gdx.app.error("EditorOps",
-                    "ensureParticleEffectImagesInAtlasInput: canonicalTag introuvable pour " + sceneName);
-            return false;
-        }
 
         FileHandle imagesRoot = projectDir.child(StudioFs.DIR_ORIG_IMAGES);
         FileHandle atlasInputDir = projectDir.child(StudioFs.DIR_ATLASES)
@@ -1242,15 +1212,7 @@ public class EditorOpsImpl implements EditorOps {
     }
 
     private String resolveSceneAtlasTag(String requestedTag) {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return requestedTag;
-
-        String canonicalTag = cfg.canonicalSceneTagCurrent();
-        if (canonicalTag == null || canonicalTag.isEmpty()) {
-            return requestedTag;
-        }
-
-        return canonicalTag;
+        return getCurrentSceneTag();
     }
 
     private static String fileNameFromPath(String path) {

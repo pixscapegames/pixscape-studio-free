@@ -1,22 +1,23 @@
 package games.pixscape.studio.ui.shaders;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
-import com.badlogic.gdx.Input;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
+import com.badlogic.gdx.utils.*;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
 import com.kotcrab.vis.ui.widget.tabbedpane.Tab;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane;
 import com.kotcrab.vis.ui.widget.tabbedpane.TabbedPaneListener;
+import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.runtime.render.ShaderMode;
 import games.pixscape.runtime.render.ShaderVariant;
+import games.pixscape.runtime.render.batch.ShaderParameterLayout;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.ShaderSourcePreprocessor;
 import games.pixscape.studio.configuration.ProjectConfig;
@@ -24,8 +25,8 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
-import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.modal.Dialogs;
+import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
 
 public class ShaderManagerDialog extends StudioModalWindow {
@@ -63,6 +64,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private final VisTextButton duplicateButton;
     private final VisTextButton renameButton;
     private final VisTextButton deleteButton;
+    private final VisTextButton parametersButton;
+    private final VisLabel parametersSummary;
+    private Array<ShaderFloatParam> editedParameters = new Array<>();
 
     private static final int CODE_ROWS = 12;
     private static final float CODE_AREA_HEIGHT = 220f;
@@ -103,6 +107,14 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
         mainContent.add(formTable).left().row();
 
+        parametersButton = new VisTextButton("Edit declarations");
+        parametersSummary = new VisLabel("0 / 16 float parameters");
+        VisTable declarationControls = new VisTable(true);
+        declarationControls.add(new VisLabel("Parameters:")).width(FORM_LABEL_WIDTH);
+        declarationControls.add(parametersButton);
+        declarationControls.add(parametersSummary);
+        mainContent.add(declarationControls).left().padBottom(6f).row();
+
         targetTabs = new TabbedPane("shader-tabs");
         addTargetTab(ShaderVariant.DESKTOP_GL30, "Desktop");
         addTargetTab(ShaderVariant.ES3_WEBGL2, "Android / HTML");
@@ -133,7 +145,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
         mainContent.add(targetArea).growX().row();
 
         VisLabel includeHintLabel = new VisLabel(
-                "Material shaders can use #include \"pixscape_common.glsl\"."
+                "Material floats: #include \"pixscape_entity_params.glsl\", then pixscapeEntityFloat(PIXSCAPE_PARAM_<name>)."
         );
         mainContent.add(includeHintLabel).left().padTop(4f).row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
@@ -284,6 +296,19 @@ public class ShaderManagerDialog extends StudioModalWindow {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
                 doDeleteShader();
+            }
+        });
+
+        parametersButton.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                String name = shaderBox.getSelected();
+                if (name == null || getStage() == null || typeBox.getSelected() != ShaderKind.MATERIAL) return;
+                ShaderParameterDeclarationDialog dialog = new ShaderParameterDeclarationDialog(
+                        name, editedParameters, result -> {
+                    editedParameters = result;
+                    updateParametersSummary();
+                });
+                getStage().addActor(dialog.fadeIn());
             }
         });
 
@@ -475,7 +500,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 shaderDir.child(prefix + ".frag").writeString(fragment, false, "UTF-8");
             }
 
-            shaderDir.child("shader.json").writeString(buildShaderJson(name, kind), false, "UTF-8");
+            shaderDir.child("shader.json").writeString(buildShaderJson(name, kind, null), false, "UTF-8");
             shaderDir.child("includes").mkdirs();
             if (!shaderDir.child("includes").exists()) {
                 throw new IllegalStateException("The shader includes directory could not be created.");
@@ -503,6 +528,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private void loadVariantSources(String shaderName, ShaderKind kind) {
         FileHandle shaderDir = getProjectShaderDir(kind, shaderName);
+        editedParameters = readParameters(shaderDir.child("shader.json"), shaderName);
+        updateParametersSummary();
 
         for (ShaderVariant variant : ShaderVariant.values()) {
             String prefix = variantFilePrefix(variant);
@@ -516,6 +543,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private void clearEditors() {
+        editedParameters = new Array<>();
+        updateParametersSummary();
         for (ShaderVariant variant : ShaderVariant.values()) {
             vertEditors.get(variant).setText("");
             fragEditors.get(variant).setText("");
@@ -530,6 +559,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
         duplicateButton.setDisabled(!hasSelection);
         renameButton.setDisabled(!hasSelection);
         deleteButton.setDisabled(!hasSelection);
+        parametersButton.setDisabled(!hasSelection || typeBox.getSelected() != ShaderKind.MATERIAL);
     }
 
     private void doTestCompile() {
@@ -553,7 +583,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
         try {
             if (selectedVariant == ShaderRegistry.getCurrentShaderVariant()) {
-                ShaderRegistry.testCompile(name, vertSource, fragSource, ShaderMode.TEXTURE_ARRAY);
+                ShaderRegistry.testCompile(name, vertSource, fragSource, ShaderMode.TEXTURE_ARRAY,
+                        new ShaderParameterLayout(name, editedParameters));
                 Dialogs.showOKDialog(getStage(), "Shader compile", "Compilation OK");
             } else {
                 FileHandle includesDir = com.badlogic.gdx.Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_INCLUDES);
@@ -608,6 +639,23 @@ public class ShaderManagerDialog extends StudioModalWindow {
             FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
             FileHandle shaderDir = getProjectShaderDir(kind, name);
             shaderDir.mkdirs();
+            FileHandle metadata = shaderDir.child("shader.json");
+            if (kind == ShaderKind.FX && editedParameters.size > 0) {
+                throw new IllegalArgumentException("FX shaders cannot declare entity parameters.");
+            }
+            ShaderParameterLayout layout = new ShaderParameterLayout(name, editedParameters);
+            validateDeclarationChange(name, metadata, projectDir);
+            String metadataText = buildShaderJson(name, kind, metadata, editedParameters);
+
+            ShaderVariant current = ShaderRegistry.getCurrentShaderVariant();
+            ShaderRegistry.testCompile(name, vertEditors.get(current).getText(),
+                    fragEditors.get(current).getText(), ShaderMode.TEXTURE_ARRAY, layout);
+            for (ShaderVariant variant : ShaderVariant.values()) {
+                if (variant == current) continue;
+                FileHandle includesDir = Gdx.files.internal(RuntimeFs.RUNTIME_DIR_SHADER_INCLUDES);
+                ShaderSourcePreprocessor.preprocess(vertEditors.get(variant).getText(), null, includesDir);
+                ShaderSourcePreprocessor.preprocess(fragEditors.get(variant).getText(), null, includesDir);
+            }
 
             for (ShaderVariant variant : ShaderVariant.values()) {
                 String prefix = variantFilePrefix(variant);
@@ -619,10 +667,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
                         .writeString(fragEditors.get(variant).getText(), false, "UTF-8");
             }
 
-            shaderDir.child("shader.json").writeString(buildShaderJson(name, kind), false, "UTF-8");
+            metadata.writeString(metadataText, false, "UTF-8");
             shaderDir.child("includes").mkdirs();
 
             ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+            ShaderRegistry.saveProjectIndices();
 
             Dialogs.showOKDialog(getStage(), "Shader saved", "Shader '" + name + "' saved and registered.");
 
@@ -670,6 +719,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
 
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
 
@@ -778,7 +828,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
                         .writeString(sources.fragments.get(variant), false, "UTF-8");
             }
 
-            targetDir.child("shader.json").writeString(buildShaderJson(newName, kind), false, "UTF-8");
+            FileHandle metadata = targetDir.child("shader.json");
+            metadata.writeString(buildShaderJson(newName, kind, sourceDir.child("shader.json")), false, "UTF-8");
             FileHandle targetIncludes = targetDir.child("includes");
             targetIncludes.mkdirs();
             copyDirectoryContents(sourceDir.child("includes"), targetIncludes);
@@ -881,7 +932,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
                     return false;
                 }
 
-                targetDir.child("shader.json").writeString(buildShaderJson(targetName, kind), false, "UTF-8");
+                FileHandle metadata = targetDir.child("shader.json");
+                metadata.writeString(buildShaderJson(targetName, kind, metadata), false, "UTF-8");
 
                 reloadRegistryAndNotify();
                 selectShader(kind, targetName);
@@ -993,9 +1045,30 @@ public class ShaderManagerDialog extends StudioModalWindow {
         return cleaned;
     }
 
-    private String buildShaderJson(String name, ShaderKind kind) {
+    private String buildShaderJson(String name, ShaderKind kind, FileHandle existingMetadata) {
+        return buildShaderJson(name, kind, existingMetadata, null);
+    }
+
+    private String buildShaderJson(String name, ShaderKind kind, FileHandle existingMetadata,
+                                   Array<ShaderFloatParam> replacement) {
         String desktop = variantFilePrefix(ShaderVariant.DESKTOP_GL30);
         String es = variantFilePrefix(ShaderVariant.ES3_WEBGL2);
+        String parameters = "";
+        if (replacement != null && replacement.size > 0) {
+            StringBuilder encoded = new StringBuilder("  \"parameters\": {\n");
+            for (int i = 0; i < replacement.size; i++) {
+                ShaderFloatParam param = replacement.get(i);
+                encoded.append("    \"").append(param.name).append("\": ").append(Float.toString(param.value));
+                encoded.append(i + 1 < replacement.size ? ",\n" : "\n");
+            }
+            parameters = encoded.append("  },\n").toString();
+        } else if (replacement == null && existingMetadata != null && existingMetadata.exists()) {
+            JsonValue value = new JsonReader().parse(existingMetadata).get("parameters");
+            if (value != null) {
+                if (!value.isObject()) throw new IllegalArgumentException("Shader parameters must be a JSON object");
+                parameters = "  \"parameters\": " + value.toJson(JsonWriter.OutputType.json) + ",\n";
+            }
+        }
 
         return "{\n"
                 + "  \"type\": \"pixscape-custom-shader\",\n"
@@ -1003,6 +1076,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 + "  \"name\": \"" + name + "\",\n"
                 + "  \"kind\": \"" + (kind == ShaderKind.FX ? "fx" : "material") + "\",\n"
                 + "  \"mode\": \"" + ShaderMode.TEXTURE_ARRAY.name() + "\",\n"
+                + parameters
                 + "  \"targets\": {\n"
                 + "    \"" + desktop + "\": {\n"
                 + "      \"vertex\": \"" + desktop + ".vert\",\n"
@@ -1016,10 +1090,100 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 + "}\n";
     }
 
+    private Array<ShaderFloatParam> readParameters(FileHandle metadata, String shaderName) {
+        Array<ShaderFloatParam> result = new Array<>();
+        if (metadata == null || !metadata.exists()) return result;
+        JsonValue object = new JsonReader().parse(metadata).get("parameters");
+        if (object == null) return result;
+        if (!object.isObject()) throw new IllegalArgumentException("Shader parameters must be an object");
+        for (JsonValue value = object.child; value != null; value = value.next) {
+            if (!value.isNumber()) throw new IllegalArgumentException("Parameter '" + value.name + "' must be a float");
+            result.add(new ShaderFloatParam(value.name, value.asFloat()));
+        }
+        new ShaderParameterLayout(shaderName, result);
+        return result;
+    }
+
+    private void updateParametersSummary() {
+        parametersSummary.setText(editedParameters.size + " / " + ShaderParameterLayout.MAX_FLOATS
+                + " float parameters");
+    }
+
+    private void validateDeclarationChange(String shaderName, FileHandle metadata, FileHandle projectDir) {
+        Array<ShaderFloatParam> previous = readParameters(metadata, shaderName);
+        boolean changedNamesOrSlots = previous.size != editedParameters.size;
+        for (int i = 0; i < previous.size && i < editedParameters.size; i++) {
+            if (!previous.get(i).name.equals(editedParameters.get(i).name)) changedNamesOrSlots = true;
+        }
+        if (!changedNamesOrSlots) return;
+
+        // Numeric access would silently refer to a different name after a removal or insertion.
+        for (ShaderVariant variant : ShaderVariant.values()) {
+            String source = fragEditors.get(variant).getText();
+            if (source.matches("(?s).*pixscapeEntityFloat\\s*\\(\\s*[0-9]+\\s*\\).*")) {
+                throw new IllegalArgumentException("Declaration changed. Replace numeric pixscapeEntityFloat slots "
+                        + "with PIXSCAPE_PARAM_<name> in both shader targets before saving.");
+            }
+        }
+        for (ShaderFloatParam old : previous) {
+            boolean stillExists = false;
+            for (ShaderFloatParam next : editedParameters) {
+                if (old.name.equals(next.name)) { stillExists = true; break; }
+            }
+            if (stillExists) continue;
+            if (app != null && app.hasOpenShaderParameterReference(shaderName, old.name)) {
+                throw new IllegalArgumentException("Open entities still store '" + old.name
+                        + "'. Remove or migrate those values before renaming/deleting the declaration.");
+            }
+            FileHandle stored = findSavedParameterReference(projectDir, shaderName, old.name);
+            if (stored != null) {
+                throw new IllegalArgumentException("Saved entities in " + stored.path()
+                        + " still store '" + old.name + "'. Remove or migrate those values first.");
+            }
+        }
+    }
+
+    private FileHandle findSavedParameterReference(FileHandle dir, String shaderName, String parameterName) {
+        if (dir == null || !dir.exists()) return null;
+        for (FileHandle child : dir.list()) {
+            if (child.isDirectory()) {
+                FileHandle found = findSavedParameterReference(child, shaderName, parameterName);
+                if (found != null) return found;
+            } else if (child.extension().equalsIgnoreCase("json")
+                    || child.extension().equalsIgnoreCase("gameobject")) {
+                String contents = child.readString("UTF-8");
+                if (!contents.contains("ShaderParamsComponent") || !contents.contains(parameterName)) continue;
+                JsonValue root = new JsonReader().parse(contents);
+                JsonValue entities = root.get("entities");
+                int shaderIdx = ShaderRegistry.indexOf(shaderName);
+                if (entities == null || shaderIdx < 0) {
+                    if (java.util.regex.Pattern.compile("\"name\"\\s*:\\s*\""
+                            + java.util.regex.Pattern.quote(parameterName) + "\"")
+                            .matcher(contents).find()) return child;
+                    continue;
+                }
+                for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+                    JsonValue components = entity.get("components");
+                    if (components == null) continue;
+                    JsonValue material = components.get("RenderMaterialComponent");
+                    JsonValue params = components.get("ShaderParamsComponent");
+                    if (material == null || params == null || material.getInt("shaderIdx", -1) != shaderIdx) continue;
+                    JsonValue floats = params.get("floats");
+                    if (floats == null) continue;
+                    for (JsonValue value = floats.child; value != null; value = value.next) {
+                        if (parameterName.equals(value.getString("name", null))) return child;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private void reloadRegistryAndNotify() {
         ProjectConfig cfg = ProjectConfig.getInstance();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 
@@ -1031,15 +1195,18 @@ public class ShaderManagerDialog extends StudioModalWindow {
                     + "in vec2  a_position;\n"
                     + "in vec2  a_texCoord0;\n"
                     + "in vec4  a_color;\n"
-                    + "in float a_layer;\n\n"
+                    + "in float a_layer;\n"
+                    + "in float a_paramId;\n\n"
                     + "uniform mat4 u_projTrans;\n\n"
                     + "out vec2  v_uv;\n"
                     + "out vec4  v_color;\n"
-                    + "flat out int v_layer;\n\n"
+                    + "flat out int v_layer;\n"
+                    + "flat out highp int v_paramId;\n\n"
                     + "void main() {\n"
                     + "    v_uv = a_texCoord0;\n"
                     + "    v_color = a_color;\n"
                     + "    v_layer = int(a_layer + 0.5);\n"
+                    + "    v_paramId = int(a_paramId + 0.5);\n"
                     + "    gl_Position = u_projTrans * vec4(a_position, 0.0, 1.0);\n"
                     + "}\n";
         }
@@ -1048,15 +1215,18 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 + "in vec2  a_position;\n"
                 + "in vec2  a_texCoord0;\n"
                 + "in vec4  a_color;\n"
-                + "in float a_layer;\n\n"
+                + "in float a_layer;\n"
+                + "in float a_paramId;\n\n"
                 + "uniform mat4 u_projTrans;\n\n"
                 + "out vec2  v_uv;\n"
                 + "out vec4  v_color;\n"
-                + "flat out int v_layer;\n\n"
+                + "flat out int v_layer;\n"
+                + "flat out int v_paramId;\n\n"
                 + "void main() {\n"
                 + "    v_uv = a_texCoord0;\n"
                 + "    v_color = a_color;\n"
                 + "    v_layer = int(a_layer + 0.5);\n"
+                + "    v_paramId = int(a_paramId + 0.5);\n"
                 + "    gl_Position = u_projTrans * vec4(a_position, 0.0, 1.0);\n"
                 + "}\n";
     }
@@ -1095,9 +1265,10 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private String templateMaterialFragment(ShaderVariant variant) {
         if (variant == ShaderVariant.ES3_WEBGL2) {
             return "#version 300 es\n"
-                    + "precision highp float;\\n"
+                    + "precision highp float;\n"
                     + "precision mediump int;\n\n"
-                    + "#include \"pixscape_common.glsl\"\n\n"
+                    + "#include \"pixscape_common.glsl\"\n"
+                    + "#include \"pixscape_entity_params.glsl\"\n\n"
                     + "in vec2  v_uv;\n"
                     + "in vec4  v_color;\n"
                     + "flat in int v_layer;\n\n"
@@ -1113,7 +1284,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
 
         return "#version 330 core\n\n"
-                + "#include \"pixscape_common.glsl\"\n\n"
+                + "#include \"pixscape_common.glsl\"\n"
+                + "#include \"pixscape_entity_params.glsl\"\n\n"
                 + "in vec2  v_uv;\n"
                 + "in vec4  v_color;\n"
                 + "flat in int v_layer;\n\n"

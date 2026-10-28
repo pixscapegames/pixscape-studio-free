@@ -5,7 +5,6 @@ import com.artemis.World;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.runtime.component.physics.PhysicsMotorJointComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.helper.GeometryHelper;
 import games.pixscape.studio.history.HistoryManager;
@@ -18,6 +17,7 @@ public final class MotorJointPropertiesPanel extends JointTypeProperties {
     private final World world;
     private final ComponentMapper<PhysicsMotorJointComponent> mMotor;
     private final HistoryManager history;
+    private final SceneMeta sceneMeta;
 
     private final FloatField linearOffsetXField;
     private final FloatField linearOffsetYField;
@@ -26,10 +26,11 @@ public final class MotorJointPropertiesPanel extends JointTypeProperties {
     private final FloatField maxTorqueField;
     private final FloatField correctionFactorField;
 
-    public MotorJointPropertiesPanel(World world, HistoryManager history) {
+    public MotorJointPropertiesPanel(World world, HistoryManager history, SceneMeta sceneMeta) {
         this.world = world;
         this.mMotor = world.getMapper(PhysicsMotorJointComponent.class);
         this.history = history;
+        this.sceneMeta = sceneMeta;
 
         linearOffsetXField = new FloatField(world, this::readLinearOffsetXPx, this::isMotorJoint).setDisplayDecimals(3);
         linearOffsetXField.setApplier((jid, v) -> setMotor(jid, m -> m.linearOffsetX = pxToM(v)));
@@ -155,9 +156,7 @@ public final class MotorJointPropertiesPanel extends JointTypeProperties {
     }
 
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        return meta.pixelsPerMeter;
+        return sceneMeta != null ? sceneMeta.pixelsPerMeter : 100f;
     }
 
     private float mToPx(float meters) {

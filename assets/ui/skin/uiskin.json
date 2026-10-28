@@ -525,6 +525,20 @@
 	}
 },
 "com.kotcrab.vis.ui.widget.tabbedpane.TabbedPane$TabbedPaneStyle": {
+	"document-tabs": {
+		"background": "panel-header",
+		"vertical": false,
+		"buttonStyle": {
+			"down": "window-border-bg",
+			"up": "button",
+			"checked": "shader-section-header",
+			"over": "button-over",
+			"disabled": "button",
+			"font": "default-font",
+			"fontColor": "white",
+			"disabledFontColor": "grey"
+		}
+	},
 	"shader-tabs": {
 		"vertical": false,
 		"buttonStyle": {

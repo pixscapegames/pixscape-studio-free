@@ -18,8 +18,8 @@ final class ShaderParamValidation {
         if (name.isEmpty() && value.isEmpty()) return true;
         if (value.isEmpty()) return false;
         try {
-            Float.parseFloat(value);
-            return true;
+            float parsed = Float.parseFloat(value);
+            return !Float.isNaN(parsed) && !Float.isInfinite(parsed);
         } catch (NumberFormatException ignored) {
             return false;
         }

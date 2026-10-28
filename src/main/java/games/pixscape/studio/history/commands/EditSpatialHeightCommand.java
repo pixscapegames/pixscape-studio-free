@@ -9,24 +9,19 @@ import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
 
 public final class EditSpatialHeightCommand implements Command, HistoryManager.SupportsNoop {
-    public record Snapshot(float altitude, float height) {
+    public record Snapshot(float altitude) {
         public static Snapshot capture(SpatialHeightComponent component) {
             if (component == null) return null;
-            return new Snapshot(component.altitude, component.height);
+            return new Snapshot(component.altitude);
         }
 
         public Snapshot withAltitude(float value) {
-            return new Snapshot(value, height);
-        }
-
-        public Snapshot withHeight(float value) {
-            return new Snapshot(altitude, value);
+            return new Snapshot(value);
         }
 
         public boolean sameAs(Snapshot other) {
             if (other == null) return false;
-            return Float.compare(altitude, other.altitude) == 0
-                    && Float.compare(height, other.height) == 0;
+            return Float.compare(altitude, other.altitude) == 0;
         }
     }
 
@@ -57,7 +52,7 @@ public final class EditSpatialHeightCommand implements Command, HistoryManager.S
 
     @Override
     public String label() {
-        return "Edit Spatial Height";
+        return "Edit Spatial Altitude";
     }
 
     @Override
@@ -85,7 +80,6 @@ public final class EditSpatialHeightCommand implements Command, HistoryManager.S
         if (component == null) return;
 
         component.altitude = snapshot.altitude;
-        component.height = snapshot.height;
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) {

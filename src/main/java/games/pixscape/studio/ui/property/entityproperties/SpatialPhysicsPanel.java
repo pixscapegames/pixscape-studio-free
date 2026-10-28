@@ -12,12 +12,11 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.Command;
@@ -37,7 +36,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private final CollapsibleVisTable validationBlock = new CollapsibleVisTable(true, true);
     private final CollapsibleVisTable detailsBlock = new CollapsibleVisTable(true);
     private final FloatField altitudeField;
-    private final FloatField heightField;
+    private final ActorSpatialRectanglePanel rectanglePanel;
 
     private int entityId = -1;
     private boolean internalRefresh = false;
@@ -52,17 +51,8 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                 this::hasSpatialHeight
         ).setDisplayDecimals(2);
 
-        heightField = new FloatField(
-                ctx.world,
-                eid -> ctx.mSpatialHeight.get(eid).height,
-                this::hasSpatialHeight
-        ).setDisplayDecimals(2);
-
         altitudeField.setApplier((eid, value) ->
                 submitSpatialEdit(eid, snapshot -> snapshot.withAltitude(value)));
-        heightField.setApplier((eid, value) ->
-                submitSpatialEdit(eid, snapshot -> snapshot.withHeight(Math.max(0f, value))));
-
         enabledBox.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -79,6 +69,19 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                         eligibleForActivation,
                         enable && eligibleForActivation ? createDefaultFootprint(entityId) : null
                 );
+                if (enable && eligibleForActivation) {
+                    games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+                    var animation = ctx.mAnim.getSafe(entityId, null);
+                    if (animation == null) rectangles.staticRectangle = new games.pixscape.runtime.spatial.ActorSpatialRectangleData();
+                    else for (int i=0;i<animation.animationAssetIds.size;i++) {
+                        int asset=animation.animationAssetIds.get(i);
+                        if (!(ctx.assetMetaLookup.apply(asset) instanceof games.pixscape.studio.asset.AnimationAssetMeta meta))
+                            throw new IllegalStateException("Missing animation asset " + asset);
+                        for (String clip:meta.clips.keys())
+                            rectangles.put(asset,clip,new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+                    }
+                    command.withRectangles(rectangles);
+                }
                 if (command.isNoop()) {
                     validationLabel.setText(enable
                             ? "Spatial Actor requires valid visual bounds and one valid footprint."
@@ -105,8 +108,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         details.add(new VisLabel("Altitude:")).width(CommonLayout.LABEL_WIDTH).left();
         details.add(altitudeField).width(CommonLayout.FIELD_WIDTH).left().row();
 
-        details.add(new VisLabel("Height:")).width(CommonLayout.LABEL_WIDTH).left();
-        details.add(heightField).width(CommonLayout.FIELD_WIDTH).left().row();
+        rectanglePanel = new ActorSpatialRectanglePanel(ctx, details);
 
         validationBlock.content().add(validationLabel).left().row();
         root.add(enabledBox).left().row();
@@ -115,10 +117,14 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         detailsBlock.show(false);
     }
 
+    @Override public void act(float delta) {
+        super.act(delta);
+        rectanglePanel.refreshCurrentRepresentation();
+    }
+
     public void setEntityId(int entityId) {
         this.entityId = entityId;
         altitudeField.setEntityId(entityId);
-        heightField.setEntityId(entityId);
         refreshFromModel(entityId);
     }
 
@@ -129,10 +135,9 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
             enabledBox.setChecked(actor);
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
+            rectanglePanel.refresh(eid);
             altitudeField.setEntityId(eid);
-            heightField.setEntityId(eid);
             altitudeField.refreshFromModel();
-            heightField.refreshFromModel();
         } finally {
             internalRefresh = false;
         }
@@ -170,8 +175,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
-        ProjectConfig config = ProjectConfig.getInstance();
-        SceneMeta scene = config != null ? config.getCurrentSceneMeta() : null;
+        SceneMeta scene = ctx.sceneMeta;
         return canActivateSpatialPhysics(scene, kind, index, layer);
     }
 
@@ -200,8 +204,7 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     private PhysicsShapeData createDefaultFootprint(int eid) {
         DimensionsComponent dimensions = ctx.mDimensions.getSafe(eid, null);
         TransformComponent transform = ctx.mTransform.getSafe(eid, null);
-        SceneMeta scene = ProjectConfig.getInstance() != null
-                ? ProjectConfig.getInstance().getCurrentSceneMeta() : null;
+        SceneMeta scene = ctx.sceneMeta;
         return dimensions != null && transform != null && scene != null
                 ? createDefaultFootprint(dimensions, transform, scene.pixelsPerMeter)
                 : null;

@@ -4,6 +4,7 @@ import com.badlogic.gdx.graphics.Color;
 
 /** Shared colors for interactive Studio canvas overlays. */
 public final class EditorOverlayPalette {
+    public static final Color SPATIAL_ACTOR_INFLUENCE_COLOR = new Color(0.85f, 0.35f, 1f, 0.95f);
     public static final Color SPATIAL_NEUTRAL_COLOR = new Color(0.25f, 1f, 0.65f, 0.85f);
     public static final Color SPATIAL_TILE_HIGHLIGHT_COLOR = new Color(0.25f, 1f, 0.65f, 0.50f);
     public static final Color WALL_HOVER_COLOR = new Color(1f, 1f, 1f, 1f);

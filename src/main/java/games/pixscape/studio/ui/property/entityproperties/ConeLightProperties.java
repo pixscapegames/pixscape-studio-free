@@ -16,6 +16,7 @@ import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.MetaTagsHelper;
 import games.pixscape.studio.history.commands.ChangeEntityNameCommand;
+import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.history.commands.TransformOp;
 import games.pixscape.studio.model.EntityKind;
 import games.pixscape.studio.ui.StudioColorPickerFactory;
@@ -66,9 +67,11 @@ public final class ConeLightProperties extends VisTable {
     private final FloatField intensityField;
     private final FloatField xField;
     private final FloatField yField;
+    private final LightingPanel lightingPanel;
     private final FloatField radiusField;
     private final FloatField coneAngleField;
     private final FloatField rotationField;
+    private final FloatField inclinationField;
     private final FloatField softnessField;
     private final FloatField falloffField;
 
@@ -89,6 +92,7 @@ public final class ConeLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
+        lightingPanel = new LightingPanel(ctx,true);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -122,10 +126,7 @@ public final class ConeLightProperties extends VisTable {
                 (int e) -> mVisibility.get(e).isVisible(),
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    var c = mVisibility.getSafe(e, null);
-                    if (c != null && c.visible != v) {
-                        c.visible = v;
-                    }
+                    changeActivation(e,true,v);
                 }
         );
 
@@ -140,15 +141,12 @@ public final class ConeLightProperties extends VisTable {
                 },
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    ConeLightComponent light = mLight.getSafe(e, null);
-                    if (light != null && light.enabled != v) {
-                        light.enabled = v;
-                        markLightDirty(e);
-                    }
+                    changeActivation(e,false,v);
                 }
         );
 
         intensityField = new FloatField(ctx.world, this::readIntensity, this::hasConeLight).setDisplayDecimals(3);
+        intensityField.setName("light-intensity");
         intensityField.setApplier((eid, v) -> {
             setLight(eid, l -> l.intensity = Math.max(0f, v));
         });
@@ -173,6 +171,18 @@ public final class ConeLightProperties extends VisTable {
 
         rotationField = new FloatField(ctx.world, this::readRotationDeg, this::hasConeLight).setDisplayDecimals(2);
         rotationField.setApplier(this::setRotationDeg);
+
+        inclinationField = new FloatField(ctx.world, eid -> mLight.get(eid).inclinationDeg,
+                this::hasConeLight).setDisplayDecimals(2);
+        inclinationField.setName("light-inclination");
+        inclinationField.setApplier((eid, value) -> {
+            if (!Float.isFinite(value)) return;
+            float inclination = MathUtils.clamp(value, ConeLightComponent.MIN_INCLINATION_DEG,
+                    ConeLightComponent.MAX_INCLINATION_DEG);
+            EditLightingCommand command = new EditLightingCommand(ctx.world, ctx.history.historyIds(),
+                    eid, EditLightingCommand.Property.INCLINATION, inclination);
+            if (!command.isNoop()) ctx.history.execute(command);
+        });
 
         softnessField = new FloatField(ctx.world, this::readSoftness, this::hasConeLight).setDisplayDecimals(3);
         softnessField.setApplier((eid, v) -> {
@@ -216,25 +226,28 @@ public final class ConeLightProperties extends VisTable {
         VisTable coneContent = coneBlock.content();
         coneContent.left().top();
         coneContent.defaults().left().pad(1);
-        coneContent.add(enabledCheckBox).left().colspan(2).row();
-        coneContent.add(new VisLabel("X:"));
+        coneContent.add(enabledCheckBox).left().colspan(2).padBottom(10).row();
+        coneContent.add(new VisLabel("X:")).width(120);
         coneContent.add(xField).width(120).left().row();
-        coneContent.add(new VisLabel("Y:"));
+        coneContent.add(new VisLabel("Y:")).width(120);
         coneContent.add(yField).width(120).left().row();
-        coneContent.add(new VisLabel("Color:"));
-        coneContent.add(buttonPicker).left().colspan(2).row();
-        coneContent.add(new VisLabel("Intensity:")).left();
+        coneContent.add(new VisLabel("Color:")).width(120);
+        coneContent.add(buttonPicker).left().row();
+        coneContent.add(new VisLabel("Intensity:")).width(120).left();
         coneContent.add(intensityField).width(120).left().row();
-        coneContent.add(new VisLabel("Radius:"));
+        coneContent.add(new VisLabel("Radius:")).width(120);
         coneContent.add(radiusField).width(120).left().row();
-        coneContent.add(new VisLabel("Angle (deg):"));
+        coneContent.add(new VisLabel("Angle (deg):")).width(120);
         coneContent.add(coneAngleField).width(120).left().row();
-        coneContent.add(new VisLabel("Rotation (deg):"));
+        coneContent.add(new VisLabel("Rotation (deg):")).width(120);
         coneContent.add(rotationField).width(120).left().row();
-        coneContent.add(new VisLabel("Softness:"));
+        coneContent.add(new VisLabel("Inclination (deg):")).width(120);
+        coneContent.add(inclinationField).width(120).left().row();
+        coneContent.add(new VisLabel("Softness:")).width(120);
         coneContent.add(softnessField).width(120).left().row();
-        coneContent.add(new VisLabel("Falloff:"));
-        coneContent.add(falloffField).width(120).left().row();
+        coneContent.add(new VisLabel("Falloff:")).width(120).padBottom(10);
+        coneContent.add(falloffField).width(120).left().padBottom(10).row();
+        coneContent.add(lightingPanel).colspan(2).pad(0).left().row();
 
         add(coneBlock).growX().left().row();
 
@@ -248,6 +261,7 @@ public final class ConeLightProperties extends VisTable {
     }
 
     private void onEntityChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         if (op == TransformOp.MOVE) {
             xField.refreshFromModel();
             yField.refreshFromModel();
@@ -259,6 +273,8 @@ public final class ConeLightProperties extends VisTable {
         }
         if (op == TransformOp.SCALE) {
             radiusField.refreshFromModel();
+            intensityField.refreshFromModel();
+            inclinationField.refreshFromModel();
         }
     }
 
@@ -328,12 +344,14 @@ public final class ConeLightProperties extends VisTable {
         visibleBinder.setEntityId(entityId);
 
         enabledBinder.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         xField.setEntityId(entityId);
         yField.setEntityId(entityId);
         intensityField.setEntityId(entityId);
         radiusField.setEntityId(entityId);
         coneAngleField.setEntityId(entityId);
         rotationField.setEntityId(entityId);
+        inclinationField.setEntityId(entityId);
         softnessField.setEntityId(entityId);
         falloffField.setEntityId(entityId);
         pickerBinder.setEntityId(entityId);
@@ -508,6 +526,12 @@ public final class ConeLightProperties extends VisTable {
         light.g = tmpColor.g;
         light.b = tmpColor.b;
         markLightDirty(entityId);
+    }
+
+    private void changeActivation(int entity,boolean visibility,boolean enabled){
+        ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
+                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));
+        visibleBinder.refresh();enabledBinder.refresh();
     }
 
     private void markLightDirty(int entityId) {

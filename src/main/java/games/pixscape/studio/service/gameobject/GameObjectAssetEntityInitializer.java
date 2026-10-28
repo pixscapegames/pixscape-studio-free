@@ -2,11 +2,7 @@ package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeTagComponent;
-import games.pixscape.runtime.component.RenderRepeatComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
@@ -44,6 +40,11 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.repeat = copy(data.repeat);
         this.pointLight = copy(data.pointLight);
         this.coneLight = copy(data.coneLight);
+    }
+
+    @Override public int activeLightCount() {
+        return games.pixscape.runtime.render.lighting.ActiveLights.isActive(generic.isVisible(),
+                pointLight!=null,pointLight!=null&&pointLight.enabled,coneLight!=null,coneLight!=null&&coneLight.enabled)?1:0;
     }
 
     GenericEntityInitializer generic() { return generic; }
@@ -109,6 +110,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.falloff = value.falloff; result.enabled = value.enabled;
+        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
         return result;
     }
 
@@ -118,6 +120,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.falloff = value.falloff; result.enabled = value.enabled;
+        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
         return result;
     }
 
@@ -125,6 +128,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         target.r = value.r; target.g = value.g; target.b = value.b;
         target.intensity = value.intensity; target.radius = value.radius;
         target.falloff = value.falloff; target.enabled = value.enabled;
+        target.height=value.height;target.shadowQuality=value.shadowQuality;target.shadowResolution=value.shadowResolution;
     }
 
     private static GameObjectAsset.ConeLightData copy(GameObjectAsset.ConeLightData value) {
@@ -133,8 +137,10 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.inclinationDeg = value.inclinationDeg;
         result.softness = value.softness; result.falloff = value.falloff;
         result.enabled = value.enabled;
+        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
         return result;
     }
 
@@ -144,8 +150,10 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         result.r = value.r; result.g = value.g; result.b = value.b;
         result.intensity = value.intensity; result.radius = value.radius;
         result.coneAngleDeg = value.coneAngleDeg; result.rotationDeg = value.rotationDeg;
+        result.inclinationDeg = value.inclinationDeg;
         result.softness = value.softness; result.falloff = value.falloff;
         result.enabled = value.enabled;
+        result.height=value.height;result.shadowQuality=value.shadowQuality;result.shadowResolution=value.shadowResolution;
         return result;
     }
 
@@ -153,7 +161,9 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         target.r = value.r; target.g = value.g; target.b = value.b;
         target.intensity = value.intensity; target.radius = value.radius;
         target.coneAngleDeg = value.coneAngleDeg; target.rotationDeg = value.rotationDeg;
+        target.inclinationDeg = value.inclinationDeg;
         target.softness = value.softness; target.falloff = value.falloff;
         target.enabled = value.enabled;
+        target.height=value.height;target.shadowQuality=value.shadowQuality;target.shadowResolution=value.shadowResolution;
     }
 }

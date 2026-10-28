@@ -23,13 +23,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
@@ -69,7 +63,10 @@ public final class HtmlPreviewLauncher {
             activeServer = server;
             activeOnClosedCallback = onClosed;
 
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/";
+            String url = "http://127.0.0.1:" + server.getAddress().getPort()
+                    + "/";
+            Boolean override=games.pixscape.studio.configuration.EditorSettings.forwardLightingOverride();
+            if(override!=null)url+="?lighting="+(override?"forward":"legacy");
             Gdx.app.log("HtmlPreviewLauncher", "HTML preview running at " + url);
             if (onOpened != null) onOpened.run();
             Gdx.net.openURI(url);

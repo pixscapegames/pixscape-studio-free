@@ -1,5 +1,6 @@
 package games.pixscape.studio.ui.preview;
 
+import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -10,9 +11,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class HtmlPreviewPipelineTest {
 
@@ -59,9 +58,24 @@ public class HtmlPreviewPipelineTest {
         assertFalse(Files.exists(template.resolve("htmlplayer/htmlplayer.devmode.js")));
         assertFalse(Files.exists(template.resolve("htmlplayer/compilation-mappings.txt")));
         assertFalse(Files.exists(template.resolve("htmlplayer/logo.png")));
+        assertTrue(Files.isRegularFile(template.resolve("assets")
+                .resolve(HudBuiltInLabelStyle.FONT_DESCRIPTOR)));
         String index = Files.readString(template.resolve("index.html"), StandardCharsets.UTF_8);
         assertFalse(index.toLowerCase().contains("libgdx.png"));
         assertFalse(index.toLowerCase().contains("logo.png"));
+    }
+
+    @Test
+    public void packagedPlayerMatchesExplicitTemplate() throws Exception {
+        Path generated=Path.of("src/main/resources/html-preview-template/htmlplayer");
+        Path packaged=Path.of("build/resources/main/html-preview-template/htmlplayer");
+        String bootstrap=Files.readString(generated.resolve("htmlplayer.nocache.js"));
+        assertEquals(bootstrap,Files.readString(packaged.resolve("htmlplayer.nocache.js")));
+        java.util.regex.Matcher hashes=java.util.regex.Pattern.compile("[A-F0-9]{32}").matcher(bootstrap);
+        java.util.Set<String> names=new java.util.HashSet<>();
+        while(hashes.find())names.add(hashes.group()+".cache.js");
+        assertFalse(names.isEmpty());
+        for(String name:names)assertArrayEquals(Files.readAllBytes(generated.resolve(name)),Files.readAllBytes(packaged.resolve(name)));
     }
 
     private static void write(Path root, String relative) throws Exception {

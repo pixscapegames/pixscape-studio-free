@@ -12,8 +12,8 @@ import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.history.commands.EditAnimationCommand;
 import games.pixscape.studio.history.commands.EditAnimationAssetFpsCommand;
+import games.pixscape.studio.history.commands.EditAnimationCommand;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.FloatField;
@@ -271,7 +271,7 @@ public final class AnimationPanel extends CollapsibleWidget {
         EditAnimationCommand.Snapshot before = EditAnimationCommand.Snapshot.capture(animation, assetRef);
         EditAnimationCommand.Snapshot after = before.copy();
         mutation.accept(after);
-        ctx.history.execute(new EditAnimationCommand(
+        EditAnimationCommand command = new EditAnimationCommand(
                 ctx.world,
                 ctx.history.historyIds(),
                 entityId,
@@ -279,7 +279,13 @@ public final class AnimationPanel extends CollapsibleWidget {
                 after,
                 ctx.refreshAnimationPreview,
                 ctx.markCurrentSceneSaveRequired
-        ));
+        );
+        for(int i=0;i<after.animationAssetIds.size;i++){
+            int asset=after.animationAssetIds.get(i);
+            AnimationAssetMeta meta=animationMeta(asset);
+            if(meta!=null)command.withShadowRectangleClips(asset,meta.clips.keys());
+        }
+        ctx.history.execute(command);
         refresh();
     }
 

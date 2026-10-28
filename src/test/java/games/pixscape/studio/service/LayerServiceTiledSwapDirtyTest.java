@@ -4,12 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.artemis.utils.IntBag;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.TextureRegionComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.BlendMode;
@@ -23,10 +18,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ChangeLayerOrderCommand;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class LayerServiceTiledSwapDirtyTest {
     @Test

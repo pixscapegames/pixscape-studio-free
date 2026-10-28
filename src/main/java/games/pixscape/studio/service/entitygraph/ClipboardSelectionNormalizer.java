@@ -1,12 +1,12 @@
 package games.pixscape.studio.service.entitygraph;
 
+import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
+import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntSet;
-import com.artemis.Aspect;
-import com.artemis.utils.IntBag;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;

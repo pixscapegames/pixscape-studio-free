@@ -1,0 +1,9 @@
+// Local source validation only: never resolve from Maven Local or publish artifacts.
+gradle.settingsEvaluated { settings ->
+    settings.dependencyResolutionManagement.repositories.removeAll { it.name == 'MavenLocal' }
+}
+gradle.beforeProject { project ->
+    project.repositories.whenObjectAdded { repo ->
+        if (repo.name == 'MavenLocal') project.repositories.remove(repo)
+    }
+}

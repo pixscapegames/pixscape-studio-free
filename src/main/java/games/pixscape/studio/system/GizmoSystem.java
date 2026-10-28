@@ -26,17 +26,12 @@ import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.system.SpatialRenderOrderSystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.input.InputState;
-import games.pixscape.studio.service.CoordSpaces;
-import games.pixscape.studio.service.LayerService;
-import games.pixscape.studio.service.ParticleOverlayVisual;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.StudioDisplayOffsetResolver;
+import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.service.physics.PolygonDrawSession;
 import games.pixscape.studio.service.physics.ResolvedPhysicsPose;
@@ -48,6 +43,11 @@ import games.pixscape.studio.ui.config.EditorOverlayPalette;
 
 @All({TransformComponent.class})
 public final class GizmoSystem extends BaseSystem {
+    private boolean drawingAllowed;
+
+    public void setDrawingAllowed(boolean allowed) { drawingAllowed = allowed; }
+
+    @Override protected boolean checkProcessing() { return drawingAllowed; }
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
 
     private final StudioDrawContext ctx;
@@ -59,11 +59,14 @@ public final class GizmoSystem extends BaseSystem {
     private SelectionService selectionService;
     private PhysicsService physicsService;
     private StudioDisplayOffsetResolver displayOffsetResolver;
+    private StudioEditingModeService editingModeService;
     private final PolygonDrawSession polygonDrawSession;
     private final PhysicsSelectionService physicsSelectionService;
     private final SpatialBlockSelectionService spatialBlockSelectionService;
     private final SpatialTileSelectionService spatialTileSelectionService;
     private final SpatialStructureGeometryCache spatialStructureGeometryCache = new SpatialStructureGeometryCache();
+    private final CornerProfileOverlay cornerOverview = new CornerProfileOverlay();
+    public CornerProfileOverlay cornerOverview(){return cornerOverview;}
     private final SpatialWallEditSession spatialHandleSession = new SpatialWallEditSession();
     private int spatialHandleLayer = -1;
     private int spatialHandleBlock = -1;
@@ -132,6 +135,7 @@ public final class GizmoSystem extends BaseSystem {
     private final float[] tmpSpatialWallWireframe = new float[SpatialWallWireframe.REQUIRED_OUTPUT_FLOATS];
     private final float[] tmpSpatialStructureSegment = new float[8];
     private final float[] tmpSpatialTileTintVerts = new float[20];
+    private final float[] tmpActorInfluenceQuad = new float[8];
 
     public GizmoSystem(StudioDrawContext worldCtx,
                        InputState inputState,
@@ -176,6 +180,10 @@ public final class GizmoSystem extends BaseSystem {
         this.displayOffsetResolver = displayOffsetResolver;
     }
 
+    public void setEditingModeService(StudioEditingModeService editingModeService) {
+        this.editingModeService = editingModeService;
+    }
+
     @Override
     protected void initialize() {
         gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
@@ -190,6 +198,8 @@ public final class GizmoSystem extends BaseSystem {
         boolean polygonDrawVisible = polygonDrawSession != null && polygonDrawSession.isActive();
         boolean spatialBlockVisible = hasSpatialBlockOverlayWork();
         boolean spatialTileSelectionVisible = hasSpatialTileSelectionWork();
+        boolean focusedSpatialActor = physicsSelectionService != null
+                && physicsSelectionService.getFocusedBodyEid() >= 0;
 
         if (!lassoVisible
                 && !rectPreviewVisible
@@ -200,6 +210,7 @@ public final class GizmoSystem extends BaseSystem {
                 && !jointOverlayVisible
                 && !spatialBlockVisible
                 && !spatialTileSelectionVisible
+                && !focusedSpatialActor
                 && !hoveredEntityVisible
                 && !polygonDrawVisible) {
             return;
@@ -275,6 +286,7 @@ public final class GizmoSystem extends BaseSystem {
             drawSpatialTileSelection();
             drawSelectedSpatialBlockLinkedTiles();
             drawSpatialBlockOverlays();
+            drawSelectedActorInfluenceQuads();
             drawHoveredEntityGizmo(physicsEditMode);
             drawPolygonDrawSession();
 
@@ -325,6 +337,33 @@ public final class GizmoSystem extends BaseSystem {
         }
     }
 
+    private void drawSelectedActorInfluenceQuads() {
+        // Actor/fixture selection exits the block-editing Spatial submode.
+        // Runtime eligibility identifies Spatial actors in Normal and Physics modes too.
+        if (editingModeService != null && !editingModeService.hasActiveSceneDocument()) return;
+        SpatialRenderOrderSystem spatial = world.getSystem(SpatialRenderOrderSystem.class);
+        if (spatial == null) return;
+        for (int entity : selected) drawActorInfluenceQuad(spatial, entity);
+        int focused = physicsSelectionService != null ? physicsSelectionService.getFocusedBodyEid() : -1;
+        if (focused >= 0 && !isSelectedEntity(focused)) drawActorInfluenceQuad(spatial, focused);
+    }
+
+    private void drawActorInfluenceQuad(SpatialRenderOrderSystem spatial, int entity) {
+        if (!spatial.writeActorInfluenceQuad(entity, tmpActorInfluenceQuad)) return;
+        ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_ACTOR_INFLUENCE_COLOR);
+        float thickness = ctx.pxToWorld(1.5f);
+        for (int corner = 0; corner < 4; corner++) {
+            int next = (corner + 1) & 3;
+            ctx.drawer.line(tmpActorInfluenceQuad[corner * 2], tmpActorInfluenceQuad[corner * 2 + 1],
+                    tmpActorInfluenceQuad[next * 2], tmpActorInfluenceQuad[next * 2 + 1], thickness);
+        }
+        // Mark the lower and upper edge centres without edit handles or picking effects.
+        float cx = (tmpActorInfluenceQuad[0] + tmpActorInfluenceQuad[2]) * .5f;
+        float tick = ctx.pxToWorld(4f);
+        ctx.drawer.line(cx, tmpActorInfluenceQuad[1] - tick, cx, tmpActorInfluenceQuad[1] + tick, thickness);
+        ctx.drawer.line(cx - tick, tmpActorInfluenceQuad[5], cx + tick, tmpActorInfluenceQuad[5], thickness);
+    }
+
     private boolean hasHoveredEntityWork() {
         if (selectionService == null) return false;
 
@@ -363,19 +402,43 @@ public final class GizmoSystem extends BaseSystem {
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
         if (component == null || component.blocks == null || tiled == null || tiled.data == null) return;
 
+        games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal vertical=spatialBlockSelectionService.verticalJoinPreview();
+        if(vertical!=null && vertical.selected.entity==layerEntityId) {
+            ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
+            for(SpatialBlockData wall:vertical.candidate.reference.blocks.blocks)if(vertical.referenceMembers.contains(wall.id)) {
+                SpatialBlockProjection.projectBaseFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(vertical.candidate.reference.map,wall,tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            ctx.drawer.setColor(vertical.valid?com.badlogic.gdx.graphics.Color.ORANGE:com.badlogic.gdx.graphics.Color.RED);
+            for(SpatialBlockData wall:vertical.after.blocks)if(vertical.affected.contains(wall.id)) {
+                SpatialBlockProjection.projectBaseFootprint(tiled.data,wall,tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(tiled.data,wall,tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            return;
+        }
         int selectedBlockId = spatialBlockSelectionService.getSelectedBlockId();
         int hoveredBlockId = spatialBlockSelectionService.getHoveredBlockId();
 
         SpatialBlockData selectedBlock = spatialBlockById(component, selectedBlockId);
         SpatialBlockData hoveredBlock = spatialBlockById(component, hoveredBlockId);
+        SpatialLinkProposal linkPreview = spatialBlockSelectionService.linkPreview();
+        boolean mergedPreview = linkPreview != null && linkPreview.valid && !linkPreview.unlink;
         spatialStructureGeometryCache.synchronize(layerEntityId, component, tiled.data);
+        cornerOverview.synchronize(layerEntityId,tiled,component,tiledState.lightingMaps.get(layerEntityId),spatialStructureGeometryCache);
         for (int i = 0; i < spatialStructureGeometryCache.structureCount(); i++) {
             CompiledSpatialStructure structure = spatialStructureGeometryCache.structure(i);
+            if (mergedPreview && linkPreview.replacesStructure(structure.structureId())) continue;
             ctx.drawer.setColor(EditorOverlayPalette.SPATIAL_NEUTRAL_COLOR);
-            drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
+            float[] wire=linkPreview==null?cornerOverview.wire(structure.structureId()):null;
+            if(wire==null)drawCompiledStructure(tiled.data, structure, ctx.pxToWorld(1.25f));
+            else for(int p=0;p<wire.length;p+=4)ctx.drawer.line(wire[p],wire[p+1],wire[p+2],wire[p+3],ctx.pxToWorld(1.25f));
         }
+        if(linkPreview==null)drawCornerOverview();
 
-        if (hoveredBlock != null && hoveredBlock.id != selectedBlockId
+        if (linkPreview == null && hoveredBlock != null && hoveredBlock.id != selectedBlockId
+                && !cornerOverview.replacesWall(hoveredBlock.id)
                 && !spatialBlockSelectionService.isEditPreviewActive()) {
             SpatialBlockProjection.projectBaseFootprint(tiled.data, hoveredBlock, tmpSpatialBlockBaseVerts);
             SpatialBlockProjection.projectTopFootprint(tiled.data, hoveredBlock, tmpSpatialBlockTopVerts);
@@ -383,7 +446,31 @@ public final class GizmoSystem extends BaseSystem {
             drawSpatialWallVolume(ctx.pxToWorld(2f));
         }
 
-        if (selectedBlock != null) {
+        if (linkPreview != null) {
+            if (mergedPreview) {
+                ctx.drawer.setColor(com.badlogic.gdx.graphics.Color.CYAN);
+                for (int i=0;i<linkPreview.previewStructureCount();i++)
+                    drawCompiledStructure(tiled.data,linkPreview.previewStructure(i),ctx.pxToWorld(3f));
+                return;
+            }
+            for (SpatialBlockData wall : linkPreview.after.blocks) {
+                if (!linkPreview.affected.contains(wall.id) && !linkPreview.reference.contains(wall.id)) continue;
+                ctx.drawer.setColor(linkPreview.reference.contains(wall.id) ? com.badlogic.gdx.graphics.Color.CYAN
+                        : linkPreview.valid ? com.badlogic.gdx.graphics.Color.ORANGE : com.badlogic.gdx.graphics.Color.RED);
+                SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+                SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+                drawSpatialWallVolume(ctx.pxToWorld(3f));
+            }
+            return;
+        }
+        for (SpatialBlockData wall : component.blocks) if (wall.id != selectedBlockId && spatialBlockSelectionService.isBlockSelected(wall.id)
+                && !cornerOverview.replacesWall(wall.id)) {
+            ctx.drawer.setColor(EditorOverlayPalette.HANDLE_COLOR);
+            SpatialBlockProjection.projectBaseFootprint(tiled.data, wall, tmpSpatialBlockBaseVerts);
+            SpatialBlockProjection.projectTopFootprint(tiled.data, wall, tmpSpatialBlockTopVerts);
+            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+        }
+        if (selectedBlock != null && !spatialBlockSelectionService.cornerProfile().active()) {
             SpatialWallEditSession activeSession = spatialBlockSelectionService.wallEditSession();
             SpatialBlockData displayedBlock = activeSession.isActive()
                     && activeSession.layerEntityId() == layerEntityId
@@ -399,7 +486,8 @@ public final class GizmoSystem extends BaseSystem {
             ctx.drawer.setColor(EditorOverlayPalette.spatialWallColor(
                     true, selectedBlock.id == hoveredBlockId, previewActive,
                     spatialBlockSelectionService.isEditPreviewValid()));
-            drawSpatialWallVolume(ctx.pxToWorld(2.5f));
+            if(!cornerOverview.replacesWall(selectedBlock.id)||activeSession.isActive())
+                drawSpatialWallVolume(ctx.pxToWorld(2.5f));
             for (int corner = 0; corner < 4; corner++) {
                 SpatialBlockInteractiveEditSupport.ResizeHandle handle = spatialCornerHandle(corner);
                 if (handles != null && handles.isHandleEnabled(handle)) {
@@ -420,6 +508,45 @@ public final class GizmoSystem extends BaseSystem {
                 }
             }
             drawBlockHeightHandle(tmpSpatialBlockTopVerts, EditorOverlayPalette.HANDLE_COLOR);
+        }
+    }
+
+    private void drawCornerProfile() {
+        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        games.pixscape.runtime.render.lighting.RoundedWallSupport support=edit.support();
+        drawCornerSupport(support,edit.base(),edit.height());
+        for(int i=0;i<edit.vertexCount();i++) {
+            ctx.drawer.setColor(!edit.valid()?Color.SCARLET:i==0||i==edit.vertexCount()-1?Color.GOLD:Color.CYAN);
+            float x=edit.screenX(i),y=edit.screenY(i),size=ctx.pxToWorld(8);
+            if(i>0)ctx.drawer.line(edit.screenX(i-1),edit.screenY(i-1),x,y,ctx.pxToWorld(2));
+            ctx.drawer.filledRectangle(x-size*.5f,y-size*.5f,size,size);
+        }
+    }
+
+    private void drawCornerOverview() {
+        CornerProfileEditSession edit=spatialBlockSelectionService.cornerProfile();
+        for(int n=0;n<cornerOverview.size();n++) {
+            CornerProfileOverlay.Corner corner=cornerOverview.corner(n);
+            // Only this occurrence is replaced by the detached preview; keep every other volume visible.
+            if(edit.isEditingOccurrence(corner.target()))continue;
+            drawCornerSupport(corner.support(),corner.base(),corner.height());
+        }
+        if(edit.active())drawCornerProfile();
+    }
+
+    private void drawCornerSupport(games.pixscape.runtime.render.lighting.RoundedWallSupport support,float base,float height) {
+        float width=ctx.pxToWorld(1.2f),top=base+height;
+        ctx.drawer.setColor(.25f,.8f,.85f,.65f);
+        for(int boundary=0;boundary<2;boundary++) {
+            float[] p=boundary==0?support.outerXY:support.innerXY;
+            for(int i=0;i<p.length;i+=2) {
+                float x=p[i]-p[i+1],y=(p[i]+p[i+1])*.5f;
+                ctx.drawer.line(x,y+base,x,y+top,width);
+                if(i+2<p.length) {
+                    float nx=p[i+2]-p[i+3],ny=(p[i+2]+p[i+3])*.5f;
+                    ctx.drawer.line(x,y+base,nx,ny+base,width);ctx.drawer.line(x,y+top,nx,ny+top,width);
+                }
+            }
         }
     }
 
@@ -801,58 +928,6 @@ public final class GizmoSystem extends BaseSystem {
         return null;
     }
 
-    private int computeAuthoredPolygonVertsWU(
-            int bodyEid,
-            float[] localVertsMeters,
-            int count,
-            PhysicsShapeData polygon,
-            float[] out
-    ) {
-        if (bodyEid < 0) return 0;
-        if (localVertsMeters == null || count < 3 || localVertsMeters.length < count * 2) return 0;
-        if (out == null || out.length < count * 2) return 0;
-
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return 0;
-
-        float ppm = resolvePixelsPerMeter();
-
-        float fixtureOffsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float fixtureCos = MathUtils.cos(fixtureAngleRad);
-        float fixtureSin = MathUtils.sin(fixtureAngleRad);
-
-        float bodyCos = MathUtils.cos(t.rotationRad);
-        float bodySin = MathUtils.sin(t.rotationRad);
-
-        for (int i = 0; i < count; i++) {
-            float lx = localVertsMeters[i * 2];
-            float ly = localVertsMeters[i * 2 + 1];
-
-            if (!Float.isFinite(lx) || !Float.isFinite(ly)) {
-                return 0;
-            }
-
-            // Fixture local transform, still in meters.
-            float fx = lx * fixtureCos - ly * fixtureSin + fixtureOffsetX;
-            float fy = lx * fixtureSin + ly * fixtureCos + fixtureOffsetY;
-
-            // Body transform, meters -> world units.
-            float wx = t.x + (fx * bodyCos - fy * bodySin) * ppm;
-            float wy = t.y + (fx * bodySin + fy * bodyCos) * ppm;
-
-            out[i * 2] = wx;
-            out[i * 2 + 1] = wy;
-        }
-
-        remapPhysicsPoints(bodyEid, out, count);
-        applyDisplayOffset(bodyEid, out, count);
-
-        return count;
-    }
-
     private void prepareTempPolygonFixture(
             float[] verts,
             int count,
@@ -880,107 +955,6 @@ public final class GizmoSystem extends BaseSystem {
         tmpAuthoringFixture.categoryBits = polygon != null ? polygon.categoryBits : (short) 0x0001;
         tmpAuthoringFixture.maskBits = polygon != null ? polygon.maskBits : (short) 0xFFFF;
         tmpAuthoringFixture.groupIndex = polygon != null ? polygon.groupIndex : (short) 0;
-    }
-
-    private static boolean containsFixtureId(int[] ids, int physicsShapeId) {
-        if (ids == null || physicsShapeId <= 0L) return false;
-
-        for (int id : ids) {
-            if (id == physicsShapeId) return true;
-        }
-
-        return false;
-    }
-
-    private void drawAuthoringSourcePolygon(
-            float[] verts,
-            int vertexCount,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (verts == null || vertexCount < 2) return;
-
-        if (selected) {
-            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_SELECTED_COLOR);
-        } else if (focusedBody) {
-            ctx.drawer.setColor(EditorOverlayPalette.PHYSICS_FOCUSED_BODY_COLOR);
-        } else {
-            ctx.drawer.setColor(CommonLayout.PHYSICS_BASE_COLOR);
-        }
-
-        float thicknessWU = ctx.wpp() * (selected ? 2.5f : 1.5f);
-
-        for (int i = 0; i < vertexCount; i++) {
-            int j = (i + 1) % vertexCount;
-
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[j * 2];
-            float by = verts[j * 2 + 1];
-
-            ctx.drawer.line(ax, ay, bx, by, thicknessWU);
-        }
-    }
-
-    private void drawThinDecompositionPolygon(
-            float[] verts,
-            int vertexCount,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (verts == null || vertexCount < 2) return;
-
-        // Same visual family, but much more subtle.
-        if (selected) {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.50f);
-        } else if (focusedBody) {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.32f);
-        } else {
-            ctx.drawer.setColor(1f, 0.25f, 0.20f, 0.22f);
-        }
-
-        float thicknessWU = ctx.wpp() * (selected ? 1.0f : 0.75f);
-
-        for (int i = 0; i < vertexCount; i++) {
-            int j = (i + 1) % vertexCount;
-
-            float ax = verts[i * 2];
-            float ay = verts[i * 2 + 1];
-            float bx = verts[j * 2];
-            float by = verts[j * 2 + 1];
-
-            ctx.drawer.line(ax, ay, bx, by, thicknessWU);
-        }
-    }
-
-    private void drawAuthoredPolygonSource(
-            int bodyEid,
-            PhysicsShapeData polygon,
-            boolean focusedBody,
-            boolean selected
-    ) {
-        if (polygon == null
-                || polygon.geometry == null
-                || polygon.geometry.polygonVertices == null
-                || polygon.geometry.polygonVertexCount < 3
-                || polygon.geometry.polygonVertices.length < polygon.geometry.polygonVertexCount * 2) {
-            return;
-        }
-
-        int floatCount = Math.max(0, polygon.geometry.polygonVertexCount * 2);
-        ensureFixtureVertsCapacity(floatCount);
-
-        int vertexCount = computeAuthoredPolygonVertsWU(
-                bodyEid,
-                polygon.geometry.polygonVertices,
-                polygon.geometry.polygonVertexCount,
-                polygon,
-                tmpFixtureVerts
-        );
-
-        if (vertexCount < 3) return;
-
-        drawAuthoringSourcePolygon(tmpFixtureVerts, vertexCount, focusedBody, selected);
     }
 
     private boolean isDrawableFixtureBody(int bodyEid) {
@@ -1093,10 +1067,8 @@ public final class GizmoSystem extends BaseSystem {
 
             Color pointColor;
             if (closable) {
-                float closeRadiusWorld = HandleHelper.pxToWorld(
-                        ctx.cam,
-                        GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + 2f
-                );
+                float closeRadiusWorld = ctx.pxToWorld(
+                        GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + 2f);
                 readMouseWorld(tmpMouseWorld);
                 float dx = tmpMouseWorld.x - p.x;
                 float dy = tmpMouseWorld.y - p.y;
@@ -1533,24 +1505,6 @@ public final class GizmoSystem extends BaseSystem {
         return true;
     }
 
-    private boolean computeWheelJointGizmoWU(int jointEid, PhysicsJointComponent joint, Vector2 outA, Vector2 outB) {
-        if (joint == null || physicsService == null) return false;
-        if (mWheel.getSafe(jointEid, null) == null) return false;
-
-        int aEid = joint.aEid;
-        int bEid = joint.bEid;
-        if (aEid < 0 || bEid < 0 || aEid == bEid) return false;
-
-        float ppm = resolvePixelsPerMeter();
-
-        if (!computeResolvedBodyAnchor(aEid, joint.anchorAx, joint.anchorAy, outA)
-                || !computeResolvedBodyAnchor(bEid, joint.anchorBx, joint.anchorBy, outB)) return false;
-
-        applyDisplayOffset(aEid, outA);
-        applyDisplayOffset(bEid, outB);
-        return true;
-    }
-
     private void drawWheelAxisOverlay(int jointEid,
                                       PhysicsJointComponent joint,
                                       boolean hovered,
@@ -1560,7 +1514,7 @@ public final class GizmoSystem extends BaseSystem {
         if (wheel == null || anchorA == null
                 || !resolvePhysicsPose(joint.aEid, tmpPhysicsPoseA)) return;
 
-        float axisLen = HandleHelper.pxToWorld(ctx.cam, 20f);
+        float axisLen = ctx.pxToWorld(20f);
         float cos = MathUtils.cos(tmpPhysicsPoseA.rotationRad);
         float sin = MathUtils.sin(tmpPhysicsPoseA.rotationRad);
         float dx = wheel.axisX * cos - wheel.axisY * sin;
@@ -1797,26 +1751,9 @@ public final class GizmoSystem extends BaseSystem {
         return resolvedPhysicsPose != null && resolvedPhysicsPose.resolve(bodyEid, out);
     }
 
-    private static float anchorWorldX_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-        float rx_m = localAx_m * cos - localAy_m * sin;
-        return t.x + rx_m * ppm;
-    }
-
-    private static float anchorWorldY_WU(TransformComponent t, float localAx_m, float localAy_m, float ppm) {
-        float cos = MathUtils.cos(t.rotationRad);
-        float sin = MathUtils.sin(t.rotationRad);
-        float ry_m = localAx_m * sin + localAy_m * cos;
-        return t.y + ry_m * ppm;
-    }
-
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 100f;
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        if (meta == null) return 100f;
-        return meta.pixelsPerMeter > 0f ? meta.pixelsPerMeter : 100f;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private void applyDisplayOffset(int entityId, Vector2 p) {
@@ -1922,11 +1859,6 @@ public final class GizmoSystem extends BaseSystem {
 
     private boolean isParticleEntity(int e) {
         return mParticle != null && mParticle.has(e);
-    }
-
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
     }
 
     public void setCursor(CursorKind kind, float angleRad, Vector2 mouseWorld) {

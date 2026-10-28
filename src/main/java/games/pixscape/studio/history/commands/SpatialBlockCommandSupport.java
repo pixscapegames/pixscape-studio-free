@@ -15,6 +15,8 @@ import games.pixscape.runtime.physics.PreparedPhysicsBodyCandidate;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLink;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
@@ -61,6 +63,8 @@ public final class SpatialBlockCommandSupport {
         target.actorOccluder = source.actorOccluder;
         target.lightOccluder = source.lightOccluder;
         target.shadowCaster = source.shadowCaster;
+        target.shadeUnlitFaces = source.shadeUnlitFaces;
+        target.silhouetteShadowCaster = source.silhouetteShadowCaster;
         target.particleOccluder = source.particleOccluder;
         target.linkedTileRefsAuthored = source.linkedTileRefsAuthored;
         target.copyLinkedTileRefsFrom(source);
@@ -81,6 +85,8 @@ public final class SpatialBlockCommandSupport {
                 && a.actorOccluder == b.actorOccluder
                 && a.lightOccluder == b.lightOccluder
                 && a.shadowCaster == b.shadowCaster
+                && a.shadeUnlitFaces == b.shadeUnlitFaces
+                && a.silhouetteShadowCaster == b.silhouetteShadowCaster
                 && a.particleOccluder == b.particleOccluder
                 && sameLinkedTileRefs(a, b);
     }
@@ -150,11 +156,36 @@ public final class SpatialBlockCommandSupport {
 
     static CommandOutcome validateBlocks(
             World world, int layerEntityId, Array<SpatialBlockData> snapshot) {
+        SpatialBlocksComponent current = get(world, layerEntityId);
+        return validateBlocks(world, layerEntityId, snapshot,
+                current != null ? current.links : new Array<>(SpatialBlockLink.class));
+    }
+
+    static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
+                                          Array<SpatialBlockLink> links) {
+        return validateBlocks(world, layerEntityId, snapshot, links, null);
+    }
+
+    private static CommandOutcome validateBlocks(World world, int layerEntityId, Array<SpatialBlockData> snapshot,
+                                          Array<SpatialBlockLink> links, java.util.function.Consumer<String> refusal) {
         TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class)
                 .getSafe(layerEntityId, null);
         SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(
-                snapshot, tiled != null ? tiled.data : null);
-        if (compilation.success()) return CommandOutcome.APPLIED;
+                snapshot, links, tiled != null ? tiled.data : null);
+        if (compilation.success()) {
+            SpatialBlocksComponent candidate=new SpatialBlocksComponent();candidate.blocks=snapshot;candidate.links=links;
+            if(tiled!=null&&(tiled.lightingDescriptions.size>0
+                    ||games.pixscape.runtime.render.lighting.MapLightingGeometry.hasSilhouetteCasters(candidate))){
+                try{EditTileLightingDescriptionsCommand.validate(world,tiled,candidate,tiled.lightingDescriptions);}
+                catch(IllegalArgumentException invalid){
+                    if(refusal!=null)refusal.accept(invalid.getMessage());
+                    if(Gdx.app!=null)Gdx.app.error("SpatialBlockCommand",invalid.getMessage());
+                    return CommandOutcome.REJECTED;
+                }
+            }
+            return CommandOutcome.APPLIED;
+        }
+        if (refusal != null) refusal.accept("Invalid wall geometry: " + compilation.diagnostic());
         if (Gdx.app != null) {
             Gdx.app.error("SpatialBlockCommand",
                     "Rejected atomic wall snapshot for layer " + layerEntityId + ": "
@@ -229,7 +260,20 @@ public final class SpatialBlockCommandSupport {
     static CommandOutcome replaceAllValidated(World world,
                                               int layerEntityId,
                                               Array<SpatialBlockData> snapshot) {
-        if (validateBlocks(world, layerEntityId, snapshot) != CommandOutcome.APPLIED) {
+        SpatialBlocksComponent current = get(world, layerEntityId);
+        return replaceAllValidated(world, layerEntityId, snapshot,
+                current != null ? current.links : new Array<>(SpatialBlockLink.class));
+    }
+
+    static CommandOutcome replaceAllValidated(World world, int layerEntityId,
+                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links) {
+        return replaceAllValidated(world, layerEntityId, snapshot, links, null);
+    }
+
+    static CommandOutcome replaceAllValidated(World world, int layerEntityId,
+                                               Array<SpatialBlockData> snapshot, Array<SpatialBlockLink> links,
+                                               java.util.function.Consumer<String> refusal) {
+        if (validateBlocks(world, layerEntityId, snapshot, links, refusal) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = new Array<>(SpatialBlockData[]::new);
@@ -241,6 +285,7 @@ public final class SpatialBlockCommandSupport {
                 PhysicsShapesComponent.class).getSafe(layerEntityId, null);
         if (!hasLinkedShape(shapes)) {
             component.blocks = replacement;
+            component.links = SpatialBlockLinks.copy(links);
             component.revision++;
             return CommandOutcome.APPLIED;
         }
@@ -250,26 +295,28 @@ public final class SpatialBlockCommandSupport {
         if (compiled == null || !compiled.valid) {
             logPhysicsRejection(layerEntityId,
                     "linked body has no valid PhysicsCompiledFixturesComponent");
+            if (refusal != null) refusal.accept("The linked physics body has no valid compiled fixtures. The wall edit was not applied.");
             return CommandOutcome.REJECTED;
         }
 
         PreparedPhysicsBodyCandidate prepared;
-        Array<SpatialBlockData> original = component.blocks;
-        component.blocks = replacement;
+        SpatialBlocksComponent candidate = new SpatialBlocksComponent();
+        candidate.blocks = replacement;
+        candidate.links = SpatialBlockLinks.copy(links);
         try {
             prepared = PhysicsService.prepareBodyCandidate(
                     world,
                     layerEntityId,
                     shapes.shapes,
-                    FixtureCommandSupport.requireCurrentPixelsPerMeter());
+                    FixtureCommandSupport.requireCurrentPixelsPerMeter(), null, candidate);
         } catch (RuntimeException failure) {
             logPhysicsRejection(layerEntityId, failure.getMessage());
+            if (refusal != null) refusal.accept("Physics validation rejected the wall edit: " + failure.getMessage());
             return CommandOutcome.REJECTED;
-        } finally {
-            component.blocks = original;
         }
 
         component.blocks = replacement;
+        component.links = SpatialBlockLinks.copy(links);
         component.revision++;
         publishStaticTiledPhysicsCandidate(
                 world, layerEntityId, shapes.shapes, prepared);

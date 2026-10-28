@@ -1,10 +1,9 @@
 package games.pixscape.studio.helper;
 
 import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.tiled.TileTransformFlags;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import org.junit.Test;
 
 import java.util.ArrayList;

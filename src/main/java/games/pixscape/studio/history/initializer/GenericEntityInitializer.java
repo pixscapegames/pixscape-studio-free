@@ -79,6 +79,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected String particleAtlasTag;
     protected boolean particleAutoStart;
     protected boolean particleLooping;
+    protected boolean particleIgnoreAmbientLighting;
 
     // --- Animation ---
     protected boolean hasAnimation;
@@ -86,7 +87,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float animFps = 12f;
     protected boolean animPlaying = true;
     protected boolean animLoop = true;
-    protected float animStateTime = 0f;
+    protected double animStateTime = 0d;
     protected int animFrame = -1;
     protected String animCurrentClip = "";
 
@@ -97,17 +98,23 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     // --- Spatial height ---
     protected boolean hasSpatialHeight;
     protected float spatialAltitude;
-    protected float spatialHeight;
+    protected games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
 
     // --- Lights ---
     protected boolean hasPointLight;
+    protected SurfaceLightingComponent surfaceLighting;
     protected boolean hasConeLight;
 
     // Point
+    @Override public int activeLightCount() {
+        return games.pixscape.runtime.render.lighting.ActiveLights.isActive(isVisible(),hasPointLight,pointEnabled,hasConeLight,coneEnabled)?1:0;
+    }
     protected boolean pointEnabled = true;
     protected float pointIntensity = 1f;
     protected float pointRadius = 200f;
     protected float pointFalloff = 1.5f;
+    protected float pointHeight = 128f;
+    protected int pointShadowQuality = 1, pointShadowResolution = 512;
     protected float pointR = 1f, pointG = 0.9f, pointB = 0.2f;
 
     // Cone
@@ -115,8 +122,11 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     protected float coneIntensity = 1f;
     protected float coneRadius = 250f;
     protected float coneAngleDeg = 60f;
+    protected float coneInclinationDeg;
     protected float coneSoftness = 0.1f;
     protected float coneFalloff = 1.5f;
+    protected float coneHeight = 128f;
+    protected int coneShadowQuality = 1, coneShadowResolution = 512;
     protected float coneRotationDeg = 0f;
     protected float coneR = 1f, coneG = 0.9f, coneB = 0.2f;
 
@@ -302,12 +312,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             particleAtlasTag = p.atlasTag;
             particleAutoStart = p.autoStart;
             particleLooping = p.looping;
+            particleIgnoreAmbientLighting = p.ignoreAmbientLighting;
         } else {
             hasParticleEmitter = false;
             particleEffectPath = null;
             particleAtlasTag = null;
             particleAutoStart = true;
             particleLooping = true;
+            particleIgnoreAmbientLighting = false;
         }
 
         // --- Animation ---
@@ -334,13 +346,15 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             SpatialHeightComponent spatial = mSpatialHeight.get(e);
             hasSpatialHeight = true;
             spatialAltitude = spatial.altitude;
-            spatialHeight = spatial.height;
+            actorSpatialRectangles = spatial.rectangles == null ? null : spatial.rectangles.copy();
         } else {
             hasSpatialHeight = false;
             spatialAltitude = 0f;
-            spatialHeight = 0f;
+            actorSpatialRectangles = null;
         }
 
+        SurfaceLightingComponent lighting = world.getMapper(SurfaceLightingComponent.class).getSafe(e,null);
+        surfaceLighting = lighting == null ? null : lighting.copy();
         // --- PointLight ---
         if (mPL.has(e)) {
             var l = mPL.get(e);
@@ -349,6 +363,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             pointIntensity = l.intensity;
             pointRadius = l.radius;
             pointFalloff = l.falloff;
+            pointHeight=l.height;pointShadowQuality=l.shadowQuality;pointShadowResolution=l.shadowResolution;
             pointR = l.r;
             pointG = l.g;
             pointB = l.b;
@@ -364,8 +379,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             coneIntensity = l.intensity;
             coneRadius = l.radius;
             coneAngleDeg = l.coneAngleDeg;
+            coneInclinationDeg = l.inclinationDeg;
             coneSoftness = l.softness;
             coneFalloff = l.falloff;
+            coneHeight=l.height;coneShadowQuality=l.shadowQuality;coneShadowResolution=l.shadowResolution;
             coneRotationDeg = l.rotationDeg;
             coneR = l.r;
             coneG = l.g;
@@ -631,6 +648,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             p.atlasTag = particleAtlasTag;
             p.autoStart = particleAutoStart;
             p.looping = particleLooping;
+            p.ignoreAmbientLighting = particleIgnoreAmbientLighting;
         }
 
         // --- Animation ---
@@ -654,10 +672,14 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
                     ? mSpatialHeight.get(e)
                     : mSpatialHeight.create(e);
             spatial.altitude = spatialAltitude;
-            spatial.height = spatialHeight;
+            spatial.rectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
             if (dirty != null) dirty.order(e);
         }
 
+        if(surfaceLighting!=null){
+            SurfaceLightingComponent target=world.getMapper(SurfaceLightingComponent.class).create(e);
+            copySurface(surfaceLighting,target);
+        }
         // --- PointLight ---
         if (hasPointLight) {
             var l = mPL.has(e) ? mPL.get(e) : mPL.create(e);
@@ -665,6 +687,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             l.intensity = pointIntensity;
             l.radius = pointRadius;
             l.falloff = pointFalloff;
+            l.height=pointHeight;l.shadowQuality=pointShadowQuality;l.shadowResolution=pointShadowResolution;
             l.r = pointR;
             l.g = pointG;
             l.b = pointB;
@@ -683,8 +706,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             l.intensity = coneIntensity;
             l.radius = coneRadius;
             l.coneAngleDeg = coneAngleDeg;
+            l.inclinationDeg = coneInclinationDeg;
             l.softness = coneSoftness;
             l.falloff = coneFalloff;
+            l.height=coneHeight;l.shadowQuality=coneShadowQuality;l.shadowResolution=coneShadowResolution;
             l.rotationDeg = coneRotationDeg;
             l.r = coneR;
             l.g = coneG;
@@ -809,27 +834,6 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
     }
 
-    private static float[] copyFloatArray(float[] source, int wantedLength) {
-        int n = Math.max(0, wantedLength);
-        float[] out = new float[n];
-
-        if (source != null && n > 0) {
-            System.arraycopy(source, 0, out, 0, Math.min(source.length, n));
-        }
-
-        return out;
-    }
-
-    private static int[] copyIntArray(int[] source) {
-        if (source == null || source.length == 0) {
-            return new int[0];
-        }
-
-        int[] out = new int[source.length];
-        System.arraycopy(source, 0, out, 0, source.length);
-        return out;
-    }
-
     @Override
     public String label() {
         return "GenericEntity";
@@ -915,9 +919,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
 
             out.shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
+        out.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
         out.hasSpatialHeight = hasSpatialHeight;
         out.spatialAltitude = spatialAltitude;
-        out.spatialHeight = spatialHeight;
+        out.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
         out.hasPhysicsBody = hasPhysicsBody;
         out.bodyType = physBodyType;
         out.fixedRotation = physFixedRotation;
@@ -1065,9 +1070,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
             }
             shaderFloats.add(new ShaderFloatParam(param.name, param.value));
         }
+        surfaceLighting = in.surfaceLighting == null ? null : in.surfaceLighting.copy();
         hasSpatialHeight = in.hasSpatialHeight;
         spatialAltitude = in.spatialAltitude;
-        spatialHeight = in.spatialHeight;
+        actorSpatialRectangles = in.actorSpatialRectangles == null ? null : in.actorSpatialRectangles.copy();
         capturedZIndex = in.hasEntityIndex;
         hasPhysicsBody = in.hasPhysicsBody;
         physBodyType = in.bodyType;
@@ -1388,6 +1394,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.particleAtlasTag = atlasTag;
         this.particleAutoStart = true;
         this.particleLooping = true;
+        this.particleIgnoreAmbientLighting = false;
 
         return this;
     }
@@ -1540,6 +1547,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.coneRadius = Math.max(0f, radius);
         this.coneIntensity = Math.max(0f, intensity);
         this.coneAngleDeg = coneAngleDeg;
+        this.coneInclinationDeg = 0f;
         this.coneSoftness = softness;
         this.coneFalloff = falloff;
         this.coneRotationDeg = rotationRad * com.badlogic.gdx.math.MathUtils.radiansToDegrees;
@@ -1582,6 +1590,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     public GenericEntityInitializer normalizeClipboardSpatial(boolean targetSpatialEnabled) {
         if (!targetSpatialEnabled) {
             hasSpatialHeight = false;
+            actorSpatialRectangles = null;
             boolean hadFootprint =
                     SpatialActorShapeSupport.findFootprint(physicsShapes, 0) >= 0;
             if (!SpatialActorShapeSupport.removeFootprint(physicsShapes)) {
@@ -1598,7 +1607,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
     }
 
     public GenericEntityInitializer duplicate() {
-        GenericEntityInitializer copy = new GenericEntityInitializer(world);
+        return duplicateFor(world);
+    }
+
+    /** Copies the captured values without retaining the source World; null creates a detached payload. */
+    public GenericEntityInitializer duplicateFor(World destination) {
+        GenericEntityInitializer copy = new GenericEntityInitializer(destination);
 
         // --- TextureRegion ---
         copy.hasTextureRegion = this.hasTextureRegion;
@@ -1646,6 +1660,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.particleAtlasTag = this.particleAtlasTag;
         copy.particleAutoStart = this.particleAutoStart;
         copy.particleLooping = this.particleLooping;
+        copy.particleIgnoreAmbientLighting = this.particleIgnoreAmbientLighting;
 
         // --- Animation ---
         copy.hasAnimation = this.hasAnimation;
@@ -1672,9 +1687,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         // --- Spatial height ---
         copy.hasSpatialHeight = this.hasSpatialHeight;
         copy.spatialAltitude = this.spatialAltitude;
-        copy.spatialHeight = this.spatialHeight;
+        copy.actorSpatialRectangles = actorSpatialRectangles == null ? null : actorSpatialRectangles.copy();
 
         // --- Lights ---
+        copy.surfaceLighting = surfaceLighting == null ? null : surfaceLighting.copy();
         copy.hasPointLight = this.hasPointLight;
         copy.hasConeLight = this.hasConeLight;
 
@@ -1682,6 +1698,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.pointIntensity = this.pointIntensity;
         copy.pointRadius = this.pointRadius;
         copy.pointFalloff = this.pointFalloff;
+        copy.pointHeight=this.pointHeight;copy.pointShadowQuality=this.pointShadowQuality;copy.pointShadowResolution=this.pointShadowResolution;
         copy.pointR = this.pointR;
         copy.pointG = this.pointG;
         copy.pointB = this.pointB;
@@ -1690,8 +1707,10 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         copy.coneIntensity = this.coneIntensity;
         copy.coneRadius = this.coneRadius;
         copy.coneAngleDeg = this.coneAngleDeg;
+        copy.coneInclinationDeg = this.coneInclinationDeg;
         copy.coneSoftness = this.coneSoftness;
         copy.coneFalloff = this.coneFalloff;
+        copy.coneHeight=this.coneHeight;copy.coneShadowQuality=this.coneShadowQuality;copy.coneShadowResolution=this.coneShadowResolution;
         copy.coneRotationDeg = this.coneRotationDeg;
         copy.coneR = this.coneR;
         copy.coneG = this.coneG;
@@ -1841,6 +1860,12 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         data.hasPhysicsShapes = this.hasPhysicsShapes;
         data.hasPhysicsJoint = this.hasPhysicsJoint;
         return data;
+    }
+
+    public static void copySurface(SurfaceLightingComponent source, SurfaceLightingComponent target) {
+        target.receiveLight=source.receiveLight;target.shadowCaster=source.shadowCaster;target.altitude=source.altitude;
+        target.anchorU=source.anchorU;target.anchorV=source.anchorV;target.directionX=source.directionX;target.directionY=source.directionY;
+        target.alphaThreshold=source.alphaThreshold;target.description=source.description==null?null:source.description.copy();
     }
 
     public static final class PreviewVisualData {

@@ -30,25 +30,41 @@ public class SceneServiceAtlasRepackFlowContractTest {
     }
 
     @Test
-    public void automaticCurrentSceneRepackSynchronizesOnceAndDecidesBeforePacking() throws Exception {
+    public void automaticCurrentSceneRepackSynchronizesOnceAndDelegatesAtomicPublicationBeforeLoading() throws Exception {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "private void repackSceneAtlas(");
 
         int sync = methodBody.indexOf("sceneAtlasInputService.syncSceneAtlasInputForSave(");
         int skip = methodBody.indexOf("shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)");
-        int delete = methodBody.indexOf("ProjectFileCleanupService.deleteSceneAtlasFiles(");
         int pack = methodBody.indexOf("SceneAtlasLoaderService.packSceneAtlas(");
+        int reload = methodBody.indexOf("reloadAtlasAndRebind(cfg, canonicalTag, projectDir);");
 
         assertTrue(sync >= 0);
         assertTrue(skip > sync);
-        assertTrue(delete > skip);
-        assertTrue(pack > delete);
+        assertTrue(pack > skip);
+        assertTrue(reload > pack);
         assertTrue(occurrences(methodBody, "sceneAtlasInputService.syncSceneAtlasInputForSave(") == 1);
         String skipGuard = methodBody(
                 methodBody.substring(skip),
                 "shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)"
         );
         assertTrue(skipGuard.contains("return;"));
+
+        String loader = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasLoaderService.java"),
+                StandardCharsets.UTF_8
+        );
+        String packMethod = methodBody(loader, "public static void packSceneAtlas(");
+        assertTrue(packMethod.contains("AtlasStudioService.repackImportedScenes("));
+        String reloadMethod = methodBody(source, "private void reloadAtlasAndRebind(");
+        assertTrue(reloadMethod.contains("rebuildRenderRuntimeForScene(cfg, canonicalTag, projectDir);"));
+        String rebuildMethod = methodBody(source, "private void rebuildRenderRuntimeForScene(");
+        assertTrue(rebuildMethod.contains("SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);"));
+        String atlasService = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/service/atlas/AtlasStudioService.java"),
+                StandardCharsets.UTF_8
+        );
+        assertTrue(atlasService.contains("ProjectFileCleanupService.deleteSceneAtlasFiles(project, tag);"));
     }
 
     @Test
@@ -108,14 +124,16 @@ public class SceneServiceAtlasRepackFlowContractTest {
         );
         String applyBody = methodBody(source, "public void applyIfPackReady()");
 
-        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas());"));
+        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas(),uploadedNormals)"));
         assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));
-        assertTrue(applyBody.contains("canvas.requestParticleRuntimeAvailabilityRefresh();"));
+        assertTrue(applyBody.indexOf("canvas.refreshParticleRuntimeAvailability();")
+                > applyBody.indexOf("snapshotManager.publishPreparedSnapshot("));
+        assertFalse(applyBody.contains("canvas.requestParticleRuntimeAvailabilityRefresh();"));
         assertFalse(applyBody.contains("RenderRebindHelper.rebindAfterAtlasChange("));
         assertTrue(occurrences(applyBody, "RenderRebindHelper.rebindAfterPreparedSnapshot(") == 1);
-        assertTrue(occurrences(applyBody, "canvas.requestParticleRuntimeAvailabilityRefresh();") == 1);
+        assertTrue(occurrences(applyBody, "canvas.refreshParticleRuntimeAvailability();") == 1);
     }
 
     @Test
@@ -133,7 +151,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         int prepare = refreshBody.indexOf("runtimeParticleSystem.prepareRuntimeAvailability(");
         assertTrue(invalidate >= 0);
         assertTrue(prepare > invalidate);
-        assertTrue(refreshBody.contains("cfg.getCurrentSceneMeta()"));
+        assertTrue(refreshBody.contains("sceneEditorContext.sceneMeta()"));
         assertTrue(refreshBody.contains("sceneMeta.runtimeAvailability.particleEffectPaths"));
         assertTrue(refreshBody.contains("studioParticleFallbackSystem.invalidateAll();"));
     }
@@ -164,7 +182,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         );
         String processBody = methodBody(source, "public void processFrame()");
 
-        int process = processBody.indexOf("world.process();");
+        int process = processBody.indexOf("world().process();");
         int consume = processBody.indexOf("particleAvailabilityRefresh.consumeIf(");
         assertTrue(process >= 0);
         assertTrue(consume > process);
@@ -177,15 +195,15 @@ public class SceneServiceAtlasRepackFlowContractTest {
                 StandardCharsets.UTF_8
         );
         String launchBody = methodBody(source, "private void launchAsyncPack()");
-        String pollBody = methodBody(source, "public synchronized RepackArtifact pollReadyAsyncPack()");
+        String pollBody = methodBody(source, "public synchronized Prepared<T> pollReadyAsyncPack()");
         int catchStart = launchBody.indexOf("catch (Exception ex)");
         int finallyStart = launchBody.indexOf("finally", catchStart);
         String failureBody = launchBody.substring(catchStart, finallyStart);
 
         assertTrue(launchBody.contains("if (disposed || generation != requestedGeneration)"));
-        assertFalse(failureBody.contains("readyArtifact ="));
-        assertTrue(pollBody.contains("if (artifact.generation() != requestedGeneration)"));
-        assertTrue(pollBody.contains("artifact.discard();"));
+        assertFalse(failureBody.contains("readyPrepared ="));
+        assertTrue(pollBody.contains("if (prepared.generation() != requestedGeneration)"));
+        assertTrue(pollBody.contains("prepared.discard();"));
         assertTrue(pollBody.contains("return null;"));
     }
 

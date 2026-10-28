@@ -38,6 +38,9 @@ public final class AssetsFolderScanner {
             case PARTICLES -> projectDir.child(StudioFs.DIR_ORIG_EFFECTS);
             case TILES -> projectDir.child(StudioFs.DIR_ORIG_TILES);
             case GAME_OBJECTS -> projectDir.child(StudioFs.DIR_GAME_OBJECTS);
+            case HUD -> projectDir.child(games.pixscape.runtime.hud.HudScreenAssetId.DIRECTORY);
+            case FONTS -> projectDir.child(StudioFs.DIR_ORIG_FONTS);
+            case SKINS -> projectDir.child(StudioFs.DIR_ORIG_SKINS);
         };
 
         if (!baseDir.exists() || !baseDir.isDirectory())
@@ -95,7 +98,27 @@ public final class AssetsFolderScanner {
         // --------------------------------------------------------------------
 
         scanRecursive(cfg, db, baseDir, startDir, folder.root, out);
+        if (folder.root == AssetNode.Root.TILES) {
+            appendNormalMaps(db, folder.path, out);
+        }
         return out;
+    }
+
+    /** Normal maps are associated resources, not independent paintable tile assets. */
+    static void appendNormalMaps(AssetMetaDatabase db, String folderPath, Array<AssetNode> out) {
+        String prefix = StudioFs.DIR_ORIG_TILES + "/";
+        String directory = folderPath == null || folderPath.isEmpty() ? "" : folderPath + "/";
+        java.util.HashSet<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < db.size(); i++) {
+            if (!(db.assetAt(i) instanceof games.pixscape.studio.asset.TileAssetMeta tile)
+                    || !tile.isUserVisible() || tile.normalSourceRelPath == null) continue;
+            String source = tile.normalSourceRelPath;
+            if (!source.startsWith(prefix)) continue;
+            String relative = source.substring(prefix.length());
+            if (!relative.startsWith(directory) || !seen.add(relative)) continue;
+            out.add(new AssetNode(AssetNode.Kind.NORMAL_MAP, AssetNode.Root.TILES,
+                    relative, new FileHandle(relative).name(), null));
+        }
     }
 
     // ------------------------------------------------------------------------
@@ -198,6 +221,24 @@ public final class AssetsFolderScanner {
                             rel,
                             meta
                     ));
+                }
+
+                case FONTS -> {
+                    if (!ext.equals("fnt")) continue;
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_FONTS + "/" + rel, AssetType.FONT);
+                    if (!isUserVisible(meta)) continue;
+                    out.add(AssetNode.fromAssetMeta(AssetNode.Kind.FONT,
+                            AssetNode.Root.FONTS, rel, meta));
+                }
+
+                case SKINS -> {
+                    if (!ext.equals("json")) continue;
+                    AssetMeta meta = db.findUniqueBySourceRelPath(
+                            StudioFs.DIR_ORIG_SKINS + "/" + rel, AssetType.SKIN);
+                    if (!isUserVisible(meta)) continue;
+                    out.add(AssetNode.fromAssetMeta(AssetNode.Kind.SKIN,
+                            AssetNode.Root.SKINS, rel, meta));
                 }
             }
         }

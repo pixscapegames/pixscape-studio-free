@@ -21,6 +21,8 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final SpatialBlockSelectionService selection;
     private final long layerHistoryId;
     private final int blockId;
+    private final Array<games.pixscape.runtime.spatial.SpatialBlockLink> linksBefore;
+    private final Array<games.pixscape.runtime.spatial.SpatialBlockLink> linksAfter;
     private final Array<SpatialBlockData> before;
     private final Array<SpatialBlockData> after;
     private final Array<PhysicsShapeData> physicsBefore;
@@ -38,6 +40,12 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         this.blockId = blockId;
         SpatialBlocksComponent component = world != null ? SpatialBlockCommandSupport.get(world, layerEntityId) : null;
         this.before = SpatialBlockCommandSupport.snapshot(component);
+        this.linksBefore = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(component != null ? component.links : null);
+        this.linksAfter = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(linksBefore);
+        for (int i = linksAfter.size - 1; i >= 0; i--) {
+            games.pixscape.runtime.spatial.SpatialBlockLink link = linksAfter.get(i);
+            if (link.firstBlockId == blockId || link.secondBlockId == blockId) linksAfter.removeIndex(i);
+        }
         TiledLayerComponent tiled = world != null
                 ? world.getMapper(TiledLayerComponent.class).getSafe(layerEntityId, null) : null;
         SpatialStructureTopology.Plan plan = SpatialStructureTopology.delete(
@@ -79,7 +87,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
         CommandOutcome outcome = applySnapshot(
-                layer, after, physicsAfter, removesLinkedCollision);
+                layer, after, linksAfter, physicsAfter, removesLinkedCollision);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null && selection.getSelectedBlockId() == blockId) selection.enterMap(layer);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
@@ -97,7 +105,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         int layer = resolveLayer();
         if (layer < 0) return CommandOutcome.NO_CHANGE;
         CommandOutcome outcome = applySnapshot(
-                layer, before, physicsBefore, removesLinkedCollision);
+                layer, before, linksBefore, physicsBefore, removesLinkedCollision);
         if (outcome != CommandOutcome.APPLIED) return outcome;
         if (selection != null) selection.selectBlock(layer, blockId);
         SpatialBlockCommandSupport.markChanged(world, layer, this);
@@ -112,14 +120,15 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private CommandOutcome applySnapshot(
             int layerEntityId,
             Array<SpatialBlockData> blockSnapshot,
+            Array<games.pixscape.runtime.spatial.SpatialBlockLink> links,
             Array<PhysicsShapeData> shapeSnapshot,
             boolean publishPhysics) {
         if (!publishPhysics) {
             return SpatialBlockCommandSupport.replaceAllValidated(
-                    world, layerEntityId, blockSnapshot);
+                    world, layerEntityId, blockSnapshot, links);
         }
         if (SpatialBlockCommandSupport.validateBlocks(
-                world, layerEntityId, blockSnapshot) != CommandOutcome.APPLIED) {
+                world, layerEntityId, blockSnapshot, links) != CommandOutcome.APPLIED) {
             return CommandOutcome.REJECTED;
         }
         Array<SpatialBlockData> replacement = copyBlocks(blockSnapshot);
@@ -140,6 +149,7 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         SpatialBlocksComponent component =
                 SpatialBlockCommandSupport.getOrCreate(world, layerEntityId);
         component.blocks = replacement;
+        component.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(links);
         component.revision++;
         SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(
                 world, layerEntityId, candidateShapes, prepared);

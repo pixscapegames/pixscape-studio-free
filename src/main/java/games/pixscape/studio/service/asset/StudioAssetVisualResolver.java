@@ -62,6 +62,30 @@ public final class StudioAssetVisualResolver {
     private final AtlasRuntimeService atlasRuntimeService;
     private final StandaloneAssetAccess standaloneAccess;
     private final ObjectMap<String, AtlasVisualBucket> atlasBuckets = new ObjectMap<>();
+    private final ObjectMap<String, StaleImportedAtlas> staleImportAtlases = new ObjectMap<>();
+
+    private static final class StaleImportedAtlas {
+        final TextureAtlas atlas;
+        final com.badlogic.gdx.utils.IntSet assetIds = new com.badlogic.gdx.utils.IntSet();
+        StaleImportedAtlas(TextureAtlas atlas) { this.atlas = atlas; }
+    }
+
+    /** Existing atlas pixels remain stale until that tag receives a new atlas instance. */
+    public void invalidateImportedPixels(java.util.Set<Integer> changedIds) {
+        for (String tag : atlasRuntimeService.listTags()) {
+            TextureAtlas atlas = atlasRuntimeService.getAtlas(tag);
+            StaleImportedAtlas stale = staleImportAtlases.get(tag);
+            if (stale == null || stale.atlas != atlas) {
+                stale = new StaleImportedAtlas(atlas); staleImportAtlases.put(tag, stale);
+            }
+            AtlasVisualBucket bucket = atlasBuckets.get(tag);
+            for (int id : changedIds) {
+                stale.assetIds.add(id);
+                if (bucket != null) bucket.byAssetId.remove(id);
+            }
+        }
+        standaloneByAssetId.clear();
+    }
     private final IntMap<StandaloneVisualEntry> standaloneByAssetId = new IntMap<>();
 
     private IntFunction<AssetMeta> assetMetaLookup;
@@ -161,6 +185,8 @@ public final class StudioAssetVisualResolver {
     public void invalidateAtlasTag(String atlasTag) {
         if (!isBlank(atlasTag)) {
             atlasBuckets.remove(atlasTag);
+            StaleImportedAtlas stale = staleImportAtlases.get(atlasTag);
+            if (stale != null && stale.atlas != atlasRuntimeService.getAtlas(atlasTag)) staleImportAtlases.remove(atlasTag);
         }
     }
 
@@ -174,6 +200,7 @@ public final class StudioAssetVisualResolver {
 
     public void invalidateAll() {
         atlasBuckets.clear();
+        staleImportAtlases.clear();
         standaloneByAssetId.clear();
     }
 
@@ -184,6 +211,9 @@ public final class StudioAssetVisualResolver {
 
         TextureAtlas atlas = atlasRuntimeService.getAtlas(atlasTag);
         if (atlas == null) return null;
+        StaleImportedAtlas stale = staleImportAtlases.get(atlasTag);
+        if (stale != null && stale.atlas == atlas && stale.assetIds.contains(assetId)) return null;
+        if (stale != null && stale.atlas != atlas) staleImportAtlases.remove(atlasTag);
 
         AtlasVisualBucket bucket = atlasBuckets.get(atlasTag);
         if (bucket == null || bucket.atlas != atlas) {

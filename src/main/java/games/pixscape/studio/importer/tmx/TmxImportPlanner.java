@@ -3,9 +3,9 @@ package games.pixscape.studio.importer.tmx;
 import com.badlogic.gdx.files.FileHandle;
 import games.pixscape.runtime.api.ClassProperty;
 import games.pixscape.runtime.api.CustomProperties;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.tiled.TiledProjection;
 
 import java.util.*;
 

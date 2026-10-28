@@ -5,6 +5,27 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class RenderStatsTextFormatterTest {
+    @Test public void drawStagesMatchRendererWithoutDoubleCountingReplays() {
+        RenderStats stats=new RenderStats();stats.worldDraws=2;stats.shadowDraws=12;stats.replayDraws=10;
+        StringBuilder out=new StringBuilder();stats.forwardLighting=true;
+        RenderStatsTextFormatter.appendDrawStagesLine(out,stats);
+        Assert.assertTrue(out.toString().contains("world=2"));Assert.assertFalse(out.toString().contains("receivers="));
+        Assert.assertTrue(out.toString().contains("replays=10"));
+        out.setLength(0);stats.forwardLighting=false;stats.receiverDraws=3;
+        RenderStatsTextFormatter.appendDrawStagesLine(out,stats);
+        Assert.assertTrue(out.toString().contains("receivers=3"));Assert.assertFalse(out.toString().contains("world="));
+    }
+    @Test public void countsUseStableEnglishThousandsSeparators() {
+        int[] values = {0, 999, 1000, 1758, 1000001, Integer.MAX_VALUE};
+        String[] expected = {"0", "999", "1,000", "1,758", "1,000,001", "2,147,483,647"};
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            out.setLength(0);
+            RenderStatsTextFormatter.appendCount(out, values[i]);
+            Assert.assertEquals(expected[i], out.toString());
+        }
+    }
+
 
     @Test
     public void regionCacheRatioIsZeroWhenNoSamplesExist() {
@@ -77,8 +98,6 @@ public class RenderStatsTextFormatterTest {
 
         StringBuilder out = new StringBuilder();
         RenderStatsTextFormatter.appendGeometryLine(out, stats);
-        out.append('\n');
-        RenderStatsTextFormatter.appendGpuDrawLine(out, stats);
         out.append('\n');
         RenderStatsTextFormatter.appendGpuStateLine(out, stats);
         String formatted = out.toString();

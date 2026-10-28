@@ -6,7 +6,7 @@ apply from: rootProject.file('gradle/htmlPlayerLibreJs.gradle')
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(javaVersion as int)
+    languageVersion = JavaLanguageVersion.of(htmlJavaVersion as int)
   }
 }
 
@@ -18,6 +18,10 @@ configurations {
 def gwtVersion = "2.11.0"
 
 dependencies {
+  testImplementation "junit:junit:${junitVersion}"
+  testImplementation "com.badlogicgames.gdx:gdx-backend-headless:${gdxVersion}"
+  testRuntimeOnly "com.badlogicgames.gdx:gdx-platform:${gdxVersion}:natives-desktop"
+
   implementation "games.pixscape:pixscape-runtime:${pixscapeRuntimeVersion}"
 
   implementation "com.badlogicgames.gdx:gdx:${gdxVersion}"
@@ -53,6 +57,8 @@ dependencies {
   }
   gwt "net.onedaybeard.artemis:artemis-odb-serializer:${artemisOdbVersion}:sources@jar"
   gwt "net.onedaybeard.artemis:artemis-odb-serializer-json-libgdx:${artemisOdbVersion}:sources@jar"
+  gwt "com.github.tommyettinger:textratypist:2.5.0:sources@jar"
+  gwt "com.github.tommyettinger:regexodus:0.1.21:sources@jar"
 }
 
 tasks.register('compileGwt', JavaExec) {
@@ -60,7 +66,12 @@ tasks.register('compileGwt', JavaExec) {
   description = 'Compile HTML player with GWT.'
 
   dependsOn classes
+  minHeapSize = '128m'
+  maxHeapSize = providers.gradleProperty('htmlGwtMaxHeap').getOrElse('1024m')
   mainClass = 'com.google.gwt.dev.Compiler'
+  javaLauncher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(htmlJavaVersion as int)
+  }
 
   classpath =
           configurations.gwt +
@@ -86,6 +97,7 @@ tasks.register('compileGwt', JavaExec) {
   args = [
           '-war', layout.buildDirectory.dir('gwt-dist').get().asFile.absolutePath,
           '-style', 'PRETTY',
+          '-localWorkers', '1',
           '-logLevel', 'INFO',
           'games.pixscape.html.GdxDefinition'
   ]
@@ -129,9 +141,28 @@ tasks.register('copyGwtDistToTemplate', Copy) {
     exclude '**/.keep'
   }
 
+  // HUD labels use this descriptor from the LibGDX runtime jar in the preview.
+  from({
+    def gdxRuntimeJar = configurations.runtimeClasspath.find {
+      it.name == "gdx-${gdxVersion}.jar"
+    }
+    if (gdxRuntimeJar == null) {
+      throw new GradleException("Unable to locate gdx-${gdxVersion}.jar for the HTML preview template.")
+    }
+    zipTree(gdxRuntimeJar)
+  }) {
+    include 'com/badlogic/gdx/utils/lsans-15.fnt'
+    into 'assets'
+  }
+
   into templateDir
 
   doLast {
     htmlPlayerLibreJs.wrapJavaScriptFiles(templateJsFiles)
   }
+}
+
+// Headless JVM tests need the real libGDX classes, not GWT compilation stubs.
+tasks.named('test', Test) {
+  classpath = classpath.filter { !it.name.startsWith('gdx-backend-gwt-') }
 }

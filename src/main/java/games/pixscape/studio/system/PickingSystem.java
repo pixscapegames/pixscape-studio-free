@@ -20,6 +20,7 @@ import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.helper.OrientedBoundsHelper;
 import games.pixscape.runtime.helper.QuadGeometryHelper;
+import games.pixscape.runtime.hierarchy.WorldTransformState;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.physics.PolygonBuildResult;
@@ -27,14 +28,11 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.PhysicsDirtyBits;
 import games.pixscape.runtime.render.TiledMapRenderState;
-import games.pixscape.runtime.hierarchy.WorldTransformState;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
-import games.pixscape.studio.configuration.ProjectConfig;
-import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -42,11 +40,7 @@ import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.input.InputManipulationContext;
 import games.pixscape.studio.input.InputState;
-import games.pixscape.studio.service.CoordSpaces;
-import games.pixscape.studio.service.LayerService;
-import games.pixscape.studio.service.ParticleOverlayVisual;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.service.StudioDisplayOffsetResolver;
+import games.pixscape.studio.service.*;
 import games.pixscape.studio.service.physics.*;
 import games.pixscape.studio.service.spatial.*;
 
@@ -102,6 +96,10 @@ public final class PickingSystem extends BaseSystem {
 
     private DirtyTrackerSystem dirty;
     private GizmoSystem gizmoSystem;
+    private LightValueGesture lightValueGesture;
+    private LightIconOverlaySystem lightOverlay;
+    private com.kotcrab.vis.ui.widget.VisLabel lightValueHint;
+    private boolean lightValueCursor;
 
     private final Vector2 tmpMouseWorld = new Vector2();
     private final Vector2 tmpUi = new Vector2();
@@ -180,6 +178,11 @@ public final class PickingSystem extends BaseSystem {
     private float lightRotationBeforeRad = 0f;
     private float lightRotationCurrentRad = 0f;
     private boolean lightDragIsCone = false;
+    private float lightRadiusPressDistance, lightRadiusPressAngle;
+    private float lightRadiusHandleOffsetX, lightRadiusHandleOffsetY;
+    private final Vector2 tmpLightAnchor = new Vector2();
+    private float lightInclinationPressAngle, lightInclinationDirection;
+    private boolean lightInclinationEdgeOn;
     private boolean movingPolygonVertexActive = false;
     private boolean resizingCircleActive = false;
     private int resizingCircleBodyEid = -1;
@@ -210,6 +213,9 @@ public final class PickingSystem extends BaseSystem {
     private boolean movingSpatialBlockActive = false;
     private int movingSpatialBlockLayerEid = -1;
     private int movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
+    private final Vector2 spatialPressWorld=new Vector2();
+    private com.kotcrab.vis.ui.widget.VisLabel spatialGestureHint;
+    private String spatialGestureText;
     private float movingSpatialBlockStartTileX;
     private float movingSpatialBlockStartTileY;
     private boolean resizingSpatialBlockActive = false;
@@ -219,6 +225,10 @@ public final class PickingSystem extends BaseSystem {
     private boolean spatialTileSelectionActive = false;
     private final SpatialCellPicker.Result spatialCell = new SpatialCellPicker.Result();
     private final SpatialWallEditSession spatialHandleProbe = new SpatialWallEditSession();
+    private SpatialBlocksComponent spatialProbeSource;
+    private TiledMapLayerData spatialProbeMap;
+    private int spatialProbeRevision=-1, spatialProbeBlock=-1, spatialProbeContent=-1;
+    private float spatialProbeOriginX, spatialProbeOriginY, spatialProbeAltitude;
     private final SpatialPointerInteraction spatialPointer = new SpatialPointerInteraction();
     private int pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
     private int pressedSpatialHandle = SpatialBlockHandle.NONE;
@@ -307,6 +317,8 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void initialize() {
+        lightValueGesture = new LightValueGesture(world, historyManager);
+        lightOverlay = world.getSystem(LightIconOverlaySystem.class);
         gameObjectHierarchy = world.getSystem(GameObjectHierarchySystem.class);
         gameObjectGizmoGeometry = new GameObjectGizmoGeometry(world);
         resolvedPhysicsPose = new ResolvedPhysicsPose(world);
@@ -323,11 +335,60 @@ public final class PickingSystem extends BaseSystem {
 
     @Override
     protected void processSystem() {
+        if (lightValueCursor) {
+            setCursor(Cursor.SystemCursor.Arrow);
+            lightValueCursor = false;
+        }
+        if (lightOverlay != null) lightOverlay.setValueHandle(-1, null, false);
+        if (lightValueGesture.active()) {
+            processLightValueGesture();
+            return;
+        }
+        if (lightRadiusDragActive && (!isLightEntity(lightRadiusEntityId)
+                || !isSelectableInViewport(lightRadiusEntityId)
+                || selectionService.getSelectionSet().size != 1
+                || !selectionService.getSelectionSet().contains(lightRadiusEntityId)
+                || isTiledModeActive() || isSpatialBlockModeActive()
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE))) {
+            cancelLightRadiusDrag();
+            return;
+        }
+        if ((movingSpatialBlockActive || resizingSpatialBlockActive) &&
+                (!spatialBlockSelectionService.isEditingActive()
+                || !spatialBlockSelectionService.wallEditSession().isActive()
+                || spatialBlockSelectionService.getEditingMapEntityId() !=
+                (movingSpatialBlockActive ? movingSpatialBlockLayerEid : resizingSpatialBlockLayerEid))) {
+            spatialBlockSelectionService.wallEditSession().cancel();
+            clearSpatialBlockMoveState();clearSpatialBlockResizeState();spatialPointer.release();inputState.clearAll();
+        }
         readMouseWorld(tmpMouseWorld);
         float mx = tmpMouseWorld.x;
         float my = tmpMouseWorld.y;
 
+        CornerProfileEditSession corner=spatialBlockSelectionService.cornerProfile();
+        if(corner.active()) {
+            if(!spatialBlockSelectionService.isEditingActive()
+                    || spatialBlockSelectionService.getEditingMapEntityId()!=corner.target().mapId())corner.close();
+            else {
+                corner.synchronize();
+                if(Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+                    if(corner.dragging())corner.cancelGesture();else exitCornerProfile();
+                    inputState.clearAll();showLightValueHint(null);return;
+                }
+                if(corner.active()) {
+                    // InputState coalesces native motion events; compile at most the latest position per frame.
+                    if(corner.dragging()) {
+                        boolean released=inputState.leftJustReleased();
+                        if(inputState.isLeftDown()||released)corner.drag(mx,my);
+                        if(released||!inputState.isLeftDown())corner.release();
+                    }
+                    showLightValueHint(null);return;
+                }
+            }
+        }
+
         if (processPolygonDrawMode(mx, my)) {
+            showLightValueHint(null);
             updateCursorForHover(
                     InputManipulationContext.Handle.NONE,
                     false,
@@ -350,7 +411,8 @@ public final class PickingSystem extends BaseSystem {
             cancelQuadVertexMove();
         }
 
-        if (isPointerOverUI()) {
+        if (isPointerOverUI() && !movingSpatialBlockActive && !resizingSpatialBlockActive && !lightRadiusDragActive) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (spatialBlockSelectionService != null) spatialBlockSelectionService.clearHover();
@@ -359,10 +421,11 @@ public final class PickingSystem extends BaseSystem {
         }
 
         boolean leftPressed = inputState.leftJustPressed();
-        boolean leftDown = inputState.isLeftDown() || Gdx.input.isButtonPressed(Input.Buttons.LEFT);
+        boolean leftDown = inputState.isLeftDown();
         boolean leftReleased = inputState.leftJustReleased();
 
         if (isSpatialBlockModeActive()) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             if (processSpatialEscape()) {
@@ -388,6 +451,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         if (isTiledModeActive()) {
+            showLightValueHint(null);
             cancelLassoIfNeeded();
             if (selectionService != null) selectionService.clearHoveredEntity();
             updateCursorForHover(
@@ -411,9 +475,21 @@ public final class PickingSystem extends BaseSystem {
 
         boolean physicsEditMode = isExplicitPhysicsEditMode();
         boolean singleSel = viewportSel.size == 1;
+        if (singleSel && hoverLightValue(mx, my, viewportSel.get(0), leftPressed)) {
+            lastPressHit = null;
+            return;
+        }
+        showLightValueHint(null);
         if (leftPressed && singleSel && tryBeginLightRadiusDrag(mx, my, viewportSel.get(0))) {
             lastPressHit = null;
             return;
+        }
+        if (singleSel && mConeLight.has(viewportSel.first())) {
+            int e=viewportSel.first();
+            computeLightRadiusAnchorWorld(e,mT.get(e),tmpLightAnchor);
+            float half=coordSpaces.pixelsToWorld(LIGHT_ICON_SIZE_PX*.5f+LIGHT_PICK_TOL_PX);
+            if (HandleHelper.insideSquare(mx,my,tmpLightAnchor.x,tmpLightAnchor.y,half))
+                showLightValueHint("Cone axis section (Z: "+formatLightValue(readLightHeight(e))+")");
         }
 
         InputManipulationContext.Handle hovered = resolveHoveredHandle(mx, my, viewportSel);
@@ -537,6 +613,47 @@ public final class PickingSystem extends BaseSystem {
                 && selectionService.isTiledMapEditingTargetActive();
     }
 
+    /** Capture the initial point in Scene2D, before motion events can coalesce into the next frame. */
+    public boolean cornerProfilePointerDown(float worldX,float worldY) {
+        CornerProfileEditSession corner=spatialBlockSelectionService.cornerProfile();
+        if(!corner.active()||!corner.dragging()&&corner.pickVertex(worldX,worldY,coordSpaces.pixelsToWorld(8))<0) {
+            corner.close();
+            if(!spatialBlockSelectionService.isEditingActive()||inputState.isCtrl()||gizmoSystem==null)return false;
+            CornerProfileEditSession.Target target=gizmoSystem.cornerOverview().pickBody(
+                    spatialBlockSelectionService.getEditingMapEntityId(),worldX,worldY,tiledState);
+            // Leave the press untouched so normal volume selection handles this very click.
+            if(target==null)return false;
+            CornerProfileEditSession candidate=new CornerProfileEditSession();
+            if(candidate.inspect(world,tiledState,historyManager,target)!=null||!candidate.openExisting())return false;
+            selectionService.clearSelection();physicsSelectionService.clear();
+            if(spatialTileSelectionService!=null)spatialTileSelectionService.clear();
+            spatialBlockSelectionService.selectBlock(target.mapId(),target.blockId());
+            spatialBlockSelectionService.setCornerProfile(candidate);corner=candidate;
+        }
+        corner.synchronize();
+        if(!corner.active())return false;
+        int vertex=corner.pickVertex(worldX,worldY,coordSpaces.pixelsToWorld(8));
+        if(vertex>=0)corner.press(vertex,worldX,worldY);
+        inputState.leftJustPressed();
+        return true;
+    }
+
+    public void exitCornerProfile() {
+        spatialBlockSelectionService.cornerProfile().close();
+        inputState.clearAll();showLightValueHint(null);
+    }
+
+    public CornerProfileEditSession inspectCornerAt(float x,float y) {
+        int mapId=spatialBlockSelectionService.getEditingMapEntityId();
+        TiledLayerComponent tiled=world.getMapper(TiledLayerComponent.class).getSafe(mapId,null);
+        SpatialCellPicker.Result cell=new SpatialCellPicker.Result();
+        CornerProfileEditSession.Target target=null;
+        if(tiled!=null&&SpatialCellPicker.pickTopmostVisibleOccupiedSprite(tiled.data,tiledState,x,y,cell))
+            target=new CornerProfileEditSession.Target(mapId,cell.gx,cell.gy,tiled.data.getTile(cell.gx,cell.gy),spatialBlockSelectionService.getSelectedBlockId());
+        CornerProfileEditSession edit=new CornerProfileEditSession();
+        edit.inspect(world,tiledState,historyManager,target);return edit;
+    }
+
     private boolean isSpatialBlockModeActive() {
         return spatialBlockSelectionService != null && spatialBlockSelectionService.isEditingActive();
     }
@@ -604,6 +721,7 @@ public final class PickingSystem extends BaseSystem {
             if (SpatialPointerInteraction.clearsWallSelection(target.type)) {
                 spatialBlockSelectionService.clearSelectionOnly();
             }
+            spatialPressWorld.set(mx,my);
             spatialPointer.press(target.type, Gdx.input.getX(), Gdx.input.getY());
             pressedSpatialBlockId = target.blockId;
             pressedSpatialHandle = target.handle;
@@ -613,18 +731,24 @@ public final class PickingSystem extends BaseSystem {
                 selectionService.clearSelection();
                 physicsSelectionService.clear();
                 if (spatialTileSelectionService != null) spatialTileSelectionService.clear();
-                spatialBlockSelectionService.selectBlock(layerEntityId, target.blockId);
+                if (inputState.isCtrl()) spatialBlockSelectionService.toggleBlock(layerEntityId, target.blockId);
+                else spatialBlockSelectionService.selectBlock(layerEntityId, target.blockId);
             }
         }
 
-        if (leftDown && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
-            if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
+        if (leftDown && !inputState.isCtrl()
+                && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
+            if (spatialBlockSelectionService.selectedBlockCount() == 1
+                    && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
                 selectionService.clearSelection();
                 physicsSelectionService.clear();
-                beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, mx, my);
+                beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, spatialPressWorld.x, spatialPressWorld.y);
+                if(resizingSpatialBlockActive)onSpatialBlockResizeDragging(mx,my);
                 if (resizingSpatialBlockActive) spatialPointer.beginResize();
-            } else if (spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
-                beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, mx, my);
+            } else if (spatialBlockSelectionService.selectedBlockCount() == 1
+                    && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_FOOTPRINT) {
+                beginSpatialBlockMove(layerEntityId, pressedSpatialBlockId, spatialPressWorld.x, spatialPressWorld.y);
+                if(movingSpatialBlockActive)onSpatialBlockMoveDragging(mx,my);
                 if (movingSpatialBlockActive) {
                     spatialPointer.beginMove(spatialBlockSelectionService.wallEditSession().isSlidingAttachedWall());
                 }
@@ -658,19 +782,22 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.clearSelectionOnly();
         }
         spatialPointer.release();
+        inputState.clearAll();
         pressedSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
         pressedSpatialHandle = SpatialBlockHandle.NONE;
         return true;
     }
 
     private SpatialPointerTarget resolveSpatialPointerTarget(int layerEntityId, float mx, float my) {
-        int handle = detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
+        boolean cornerShown=spatialBlockSelectionService.cornerProfile().active();
+        // Do not leave invisible rectangular handles active underneath the displayed profile.
+        int handle = cornerShown?SpatialBlockHandle.NONE:detectSelectedSpatialBlockTopHandle(layerEntityId, mx, my);
         if (handle != SpatialBlockHandle.NONE) {
             return SpatialPointerTarget.handle(spatialBlockSelectionService.getSelectedBlockId(), handle);
         }
         SpatialBlockData selected = findSpatialBlock(layerEntityId, spatialBlockSelectionService.getSelectedBlockId());
         TiledLayerComponent tiled = mTiledLayer.getSafe(layerEntityId, null);
-        if (selected != null && tiled != null && tiled.data != null
+        if (!cornerShown && selected != null && tiled != null && tiled.data != null
                 && SpatialBlockPicking.containsBase(tiled.data, selected, mx, my, tmpFixtureBoxWorldCorners)) {
             return SpatialPointerTarget.wall(SpatialPointerInteraction.Target.SELECTED_FOOTPRINT, selected.id);
         }
@@ -772,6 +899,7 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.wallEditSession().cancel();
             return;
         }
+        configureSpatialGesture(tiled);
         movingSpatialBlockActive = true;
         movingSpatialBlockLayerEid = layerEntityId;
         movingSpatialBlockId = blockId;
@@ -795,6 +923,7 @@ public final class PickingSystem extends BaseSystem {
             spatialBlockSelectionService.wallEditSession().cancel();
             return;
         }
+        configureSpatialGesture(tiled);
         resizingSpatialBlockActive = true;
         resizingSpatialBlockLayerEid = layerEntityId;
         resizingSpatialBlockId = blockId;
@@ -816,12 +945,14 @@ public final class PickingSystem extends BaseSystem {
                 afterTileY - movingSpatialBlockStartTileY);
         spatialBlockSelectionService.setEditPreview(
                 spatialBlockSelectionService.wallEditSession().isCandidateValid());
+        updateSpatialGestureHint();
         oldDrag.set(mx, my);
     }
 
     private void onSpatialBlockMoveReleased() {
         spatialBlockSelectionService.wallEditSession().commit(
                 world, historyManager, spatialBlockSelectionService);
+        showSpatialCommitRefusal();
         clearSpatialBlockMoveState();
     }
 
@@ -853,6 +984,7 @@ public final class PickingSystem extends BaseSystem {
         spatialBlockSelectionService.setEditPreview(
                 spatialBlockSelectionService.wallEditSession().isCandidateValid());
 
+        updateSpatialGestureHint();
         oldDrag.set(mx, my);
     }
 
@@ -873,10 +1005,12 @@ public final class PickingSystem extends BaseSystem {
     private void onSpatialBlockResizeReleased() {
         spatialBlockSelectionService.wallEditSession().commit(
                 world, historyManager, spatialBlockSelectionService);
+        showSpatialCommitRefusal();
         clearSpatialBlockResizeState();
     }
 
     private void clearSpatialBlockResizeState() {
+        clearSpatialGestureHint();
         resizingSpatialBlockActive = false;
         resizingSpatialBlockLayerEid = -1;
         resizingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
@@ -886,12 +1020,56 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private void clearSpatialBlockMoveState() {
+        clearSpatialGestureHint();
         movingSpatialBlockActive = false;
         movingSpatialBlockLayerEid = -1;
         movingSpatialBlockId = SpatialBlockSelectionService.NO_BLOCK;
         movingSpatialBlockStartTileX = 0f;
         movingSpatialBlockStartTileY = 0f;
         spatialBlockSelectionService.clearEditPreview();
+    }
+
+    private void configureSpatialGesture(TiledLayerComponent tiled) {
+        float[] basis=new float[6];
+        tiled.data.projectSpatialPoint(0,0,tiled.defaultTileAltitude,basis,0);
+        tiled.data.projectSpatialPoint(1,0,tiled.defaultTileAltitude,basis,2);
+        tiled.data.projectSpatialPoint(0,1,tiled.defaultTileAltitude,basis,4);
+        Vector2 origin=coordSpaces.worldToScreen(basis[0],basis[1],new Vector2());
+        Vector2 x=coordSpaces.worldToScreen(basis[2],basis[3],new Vector2());
+        Vector2 y=coordSpaces.worldToScreen(basis[4],basis[5],new Vector2());
+        spatialBlockSelectionService.wallEditSession().configureGesture(tiled.defaultTileHeight,
+                x.x-origin.x,x.y-origin.y,y.x-origin.x,y.y-origin.y);
+    }
+
+    private void updateSpatialGestureHint() {
+        SpatialWallEditSession session=spatialBlockSelectionService.wallEditSession();
+        spatialBlockSelectionService.setLinkPreview(session.gestureProposal());
+        String text=session.gestureMessage();
+        SpatialLinkProposal proposal=session.gestureProposal();
+        if(proposal!=null && proposal.valid || proposal==null && (text==null || !text.startsWith("Ambiguous")))text=null;
+        if(text==null) {
+            if(spatialGestureHint!=null)spatialGestureHint.remove();
+            spatialGestureHint=null;spatialGestureText=null;return;
+        }
+        if(uiStage==null || text.equals(spatialGestureText))return;
+        if(spatialGestureHint==null) {
+            spatialGestureHint=new com.kotcrab.vis.ui.widget.VisLabel("");
+            spatialGestureHint.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
+            uiStage.addActor(spatialGestureHint);
+        }
+        spatialGestureText=text;spatialGestureHint.setText(text);spatialGestureHint.pack();
+        spatialGestureHint.setPosition(12,Math.max(12,uiStage.getHeight()-spatialGestureHint.getHeight()-12));
+        spatialGestureHint.setColor(proposal!=null && !proposal.valid ? com.badlogic.gdx.graphics.Color.RED
+                : com.badlogic.gdx.graphics.Color.WHITE);
+    }
+
+    private void clearSpatialGestureHint() {
+        if(spatialGestureHint!=null)spatialGestureHint.remove();
+        spatialGestureHint=null;spatialGestureText=null;spatialBlockSelectionService.setLinkPreview(null);
+    }
+    private void showSpatialCommitRefusal() {
+        String message=spatialBlockSelectionService.wallEditSession().commitMessage();
+        if(message!=null && uiStage!=null) games.pixscape.studio.ui.modal.Dialogs.showOKDialog(uiStage,spatialBlockSelectionService.wallEditSession().commitTitle(),message);
     }
 
     private SpatialBlockData findSpatialBlock(int layerEntityId, int blockId) {
@@ -926,10 +1104,8 @@ public final class PickingSystem extends BaseSystem {
         float[] verts = tmpFixtureBoxWorldCorners;
         SpatialBlockProjection.projectTopFootprint(tiled.data, block, verts);
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                worldCam,
-                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
-        );
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
         float topCx = (verts[0] + verts[2] + verts[4] + verts[6]) * 0.25f;
         float topCy = (verts[1] + verts[3] + verts[5] + verts[7]) * 0.25f;
@@ -981,10 +1157,15 @@ public final class PickingSystem extends BaseSystem {
         if (handle == SpatialBlockHandle.HEIGHT) return true;
         SpatialBlocksComponent component = mSpatialBlocks.getSafe(layerEntityId, null);
         SpatialBlockInteractiveEditSupport.ResizeHandle resizeHandle = spatialBlockResizeHandle(handle);
-        boolean available = spatialHandleProbe.begin(layerEntityId, block.id, component, map)
-                && spatialHandleProbe.isHandleEnabled(resizeHandle);
-        spatialHandleProbe.cancel();
-        return available;
+        if(spatialProbeSource!=component || spatialProbeMap!=map || spatialProbeRevision!=component.revision
+                || spatialProbeBlock!=block.id || spatialProbeContent!=map.contentRevision()
+                || spatialProbeOriginX!=map.originX || spatialProbeOriginY!=map.originY || spatialProbeAltitude!=map.defaultTileAltitude) {
+            spatialHandleProbe.begin(layerEntityId,block.id,component,map);
+            spatialProbeSource=component;spatialProbeMap=map;spatialProbeRevision=component.revision;
+            spatialProbeBlock=block.id;spatialProbeContent=map.contentRevision();
+            spatialProbeOriginX=map.originX;spatialProbeOriginY=map.originY;spatialProbeAltitude=map.defaultTileAltitude;
+        }
+        return spatialHandleProbe.isHandleEnabled(resizeHandle);
     }
 
     private record SpatialBlockHit(int blockId) {
@@ -1181,7 +1362,7 @@ public final class PickingSystem extends BaseSystem {
         }
 
         float tolWorld = Math.max(PICK_TOLERANCE_PX, HOVER_TOLER_PX)
-                * HandleHelper.worldUnitsPerPixel(worldCam);
+                * coordSpaces.worldUnitsPerPixel();
 
         FixtureHit fixtureHit = findTopmostFixtureHit(mx, my, tolWorld);
         if (fixtureHit != null) {
@@ -1221,7 +1402,7 @@ public final class PickingSystem extends BaseSystem {
     private boolean tryPickVisibleFixture(float mx, float my) {
         if (!isFixturePickingEnabled() || physicsService == null) return false;
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         FixtureHit hit = findTopmostFixtureHit(mx, my, tolWorld);
         if (hit == null) return false;
 
@@ -1339,7 +1520,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private int hitTestJointAnchorHandle(int jointEid, PhysicsJointComponent base, float mx, float my) {
-        float tol = (JOINT_PICK_TOL_PX + 2f) * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tol = (JOINT_PICK_TOL_PX + 2f) * coordSpaces.worldUnitsPerPixel();
         float tol2 = tol * tol;
 
         if (base.type == PhysicsJointComponent.TYPE_DISTANCE) {
@@ -1471,7 +1652,7 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectBoxCornerHover(
-                worldCam,
+                coordSpaces.worldUnitsPerPixel(),
                 tmpFixtureVerts,
                 mx,
                 my,
@@ -1535,7 +1716,8 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpA);
         float hx = tmpA.x + physicsService.computeShapeRadiusWU(fixture);
         float hy = tmpA.y;
-        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
         return HandleHelper.insideSquare(mx, my, hx, hy, halfWidthorld) ? InputManipulationContext.Handle.E : InputManipulationContext.Handle.NONE;
     }
 
@@ -1740,7 +1922,7 @@ public final class PickingSystem extends BaseSystem {
                 corners,
                 mx,
                 my,
-                HandleHelper.worldUnitsPerPixel(worldCam));
+                coordSpaces.worldUnitsPerPixel());
     }
 
     static int detectQuadVertexHover(float[] corners,
@@ -2025,7 +2207,7 @@ public final class PickingSystem extends BaseSystem {
         applyDisplayOffset(bodyEid, tmpFixtureVerts);
 
         return FixtureHandleHelper.detectPolygonVertexHover(
-                worldCam,
+                coordSpaces.worldUnitsPerPixel(),
                 tmpFixtureVerts,
                 vertexCount,
                 mx,
@@ -2062,51 +2244,6 @@ public final class PickingSystem extends BaseSystem {
 
         oldDrag.set(mx, my);
         return true;
-    }
-
-    private int computeAuthoredPolygonVertsWU(
-            int bodyEid,
-            float[] localVertsMeters,
-            int count,
-            PhysicsShapeData polygon,
-            float[] out
-    ) {
-        if (bodyEid < 0) return 0;
-        if (localVertsMeters == null || count < 3 || localVertsMeters.length < count * 2) return 0;
-        if (out == null || out.length < count * 2) return 0;
-
-        TransformComponent t = mT.getSafe(bodyEid, null);
-        if (t == null) return 0;
-
-        float ppm = resolvePixelsPerMeter();
-
-        float fixtureOffsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float fixtureOffsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float fixtureAngleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float fixtureCos = MathUtils.cos(fixtureAngleRad);
-        float fixtureSin = MathUtils.sin(fixtureAngleRad);
-
-        float bodyCos = MathUtils.cos(t.rotationRad);
-        float bodySin = MathUtils.sin(t.rotationRad);
-
-        for (int i = 0; i < count; i++) {
-            float lx = localVertsMeters[i * 2];
-            float ly = localVertsMeters[i * 2 + 1];
-
-            float fx = lx * fixtureCos - ly * fixtureSin + fixtureOffsetX;
-            float fy = lx * fixtureSin + ly * fixtureCos + fixtureOffsetY;
-
-            float wx = t.x + (fx * bodyCos - fy * bodySin) * ppm;
-            float wy = t.y + (fx * bodySin + fy * bodyCos) * ppm;
-
-            out[i * 2] = wx;
-            out[i * 2 + 1] = wy;
-        }
-
-        remapPhysicsPoints(bodyEid, out, count);
-        applyDisplayOffset(bodyEid, out, count);
-        return count;
     }
 
     private void applyDisplayOffset(int entityId, float[] verts, int vertexCount) {
@@ -2175,66 +2312,6 @@ public final class PickingSystem extends BaseSystem {
         }
 
         return out;
-    }
-
-    private void worldToAuthoredSourceLocalMeters(
-            int bodyEid,
-            PhysicsShapeData polygon,
-            float wx,
-            float wy,
-            Vector2 outMeters
-    ) {
-        worldToBodyLocalPx(bodyEid, wx, wy, tmpA);
-
-        float ppm = resolvePixelsPerMeter();
-
-        float bodyLocalX = tmpA.x / ppm;
-        float bodyLocalY = tmpA.y / ppm;
-
-        float offsetX = polygon != null ? polygon.geometry.offsetX : 0f;
-        float offsetY = polygon != null ? polygon.geometry.offsetY : 0f;
-        float angleRad = (polygon != null ? MathUtils.degreesToRadians * polygon.geometry.angleDegrees : 0f);
-
-        float dx = bodyLocalX - offsetX;
-        float dy = bodyLocalY - offsetY;
-
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-
-        float lx = dx * cos + dy * sin;
-        float ly = -dx * sin + dy * cos;
-
-        outMeters.set(lx, ly);
-    }
-
-    private PhysicsShapeData materialFromAuthoredPolygon(PhysicsShapeData polygon) {
-        PhysicsShapeData fixture = PhysicsService.createDefaultShape(
-                polygon != null && polygon.physicsShapeId > 0
-                        ? polygon.physicsShapeId
-                        : 1);
-
-        fixture.geometry.shapeType = PhysicsGeometryData.SHAPE_POLYGON;
-        fixture.geometry.polygonVertices = new float[0];
-        fixture.geometry.polygonVertexCount = 0;
-
-        if (polygon == null) {
-            return fixture;
-        }
-
-        fixture.density = polygon.density;
-        fixture.friction = polygon.friction;
-        fixture.restitution = polygon.restitution;
-        fixture.sensor = polygon.sensor;
-
-        fixture.categoryBits = polygon.categoryBits;
-        fixture.maskBits = polygon.maskBits;
-        fixture.groupIndex = polygon.groupIndex;
-
-        fixture.geometry.offsetX = polygon.geometry.offsetX;
-        fixture.geometry.offsetY = polygon.geometry.offsetY;
-        fixture.geometry.angleDegrees = polygon.geometry.angleDegrees;
-
-        return fixture;
     }
 
     private void onPolygonVertexReleased() {
@@ -2437,10 +2514,8 @@ public final class PickingSystem extends BaseSystem {
 
         // Clic gauche = add point ou close+commit
         if (inputState.leftJustPressed()) {
-            float closeRadiusWorld = HandleHelper.pxToWorld(
-                    worldCam,
-                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX
-            );
+            float closeRadiusWorld = coordSpaces.pixelsToWorld(
+                    GizmoDrawHelper.SHAPE_VERTEX_HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
             if (polygonDrawSession.tryCloseFromPoint(mx, my, closeRadiusWorld)) {
                 commitPolygonDrawSession();
@@ -2629,22 +2704,9 @@ public final class PickingSystem extends BaseSystem {
         return ok1 && ok2;
     }
 
-    private static float rotateX(float x, float y, float angleRad) {
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-        return x * cos - y * sin;
-    }
-
-    private static float rotateY(float x, float y, float angleRad) {
-        float cos = MathUtils.cos(angleRad);
-        float sin = MathUtils.sin(angleRad);
-        return x * sin + y * cos;
-    }
-
     private float resolvePixelsPerMeter() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        SceneMeta meta = cfg.getCurrentSceneMeta();
-        return meta.pixelsPerMeter;
+        return physicsService != null && physicsService.isAvailable()
+                ? 1f / physicsService.pxToM(1f) : 100f;
     }
 
     private record FixtureHit(int bodyEid, int physicsShapeId, int partIndex) {
@@ -2870,7 +2932,7 @@ public final class PickingSystem extends BaseSystem {
             if (!reachedFreeMoveThreshold(
                     dx,
                     dy,
-                    HandleHelper.worldUnitsPerPixel(worldCam))) {
+                    coordSpaces.worldUnitsPerPixel())) {
                 return false;
             }
             translatingActive = true;
@@ -2897,8 +2959,15 @@ public final class PickingSystem extends BaseSystem {
             TransformComponent t = mT.get(e);
             if (t == null) continue;
 
-            t.x = t.x + dx;
-            t.y = t.y + dy;
+            if (isLightEntity(e) && gameObjectHierarchy != null) {
+                int parent = gameObjectHierarchy.topology().parentEntityId[e];
+                LightGizmoGeometry.localGroundDelta(gameObjectHierarchy.worldTransforms(), parent, dx, dy, tmp2Vec);
+                t.x += tmp2Vec.x;
+                t.y += tmp2Vec.y;
+            } else {
+                t.x += dx;
+                t.y += dy;
+            }
             if (dirty != null) dirty.geometry(e, GeometryDirty.POSITION);
         }
 
@@ -2968,7 +3037,7 @@ public final class PickingSystem extends BaseSystem {
         PhysicsShapeData fixture = getSelectedFixture(bodyEid, physicsShapeId);
         if (fixture == null) return false;
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         PhysicsFixturePickingService.PickResult picked =
                 pickFixtureOnBody(bodyEid, mx, my, tolWorld);
         if (picked.physicsShapeId == physicsShapeId
@@ -3393,7 +3462,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = selectableObbSubscription.getEntities();
         int[] data = bag.getData();
 
-        float tolWorld = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
 
         int bestEntity = -1;
         int bestLayerIndex = Integer.MIN_VALUE;
@@ -3439,7 +3508,7 @@ public final class PickingSystem extends BaseSystem {
 
         IntBag particleBag = particleSubscription.getEntities();
         int[] particleData = particleBag.getData();
-        float particleRadius = particleMarkerHitRadiusWorld(worldCam);
+        float particleRadius = particleMarkerHitRadiusWorld(coordSpaces.worldUnitsPerPixel());
         float particleRadius2 = particleRadius * particleRadius;
         for (int i = 0, n = particleBag.size(); i < n; i++) {
             int e = particleData[i];
@@ -3479,10 +3548,6 @@ public final class PickingSystem extends BaseSystem {
                 tmp2Vec.x, tmp2Vec.y)
                 : isPolylineHit(polyline.vertices, transform, mouseX, mouseY, toleranceWorld,
                 tmp2Vec.x, tmp2Vec.y);
-    }
-
-    static float particleMarkerHitRadiusWorld(OrthographicCamera camera) {
-        return particleMarkerHitRadiusWorld(HandleHelper.worldUnitsPerPixel(camera));
     }
 
     static float particleMarkerHitRadiusWorld(float worldUnitsPerPixel) {
@@ -3630,7 +3695,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = sub.getEntities();
         int[] data = bag.getData();
 
-        float tolWorld = JOINT_PICK_TOL_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolWorld = JOINT_PICK_TOL_PX * coordSpaces.worldUnitsPerPixel();
         float tol2 = tolWorld * tolWorld;
         int focusedBodyEid = physicsSelectionService.getFocusedBodyEid();
 
@@ -3782,7 +3847,7 @@ public final class PickingSystem extends BaseSystem {
         IntBag bag = sub.getEntities();
         int[] data = bag.getData();
 
-        float wpp = HandleHelper.worldUnitsPerPixel(worldCam);
+        float wpp = coordSpaces.worldUnitsPerPixel();
         float halfWidthorld = (LIGHT_ICON_SIZE_PX * 0.5f + LIGHT_PICK_TOL_PX) * wpp;
 
         int bestEntity = -1;
@@ -3799,7 +3864,7 @@ public final class PickingSystem extends BaseSystem {
             resolveLightWorldPosition(e, t, tmp2Vec);
             applyDisplayOffset(e, tmp2Vec);
             float cx = tmp2Vec.x;
-            float cy = tmp2Vec.y;
+            float cy = tmp2Vec.y + readLightHeight(e);
 
             if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWidthorld)) continue;
 
@@ -3866,10 +3931,8 @@ public final class PickingSystem extends BaseSystem {
         float[] obb = computeOBBWorldCorners(entityId);
         if (obb == null) return InputManipulationContext.Handle.NONE;
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                worldCam,
-                (GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX)
-        );
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
 
         if (HandleHelper.insideSquare(mx, my, HandleLayout.swX(obb), HandleLayout.swY(obb), halfWidthorld))
             return InputManipulationContext.Handle.SW;
@@ -3881,8 +3944,8 @@ public final class PickingSystem extends BaseSystem {
             return InputManipulationContext.Handle.NW;
 
         if (mGameObject.has(entityId)) {
-            float rotateOffsetWorld = HandleHelper.pxToWorld(
-                    worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
+            float rotateOffsetWorld = coordSpaces.pixelsToWorld(
+                    GizmoDrawHelper.ROTATE_OFFSET_PX);
             return hitTestGameObjectRotateHandle(
                     obb, mx, my, halfWidthorld, rotateOffsetWorld, tmp2);
         }
@@ -3896,7 +3959,7 @@ public final class PickingSystem extends BaseSystem {
         if (HandleHelper.insideSquare(mx, my, HandleLayout.midWX(obb), HandleLayout.midWY(obb), halfWidthorld))
             return InputManipulationContext.Handle.W;
 
-        float rotateOffsetWorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.ROTATE_OFFSET_PX);
+        float rotateOffsetWorld = coordSpaces.pixelsToWorld(GizmoDrawHelper.ROTATE_OFFSET_PX);
         HandleLayout.rotateHandle(obb, rotateOffsetWorld, tmp2);
 
         if (HandleHelper.insideSquare(mx, my, tmp2[0], tmp2[1], halfWidthorld)) {
@@ -3928,7 +3991,8 @@ public final class PickingSystem extends BaseSystem {
         if (t == null) return false;
 
         computeLightRadiusHandleWorld(entityId, t, tmp2Vec);
-        float halfWidthorld = HandleHelper.pxToWorld(worldCam, GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
+        float halfWidthorld = coordSpaces.pixelsToWorld(
+                GizmoDrawHelper.HANDLE_SIZE_PX * 0.5f + HOVER_TOLER_PX);
         if (!HandleHelper.insideSquare(mx, my, tmp2Vec.x, tmp2Vec.y, halfWidthorld)) return false;
 
         lightRadiusEntityId = entityId;
@@ -3938,6 +4002,17 @@ public final class PickingSystem extends BaseSystem {
         TransformComponent transform = mT.getSafe(entityId, null);
         lightRotationBeforeRad = transform != null ? transform.rotationRad : 0f;
         lightRotationCurrentRad = lightRotationBeforeRad;
+        float controlX=tmp2Vec.x,controlY=tmp2Vec.y;
+        computeLightRadiusAnchorWorld(entityId,t,tmpLightAnchor);
+        if (lightDragIsCone) {
+            ConeLightGizmoGeometry.sectionPoint(tmpLightAnchor.x,tmpLightAnchor.y,
+                    resolvedLightWorldRotation(entityId,t),0f,lightRadiusBefore,tmp2Vec);
+        } else LightGizmoGeometry.pointSectionPoint(tmpLightAnchor.x,tmpLightAnchor.y,0f,lightRadiusBefore,tmp2Vec);
+        lightRadiusHandleOffsetX=controlX-tmp2Vec.x;
+        lightRadiusHandleOffsetY=controlY-tmp2Vec.y;
+        float dx=mx-lightRadiusHandleOffsetX-tmpLightAnchor.x,dy=my-lightRadiusHandleOffsetY-tmpLightAnchor.y;
+        lightRadiusPressDistance=LightGizmoGeometry.radiusFromScreenDelta(dx,dy);
+        lightRadiusPressAngle = (float)Math.atan2(dy,dx);
         lightRadiusDragActive = true;
         return true;
     }
@@ -3950,12 +4025,15 @@ public final class PickingSystem extends BaseSystem {
             return;
         }
 
-        resolveLightWorldPosition(entityId, t, tmp2Vec);
-        applyDisplayOffset(entityId, tmp2Vec);
-        float newRadius = EditLightRadiusCommand.clamp(Vector2.dst(tmp2Vec.x, tmp2Vec.y, mx, my));
+        if (!leftDown && !leftReleased) { cancelLightRadiusDrag(); return; }
+        computeLightRadiusAnchorWorld(entityId,t,tmpLightAnchor);
+        float dx=mx-lightRadiusHandleOffsetX-tmpLightAnchor.x,dy=my-lightRadiusHandleOffsetY-tmpLightAnchor.y;
+        float distance=LightGizmoGeometry.radiusFromScreenDelta(dx,dy);
+        float newRadius = EditLightRadiusCommand.clamp(lightRadiusBefore
+                + distance - lightRadiusPressDistance);
         float newRotationRad = lightDragIsCone
-                ? localLightRotationForWorldAngle(entityId, t,
-                (float) Math.atan2(my - tmp2Vec.y, mx - tmp2Vec.x))
+                ? lightRotationBeforeRad + wrappedAngleDelta(lightRadiusPressAngle,
+                (float)Math.atan2(dy,dx))
                 : lightRotationCurrentRad;
         applyLightOverlayLive(entityId, newRadius, newRotationRad, lightDragIsCone);
         lightRadiusCurrent = newRadius;
@@ -4008,24 +4086,174 @@ public final class PickingSystem extends BaseSystem {
 
     private void computeLightRadiusHandleWorld(int entityId, TransformComponent t, Vector2 out) {
         float radius = readLightRadius(entityId);
-        resolveLightWorldPosition(entityId, t, out);
+        computeLightRadiusAnchorWorld(entityId,t,out);
+        float anchorX=out.x,anchorY=out.y;
         if (mConeLight != null && mConeLight.has(entityId)) {
             float angle = resolvedLightWorldRotation(entityId, t);
-            out.add(MathUtils.cos(angle) * radius, MathUtils.sin(angle) * radius);
+            ConeLightGizmoGeometry.sectionPoint(anchorX,anchorY,angle,0f,radius,out);
         } else {
-            out.x += radius;
+            LightGizmoGeometry.pointSectionPoint(anchorX,anchorY,0f,radius,out);
         }
 
-        applyDisplayOffset(entityId, out);
+        float hx=out.x,hy=out.y;
+        LightGizmoGeometry.radiusControl(anchorX,anchorY,hx,hy,coordSpaces.worldUnitsPerPixel(),out);
+    }
+
+    private void computeLightRadiusAnchorWorld(int entityId, TransformComponent t, Vector2 out) {
+        resolveLightWorldPosition(entityId,t,out);
+        LightGizmoGeometry.source(out.x,out.y,readLightHeight(entityId),out);
+        applyDisplayOffset(entityId,out);
+    }
+
+    private void cancelLightRadiusDrag() {
+        if (lightRadiusDragActive && lightRadiusEntityId>=0 && world.getEntityManager().isActive(lightRadiusEntityId))
+            applyLightOverlayLive(lightRadiusEntityId,lightRadiusBefore,lightRotationBeforeRad,lightDragIsCone);
+        lightRadiusDragActive=false;
+        lightRadiusEntityId=-1;
+        resetPressState();
     }
 
     private void resolveLightWorldPosition(int entityId, TransformComponent transform, Vector2 out) {
         WorldTransformState state = gameObjectHierarchy != null
                 ? gameObjectHierarchy.worldTransforms() : null;
-        if (state != null && state.isResolved(entityId)) {
-            out.set(state.x[entityId], state.y[entityId]);
+        LightGizmoGeometry.ground(state, entityId, transform, mDim.getSafe(entityId, null), out);
+    }
+
+    private float readLightHeight(int e) {
+        return EditLightingCommand.read(world, e, EditLightingCommand.Property.HEIGHT);
+    }
+
+    private boolean hoverLightValue(float mx, float my, int e, boolean pressed) {
+        if (!isLightEntity(e) || !isSelectableInViewport(e)) return false;
+        TransformComponent transform = mT.getSafe(e, null);
+        if (transform == null) return false;
+        resolveLightWorldPosition(e, transform, tmp2Vec);
+        LightGizmoGeometry.source(tmp2Vec.x, tmp2Vec.y, readLightHeight(e), tmp2Vec);
+        applyDisplayOffset(e, tmp2Vec);
+        float wpp = coordSpaces.worldUnitsPerPixel();
+        float sourceX = tmp2Vec.x, sourceY = tmp2Vec.y;
+        if (mConeLight.has(e)) {
+            float direction = resolvedLightWorldRotation(e, transform);
+            ConeLightGizmoGeometry.inclinationArcPoint(sourceX, sourceY, direction,
+                    mConeLight.get(e).inclinationDeg, wpp, tmp2Vec);
+            float hit = ConeLightGizmoGeometry.INCLINATION_PICK_PX * wpp;
+            if (games.pixscape.studio.helper.RotationArc.hit(mx, my, tmp2Vec.x, tmp2Vec.y, hit)) {
+                if (pressed) {
+                    lightValueGesture.begin(e, EditLightingCommand.Property.INCLINATION,
+                            Gdx.input.getX(), Gdx.input.getY(), inputState.isShift());
+                    lightInclinationDirection = direction;
+                    lightInclinationEdgeOn = ConeLightGizmoGeometry.inclinationEdgeOn(direction);
+                    if (!lightInclinationEdgeOn) lightInclinationPressAngle =
+                            ConeLightGizmoGeometry.inclinationPointerAngle(sourceX, sourceY, direction, wpp, mx, my);
+                }
+                if (lightOverlay != null) lightOverlay.setValueHandle(e, EditLightingCommand.Property.INCLINATION, pressed);
+                showLightValueHint("Inclination: " + formatLightValue(mConeLight.get(e).inclinationDeg)
+                        + "°  (Shift: fine)" + (ConeLightGizmoGeometry.inclinationEdgeOn(direction) ? "  drag up/down" : ""));
+                showLightValueCursor(false);
+                return true;
+            }
+        }
+        float dx = (mx - sourceX) / wpp, dy = (my - sourceY) / wpp;
+        boolean intensity = LightGizmoGeometry.intensityHit(dx, dy);
+        if (!intensity && !LightGizmoGeometry.heightHit(dx, dy)) return false;
+        EditLightingCommand.Property property = intensity
+                ? EditLightingCommand.Property.INTENSITY : EditLightingCommand.Property.HEIGHT;
+        if (pressed) lightValueGesture.begin(e, property, Gdx.input.getX(), Gdx.input.getY(), inputState.isShift());
+        if (lightOverlay != null) lightOverlay.setValueHandle(e, property, pressed);
+        showLightValueHint((intensity ? "Intensity: " : "Height: ")
+                + formatLightValue(EditLightingCommand.read(world, e, property)) + "  (Shift: fine)");
+        showLightValueCursor(intensity);
+        return true;
+    }
+
+    private void processLightValueGesture() {
+        int e = lightValueGesture.entity();
+        boolean released = inputState.leftJustReleased();
+        boolean validSelection = selectionService != null && selectionService.getSelectionSet().size == 1
+                && selectionService.getSelectionSet().contains(e) && isSelectableInViewport(e);
+        if (!validSelection || !isLightEntity(e) || isTiledModeActive() || isSpatialBlockModeActive()
+                || (polygonDrawSession != null && polygonDrawSession.isActive())
+                || Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)
+                || !inputState.isLeftDown() && !released) {
+            cancelLightValueGesture();
+            return;
+        }
+        boolean intensity = lightValueGesture.property() == EditLightingCommand.Property.INTENSITY;
+        boolean inclination = lightValueGesture.property() == EditLightingCommand.Property.INCLINATION;
+        float delta;
+        if (intensity) {
+            // Relative exposure control, with no invented upper intensity limit.
+            delta = (Gdx.input.getX() - lightValueGesture.pressX()) * .01f;
+        } else if (inclination) {
+            if (lightInclinationEdgeOn) {
+                // A meridian viewed edge-on has no stable angular inverse.
+                delta = lightValueGesture.pressY() - Gdx.input.getY();
+            } else {
+                TransformComponent transform = mT.get(e);
+                computeLightRadiusAnchorWorld(e, transform, tmpLightAnchor);
+                coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmp2Vec);
+                float angle = ConeLightGizmoGeometry.inclinationPointerAngle(tmpLightAnchor.x,
+                        tmpLightAnchor.y, lightInclinationDirection, coordSpaces.worldUnitsPerPixel(), tmp2Vec.x, tmp2Vec.y);
+                delta = wrappedAngleDelta(lightInclinationPressAngle, angle) * MathUtils.radiansToDegrees;
+            }
         } else {
-            out.set(transform.x, transform.y);
+            coordSpaces.screenToWorld(lightValueGesture.pressX(), lightValueGesture.pressY(), tmp2Vec);
+            float startY = tmp2Vec.y;
+            coordSpaces.screenToWorld(Gdx.input.getX(), Gdx.input.getY(), tmp2Vec);
+            delta = tmp2Vec.y - startY;
+        }
+        lightValueGesture.preview(delta);
+        if (lightOverlay != null) lightOverlay.setValueHandle(e, lightValueGesture.property(), true);
+        showLightValueHint((inclination ? "Inclination: " : intensity ? "Intensity: " : "Height: ")
+                + formatLightValue(EditLightingCommand.read(world, e, lightValueGesture.property()))
+                + (inclination ? "°" : ""));
+        showLightValueCursor(intensity);
+        if (released) {
+            lightValueGesture.commit();
+            showLightValueHint(null);
+            resetPressState();
+            setCursor(Cursor.SystemCursor.Arrow);
+        }
+    }
+
+    public void cancelLightValueGesture() {
+        cancelLightRadiusDrag();
+        if (lightValueGesture != null) lightValueGesture.cancel();
+        showLightValueHint(null);
+        if (lightOverlay != null) lightOverlay.setValueHandle(-1, null, false);
+        setCursor(Cursor.SystemCursor.Arrow);
+        osCursorHidden = false;
+        resetPressState();
+    }
+
+    private void showLightValueCursor(boolean intensity) {
+        lightValueCursor = true;
+        if (gizmoSystem != null) gizmoSystem.clearCursor();
+        osCursorHidden = false;
+        setCursor(intensity ? Cursor.SystemCursor.HorizontalResize : Cursor.SystemCursor.VerticalResize);
+    }
+
+    private static String formatLightValue(float value) {
+        return String.format(java.util.Locale.ROOT, "%.3f", value);
+    }
+
+    private void showLightValueHint(String text) {
+        if (text == null) {
+            if (lightValueHint != null) lightValueHint.remove();
+            lightValueHint = null;
+        } else if (uiStage != null) {
+            if (lightValueHint == null) {
+                lightValueHint = new com.kotcrab.vis.ui.widget.VisLabel("");
+                lightValueHint.setTouchable(com.badlogic.gdx.scenes.scene2d.Touchable.disabled);
+                uiStage.addActor(lightValueHint);
+            }
+            lightValueHint.setText(text);
+            lightValueHint.setWrap(false);
+            lightValueHint.pack();
+            coordSpaces.screenToUi(Gdx.input.getX(), Gdx.input.getY(), tmpUi);
+            lightValueHint.setPosition(
+                    Math.max(12f, Math.min(tmpUi.x + 12f, uiStage.getWidth() - lightValueHint.getWidth() - 12f)),
+                    Math.max(12f, tmpUi.y - lightValueHint.getHeight() - 12f));
         }
     }
 
@@ -4036,16 +4264,8 @@ public final class PickingSystem extends BaseSystem {
                 ? state.rotationRad[entityId] : transform.rotationRad;
     }
 
-    /** Converts the pointer's world-space cone angle back to the authored local transform angle. */
-    private float localLightRotationForWorldAngle(int entityId,
-                                                  TransformComponent transform,
-                                                  float worldAngle) {
-        return transform.rotationRad + wrappedAngleDelta(
-                resolvedLightWorldRotation(entityId, transform), worldAngle);
-    }
-
     private static float wrappedAngleDelta(float from, float to) {
-        return MathUtils.atan2(MathUtils.sin(to - from), MathUtils.cos(to - from));
+        return games.pixscape.studio.helper.RotationArc.delta(from, to);
     }
 
     private boolean isLightEntity(int entityId) {
@@ -4059,7 +4279,7 @@ public final class PickingSystem extends BaseSystem {
 
     private float[] computeOBBWorldCorners(int e) {
         if (mGameObject.has(e)) {
-            float half = HandleHelper.pxToWorld(worldCam, 8f);
+            float half = coordSpaces.pixelsToWorld(8f);
             return gameObjectGizmoGeometry != null
                     && gameObjectGizmoGeometry.writeWorldCorners(e, half, tmpCorners)
                     ? tmpCorners : null;
@@ -4079,7 +4299,7 @@ public final class PickingSystem extends BaseSystem {
         if (!mGameObject.has(entityId) || !isSelectableInViewport(entityId)) return null;
         float[] corners = computeOBBWorldCorners(entityId);
         if (corners == null) return null;
-        float tolerance = PICK_TOLERANCE_PX * HandleHelper.worldUnitsPerPixel(worldCam);
+        float tolerance = PICK_TOLERANCE_PX * coordSpaces.worldUnitsPerPixel();
         return isDisplayedObbHit(corners, mouseX, mouseY, tolerance) ? entityId : null;
     }
 
@@ -4098,11 +4318,6 @@ public final class PickingSystem extends BaseSystem {
 
     private void applyDisplayOffset(int entityId, float[] corners) {
         applyDisplayOffset(entityId, corners, corners != null ? corners.length / 2 : 0);
-    }
-
-    private SceneMeta currentSceneMeta() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        return cfg != null ? cfg.getCurrentSceneMeta() : null;
     }
 
     private void updateCursorForHover(InputManipulationContext.Handle hovered,

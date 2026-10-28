@@ -6,7 +6,6 @@ import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.RenderMaterialComponent;
 import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.component.ShaderParamsComponent;
-import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 
 public final class ChangeShaderCommand implements Command {
@@ -18,6 +17,9 @@ public final class ChangeShaderCommand implements Command {
     private final ComponentMapper<RenderMaterialComponent> mMat;
     private final ComponentMapper<ShaderParamsComponent> mShaderParams;
     private final DirtyTrackerSystem dirtyTracker;
+    private final Array<ShaderFloatParam> beforeFloats;
+    private final Array<ShaderFloatParam> afterFloats;
+    private final boolean hadParameters;
 
     public ChangeShaderCommand(World world, int entityId,
                                int beforeIdx, int afterIdx) {
@@ -29,19 +31,24 @@ public final class ChangeShaderCommand implements Command {
         this.mMat = world.getMapper(RenderMaterialComponent.class);
         this.mShaderParams = world.getMapper(ShaderParamsComponent.class);
         this.dirtyTracker = world.getSystem(DirtyTrackerSystem.class);
+        ShaderParamsComponent existing = mShaderParams.get(entityId);
+        hadParameters = existing != null;
+        beforeFloats = copy(existing == null ? null : existing.floats);
+        // A newly selected shader starts with no overrides and therefore follows its live defaults.
+        afterFloats = ShaderParamsComponent.newShaderFloatArray();
     }
 
     @Override
     public void redo() {
-        applyShader(afterIdx);
+        applyShader(afterIdx, afterFloats, afterFloats.size > 0);
     }
 
     @Override
     public void undo() {
-        applyShader(beforeIdx);
+        applyShader(beforeIdx, beforeFloats, hadParameters);
     }
 
-    private void applyShader(int idx) {
+    private void applyShader(int idx, Array<ShaderFloatParam> values, boolean hasComponent) {
         if (!world.getEntityManager().isActive(entityId)) return;
 
         RenderMaterialComponent mat =
@@ -49,10 +56,7 @@ public final class ChangeShaderCommand implements Command {
 
         mat.shaderIdx = idx;
 
-        String shaderName = ShaderRegistry.getName(idx);
-        Array<ShaderFloatParam> defaults = ShaderRegistry.getDefaultUniforms(shaderName);
-
-        if (defaults != null && defaults.size > 0) {
+        if (hasComponent) {
             ShaderParamsComponent comp =
                     mShaderParams.has(entityId) ? mShaderParams.get(entityId) : mShaderParams.create(entityId);
 
@@ -62,7 +66,7 @@ public final class ChangeShaderCommand implements Command {
                 comp.floats.clear();
             }
 
-            for (ShaderFloatParam param : defaults) {
+            for (ShaderFloatParam param : values) {
                 if (param == null || param.name == null || param.name.isEmpty()) {
                     continue;
                 }
@@ -70,16 +74,20 @@ public final class ChangeShaderCommand implements Command {
                 comp.floats.add(new ShaderFloatParam(param.name, param.value));
             }
         } else if (mShaderParams.has(entityId)) {
-            ShaderParamsComponent comp = mShaderParams.get(entityId);
-
-            if (comp != null && comp.floats != null) {
-                comp.floats.clear();
-            }
+            mShaderParams.remove(entityId);
         }
 
         if (dirtyTracker != null) {
             dirtyTracker.material(entityId);
         }
+    }
+
+    private static Array<ShaderFloatParam> copy(Array<ShaderFloatParam> source) {
+        Array<ShaderFloatParam> result = ShaderParamsComponent.newShaderFloatArray();
+        if (source != null) for (ShaderFloatParam parameter : source) {
+            if (parameter != null) result.add(new ShaderFloatParam(parameter.name, parameter.value));
+        }
+        return result;
     }
 
     @Override

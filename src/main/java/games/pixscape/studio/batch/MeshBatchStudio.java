@@ -29,6 +29,7 @@ public final class MeshBatchStudio implements MetricsBatch {
     private boolean blendingEnabled = false;
     private int blendSrc = GL20.GL_SRC_ALPHA;
     private int blendDst = GL20.GL_ONE_MINUS_SRC_ALPHA;
+    private int blendSrcAlpha = GL20.GL_SRC_ALPHA, blendDstAlpha = GL20.GL_ONE_MINUS_SRC_ALPHA;
 
     private final Matrix4 combined = new Matrix4();
 
@@ -100,12 +101,17 @@ public final class MeshBatchStudio implements MetricsBatch {
     }
 
     @Override
-    public void setBlendMode(boolean enabled, int sfactor, int dfactor, RenderStats stats) {
-        if (enabled != blendingEnabled || sfactor != blendSrc || dfactor != blendDst) {
+    public void setBlendMode(boolean enabled, int src, int dst, RenderStats stats) {
+        setBlendMode(enabled, src, dst, src, dst, stats);
+    }
+
+    @Override
+    public void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
+        if (enabled != blendingEnabled || src != blendSrc || dst != blendDst
+                || srcAlpha != blendSrcAlpha || dstAlpha != blendDstAlpha) {
             flush(stats);
-            blendingEnabled = enabled;
-            blendSrc = sfactor;
-            blendDst = dfactor;
+            blendingEnabled = enabled; blendSrc = src; blendDst = dst;
+            blendSrcAlpha = srcAlpha; blendDstAlpha = dstAlpha;
             if (stats != null) stats.blendModeSwitches++;
         }
     }
@@ -189,7 +195,7 @@ public final class MeshBatchStudio implements MetricsBatch {
 
         if (blendingEnabled) {
             Gdx.gl.glEnable(GL20.GL_BLEND);
-            Gdx.gl.glBlendFunc(blendSrc, blendDst);
+            Gdx.gl.glBlendFuncSeparate(blendSrc, blendDst, blendSrcAlpha, blendDstAlpha);
         } else {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
@@ -207,6 +213,8 @@ public final class MeshBatchStudio implements MetricsBatch {
         if (stats != null) {
             stats.flushes++;
             stats.drawCalls++;
+            stats.bufferUploads++;stats.bufferUploadBytes+=(long)vertCount*4;
+            stats.uploadedVertices+=vertCount/VERT_STRIDE_FLOATS;stats.drawnIndices+=quadCount*6;
         }
 
         vertCount = 0;
@@ -218,6 +226,19 @@ public final class MeshBatchStudio implements MetricsBatch {
         flush(stats);
     }
 
+
+    @Override
+    public void abort() {
+        vertCount = 0;
+        quadCount = 0;
+        shader = null;
+        texture = null;
+        cr = cg = cb = ca = 1f;
+        blendingEnabled = false;
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
 
     @Override
     public void close() {

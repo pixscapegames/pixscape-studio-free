@@ -3,6 +3,8 @@ package games.pixscape.studio.service.spatial;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.spatial.SpatialBlockData;
+import games.pixscape.runtime.spatial.SpatialBlockLink;
+import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.spatial.SpatialWallGeometry;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
 
@@ -35,7 +37,7 @@ public final class SpatialStructureTopology {
         if (added.id <= 0) return invalid("Authored wall id must be strictly positive.", after);
         if (find(after, added.id) != null) return invalid("Authored wall id is not unique.", after);
         after.add(added);
-        return normalize(before, after, map);
+        return normalize(before, after, SpatialBlockLinks.copy(current != null ? current.links : new Array<>(SpatialBlockLink.class)), map);
     }
 
     public static Plan delete(SpatialBlocksComponent current, int blockId, TiledMapLayerData map) {
@@ -44,7 +46,12 @@ public final class SpatialStructureTopology {
         int index = indexOf(after, blockId);
         if (index < 0) return invalid("Authored wall does not exist.", after);
         after.removeIndex(index);
-        return normalize(before, after, map);
+        Array<SpatialBlockLink> links = SpatialBlockLinks.copy(current.links);
+        for (int i = links.size - 1; i >= 0; i--) {
+            SpatialBlockLink link = links.get(i);
+            if (link.firstBlockId == blockId || link.secondBlockId == blockId) links.removeIndex(i);
+        }
+        return normalize(before, after, links, map);
     }
 
     public static Plan edit(SpatialBlocksComponent current,
@@ -69,14 +76,58 @@ public final class SpatialStructureTopology {
             }
         }
         after.set(index, edited);
-        return normalize(before, after, map);
+        boolean horizontal = SpatialWallAttachments.determineAxis(old) == SpatialWallAttachments.Axis.HORIZONTAL;
+        boolean bandChanged = horizontal
+                ? Float.compare(old.depth, edited.depth) != 0
+                : Float.compare(old.width, edited.width) != 0;
+        if (bandChanged) {
+            String failure = SpatialWallThicknessPropagation.apply(before, after, current.links, blockId);
+            if (failure != null) return invalid(failure, after);
+        }
+        return normalize(before, after, SpatialBlockLinks.copy(current != null ? current.links : new Array<>(SpatialBlockLink.class)), map);
+    }
+
+    /** Uses the committed membership and prepared edges; publication still normalizes/compiles. */
+    static Plan previewEdit(SpatialBlocksComponent source, int blockId, SpatialBlockData replacement,
+                            TiledMapLayerData map, SpatialWallThicknessPropagation.Prepared prepared) {
+        Array<SpatialBlockData> after=copyWalls(source);
+        int index=prepared.positions.get(blockId,-1); SpatialBlockData old=source.blocks.get(index);
+        SpatialBlockData edited=replacement.copy();edited.id=blockId;edited.structureId=old.structureId;
+        after.set(index,edited);
+        for(SpatialBlockData wall:after) if(wall.structureId==old.structureId) {
+            wall.height=edited.height;wall.altitude=edited.altitude;
+        }
+        boolean horizontal=SpatialWallAttachments.determineAxis(old)==SpatialWallAttachments.Axis.HORIZONTAL;
+        if(Float.compare(horizontal?old.depth:old.width,horizontal?edited.depth:edited.width)!=0) {
+            String error=SpatialWallThicknessPropagation.apply(source.blocks,after,source.links,blockId,prepared);
+            if(error!=null)return invalid(error,after);
+        }
+        for(SpatialBlockData wall:after) if(wall.structureId==old.structureId) {
+            SpatialWallAuthoringValidator.Result validation=SpatialWallAuthoringValidator.validateWall(wall,map);
+            if(!validation.isValid())return invalid(validation.detail,after);
+        }
+        try {SpatialBlockLinks.validate(after,source.links);} catch(IllegalArgumentException error) {return invalid(error.getMessage(),after);}
+        for(int[] pair:prepared.nearby) {
+            SpatialBlockData a=after.get(pair[0]),b=after.get(pair[1]);
+            SpatialWallGeometry.JunctionClassification classification=SpatialWallGeometry.classifyJunction(a,b,
+                    new SpatialWallGeometry.Bounds(),new SpatialWallGeometry.Bounds(),new SpatialWallGeometry.Junction());
+            if(a.structureId==b.structureId && (classification==SpatialWallGeometry.JunctionClassification.DUPLICATE || classification==SpatialWallGeometry.JunctionClassification.CONTAINMENT || classification==SpatialWallGeometry.JunctionClassification.INVALID))
+                return invalid("Duplicate or contained authored wall rectangles are invalid.",after);
+            if(prepared.connected(a.id,b.id) && !SpatialBlockLinks.overlap(a,b)
+                    && SpatialLinkProposal.edgeIndex(source.links,a.id,b.id)<0)
+                return invalid("An established junction would be removed.",after);
+        }
+        return valid(after);
     }
 
     public static Plan validate(SpatialBlocksComponent component, TiledMapLayerData map) {
         Array<SpatialBlockData> walls = copyWalls(component);
+        Array<SpatialBlockLink> links = component != null ? component.links : new Array<>(SpatialBlockLink.class);
         String wallFailure = validateWalls(walls, map);
         if (wallFailure != null) return invalid(wallFailure, walls);
-        List<List<SpatialBlockData>> components = connectedComponents(walls, true);
+        try { SpatialBlockLinks.validate(walls, links); }
+        catch (IllegalArgumentException failure) { return invalid(failure.getMessage(), walls); }
+        List<List<SpatialBlockData>> components = connectedComponents(walls, links, true);
         if (components == null) return invalid("Duplicate or contained authored wall rectangles are invalid.", walls);
         Map<Integer, Integer> componentByStructure = new HashMap<>();
         for (int c = 0; c < components.size(); c++) {
@@ -112,12 +163,12 @@ public final class SpatialStructureTopology {
         return copy;
     }
 
-    private static Plan normalize(Array<SpatialBlockData> before,
+    public static Plan normalize(Array<SpatialBlockData> before,
                                   Array<SpatialBlockData> after,
-                                  TiledMapLayerData map) {
+                                  Array<SpatialBlockLink> links, TiledMapLayerData map) {
         String wallFailure = validateWallsIgnoringStructure(after, map);
         if (wallFailure != null) return invalid(wallFailure, after);
-        List<List<SpatialBlockData>> components = connectedComponents(after, true);
+        List<List<SpatialBlockData>> components = connectedComponents(after, links, true);
         if (components == null) return invalid("Duplicate or contained authored wall rectangles are invalid.", after);
 
         int nextStructureId = maxStructureId(before);
@@ -175,12 +226,13 @@ public final class SpatialStructureTopology {
             }
         }
         after.sort(Comparator.comparingInt(wall -> wall.id));
-        return validateArray(after, map);
+        return validateArray(after, links, map);
     }
 
-    private static Plan validateArray(Array<SpatialBlockData> walls, TiledMapLayerData map) {
+    private static Plan validateArray(Array<SpatialBlockData> walls, Array<SpatialBlockLink> links, TiledMapLayerData map) {
         SpatialBlocksComponent component = new SpatialBlocksComponent();
         component.blocks = walls;
+        component.links = links;
         return validate(component, map);
     }
 
@@ -207,7 +259,7 @@ public final class SpatialStructureTopology {
     }
 
     private static List<List<SpatialBlockData>> connectedComponents(Array<SpatialBlockData> walls,
-                                                                     boolean rejectInvalidIntersections) {
+                                                                     Array<SpatialBlockLink> links, boolean rejectInvalidIntersections) {
         List<SpatialBlockData> ordered = new ArrayList<>();
         for (int i = 0; i < walls.size; i++) ordered.add(walls.get(i));
         ordered.sort(Comparator.comparingInt(wall -> wall.id));
@@ -229,6 +281,14 @@ public final class SpatialStructureTopology {
                     adjacent[j][i] = true;
                 }
             }
+        }
+        Map<Integer, Integer> indexById = new HashMap<>();
+        for (int i = 0; i < count; i++) indexById.put(ordered.get(i).id, i);
+        if (links != null) for (SpatialBlockLink link : links) {
+            if (link == null) return null;
+            Integer aIndex = indexById.get(link.firstBlockId), bIndex = indexById.get(link.secondBlockId);
+            if (aIndex == null || bIndex == null) return null;
+            adjacent[aIndex][bIndex] = adjacent[bIndex][aIndex] = true;
         }
         List<List<SpatialBlockData>> components = new ArrayList<>();
         boolean[] visited = new boolean[count];

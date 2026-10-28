@@ -2,7 +2,6 @@ package games.pixscape.studio.service.atlas;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.tools.texturepacker.TexturePacker;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.InternalAssets;
@@ -19,6 +18,12 @@ public final class SceneAtlasLoaderService {
     private SceneAtlasLoaderService() {
     }
 
+    public static final class InputsChangedDuringPackException extends IllegalStateException {
+        public InputsChangedDuringPackException(String sceneTag) {
+            super("Scene atlas inputs changed during pack: " + sceneTag);
+        }
+    }
+
     /**
      * Packs the scene atlas.
      */
@@ -28,10 +33,11 @@ public final class SceneAtlasLoaderService {
         FileHandle atlasesRoot = projectDir.child(StudioFs.DIR_ATLASES);
         atlasesRoot.mkdirs();
 
-        packSceneAtlasToDirectory(cfg, canonicalTag, projectDir, atlasesRoot);
+        AtlasStudioService.repackImportedScenes(cfg,projectDir,java.util.Set.of(canonicalTag),()->{},()->{},
+                SceneAtlasLoaderService::packSceneAtlasToDirectory);
     }
 
-    public static void packSceneAtlasToDirectory(ProjectConfig cfg,
+    public static SceneAtlasCoverage.Validation packSceneAtlasToDirectory(ProjectConfig cfg,
                                                  String canonicalTag,
                                                  FileHandle projectDir,
                                                  FileHandle outputDir) {
@@ -57,24 +63,25 @@ public final class SceneAtlasLoaderService {
                 InternalAssets.copyWhitePixelTo(whitePixel);
             }
 
-            TexturePacker.Settings settings = new TexturePacker.Settings();
-            settings.maxWidth = 2048;
-            settings.maxHeight = 2048;
-            settings.minWidth = 2048;
-            settings.minHeight = 2048;
-            settings.duplicatePadding = true;
-            settings.edgePadding = true;
-            settings.combineSubdirectories = true;
-            settings.silent = true;
-
-            TexturePacker.process(
-                    settings,
-                    inputDir.path(),
-                    outputDir.path(),
-                    canonicalTag
-            );
+            final String packedTag = canonicalTag;
+            SceneAtlasCoverage.Validation validation = packWithInputSnapshot(
+                    inputDir, outputDir.child(canonicalTag + ".atlas"), canonicalTag,
+                    () -> {
+                        AtlasPackingService.packScene(inputDir,outputDir,packedTag);
+                        NormalAtlasPackingService.pack(inputDir,outputDir,packedTag);
+                    });
             Gdx.app.log("SceneAtlasLoader", "Scene atlas packed: scene=" + canonicalTag);
+            return validation;
         }
+    }
+
+    static SceneAtlasCoverage.Validation packWithInputSnapshot(
+            FileHandle inputDir, FileHandle atlasFile, String sceneTag, Runnable pack) {
+        SceneAtlasCoverage.InputSnapshot before = SceneAtlasCoverage.snapshot(inputDir);
+        pack.run();
+        SceneAtlasCoverage.InputSnapshot after = SceneAtlasCoverage.snapshot(inputDir);
+        if (!before.sameFiles(after)) throw new InputsChangedDuringPackException(sceneTag);
+        return SceneAtlasCoverage.validate(before, atlasFile);
     }
 
     /**
@@ -111,7 +118,6 @@ public final class SceneAtlasLoaderService {
         }
 
         // 2) Load
-        atlasRuntimeService.unload(canonicalTag);
         atlasRuntimeService.load(canonicalTag, atlasFile);
 
         // 3) Rebind after atlas is ready

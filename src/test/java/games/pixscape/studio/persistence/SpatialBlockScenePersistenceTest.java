@@ -10,12 +10,12 @@ import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.spatial.CompiledSpatialStructure;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.spatial.SpatialStructureCompiler;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.service.SceneService;
@@ -26,6 +26,171 @@ import org.junit.Test;
 import java.io.File;
 
 public class SpatialBlockScenePersistenceTest {
+    @Test public void verticalJoinSurvivesStudioSaveRuntimeExportAndReload() throws Exception {
+        World world=worldWithSerialization();
+        for(int i=0;i<2;i++) {
+            int map=world.create();world.getMapper(PixscapeIdentityComponent.class).create(map).stableId=i+1;
+            games.pixscape.runtime.component.TiledLayerComponent tiled=world.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).create(map);
+            tiled.projection=TiledProjection.ISO;tiled.tileWidth=32;tiled.tileHeight=16;
+            tiled.mapWidthCells=16;tiled.mapHeightCells=8;tiled.chunkSize=4;tiled.defaultTileAltitude=i*80;
+            tiled.originY=i*80;tiled.defaultTileHeight=90;tiled.data=tiled.createMapData();
+            for(int y=0;y<8;y++)for(int x=0;x<16;x++)tiled.data.setTile(x,y,1);
+            SpatialBlocksComponent blocks=world.getMapper(SpatialBlocksComponent.class).create(map);blocks.nextSpatialBlockId=2;
+            SpatialBlockData wall=new SpatialBlockData();wall.id=wall.structureId=1;wall.x=1;wall.y=i==0?2:2.05f;
+            wall.width=3;wall.depth=i==0?.2f:.3f;wall.altitude=i*80;wall.height=i==0?60:90;
+            wall.beginAuthoredLinkedTileRefs();for(int x=1;x<4;x++)wall.addLinkedTileRef(x,2,1);blocks.blocks.add(wall);
+        }
+        world.process();var search=games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal.search(world,0,1);
+        Assert.assertEquals(1,search.candidates.size);
+        var proposal=games.pixscape.studio.service.spatial.SpatialVerticalJoinProposal.create(world,search.selected,1,search.candidates.first());
+        Assert.assertTrue(proposal.diagnostic,proposal.valid);
+        var history=new games.pixscape.studio.history.HistoryManager(8);
+        var command=new games.pixscape.studio.history.commands.SpatialVerticalJoinCommand(world,history.historyIds(),proposal);
+        history.execute(command);Assert.assertTrue(command.rejectionReason(),command.wasApplied());
+        java.nio.file.Path projectDir=java.nio.file.Files.createTempDirectory("vertical-join-studio");
+        java.nio.file.Path exportDir=java.nio.file.Files.createTempDirectory("vertical-join-runtime");
+        FileHandle project=new FileHandle(projectDir.toFile());project.child("scenes").mkdirs();
+        SceneService.saveScene(world,project.child("scenes/scene1.json"),false);
+        var config=new games.pixscape.studio.configuration.ProjectConfig();config.projectFileName="vertical-join";config.projectTitle="Vertical join";
+        config.exportRootPathDir=exportDir.toString();config.createSceneMeta("Main");config.getCurrentSceneMeta().nextEntityStableId=3;
+        new games.pixscape.studio.asset.AssetMetaDatabase().save(project.child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON));
+        games.pixscape.studio.configuration.RuntimeExport.exportRuntime(config,project,new FileHandle(exportDir.toFile()));
+        World loaded=worldWithSerialization();SceneMetaRuntime meta=sceneMeta();meta.nextEntityStableId=3;
+        try {
+            SceneLoader.loadScene(loaded,new FileHandle(exportDir.toFile()).child("pixscape-project/scenes/scene1.json"),false,meta);loaded.process();
+            IntBag maps=loaded.getAspectSubscriptionManager().get(Aspect.all(PixscapeIdentityComponent.class,SpatialBlocksComponent.class)).getEntities();
+            Assert.assertEquals(2,maps.size());
+            for(int i=0;i<maps.size();i++) {
+                int e=maps.get(i),stable=loaded.getMapper(PixscapeIdentityComponent.class).get(e).stableId;
+                var blocks=loaded.getMapper(SpatialBlocksComponent.class).get(e);
+                var tiled=loaded.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).get(e);
+                Assert.assertEquals(0,blocks.links.size);
+                if(stable==1){Assert.assertEquals(80,blocks.blocks.first().height,0);Assert.assertEquals(80,tiled.defaultTileHeight,0);
+                    Assert.assertEquals(2.05f,blocks.blocks.first().y,.0001f);Assert.assertEquals(.3f,blocks.blocks.first().depth,.0001f);}
+                else {Assert.assertEquals(80,blocks.blocks.first().altitude,0);Assert.assertEquals(90,blocks.blocks.first().height,0);Assert.assertEquals(80,tiled.defaultTileAltitude,0);}
+            }
+        } finally {loaded.dispose();world.dispose();}
+    }
+    @Test
+    public void voluntaryBorderSurvivesRealStudioSaveExportAndRuntimeLoad() throws Exception {
+        World world = worldWithSerialization();
+        int map = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(map).stableId = 1;
+        SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(map);
+        blocks.nextSpatialBlockId = 3;
+        for (int i = 0; i < 2; i++) {
+            SpatialBlockData wall = new SpatialBlockData();
+            wall.id = i + 1; wall.structureId = 1; wall.x = i == 0 ? 1 : 4;
+            wall.y = 1; wall.width = i == 0 ? 3 : 2; wall.depth = .3f; wall.height = 90;
+            wall.beginAuthoredLinkedTileRefs();
+            for (int gx = (int)wall.x; gx < wall.x + wall.width; gx++) wall.addLinkedTileRef(gx, 1, 1);
+            blocks.blocks.add(wall);
+        }
+        blocks.links.add(new games.pixscape.runtime.spatial.SpatialBlockLink(1, 2, 2, 1));
+        world.process();
+        FileHandle file = tempSceneFile("voluntary-border-roundtrip");
+        SceneService.saveScene(world, file, false);
+        java.nio.file.Path projectDir = java.nio.file.Files.createTempDirectory("voluntary-link-export-studio");
+        java.nio.file.Path exportDir = java.nio.file.Files.createTempDirectory("voluntary-link-export-runtime");
+        games.pixscape.studio.configuration.ProjectConfig cfg = new games.pixscape.studio.configuration.ProjectConfig();
+        cfg.projectTitle = "Voluntary link export";
+        cfg.projectFileName = "voluntary-link-export";
+        cfg.exportRootPathDir = exportDir.toString();
+        cfg.createSceneMeta("Main");
+        FileHandle project = new FileHandle(projectDir.toFile());
+        project.child(games.pixscape.studio.io.StudioFs.DIR_SCENES).mkdirs();
+        FileHandle exportedScene = project.child(games.pixscape.studio.io.StudioFs.DIR_SCENES).child("scene1.json");
+        file.copyTo(exportedScene);
+        new games.pixscape.studio.asset.AssetMetaDatabase().save(project.child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON));
+        games.pixscape.studio.configuration.RuntimeExport.exportRuntime(cfg, project, new FileHandle(exportDir.toFile()));
+        file = new FileHandle(exportDir.toFile()).child(games.pixscape.studio.configuration.RuntimeExport.RUNTIME_DIR_NAME)
+                .child(games.pixscape.studio.io.StudioFs.DIR_SCENES).child("scene1.json");
+        Assert.assertTrue(file.exists());
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, sceneMeta()); loaded.process();
+            int id = loaded.getAspectSubscriptionManager().get(Aspect.all(SpatialBlocksComponent.class)).getEntities().get(0);
+            SpatialBlocksComponent restored = loaded.getMapper(SpatialBlocksComponent.class).get(id);
+            Assert.assertEquals(1, restored.links.size);
+            Assert.assertEquals(1, restored.links.first().firstBlockId);
+            Assert.assertEquals(2, restored.links.first().secondBlockId);
+            Assert.assertEquals(4, SpatialStructureCompiler.compile(restored.blocks, restored.links, 1).segmentCount());
+        } finally { loaded.dispose(); world.dispose(); }
+    }
+
+    @Test
+    public void lightingPlacementAndLocalGeometrySurviveActualSceneSaveLoad() {
+        World world = worldWithSerialization();
+        int entity = world.create();
+        world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = 1;
+        games.pixscape.runtime.component.SurfaceLightingComponent surface = world.getMapper(
+                games.pixscape.runtime.component.SurfaceLightingComponent.class).create(entity);
+        surface.shadowCaster = true;
+        surface.anchorV = .25f;
+        surface.altitude = 42f;
+        games.pixscape.runtime.render.lighting.LocalSurfaceDescription description =
+                new games.pixscape.runtime.render.lighting.LocalSurfaceDescription();
+        description.xyz = new float[]{0, 0, 0, 1, 0, 0, 0, 1, 0};
+        description.uv = new float[]{0, 0, 1, 0, 0, 1};
+        description.normals = new float[]{0, 0, 1, 0, 0, 1, 0, 0, 1};
+        description.triangles = new int[]{0, 1, 2};
+        description.shadowCaster = true;
+        surface.description = description;
+        games.pixscape.runtime.component.TiledLayerComponent map = world.getMapper(
+                games.pixscape.runtime.component.TiledLayerComponent.class).create(entity);
+        map.projection = TiledProjection.ISO;
+        map.tileWidth = 64;
+        map.tileHeight = 32;
+        map.mapWidthCells = map.mapHeightCells = 4;
+        map.chunkSize = 4;
+        map.defaultTileAltitude = 128;
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription tile =
+                new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+        tile.assetId = 17;
+        tile.geometry = description.copy();
+        map.lightingDescriptions.add(tile);
+        games.pixscape.runtime.render.lighting.TileSurfaceDescription rounded=new games.pixscape.runtime.render.lighting.TileSurfaceDescription();
+        rounded.assetId=18;rounded.rounded=new games.pixscape.runtime.render.lighting.RoundedWallDescription();
+        rounded.rounded.centerGX=1.25f;map.lightingDescriptions.add(rounded);
+        games.pixscape.runtime.component.light.PointLightComponent light = world.getMapper(
+                games.pixscape.runtime.component.light.PointLightComponent.class).create(entity);
+        light.height = 224;
+        light.shadowQuality = 2;
+        light.shadowResolution = 1024;
+        world.process();
+        FileHandle file = tempSceneFile("lighting-scene-roundtrip");
+        SceneService.saveScene(world, file, false);
+        World loaded = worldWithSerialization();
+        try {
+            SceneLoader.loadScene(loaded, file, false, sceneMeta());
+            loaded.process();
+            int restoredId = loaded.getAspectSubscriptionManager().get(Aspect.all(
+                    games.pixscape.runtime.component.SurfaceLightingComponent.class)).getEntities().get(0);
+            games.pixscape.runtime.component.SurfaceLightingComponent restored = loaded.getMapper(
+                    games.pixscape.runtime.component.SurfaceLightingComponent.class).get(restoredId);
+            Assert.assertTrue(restored.shadowCaster);
+            Assert.assertEquals(.25f, restored.anchorV, 0);
+            Assert.assertEquals(42f, restored.altitude, 0);
+            restored.description.validate();
+            games.pixscape.runtime.component.TiledLayerComponent restoredMap = loaded.getMapper(
+                    games.pixscape.runtime.component.TiledLayerComponent.class).get(restoredId);
+            Assert.assertEquals(map.defaultTileAltitude, restoredMap.defaultTileAltitude, 0);
+            Assert.assertEquals(17, restoredMap.lightingDescriptions.first().assetId);
+            restoredMap.lightingDescriptions.first().geometry.validate();
+            Assert.assertEquals(2,restoredMap.lightingDescriptions.size);
+            Assert.assertEquals(1.25f,restoredMap.lightingDescriptions.get(1).rounded.centerGX,0);
+            restoredMap.lightingDescriptions.get(1).validate();
+            games.pixscape.runtime.component.light.PointLightComponent restoredLight = loaded.getMapper(
+                    games.pixscape.runtime.component.light.PointLightComponent.class).get(restoredId);
+            Assert.assertEquals(224, restoredLight.height, 0);
+            Assert.assertEquals(2, restoredLight.shadowQuality);
+            Assert.assertEquals(1024, restoredLight.shadowResolution);
+        } finally {
+            loaded.dispose();
+            world.dispose();
+        }
+    }
+
     @Test
     public void layerCreatedThroughLayerServiceWithSpatialBlockLoadsSuccessfully() {
         World world = worldWithSerialization();

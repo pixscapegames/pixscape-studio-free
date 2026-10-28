@@ -135,6 +135,20 @@ public final class MultiTextureMeshBatchStudio implements MetricsBatch {
     }
 
     @Override
+    public void abort() {
+        vertCount = 0;
+        quadCount = 0;
+        shader = null;
+        stats = null;
+        texToUnit.clear();
+        unitsInUse = 0;
+        Arrays.fill(unitHandle, -1);
+        Gdx.gl.glActiveTexture(GL20.GL_TEXTURE0);
+        Gdx.gl.glDepthMask(true);
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+    }
+
+    @Override
     public void close() {
         mesh.dispose();
     }
@@ -157,10 +171,15 @@ public final class MultiTextureMeshBatchStudio implements MetricsBatch {
     }
 
     @Override
-    public void setBlendMode(boolean enabled, int srcFunc, int dstFunc, RenderStats stats) {
+    public void setBlendMode(boolean enabled, int src, int dst, RenderStats stats) {
+        setBlendMode(enabled, src, dst, src, dst, stats);
+    }
+
+    @Override
+    public void setBlendMode(boolean enabled, int src, int dst, int srcAlpha, int dstAlpha, RenderStats stats) {
         if (enabled) {
             Gdx.gl.glEnable(GL20.GL_BLEND);
-            Gdx.gl.glBlendFunc(srcFunc, dstFunc);
+            Gdx.gl.glBlendFuncSeparate(src, dst, srcAlpha, dstAlpha);
         } else {
             Gdx.gl.glDisable(GL20.GL_BLEND);
         }
@@ -311,6 +330,8 @@ public final class MultiTextureMeshBatchStudio implements MetricsBatch {
         if (s != null) {
             s.flushes++;
             s.drawCalls++;
+            s.bufferUploads++;s.bufferUploadBytes+=(long)vertCount*VERT_STRIDE*4;
+            s.uploadedVertices+=vertCount;s.drawnIndices+=quadCount*6;
         }
 
         vertCount = 0;

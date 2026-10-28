@@ -21,18 +21,20 @@ public class CanvasModeIndicatorTest {
     }
 
     @Test
-    public void mapsAllFiveLabelsExactly() {
+    public void mapsAllModeLabelsExactly() {
         Assert.assertEquals("Normal", CanvasModeIndicator.displayName(StudioEditingMode.NORMAL));
         Assert.assertEquals("Physics", CanvasModeIndicator.displayName(StudioEditingMode.PHYSICS));
         Assert.assertEquals("Spatial", CanvasModeIndicator.displayName(StudioEditingMode.SPATIAL));
         Assert.assertEquals("Tiled", CanvasModeIndicator.displayName(StudioEditingMode.TILED));
         Assert.assertEquals("Lights", CanvasModeIndicator.displayName(StudioEditingMode.LIGHTS));
+        Assert.assertEquals("HUD", CanvasModeIndicator.displayName(StudioEditingMode.HUD));
     }
 
     @Test
-    public void isNonInteractiveAndUpdatesStyleFromTheEvent() {
+    public void sceneModeIsNonBlockingAndUpdatesStyleFromTheEvent() {
         EventFlow.i().flush();
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         CanvasModeIndicator indicator = new CanvasModeIndicator(service);
         try {
             Assert.assertEquals(Touchable.disabled, indicator.getTouchable());
@@ -52,6 +54,7 @@ public class CanvasModeIndicatorTest {
     public void showsCurrentTiledCoordinatesAndClearsInvalidCoordinates() {
         EventFlow.i().flush();
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         CanvasModeIndicator indicator = new CanvasModeIndicator(service);
         try {
             service.reset(1);
@@ -77,6 +80,37 @@ public class CanvasModeIndicatorTest {
             service.setMode(StudioEditingMode.TILED, 1);
             EventFlow.i().flush();
             Assert.assertEquals("Mode: Tiled    Tile: (-, -)", indicator.getDisplayedText());
+        } finally {
+            indicator.dispose();
+        }
+    }
+
+    @Test
+    public void visibilityFollowsNoneSceneHudDocumentContext() {
+        EventFlow.i().flush();
+        StudioEditingModeService service = new StudioEditingModeService();
+        CanvasModeIndicator indicator = new CanvasModeIndicator(service);
+        try {
+            Assert.assertFalse(indicator.isVisible());
+
+            service.activateSceneDocument(StudioEditingMode.NORMAL, 1);
+            EventFlow.i().flush();
+            Assert.assertTrue(indicator.isVisible());
+            Assert.assertEquals("Mode: Normal", indicator.getDisplayedText());
+
+            service.setMode(StudioEditingMode.TILED, 1);
+            EventFlow.i().flush();
+            Assert.assertTrue(indicator.isVisible());
+            Assert.assertEquals("Mode: Tiled    Tile: (-, -)", indicator.getDisplayedText());
+
+            service.activateHudDocument(1);
+            EventFlow.i().flush();
+            Assert.assertTrue(indicator.isVisible());
+            Assert.assertEquals("MODE: HUD", indicator.getDisplayedText());
+
+            service.deactivateDocument(1);
+            EventFlow.i().flush();
+            Assert.assertFalse(indicator.isVisible());
         } finally {
             indicator.dispose();
         }

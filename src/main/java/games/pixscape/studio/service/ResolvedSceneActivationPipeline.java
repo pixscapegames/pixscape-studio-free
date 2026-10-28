@@ -13,8 +13,8 @@ import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.Box2dSyncSystem;
-import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.TileChunk;
+import games.pixscape.runtime.tiled.TiledMapOwnership;
 import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.studio.component.LayerMetaComponent;
@@ -73,6 +73,7 @@ final class ResolvedSceneActivationPipeline {
         sceneLoader.load(world, target.sceneFile(), false, target.meta());
         normalizeSceneAtlasTags(target.canonicalTag());
         world.process();
+        if(target.meta().forwardLighting)games.pixscape.runtime.render.lighting.ActiveLights.validateForward(world);
         // Populate all persisted bounds through the normal dirty-driven geometry system.
         SceneLoader.forceFullRenderDirty(world);
         resolveTiledLayersForActivation(
@@ -285,6 +286,7 @@ final class ResolvedSceneActivationPipeline {
         var em = world.getEntityManager();
         ensureHistoryIds(world, historyIds, em, Aspect.all(LayerComponent.class, LayerMetaComponent.class));
         ensureHistoryIds(world, historyIds, em, Aspect.all(EntityIndexComponent.class));
+        historyManager.refreshSceneLighting();
     }
 
     private static void ensureHistoryIds(World world,

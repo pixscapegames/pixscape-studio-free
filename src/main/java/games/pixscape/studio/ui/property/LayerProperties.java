@@ -17,10 +17,14 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.*;
+import games.pixscape.studio.history.commands.Command;
+import games.pixscape.studio.history.commands.ToggleSpatialActorLayerCommand;
 import games.pixscape.studio.service.LayerService;
 import games.pixscape.studio.ui.config.CommonLayout;
-import games.pixscape.studio.ui.widget.*;
+import games.pixscape.studio.ui.widget.CollapsibleVisTable;
+import games.pixscape.studio.ui.widget.TextField;
+import games.pixscape.studio.ui.widget.UiBinders;
+import games.pixscape.studio.ui.widget.UiFieldFactory;
 
 public class LayerProperties extends VisTable {
 

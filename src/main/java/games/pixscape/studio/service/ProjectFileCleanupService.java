@@ -38,6 +38,8 @@ public final class ProjectFileCleanupService {
         if (inputDir.exists()) {
             deleteDirectoryQuietly(inputDir);
         }
+        FileHandle normalInput=games.pixscape.studio.service.atlas.NormalAtlasPackingService.input(inputDir);
+        if(normalInput.exists())deleteDirectoryQuietly(normalInput);
     }
 
     public static void deleteFileAndBackups(FileHandle file) {
@@ -49,6 +51,10 @@ public final class ProjectFileCleanupService {
     }
 
     public static boolean isSceneAtlasFile(String sceneTag, String fileName) {
+        if (sceneTag == null || sceneTag.isBlank()) return false;
+        return isAtlasPageFile(sceneTag,fileName) || isAtlasPageFile(sceneTag+games.pixscape.runtime.service.NormalMapAtlas.SUFFIX,fileName);
+    }
+    private static boolean isAtlasPageFile(String sceneTag,String fileName) {
         if (sceneTag == null || sceneTag.isBlank()) return false;
         if (fileName == null || fileName.isBlank()) return false;
 

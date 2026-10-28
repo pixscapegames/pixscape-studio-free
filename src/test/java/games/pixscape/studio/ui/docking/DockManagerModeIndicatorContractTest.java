@@ -19,6 +19,7 @@ public class DockManagerModeIndicatorContractTest {
         assertTrue(source.contains("centerStack.add(rulersAndCanvasPlaceholder);"));
         assertTrue(source.contains("centerStack.add(modeOverlay);"));
         assertTrue(source.contains("modeOverlay.setTouchable(Touchable.disabled);"));
+        assertTrue(source.contains("rightSplit.setTouchable(Touchable.childrenOnly);"));
         assertTrue(source.contains("(rulersVisible ? RulerActor.TOP_HEIGHT : 0f) + 5f"));
         assertTrue(source.contains("modeOverlay.add().width(RulerActor.LEFT_WIDTH);"));
         assertFalse(methodBody(source, "private void rebuildLayout()").contains("new CanvasModeIndicator"));

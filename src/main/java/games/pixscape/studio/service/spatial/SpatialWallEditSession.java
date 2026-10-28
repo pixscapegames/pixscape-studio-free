@@ -14,6 +14,33 @@ public final class SpatialWallEditSession {
     private static final int CLAMP_ITERATIONS = 16;
 
     private boolean active;
+    private SpatialWallThicknessPropagation.Prepared prepared;
+    private SpatialWallContactGuard guard;
+    private boolean gesture;
+    private float defaultHeight;
+    private SpatialLinkProposal linkProposal;
+    private String linkDescription;
+    private int proposalBuilds;
+    private String commitMessage;
+    private String commitTitle = "Edit Spatial Wall";
+    private int manipulatedFaces;
+    private int mapContentRevision;
+    private float mapOriginX,mapOriginY,mapAltitude;
+
+    public void configureGesture(float height, float xx, float xy, float yx, float yy) {
+        gesture=true; defaultHeight=height; guard.metrics(xx,xy,yx,yy);
+    }
+    public SpatialLinkProposal gestureProposal() { return guard!=null && guard.armed ? linkProposal : null; }
+    public int proposalBuilds() { return proposalBuilds; }
+    public String commitMessage() { return commitMessage; }
+    public String commitTitle() { return commitTitle; }
+    public String gestureMessage() {
+        if(guard==null || guard.referenceId==0) return null;
+        if(guard.ambiguous) return "Ambiguous contact: volumes stay independent. Use Lier from the menu.";
+        if(!guard.armed) return "Contact: independent volumes. Push 12 logical pixels to propose Lier.";
+        return linkDescription;
+    }
+
     private int layerEntityId = SpatialBlockSelectionService.NO_MAP;
     private int wallId = SpatialBlockSelectionService.NO_BLOCK;
     private SpatialBlocksComponent committed;
@@ -38,9 +65,13 @@ public final class SpatialWallEditSession {
         this.wallId = wallId;
         this.committed = detached(source);
         this.map = map;
+        mapContentRevision=map.contentRevision();mapOriginX=map.originX;mapOriginY=map.originY;mapAltitude=map.defaultTileAltitude;
         this.before = selected.copy();
         this.candidate = before.copy();
         this.attachments = SpatialWallAttachments.derive(this.committed, find(this.committed, wallId));
+        prepared=SpatialWallThicknessPropagation.prepare(committed.blocks,committed.links,wallId);
+        guard=new SpatialWallContactGuard(committed,before);
+        commitMessage=null;commitTitle="Edit Spatial Wall";manipulatedFaces=0;proposalBuilds=0;
         Evaluation initial = evaluate(candidate, false);
         if (!initial.valid) {
             cancel();
@@ -54,6 +85,7 @@ public final class SpatialWallEditSession {
 
     public boolean updateMove(float dx, float dy) {
         if (!active) return false;
+        manipulatedFaces=15;
         SpatialBlockData requested = before.copy();
         if (attachments.isAttached()) {
             if (!attachments.canSlide()) return reject("The established junctions have no common slide range.");
@@ -61,23 +93,27 @@ public final class SpatialWallEditSession {
             delta = attachments.clampSlideDelta(delta);
             requested.x = before.x + (attachments.slideAxis() == SpatialWallAttachments.Axis.HORIZONTAL ? delta : 0f);
             requested.y = before.y + (attachments.slideAxis() == SpatialWallAttachments.Axis.VERTICAL ? delta : 0f);
-        } else if (!SpatialBlockInteractiveEditSupport.move(requested, before, dx, dy)) {
-            return publish(evaluate(before, false), null);
-        }
-        if (sameFootprint(requested, before)) return publish(evaluate(before, false), null);
-        return publish(evaluate(requested, true), "Wall move is not a valid Spatial V3 edit.");
+        } else SpatialBlockInteractiveEditSupport.move(requested, before, dx, dy);
+        SpatialBlockData raw=before.copy();raw.x+=dx;raw.y+=dy;
+        return guarded(requested,raw);
     }
 
     public boolean updateResize(SpatialBlockInteractiveEditSupport.ResizeHandle handle, float gx, float gy) {
         if (!active || handle == null) return false;
         if (!isHandleEnabled(handle)) return reject("This resize handle is locked by an established junction.");
 
+        manipulatedFaces=(handleMovesMinX(handle)?1:0) | (handleMovesMaxX(handle)?2:0)
+                | (handleMovesMinY(handle)?4:0) | (handleMovesMaxY(handle)?8:0);
         SpatialBlockData requested = before.copy();
-        if (!SpatialBlockInteractiveEditSupport.resize(requested, before, handle, gx, gy)) {
-            return publish(evaluate(before, false), null);
-        }
+        SpatialBlockInteractiveEditSupport.resize(requested, before, handle, gx, gy);
+        SpatialBlockData raw=before.copy();
+        if(handleMovesMinX(handle)){raw.x=gx;raw.width=before.x+before.width-gx;}
+        if(handleMovesMaxX(handle))raw.width=gx-before.x;
+        if(handleMovesMinY(handle)){raw.y=gy;raw.depth=before.y+before.depth-gy;}
+        if(handleMovesMaxY(handle))raw.depth=gy-before.y;
+        if(guard.referenceId>0 || sameFootprint(requested,candidate))return guarded(requested,raw);
         Evaluation requestedEvaluation = evaluate(requested, false);
-        if (requestedEvaluation.valid) return publish(requestedEvaluation, null);
+        if (requestedEvaluation.valid) return guarded(requested,raw);
 
         SpatialBlockData best = before.copy();
         Evaluation bestEvaluation = evaluate(best, false);
@@ -95,6 +131,7 @@ public final class SpatialWallEditSession {
                 high = amount;
             }
         }
+        if (!sameFootprint(best,before)) return guarded(best,raw);
         return publish(bestEvaluation,
                 sameFootprint(best, before) ? "No junction-preserving resize range is available."
                         : "Resize stopped at the junction-preserving boundary.");
@@ -109,6 +146,7 @@ public final class SpatialWallEditSession {
 
     public boolean updateProperty(Float x, Float y, Float width, Float depth) {
         if (!active) return false;
+        manipulatedFaces=15;
         SpatialBlockData requested = before.copy();
         if (x != null) requested.x = x;
         if (y != null) requested.y = y;
@@ -135,21 +173,91 @@ public final class SpatialWallEditSession {
         return publish(evaluate(requested, true), "The requested footprint would break an established junction.");
     }
 
-    public boolean commit(World world, HistoryManager history, SpatialBlockSelectionService selection) {
-        if (!active || !candidateValid || world == null || history == null) {
-            cancel();
-            return false;
+    private boolean guarded(SpatialBlockData requested, SpatialBlockData raw) {
+        if(guard.referenceId==0 && sameFootprint(requested,candidate) && sameFootprint(raw,candidate))return candidateValid;
+        if(guard.referenceId>0) {
+            float pixels=guard.overshoot(raw,candidate);
+            if(pixels>=-0.001f) {
+                guard.intention(pixels,manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();return candidateValid;
+            }
+            guard.referenceId=0;guard.armed=false;linkProposal=null;linkDescription=null;
         }
-        EditSpatialBlockCommand command = new EditSpatialBlockCommand(
-                world, history.historyIds(), selection, layerEntityId, wallId, before, candidate);
-        boolean changed = !command.isNoop();
-        if (changed) history.execute(command);
-        cancel();
-        return changed;
+        if(sameFootprint(requested,candidate)) {
+            // At an envelope boundary the raw mouse can still push against an existing contact.
+            Array<SpatialBlockData> probe=copy(candidateTopology.walls);
+            for(int i=0;i<probe.size;i++) if(probe.get(i).id==wallId)probe.set(i,raw);
+            guard.sweep(candidateTopology.walls,probe,before.structureId);
+            if(guard.referenceId>0 && guard.amount<=0.000001f) {
+                guard.intention(guard.overshoot(raw,candidate),manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();
+            } else guard.referenceId=0;
+            return candidateValid;
+        }
+        Evaluation desired=evaluate(requested,false);
+        if(!desired.valid)return reject(desired.reason);
+        guard.sweep(candidateTopology.walls,desired.plan.walls,before.structureId);
+        if(guard.referenceId>0) {
+            SpatialBlockData stopped=interpolate(candidate,desired.wall,guard.amount);
+            Evaluation contact=evaluate(stopped,false);
+            if(!contact.valid) {guard.referenceId=0;guard.armed=false;return reject(contact.reason);}
+            publish(contact,null);guard.intention(guard.overshoot(raw,candidate),manipulatedFaces==15 ? 0 : wallId,manipulatedFaces);prepareLink();return true;
+        }
+        return publish(desired,null);
+    }
+
+    private SpatialBlocksComponent contactSnapshot() {
+        SpatialBlocksComponent snapshot=detached(committed);snapshot.blocks=copy(candidateTopology.walls);return snapshot;
+    }
+
+    private void prepareLink() {
+        if(!gesture || !guard.armed || guard.ambiguous || linkProposal!=null)return;
+        linkProposal=SpatialLinkProposal.gesture(committed,contactSnapshot(),map,guard.movingId,guard.referenceId,defaultHeight);
+        linkDescription=linkProposal.describe()+(linkProposal.valid
+                ? "\nRelease to apply Lier. Retreat below 6 logical pixels to keep independent." : "");
+        proposalBuilds++;
+    }
+
+    public boolean commit(World world, HistoryManager history, SpatialBlockSelectionService selection) {
+        if(!active || !candidateValid || world==null || history==null) {cancel();return false;}
+        commitTitle=gestureProposal()!=null ? "Lier" : "Edit Spatial Wall";
+        games.pixscape.runtime.component.TiledLayerComponent tiled=world.getMapper(
+                games.pixscape.runtime.component.TiledLayerComponent.class).getSafe(layerEntityId,null);
+        if(gesture && (tiled==null || tiled.data!=map || map.contentRevision()!=mapContentRevision
+                || map.originX!=mapOriginX || map.originY!=mapOriginY || map.defaultTileAltitude!=mapAltitude)) {
+            commitMessage="The map changed during the gesture. Start a new manipulation.";cancel();return false;
+        }
+        boolean changed;
+        if(gesture) {
+            SpatialLinkProposal applied=gestureProposal();
+            if(applied==null || !applied.valid) {
+                if(applied!=null)commitMessage=applied.diagnostic;
+                applied=SpatialLinkProposal.gesture(committed,contactSnapshot(),map,wallId,0,defaultHeight);
+                if(candidate.height!=before.height)applied.defaultHeight=candidate.height;
+            }
+            games.pixscape.studio.history.commands.SpatialBlockLinkCommand command=
+                    new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world,history.historyIds(),layerEntityId,applied);
+            changed=!command.isNoop();if(changed)history.execute(command);
+            changed=changed && command.wasApplied();
+            if(!changed && !command.isNoop()) {
+                commitMessage=command.rejectionReason();
+                if(applied.referenceId>0) {
+                    // A rejected transaction publishes nothing; the contact snapshot has the same stale-state checks.
+                    games.pixscape.studio.history.commands.SpatialBlockLinkCommand safe=
+                            new games.pixscape.studio.history.commands.SpatialBlockLinkCommand(world,history.historyIds(),layerEntityId,
+                                    SpatialLinkProposal.gesture(committed,contactSnapshot(),map,wallId,0,defaultHeight));
+                    if(!safe.isNoop())history.execute(safe);
+                    changed=safe.wasApplied();
+                }
+            }
+        } else {
+            EditSpatialBlockCommand command=new EditSpatialBlockCommand(world,history.historyIds(),selection,layerEntityId,wallId,before,candidate);
+            changed=!command.isNoop();if(changed)history.execute(command);
+        }
+        cancel();return changed;
     }
 
     public void cancel() {
         active = false;
+        prepared=null;guard=null;gesture=false;linkProposal=null;linkDescription=null;
         layerEntityId = SpatialBlockSelectionService.NO_MAP;
         wallId = SpatialBlockSelectionService.NO_BLOCK;
         committed = null;
@@ -207,17 +315,14 @@ public final class SpatialWallEditSession {
     }
 
     private Evaluation evaluate(SpatialBlockData requested, boolean compile) {
-        SpatialStructureTopology.Plan plan = SpatialStructureTopology.edit(committed, wallId, requested, map);
+        SpatialStructureTopology.Plan plan = SpatialStructureTopology.previewEdit(committed, wallId, requested, map, prepared);
         if (!plan.valid) return Evaluation.failure(plan.error);
         SpatialBlocksComponent planned = new SpatialBlocksComponent();
         planned.blocks = copy(plan.walls);
+        planned.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(committed.links);
         SpatialBlockData normalized = find(planned, wallId);
         if (normalized == null || !attachments.preservesAll(normalized, planned)) {
             return Evaluation.failure("The edit would remove an established wall junction.");
-        }
-        if (compile) {
-            SpatialStructureCompilation.Result compilation = SpatialStructureCompilation.tryCompile(plan.walls, map);
-            if (!compilation.success()) return Evaluation.failure(compilation.diagnostic());
         }
         return Evaluation.success(plan, normalized.copy());
     }
@@ -304,6 +409,7 @@ public final class SpatialWallEditSession {
     private static SpatialBlocksComponent detached(SpatialBlocksComponent source) {
         SpatialBlocksComponent result = new SpatialBlocksComponent();
         result.blocks = SpatialStructureTopology.copyWalls(source);
+        result.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(source != null ? source.links : null);
         result.nextSpatialBlockId = source != null ? source.nextSpatialBlockId : 1;
         result.revision = source != null ? source.revision : 0;
         return result;

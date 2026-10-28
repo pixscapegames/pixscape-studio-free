@@ -1,284 +1,84 @@
 <img src="pixscape_logo.png" alt="Pixscape logo" width="80">
 
-<h1>Pixscape Studio Free</h1>
+# Pixscape Studio Free
 
-[![Changelog](https://img.shields.io/badge/changelog-0.2.3-orange.svg)](CHANGELOG.md)<br>
-[![Platforms](https://img.shields.io/badge/platforms-Desktop%20%7C%20Android%20%7C%20HTML5-green.svg)](#)<br>
-[![Java version](https://img.shields.io/badge/Java%20version-21-blue.svg)](#)<br>
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.4.0-orange.svg)](CHANGELOG.md)<br>
+[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20HTML5-green.svg)](#get-started)<br>
+[![Java](https://img.shields.io/badge/Java-25-blue.svg)](#build-from-source)<br>
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)<br>
 
-**Visual authoring for Pixscape, a 2D and 2.5D game engine built on LibGDX.**
+**Create 2.5D worlds from 2D artwork. Build visually. Write gameplay in Java.**
 
-Build your game visually. Write gameplay in Java. Keep using LibGDX.
+Give your sprites and tiles depth with elevated scenery, characters moving in front of and behind walls, dynamic lighting and cast shadows. Pixscape Studio Free brings these tools together in an open-source visual editor built on LibGDX, with support for traditional 2D games too.
 
-🌐 **Website:** https://pixscape.games/  
-📘 **Documentation:** https://pixscape.games/docs  
-⚙️ **Runtime:** https://github.com/pixscapegames/pixscape-runtime  
-📝 **Changelog:** [CHANGELOG.md](CHANGELOG.md)
+[Download Studio](https://pixscape.games/) · [Documentation](https://pixscape.games/docs) · [Runtime](https://github.com/pixscapegames/pixscape-runtime) · [Changelog](CHANGELOG.md)
 
-<p align="center">
-  <img src="assets/readme/pixscape-studio-free.png" alt="Pixscape Studio Free" width="100%">
-</p>
+![Pixscape Studio Free](assets/readme/pixscape-studio-free.png)
 
-## What is Pixscape?
+## Bring your 2D artwork into a 2.5D world
 
-Pixscape is a visual 2D and 2.5D game engine built on LibGDX.
+- **Build depth into your scene.** Author wall volumes, heights and actor footprints. Spatial ordering handles characters moving around the scenery in orthographic and isometric worlds.
+- **Light the world.** Place point and cone lights, cast shadows onto scenery and actors, and add optional normal maps. Position actor shadows with a simple rectangle and contact pivot.
+- **Work directly on the canvas.** Drag in sprites, animations and particles and see them immediately while atlases pack in the background. Edit multiple scenes with undo/redo.
+- **Bring your Tiled maps.** Import TMX/TSX maps and tilesets, including orthographic and isometric layouts, object layers and animated tiles.
+- **Compose reusable Game Objects.** Combine scene entities into reusable hierarchies, with animation, Box2D bodies and joints.
+- **Design your HUD visually.** Arrange widgets, edit their properties and try the interface in interactive test mode.
+- **Preview desktop and web.** Run your scene in desktop or HTML Preview; target Windows, Linux, macOS, Android and HTML5/WebGL2 through Pixscape Runtime.
 
-It combines **Pixscape Studio**, the visual authoring environment, with
-**Pixscape Runtime**, the engine layer that loads and runs authored scenes.
+## From editor to game
 
-Use Studio to build scenes, tiled and isometric worlds, physics, animations,
-particles, prefabs, shaders, lights and 2.5D spatial environments.
+1. **Create or import** your assets and scenes.
+2. **Configure** animation, physics, lighting, particles and HUD screens.
+3. **Preview and export**, then write gameplay in Java using Pixscape Runtime.
 
-Your gameplay and application logic stay in **Java**. LibGDX remains underneath
-Pixscape and stays available alongside it.
+Studio and Runtime are both open source under Apache 2.0. LibGDX stays available for your own code and ecosystem libraries.
 
-Pixscape adds an opinionated game-engine layer rather than replacing LibGDX:
-scene management, ECS-based entities, rendering and ordering, asset coordination,
-physics, Tiled integration, animation, particles and Spatial 2.5D are handled by
-the engine so game code can focus on gameplay.
+**Studio 0.4.0 uses Runtime 0.2.2.** Legacy rendering supports multiple lights; experimental Forward rendering supports at most one active light. Normal maps are a scene-wide option.
 
-## Open-source foundation
+## Get started
 
-Pixscape Studio Free is open source so developers can inspect it, build it, modify it, fork it if necessary, and trust it as a real foundation for real projects.
+[Download Pixscape Studio Free](https://pixscape.games/) and follow the [documentation](https://pixscape.games/docs).
 
-Pixscape Runtime is also open source under Apache License 2.0.
+The editor runs on **Windows, Linux and macOS**. Games target these desktop platforms, **Android** and **HTML5/WebGL2** through Pixscape Runtime.
 
-Pixscape Pro will be a separate optional edition focused on advanced production tools. Pro does not replace, restrict, or weaken Pixscape Studio Free.
+Studio desktop uses **Java 25**. Building the HTML player uses **JDK 21**. Runtime is published as Java 8-compatible bytecode. iOS/RoboVM is not currently an officially tested target.
 
-## Highlights
+## Build from source
 
-* **Open-source visual editor**
-* **Built for LibGDX and Pixscape Runtime**
-* **Scene-based 2D workflow**
-* **Sprite and animation editing**
-* **Orthographic and isometric tiled maps**
-* **TMX and TSX import workflows**
-* **Single-image and image collection tilesets**
-* **Tileset profiles for native-size and isometric tiles**
-* **Tiled Object Layer import for orthogonal and isometric maps**
-* **Typed entity custom properties**
-* **Direct quad editing**
-* **Logical prefab instances with editable contents**
-* **Spatial V3 deterministic 2.5D wall and actor ordering**
-* **Prefab authoring and drag-and-drop placement**
-* **Box2D physics integration**
-* **Shader and light workflows**
-* **Particle effects**
-* **Desktop, Android and HTML5/WebGL2 export pipeline**
-* **Runtime-first architecture**
-* **Apache 2.0 license**
+<details>
+<summary><strong>Build, test and refresh HTML Preview</strong></summary>
 
-## Studio Features
-
-### Visual Editing
-
-* Scene editor
-* Asset browser
-* Drag-and-drop placement
-* Multi-layer editing
-* Context menus and property panels
-* Canvas pan and zoom workflow
-* Selection, lasso, gizmo and resize tools
-* Debug console
-
-### Sprites and Animation
-
-* Sprite placement and configuration
-* Spritesheet-based animations
-* Animation clips
-* Asset-level animation definitions
-* Multi-animation entities with switchable Animation assets
-* Runtime animation export
-* Repeatable sprites
-* 2.5D spatial properties for sprites and animations
-* Direct per-corner quad editing
-
-### Tiled Maps
-
-* Orthographic and isometric tiled maps
-* TMX map import with external TSX files and inline tilesets
-* Standalone TSX import for supported single-image tilesets
-* Single-image and image collection tilesets
-* Tiled image layers imported as editable Pixscape Classic layers
-* Tiled tile-animation import and editing
-* Tileset profiles for logical cell size, native render size, projection, anchors and offsets
-* Margin and spacing support for atlas tilesets
-* Tile flip and diagonal transform flags compatible with Tiled
-* Repeatable image layers and sprites
-* Authored collision polygons
-* Spatial V3 wall authoring with connected structures and junction handling
-* Layer-based rendering and depth control
-* Tiled Object Layer import for orthogonal and isometric maps
-* Rectangle, point, tile, polygon and polyline objects
-* Animated Tiled tile objects
-* Tiled class/type metadata and typed custom properties
-
-### Spatial V3
-
-* Deterministic actor, wall and tiled-structure ordering
-* Automatic wall structure merging and splitting
-* Precise wall footprint editing
-* Corner and junction handling for complex 2.5D structures
-* Altitude-aware walls and tiled layers
-* Physics-footprint-aware actor ordering
-* Optional Spatial-generated collision fixtures for authored walls
-
-### Physics
-
-* Box2D body authoring
-* Fixtures and authored shapes
-* Physics editing mode
-* Runtime physics export
-* Physics-aware actor footprints for Spatial ordering
-* Optional automatically managed wall collision fixtures
-* Custom collision-shape authoring for advanced layouts and passages
-
-### Rendering
-
-* Pixscape Runtime export
-* Sprite and tiled rendering
-* Profile-aware tile placement
-* Native-size tile rendering with anchors and offsets
-* Repeatable renderables
-* Shader support
-* Light support
-* Particle support
-* Atlas workflows
-* Runtime asset availability
-* Preview instrumentation for texture binds, batch flushes and region-cache resolution
-
-### Prefabs
-
-* Create reusable prefabs from selected entities
-* Save and preview prefab assets
-* Drag and drop complete prefab instances into scenes
-* Logical prefab nodes in the Item Tree
-* Group selection and z-order while keeping prefab members individually editable
-* Physics-aware prefab contents, including bodies and joints
-* Export prefab data for runtime use
-
-## Pixscape Runtime
-
-Pixscape Studio Free exports projects for **Pixscape Runtime**.
-
-Pixscape Runtime is a separate open-source runtime built on **LibGDX** and **Artemis-ODB ECS**.
-
-Current runtime dependency:
-
-```gradle
-games.pixscape:pixscape-runtime:0.1.9
-```
-
-Pixscape Runtime is published on Maven Central:
-
-https://central.sonatype.com/artifact/games.pixscape/pixscape-runtime
-
-## Platforms
-
-Pixscape Studio Free currently focuses on projects targeting:
-
-* Desktop
-* Android
-* HTML5 / WebGL2
-
-Pixscape Studio requires **Java 21**.
-
-Pixscape Runtime is built with modern tooling and published as Java 8-compatible bytecode for broader LibGDX ecosystem compatibility.
-
-iOS/RoboVM is not currently listed as an officially tested target.
-
-## Build From a Clean Clone
-
-Requirements:
-
-* JDK 21
-* The Gradle wrapper included in this repository
-
-On Windows:
-
-```powershell
-.\gradlew.bat --console=plain compileJava test :html-player:compileJava
-```
-
-On Unix-like systems:
+Use JDK 25 for Studio and JDK 21 for HTML/GWT, selected through Gradle toolchains.
 
 ```sh
 ./gradlew --console=plain compileJava test :html-player:compileJava
 ```
 
-To perform a complete GWT compilation of the HTML preview player:
-
-```powershell
-.\gradlew.bat :html-player:compileGwt
-```
-
-On Unix-like systems:
+To rebuild the embedded HTML Preview template:
 
 ```sh
-./gradlew :html-player:compileGwt
+./gradlew buildHtmlPreviewTemplate
 ```
 
-Generated outputs such as `.gradle/`, `build/`, `html-player/build/`, and `html-player/war/` are local build artifacts and should not be committed.
+On Windows, use `gradlew.bat` instead of `./gradlew`.
 
-## Linux Distribution Builds
+The prebuilt player in `src/main/resources/html-preview-template/` is intentionally versioned so contributors can use HTML Preview without rebuilding GWT first. Temporary Gradle and build outputs are not committed.
 
-Build the reproducible Linux x64 tar.gz distribution:
+</details>
+
+<details>
+<summary><strong>Linux distribution packages</strong></summary>
 
 ```sh
 ./gradlew linuxTarGz
-```
-
-This writes:
-
-```text
-build/distributions/Pixscape-Studio-Free-<version>-linux-x64.tar.gz
-build/distributions/Pixscape-Studio-Free-<version>-linux-x64.tar.gz.sha256
-```
-
-Build the optional x86_64 AppImage with `appimagetool`:
-
-```sh
 ./gradlew appImage -Pappimagetool=/path/to/appimagetool
 ```
 
-`appimagetool` is not committed to this repository. The Gradle task looks for it in this order:
+Packages are written to `build/distributions/`. AppImage requires an external `appimagetool`, supplied by the property above, `APPIMAGETOOL`, or `PATH`.
 
-* `-Pappimagetool=/path/to/appimagetool`
-* `APPIMAGETOOL=/path/to/appimagetool`
-* an executable named `appimagetool` on `PATH`
-
-The AppImage build writes:
-
-```text
-build/distributions/Pixscape-Studio-Free-<version>-x86_64.AppImage
-build/distributions/Pixscape-Studio-Free-<version>-x86_64.AppImage.sha256
-```
-
-## HTML Preview Template
-
-The directory `src/main/resources/html-preview-template/` is intentionally versioned.
-
-It contains the prebuilt GWT HTML preview player used by Pixscape Studio Free, so a clean clone can run the preview flow without requiring every contributor to regenerate the GWT bundle manually.
-
-Maintainers may refresh this template when the HTML preview player changes.
-
-## Documentation
-
-Full documentation is available on the official website:
-
-📘 https://pixscape.games/docs
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for release notes.
+</details>
 
 ## License
 
-Pixscape Studio Free is released under the **Apache License 2.0**.
-
-See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
-
-Apache 2.0 covers the source code license. It does not grant trademark rights to Pixscape names, logos, icons, or branding.
-
-See [TRADEMARK.md](TRADEMARK.md) for trademark usage rules.
+Source code is licensed under [Apache 2.0](LICENSE); see also [NOTICE](NOTICE).
+Pixscape names, logos and branding are covered separately by the [trademark policy](TRADEMARK.md).

@@ -18,6 +18,18 @@ final class PreviewLoadingUi {
     private final Texture texture;
     private final StudioStage stage;
     private final ProgressBar progressBar;
+    private com.badlogic.gdx.graphics.g2d.BitmapFont errorFont;
+
+    void showFailure(String message){
+        progressBar.setVisible(false);
+        if(errorFont==null)errorFont=new com.badlogic.gdx.graphics.g2d.BitmapFont();
+        com.badlogic.gdx.scenes.scene2d.ui.Label label=new com.badlogic.gdx.scenes.scene2d.ui.Label(
+                "Preview paused\n\n"+message+"\n\nCorrect the scene in Studio, then reopen Preview.",
+                new com.badlogic.gdx.scenes.scene2d.ui.Label.LabelStyle(errorFont,Color.WHITE));
+        label.setWrap(true);
+        com.badlogic.gdx.scenes.scene2d.ui.Table table=new com.badlogic.gdx.scenes.scene2d.ui.Table();
+        table.setFillParent(true);table.add(label).width(520).pad(24);stage.addActor(table);
+    }
 
     PreviewLoadingUi() {
         Pixmap pixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -59,6 +71,7 @@ final class PreviewLoadingUi {
     }
 
     void dispose() {
+        if(errorFont!=null)errorFont.dispose();
         stage.dispose();
         texture.dispose();
     }

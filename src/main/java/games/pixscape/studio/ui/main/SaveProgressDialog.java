@@ -1,9 +1,9 @@
 package games.pixscape.studio.ui.main;
 
-import com.kotcrab.vis.ui.widget.VisLabel;
-import com.kotcrab.vis.ui.widget.VisProgressBar;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import com.kotcrab.vis.ui.widget.VisProgressBar;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
 public final class SaveProgressDialog extends StudioDialog {
@@ -11,6 +11,7 @@ public final class SaveProgressDialog extends StudioDialog {
     private final VisLabel messageLabel;
     private final VisProgressBar progressBar =
             new VisProgressBar(0f, 1f, 0.01f, false);
+    private final VisLabel working = new VisLabel("Working...");
 
     public SaveProgressDialog() {
         this("Saving project", "Preparing...");
@@ -30,7 +31,12 @@ public final class SaveProgressDialog extends StudioDialog {
 
         getContentTable().pad(12f);
         getContentTable().add(messageLabel).width(360f).left().row();
-        getContentTable().add(progressBar).width(360f).padTop(10f).row();
+        working.setVisible(false);
+        working.addAction(com.badlogic.gdx.scenes.scene2d.actions.Actions.forever(
+                com.badlogic.gdx.scenes.scene2d.actions.Actions.sequence(
+                        com.badlogic.gdx.scenes.scene2d.actions.Actions.alpha(0.4f, 0.5f),
+                        com.badlogic.gdx.scenes.scene2d.actions.Actions.alpha(1f, 0.5f))));
+        getContentTable().stack(progressBar, working).width(360f).padTop(10f).row();
 
         pack();
     }
@@ -44,7 +50,10 @@ public final class SaveProgressDialog extends StudioDialog {
     }
 
     public void updateProgress(float value, String message) {
-        progressBar.setValue(Math.max(0f, Math.min(1f, value)));
+        boolean determinate = Float.isFinite(value);
+        progressBar.setVisible(determinate);
+        working.setVisible(!determinate);
+        if (determinate) progressBar.setValue(Math.max(0f, Math.min(1f, value)));
         messageLabel.setText(message != null ? message : "");
         invalidateHierarchy();
     }

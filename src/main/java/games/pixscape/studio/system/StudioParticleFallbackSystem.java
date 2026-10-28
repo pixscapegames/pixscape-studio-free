@@ -15,11 +15,7 @@ import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.math.collision.BoundingBox;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.IntMap;
-import com.badlogic.gdx.utils.IntSet;
-import com.badlogic.gdx.utils.ObjectMap;
-import com.badlogic.gdx.utils.ObjectSet;
+import com.badlogic.gdx.utils.*;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEffectPool;
@@ -251,7 +247,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                     fx,
                     resolveLayerIndex(e),
                     resolveZIndex(e),
-                    ov
+                    ov, e, comp.ignoreAmbientLighting
             );
         }
     }
@@ -335,7 +331,8 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     private void collectEffect(ParticleEffect fx,
                                int layerIndex,
                                int zIndex,
-                               ParticleOverridesComponent ov) {
+                               ParticleOverridesComponent ov,
+                               int sourceEmitter, boolean ignoreAmbientLighting) {
         var emitters = fx.getEmitters();
 
         for (int ei = 0, en = emitters.size; ei < en; ei++) {
@@ -361,7 +358,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 ParticleEmitter.Particle p = particles[pi];
                 if (p == null) continue;
 
-                pushParticle(p, blendId, layerIndex, zIndex, ov);
+                pushParticle(p, blendId, layerIndex, zIndex, ov, sourceEmitter, ignoreAmbientLighting);
             }
         }
     }
@@ -370,7 +367,8 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                               int blendId,
                               int layerIndex,
                               int zIndex,
-                              ParticleOverridesComponent ov) {
+                              ParticleOverridesComponent ov,
+                              int sourceEmitter, boolean ignoreAmbientLighting) {
         float[] v = sprite.getVertices();
 
         float x1 = v[Batch.X1], y1 = v[Batch.Y1], u1 = v[Batch.U1], vv1 = v[Batch.V1];
@@ -445,7 +443,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 tie
         );
 
-        vfxState.addParticleQuad(
+        int slot = vfxState.addParticleQuad(
                 texHandle,
                 defaultShaderIdx,
                 blendId,
@@ -468,8 +466,9 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
                 vMax,
                 colorPacked,
                 RenderRepeatFlags.NONE,
-                -1
+                sourceEmitter
         );
+        vfxState.ignoreAmbientLighting[slot] = ignoreAmbientLighting;
     }
 
     private boolean isEffectVisible(ParticleEffect fx) {

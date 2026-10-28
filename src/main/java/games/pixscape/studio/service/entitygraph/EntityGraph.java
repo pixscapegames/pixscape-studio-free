@@ -1,10 +1,6 @@
 package games.pixscape.studio.service.entitygraph;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public record EntityGraph(List<EntityGraphEntry> entries) {
     public EntityGraph(List<EntityGraphEntry> entries) {
@@ -26,6 +22,10 @@ public record EntityGraph(List<EntityGraphEntry> entries) {
 
     public static EntityGraph empty() {
         return new EntityGraph(Collections.emptyList());
+    }
+
+    public int activeLightCount() {
+        int count=0;for(EntityGraphEntry entry:entries)count+=entry.initializer().activeLightCount();return count;
     }
 
     public boolean isEmpty() {

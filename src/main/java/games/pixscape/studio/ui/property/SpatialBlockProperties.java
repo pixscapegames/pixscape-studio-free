@@ -47,6 +47,7 @@ public final class SpatialBlockProperties extends VisTable {
     private final VisCheckBox actorOccluderBox = new VisCheckBox("Actor occluder");
     private final VisCheckBox physicsCollisionBox = new VisCheckBox("Physics collision");
     private final VisCheckBox lightOccluderBox = new VisCheckBox("Light occluder");
+    private final VisCheckBox shadeUnlitFacesBox = new VisCheckBox("Shade unlit faces");
     private final VisCheckBox shadowCasterBox = new VisCheckBox("Shadow caster");
     private final VisCheckBox particleOccluderBox = new VisCheckBox("Particle occluder");
 
@@ -123,6 +124,7 @@ public final class SpatialBlockProperties extends VisTable {
         actorOccluderBox.setName("spatialWallActorOccluder");
         physicsCollisionBox.setName("spatialWallPhysicsCollision");
         lightOccluderBox.setName("spatialWallLightOccluder");
+        shadeUnlitFacesBox.setName("spatialWallShadeUnlitFaces");
         shadowCasterBox.setName("spatialWallShadowCaster");
         particleOccluderBox.setName("spatialWallParticleOccluder");
 
@@ -144,14 +146,16 @@ public final class SpatialBlockProperties extends VisTable {
         data.add(physicsCollisionBox).colspan(2).left().row();
         data.add(lightOccluderBox).colspan(2).left().row();
         data.add(shadowCasterBox).colspan(2).left().row();
+        data.add(shadeUnlitFacesBox).colspan(2).left().row();
+        addTooltip(shadeUnlitFacesBox, "Darkens volume faces oriented away from the light. Disable this option for sprites whose shape does not follow the volume faces, such as barrels. Cast and received shadows remain active.");
         data.add(particleOccluderBox).colspan(2).left().row();
         addTooltip(actorOccluderBox, "Controls actor spatial ordering.");
         addTooltip(physicsCollisionBox,
                 "Creates a static physics collision from this Spatial Block footprint.");
         addTooltip(lightOccluderBox,
-                "Stored and compiled; the downstream light-occlusion consumer is not implemented yet.");
+                "Blocks each light through the 2.5D shadow map, independently of image visibility.");
         addTooltip(shadowCasterBox,
-                "Stored and compiled; the downstream shadow consumer is not implemented yet.");
+                "Projects this volume into each light's shadow map.");
         addTooltip(particleOccluderBox,
                 "Stored and compiled; the downstream particle-occlusion consumer is not implemented yet.");
 
@@ -189,6 +193,7 @@ public final class SpatialBlockProperties extends VisTable {
             }
         });
         bindCheckBox(lightOccluderBox, (block, value) -> block.lightOccluder = value);
+        bindCheckBox(shadeUnlitFacesBox, (block, value) -> block.shadeUnlitFaces = value);
         bindCheckBox(shadowCasterBox, (block, value) -> block.shadowCaster = value);
         bindCheckBox(particleOccluderBox, (block, value) -> block.particleOccluder = value);
     }
@@ -360,6 +365,7 @@ public final class SpatialBlockProperties extends VisTable {
                     !active || physicsService == null || tiled == null || tiled.data == null);
             lightOccluderBox.setDisabled(!active);
             shadowCasterBox.setDisabled(!active);
+            shadeUnlitFacesBox.setDisabled(!active);
             particleOccluderBox.setDisabled(!active);
             constraints.cancel();
 
@@ -376,6 +382,7 @@ public final class SpatialBlockProperties extends VisTable {
                     active && hasLinkedPhysicsShape(layerEntityId, blockId));
             lightOccluderBox.setChecked(block != null && block.lightOccluder);
             shadowCasterBox.setChecked(block != null && block.shadowCaster);
+            shadeUnlitFacesBox.setChecked(block == null || block.shadeUnlitFaces);
             particleOccluderBox.setChecked(block != null && block.particleOccluder);
         } finally {
             internalRefresh = false;
@@ -390,4 +397,5 @@ public final class SpatialBlockProperties extends VisTable {
     private interface BooleanWriter {
         void write(SpatialBlockData block, boolean value);
     }
+
 }

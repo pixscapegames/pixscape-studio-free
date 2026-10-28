@@ -5,7 +5,6 @@ import com.artemis.World;
 import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;

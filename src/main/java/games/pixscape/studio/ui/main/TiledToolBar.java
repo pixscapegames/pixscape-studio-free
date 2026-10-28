@@ -23,7 +23,7 @@ public final class TiledToolBar extends VisTable {
     private final ImageButton reset;
 
     private boolean disabled = false;
-    private final TiledToolService toolService;
+    private TiledToolService toolService;
 
     public TiledToolBar(TiledToolService toolService) {
         this.toolService = toolService;
@@ -59,6 +59,20 @@ public final class TiledToolBar extends VisTable {
         add(rotL).padRight(6f);
         add(rotR).padRight(6f);
         add(reset);
+    }
+
+    public void bindToolService(TiledToolService toolService) {
+        this.toolService = toolService;
+        if (toolService == null) return;
+        ImageButton active = switch (toolService.getMode()) {
+            case BRUSH -> brush;
+            case RECT -> rect;
+            case ERASE -> erase;
+            case FILL -> fill;
+        };
+        active.setProgrammaticChangeEvents(false);
+        active.setChecked(true);
+        active.setProgrammaticChangeEvents(true);
     }
 
     private ImageButton createToolButton(String style, String tooltipText, Runnable action) {

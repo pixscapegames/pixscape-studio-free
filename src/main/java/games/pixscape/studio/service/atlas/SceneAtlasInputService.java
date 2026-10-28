@@ -9,8 +9,8 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.ParticleEffect;
 import com.badlogic.gdx.graphics.g2d.ParticleEmitter;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
 import games.pixscape.runtime.component.ParticleEmitterComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.tiled.TileChunk;
@@ -21,7 +21,6 @@ import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.configuration.SceneRuntimeAvailabilityData;
-import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.history.initializer.GenericEntitySnapshotData;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
@@ -34,12 +33,41 @@ import java.util.Set;
 public final class SceneAtlasInputService {
 
     private static final String TAG = "SceneAtlasInputService";
-    private static final String INTERNAL_DIR = "__pixscape_internal__";
+
+    public boolean containsImportedColorInput(FileHandle project, String tag, java.util.Set<String> previousPaths) {
+        FileHandle input = inputDir(project, tag);
+        for (String path : previousPaths) if (input.child(new FileHandle(path).name()).exists()) return true;
+        return false;
+    }
+
+    /** Refreshes an already materialized closed Scene's color inputs, without changing its membership. */
+    public void refreshImportedColorInputs(FileHandle project, String tag, java.util.Map<String, String> replacements) {
+        FileHandle input = inputDir(project, tag);
+        for (var entry : replacements.entrySet()) {
+            FileHandle oldInput = input.child(new FileHandle(entry.getKey()).name());
+            if (!oldInput.exists()) continue;
+            if (entry.getValue() == null) {
+                if (!oldInput.delete()) throw new IllegalStateException("Cannot remove obsolete atlas input: " + oldInput);
+            } else {
+                FileHandle source = project.child(entry.getValue());
+                if (!source.exists()) throw new IllegalArgumentException("Imported color resource is missing: " + source);
+                FileHandle dest = input.child(source.name());
+                source.copyTo(dest);
+                if (!dest.equals(oldInput) && !oldInput.delete())
+                    throw new IllegalStateException("Cannot retire changed atlas input: " + oldInput);
+            }
+        }
+    }
 
     public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,
                                                     String sceneTag,
                                                     FileHandle projectDir,
                                                     Set<String> requiredProjectRelativePaths) {
+        return syncSceneAtlasInput(cfg,sceneTag,projectDir,requiredProjectRelativePaths,
+                projectDir!=null && projectDir.child(StudioFs.FILE_ASSETS_JSON).exists()?AssetMetaDatabase.load(projectDir.child(StudioFs.FILE_ASSETS_JSON)):null);
+    }
+    public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,String sceneTag,FileHandle projectDir,
+            Set<String> requiredProjectRelativePaths,AssetMetaDatabase assetDb) {
         if (cfg == null) throw new IllegalArgumentException("cfg is null");
         if (sceneTag == null || sceneTag.isBlank()) throw new IllegalArgumentException("sceneTag is blank");
         if (projectDir == null) throw new IllegalArgumentException("projectDir is null");
@@ -48,35 +76,10 @@ public final class SceneAtlasInputService {
                 ? requiredProjectRelativePaths
                 : Set.of();
 
-        FileHandle inputDir = inputDir(projectDir, sceneTag);
-        inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
-        Set<String> requiredInputFileNames = toRequiredInputFileNames(required);
-        int deleted = cleanupUnusedInputFiles(inputDir, requiredInputFileNames);
-
-        int copied = 0;
-
-        for (String relPath : required) {
-            if (relPath == null || relPath.isBlank()) continue;
-
-            FileHandle source = projectDir.child(relPath);
-            if (!source.exists() || source.isDirectory()) {
-                Gdx.app.error(TAG, "Missing atlas input source: " + source.path());
-                continue;
-            }
-
-            FileHandle dest = inputDir.child(source.name());
-
-            if (copyIfDifferent(source, dest)) {
-                copied++;
-            }
-        }
-
-        AtlasInputSyncResult result = new AtlasInputSyncResult(
-                deleted > 0 || copied > 0,
-                copied,
-                deleted
-        );
+        AtlasInputSyncResult result = AtlasInputFileSync.sync(
+                projectDir, inputDir(projectDir, sceneTag), required, false, true);
+        AtlasInputSyncResult normals=NormalAtlasPackingService.sync(projectDir,inputDir(projectDir,sceneTag),assetDb,required);
+        result=new AtlasInputSyncResult(result.changed()||normals.changed(),result.copiedCount()+normals.copiedCount(),result.deletedCount()+normals.deletedCount());
         Gdx.app.log(TAG,
                 "Atlas input synced: scene=" + sceneTag
                         + " changed=" + result.changed()
@@ -93,8 +96,8 @@ public final class SceneAtlasInputService {
             return new AtlasInputSyncResult(false, 0, 0);
         }
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        Set<String> required = collectRequiredAtlasInputPathsForCurrentScene(cfg, world, assetDb, tileAnimationsDb);
-        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required);
+        Set<String> required = collectRequiredAtlasInputPathsForScene(cfg, world, cfg.getCurrentSceneMeta(), assetDb, tileAnimationsDb);
+        return syncSceneAtlasInput(cfg, cfg.canonicalSceneTagCurrent(), projectDir, required,assetDb);
     }
 
     public IntSet collectUsedTiledRenderableAssetIds(World world,
@@ -124,8 +127,9 @@ public final class SceneAtlasInputService {
         return used;
     }
 
-    private Set<String> collectRequiredAtlasInputPathsForCurrentScene(ProjectConfig cfg,
+    public Set<String> collectRequiredAtlasInputPathsForScene(ProjectConfig cfg,
                                                                       World world,
+                                                                      SceneMeta scene,
                                                                       AssetMetaDatabase assetDb,
                                                                       TileAnimationsMetaDatabase tileAnimationsDb) {
         Set<String> required = new HashSet<>();
@@ -150,17 +154,17 @@ public final class SceneAtlasInputService {
         IntSet tiledAssetIds = collectUsedTiledRenderableAssetIds(world, tileAnimationsDb);
         IntSet.IntSetIterator it = tiledAssetIds.iterator();
         while (it.hasNext) addAssetMetaSourcePath(cfg, assetDb, required, it.next());
-        addRuntimeAvailabilitySourcePaths(cfg, world, assetDb, tileAnimationsDb, required);
+        addRuntimeAvailabilitySourcePaths(cfg, world, scene, assetDb, tileAnimationsDb, required);
         addParticleImageSourcePaths(cfg, world, required);
         return required;
     }
 
     private void addRuntimeAvailabilitySourcePaths(ProjectConfig cfg,
                                                    World world,
+                                                   SceneMeta scene,
                                                    AssetMetaDatabase assetDb,
                                                    TileAnimationsMetaDatabase tileAnimationsDb,
                                                    Set<String> required) {
-        SceneMeta scene = cfg != null ? cfg.getCurrentSceneMeta() : null;
         SceneRuntimeAvailabilityData availability = scene != null ? scene.runtimeAvailability : null;
         if (availability == null || required == null) return;
 
@@ -341,17 +345,6 @@ public final class SceneAtlasInputService {
         return (slash >= 0 && slash + 1 < path.length()) ? path.substring(slash + 1) : path;
     }
 
-    private static Set<String> toRequiredInputFileNames(Set<String> requiredPaths) {
-        Set<String> requiredFileNames = new HashSet<>();
-        if (requiredPaths == null) return requiredFileNames;
-        for (String relPath : requiredPaths) {
-            String fileName = fileNameFromPath(relPath);
-            if (!fileName.isBlank()) requiredFileNames.add(fileName);
-        }
-        return requiredFileNames;
-    }
-
-
     public boolean ensureImageInInput(ProjectConfig cfg,
                                       String sceneTag,
                                       String projectRelativePath) {
@@ -369,10 +362,10 @@ public final class SceneAtlasInputService {
 
         FileHandle inputDir = inputDir(projectDir, sceneTag);
         inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
+        AtlasInputFileSync.ensureInternalWhitePixel(inputDir);
 
         FileHandle dest = inputDir.child(source.name());
-        return copyIfDifferent(source, dest);
+        return AtlasInputFileSync.copyIfDifferent(source, dest);
     }
 
     public boolean ensureAnimationDirInInput(ProjectConfig cfg,
@@ -392,7 +385,7 @@ public final class SceneAtlasInputService {
 
         FileHandle inputDir = inputDir(projectDir, sceneTag);
         inputDir.mkdirs();
-        ensureInternalWhitePixel(inputDir);
+        AtlasInputFileSync.ensureInternalWhitePixel(inputDir);
 
         int copied = 0;
 
@@ -401,7 +394,7 @@ public final class SceneAtlasInputService {
             if (!"png".equalsIgnoreCase(child.extension())) continue;
 
             FileHandle dest = inputDir.child(child.name());
-            if (copyIfDifferent(child, dest)) {
+            if (AtlasInputFileSync.copyIfDifferent(child, dest)) {
                 copied++;
             }
         }
@@ -424,60 +417,4 @@ public final class SceneAtlasInputService {
                 .child(sceneTag);
     }
 
-    private static void ensureInternalWhitePixel(FileHandle inputDir) {
-        FileHandle internalDir = inputDir.child(INTERNAL_DIR);
-        FileHandle whitePixel = internalDir.child(InternalAssets.WHITE_PIXEL_FILE);
-
-        if (!whitePixel.exists()) {
-            InternalAssets.copyWhitePixelTo(whitePixel);
-        }
-    }
-
-    private static boolean copyIfDifferent(FileHandle source, FileHandle dest) {
-        if (source == null || dest == null) return false;
-        if (!source.exists() || source.isDirectory()) return false;
-
-        if (dest.exists()
-                && !dest.isDirectory()
-                && dest.length() == source.length()
-                && dest.lastModified() >= source.lastModified()) {
-            return false;
-        }
-
-        dest.parent().mkdirs();
-        source.copyTo(dest);
-        return true;
-    }
-
-    private static int cleanupUnusedInputFiles(FileHandle inputDir,
-                                               Set<String> requiredInputFileNames) {
-        if (inputDir == null || !inputDir.exists()) return 0;
-
-        int deleted = 0;
-
-        for (FileHandle child : inputDir.list()) {
-            if (child == null) continue;
-
-            if (child.isDirectory()) {
-                if (INTERNAL_DIR.equals(child.name())) {
-                    continue;
-                }
-
-                child.deleteDirectory();
-                deleted++;
-                continue;
-            }
-
-            if (!"png".equalsIgnoreCase(child.extension())) {
-                continue;
-            }
-
-            if (!requiredInputFileNames.contains(child.name())) {
-                child.delete();
-                deleted++;
-            }
-        }
-
-        return deleted;
-    }
 }

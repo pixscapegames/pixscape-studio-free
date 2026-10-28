@@ -143,7 +143,7 @@ public final class MaterialPanel extends CollapsibleWidget {
                 int shaderIdx = mat.getShaderIdx();
                 String shaderName = ShaderRegistry.getName(shaderIdx);
 
-                ShaderParamsDialog dlg = new ShaderParamsDialog(ctx.world, entityId, shaderName);
+                ShaderParamsDialog dlg = new ShaderParamsDialog(ctx.world, entityId, shaderName, ctx.history);
                 if (getStage() != null) getStage().addActor(dlg.fadeIn());
             }
         });

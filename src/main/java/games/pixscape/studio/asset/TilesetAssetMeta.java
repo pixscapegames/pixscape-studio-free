@@ -12,6 +12,8 @@ public final class TilesetAssetMeta extends AssetMeta {
     public int rows;
     public int spacing;
     public int margin;
+    public String importSourceUri;
+    public String importKind;
     public int referenceCellWidth;
     public int referenceCellHeight;
     public TiledProjection projection = TiledProjection.ORTHO;

@@ -1,8 +1,6 @@
 package games.pixscape.studio.ui.preview;
 
-import com.badlogic.gdx.ApplicationAdapter;
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.Input;
+import com.badlogic.gdx.*;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -15,9 +13,9 @@ import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.engine.PixscapeEngine;
 import games.pixscape.runtime.loading.SceneLoadHandle;
 import games.pixscape.runtime.profiling.FrameSystemProfiler;
+import games.pixscape.runtime.render.lighting.LightingAdmissionException;
 import games.pixscape.runtime.service.Box2dWorldService;
 import games.pixscape.runtime.system.optional.PhysicsMouseDragSystem;
-import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.debug.StudioFrameProfiler;
 import games.pixscape.studio.display.DisplayMetrics;
 import games.pixscape.studio.logging.StudioLogLevel;
@@ -37,10 +35,13 @@ public final class PreviewWindow extends ApplicationAdapter {
     }
 
     private final FileHandle userRootDir;
+    private final String sceneName;
+    private final Boolean forwardLighting;
     private PixscapeEngine engine;
     private StudioFrameProfiler frameProfiler;
     private FrameSystemProfiler systemProfiler;
     private Stage uiStage;
+    private PreviewInputAdapter previewInput;
     private RenderStatsOverlay statsOverlay;
     private PreviewLoadingUi loadingUi;
     private SceneLoadHandle sceneLoad;
@@ -48,33 +49,41 @@ public final class PreviewWindow extends ApplicationAdapter {
     private float loadingProgress;
     private OrthographicCamera worldCamera;
     private PhysicsMouseDragSystem dragSystem;
-    private boolean benchMode = false;
     private final DisplayMetrics displayMetrics = new DisplayMetrics();
     private boolean displayMetricsInitialized;
     private final FrameTimePercentiles frameTimes = new FrameTimePercentiles(600);
+    private final PreviewFrameCadence cadence = new PreviewFrameCadence();
     private static final long FRAME_STATS_REFRESH_NS = 250_000_000L; // 250ms
-    private static final boolean PREVIEW_VSYNC_NORMAL = true;
-
     private static final float CAMERA_PAN_SPEED_SCREEN = 450f; // visual screen speed
     private static final float CAMERA_DT_MAX = 1f / 30f;       // avoids large spikes
     private static final float CAMERA_ZOOM_SPEED = 1.5f; // zoom / seconde
     private static final float CAMERA_ZOOM_MIN = 0.2f;
     private static final float CAMERA_ZOOM_MAX = 10f;
 
-    private static final boolean PREVIEW_PIXEL_SNAP = true;
-    private static final float PREVIEW_PIXEL_SNAP_EPSILON = 0.0001f;
 
 
     private Box2dWorldService box2d;
 
 
-    public PreviewWindow(FileHandle userRootDir) {
+    public PreviewWindow(FileHandle userRootDir, String sceneName, Boolean forwardLighting) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
+        if (sceneName == null || sceneName.isBlank()) throw new GdxRuntimeException("sceneName is blank");
         this.userRootDir = userRootDir;
+        this.sceneName = sceneName;
+        this.forwardLighting = forwardLighting;
     }
 
     @Override
     public void create() {
+        Gdx.graphics.setForegroundFPS(0);
+        Gdx.graphics.setContinuousRendering(true);
+        PreviewDiagnosticLog.child("CADENCE_APPLIED",
+                "configurationVsync=" + PreviewDesktopApplication.PREVIEW_VSYNC
+                        + " requestedForegroundFps=0 continuousRendering="
+                        + Gdx.graphics.isContinuousRendering());
+        Gdx.app.log("PreviewCadence", "configurationVsync=" + PreviewDesktopApplication.PREVIEW_VSYNC
+                + " foregroundFPS=0 continuousRendering=true");
+        PreviewProcessProtocol.loading();
         refreshDisplayMetrics();
         loadingUi = new PreviewLoadingUi();
         startupState = StartupState.FIRST_FRAME;
@@ -96,13 +105,16 @@ public final class PreviewWindow extends ApplicationAdapter {
                 .setWorldCamera(worldCamera)
                 .setSystemProfiler(systemProfiler)
                 .setConfigurationCustomizer(builder -> builder.with(dragSystem));
+        if(forwardLighting!=null)engine.setForwardLighting(forwardLighting);
         StudioLogLevel.configure(engine);
         StudioLogLevel.setActivePreviewEngine(engine);
         engine.setPlatformTarget(PlatformTarget.DESKTOP_GL30);
+        Gdx.app.log("PreviewWindow", "renderer="+(forwardLighting==null?"scene selection":forwardLighting?"ForwardLightingRenderer":"LightingRenderer")
+                +" runtime="+games.pixscape.runtime.render.lighting.LightingRenderer.class.getProtectionDomain().getCodeSource().getLocation());
         engine.loadProject(userRootDir);
         engine.resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         loadingProgress = PROJECT_PROGRESS;
-        sceneLoad = engine.beginLoadScene(ProjectConfig.getInstance().getCurrentSceneName());
+        sceneLoad = engine.beginLoadScene(sceneName);
     }
 
     private void initializePreview() {
@@ -112,11 +124,13 @@ public final class PreviewWindow extends ApplicationAdapter {
         box2d = engine.getBox2dWorldService();
 
         uiStage = new StudioStage(new ScreenViewport());
+        previewInput = new PreviewInputAdapter();
+        Gdx.input.setInputProcessor(new InputMultiplexer(
+                engine.getHudInputProcessor(), previewInput, uiStage, dragSystem.inputProcessor()));
 
-        statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats());
+        resetFrameStatistics();
+        statsOverlay = new RenderStatsOverlay(uiStage, engine.getRenderStats(), cadence);
 
-        benchMode = false;
-        Gdx.graphics.setVSync(PREVIEW_VSYNC_NORMAL);
         // Preview is a top-level OS window; do not mark it floating/always-on-top.
         // It must yield normally when the user Alt+Tabs to another application.
     }
@@ -129,14 +143,15 @@ public final class PreviewWindow extends ApplicationAdapter {
             return;
         }
 
-        handleBenchToggle();
+        handlePreviewCommands();
 
         long nowNs = System.nanoTime();
         frameTimes.onFrameStart(nowNs);
+        cadence.onFrameStart(nowNs);
 
         // periodic percentile recompute
         if (frameTimes.computeIfDue(nowNs, FRAME_STATS_REFRESH_NS) && statsOverlay != null) {
-            statsOverlay.setFrameTimes(frameTimes.avgMs, frameTimes.p95Ms, frameTimes.p99Ms, frameTimes.maxMs);
+            statsOverlay.setFrameTimes(frameTimes.p95Ms, frameTimes.p99Ms, frameTimes.maxMs);
 
             if (box2d != null) {
                 statsOverlay.setBox2dStats(
@@ -151,16 +166,18 @@ public final class PreviewWindow extends ApplicationAdapter {
 
         handleCameraControls(dt);
 
-        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
+        Gdx.gl.glClearColor(0f, 0f, 0f, 1f);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         HdpiUtils.glViewport(0, 0, displayMetrics.logicalWidth(), displayMetrics.logicalHeight());
-        engine.update(dt);
-        engine.render();
+        try{
+            engine.update(dt);
+            engine.render();
+        }catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+            pauseForAdmission(refusal);return;
+        }
 
         Gdx.gl.glDisable(GL20.GL_SCISSOR_TEST);
 
-        if (statsOverlay != null) {
+        if (statsOverlay != null && statsOverlay.isEnabled()) {
             uiStage.getViewport().apply(true);
             statsOverlay.render(nowNs);
         }
@@ -184,6 +201,11 @@ public final class PreviewWindow extends ApplicationAdapter {
                     sceneLoad.update();
                     loadingProgress = sceneProgress(sceneLoad.progress());
                     if (sceneLoad.isFailed()) {
+                        Throwable cause=sceneLoad.failure();
+                        while(cause!=null){
+                            if(cause instanceof games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){pauseForAdmission(refusal);return;}
+                            cause=cause.getCause();
+                        }
                         startupState = StartupState.FAILED;
                         throw new GdxRuntimeException("Desktop preview scene loading failed.",
                                 sceneLoad.failure());
@@ -200,18 +222,32 @@ public final class PreviewWindow extends ApplicationAdapter {
                     loadingUi.dispose();
                     loadingUi = null;
                     startupState = StartupState.RUNNING;
+                    PreviewProcessProtocol.ready();
                     return;
                 case FAILED:
+                    if(loadingUi!=null)loadingUi.render(dt,loadingProgress);
                     return;
                 default:
                     throw new IllegalStateException("Unknown preview startup state: " + startupState);
             }
-        } catch (Throwable failure) {
+        } catch (games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+            pauseForAdmission(refusal);
+        } catch (RuntimeException failure) {
             startupState = StartupState.FAILED;
+            PreviewProcessProtocol.failed(failure);
             Gdx.app.error("PreviewWindow", "Preview startup failed.", failure);
             if (failure instanceof GdxRuntimeException runtimeFailure) throw runtimeFailure;
             throw new GdxRuntimeException("Preview startup failed.", failure);
         }
+    }
+
+    private void pauseForAdmission(LightingAdmissionException refusal){
+        startupState=StartupState.FAILED;
+        PreviewProcessProtocol.failed(refusal);
+        Gdx.app.error("PreviewWindow",refusal.getMessage(),refusal);
+        if(loadingUi==null)loadingUi=new PreviewLoadingUi();
+        loadingUi.showFailure(refusal.getMessage());
+        Gdx.app.exit();
     }
 
     static float sceneProgress(float sceneProgress) {
@@ -220,12 +256,14 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void pause() {
-
+        if (previewInput != null) previewInput.cancelInput();
+        if (dragSystem != null) dragSystem.cancelInput();
+        resetFrameStatistics();
     }
 
     @Override
     public void resume() {
-
+        resetFrameStatistics();
     }
 
     @Override
@@ -267,6 +305,7 @@ public final class PreviewWindow extends ApplicationAdapter {
     @Override
     public void dispose() {
         sceneLoad = null;
+        if (dragSystem != null) dragSystem.cancelInput();
         if (loadingUi != null) {
             loadingUi.dispose();
             loadingUi = null;
@@ -285,7 +324,7 @@ public final class PreviewWindow extends ApplicationAdapter {
             engine.dispose();
             engine = null;
         }
-        PreviewLauncher.notifyClosed();
+        dragSystem = null;
     }
 
     /**
@@ -297,6 +336,8 @@ public final class PreviewWindow extends ApplicationAdapter {
         OrthographicCamera cam = engine.getCamera();
         if (cam == null) return;
 
+        previewInput.synchronizeHudKeyboardFocus(engine.hasHudKeyboardFocus());
+
         float safeDt = Math.min(dt, CAMERA_DT_MAX);
 
         float dx = 0f;
@@ -306,25 +347,25 @@ public final class PreviewWindow extends ApplicationAdapter {
         // the larger the zoom (zoomed out), the more world units are traversed.
         float moveSpeed = CAMERA_PAN_SPEED_SCREEN * cam.zoom;
 
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) dx -= moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) dx += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.UP)) dy += moveSpeed * safeDt;
-        if (Gdx.input.isKeyPressed(Input.Keys.DOWN)) dy -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.LEFT)) dx -= moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.RIGHT)) dx += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.UP)) dy += moveSpeed * safeDt;
+        if (previewInput.isPressed(Input.Keys.DOWN)) dy -= moveSpeed * safeDt;
 
         cam.position.x += dx;
         cam.position.y += dy;
 
         float zoomDelta = 0f;
-        if (Gdx.input.isKeyPressed(Input.Keys.PLUS) || Gdx.input.isKeyPressed(Input.Keys.EQUALS)) {
+        if (previewInput.isPressed(Input.Keys.PLUS) || previewInput.isPressed(Input.Keys.EQUALS)) {
             zoomDelta -= CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.MINUS)) {
+        if (previewInput.isPressed(Input.Keys.MINUS)) {
             zoomDelta += CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_ADD)) {
+        if (previewInput.isPressed(Input.Keys.NUMPAD_ADD)) {
             zoomDelta -= CAMERA_ZOOM_SPEED * safeDt;
         }
-        if (Gdx.input.isKeyPressed(Input.Keys.NUMPAD_SUBTRACT)) {
+        if (previewInput.isPressed(Input.Keys.NUMPAD_SUBTRACT)) {
             zoomDelta += CAMERA_ZOOM_SPEED * safeDt;
         }
 
@@ -338,39 +379,83 @@ public final class PreviewWindow extends ApplicationAdapter {
         cam.update();
     }
 
-    private void handleBenchToggle() {
-        if (!Gdx.input.isKeyJustPressed(Input.Keys.F9)) return;
+    private void handlePreviewCommands() {
+        int command;
+        while ((command = previewInput.consumeCommand()) != -1) {
+            if (command == Input.Keys.F9) {
+                if (statsOverlay.isEnabled()) {
+                    statsOverlay.setEnabled(false);
+                } else {
+                    statsOverlay.setEnabled(true);
+                }
+            } else if (command == Input.Keys.F10) {
+                statsOverlay.toggleDetails();
 
-        benchMode = !benchMode;
+            }
+        }
+    }
 
-        if (statsOverlay != null) statsOverlay.setEnabled(benchMode);
-
+    private void resetFrameStatistics() {
         frameTimes.reset();
-
-        // Preview : bench => VSync OFF, sinon PREVIEW_VSYNC_NORMAL
-        boolean previewVsync = !benchMode && PREVIEW_VSYNC_NORMAL;
-        Gdx.graphics.setVSync(previewVsync);
-
-        // Studio: bench => VSync OFF (otherwise Studio can cap the preview)
-        PreviewLauncher.setStudioVSync(!benchMode);
+        cadence.reset();
+        if (statsOverlay != null) {
+            statsOverlay.setFrameTimes(0, 0, 0);
+            statsOverlay.refresh();
+        }
     }
 
-    private void snapCameraToPixelGrid(OrthographicCamera cam) {
-        if (cam == null || !PREVIEW_PIXEL_SNAP) return;
+    static final class PreviewInputAdapter extends InputAdapter {
+        private final com.badlogic.gdx.utils.IntSet pressed = new com.badlogic.gdx.utils.IntSet();
+        private final com.badlogic.gdx.utils.IntSet heldCommands = new com.badlogic.gdx.utils.IntSet();
+        private final com.badlogic.gdx.utils.IntArray commands = new com.badlogic.gdx.utils.IntArray(4);
+        private int nextCommand;
 
-        float step = cameraWorldUnitsPerScreenPixel(cam);
-        if (step <= PREVIEW_PIXEL_SNAP_EPSILON) return;
+        @Override public boolean keyDown(int keycode) {
+            if (!isPreviewKey(keycode)) return false;
+            if (isCommand(keycode)) {
+                if (heldCommands.add(keycode)) commands.add(keycode);
+            }
+            else pressed.add(keycode);
+            return true;
+        }
 
-        cam.position.x = snap(cam.position.x, step);
-        cam.position.y = snap(cam.position.y, step);
-    }
+        @Override public boolean keyUp(int keycode) {
+            if (!isPreviewKey(keycode)) return false;
+            pressed.remove(keycode);
+            heldCommands.remove(keycode);
+            return true;
+        }
 
-    private static float cameraWorldUnitsPerScreenPixel(OrthographicCamera cam) {
-        return cam.zoom;
-    }
+        boolean isPressed(int keycode) {
+            if (!Gdx.input.isKeyPressed(keycode)) pressed.remove(keycode);
+            return pressed.contains(keycode);
+        }
 
-    private static float snap(float value, float step) {
-        return Math.round(value / step) * step;
+        void synchronizeHudKeyboardFocus(boolean focused) {
+            if (focused) pressed.clear();
+        }
+
+        int consumeCommand() {
+            if (nextCommand < commands.size) return commands.get(nextCommand++);
+            commands.clear(); nextCommand = 0;
+            return -1;
+        }
+
+        void cancelInput() {
+            pressed.clear(); heldCommands.clear(); commands.clear(); nextCommand = 0;
+        }
+
+        private static boolean isCommand(int keycode) {
+            return keycode == Input.Keys.F9 || keycode == Input.Keys.F10;
+        }
+
+        private static boolean isPreviewKey(int keycode) {
+            return keycode == Input.Keys.LEFT || keycode == Input.Keys.RIGHT
+                    || keycode == Input.Keys.UP || keycode == Input.Keys.DOWN
+                    || keycode == Input.Keys.PLUS || keycode == Input.Keys.EQUALS
+                    || keycode == Input.Keys.MINUS || keycode == Input.Keys.NUMPAD_ADD
+                    || keycode == Input.Keys.NUMPAD_SUBTRACT || isCommand(keycode);
+        }
     }
 
     private void applyPreviewNearestFiltering() {

@@ -13,16 +13,19 @@ public class HistoryManagerOutcomeTest {
         history.undo();
         int[] publications = {0};
         history.setListener((undoSize, redoSize, undoLabel, redoLabel, dirty) -> publications[0]++);
+        long mutation=history.getMutationRevision();
 
         OutcomeCommand rejected = new OutcomeCommand("Rejected", CommandOutcome.REJECTED);
         history.execute(rejected);
         assertRedoOnly(history, "Legacy");
         Assert.assertEquals(0, publications[0]);
+        Assert.assertEquals(mutation,history.getMutationRevision());
 
         OutcomeCommand noChange = new OutcomeCommand("No change", CommandOutcome.NO_CHANGE);
         history.execute(noChange);
         assertRedoOnly(history, "Legacy");
         Assert.assertEquals(0, publications[0]);
+        Assert.assertEquals(mutation,history.getMutationRevision());
     }
 
     @Test

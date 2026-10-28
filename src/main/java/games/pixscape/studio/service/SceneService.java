@@ -12,19 +12,24 @@ import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.utils.*;
-import com.badlogic.gdx.utils.Timer;
-import games.pixscape.runtime.component.*;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.ObjectMap;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.configuration.PlatformTarget;
 import games.pixscape.runtime.helper.RuntimeFs;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
+import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
+import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
 import games.pixscape.runtime.tiled.TileChunk;
 import games.pixscape.runtime.tiled.TileTransformFlags;
@@ -33,15 +38,19 @@ import games.pixscape.runtime.tiled.animation.TileAnimationLookup;
 import games.pixscape.runtime.tiled.animation.TileAnimationStateSupport;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.configuration.*;
+import games.pixscape.studio.document.EditorDocumentType;
+import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.OpenEditorDocument;
+import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.event.EventFlow;
-import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.importer.tmx.TmxSceneImportRequest;
 import games.pixscape.studio.importer.tmx.TmxSceneImportResult;
-import games.pixscape.studio.importer.tmx.TmxSceneImportSession;
 import games.pixscape.studio.importer.tmx.TmxSceneImportService;
+import games.pixscape.studio.importer.tmx.TmxSceneImportSession;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.asset.*;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetDirectoryImportRequest;
@@ -49,6 +58,9 @@ import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetImpo
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetProfileImportSettings;
 import games.pixscape.studio.service.atlas.*;
 import games.pixscape.studio.service.runtimeavailability.RuntimeAvailabilityService;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRoots;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimePreparationService;
 import games.pixscape.studio.ui.asset.AssetsPanel;
 import games.pixscape.studio.ui.asset.ImportDialog;
 import games.pixscape.studio.ui.docking.DockablePanel;
@@ -70,16 +82,12 @@ public final class SceneService {
     private final StudioApplicationAdapter app;
     private final WorldCanvas canvas;
     private final AtlasStudioService atlasStudioService;
-    private final ClipboardService clipboardService;
-    private final HistoryManager historyManager;
     private final SceneAtlasInputService sceneAtlasInputService;
     private final RuntimeAvailabilityService runtimeAvailabilityService;
     private final ProjectConfigSceneMetaBridge sceneMetaBridge;
     private final RecentProjectsService recentProjectsService;
-    private final ResolvedSceneActivationPipeline sceneActivationPipeline;
     private AssetMetaDatabase assetMetaDatabase;
     private TileAnimationsMetaDatabase tileAnimationsMetaDatabase;
-    private boolean currentSceneSaveRequired = false;
 
     /**
      * Single panel for the global library (orig/images).
@@ -97,21 +105,77 @@ public final class SceneService {
         this.app = app;
         this.canvas = canvas;
         this.atlasStudioService = canvas.getAtlasService();
-        this.historyManager = canvas.getHistoryManager();
         this.sceneAtlasInputService = new SceneAtlasInputService();
         this.runtimeAvailabilityService = new RuntimeAvailabilityService();
         this.sceneMetaBridge = new ProjectConfigSceneMetaBridge();
-        this.clipboardService = canvas.getClipboardService();
         this.recentProjectsService = new RecentProjectsService();
-        this.sceneActivationPipeline = new ResolvedSceneActivationPipeline(
-                canvas.getEcsWorld(),
-                canvas.getTileAnimationRegistry(),
-                canvas.getTiledAllocatorService(),
-                historyManager,
-                this::rebuildRenderRuntimeForScene
-        );
 
         registerEditorOpsCallbacks();
+    }
+
+    private SceneEditorContext sceneContext() {
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context == null) context = app.getMostRecentSceneEditorContext();
+        if (context == null || context.isDisposed()) {
+            throw new IllegalStateException("No live Scene editor context is available.");
+        }
+        return context;
+    }
+
+    private ClipboardService clipboardService() {
+        return canvas.getClipboardService();
+    }
+
+    public void pushActiveSceneMetaToUi() {
+        sceneMetaBridge.pushCurrentSceneMetaToUI();
+        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context != null) {
+            context.selectionService().publishCurrentSelection();
+        }
+    }
+
+    public void saveSceneDocumentWithProgress(SceneEditorDocument document,
+                                              Runnable onSuccess,
+                                              java.util.function.Consumer<Throwable> onError) {
+        saveSceneDocumentsWithProgress(app.getUiStage(), List.of(document), onSuccess, onError);
+    }
+
+    public void saveSceneDocument(SceneEditorDocument document) {
+        Objects.requireNonNull(document, "document");
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        String sceneName = sceneNameFor(document, cfg);
+        if (sceneName == null) {
+            throw new IllegalStateException("Scene document no longer belongs to this project.");
+        }
+
+        SceneEditorContext previous = canvas.getAttachedSceneContext();
+        String previousSceneName = cfg.getCurrentSceneName();
+        boolean hudActive = app.getEditorDocumentManager().isActive(EditorDocumentType.HUD_SCREEN);
+        try {
+            if (!canvas.isAttached(document.context())) canvas.attach(document.context());
+            cfg.setCurrentSceneByName(sceneName);
+            saveCurrentSceneOnly(cfg);
+            document.context().markSaved();
+            saveProjectFile(cfg);
+        } finally {
+            if (previousSceneName != null && cfg.getSceneMeta(previousSceneName) != null) {
+                cfg.setCurrentSceneByName(previousSceneName);
+            }
+            if (previous != null && previous != document.context() && !previous.isDisposed()) {
+                canvas.attach(previous);
+            } else if (hudActive) {
+                canvas.detach();
+            }
+        }
+    }
+
+    private static String sceneNameFor(SceneEditorDocument document, ProjectConfig cfg) {
+        for (String name : cfg.getSceneNames()) {
+            if (document.key().domainId().equals(cfg.canonicalSceneTag(name))) return name;
+        }
+        return null;
     }
 
     public TileAnimationRegistry getTileAnimationRegistry() {
@@ -193,7 +257,7 @@ public final class SceneService {
         assetMetaDatabase = reloadedDatabase;
         canvas.publishAssetMetaDatabase(assetMetaDatabase);
         AnimationAssetEntityReconciler.reconcile(
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 animation.id(),
                 animation,
                 canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
@@ -219,11 +283,63 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     public void markCurrentSceneSaveRequired() {
-        currentSceneSaveRequired = true;
+        sceneContext().markExplicitSaveRequired();
     }
 
     public boolean requiresSaveBeforeLeavingCurrentScene() {
-        return historyManager.isDirty() || currentSceneSaveRequired;
+        return sceneContext().isDirty();
+    }
+
+    public boolean requiresSaveBeforeLeavingAnyScene() {
+        return app.getEditorDocumentManager().documents().stream()
+                .filter(SceneEditorDocument.class::isInstance)
+                .map(SceneEditorDocument.class::cast)
+                .anyMatch(SceneEditorDocument::isDirty);
+    }
+
+    public void saveAllDirtyScenesWithProgress(Stage uiStage,
+                                               Runnable onSuccess,
+                                               java.util.function.Consumer<Throwable> onError) {
+        try {
+            List<SceneEditorDocument> dirty = app.getEditorDocumentManager().documents().stream()
+                    .filter(SceneEditorDocument.class::isInstance)
+                    .map(SceneEditorDocument.class::cast)
+                    .filter(SceneEditorDocument::isDirty)
+                    .toList();
+            saveSceneDocumentsWithProgress(uiStage, dirty, onSuccess, onError);
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
+    }
+
+    private void saveSceneDocumentsWithProgress(Stage uiStage, List<SceneEditorDocument> documents,
+                                                Runnable onSuccess, java.util.function.Consumer<Throwable> onError) {
+        Array<SaveProgressRunner.Step> steps = new Array<>();
+        for (int i = 0; i < documents.size(); i++) {
+            SceneEditorDocument document = documents.get(i);
+            steps.add(SaveProgressRunner.Step.sync((float) i / documents.size(),
+                    "Saving scene " + (i + 1) + "/" + documents.size() + ": " + document.title(),
+                    () -> saveSceneDocument(document)));
+        }
+        steps.add(SaveProgressRunner.Step.sync(1f, "Finalizing...", () -> {}));
+        runSaveSteps(uiStage, steps, () -> {
+            for (SceneEditorDocument document : documents) saveSceneDocument(document);
+        }, onSuccess, onError);
+    }
+
+    /** One progress/error/continuation boundary for menu Save, tab close and application exit. */
+    static void runSaveSteps(Stage uiStage, Array<SaveProgressRunner.Step> steps, Runnable withoutUi,
+                              Runnable onSuccess, java.util.function.Consumer<Throwable> onError) {
+        if (uiStage != null) {
+            new SaveProgressRunner(uiStage).run(steps, onSuccess, onError);
+            return;
+        }
+        try {
+            withoutUi.run();
+            if (onSuccess != null) onSuccess.run();
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
     }
 
     public boolean requiresSaveBeforePreview() {
@@ -304,6 +420,25 @@ public final class SceneService {
                 return true;
             }
 
+            String sceneTag = cfg.canonicalSceneTag(currentSceneName);
+            if (sceneTag != null && !sceneTag.isBlank()
+                    && cfg.projectDirectoryPath != null && !cfg.projectDirectoryPath.isBlank()) {
+                FileHandle atlasInput = new FileHandle(Path.of(cfg.projectDirectoryPath)
+                        .resolve(StudioFs.DIR_ATLASES).resolve(StudioFs.DIR_INPUT)
+                        .resolve(sceneTag).toFile());
+                if (AtlasStudioService.isRepackRequired(atlasInput)
+                        || (atlasInput.exists() && !games.pixscape.studio.service.atlas.SceneAtlasCoverage.coversInput(
+                        atlasInput,
+                        new FileHandle(runtimeRoot.resolve(RuntimeFs.DIR_ATLASES)
+                                .resolve(sceneTag + ".atlas").toFile())))) {
+                    return true;
+                }
+            }
+
+            if (currentSceneHudExportIsStale(cfg, runtimeRoot)) {
+                return true;
+            }
+
             Set<Integer> requiredTileAssetIds = runtimeTiledTileAssetIds(cfg, runtimeRoot, root);
             if (!requiredTileAssetIds.isEmpty()) {
                 Path tilesetProfiles = runtimeRoot.resolve(RuntimeFs.FILE_TILESET_PROFILES_JSON);
@@ -317,6 +452,43 @@ public final class SceneService {
         } catch (RuntimeException | IOException ex) {
             return true;
         }
+    }
+
+    private static boolean currentSceneHudExportIsStale(ProjectConfig cfg,
+                                                        Path runtimeRoot) throws IOException {
+        SceneMeta scene = cfg.getCurrentSceneMeta();
+        List<String> screenIds = SceneHudRoots.collect(scene);
+        if (screenIds.isEmpty()) return false;
+
+        if (cfg.projectDirectoryPath == null || cfg.projectDirectoryPath.isBlank()) return true;
+        Path studioRoot = Path.of(cfg.projectDirectoryPath).toAbsolutePath().normalize();
+        Path exportedRoot = runtimeRoot.toAbsolutePath().normalize();
+        for (String screenId : screenIds) {
+            String assetPath = screenId + HudScreenAsset.EXTENSION;
+            Path authoredAsset = resolveInside(studioRoot, assetPath);
+            Path exportedAsset = resolveInside(exportedRoot, assetPath);
+            if (!sameFile(authoredAsset, exportedAsset)) return true;
+
+            JsonValue asset = new JsonReader().parse(Files.readString(authoredAsset));
+            String documentId = asset.getString("documentId", null);
+            if (documentId == null || documentId.isBlank()) continue;
+            if (!sameFile(resolveInside(studioRoot, documentId),
+                    resolveInside(exportedRoot, documentId))) return true;
+        }
+        return false;
+    }
+
+    private static Path resolveInside(Path root, String relative) {
+        Path resolved = root.resolve(relative).normalize();
+        if (Path.of(relative).isAbsolute() || !resolved.startsWith(root)) {
+            throw new IllegalArgumentException("HUD preview path escapes its project: " + relative);
+        }
+        return resolved;
+    }
+
+    private static boolean sameFile(Path authored, Path exported) throws IOException {
+        return Files.isRegularFile(authored) && Files.isRegularFile(exported)
+                && Files.mismatch(authored, exported) == -1L;
     }
 
     private static Set<Integer> runtimeTiledTileAssetIds(ProjectConfig cfg,
@@ -499,7 +671,9 @@ public final class SceneService {
     }
 
     private void clearCurrentSceneSaveRequired() {
-        currentSceneSaveRequired = false;
+        SceneEditorContext context = canvas.getAttachedSceneContext();
+        if (context == null) context = app.getMostRecentSceneEditorContext();
+        if (context != null && !context.isDisposed()) context.markSaved();
     }
 
     // ---------------------------------------------------------------------
@@ -541,6 +715,16 @@ public final class SceneService {
         }
         return assetMetaDatabase;
     }
+    public void prepareGameObjectNormals(World world,SceneMeta editingMeta) {
+        if(!editingMeta.useNormalMaps){
+            world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class).publishAuthoringNormals(null);
+            return;
+        }
+        ProjectConfig cfg=ProjectConfig.getInstance();
+        java.util.Set<String> required=new SceneAtlasInputService().collectRequiredAtlasInputPathsForScene(
+                cfg,world,editingMeta,assetMetaDatabase,tileAnimationsMetaDatabase);
+        canvas.getAtlasService().prepareAuthoringNormals(StudioFs.requireStudioProjectDir(cfg),world,required,assetMetaDatabase);
+    }
 
     // ---------------------------------------------------------------------
     // NEW PROJECT
@@ -556,7 +740,8 @@ public final class SceneService {
         boolean projectDirExistedBeforeAttempt = false;
         ProjectConfig cfg = new ProjectConfig();
         try {
-            clearWorldAndRenderState();
+            app.onHudRuntimeProjectChanging();
+            app.getEditorDocumentManager().clear();
 
             cfg.projectTitle = projectTitle;
             cfg.projectFileName = projectFileName;
@@ -572,11 +757,16 @@ public final class SceneService {
             SceneMeta meta = cfg.getCurrentSceneMeta();
 
             ProjectConfig.setInstance(cfg);
+            String canonicalTag = cfg.canonicalSceneTagCurrent();
+            SceneEditorContext context = canvas.createSceneContext(canonicalTag, meta);
+            canvas.attach(context);
+            context.bindSceneIdentity(canonicalTag);
             bindSceneIdentityAuthorities(meta);
 
             projectDir = StudioFs.requireStudioProjectDir(cfg);
             projectDirExistedBeforeAttempt = projectDir.exists();
             projectDir.mkdirs();
+            app.bindHudRuntimeProject(projectDir);
 
             projectDir.child(StudioFs.DIR_SCENES).mkdirs();
             projectDir.child(StudioFs.DIR_ORIG_IMAGES).mkdirs();
@@ -601,15 +791,14 @@ public final class SceneService {
                     projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
             );
 
-            int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
-            int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
-            app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
+            int indexL = sceneContext().layerService().addLayerTop("Main layer");
+            int layerEntityId = sceneContext().layerService().getLayerEntity(indexL);
+            sceneContext().selectionService().setActivelayerId(layerEntityId);
             EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
 
             saveProjectAndCurrentScene();
 
-            String canonicalTag = cfg.canonicalSceneTagCurrent();
-            ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, canonicalTag);
+            app.getEditorDocumentManager().openScene(canonicalTag, meta.getName(), context);
             SceneAtlasLoaderService.packSceneAtlas(cfg, canonicalTag, projectDir);
             refreshAssetsPanel();
             app.getBottomBar().refreshSelectBox();
@@ -626,7 +815,7 @@ public final class SceneService {
 
             EditorSettings.get().lastProjectPath = projectFile.path();
             recentProjectsService.addRecentProject(projectFile.path());
-            clipboardService.clear();
+            clipboardService().clear();
 
             Gdx.graphics.setTitle("Pixscape 2D Game Studio (" + projectTitle + ")");
             StudioLog.info("Project created: " + projectTitle);
@@ -657,14 +846,17 @@ public final class SceneService {
         FileHandle projectDir = context.projectDir();
         String sceneName = context.sceneName();
 
+        app.onHudRuntimeProjectChanging();
+        app.getEditorDocumentManager().clear();
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
+        app.bindHudRuntimeProject(projectDir);
 
         reloadTileAnimationsFromProject(projectDir);
 
         applyProjectFixedSettings(cfg);
         refreshParticleEffectsRoot(cfg);
-        clipboardService.clear();
+        clipboardService().clear();
 
         try {
             loadScene(cfg, sceneName, projectDir);
@@ -714,9 +906,12 @@ public final class SceneService {
     }
 
     public void unloadProjectToEmptyEditor() {
-        clearWorldAndRenderState();
-        bindSceneIdentityAuthorities(null);
+        app.onHudRuntimeProjectChanging();
+        app.getEditorDocumentManager().clear();
         resetProjectConfigToEmptyState();
+        SceneEditorContext empty = canvas.createSceneContext(null, null);
+        canvas.attach(empty);
+        bindSceneIdentityAuthorities(null);
         refreshAssetsPanel();
         sceneMetaBridge.pushCurrentSceneMetaToUI();
         app.getBottomBar().refreshSelectBox();
@@ -730,56 +925,94 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     void loadScene(ProjectConfig cfg, String sceneName, FileHandle projectDir) {
-        clearWorldAndRenderState();
-
         SceneMeta meta = cfg.getSceneMeta(sceneName);
         if (meta == null) {
             throw new IllegalStateException("Missing scene metadata for scene '" + sceneName + "'.");
         }
-        bindSceneIdentityAuthorities(meta);
-
-        FileHandle scenesDir = projectDir.child(StudioFs.DIR_SCENES);
-
         String canonicalTag = cfg.canonicalSceneTagFor(meta);
         if (canonicalTag == null || canonicalTag.isBlank()) {
             throw new IllegalStateException("Missing canonical scene tag for scene '" + sceneName + "'.");
         }
-        canvas.getPhysicsSelectionReconciler().bindSceneContext(canonicalTag);
-
-        FileHandle sceneFile = scenesDir.child(meta.getFile());
-
-        sceneActivationPipeline.activate(
-                new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
-                        cfg,
-                        meta,
-                        sceneFile,
-                        projectDir,
-                        cfg.projectTitle,
-                        sceneName,
-                        canonicalTag
-                ));
-        ensureAssetMetaDatabaseLoaded();
-        int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(
-                canvas.getEcsWorld(),
-                assetMetaDatabase::findById,
-                canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
-                entityId -> EventFlow.i().publish(
-                        new EventFlow.AnimationChanged(entityId, MY_TAG)));
-        if (reconciledAnimations > 0) markCurrentSceneSaveRequired();
-        canvas.requestTiledFallbackValidation();
-        canvas.getIdentityRegistry().rebuild();
-        // UI
-
-        int firstLayerEntityId = app.getCanvas().getLayerService().getFirstLayerEntity();
-        if (firstLayerEntityId != -1) {
-            app.getCanvas().getSelectionService().setActivelayerId(firstLayerEntityId);
+        var key = new games.pixscape.studio.document.EditorDocumentKey(
+                games.pixscape.studio.document.EditorDocumentType.SCENE, canonicalTag);
+        var open = app.getEditorDocumentManager().find(key);
+        if (open instanceof games.pixscape.studio.document.SceneEditorDocument) {
+            app.getEditorDocumentManager().activate(key);
+            return;
         }
 
-        EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
-        app.getCanvas().getSelectionService().clearSelection();
-        refreshAssetsPanel();
-        app.getBottomBar().refreshSelectBox();
+        String previousSceneName = cfg.getCurrentSceneName();
+        SceneEditorContext previousContext = canvas.getAttachedSceneContext();
+        SceneEditorContext candidate = null;
+        try {
+            FileHandle sceneFile = projectDir.child(StudioFs.DIR_SCENES).child(meta.getFile());
+            if (!sceneFile.exists()) {
+                throw new IllegalStateException("Scene file is missing: " + sceneFile.path());
+            }
+            candidate = canvas.createSceneContext(canonicalTag, meta);
+            EventFlow.i().flush();
+            canvas.attach(candidate);
+            cfg.setCurrentSceneByName(sceneName);
+            candidate.bindSceneIdentity(canonicalTag);
+            bindSceneIdentityAuthorities(meta);
+            canvas.getPhysicsSelectionReconciler().bindSceneContext(canonicalTag);
 
+            ResolvedSceneActivationPipeline pipeline = new ResolvedSceneActivationPipeline(
+                    candidate.world(),
+                    canvas.getTileAnimationRegistry(),
+                    canvas.getTiledAllocatorService(),
+                    candidate.historyManager(),
+                    this::rebuildRenderRuntimeForScene);
+            pipeline.activate(new ResolvedSceneActivationPipeline.ResolvedSceneTarget(
+                    cfg, meta, sceneFile, projectDir, cfg.projectTitle, sceneName, canonicalTag));
+
+            ensureAssetMetaDatabaseLoaded();
+            int reconciledAnimations = AnimationAssetEntityReconciler.reconcileAll(
+                    candidate.world(),
+                    assetMetaDatabase::findById,
+                    canvas.getAnimationPreviewRefresher()::refreshSelectedFrame,
+                    entityId -> EventFlow.i().publish(
+                            new EventFlow.AnimationChanged(entityId, MY_TAG)));
+            if (reconciledAnimations > 0) candidate.markExplicitSaveRequired();
+            canvas.requestTiledFallbackValidation();
+            candidate.identityRegistry().rebuild();
+
+            int firstLayerEntityId = candidate.layerService().getFirstLayerEntity();
+            if (firstLayerEntityId != -1) {
+                candidate.selectionService().setActivelayerId(firstLayerEntityId);
+            }
+            candidate.selectionService().clearSelection();
+            candidate.historyManager().markSaved();
+
+            app.getEditorDocumentManager().openScene(canonicalTag, sceneName, candidate);
+            if (previousContext != null && !isDocumentOwned(previousContext)) {
+                canvas.releaseSceneContext(previousContext);
+                previousContext.dispose();
+            }
+            EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
+            refreshAssetsPanel();
+            app.getBottomBar().refreshSelectBox();
+        } catch (RuntimeException ex) {
+            EventFlow.i().discardPending();
+            // Publication transferred ownership. A later UI failure must not destroy an open document.
+            if (isDocumentOwned(candidate)) throw ex;
+            if (candidate != null && !candidate.isDisposed()) {
+                canvas.releaseSceneContext(candidate);
+                candidate.dispose();
+            }
+            if (previousSceneName != null && cfg.getSceneMeta(previousSceneName) != null) {
+                cfg.setCurrentSceneByName(previousSceneName);
+            }
+            if (previousContext != null && !previousContext.isDisposed()) {
+                canvas.attach(previousContext);
+            }
+            throw ex;
+        }
+
+    }
+
+    private boolean isDocumentOwned(SceneEditorContext context) {
+        return app.getEditorDocumentManager().ownsContext(context);
     }
 
     // ---------------------------------------------------------------------
@@ -787,14 +1020,8 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     public void saveProjectAndCurrentScene() {
-        final SaveExecutionPlan plan;
-        try {
-            plan = prepareSaveExecutionPlan();
-        } catch (IllegalStateException ex) {
-            logSaveValidationFailure(ex);
-            return;
-        }
-
+        final SaveExecutionPlan plan = prepareSaveExecutionPlan();
+        requireSavePlanCurrent(plan);
         saveProjectFile(plan.cfg());
         if (!plan.hasSceneToSave()) {
             finishSaveWithoutScene();
@@ -802,11 +1029,11 @@ public final class SceneService {
         }
 
         maybeRepackAtlas(plan);
-        rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        rebuildPlannedScene(plan);
+        savePlannedScene(plan);
         saveTileAnimations(plan);
         exportRuntimeBestEffort(plan.cfg(), plan.studioDir());
-        finishSaveWithScene(plan.cfg());
+        finishSaveWithScene(plan);
     }
 
     public void saveProjectAndCurrentSceneWithProgress(Stage uiStage,
@@ -820,36 +1047,26 @@ public final class SceneService {
             return;
         }
 
-        if (uiStage == null) {
-            try {
-                executePreparedSavePlan(plan);
-                if (onSuccess != null) onSuccess.run();
-            } catch (Throwable t) {
-                if (onError != null) onError.accept(t);
-            }
-            return;
-        }
-
-        SaveProgressRunner runner = new SaveProgressRunner(uiStage);
         Array<SaveProgressRunner.Step> steps = new Array<>();
 
-        steps.add(SaveProgressRunner.Step.sync(0.10f, "Preparing save...", () -> {
+        steps.add(saveStep(plan, 0.10f, "Preparing save...", () -> {
         }));
-        steps.add(SaveProgressRunner.Step.sync(0.20f, "Saving project file...", () -> saveProjectFile(plan.cfg())));
+        steps.add(saveStep(plan, 0.20f, "Saving project file...", () -> saveProjectFile(plan.cfg())));
 
         if (!plan.hasSceneToSave()) {
-            steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", this::finishSaveWithoutScene));
+            steps.add(saveStep(plan, 1.00f, "Finalizing...", this::finishSaveWithoutScene));
         } else {
             steps.add(SaveProgressRunner.Step.async(0.25f, "Repacking atlas...",
                     (progress, next, fail) -> maybeRepackAtlasAsync(plan, progress, next, fail)));
-            steps.add(SaveProgressRunner.Step.sync(0.65f, "Rebuilding tiled sparse data...", this::rebuildSparseFromDense));
-            steps.add(SaveProgressRunner.Step.sync(0.75f, "Saving scene...", () -> saveScene(canvas.getEcsWorld(), plan.sceneFile(), false)));
-            steps.add(SaveProgressRunner.Step.sync(0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
-            steps.add(SaveProgressRunner.Step.sync(0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
-            steps.add(SaveProgressRunner.Step.sync(1.00f, "Finalizing...", () -> finishSaveWithScene(plan.cfg())));
+            steps.add(saveStep(plan, 0.65f, "Rebuilding tiled sparse data...", () -> rebuildPlannedScene(plan)));
+            steps.add(saveStep(plan, 0.75f, "Saving scene...", () -> savePlannedScene(plan)));
+            steps.add(saveStep(plan, 0.82f, "Saving tiled animations...", () -> saveTileAnimations(plan)));
+            steps.add(saveStep(plan, 0.90f, "Exporting runtime...", () -> exportRuntime(plan.cfg(), plan.studioDir())));
+            steps.add(saveStep(plan, 1.00f, "Finalizing...", () -> finishSaveWithScene(plan)));
         }
 
-        runner.run(steps, onSuccess, onError);
+        runSaveSteps(uiStage, steps, () -> executePreparedSavePlan(plan),
+                () -> completePlannedSave(plan, onSuccess, onError), onError);
     }
 
     public void saveProjectAs(FileHandle selectedProjectFile) {
@@ -880,8 +1097,13 @@ public final class SceneService {
 
         boolean copiedToNewDirectory = !targetProjectDir.path().equals(currentProjectDir.path());
         if (copiedToNewDirectory) {
-            ProjectRenameService.copyProjectDirectory(currentProjectDir, targetProjectDir);
-            cfg.projectDirectoryPath = targetProjectDir.path();
+            app.onHudRuntimeProjectChanging();
+            try {
+                ProjectRenameService.copyProjectDirectory(currentProjectDir, targetProjectDir);
+                cfg.projectDirectoryPath = targetProjectDir.path();
+            } finally {
+                app.bindHudRuntimeProject(StudioFs.requireStudioProjectDir(cfg));
+            }
         }
 
         if (!targetProjectFileName.equals(cfg.projectFileName)) {
@@ -892,14 +1114,17 @@ public final class SceneService {
     }
 
     private SaveExecutionPlan prepareSaveExecutionPlan() {
+        return prepareSaveExecutionPlan(true);
+    }
+
+    private SaveExecutionPlan prepareSaveExecutionPlan(boolean requireExportRoot) {
         final ProjectConfig cfg = ProjectConfig.getInstance();
 
-        flushWorldForSerialization();
-
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
         if (cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
             throw new IllegalStateException("saveProjectAndCurrentScene: projectName is empty, abort.");
         }
-        requireValidExportRootOrThrow(cfg, "saveProjectAndCurrentScene");
+        if (requireExportRoot) requireValidExportRootOrThrow(cfg, "saveProjectAndCurrentScene");
 
         final FileHandle studioDir = StudioFs.requireStudioProjectDir(cfg);
         if (studioDir == null) {
@@ -908,7 +1133,8 @@ public final class SceneService {
 
         final SceneMeta meta = cfg.getCurrentSceneMeta();
         if (meta == null || meta.getName() == null || meta.getName().isEmpty()) {
-            return new SaveExecutionPlan(cfg, studioDir, null, null, null, false);
+            return new SaveExecutionPlan(cfg, studioDir, null, null, null, false,
+                    null, null, null, 0, 0, cfg.exportRootPathDir);
         }
 
         final String sceneName = meta.getName();
@@ -919,13 +1145,79 @@ public final class SceneService {
         }
 
         final FileHandle scenesDir = studioDir.child(StudioFs.DIR_SCENES);
-        scenesDir.mkdirs();
         final FileHandle sceneFile = scenesDir.child(sceneFileName);
         final String canonicalTag = cfg.canonicalSceneTag(sceneName);
-        return new SaveExecutionPlan(cfg, studioDir, sceneName, sceneFile, canonicalTag, true);
+        SceneEditorContext source = sceneContext();
+        if (canonicalTag == null || !canonicalTag.equals(source.sceneIdentity())
+                || source.sceneMeta() != meta) {
+            throw new IllegalStateException("Select the Scene document before saving or launching Preview; "
+                    + "an asset editor cannot be saved as the project Scene.");
+        }
+        SaveExecutionPlan plan = new SaveExecutionPlan(cfg, studioDir, sceneName, sceneFile,
+                canonicalTag, true, source, source.world(), meta, source.generation(),
+                source.attachCount(), cfg.exportRootPathDir);
+        requireSavePlanCurrent(plan);
+        source.world().process();
+        return plan;
+    }
+
+    /** Validate before any save-side mutation, including delayed atlas callbacks. */
+    private void requireSavePlanCurrent(SaveExecutionPlan plan) {
+        if (ProjectConfig.getInstance() != plan.cfg()
+                || !plan.studioDir().equals(StudioFs.requireStudioProjectDir(plan.cfg()))
+                || !Objects.equals(plan.exportRoot(), plan.cfg().exportRootPathDir)) {
+            throw new IllegalStateException("Save cancelled: the project or its destination changed.");
+        }
+        if (!plan.hasSceneToSave()) {
+            if (plan.cfg().getCurrentSceneMeta() != null)
+                throw new IllegalStateException("Save cancelled: the current Scene changed.");
+            return;
+        }
+        SceneEditorContext source = plan.source();
+        if (source.isDisposed() || source.generation() != plan.sourceGeneration()
+                || source.attachCount() != plan.sourceAttachCount()
+                || sceneContext() != source || source.world() != plan.sourceWorld()
+                || source.sceneMeta() != plan.sourceMeta()
+                || !Objects.equals(source.sceneIdentity(), plan.canonicalTag())
+                || plan.cfg().getCurrentSceneMeta() != plan.sourceMeta()
+                || !Objects.equals(plan.cfg().getCurrentSceneName(), plan.sceneName())
+                || !plan.sceneFile().equals(plan.studioDir().child(StudioFs.DIR_SCENES)
+                        .child(plan.sourceMeta().getFile()))) {
+            throw new IllegalStateException("Save cancelled: the Scene document changed or was closed. "
+                    + "Save again from the intended Scene document.");
+        }
+    }
+
+    private SaveProgressRunner.Step saveStep(SaveExecutionPlan plan, float progress,
+                                             String message, Runnable action) {
+        return SaveProgressRunner.Step.sync(progress, message, () -> {
+            requireSavePlanCurrent(plan);
+            action.run();
+        });
+    }
+
+    private void completePlannedSave(SaveExecutionPlan plan, Runnable onSuccess,
+                                     java.util.function.Consumer<Throwable> onError) {
+        try {
+            requireSavePlanCurrent(plan);
+            if (onSuccess != null) onSuccess.run();
+        } catch (Throwable failure) {
+            if (onError != null) onError.accept(failure);
+        }
+    }
+
+    private void rebuildPlannedScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        rebuildSparseFromDense(plan.sourceWorld());
+    }
+
+    private void savePlannedScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        saveScene(plan.sourceWorld(), plan.sceneFile(), false);
     }
 
     private void executePreparedSavePlan(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         saveProjectFile(plan.cfg());
 
         if (!plan.hasSceneToSave()) {
@@ -934,20 +1226,15 @@ public final class SceneService {
         }
 
         maybeRepackAtlas(plan);
-        rebuildSparseFromDense();
-        saveScene(canvas.getEcsWorld(), plan.sceneFile(), false);
+        rebuildPlannedScene(plan);
+        savePlannedScene(plan);
         saveTileAnimations(plan);
         exportRuntime(plan.cfg(), plan.studioDir());
-        finishSaveWithScene(plan.cfg());
-    }
-
-    private void logSaveValidationFailure(IllegalStateException ex) {
-        Gdx.app.error("SceneManager", ex.getMessage());
-        EventFlow.i().publish(new EventFlow.LogMessage(ex.getMessage()));
-        StudioLog.warn(ex.getMessage());
+        finishSaveWithScene(plan);
     }
 
     private void saveTileAnimations(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         TileAnimationsIO.save(
                 tileAnimationsMetaDatabase,
                 plan.studioDir().child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
@@ -963,7 +1250,19 @@ public final class SceneService {
         }
     }
 
+    /** A HUD document Save also refreshes the game's derived assets. */
+    public void exportRuntimeAfterHudSave() {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        exportRuntime(cfg, StudioFs.requireStudioProjectDir(cfg));
+    }
+
     private void exportRuntime(ProjectConfig cfg, FileHandle studioDir) {
+        SceneHudRuntimeExport.requireSavedDocuments(studioDir, cfg,
+                app.getEditorDocumentManager().documents().stream()
+                        .filter(document -> document instanceof HudScreenEditorDocument)
+                        .filter(OpenEditorDocument::isDirty)
+                        .map(document -> ((HudScreenEditorDocument) document).screenId())
+                        .toList());
         FileHandle userRootDir = RuntimeExportPaths.userRootFileHandle(cfg);
         if (userRootDir == null) {
             throw new IllegalStateException("Runtime export root is not configured.");
@@ -976,25 +1275,24 @@ public final class SceneService {
         String log = "saveProjectAndCurrentScene: no current scene, skipping scene save.";
         Gdx.app.log("SceneManager", log);
         EventFlow.i().publish(new EventFlow.LogMessage(log));
-        historyManager.markSaved();
-        clearCurrentSceneSaveRequired();
     }
 
-    private void finishSaveWithScene(ProjectConfig cfg) {
-        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + ")");
-        historyManager.markSaved();
+    private void finishSaveWithScene(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
+        Gdx.graphics.setTitle(STUDIO_TITLE + " (" + plan.cfg().projectTitle + ")");
+        plan.source().markSaved();
         StudioLog.info("Project saved successfully");
-        clearCurrentSceneSaveRequired();
     }
 
     private void saveCurrentSceneOnly(ProjectConfig cfg) {
+        SaveExecutionPlan plan = prepareSaveExecutionPlan(false);
+        requireSavePlanCurrent(plan);
         String sceneName = cfg.getCurrentSceneName();
         if (sceneName == null || sceneName.isEmpty()) {
             Gdx.app.log("SceneManager", "saveCurrentSceneOnly: no current scene, skipping.");
             return;
         }
 
-        flushWorldForSerialization();
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         SceneMeta meta = cfg.getCurrentSceneMeta();
@@ -1010,14 +1308,13 @@ public final class SceneService {
             return;
         }
 
-        FileHandle sceneFile = scenesDir.child(fileName);
 
         if (EditorSettings.get().autoRepackAtlases) {
             repackSceneAtlas(cfg, sceneName, projectDir);
         }
-        rebuildSparseFromDense();
+        rebuildPlannedScene(plan);
 
-        saveScene(canvas.getEcsWorld(), sceneFile, false);
+        savePlannedScene(plan);
         if (tileAnimationsMetaDatabase != null) {
             TileAnimationsIO.save(
                     tileAnimationsMetaDatabase,
@@ -1049,6 +1346,9 @@ public final class SceneService {
         IntBag entitiesToSave = contentOnly
                 ? world.getAspectSubscriptionManager().get(Aspect.all(EntityIndexComponent.class)).getEntities()
                 : world.getAspectSubscriptionManager().get(Aspect.all()).getEntities();
+
+        games.pixscape.runtime.loading.ContentLayerValidator.validateWorld(
+                world, "Scene '" + outFile.path() + "'");
 
         SaveFileFormat format = new SaveFileFormat(entitiesToSave);
         SceneVolatileStateSnapshot volatileState = clearVolatileSceneStateForSave(world, entitiesToSave);
@@ -1392,10 +1692,20 @@ public final class SceneService {
             return;
         }
 
+        boolean requiresLiveScene = false;
+        for (AssetMeta meta : metasToDelete) {
+            if (meta.type() != AssetType.FONT && meta.type() != AssetType.SKIN) {
+                requiresLiveScene = true;
+                break;
+            }
+        }
         AssetUsageScanner usageScanner = new AssetUsageScanner(
-                canvas.getEcsWorld(),
+                requiresLiveScene ? sceneContext().world() : null,
                 cfg,
-                assetMetaDatabase
+                assetMetaDatabase,
+                app.getEditorDocumentManager().documents().stream()
+                        .filter(HudScreenEditorDocument.class::isInstance)
+                        .map(HudScreenEditorDocument.class::cast).toList()
         );
         for (AssetMeta meta : metasToDelete) {
             AssetUsageScanner.AssetUsageReport usage = usageScanner.scanAsset(meta.id());
@@ -1412,12 +1722,13 @@ public final class SceneService {
         }
 
         assetMetaDatabase.save(assetsFile);
-        markCurrentSceneSaveRequired();
+        if (canvas.getAttachedSceneContext() != null) markCurrentSceneSaveRequired();
         StandaloneTextureCache.clear(true);
         canvas.invalidateStandaloneAssetVisuals();
 
         persistRuntimeAvailabilityChange(cfg, runtimeAvailabilityChanged);
         refreshAssetsPanel();
+        app.getHudEditorSession().refreshAssetOptions();
     }
 
     private Array<AssetMeta> resolveAssetsForDeletion(Array<Integer> assetIds) {
@@ -1445,6 +1756,7 @@ public final class SceneService {
         }
 
         FileHandle file = projectDir.child(meta.sourceRelPath());
+        if (meta.type() == AssetType.FONT || meta.type() == AssetType.SKIN) file = file.parent();
         if (!file.exists()) {
             return;
         }
@@ -1479,6 +1791,15 @@ public final class SceneService {
             }
         }
 
+        if (usage != null && usage.documentNames() != null && usage.documentNames().size > 0) {
+            message.append(" Used in HUD document");
+            if (usage.documentNames().size > 1) message.append("s");
+            message.append(": ");
+            for (int i = 0; i < usage.documentNames().size; i++) {
+                if (i > 0) message.append(", ");
+                message.append(usage.documentNames().get(i));
+            }
+        }
         return message.toString();
     }
 
@@ -1497,12 +1818,13 @@ public final class SceneService {
 
         AtlasInputSyncResult syncResult = sceneAtlasInputService.syncSceneAtlasInputForSave(
                 cfg,
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 assetMetaDatabase,
                 tileAnimationsMetaDatabase
         );
 
         if (syncResult.changed()) {
+            atlasStudioService.markRepackRequired(StudioFs.requireStudioProjectDir(cfg), canonicalTag);
             atlasStudioService.requestAsyncPack(
                     canonicalTag,
                     AsyncAtlasRepackCoordinator.RepackReason.GENERIC
@@ -1511,6 +1833,7 @@ public final class SceneService {
     }
 
     private void maybeRepackAtlas(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         if (!plan.hasSceneToSave()) return;
         if (!EditorSettings.get().autoRepackAtlases) return;
 
@@ -1518,13 +1841,14 @@ public final class SceneService {
         if (canonicalTag == null || canonicalTag.isBlank()) return;
 
         AtlasInputSyncResult syncResult = syncSceneAtlasInputForSave(plan);
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(plan.studioDir(), canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(plan, syncResult)) {
             logSaveAtlasRepackSkipped(canonicalTag);
             return;
         }
-
-        ProjectFileCleanupService.deleteSceneAtlasFiles(plan.studioDir(), canonicalTag);
 
         SceneAtlasLoaderService.packSceneAtlas(
                 plan.cfg(),
@@ -1538,12 +1862,14 @@ public final class SceneService {
                 plan.studioDir(),
                 canvas
         );
+        atlasStudioService.clearRepackRequired(plan.studioDir(), canonicalTag);
     }
 
     private void maybeRepackAtlasAsync(SaveExecutionPlan plan,
                                        SaveProgressRunner.ProgressHandle progress,
                                        Runnable onDone,
                                        java.util.function.Consumer<Throwable> onError) {
+        requireSavePlanCurrent(plan);
         if (!plan.hasSceneToSave() || !EditorSettings.get().autoRepackAtlases) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
             onDone.run();
@@ -1560,6 +1886,9 @@ public final class SceneService {
         progress.update(0.25f, "Synchronizing atlas input (1/1)...");
 
         AtlasInputSyncResult syncResult = syncSceneAtlasInputForSave(plan);
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(plan.studioDir(), canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(plan, syncResult)) {
             progress.update(0.60f, "Repacking atlas (1/1): skipped");
@@ -1568,27 +1897,42 @@ public final class SceneService {
             return;
         }
 
+        if (syncResult.changed()) {
+            // A pending worker may have enumerated the input before this sync added an image.
+            Gdx.app.log("AtlasStudioService", "Save atlas repack scene=" + canonicalTag + " reason=inputs-changed");
+            long generation = atlasStudioService.requestAsyncPack(
+                    canonicalTag,
+                    AsyncAtlasRepackCoordinator.RepackReason.SAVE
+            );
+            waitForAsyncPackCompletion(plan, canonicalTag, generation, progress, onDone, onError);
+            return;
+        }
+
         if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
             Gdx.app.log("AtlasStudioService",
                     "Save atlas repack using pending pack scene=" + canonicalTag);
-            waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+            waitForAsyncPackCompletion(plan, canonicalTag, atlasStudioService.currentPackGeneration(),
+                    progress, onDone, onError);
             return;
         }
 
         progress.update(0.30f, "Queueing atlas repack (1/1)...");
 
-        atlasStudioService.requestAsyncPack(
+        Gdx.app.log("AtlasStudioService", "Save atlas repack scene=" + canonicalTag
+                + " reason=atlas-missing-or-invalid");
+        long generation = atlasStudioService.requestAsyncPack(
                 canonicalTag,
                 AsyncAtlasRepackCoordinator.RepackReason.SAVE
         );
 
-        waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
+        waitForAsyncPackCompletion(plan, canonicalTag, generation, progress, onDone, onError);
     }
 
     private AtlasInputSyncResult syncSceneAtlasInputForSave(SaveExecutionPlan plan) {
+        requireSavePlanCurrent(plan);
         return sceneAtlasInputService.syncSceneAtlasInputForSave(
                 plan.cfg(),
-                canvas.getEcsWorld(),
+                plan.sourceWorld(),
                 assetMetaDatabase,
                 tileAnimationsMetaDatabase
         );
@@ -1603,13 +1947,25 @@ public final class SceneService {
     private boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
                                               String sceneTag,
                                               AtlasInputSyncResult syncResult) {
-        return shouldSkipSaveAtlasRepack(
-                studioDir,
-                sceneTag,
-                syncResult,
-                hasUsableSceneAtlas(studioDir, sceneTag),
-                atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag)
-        );
+        return shouldSkipSaveAtlasRepack(studioDir, sceneTag, syncResult,
+                atlasStudioService.hasAsyncPackQueuedOrRunningFor(sceneTag),
+                () -> hasUsableSceneAtlas(studioDir, sceneTag));
+    }
+
+    static boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
+                                             String sceneTag,
+                                             AtlasInputSyncResult syncResult,
+                                             boolean pendingPackForScene,
+                                             java.util.function.BooleanSupplier atlasUsable) {
+        if (studioDir == null || sceneTag == null || sceneTag.isBlank() || syncResult == null
+                || atlasInputsChanged(syncResult)) return false;
+        if (pendingPackForScene) return false;
+        return atlasUsable.getAsBoolean();
+    }
+
+    private static boolean atlasInputsChanged(AtlasInputSyncResult result) {
+        return result != null && (result.changed() || result.copiedCount() > 0
+                || result.deletedCount() > 0);
     }
 
     static boolean shouldSkipSaveAtlasRepack(FileHandle studioDir,
@@ -1619,9 +1975,7 @@ public final class SceneService {
                                              boolean pendingPackForScene) {
         if (studioDir == null || sceneTag == null || sceneTag.isBlank()) return false;
         if (syncResult == null) return false;
-        if (syncResult.changed()) return false;
-        if (syncResult.copiedCount() > 0) return false;
-        if (syncResult.deletedCount() > 0) return false;
+        if (atlasInputsChanged(syncResult)) return false;
         if (!atlasUsable) return false;
         return !pendingPackForScene;
     }
@@ -1640,17 +1994,8 @@ public final class SceneService {
         FileHandle atlasFile = atlasesDir.child(StudioFs.withExt(sceneTag, StudioFs.EXT_ATLAS));
         if (!atlasFile.exists() || atlasFile.isDirectory() || atlasFile.length() <= 0L) return false;
 
-        Array<String> pageFileNames = atlasPageFileNames(atlasFile);
-        if (pageFileNames.size == 0) return false;
-
-        for (String pageFileName : pageFileNames) {
-            FileHandle pageFile = atlasesDir.child(pageFileName);
-            if (!pageFile.exists() || pageFile.isDirectory() || pageFile.length() <= 0L) {
-                return false;
-            }
-        }
-
-        return true;
+        return atlasStudioService.coversCurrentInput(sceneTag,
+                atlasesDir.child(StudioFs.DIR_INPUT).child(sceneTag), atlasFile);
     }
 
     static Array<String> atlasPageFileNames(FileHandle atlasFile) {
@@ -1678,13 +2023,32 @@ public final class SceneService {
                         + " inputsUnchanged=true atlasValid=true");
     }
 
-    private void waitForAsyncPackCompletion(String canonicalTag,
+    private void waitForAsyncPackCompletion(SaveExecutionPlan plan, String canonicalTag,
+                                            long generation,
                                             SaveProgressRunner.ProgressHandle progress,
                                             Runnable onDone,
                                             java.util.function.Consumer<Throwable> onError) {
         try {
+            requireSavePlanCurrent(plan);
             atlasStudioService.updateAsyncPack();
             atlasStudioService.applyIfPackReady();
+
+            long currentGeneration = atlasStudioService.currentPackGeneration();
+            if (currentGeneration != generation) {
+                if (!canonicalTag.equals(atlasStudioService.currentPackSceneTag())) {
+                    throw new IllegalStateException("Atlas pack for scene '" + canonicalTag
+                            + "' was superseded by another scene");
+                }
+                generation = currentGeneration;
+            }
+
+            if (packPublishedOrThrow(canonicalTag, generation,
+                    atlasStudioService.lastPackCompletion(),
+                    atlasStudioService.hasAsyncPackQueuedOrRunningFor(canonicalTag))) {
+                progress.update(0.60f, "Repacking atlas (1/1): done");
+                onDone.run();
+                return;
+            }
 
             if (atlasStudioService.isPackInProgress()) {
                 progress.update(0.45f, "Repacking atlas (1/1)...");
@@ -1692,18 +2056,11 @@ public final class SceneService {
                 progress.update(0.35f, "Waiting atlas repack slot (1/1)...");
             }
 
-            if (!canvas.getAtlasService().hasAsyncPackQueuedOrRunningFor(canonicalTag)) {
-                progress.update(0.60f, "Repacking atlas (1/1): done");
-                onDone.run();
-                return;
-            }
-
-            Timer.schedule(new com.badlogic.gdx.utils.Timer.Task() {
-                @Override
-                public void run() {
-                    waitForAsyncPackCompletion(canonicalTag, progress, onDone, onError);
-                }
-            }, 1f / 60f);
+            final long awaitedGeneration = generation;
+            // Save completion must advance while libGDX's lifecycle Timer is paused.
+            // Like the other save steps, poll on the application's next runnable cycle.
+            Gdx.app.postRunnable(() -> waitForAsyncPackCompletion(
+                    plan, canonicalTag, awaitedGeneration, progress, onDone, onError));
         } catch (Throwable t) {
             if (onError != null) {
                 onError.accept(t);
@@ -1711,6 +2068,21 @@ public final class SceneService {
                 Gdx.app.error("SceneManager", "Async atlas save step failed", t);
             }
         }
+    }
+
+    static boolean packPublishedOrThrow(String sceneTag, long generation,
+                                        AtlasStudioService.PackCompletion completion,
+                                        boolean pending) {
+        if (completion != null && completion.generation() == generation
+                && sceneTag.equals(completion.sceneTag())) {
+            if (completion.failure() != null) throw new IllegalStateException(
+                    "Atlas pack failed for scene '" + sceneTag + "' generation " + generation,
+                    completion.failure());
+            return true;
+        }
+        if (!pending) throw new IllegalStateException("Atlas pack ended without publication for scene '"
+                + sceneTag + "' generation " + generation);
+        return false;
     }
 
     private void repackSceneAtlas(ProjectConfig cfg,
@@ -1730,17 +2102,18 @@ public final class SceneService {
         AtlasInputSyncResult syncResult =
                 sceneAtlasInputService.syncSceneAtlasInputForSave(
                         cfg,
-                        canvas.getEcsWorld(),
+                        sceneContext().world(),
                         assetMetaDatabase,
                         tileAnimationsMetaDatabase
                 );
+        if (atlasInputsChanged(syncResult)) {
+            atlasStudioService.markRepackRequired(projectDir, canonicalTag);
+        }
 
         if (shouldSkipSaveAtlasRepack(projectDir, canonicalTag, syncResult)) {
             logSaveAtlasRepackSkipped(canonicalTag);
             return;
         }
-
-        ProjectFileCleanupService.deleteSceneAtlasFiles(projectDir, canonicalTag);
 
         SceneAtlasLoaderService.packSceneAtlas(
                 cfg,
@@ -1749,6 +2122,7 @@ public final class SceneService {
         );
 
         reloadAtlasAndRebind(cfg, canonicalTag, projectDir);
+        atlasStudioService.clearRepackRequired(projectDir, canonicalTag);
 
         GpuSnapshotManager snapshotManager = canvas.getGpuSnapshotManager();
         if (snapshotManager != null) {
@@ -1771,7 +2145,7 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     private void rebuildSparseFromDense() {
-        rebuildSparseFromDense(canvas.getEcsWorld());
+        rebuildSparseFromDense(sceneContext().world());
     }
 
     static void rebuildSparseFromDense(World world) {
@@ -1832,6 +2206,11 @@ public final class SceneService {
 
         publishStudioAssetMetadata(projectDir);
 
+        java.util.Set<String> normalSources=sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(
+                cfg,sceneContext().world(),cfg.getCurrentSceneMeta(),assetMetaDatabase,tileAnimationsMetaDatabase);
+        if(cfg.getCurrentSceneMeta().useNormalMaps)
+            atlasStudioService.prepareSceneNormals(projectDir,canonicalTag,normalSources,assetMetaDatabase);
+
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
 
         rebindTiles();
@@ -1850,7 +2229,7 @@ public final class SceneService {
     }
 
     private void rebindTiles() {
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
 
@@ -1869,7 +2248,7 @@ public final class SceneService {
     }
 
     private void refreshParticleEffectsRoot(ProjectConfig cfg) {
-        var particleSystem = canvas.getEcsWorld().getSystem(RenderParticleSyncSystem.class);
+        var particleSystem = sceneContext().world().getSystem(RenderParticleSyncSystem.class);
         if (particleSystem == null) return;
 
         FileHandle effectsRoot = null;
@@ -1885,6 +2264,7 @@ public final class SceneService {
         // shaders root = project STUDIO directory
         FileHandle shadersRoot = StudioFs.requireStudioProjectDir(cfg);
         ShaderRegistry.reloadForProject(shadersRoot, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
 
         // MSAA (restart required)
@@ -1908,27 +2288,18 @@ public final class SceneService {
         if (cfg == null) return;
         if (sceneName == null || sceneName.isBlank()) return;
 
-        String current = cfg.getCurrentSceneName();
-        if (sceneName.equals(current)) return;
-
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         try {
-            cfg.setCurrentSceneByName(sceneName);
-            saveProjectFile(cfg);
             loadScene(cfg, sceneName, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
             StudioLog.info("Scene opened: " + sceneName);
         } catch (RuntimeException ex) {
-            throw failAfterRollback(
-                    "Failed to switch scene to '" + sceneName + "'.",
-                    ex,
-                    () -> rollbackSceneSwitch(cfg, current, projectDir)
-            );
+            throw new IllegalStateException("Failed to open scene '" + sceneName + "'.", ex);
         }
     }
 
     public void createNewScene(String desiredSceneName) {
-        clipboardService.clear();
+        clipboardService().clear();
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) {
             cfg = new ProjectConfig();
@@ -1936,14 +2307,12 @@ public final class SceneService {
             ProjectConfig.setInstance(cfg);
         }
 
-        if (cfg.getCurrentSceneName() != null) {
-            saveCurrentSceneOnly(cfg);
-        }
-
         String sceneName = cfg.uniqueSceneName(desiredSceneName);
         String previousSceneName = cfg.getCurrentSceneName();
+        SceneEditorContext previousContext = canvas.getAttachedSceneContext();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         String createdSceneFileName = null;
+        SceneEditorContext candidate = null;
         try {
             // fileName is managed by nextSceneIndex in ProjectConfig
             cfg.createSceneMeta(sceneName);
@@ -1953,22 +2322,38 @@ public final class SceneService {
             FileHandle atlasesDir = projectDir.child(StudioFs.DIR_ATLASES);
             atlasesDir.mkdirs();
 
-            saveProjectFile(cfg);
-
-            clearWorldAndRenderState();
+            String canonicalTag = cfg.canonicalSceneTagFor(meta);
+            candidate = canvas.createSceneContext(canonicalTag, meta);
+            canvas.attach(candidate);
+            candidate.bindSceneIdentity(canonicalTag);
             bindSceneIdentityAuthorities(meta);
-            int indexL = app.getCanvas().getLayerService().addLayerTop("Main layer");
-            int layerEntityId = app.getCanvas().getLayerService().getLayerEntity(indexL);
-            app.getCanvas().getSelectionService().setActivelayerId(layerEntityId);
+            int indexL = candidate.layerService().addLayerTop("Main layer");
+            int layerEntityId = candidate.layerService().getLayerEntity(indexL);
+            candidate.selectionService().setActivelayerId(layerEntityId);
+            candidate.world().process();
 
             saveCurrentSceneOnly(cfg);
-            loadScene(cfg, sceneName, projectDir);
+            candidate.markSaved();
+            saveProjectFile(cfg);
+            app.getEditorDocumentManager().openScene(canonicalTag, sceneName, candidate);
             assertCurrentSceneMetadataIntegrity(cfg, sceneName, "createNewScene");
             sceneMetaBridge.pushCurrentSceneMetaToUI();
 
             Gdx.graphics.setTitle(STUDIO_TITLE + " (" + cfg.projectTitle + " - " + sceneName + ")");
             StudioLog.info("Scene created: " + sceneName);
+            if (previousContext != null && !isDocumentOwned(previousContext)) {
+                canvas.releaseSceneContext(previousContext);
+                previousContext.dispose();
+            }
         } catch (RuntimeException ex) {
+            if (isDocumentOwned(candidate)) throw ex;
+            if (candidate != null && !candidate.isDisposed()) {
+                canvas.releaseSceneContext(candidate);
+                candidate.dispose();
+            }
+            if (previousContext != null && !previousContext.isDisposed()) {
+                canvas.attach(previousContext);
+            }
             final ProjectConfig rollbackCfg = cfg;
             final String rollbackPreviousSceneName = previousSceneName;
             final String rollbackSceneName = sceneName;
@@ -2250,6 +2635,8 @@ public final class SceneService {
         FileHandle atlasInputDir = StudioFs.requireAtlasInputDir(cfg, canonicalTag);
         Array<ProjectFileCleanupService.FileSnapshotEntry> atlasInputBackup =
                 ProjectFileCleanupService.snapshotDirectory(atlasInputDir);
+        FileHandle normalInputDir=games.pixscape.studio.service.atlas.NormalAtlasPackingService.input(atlasInputDir);
+        Array<ProjectFileCleanupService.FileSnapshotEntry> normalInputBackup=ProjectFileCleanupService.snapshotDirectory(normalInputDir);
 
         String previousCurrentSceneName = cfg.getCurrentSceneName();
         boolean wasActive = sceneName.equals(previousCurrentSceneName);
@@ -2273,6 +2660,10 @@ public final class SceneService {
             atlasStudioService.unload(canonicalTag);
 
             cfg.removeSceneMeta(sceneName);
+            app.getEditorDocumentManager().closeNow(
+                    new games.pixscape.studio.document.EditorDocumentKey(
+                            games.pixscape.studio.document.EditorDocumentType.SCENE,
+                            canonicalTag));
 
             if (wasActive) {
                 if (nextSceneName == null || cfg.getSceneMeta(nextSceneName) == null) {
@@ -2294,7 +2685,9 @@ public final class SceneService {
             throw failAfterRollback(
                     "Failed to delete scene '" + sceneName + "'.",
                     ex,
-                    () -> rollbackSceneDelete(
+                    () -> {
+                        ProjectFileCleanupService.restoreDirectoryFromSnapshot(normalInputDir,normalInputBackup);
+                        rollbackSceneDelete(
                             cfg,
                             sceneName,
                             meta,
@@ -2306,7 +2699,7 @@ public final class SceneService {
                             atlasInputDir,
                             atlasInputBackup,
                             projectDir
-                    )
+                    );}
             );
         }
     }
@@ -2333,17 +2726,6 @@ public final class SceneService {
                     mergedFailure
             );
         }
-    }
-
-    private void rollbackSceneSwitch(ProjectConfig cfg, String previousSceneName, FileHandle projectDir) {
-        if (!rollbackSceneSwitchConfigPointer(cfg, previousSceneName)) {
-            unloadProjectToEmptyEditor();
-            return;
-        }
-        saveProjectFile(cfg);
-        loadScene(cfg, previousSceneName, projectDir);
-        sceneMetaBridge.pushCurrentSceneMetaToUI();
-        app.getBottomBar().refreshSelectBox();
     }
 
     private void rollbackSceneCreate(ProjectConfig cfg,
@@ -2770,7 +3152,7 @@ public final class SceneService {
             return false;
         }
 
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled =
                 world.getMapper(TiledLayerComponent.class);
 
@@ -2806,7 +3188,7 @@ public final class SceneService {
             return;
         }
 
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
 
         IntBag tiledLayers = world.getAspectSubscriptionManager()
@@ -2822,6 +3204,7 @@ public final class SceneService {
                 continue;
             }
 
+            boolean changed=false;
             for (TileChunk chunk : tiled.data.getChunks()) {
                 for (int ly = 0; ly < chunk.chunkHeight; ly++) {
                     for (int lx = 0; lx < chunk.chunkWidth; lx++) {
@@ -2831,6 +3214,7 @@ public final class SceneService {
                         }
 
                         int localIndex = chunk.localIndexFor(lx, ly);
+                        changed=true;
                         chunk.markLocalDirty(localIndex);
 
                         if (lookup != null) {
@@ -2838,6 +3222,13 @@ public final class SceneService {
                         }
                     }
                 }
+            }
+            if(changed){
+                // Definition edits are cold authored mutations, unlike playback frame changes.
+                DirtyTrackerSystem dirty=world.getSystem(DirtyTrackerSystem.class);
+                if(dirty!=null)dirty.geometry(data[i],games.pixscape.runtime.render.GeometryDirty.ALL);
+                EventFlow.i().publish(new EventFlow.EntityChanged(data[i],
+                        games.pixscape.studio.history.commands.TransformOp.SCALE,EventFlow.tag(this)));
             }
         }
     }
@@ -2904,7 +3295,33 @@ public final class SceneService {
         assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
         canvas.publishAssetMetaDatabase(assetMetaDatabase);
         refreshAssetsPanel();
+        app.getHudEditorSession().refreshAssetOptions();
         StudioLog.info("Assets imported: " + importedCount);
+    }
+
+    public void importAssetsWithProgress(Array<ImportDialog.ImportItem> items, Stage stage,
+            Runnable complete, java.util.function.Consumer<Throwable> failure) {
+        class ImportQueue {
+            int index;
+            void advance() {
+                if (index >= items.size) { app.getHudEditorSession().refreshAssetOptions(); complete.run(); return; }
+                ImportDialog.ImportItem item = items.get(index++);
+                if (item.tilesetPlan == null) {
+                    try { importAssets(new Array<>(new ImportDialog.ImportItem[]{item})); advance(); }
+                    catch (Throwable error) { failure.accept(error); }
+                    return;
+                }
+                applyTilesetImportPlanWithProgress(item.tilesetPlan, stage, result -> {
+                    try {
+                        if (item.type == ImportDialog.ImportType.TILESET_TSX && item.tilesetPlan.targetId() <= 0)
+                            importInitialTsxAnimations(prepareAssetImportContext(ProjectConfig.getInstance()),
+                                    new TsxTilesetImportParser().parse(item.file), result);
+                        advance();
+                    } catch (Throwable error) { failure.accept(error); }
+                }, failure);
+            }
+        }
+        new ImportQueue().advance();
     }
 
     private AssetImportContext prepareAssetImportContext(ProjectConfig cfg) {
@@ -2947,7 +3364,102 @@ public final class SceneService {
             case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
+            case FONT -> importBitmapFontAsset(ctx, item);
+            case SKIN -> importScene2dSkinAsset(ctx, item);
         };
+    }
+
+    private int importBitmapFontAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        new games.pixscape.studio.service.asset.BitmapFontAssetImportService(assetMetaDatabase)
+                .importNew(item.file, ctx.projectDir);
+        return 1;
+    }
+
+    private int importScene2dSkinAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        new Scene2dSkinAssetImportService(assetMetaDatabase).importNew(item.file, ctx.projectDir);
+        return 1;
+    }
+
+    public void reimportScene2dSkinAsset(int assetId,
+                                         String expectedSourceRelPath,
+                                         FileHandle expectedProjectDir,
+                                         FileHandle descriptor) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        requireSameProject(expectedProjectDir, projectDir);
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+        AssetMeta original = assetMetaDatabase.findById(assetId);
+        if (original == null || original.type() != AssetType.SKIN
+                || !Objects.equals(original.sourceRelPath(), expectedSourceRelPath)) {
+            throw new IllegalStateException("The selected Skin Asset no longer belongs to the original project context.");
+        }
+        new Scene2dSkinAssetImportService(assetMetaDatabase)
+                .reimport(assetId, descriptor, projectDir);
+        assetMetaDatabase.save(assetsFile);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        try {
+            refreshHudAfterReimport(app.getSceneHudRuntimePreparationService()
+                    .invalidateReimportedSkin(original.sourceRelPath()));
+        } finally { refreshAssetsPanel(); }
+    }
+
+    public void reimportBitmapFontAsset(int assetId,
+                                        String expectedSourceRelPath,
+                                        FileHandle expectedProjectDir,
+                                        FileHandle descriptor) {
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (cfg == null) throw new IllegalStateException("No project is loaded.");
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+        requireSameProject(expectedProjectDir, projectDir);
+        FileHandle assetsFile = projectDir.child(StudioFs.FILE_ASSETS_JSON);
+        assetMetaDatabase = AssetMetaDatabase.load(assetsFile);
+        AssetMeta original = assetMetaDatabase.findById(assetId);
+        if (original == null || original.type() != AssetType.FONT
+                || !Objects.equals(original.sourceRelPath(), expectedSourceRelPath)) {
+            throw new IllegalStateException("The selected Font Asset no longer belongs to the original project context.");
+        }
+        new BitmapFontAssetImportService(assetMetaDatabase)
+                .reimport(assetId, descriptor, projectDir);
+        assetMetaDatabase.save(assetsFile);
+        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        try {
+            refreshHudAfterReimport(app.getSceneHudRuntimePreparationService()
+                    .invalidateReimportedFont(assetId));
+        } finally { refreshAssetsPanel(); }
+    }
+
+    private void refreshHudAfterReimport(SceneHudRuntimePreparationService.ReimportImpact impact) {
+        var editor = app.getHudEditorSession();
+        refreshHudAfterReimport(impact, editor.screenId(), editor::reloadResources,
+                editor::markResourcesStale);
+    }
+
+    static void refreshHudAfterReimport(SceneHudRuntimePreparationService.ReimportImpact impact,
+                                        String activeScreen, Runnable reloadResources,
+                                        Runnable markResourcesStale) {
+        if (activeScreen == null) return;
+        if (impact.openScreensToReload().contains(activeScreen)) {
+            reloadResources.run();
+        } else if (impact.uncertainOpenScreens().contains(activeScreen)) {
+            markResourcesStale.run(); // Keep the last valid preview until its usage can be resolved.
+        }
+    }
+
+    static void requireSameProject(FileHandle expectedProjectDir,
+                                   FileHandle currentProjectDir) {
+        if (expectedProjectDir == null || currentProjectDir == null) {
+            throw new IllegalStateException("The project changed before asset reimport completed.");
+        }
+        try {
+            if (!Files.isSameFile(expectedProjectDir.file().toPath(),
+                    currentProjectDir.file().toPath())) {
+                throw new IllegalStateException("The project changed before asset reimport completed.");
+            }
+        } catch (IOException | SecurityException failure) {
+            throw new IllegalStateException("Unable to verify the asset reimport project context.", failure);
+        }
     }
 
     static ImportDialog.ImportType resolveImportType(ImportDialog.ImportItem item) {
@@ -2993,18 +3505,22 @@ public final class SceneService {
     }
 
     private int importTilesetAtlasAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        if (item.tilesetPlan != null) return applyTilesetImportPlan(item.tilesetPlan).importedCount();
         TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
                 .importAtlas(tilesetAtlasImportRequestForManualImport(item, ctx.tilesRoot));
         return result.importedCount();
     }
 
     private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
+        // Reimport preserves authored animations. Initial TSX imports still use their descriptor animations.
+        if (item.tilesetPlan != null && item.tilesetPlan.targetId() > 0)
+            return applyTilesetImportPlan(item.tilesetPlan).importedCount();
         TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file);
         String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
                 ? descriptor.name()
                 : baseName(item.file.name());
-        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
-                .importAtlas(new TilesetAtlasImportRequest(
+        TilesetImportResult result = item.tilesetPlan != null ? applyTilesetImportPlan(item.tilesetPlan)
+                : new TilesetAssetImportService(assetMetaDatabase).importAtlas(new TilesetAtlasImportRequest(
                         descriptor.imageFile(),
                         ctx.tilesRoot,
                         descriptor.tileWidth(),
@@ -3013,6 +3529,12 @@ public final class SceneService {
                         descriptor.margin(),
                         tilesetName
                 ));
+        importInitialTsxAnimations(ctx, descriptor, result);
+        return result.importedCount();
+    }
+
+    private void importInitialTsxAnimations(AssetImportContext ctx, TsxTilesetDescriptor descriptor, TilesetImportResult result) {
+        String tilesetName = result.tilesetLogicalPath().substring(StudioFs.PREFIX_TILES.length());
         if (result.importedCount() > 0 && descriptor.tileAnimations() != null && !descriptor.tileAnimations().isEmpty()) {
             FileHandle tileAnimationsFile = ctx.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
             if (tileAnimationsMetaDatabase == null) {
@@ -3028,7 +3550,6 @@ public final class SceneService {
             TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
             reloadTileAnimationRegistryFromProjectData();
         }
-        return result.importedCount();
     }
 
     static TilesetAtlasImportRequest tilesetAtlasImportRequestForManualImport(ImportDialog.ImportItem item,
@@ -3066,22 +3587,251 @@ public final class SceneService {
         return importTilesetDirectory(directory, null);
     }
 
-    public int importTilesetDirectory(FileHandle directory, TilesetProfileImportSettings profileSettings) {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 0;
+    public java.util.List<TilesetAssetMeta> tilesetImportCandidates(FileHandle source, String name) {
+        return new TilesetReimportService(assetMetaDatabase).candidates(source, name);
+    }
 
-        AssetImportContext ctx = prepareAssetImportContext(cfg);
-        int imported = importTilesetFolderAsset(ctx, directory, profileSettings);
-
-        assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
-        canvas.publishAssetMetaDatabase(assetMetaDatabase);
-        refreshAssetsPanel();
-
-        if (imported > 0) {
-            StudioLog.info("Tileset directory imported: " + directory.name());
+    private java.util.List<SceneEditorContext> tilesetImportContexts() {
+        java.util.List<SceneEditorContext> contexts = new java.util.ArrayList<>();
+        for (OpenEditorDocument document : app.getEditorDocumentManager().documents()) {
+            if (document instanceof games.pixscape.studio.document.ContextEditorDocument owner
+                    && !owner.isClosed() && owner.context().isInitialized()) contexts.add(owner.context());
         }
+        SceneEditorContext active = app.getMostRecentSceneEditorContext();
+        if (active != null && active.isInitialized() && !contexts.contains(active)) contexts.add(active);
+        return contexts;
+    }
 
-        return imported;
+    private TilesetReimportService.UsageProof tilesetUsageProof() {
+        return ids -> {
+            java.util.List<HudScreenEditorDocument> hud = new java.util.ArrayList<>();
+            for (OpenEditorDocument document : app.getEditorDocumentManager().documents())
+                if (document instanceof HudScreenEditorDocument open) hud.add(open);
+            java.util.List<World> worlds = new java.util.ArrayList<>();
+            for (SceneEditorContext context : tilesetImportContexts()) worlds.add(context.world());
+            return new AssetUsageScanner(worlds.isEmpty() ? null : worlds.get(0),
+                    ProjectConfig.getInstance(), assetMetaDatabase, hud).tileRetentionReasons(ids, worlds);
+        };
+    }
+
+    public TilesetReimportService.Plan prepareTilesetDirectoryImport(FileHandle source,
+            TilesetProfileImportSettings settings, int targetId) {
+        return new TilesetReimportService(assetMetaDatabase).prepareDirectory(new TilesetDirectoryImportRequest(
+                source, StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()).child(StudioFs.DIR_ORIG_TILES), settings),
+                targetId, tilesetUsageProof());
+    }
+
+    public TilesetReimportService.Plan prepareTilesetAtlasImport(ImportDialog.ImportItem item, int targetId) {
+        FileHandle tiles = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()).child(StudioFs.DIR_ORIG_TILES);
+        var request = item.type == ImportDialog.ImportType.TILESET_TSX
+                ? tilesetAtlasImportRequestForTsxImport(item.file, tiles)
+                : tilesetAtlasImportRequestForManualImport(item, tiles);
+        return new TilesetReimportService(assetMetaDatabase).prepareAtlas(request, targetId, tilesetUsageProof());
+    }
+
+    private boolean tilesetImportInProgress;
+
+    public boolean isTilesetImportInProgress() { return tilesetImportInProgress; }
+
+    private record TilesetImportInputs(ProjectConfig cfg, FileHandle project,
+            java.util.Map<String, SceneEditorContext> openScenes,
+            java.util.Map<String, java.util.Set<String>> requiredPaths,
+            java.util.List<SceneEditorContext> contexts, TilesetReimportService.UsageProof usage) {}
+
+    /** Capture authored Worlds on the UI thread; the worker only reads these file/input snapshots. */
+    private TilesetImportInputs captureTilesetImportInputs(TilesetReimportService.Plan plan) {
+        if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(null))
+            throw new IllegalArgumentException("An atlas publication is pending. Finish it before applying the tileset import.");
+        FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        java.util.Map<String, SceneEditorContext> openScenes = new java.util.LinkedHashMap<>();
+        for (OpenEditorDocument document : app.getEditorDocumentManager().documents())
+            if (document instanceof games.pixscape.studio.document.SceneEditorDocument open && !open.isClosed())
+                openScenes.put(open.context().sceneIdentity(), open.context());
+        SceneEditorContext activeScene = app.getMostRecentSceneEditorContext();
+        if (activeScene != null && activeScene.isInitialized()) {
+            String tag = activeScene.sceneIdentity();
+            // Game Object editors also have a World, but no authored Scene identity.
+            if (tag != null) openScenes.putIfAbsent(tag, activeScene);
+        }
+        java.util.Map<String, java.util.Set<String>> required = new java.util.LinkedHashMap<>();
+        for (var entry : openScenes.entrySet()) required.put(entry.getKey(),
+                sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(cfg, entry.getValue().world(),
+                        entry.getValue().sceneMeta(), assetMetaDatabase, tileAnimationsMetaDatabase));
+        java.util.Set<Integer> members = new java.util.HashSet<>();
+        if (plan.targetId() > 0) for (int i = 0; i < assetMetaDatabase.size(); i++)
+            if (assetMetaDatabase.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == plan.targetId()) members.add(tile.id());
+        var retained = members.isEmpty() ? java.util.Map.<Integer, String>of() : tilesetUsageProof().retentionReasons(members);
+        TilesetReimportService.UsageProof usage = ids -> {
+            java.util.Map<Integer, String> reasons = new java.util.LinkedHashMap<>();
+            for (int id : ids) if (retained.containsKey(id)) reasons.put(id, retained.get(id));
+            return reasons;
+        };
+        return new TilesetImportInputs(cfg, project, openScenes, required, tilesetImportContexts(), usage);
+    }
+
+    public TilesetImportResult applyTilesetImportPlan(TilesetReimportService.Plan plan) {
+        return applyTilesetImportPlan(plan, captureTilesetImportInputs(plan), ignored -> {}, Runnable::run);
+    }
+
+    /** Existing long-task dialog keeps Stage responsive; source/atlas work runs without a rendering World. */
+    public void applyTilesetImportPlanWithProgress(TilesetReimportService.Plan plan, Stage stage,
+            java.util.function.Consumer<TilesetImportResult> complete, java.util.function.Consumer<Throwable> failure) {
+        if (tilesetImportInProgress) { failure.accept(new IllegalStateException("A tileset import is already running.")); return; }
+        tilesetImportInProgress = true;
+        canvas.setResourceImportBusy(true);
+        final TilesetImportInputs[] inputs = {null};
+        final TilesetImportResult[] result = {null};
+        SaveProgressRunner runner = new SaveProgressRunner(stage, "Importing tileset", "Checking project references...");
+        Array<SaveProgressRunner.Step> steps = new Array<>();
+        steps.add(SaveProgressRunner.Step.sync(Float.NaN, "Checking project references...", () -> inputs[0] = captureTilesetImportInputs(plan)));
+        steps.add(SaveProgressRunner.Step.async(Float.NaN, "Preparing color and normal sources...", (progress, next, fail) -> {
+            Thread worker = new Thread(() -> {
+                try {
+                    result[0] = applyTilesetImportPlan(plan, inputs[0],
+                            message -> Gdx.app.postRunnable(() -> progress.update(Float.NaN, message)),
+                            SceneService::runImportPublicationOnUi);
+                    next.run();
+                } catch (Throwable error) { fail.accept(error); }
+            }, "pixscape-tileset-import");
+            worker.setDaemon(true); worker.start();
+        }));
+        runner.run(steps, () -> {
+            tilesetImportInProgress = false; canvas.setResourceImportBusy(false); complete.accept(result[0]);
+        }, error -> {
+            tilesetImportInProgress = false; canvas.setResourceImportBusy(false); failure.accept(error);
+        });
+    }
+
+    private static void runImportPublicationOnUi(Runnable action) {
+        java.util.concurrent.CompletableFuture<Void> accepted = new java.util.concurrent.CompletableFuture<>();
+        Gdx.app.postRunnable(() -> {
+            try { action.run(); accepted.complete(null); }
+            catch (Throwable failure) { accepted.completeExceptionally(failure); }
+        });
+        accepted.join();
+    }
+
+    private TilesetImportResult applyTilesetImportPlan(TilesetReimportService.Plan plan, TilesetImportInputs inputs,
+            java.util.function.Consumer<String> progress, java.util.function.Consumer<Runnable> onUi) {
+        var importer = new TilesetReimportService(assetMetaDatabase);
+        var fresh = plan.grid() == null
+                ? importer.prepareDirectory(new TilesetDirectoryImportRequest(plan.source(), plan.tilesRoot(), plan.settings()),
+                    plan.targetId(), inputs.usage())
+                : importer.prepareAtlas(plan.grid(), plan.targetId(), inputs.usage());
+        if (!fresh.matches().equals(plan.matches()) || !fresh.removed().equals(plan.removed())
+                || !fresh.retained().keySet().equals(plan.retained().keySet())
+                || !fresh.sources().equals(plan.sources()))
+            throw new IllegalArgumentException("Source membership or usage changed. Review the tileset update again.");
+        final var prepared = fresh;
+        FileHandle project = inputs.project(); ProjectConfig cfg = inputs.cfg();
+        var openScenes = inputs.openScenes();
+        java.util.Set<String> repackTags = new java.util.LinkedHashSet<>();
+        java.util.Set<Integer> changed = new java.util.HashSet<>(plan.matches().values());
+        changed.addAll(plan.removed());
+        java.util.Set<String> previousPaths = new java.util.HashSet<>();
+        java.util.Map<Integer, String> previousById = new java.util.LinkedHashMap<>();
+        for (int id : changed) {
+            AssetMeta meta = assetMetaDatabase.findById(id);
+            if (meta != null && meta.sourceRelPath() != null) {
+                previousPaths.add(meta.sourceRelPath()); previousById.put(id, meta.sourceRelPath());
+            }
+        }
+        for (var entry : inputs.requiredPaths().entrySet())
+            if (entry.getValue().stream().anyMatch(previousPaths::contains)) repackTags.add(entry.getKey());
+        for (String name : cfg.getSceneNames()) {
+            String tag = cfg.canonicalSceneTag(name);
+            if (sceneAtlasInputService.containsImportedColorInput(project, tag, previousPaths)) repackTags.add(tag);
+            // This marker also protects closed Scenes whose disposable inputs have not been materialized.
+            if (!previousPaths.isEmpty()) atlasStudioService.markRepackRequired(project, tag);
+        }
+        TilesetImportResult result;
+        try {
+            progress.accept("Copying color and normal sources...");
+            result = importer.apply(prepared, (candidate, colors) -> {
+                progress.accept("Validating color packing...");
+                AtlasStudioService.validateTilesetImportCandidate(candidate, colors);
+            }, () -> {
+                java.util.Set<String> paths = new java.util.HashSet<>();
+                for (int i = 0; i < assetMetaDatabase.size(); i++) {
+                    AssetMeta meta = assetMetaDatabase.assetAt(i);
+                    if (meta instanceof TileAssetMeta tile && meta.logicalPath().startsWith("tiles/" + prepared.base() + "/")) {
+                        paths.add(tile.sourceRelPath()); changed.add(tile.id());
+                    }
+                }
+                atlasStudioService.repackImportedScenes(cfg, project, repackTags, () -> {
+                    java.util.Map<String, String> replacements = new java.util.LinkedHashMap<>();
+                    for (var entry : previousById.entrySet()) {
+                        AssetMeta current = assetMetaDatabase.findById(entry.getKey());
+                        replacements.put(entry.getValue(), current == null ? null : current.sourceRelPath());
+                    }
+                    for (String tag : repackTags) {
+                        atlasStudioService.markRepackRequired(project, tag);
+                        SceneEditorContext context = openScenes.get(tag);
+                        if (context != null) {
+                            java.util.Set<String> required = new java.util.HashSet<>();
+                            for (String path : inputs.requiredPaths().get(tag)) {
+                                String replaced = replacements.containsKey(path) ? replacements.get(path) : path;
+                                if (replaced != null) required.add(replaced);
+                            }
+                            sceneAtlasInputService.syncSceneAtlasInput(cfg, tag, project, required,assetMetaDatabase);
+                        } else {
+                            sceneAtlasInputService.refreshImportedColorInputs(project,tag,replacements);
+                            games.pixscape.studio.service.atlas.NormalAtlasPackingService.sync(project,
+                                    project.child(StudioFs.DIR_ATLASES).child(StudioFs.DIR_INPUT).child(tag),assetMetaDatabase,null);
+                        }
+                    }
+                }, () -> {
+                    assetMetaDatabase.save(project.child(StudioFs.FILE_ASSETS_JSON));
+                    progress.accept("Uploading and rebinding loaded resources...");
+                    onUi.accept(() -> {
+                    StandaloneTextureCache.reloadProjectRelative(paths);
+                    canvas.publishAssetMetaDatabase(assetMetaDatabase);
+                    // Invalidate the old generations before loading the newly prepared color atlases.
+                    if (!previousPaths.isEmpty()) canvas.importedAssetPixelsChanged(changed);
+                    for (String tag : repackTags)
+                        if (atlasStudioService.getAtlas(tag) != null || openScenes.containsKey(tag))
+                            atlasStudioService.load(tag, project.child(StudioFs.DIR_ATLASES).child(tag + ".atlas"));
+                    if (!repackTags.isEmpty()) canvas.rebindImportedSceneResources(repackTags);
+                    for(SceneEditorContext context:inputs.contexts())if(context.sceneIdentity()==null)
+                        prepareGameObjectNormals(context.world(),context.sceneMeta());
+                    });
+                }, progress);
+            });
+        } catch (RuntimeException failure) {
+            progress.accept("Restoring previous resources...");
+            try {
+                onUi.accept(() -> {
+                StandaloneTextureCache.reloadProjectRelative(previousPaths);
+                canvas.publishAssetMetaDatabase(assetMetaDatabase);
+                canvas.importedAssetPixelsChanged(changed);
+                for (String tag : repackTags) {
+                    FileHandle atlas = project.child(StudioFs.DIR_ATLASES).child(tag + ".atlas");
+                    if (atlasStudioService.getAtlas(tag) != null) {
+                        if (atlas.exists()) atlasStudioService.load(tag, atlas);
+                        else atlasStudioService.unload(tag);
+                    }
+                }
+                if (!repackTags.isEmpty()) canvas.rebindImportedSceneResources(repackTags);
+                for(SceneEditorContext context:inputs.contexts())if(context.sceneIdentity()==null)
+                    prepareGameObjectNormals(context.world(),context.sceneMeta());
+                refreshAssetsPanel();
+                });
+            } catch (RuntimeException rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+            throw new IllegalArgumentException("Tileset update failed; previous resources restored. " + failure.getMessage(), failure);
+        }
+        onUi.accept(() -> {
+            if (!previousPaths.isEmpty())
+                for (SceneEditorContext context : inputs.contexts()) context.historyManager().resetAfterIrreversibleChange();
+            refreshAssetsPanel();
+            StudioLog.info("Tileset import applied (not undoable). " + plan.summary());
+        });
+        return result;
+    }
+
+    public int importTilesetDirectory(FileHandle directory, TilesetProfileImportSettings profileSettings) {
+        if (ProjectConfig.getInstance() == null) return 0;
+        return applyTilesetImportPlan(prepareTilesetDirectoryImport(directory, profileSettings, -1)).importedCount();
     }
 
     public void deleteTilesetDirectory(String relativeTilesPath) {
@@ -3098,6 +3848,8 @@ public final class SceneService {
             throw new IllegalStateException("Asset database is not loaded.");
         }
 
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+
         String normalizedPath = relativeTilesPath.replace('\\', '/').trim();
         if (normalizedPath.isEmpty()) {
             throw new IllegalArgumentException("Tileset path is empty.");
@@ -3110,8 +3862,20 @@ public final class SceneService {
             throw new IllegalStateException("Tileset not found: " + normalizedPath);
         }
 
+        TileAnimationsMetaDatabase tileAnimations = tileAnimationsMetaDatabase != null
+                ? tileAnimationsMetaDatabase
+                : TileAnimationsIO.load(projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        Array<String> tileAnimationNames = findTileAnimationsUsingTileset(
+                assetMetaDatabase,
+                tileAnimations,
+                tilesetMeta.id()
+        );
+        if (tileAnimationNames.size > 0) {
+            throw new IllegalStateException(buildTilesetTileAnimationInUseMessage(normalizedPath, tileAnimationNames));
+        }
+
         AssetUsageScanner usageScanner = new AssetUsageScanner(
-                canvas.getEcsWorld(),
+                sceneContext().world(),
                 cfg,
                 assetMetaDatabase
         );
@@ -3124,7 +3888,6 @@ public final class SceneService {
         boolean runtimeAvailabilityChanged =
                 runtimeAvailabilityService.removeDeletedTileset(cfg, assetMetaDatabase, tilesetMeta.id());
 
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
         FileHandle tilesetDir = tilesRoot.child(normalizedPath);
 
@@ -3148,14 +3911,6 @@ public final class SceneService {
         refreshAssetsPanel();
 
         StudioLog.info("Tileset deleted: " + normalizedPath);
-    }
-
-    private int importTilesetFolderAsset(AssetImportContext ctx,
-                                         FileHandle directory,
-                                         TilesetProfileImportSettings profileSettings) {
-        TilesetImportResult result = new TilesetAssetImportService(assetMetaDatabase)
-                .importDirectory(new TilesetDirectoryImportRequest(directory, ctx.tilesRoot, profileSettings));
-        return result.importedCount();
     }
 
     private int importSpritesheetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
@@ -3361,6 +4116,56 @@ public final class SceneService {
         return sb.toString();
     }
 
+    static Array<String> findTileAnimationsUsingTileset(AssetMetaDatabase assetDb,
+                                                         TileAnimationsMetaDatabase tileAnimationsDb,
+                                                         int tilesetId) {
+        Array<String> animationNames = new Array<>();
+        if (assetDb == null || tileAnimationsDb == null || tileAnimationsDb.animations == null || tilesetId <= 0) {
+            return animationNames;
+        }
+
+        Set<Integer> tileAssetIds = new HashSet<>();
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta asset = assetDb.assetAt(i);
+            if (asset instanceof TileAssetMeta tile && tile.tilesetId == tilesetId) {
+                tileAssetIds.add(tile.id());
+            }
+        }
+        if (tileAssetIds.isEmpty()) {
+            return animationNames;
+        }
+
+        for (TileAnimationProjectDefData animation : tileAnimationsDb.animations) {
+            if (animation == null || animation.frameAssetIds == null) {
+                continue;
+            }
+            for (int frameAssetId : animation.frameAssetIds) {
+                if (tileAssetIds.contains(frameAssetId)) {
+                    animationNames.add(animation.name != null && !animation.name.isBlank()
+                            ? animation.name
+                            : "Tile animation " + animation.id);
+                    break;
+                }
+            }
+        }
+        return animationNames;
+    }
+
+    private String buildTilesetTileAnimationInUseMessage(String tilesetPath, Array<String> tileAnimationNames) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Cannot delete tileset '")
+                .append(tilesetPath)
+                .append("' because it is used by tile animation");
+        if (tileAnimationNames.size > 1) {
+            sb.append("s");
+        }
+        sb.append(":");
+        for (String animationName : tileAnimationNames) {
+            sb.append("\n- ").append(animationName);
+        }
+        return sb.toString();
+    }
+
     private ImageSize readImageSize(FileHandle file) {
         Pixmap pixmap = new Pixmap(file);
         try {
@@ -3494,7 +4299,7 @@ public final class SceneService {
 
         canvas.resetEditingContexts();
         canvas.getPhysicsSelectionReconciler().clearSceneContext();
-        World world = canvas.getEcsWorld();
+        World world = sceneContext().world();
 
         // Delete all entities
         IntBag bag = world.getAspectSubscriptionManager()
@@ -3514,27 +4319,20 @@ public final class SceneService {
         canvas.getTiledAllocatorService().reset();
 
         // Reset services studio
-        canvas.getSelectionService().clearSelection();
-        canvas.getLayerService().reset();
+        sceneContext().selectionService().clearSelection();
+        sceneContext().layerService().reset();
 
         // Nettoyage caches
         StandaloneTextureCache.clear(true);
         canvas.invalidateStandaloneAssetVisuals();
 
         // Reset historique
-        historyManager.clear();
-        historyManager.historyIds().clear();
         clearCurrentSceneSaveRequired();
     }
 
     private void bindSceneIdentityAuthorities(SceneMeta meta) {
-        canvas.getIdentityRegistry().bind(canvas.getEcsWorld(), meta);
+        sceneContext().identityRegistry().bind(sceneContext().world(), meta);
         canvas.getPhysicsService().setPhysicsShapeIdState(meta);
-    }
-
-    private void flushWorldForSerialization() {
-        if (canvas == null) return;
-        canvas.getEcsWorld().process();
     }
 
     // ---------------------------------------------------------------------
@@ -3654,7 +4452,13 @@ public final class SceneService {
                                      String sceneName,
                                      FileHandle sceneFile,
                                      String canonicalTag,
-                                     boolean hasSceneToSave) {
+                                     boolean hasSceneToSave,
+                                     SceneEditorContext source,
+                                     World sourceWorld,
+                                     SceneMeta sourceMeta,
+                                     long sourceGeneration,
+                                     int sourceAttachCount,
+                                     String exportRoot) {
     }
 
     private record AssetImportContext(ProjectConfig cfg, FileHandle projectDir, FileHandle imagesRoot,
@@ -3666,5 +4470,4 @@ public final class SceneService {
     }
 
 }
-
 

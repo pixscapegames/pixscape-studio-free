@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.Button.ButtonStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent;
+import com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisTextButton;
@@ -23,6 +24,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class ListActionControlsTest {
 
@@ -76,6 +80,60 @@ public class ListActionControlsTest {
     }
 
     @Test
+    public void animationClipsSortOnlyDisplayedRowsAndKeepActionsBoundToTheirClips() throws Exception {
+        AnimationAssetMeta animation = new AnimationAssetMeta(
+                7, "animations/test", "orig/animations/test", AssetMeta.AssetScope.USER);
+        animation.currentClip = "later";
+        animation.clips.put("later", new AnimationClipMeta(10, 11));
+        animation.clips.put("zeta", new AnimationClipMeta(2, 9));
+        animation.clips.put("beta", new AnimationClipMeta(2, 5));
+        animation.clips.put("first", new AnimationClipMeta(1, 1));
+        animation.clips.put("alpha", new AnimationClipMeta(2, 5));
+
+        AnimationClipsDialog dialog = new AnimationClipsDialog(animation, null, 12);
+        Group list = field(dialog, "listTable", Group.class);
+        Array<?> rows = field(dialog, "rows", Array.class);
+        Object[] originalRows = rows.toArray();
+        Assert.assertEquals(Arrays.asList("first", "alpha", "beta", "zeta", "later"),
+                displayedClipNames(list));
+        Assert.assertEquals("later", animation.currentClip);
+
+        Object beta = rowNamed(rows, "beta");
+        VisTextField betaName = field(beta, "nameField", VisTextField.class);
+        betaName.setText("aardvark");
+        Assert.assertEquals(Arrays.asList("first", "alpha", "aardvark", "zeta", "later"),
+                displayedClipNames(list));
+        FocusEvent focusLost = new FocusEvent();
+        focusLost.setType(FocusEvent.Type.keyboard);
+        focusLost.setFocused(false);
+        betaName.fire(focusLost);
+        Assert.assertEquals(Arrays.asList("first", "aardvark", "alpha", "zeta", "later"),
+                displayedClipNames(list));
+
+        Object zeta = rowNamed(rows, "zeta");
+        field(zeta, "startModel", com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel.class)
+                .setValue(0);
+        Assert.assertEquals(Arrays.asList("zeta", "first", "aardvark", "alpha", "later"),
+                displayedClipNames(list));
+        Assert.assertArrayEquals(originalRows, rows.toArray());
+        Assert.assertTrue(animation.clips.containsKey("beta"));
+        Assert.assertFalse(animation.clips.containsKey("aardvark"));
+
+        field(dialog, "addButton", Button.class).fire(new ChangeEvent());
+        Assert.assertEquals(Arrays.asList("zeta", "clip6", "first", "aardvark", "alpha", "later"),
+                displayedClipNames(list));
+        field(rowNamed(rows, "clip6"), "removeButton", Button.class).fire(new ChangeEvent());
+        field(beta, "removeButton", Button.class).fire(new ChangeEvent());
+        Assert.assertEquals(Arrays.asList("zeta", "first", "alpha", "later"),
+                displayedClipNames(list));
+        dialog.result(true);
+        Assert.assertFalse(animation.clips.containsKey("aardvark"));
+        Assert.assertEquals(0, animation.clips.get("zeta").start);
+        Assert.assertEquals("later", animation.currentClip);
+        Assert.assertEquals(10, animation.clips.get("later").start);
+    }
+
+    @Test
     public void shaderParameterControlsAllowAddingAndDeletingToZeroRows() throws Exception {
         World world = new World(new WorldConfiguration());
         try {
@@ -109,6 +167,21 @@ public class ListActionControlsTest {
 
     private static void assertStyle(Button button, String styleName) {
         Assert.assertSame(VisUI.getSkin().get(styleName, ButtonStyle.class), button.getStyle());
+    }
+
+    private static Object rowNamed(Array<?> rows, String name) throws ReflectiveOperationException {
+        for (Object row : rows) {
+            if (name.equals(field(row, "nameField", VisTextField.class).getText())) return row;
+        }
+        throw new AssertionError("Missing row: " + name);
+    }
+
+    private static List<String> displayedClipNames(Group list) {
+        List<String> names = new ArrayList<>();
+        for (Actor actor : list.getChildren()) {
+            if (actor instanceof VisTextField) names.add(((VisTextField) actor).getText());
+        }
+        return names;
     }
 
     private static int countTextButtons(Actor actor, String text) {

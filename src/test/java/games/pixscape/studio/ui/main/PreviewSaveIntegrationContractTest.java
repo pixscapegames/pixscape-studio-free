@@ -27,7 +27,7 @@ public class PreviewSaveIntegrationContractTest {
     }
 
     @Test
-    public void topMenuBar_manualSave_usesSaveProgressFlow() throws Exception {
+    public void topMenuBar_manualSave_routesThroughActiveDocument() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/ui/main/TopMenuBar.java"),
                 StandardCharsets.UTF_8
@@ -35,11 +35,17 @@ public class PreviewSaveIntegrationContractTest {
 
         assertTrue(source.contains("onClick(save, () -> runSaveWithProgress(null));"));
         String runSaveWithProgressBody = methodBody(source, "private void runSaveWithProgress(Runnable onSuccess)");
-        assertTrue(runSaveWithProgressBody.contains("sceneService.saveProjectAndCurrentSceneWithProgress("));
+        assertTrue(runSaveWithProgressBody.contains("app.saveActiveDocumentWithProgress("));
+
+        String application = Files.readString(
+                Path.of("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java"),
+                StandardCharsets.UTF_8
+        );
+        assertTrue(application.contains("sceneService.saveProjectAndCurrentSceneWithProgress("));
     }
 
     @Test
-    public void quitUsesSharedCurrentSceneSaveDecisionInsteadOfPreviewReadiness() throws Exception {
+    public void quitAggregatesDirtyOpenSceneDocumentsInsteadOfPreviewReadiness() throws Exception {
         String source = Files.readString(
                 Path.of("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java"),
                 StandardCharsets.UTF_8
@@ -49,8 +55,8 @@ public class PreviewSaveIntegrationContractTest {
 
         assertTrue(closeBody.contains("runAfterCurrentSceneSaveDecision("));
         assertTrue(closeBody.contains("Gdx.app::exit"));
-        assertTrue(guardBody.contains("sceneService.requiresSaveBeforeLeavingCurrentScene()"));
-        assertTrue(guardBody.contains("sceneService.saveProjectAndCurrentSceneWithProgress("));
+        assertTrue(guardBody.contains("sceneService.requiresSaveBeforeLeavingAnyScene()"));
+        assertTrue(guardBody.contains("sceneService.saveAllDirtyScenesWithProgress("));
     }
 
     private static String methodBody(String source, String signaturePrefix) {

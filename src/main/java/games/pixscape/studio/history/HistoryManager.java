@@ -35,9 +35,46 @@ public final class HistoryManager {
     private final HistoryIdRegistry historyIds = new HistoryIdRegistry();
 
     private Listener listener;
+    private com.artemis.World lightingWorld;
+    private games.pixscape.studio.configuration.SceneMeta lightingScene;
+    private Consumer<Runnable> confirmLegacy;
+    private int activeLightCount;
+    private boolean confirmedLegacyCreation;
+
+    /** Ask before a creation reserves persistent identities. The retry publishes one command. */
+    public boolean prepareLightCreation(int additional,Runnable retry) {
+        if(confirmedLegacyCreation || lightingScene==null || !lightingScene.forwardLighting
+                || additional<=0 || historyIds.activeLightCount(lightingWorld)+additional<=1)return true;
+        if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
+        long revision=mutationRevision;
+        confirmLegacy.accept(()->{
+            if(mutationRevision!=revision)return;
+            confirmedLegacyCreation=true;
+            try {retry.run();}finally{confirmedLegacyCreation=false;}
+        });
+        return false;
+    }
+
+    /** Per-document command boundary, including prepared graph creation and light activation. */
+    public void configureSceneLighting(com.artemis.World world,games.pixscape.studio.configuration.SceneMeta scene,
+                                       Consumer<Runnable> confirmation) {
+        lightingWorld=world;lightingScene=scene;confirmLegacy=confirmation;refreshSceneLighting();
+    }
+    public int activeLightCount() { return activeLightCount; }
+    public void refreshSceneLighting() {
+        if(lightingWorld==null || lightingScene==null)return;
+        activeLightCount=historyIds.activeLightCount(lightingWorld);
+        games.pixscape.studio.event.EventFlow.i().publish(new games.pixscape.studio.event.EventFlow.SceneRendererChanged(
+                lightingScene,games.pixscape.studio.event.EventFlow.tag(this)));
+    }
+
     private int opDepth = 0;
     private int cursor = 0;
     private int savedCursor = 0;
+    private long mutationRevision;
+
+    /** Applied mutations only; independent of stack position, grouping and saved state. */
+    public long getMutationRevision() { return mutationRevision; }
 
     // Commande en cours de capture (drag gizmo, etc.)
     private Command capturing = null;
@@ -89,6 +126,7 @@ public final class HistoryManager {
             groupStack.clear();
             cursor = 1;
             savedCursor = 0;
+            mutationRevision++;
         } finally {
             exitOp();
             fireChanged();
@@ -144,6 +182,24 @@ public final class HistoryManager {
      */
     public void execute(Command c) {
         if (c == null) return;
+        if(confirmedLegacyCreation){
+            confirmedLegacyCreation=false;
+            c=new CompositeCommand(c.label(),java.util.Arrays.asList(
+                    new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld,historyIds,lightingScene,false),c));
+        }
+        if(lightingScene!=null && lightingScene.forwardLighting && !c.selectsLegacyBeforeLights() && c.additionalActiveLights()>0
+                && historyIds.activeLightCount(lightingWorld)+c.additionalActiveLights()>1){
+            if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
+            long revision=mutationRevision;
+            Command requested=c;
+            confirmLegacy.accept(()->{
+                // A modal confirmation never replays an intent against a different document state.
+                if(mutationRevision!=revision)return;
+                execute(new CompositeCommand(requested.label(),java.util.Arrays.asList(
+                        new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld,historyIds,lightingScene,false),requested)));
+            });
+            return;
+        }
         debug("execute(" + safeLabel(c) + ") before undo=" + undo.size() + " redo=" + redo.size() + " cursor=" + cursor);
         enterOp("execute");
         boolean fire = false;
@@ -154,6 +210,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("redo executed label=" + safeLabel(c));
+            mutationRevision++;
             if (!redo.isEmpty()) {
                 debug("redo.clear reason=execute label=" + safeLabel(c) + " redoBefore=" + redo.size());
             }
@@ -242,6 +299,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("undo executed label=" + safeLabel(c));
+            mutationRevision++;
             undo.pop();
             redo.push(c);
             cursor--;
@@ -277,6 +335,7 @@ public final class HistoryManager {
             }
             fire = true;
             debug("redo executed label=" + safeLabel(c));
+            mutationRevision++;
             redo.pop();
             undo.push(c);
             cursor++;
@@ -342,6 +401,7 @@ public final class HistoryManager {
     // --- internals ---
 
     private void fireChanged() {
+        refreshSceneLighting();
         if (listener != null) {
             listener.onChanged(undo.size(), redo.size(), peekUndoLabel(), peekRedoLabel(), isDirty());
         }

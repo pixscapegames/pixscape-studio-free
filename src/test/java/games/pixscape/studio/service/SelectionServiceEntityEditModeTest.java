@@ -9,9 +9,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SelectionServiceEntityEditModeTest {
     private World world;
@@ -22,6 +20,7 @@ public class SelectionServiceEntityEditModeTest {
     public void setUp() {
         world = new World(new WorldConfiguration());
         editingModes = new StudioEditingModeService();
+        editingModes.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         selection = new SelectionService(world, null, editingModes);
     }
 

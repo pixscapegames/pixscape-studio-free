@@ -62,6 +62,7 @@ public final class PointLightProperties extends VisTable {
     private final FloatField falloffField;
     private final FloatField xField;
     private final FloatField yField;
+    private final LightingPanel lightingPanel;
 
     private final ColorPicker picker;
     private final VisImage colorImage = new VisImage(VisUI.getSkin().getDrawable("white"));
@@ -80,6 +81,7 @@ public final class PointLightProperties extends VisTable {
         super(true);
         buttonPicker.setColor(CommonLayout.BUTTON_COLOR);
         this.ctx = ctx;
+        lightingPanel = new LightingPanel(ctx,true);
 
         mVisibility = ctx.world.getMapper(VisibilityComponent.class);
         mEntityIndex = ctx.world.getMapper(EntityIndexComponent.class);
@@ -116,10 +118,7 @@ public final class PointLightProperties extends VisTable {
                 (int e) -> mVisibility.get(e).isVisible(),
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    var c = mVisibility.getSafe(e, null);
-                    if (c != null && c.visible != v) {
-                        c.visible = v;
-                    }
+                    changeActivation(e,true,v);
                 }
         );
 
@@ -135,15 +134,12 @@ public final class PointLightProperties extends VisTable {
                 },
                 (Integer e, Boolean v) -> {
                     if (e == null) return;
-                    PointLightComponent light = mLight.getSafe(e, null);
-                    if (light != null && light.enabled != v) {
-                        light.enabled = v;
-                        markLightDirty(e);
-                    }
+                    changeActivation(e,false,v);
                 }
         );
 
         intensityField = new FloatField(ctx.world, this::readIntensity, this::hasPointLight).setDisplayDecimals(3);
+        intensityField.setName("light-intensity");
         intensityField.setApplier((eid, v) -> setLight(eid, l -> l.intensity = Math.max(0f, v)));
 
         xField = new FloatField(ctx.world, this::readX, this::hasPointLight).setDisplayDecimals(3);
@@ -194,19 +190,20 @@ public final class PointLightProperties extends VisTable {
         VisTable lightContent = pointLightBlock.content();
         lightContent.left().top();
         lightContent.defaults().left().pad(1);
-        lightContent.add(enabledCheckBox).left().colspan(2).row();
-        lightContent.add(new VisLabel("X:"));
+        lightContent.add(enabledCheckBox).left().colspan(2).padBottom(10).row();
+        lightContent.add(new VisLabel("X:")).width(120);
         lightContent.add(xField).width(120).left().row();
-        lightContent.add(new VisLabel("Y:"));
+        lightContent.add(new VisLabel("Y:")).width(120);
         lightContent.add(yField).width(120).left().row();
-        lightContent.add(new VisLabel("Color:"));
-        lightContent.add(buttonPicker).left().colspan(2).row();
-        lightContent.add(new VisLabel("Intensity:")).left();
+        lightContent.add(new VisLabel("Color:")).width(120);
+        lightContent.add(buttonPicker).left().row();
+        lightContent.add(new VisLabel("Intensity:")).width(120).left();
         lightContent.add(intensityField).width(120).left().row();
-        lightContent.add(new VisLabel("Radius:"));
+        lightContent.add(new VisLabel("Radius:")).width(120);
         lightContent.add(radiusField).width(120).left().row();
-        lightContent.add(new VisLabel("Falloff:"));
-        lightContent.add(falloffField).width(120).left().row();
+        lightContent.add(new VisLabel("Falloff:")).width(120).padBottom(10);
+        lightContent.add(falloffField).width(120).left().padBottom(10).row();
+        lightContent.add(lightingPanel).colspan(2).pad(0).left().row();
 
         add(pointLightBlock).growX().left().row();
 
@@ -220,6 +217,7 @@ public final class PointLightProperties extends VisTable {
     }
 
     private void onEntityChanged(TransformOp op) {
+        lightingPanel.setEntityId(currentEntityId);
         if (op == TransformOp.MOVE) {
             xField.refreshFromModel();
             yField.refreshFromModel();
@@ -227,6 +225,7 @@ public final class PointLightProperties extends VisTable {
         }
         if (op == TransformOp.SCALE) {
             radiusField.refreshFromModel();
+            intensityField.refreshFromModel();
         }
     }
 
@@ -299,6 +298,7 @@ public final class PointLightProperties extends VisTable {
 
         // light fields
         enabledBinder.setEntityId(entityId);
+        lightingPanel.setEntityId(entityId);
         xField.setEntityId(entityId);
         yField.setEntityId(entityId);
         intensityField.setEntityId(entityId);
@@ -444,9 +444,15 @@ public final class PointLightProperties extends VisTable {
         markLightDirty(entityId);
     }
 
+    private void changeActivation(int entity,boolean visibility,boolean enabled){
+        ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
+                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));
+        visibleBinder.refresh();enabledBinder.refresh();
+    }
+
     private void markLightDirty(int entityId) {
         if (ctx.dirtyTracker != null) {
-            // radius = taille, falloff = shader param (mat), intensity/couleur = color
+            // Radius affects geometry; falloff/intensity use GPU parameters; color remains packed tint.
             ctx.dirtyTracker.geometry(entityId, GeometryDirty.SIZE);
             ctx.dirtyTracker.color(entityId);
             ctx.dirtyTracker.material(entityId);

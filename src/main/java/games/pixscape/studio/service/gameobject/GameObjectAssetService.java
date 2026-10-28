@@ -1,67 +1,47 @@
 package games.pixscape.studio.service.gameobject;
 
-import com.artemis.ComponentMapper;
 import com.artemis.Aspect;
+import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.DimensionsComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.OrientedBoundsComponent;
-import games.pixscape.runtime.component.ParticleEmitterComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsGearJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsPulleyJointComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
+import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.physics.*;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
-import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
+import games.pixscape.runtime.helper.OrientedBoundsHelper;
+import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.property.PropertySet;
-import games.pixscape.runtime.property.PropertyType;
-import games.pixscape.runtime.property.PropertyValue;
+import games.pixscape.runtime.render.JointDirtyBits;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
-import games.pixscape.runtime.render.JointDirtyBits;
-import games.pixscape.runtime.helper.OrientedBoundsHelper;
-import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
+import games.pixscape.studio.helper.AuthoredGeometryTransform;
+import games.pixscape.studio.helper.GameObjectGizmoGeometry;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.commands.Command;
-import games.pixscape.studio.history.commands.CompositeCommand;
-import games.pixscape.studio.history.commands.CreateEntityCommand;
-import games.pixscape.studio.history.commands.ConvertSelectionToGameObjectCommand;
-import games.pixscape.studio.history.commands.ReorderLogicalLayerCommand;
+import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.model.EntityKind;
+import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.entitygraph.EntityGraph;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
 import games.pixscape.studio.service.entitygraph.EntityGraphEntry;
-import games.pixscape.studio.service.property.PropertyReferenceMapper;
 import games.pixscape.studio.service.entitygraph.EntityGraphInstantiationResult;
+import games.pixscape.studio.service.property.PropertyReferenceMapper;
 import games.pixscape.studio.service.zorder.LayerLogicalOrderService;
-import games.pixscape.studio.service.SelectionService;
-import games.pixscape.studio.helper.AuthoredGeometryTransform;
-import games.pixscape.studio.helper.GameObjectGizmoGeometry;
-import games.pixscape.studio.model.EntityKind;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
 /** Studio publication and diagnostic-reading boundary for {@code .gameobject} assets. */
@@ -220,10 +200,18 @@ public final class GameObjectAssetService {
     /** Publishes a new immutable asset then wraps the same selected scene entities in its root. */
     public void convertSelectionToGameObject(
             FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId) {
+        convertSelectionToGameObject(gameObjectFile, previewFile, logicalAssetId,
+                GameObjectPreviewWriter::writePlaceholder);
+    }
+
+    /** Package-visible preview writer seam keeps conversion publication testable without a native Pixmap backend. */
+    void convertSelectionToGameObject(
+            FileHandle gameObjectFile, FileHandle previewFile, String logicalAssetId,
+            Consumer<FileHandle> previewWriter) {
         if (historyManager == null || identityRegistry == null || selectionService == null) {
             throw new IllegalStateException("Game Object conversion dependencies are not configured.");
         }
-        if (gameObjectFile == null || previewFile == null) {
+        if (gameObjectFile == null || previewFile == null || previewWriter == null) {
             throw new IllegalArgumentException("Game Object asset and preview paths are required.");
         }
         if (gameObjectFile.exists()) {
@@ -242,7 +230,7 @@ public final class GameObjectAssetService {
                 plan.rootOriginX, plan.rootOriginY, canonicalId);
         try {
             loader.save(gameObjectFile, asset);
-            GameObjectPreviewWriter.writePlaceholder(previewFile);
+            previewWriter.accept(previewFile);
             historyManager.execute(command);
         } catch (RuntimeException | Error failure) {
             if (previewFile.exists()) previewFile.delete();
@@ -306,6 +294,12 @@ public final class GameObjectAssetService {
             throw new IllegalStateException(
                     "Cannot instantiate a Game Object with authored Physics while scene Physics is disabled.");
         }
+        int activeLights=0;
+        for(var data:asset.entities)if(games.pixscape.runtime.render.lighting.ActiveLights.isActive(
+                data.visibility==null||data.visibility.visible,data.pointLight!=null,data.pointLight!=null&&data.pointLight.enabled,
+                data.coneLight!=null,data.coneLight!=null&&data.coneLight.enabled))activeLights++;
+        if(!historyManager.prepareLightCreation(activeLights,
+                ()->instantiateGameObject(file,logicalAssetId,destinationLayer,rootWorldX,rootWorldY)))return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
         IntIntMap sourceToStable = new IntIntMap(asset.entities.size());
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
@@ -319,7 +313,7 @@ public final class GameObjectAssetService {
         List<Command> commands = new ArrayList<>(ordered.size() + asset.joints.size() + 2);
         for (GameObjectAsset.GameObjectEntityData data : ordered) {
             EntityGraphEntry entry = mapper.toGraphEntry(world, data);
-            GenericEntityInitializer generic = entry.initializer();
+            GenericEntityInitializer generic = entry.initializerFor(world);
             if (data.physicsBody != null) {
                 if (physicsService == null) {
                     throw new IllegalStateException(
@@ -521,6 +515,7 @@ public final class GameObjectAssetService {
             asset.entities.add(data);
         }
         appendCapturedJoints(asset, sourceToAsset, capturedJoints);
+        normalizeAssetRootPosition(asset);
         loader.validate(asset, null);
         return asset;
     }
@@ -700,6 +695,7 @@ public final class GameObjectAssetService {
             asset.entities.add(data);
         }
         appendCapturedJoints(asset, entityToSource, capturedJoints);
+        normalizeAssetRootPosition(asset);
         loader.validate(asset, null);
         return asset;
     }
@@ -948,6 +944,25 @@ public final class GameObjectAssetService {
             localizePulleyGroundAnchors(asset, joint);
             asset.joints.add(joint);
         }
+    }
+
+    /** Asset roots are authored at the origin; child transforms and joint anchors are local. */
+    private static void normalizeAssetRootPosition(GameObjectAsset asset) {
+        if (asset == null || asset.rootSourceEntityId <= 0) {
+            throw new IllegalStateException("Game Object asset root is required.");
+        }
+        for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+            if (entity != null && entity.sourceEntityId == asset.rootSourceEntityId) {
+                if (entity.transform == null) {
+                    throw new IllegalStateException("Game Object asset root transform is required.");
+                }
+                entity.transform.x = 0f;
+                entity.transform.y = 0f;
+                if (entity.entityIndex != null) entity.entityIndex.zIndex = 0;
+                return;
+            }
+        }
+        throw new IllegalStateException("Game Object asset root is missing.");
     }
 
     /** Converts current Scene world-meter pulley anchors to the asset root's local meter frame. */

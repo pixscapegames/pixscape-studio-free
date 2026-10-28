@@ -6,6 +6,7 @@ import games.pixscape.runtime.component.ShaderFloatParam;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 
 public final class GenericEntitySnapshotData {
+    public games.pixscape.runtime.component.SurfaceLightingComponent surfaceLighting;
     public int sourceEntityId;
     public boolean hasTransform;
     public float x, y, rotationRad, scaleX, scaleY, originX, originY;
@@ -40,14 +41,14 @@ public final class GenericEntitySnapshotData {
     public IntArray animationAssetIds = new IntArray();
     public float animationFps = 12f;
     public boolean animationPlaying = true, animationLoop = true;
-    public float animationStateTime = 0f;
+    public double animationStateTime = 0d;
     public int animationFrame = -1;
     public String animationCurrentClip = "";
     public boolean hasShaderParams;
     public final Array<ShaderFloatParam> shaderFloats = new Array<>();
     public boolean hasSpatialHeight;
     public float spatialAltitude;
-    public float spatialHeight;
+    public games.pixscape.runtime.spatial.ActorSpatialRectangles actorSpatialRectangles;
     public boolean hasPhysicsBody;
     public int bodyType;
     public boolean fixedRotation, bullet, allowSleep, awake;

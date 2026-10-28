@@ -3,7 +3,6 @@ package games.pixscape.studio.configuration;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
-import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.InternalAssets;
 import games.pixscape.studio.io.StudioFs;
@@ -47,6 +46,7 @@ public class RuntimeExportAnimationsTest {
         run.flipX = true;
         animation.clips.put("run", run);
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+        cfg.getCurrentSceneMeta().runtimeAvailability.animationAssetIds.add(animation.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
 
@@ -74,6 +74,37 @@ public class RuntimeExportAnimationsTest {
         assertTrue(clips.get(1).getBoolean("flipX"));
     }
 
+    @Test
+    public void exportRuntimeOmitsAnimationNotUsedBySceneOrRuntimeAvailability() throws Exception {
+        Path studioDir = Files.createTempDirectory("pixscape-studio-export-unused-animation-studio");
+        Path userDir = Files.createTempDirectory("pixscape-studio-export-unused-animation-user");
+
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Unused Animation Export";
+        cfg.projectFileName = "unused-animation-export";
+        cfg.exportRootPathDir = userDir.toString();
+        cfg.createSceneMeta("Main");
+
+        Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
+        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
+
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        AnimationAssetMeta animation = (AnimationAssetMeta) db.registerIfAbsent(
+                AssetType.ANIMATION,
+                "animations/unused",
+                "orig/animations/unused",
+                AssetMeta.AssetScope.USER
+        );
+        animation.frameCount = 2;
+        animation.clips.put("default", new AnimationClipMeta(0, 1));
+        db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+
+        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
+
+        FileHandle out = new FileHandle(userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve("animations.json").toFile());
+        assertEquals(0, new JsonReader().parse(out).get("animations").size);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void exportRuntimeRejectsAnimationWithoutAuthoredClips() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-animation-default-studio");
@@ -97,6 +128,7 @@ public class RuntimeExportAnimationsTest {
         );
         animation.frameCount = 3;
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+        cfg.getCurrentSceneMeta().runtimeAvailability.animationAssetIds.add(animation.id());
 
         RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
     }
@@ -186,7 +218,6 @@ public class RuntimeExportAnimationsTest {
                       "components": {
                         "LayerComponent": {
                           "layerIndex": 0,
-                          "type": 3,
                           "spatialEnabled": true
                         },
                         "TiledLayerComponent": {
@@ -217,6 +248,7 @@ public class RuntimeExportAnimationsTest {
         JsonValue tiled = components.get("TiledLayerComponent");
 
         assertTrue(layer.getBoolean("spatialEnabled", false));
+        assertFalse(layer.has("type"));
         assertTrue(tiled.getBoolean("spatialEnabled", false));
         assertEquals(2.5f, tiled.getFloat("defaultTileAltitude", 0f), 0.0001f);
         assertEquals(16f, tiled.getFloat("defaultTileHeight", 0f), 0.0001f);
@@ -241,7 +273,6 @@ public class RuntimeExportAnimationsTest {
                       "components": {
                         "LayerComponent": {
                           "layerIndex": 0,
-                          "type": 3,
                           "spatialEnabled": true
                         },
                         "TiledLayerComponent": {

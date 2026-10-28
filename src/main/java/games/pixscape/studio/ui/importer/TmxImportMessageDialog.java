@@ -1,13 +1,12 @@
 package games.pixscape.studio.ui.importer;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.ScrollPane;
 import com.kotcrab.vis.ui.widget.VisDialog;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
+import games.pixscape.studio.ui.modal.StudioDialog;
 
 public final class TmxImportMessageDialog {
 

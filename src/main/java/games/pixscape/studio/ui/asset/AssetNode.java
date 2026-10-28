@@ -12,12 +12,16 @@ public final class AssetNode {
         FOLDER,
         REGION,
         IMAGE,
+        NORMAL_MAP,
         ANIMATION,              // classic animations
         PARTICLE,
         GAME_OBJECT,
         TILED_ANIMATIONS_FOLDER,
         TILED_ANIMATION,
-        TILED_ANIMATION_FRAME
+        TILED_ANIMATION_FRAME,
+        HUD_SCREEN,
+        FONT,
+        SKIN
     }
 
     /**
@@ -28,7 +32,10 @@ public final class AssetNode {
         ANIMATIONS,             // classic animations root
         PARTICLES,
         TILES,
-        GAME_OBJECTS
+        GAME_OBJECTS,
+        HUD,
+        FONTS,
+        SKINS
     }
 
     public Kind kind;

@@ -6,6 +6,10 @@ public final class TileAssetMeta extends AssetMeta {
     public int sheetIndex = -1;
     public int cellX = -1;
     public int cellY = -1;
+    /** Relative path in the imported collection, or a stable grid cell key. */
+    public String importSourceKey;
+    /** Original, untrimmed normal pixels. Never included in the color atlas. */
+    public String normalSourceRelPath;
 
     public TileAssetMeta() {
         super(AssetType.TILE);

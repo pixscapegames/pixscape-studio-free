@@ -2,11 +2,7 @@ package games.pixscape.studio.ui.layer;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.LayerComponent;
-import games.pixscape.runtime.component.LayerParallaxComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.studio.component.EntityMetaComponent;
@@ -106,6 +102,30 @@ public class ImmediateLayerCreationTest {
             assertEquals(second, fixture.layers.getLayerEntity(2));
             assertEquals("New Layer", fixture.meta(first).name);
             assertEquals("New Layer", fixture.meta(second).name);
+        }
+    }
+
+    @Test
+    public void hudSelectionCreatesWorldLayerAtTopWithoutChangingExistingOrder() {
+        try (Fixture fixture = new Fixture()) {
+            int bottom = fixture.addLayer("Bottom");
+            int top = fixture.addLayer("Top");
+            AtomicInteger selected = new AtomicInteger(bottom);
+
+            int insertionIndex = LayersPanel.insertionIndexForNewLayer(
+                    fixture.layers, bottom, LayersPanel.EntryKind.HUD);
+            fixture.history.execute(new CreateLayerCommand(
+                    fixture.layers, insertionIndex, "New Layer", bottom, selected::set));
+
+            assertEquals(2, insertionIndex);
+            assertEquals(bottom, fixture.layers.getLayerEntity(0));
+            assertEquals(top, fixture.layers.getLayerEntity(1));
+            assertEquals(selected.get(), fixture.layers.getLayerEntity(2));
+
+            fixture.history.undo();
+            assertEquals(bottom, selected.get());
+            assertEquals(bottom, fixture.layers.getLayerEntity(0));
+            assertEquals(top, fixture.layers.getLayerEntity(1));
         }
     }
 

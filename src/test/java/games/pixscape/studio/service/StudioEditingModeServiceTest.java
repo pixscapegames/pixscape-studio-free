@@ -14,6 +14,8 @@ public class StudioEditingModeServiceTest {
     public void publishesOnlyRealChanges() {
         EventFlow.i().flush();
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
+        EventFlow.i().flush();
         int tag = EventFlow.tag(service);
         List<StudioEditingMode> modes = new ArrayList<>();
         EventFlow.Listener<EventFlow.StudioEditingModeChanged> listener = event -> {
@@ -35,6 +37,7 @@ public class StudioEditingModeServiceTest {
     @Test
     public void resolvesPriorityAndFallsBackToRemainingContext() {
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         service.setModeActive(StudioEditingMode.TILED, true, 1);
         service.setModeActive(StudioEditingMode.PHYSICS, true, 1);
         service.setModeActive(StudioEditingMode.SPATIAL, true, 1);
@@ -54,14 +57,82 @@ public class StudioEditingModeServiceTest {
     @Test
     public void resetClearsAStaleSceneContext() {
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         service.setMode(StudioEditingMode.PHYSICS, 1);
         service.reset(2);
         Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
     }
 
     @Test
+    public void hudIsExclusiveAndExitsToNormal() {
+        StudioEditingModeService service = new StudioEditingModeService();
+        Assert.assertFalse(service.allowsWorldEditingActions());
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
+        Assert.assertTrue(service.allowsWorldEditingActions());
+        service.setMode(StudioEditingMode.TILED, 1);
+        Assert.assertTrue(service.allowsWorldEditingActions());
+        service.activateHudDocument(2);
+        Assert.assertEquals(StudioEditingMode.HUD, service.getCurrentMode());
+        Assert.assertFalse(service.allowsWorldEditingActions());
+
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 3);
+        Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
+        Assert.assertTrue(service.allowsWorldEditingActions());
+
+        service.setMode(StudioEditingMode.PHYSICS, 4);
+        Assert.assertEquals(StudioEditingMode.PHYSICS, service.getCurrentMode());
+        Assert.assertTrue(service.allowsWorldEditingActions());
+        service.setMode(StudioEditingMode.SPATIAL, 5);
+        Assert.assertTrue(service.allowsWorldEditingActions());
+        service.setMode(StudioEditingMode.LIGHTS, 6);
+        Assert.assertTrue(service.allowsWorldEditingActions());
+    }
+
+    @Test
+    public void genericModeApiCannotClaimHudDocumentAuthority() {
+        StudioEditingModeService service = new StudioEditingModeService();
+        Assert.assertThrows(IllegalArgumentException.class,
+                () -> service.setMode(StudioEditingMode.HUD, 1));
+        Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
+    }
+
+    @Test
+    public void hudDocumentProjectionRejectsSceneSubmodeLeaksUntilSceneActivation() {
+        StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
+        service.setMode(StudioEditingMode.PHYSICS, 1);
+        service.activateHudDocument(2);
+
+        service.setModeActive(StudioEditingMode.TILED, true, 3);
+        service.reset(4);
+        Assert.assertEquals(StudioEditingMode.HUD, service.getCurrentMode());
+        Assert.assertFalse(service.allowsWorldEditingActions());
+
+        service.activateSceneDocument(StudioEditingMode.PHYSICS, 5);
+        Assert.assertEquals(StudioEditingMode.PHYSICS, service.getCurrentMode());
+        Assert.assertTrue(service.allowsWorldEditingActions());
+    }
+
+    @Test
+    public void activeSceneSubmodeSinkTracksEffectiveSceneModeButNotHudProjection() {
+        StudioEditingModeService service = new StudioEditingModeService();
+        List<StudioEditingMode> projected = new ArrayList<>();
+        service.setActiveSceneSubmodeSink(projected::add);
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
+        projected.clear();
+
+        service.setMode(StudioEditingMode.TILED, 1);
+        service.setMode(StudioEditingMode.TILED, 2);
+        service.activateHudDocument(3);
+
+        Assert.assertEquals(List.of(StudioEditingMode.TILED, StudioEditingMode.TILED), projected);
+        Assert.assertEquals(StudioEditingMode.HUD, service.getCurrentMode());
+    }
+
+    @Test
     public void physicsAndSpatialAuthoritiesDriveEntryAndExit() {
         StudioEditingModeService service = new StudioEditingModeService();
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 0);
         PhysicsSelectionService physics = new PhysicsSelectionService(service);
         SpatialBlockSelectionService spatial = new SpatialBlockSelectionService(service);
 
@@ -73,5 +144,64 @@ public class StudioEditingModeServiceTest {
         Assert.assertEquals(StudioEditingMode.PHYSICS, service.getCurrentMode());
         physics.clear();
         Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
+    }
+
+    @Test
+    public void noneIsNeutralButDoesNotAuthorizeSceneEditing() {
+        EventFlow.i().flush();
+        StudioEditingModeService service = new StudioEditingModeService();
+        List<StudioEditingMode> events = new ArrayList<>();
+        EventFlow.Listener<EventFlow.StudioEditingModeChanged> listener =
+                event -> events.add(event.mode());
+        EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class, listener);
+        try {
+            Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
+            Assert.assertFalse(service.hasActiveSceneDocument());
+            Assert.assertFalse(service.hasActiveHudDocument());
+            Assert.assertFalse(service.allowsWorldEditingActions());
+
+            service.activateSceneDocument(StudioEditingMode.NORMAL, 1);
+            Assert.assertTrue(service.hasActiveSceneDocument());
+            Assert.assertTrue(service.allowsWorldEditingActions());
+
+            service.deactivateDocument(2);
+            Assert.assertEquals(StudioEditingMode.NORMAL, service.getCurrentMode());
+            Assert.assertFalse(service.hasActiveSceneDocument());
+            Assert.assertFalse(service.hasActiveHudDocument());
+            Assert.assertFalse(service.allowsWorldEditingActions());
+            EventFlow.i().flush();
+            Assert.assertEquals(List.of(StudioEditingMode.NORMAL, StudioEditingMode.NORMAL), events);
+        } finally {
+            EventFlow.i().unsubscribe(EventFlow.StudioEditingModeChanged.class, listener);
+        }
+    }
+
+    @Test
+    public void hudTestEntryIsTransactionalAndSceneActivationForcesCleanup() {
+        StudioEditingModeService service = new StudioEditingModeService();
+        final boolean[] active = {false};
+        final boolean[] allowEntry = {false};
+        final int[] exits = {0};
+        service.bindHudTestModeController(new StudioEditingModeService.HudTestModeController() {
+            @Override public boolean canEnter() { return true; }
+            @Override public boolean enter() {
+                if (!allowEntry[0]) return false;
+                active[0] = true;
+                return true;
+            }
+            @Override public void exit() { active[0] = false; exits[0]++; }
+            @Override public boolean isActive() { return active[0]; }
+        });
+        service.activateHudDocument(1);
+
+        Assert.assertFalse(service.setHudTestMode(true));
+        Assert.assertFalse(service.isHudTestMode());
+        allowEntry[0] = true;
+        Assert.assertTrue(service.setHudTestMode(true));
+        Assert.assertTrue(service.isHudTestMode());
+
+        service.activateSceneDocument(StudioEditingMode.NORMAL, 2);
+        Assert.assertFalse(service.isHudTestMode());
+        Assert.assertEquals(1, exits[0]);
     }
 }

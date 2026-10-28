@@ -37,8 +37,8 @@ public class ItemTreeTiledEditingTargetContractTest {
                 StandardCharsets.UTF_8);
         String guard = methodBody(source, "private boolean isTiledToolInputEnabled()");
 
-        assertTrue(guard.contains("selectionService.isTiledMapEditingTargetActive()"));
-        assertTrue(guard.contains("!spatialBlockSelectionService.isEditingActive()"));
+        assertTrue(guard.contains("selectionService().isTiledMapEditingTargetActive()"));
+        assertTrue(guard.contains("!spatialBlockSelectionService().isEditingActive()"));
     }
 
     @Test
@@ -82,7 +82,7 @@ public class ItemTreeTiledEditingTargetContractTest {
         String canvas = source("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
         String reset = methodBody(canvas, "public void resetEditingContexts()");
 
-        assertTrue(reset.contains("selectionService.clearTiledMapEditingTarget();"));
+        assertTrue(reset.contains("requireAttachedContext().resetForSceneReplacement"));
     }
 
     private static String source(String path) throws Exception {

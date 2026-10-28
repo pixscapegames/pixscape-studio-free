@@ -1,16 +1,10 @@
 package games.pixscape.studio.history.initializer;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ByteArray;
 import com.badlogic.gdx.utils.IntArray;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TiledLayerComponent;
-import games.pixscape.runtime.component.TransformComponent;
-import games.pixscape.runtime.component.VisibilityComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
@@ -55,6 +49,7 @@ public final class TiledMapInitializer implements Initializer {
     private boolean spatialEnabled;
     private float defaultTileAltitude;
     private float defaultTileHeight;
+    private final Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> lightingDescriptions=new Array<>();
     private final IntArray tileXs = new IntArray();
     private final IntArray tileYs = new IntArray();
     private final IntArray tileAssetIds = new IntArray();
@@ -65,6 +60,7 @@ public final class TiledMapInitializer implements Initializer {
     private ByteArray tileSpatialOverrides;
 
     private boolean hasSpatialBlocks;
+    private final Array<games.pixscape.runtime.spatial.SpatialBlockLink> spatialLinks = new Array<>(games.pixscape.runtime.spatial.SpatialBlockLink.class);
     private int nextSpatialBlockId = 1;
     private final Array<SpatialBlockData> spatialBlocks = new Array<>(SpatialBlockData[]::new);
 
@@ -153,6 +149,7 @@ public final class TiledMapInitializer implements Initializer {
         spatialEnabled = tiled.spatialEnabled;
         defaultTileAltitude = tiled.defaultTileAltitude;
         defaultTileHeight = tiled.defaultTileHeight;
+        copyDescriptions(lightingDescriptions,tiled.lightingDescriptions);
         tiled.ensureSparseTileStorageConsistency();
         copy(tileXs, tiled.tileXs);
         copy(tileYs, tiled.tileYs);
@@ -168,8 +165,10 @@ public final class TiledMapInitializer implements Initializer {
                 .getSafe(entityId, null);
         hasSpatialBlocks = blocks != null;
         spatialBlocks.clear();
+        spatialLinks.clear();
         if (blocks != null) {
             nextSpatialBlockId = blocks.nextSpatialBlockId;
+            spatialLinks.addAll(games.pixscape.runtime.spatial.SpatialBlockLinks.copy(blocks.links));
             for (int i = 0; i < blocks.blocks.size; i++) spatialBlocks.add(blocks.blocks.get(i).copy());
         }
 
@@ -239,6 +238,7 @@ public final class TiledMapInitializer implements Initializer {
         tiled.spatialEnabled = spatialEnabled;
         tiled.defaultTileAltitude = defaultTileAltitude;
         tiled.defaultTileHeight = defaultTileHeight;
+        copyDescriptions(tiled.lightingDescriptions,lightingDescriptions);
         copy(tiled.tileXs, tileXs);
         copy(tiled.tileYs, tileYs);
         copy(tiled.tileAssetIds, tileAssetIds);
@@ -256,6 +256,7 @@ public final class TiledMapInitializer implements Initializer {
         if (hasSpatialBlocks) {
             SpatialBlocksComponent blocks = world.getMapper(SpatialBlocksComponent.class).create(entityId);
             blocks.nextSpatialBlockId = nextSpatialBlockId;
+            blocks.links = games.pixscape.runtime.spatial.SpatialBlockLinks.copy(spatialLinks);
             for (int i = 0; i < spatialBlocks.size; i++) blocks.blocks.add(spatialBlocks.get(i).copy());
         }
 
@@ -332,6 +333,13 @@ public final class TiledMapInitializer implements Initializer {
         return "TiledMap";
     }
 
+    private static void copyDescriptions(Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> target,
+                                         Array<games.pixscape.runtime.render.lighting.TileSurfaceDescription> source){
+        target.clear();
+        for(games.pixscape.runtime.render.lighting.TileSurfaceDescription item:source){
+            target.add(item.copy());
+        }
+    }
     private static void copy(IntArray target, IntArray source) {
         target.clear();
         if (source != null) target.addAll(source);

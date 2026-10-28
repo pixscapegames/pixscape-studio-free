@@ -31,9 +31,20 @@ public class SceneServiceSaveProgressContractTest {
         String source = readSceneServiceSource();
         String methodBody = methodBody(source, "public void saveProjectAndCurrentSceneWithProgress(");
 
-        assertTrue(methodBody.contains("SaveProgressRunner runner = new SaveProgressRunner(uiStage);"));
+        assertTrue(methodBody.contains("runSaveSteps(uiStage, steps,"));
         assertTrue(methodBody.contains("if (!plan.hasSceneToSave())"));
-        assertTrue(methodBody.contains("runner.run(steps, onSuccess, onError);"));
+        assertTrue(methodBody(source, "static void runSaveSteps(").contains("new SaveProgressRunner(uiStage).run(steps, onSuccess, onError)"));
+    }
+
+    @Test
+    public void tabCloseAndExitShareDocumentSaveProgressAndKeepDocumentPersistence() throws Exception {
+        String source=readSceneServiceSource();
+        assertTrue(methodBody(source,"public void saveSceneDocumentWithProgress(").contains("saveSceneDocumentsWithProgress(app.getUiStage(), List.of(document), onSuccess, onError)"));
+        assertTrue(methodBody(source,"public void saveAllDirtyScenesWithProgress(").contains("saveSceneDocumentsWithProgress(uiStage, dirty, onSuccess, onError)"));
+        String batch=methodBody(source,"private void saveSceneDocumentsWithProgress(");
+        assertTrue(batch.contains("() -> saveSceneDocument(document)"));
+        assertTrue(batch.contains("runSaveSteps(uiStage, steps,"));
+        assertTrue(batch.contains("\"Finalizing...\""));
     }
 
     @Test

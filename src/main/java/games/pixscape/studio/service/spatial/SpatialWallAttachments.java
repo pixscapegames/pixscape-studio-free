@@ -195,11 +195,11 @@ public final class SpatialWallAttachments {
         }
 
         if (commonAxis == Axis.HORIZONTAL) {
-            minDelta = Math.max(minDelta, linked.minGx - selected.x);
-            maxDelta = Math.min(maxDelta, linked.maxGxExclusive - selected.x - selected.width);
+            minDelta = Math.max(minDelta, Math.min(linked.minGx, selected.x) - selected.x);
+            maxDelta = Math.min(maxDelta, Math.max(linked.maxGxExclusive, selected.x + selected.width) - selected.x - selected.width);
         } else {
-            minDelta = Math.max(minDelta, linked.minGy - selected.y);
-            maxDelta = Math.min(maxDelta, linked.maxGyExclusive - selected.y - selected.depth);
+            minDelta = Math.max(minDelta, Math.min(linked.minGy, selected.y) - selected.y);
+            maxDelta = Math.min(maxDelta, Math.max(linked.maxGyExclusive, selected.y + selected.depth) - selected.y - selected.depth);
         }
         if (minDelta > maxDelta) return;
         slideAxis = commonAxis;

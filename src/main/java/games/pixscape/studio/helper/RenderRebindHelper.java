@@ -162,11 +162,18 @@ public final class RenderRebindHelper {
             StudioAssetVisualResolver visualResolver,
             int entityId
     ) {
+        return rebindHistoryEntityRenderAssets(canvas, sceneTag, visualResolver, entityId,
+                canvas != null ? canvas.getEcsWorld() : null);
+    }
+
+    /** History callbacks retain the World that owns their command, even while another tab is active. */
+    public static String rebindHistoryEntityRenderAssets(
+            WorldCanvas canvas, String sceneTag, StudioAssetVisualResolver visualResolver,
+            int entityId, World world) {
         if (canvas == null || visualResolver == null || entityId < 0) {
             return "skipped";
         }
 
-        World world = canvas.getEcsWorld();
         if (world == null || !world.getEntityManager().isActive(entityId)) {
             return "skipped";
         }
@@ -215,6 +222,7 @@ public final class RenderRebindHelper {
         if ("skipped".equals(rebindResult)) return false;
         int textureHandle = material != null ? material.textureHandle : 0;
         return snapshotManager == null
+                || sceneTag == null || sceneTag.isBlank()
                 || !snapshotManager.isHandlePublishedInCurrentBundle(sceneTag, textureHandle);
     }
 
@@ -224,7 +232,10 @@ public final class RenderRebindHelper {
             String reason,
             boolean invalidationRequired
     ) {
-        if (invalidationRequired) snapshotManager.markDirty(sceneTag, reason);
+        // Standalone documents have no Scene bundle to invalidate.
+        if (invalidationRequired && sceneTag != null && !sceneTag.isBlank()) {
+            snapshotManager.markDirty(sceneTag, reason);
+        }
     }
 
     static String rebindEntity(

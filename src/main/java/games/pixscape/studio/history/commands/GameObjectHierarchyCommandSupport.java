@@ -1,10 +1,8 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.ComponentMapper;
 import com.artemis.World;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
-import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
 import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;

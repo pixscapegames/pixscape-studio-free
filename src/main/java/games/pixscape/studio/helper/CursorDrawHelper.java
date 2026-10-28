@@ -52,7 +52,7 @@ public final class CursorDrawHelper {
         };
         if (d == null) return;
 
-        float sizeWorld = HandleHelper.pxToWorld(ctx.cam, SIZE_PX);
+        float sizeWorld = ctx.pxToWorld(SIZE_PX);
         float halfWidthWorld = sizeWorld * 0.5f;
 
         float x = mouseWorld.x - halfWidthWorld;

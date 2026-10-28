@@ -3,18 +3,21 @@ package games.pixscape.studio.system;
 import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.systems.IteratingSystem;
-import games.pixscape.runtime.component.*;
+import games.pixscape.runtime.component.AnimationComponent;
+import games.pixscape.runtime.component.AssetRefComponent;
+import games.pixscape.runtime.component.RenderMaterialComponent;
+import games.pixscape.runtime.component.TextureRegionComponent;
 import games.pixscape.runtime.profiling.ProfiledSystem;
 import games.pixscape.runtime.profiling.SystemProfilePhases;
 import games.pixscape.runtime.profiling.SystemProfiler;
 import games.pixscape.runtime.profiling.SystemProfilers;
 import games.pixscape.runtime.render.DynamicEntityRenderState;
-import games.pixscape.studio.service.asset.StudioAssetVisual;
-import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
-import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
 import games.pixscape.studio.asset.AnimationAssetMeta;
 import games.pixscape.studio.asset.AnimationClipMeta;
 import games.pixscape.studio.asset.AssetMeta;
+import games.pixscape.studio.service.asset.StudioAnimationPreviewRefresher;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
+import games.pixscape.studio.service.asset.StudioAssetVisualResolver;
 
 import java.util.function.IntFunction;
 

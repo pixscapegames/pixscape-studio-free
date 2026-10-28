@@ -29,6 +29,14 @@ public final class ToggleSpatialActorCommand
     private final Array<PhysicsShapeData> shapesBefore;
     private final Array<PhysicsShapeData> shapesAfter;
     private final boolean noop;
+    private games.pixscape.runtime.spatial.ActorSpatialRectangles initialRectangles;
+
+    /** Prepared by the activation UI from all attached animation clips, before publication. */
+    public ToggleSpatialActorCommand withRectangles(games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles) {
+        rectangles.validate();
+        initialRectangles = rectangles.copy();
+        return this;
+    }
 
     public ToggleSpatialActorCommand(
             World world,
@@ -42,6 +50,16 @@ public final class ToggleSpatialActorCommand
         this.historyIds = historyIds;
         this.physicsService = physicsService;
         this.enable = enable;
+        initialRectangles = new games.pixscape.runtime.spatial.ActorSpatialRectangles();
+        if (enable && world != null && entityId >= 0) {
+            games.pixscape.runtime.component.AnimationComponent animation = world.getMapper(
+                    games.pixscape.runtime.component.AnimationComponent.class).getSafe(entityId, null);
+            games.pixscape.runtime.component.AssetRefComponent asset = world.getMapper(
+                    games.pixscape.runtime.component.AssetRefComponent.class).getSafe(entityId, null);
+            initialRectangles.put(asset == null ? 0 : asset.assetId,
+                    animation == null ? null : animation.currentClip,
+                    new games.pixscape.runtime.spatial.ActorSpatialRectangleData());
+        }
 
         boolean valid = world != null
                 && historyIds != null
@@ -164,7 +182,7 @@ public final class ToggleSpatialActorCommand
                     ? heights.get(entityId) : heights.create(entityId);
             if (applyingAfter && spatialBefore == null) {
                 height.altitude = 0f;
-                height.height = 1f;
+                height.rectangles = initialRectangles.copy();
             } else if (spatialBefore != null) {
                 spatialBefore.apply(height);
             }
@@ -242,20 +260,20 @@ public final class ToggleSpatialActorCommand
 
     private static final class SpatialSnapshot {
         final float altitude;
-        final float height;
+        final games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles;
 
-        private SpatialSnapshot(float altitude, float height) {
+        private SpatialSnapshot(float altitude, games.pixscape.runtime.spatial.ActorSpatialRectangles rectangles) {
             this.altitude = altitude;
-            this.height = height;
+            this.rectangles = rectangles == null ? null : rectangles.copy();
         }
 
         static SpatialSnapshot capture(SpatialHeightComponent height) {
-            return height == null ? null : new SpatialSnapshot(height.altitude, height.height);
+            return height == null ? null : new SpatialSnapshot(height.altitude, height.rectangles);
         }
 
         void apply(SpatialHeightComponent target) {
             target.altitude = altitude;
-            target.height = height;
+            target.rectangles = rectangles == null ? null : rectangles.copy();
         }
     }
 

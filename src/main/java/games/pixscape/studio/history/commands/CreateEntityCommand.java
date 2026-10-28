@@ -53,6 +53,8 @@ public final class CreateEntityCommand implements Command {
         return "Create " + initializer.label();
     }
 
+    @Override public int additionalActiveLights() { return initializer.activeLightCount(); }
+
     @Override
     public void redo() {
         if (historyId > 0L) {

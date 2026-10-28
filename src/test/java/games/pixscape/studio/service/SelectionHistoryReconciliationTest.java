@@ -12,9 +12,7 @@ import games.pixscape.studio.history.initializer.Initializer;
 import games.pixscape.studio.model.EntityKind;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 public class SelectionHistoryReconciliationTest {
 

@@ -2,14 +2,16 @@ package games.pixscape.studio.configuration;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.utils.*;
-import games.pixscape.runtime.configuration.RuntimeConfig;
+import games.pixscape.runtime.animation.AnimationClipDefData;
 import games.pixscape.runtime.animation.AnimationDef;
 import games.pixscape.runtime.animation.AnimationDefData;
-import games.pixscape.runtime.animation.AnimationClipDefData;
+import games.pixscape.runtime.configuration.RuntimeConfig;
+import games.pixscape.runtime.gameobject.GameObjectAsset;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.runtime.helper.RuntimeFs;
+import games.pixscape.runtime.loading.ContentLayerValidator;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
-import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
 import games.pixscape.studio.io.StudioFs;
@@ -17,6 +19,7 @@ import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.ProjectFileCleanupService;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
+import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -72,6 +75,50 @@ public final class RuntimeExport {
             throw new GdxRuntimeException("studioCfg.projectFileName is blank");
         }
 
+        validateContentLayerInputs(studioCfg, studioProjectDir);
+        FileHandle catalog=studioProjectDir.child(StudioFs.FILE_ASSETS_JSON);
+        if(catalog.exists()){
+            AssetMetaDatabase db=AssetMetaDatabase.load(catalog);
+            for(ObjectMap.Entry<String,SceneMeta> entry:studioCfg.getScenesMap()){
+                String tag=studioCfg.canonicalSceneTag(entry.key);
+                if(tag!=null && studioProjectDir.child(StudioFs.DIR_ATLASES).child(tag+".atlas").exists())
+                    games.pixscape.studio.service.atlas.AtlasStudioService.prepareSceneNormals(studioProjectDir,tag,null,db);
+            }
+        }
+
+        // All HUD resolution, source capture and packing must succeed before removing the old export.
+        try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
+            return exportPrepared(studioCfg, studioProjectDir, userProjectDir, hud);
+        }
+    }
+
+    private static void validateContentLayerInputs(ProjectConfig cfg, FileHandle studioProjectDir) {
+        ObjectMap<String, SceneMeta> scenes = cfg.getScenesMap();
+        if (scenes != null) {
+            for (ObjectMap.Entry<String, SceneMeta> entry : scenes) {
+                SceneMeta scene = entry.value;
+                if (scene == null || scene.file == null) continue;
+                FileHandle file = studioProjectDir.child(StudioFs.DIR_SCENES)
+                        .child(RuntimeFs.filenameOnly(scene.file));
+                if (file.exists()) {
+                    games.pixscape.runtime.loading.SceneLoader.validateMapLightingConvention(file.readString("UTF-8"),file.path());
+                    ContentLayerValidator.validateSerializedScene(file.readString("UTF-8"),
+                            "Scene '" + file.path() + "'");
+                }
+            }
+        }
+        FileHandle gameObjects = studioProjectDir.child(StudioFs.DIR_GAME_OBJECTS);
+        if (gameObjects.exists()) {
+            GameObjectAssetLoader loader = new GameObjectAssetLoader();
+            for (FileHandle file : gameObjects.list()) {
+                if (file.name().endsWith(GameObjectAsset.EXTENSION)) loader.load(file);
+            }
+        }
+    }
+
+    private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
+                                                 FileHandle userProjectDir, SceneHudRuntimeExport.PreparedExport hud) {
+
         // 0) runtime root dir = <userProjectDir>/pixscape-project
         FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
 
@@ -121,14 +168,25 @@ public final class RuntimeExport {
             SceneMeta studioMeta = studioScenes.get(sceneName);
             if (studioMeta == null) continue;
 
-            SceneAmbientLighting.applyDefaultsAndDerive(studioMeta);
-
             String file = RuntimeFs.filenameOnly(studioMeta.file);
             if (file == null || file.isBlank()) {
                 throw new GdxRuntimeException("Scene '" + sceneName + "' has no file; cannot export.");
             }
 
             SceneMetaRuntime runtimeMeta = new SceneMetaRuntime(studioMeta);
+            // Ambient derivation used to mutate authored Scene metadata during export.
+            SceneMeta lighting = new SceneMeta();
+            lighting.ambientMulR = studioMeta.ambientMulR;
+            lighting.ambientMulG = studioMeta.ambientMulG;
+            lighting.ambientMulB = studioMeta.ambientMulB;
+            lighting.ambientColorR = studioMeta.ambientColorR;
+            lighting.ambientColorG = studioMeta.ambientColorG;
+            lighting.ambientColorB = studioMeta.ambientColorB;
+            lighting.ambientIntensity = studioMeta.ambientIntensity;
+            SceneAmbientLighting.applyDefaultsAndDerive(lighting);
+            runtimeMeta.ambientMulR = lighting.ambientMulR;
+            runtimeMeta.ambientMulG = lighting.ambientMulG;
+            runtimeMeta.ambientMulB = lighting.ambientMulB;
             runtimeMeta.name = (studioMeta.name != null && !studioMeta.name.isBlank())
                     ? studioMeta.name
                     : sceneName;
@@ -193,25 +251,37 @@ public final class RuntimeExport {
                 runtimeDir.child(out.gameObjectsDir)
         );
 
-        // 6b) Export tiled animations registry (runtime-ready only)
+        FileHandle tileAnimationsFile = studioProjectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        TileAnimationsMetaDatabase tileAnimationsDb = tileAnimationsFile.exists()
+                ? TileAnimationsIO.load(tileAnimationsFile)
+                : TileAnimationsIO.createEmpty();
+        IntSet runtimeTileAnimationIds = collectRuntimeTileAnimationIds(
+                studioCfg, runtimeScenesDir, out, tileAnimationsDb);
+        IntSet runtimeAnimationAssetIds = collectRuntimeAnimationAssetIds(
+                studioCfg, runtimeScenesDir, runtimeDir.child(out.gameObjectsDir));
+
+        // 6b) Export only animations reachable from runtime scenes, availability, or Game Objects.
         exportTileAnimations(
-                studioProjectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON),
+                tileAnimationsDb,
+                runtimeTileAnimationIds,
                 runtimeDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
         );
         exportAnimations(
                 studioProjectDir.child(StudioFs.FILE_ASSETS_JSON),
-                runtimeDir.child(ANIMATIONS_JSON)
+                runtimeDir.child(ANIMATIONS_JSON),
+                runtimeAnimationAssetIds
         );
         exportTilesetProfiles(
                 studioProjectDir.child(StudioFs.FILE_ASSETS_JSON),
                 runtimeDir.child(TILESET_PROFILES_JSON),
                 studioCfg,
-                studioProjectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON),
+                tileAnimationsDb,
                 runtimeScenesDir,
                 out
         );
 
         // 7) Final project.json write
+        hud.copyTo(runtimeDir);
         saveProject(out, runtimeDir, studioCfg);
 
         return out;
@@ -250,23 +320,25 @@ public final class RuntimeExport {
         }
     }
 
-    private static void exportTileAnimations(FileHandle studioFile, FileHandle runtimeFile) {
+    private static void exportTileAnimations(TileAnimationsMetaDatabase studioDb,
+                                             IntSet runtimeTileAnimationIds,
+                                             FileHandle runtimeFile) {
         if (runtimeFile == null) {
             return;
         }
 
-        TileAnimationsMetaDatabase studioDb;
+        TileAnimationsMetaDatabase runtimeDb = TileAnimationsIO.createEmpty();
+        runtimeDb.version = studioDb != null ? studioDb.version : null;
 
-        if (studioFile != null && studioFile.exists()) {
-            studioDb = TileAnimationsIO.load(studioFile);
-        } else {
-            studioDb = TileAnimationsIO.createEmpty();
+        if (studioDb == null || studioDb.animations == null || runtimeTileAnimationIds == null) {
+            TileAnimationsIO.save(runtimeDb, runtimeFile);
+            return;
         }
 
-        TileAnimationsMetaDatabase runtimeDb = TileAnimationsIO.createEmpty();
-        runtimeDb.version = studioDb.version;
-
         for (TileAnimationProjectDefData def : studioDb.animations) {
+            if (def == null || !runtimeTileAnimationIds.contains(def.id)) {
+                continue;
+            }
             if (!TileAnimationsIO.isExportable(def)) {
                 continue;
             }
@@ -287,7 +359,9 @@ public final class RuntimeExport {
         TileAnimationsIO.save(runtimeDb, runtimeFile);
     }
 
-    private static void exportAnimations(FileHandle assetsFile, FileHandle runtimeFile) {
+    private static void exportAnimations(FileHandle assetsFile,
+                                         FileHandle runtimeFile,
+                                         IntSet runtimeAnimationAssetIds) {
         if (runtimeFile == null) {
             return;
         }
@@ -304,6 +378,9 @@ public final class RuntimeExport {
                 if (animation.id() <= 0) {
                     continue;
                 }
+                if (runtimeAnimationAssetIds == null || !runtimeAnimationAssetIds.contains(animation.id())) {
+                    continue;
+                }
 
                 animations.addChild(animationJson(animation));
         }
@@ -317,7 +394,7 @@ public final class RuntimeExport {
     private static void exportTilesetProfiles(FileHandle assetsFile,
                                               FileHandle runtimeFile,
                                               ProjectConfig studioCfg,
-                                              FileHandle tileAnimationsFile,
+                                              TileAnimationsMetaDatabase tileAnimationsDb,
                                               FileHandle runtimeScenesDir,
                                               RuntimeConfig runtimeCfg) {
         if (runtimeFile == null) {
@@ -325,15 +402,20 @@ public final class RuntimeExport {
         }
 
         AssetMetaDatabase assetDb = AssetMetaDatabase.load(assetsFile);
-        TileAnimationsMetaDatabase tileAnimationsDb = tileAnimationsFile != null && tileAnimationsFile.exists()
-                ? TileAnimationsIO.load(tileAnimationsFile)
-                : TileAnimationsIO.createEmpty();
         IntSet runtimeTileAssetIds = collectRuntimeTileAssetIds(
                 studioCfg,
                 runtimeScenesDir,
                 runtimeCfg,
                 tileAnimationsDb
         );
+        FileHandle exportedGameObjects = runtimeFile.parent().child(StudioFs.DIR_GAME_OBJECTS);
+        if (exportedGameObjects.exists()) for (FileHandle file : exportedGameObjects.list()) {
+            if (!file.name().endsWith(GameObjectAsset.EXTENSION)) continue;
+            GameObjectAsset asset = new GameObjectAssetLoader().load(file);
+            for (GameObjectAsset.GameObjectEntityData entity : asset.entities)
+                if (entity.assetRef != null && assetDb.findById(entity.assetRef.assetId) instanceof TileAssetMeta)
+                    runtimeTileAssetIds.add(entity.assetRef.assetId);
+        }
         IntMap<IntArray> tileIdsByTilesetId = collectRuntimeTileIdsByTileset(assetDb, runtimeTileAssetIds);
 
         JsonValue root = new JsonValue(JsonValue.ValueType.object);
@@ -359,7 +441,32 @@ public final class RuntimeExport {
                     continue;
                 }
                 tileIds.sort();
-                tilesets.addChild(tilesetProfileJson(tileset, tileIds));
+                JsonValue profile = tilesetProfileJson(tileset, tileIds);
+                JsonValue normals = new JsonValue(JsonValue.ValueType.array);
+                for (int i = 0; i < tileIds.size; i++) {
+                    TileAssetMeta tile = (TileAssetMeta) assetDb.findById(tileIds.get(i));
+                    if (tile.normalSourceRelPath == null) continue;
+                    FileHandle source = assetsFile.parent().child(tile.normalSourceRelPath);
+                    FileHandle color = assetsFile.parent().child(tile.sourceRelPath());
+                    if (!source.exists()) throw new GdxRuntimeException("Tile normal resource is missing: " + tile.id());
+                    // Exact source dimensions remain independent of atlas trim, rotation, padding and aliases.
+                    try {
+                        var normalPixels = javax.imageio.ImageIO.read(source.file());
+                        var colorPixels = javax.imageio.ImageIO.read(color.file());
+                        if (normalPixels == null || colorPixels == null
+                                || normalPixels.getWidth() != colorPixels.getWidth()
+                                || normalPixels.getHeight() != colorPixels.getHeight())
+                            throw new GdxRuntimeException("Tile normal dimensions are invalid: " + tile.id());
+                    } catch (java.io.IOException failure) { throw new GdxRuntimeException("Cannot validate tile normal", failure); }
+                    String relative = "normals/" + tile.id() + ".png";
+                    source.copyTo(runtimeFile.parent().child(relative));
+                    JsonValue normal = new JsonValue(JsonValue.ValueType.object);
+                    normal.addChild("tileAssetId", new JsonValue(tile.id()));
+                    normal.addChild("source", new JsonValue(relative));
+                    normals.addChild(normal);
+                }
+                profile.addChild("normalMaps", normals);
+                tilesets.addChild(profile);
             }
         }
         root.addChild("tilesets", tilesets);
@@ -377,6 +484,224 @@ public final class RuntimeExport {
         collectRuntimeAvailabilityTileAssetIds(studioCfg, out, tileAnimationsDb);
         collectRuntimeSceneTileAssetIds(runtimeScenesDir, runtimeCfg, out, tileAnimationsDb);
         return out;
+    }
+
+    private static IntSet collectRuntimeTileAnimationIds(ProjectConfig studioCfg,
+                                                         FileHandle runtimeScenesDir,
+                                                         RuntimeConfig runtimeCfg,
+                                                         TileAnimationsMetaDatabase tileAnimationsDb) {
+        IntSet out = new IntSet();
+        collectRuntimeAvailabilityTileAnimationIds(studioCfg, out);
+        collectRuntimeSceneTileAnimationIds(runtimeScenesDir, runtimeCfg, tileAnimationsDb, out);
+        return out;
+    }
+
+    private static void collectRuntimeAvailabilityTileAnimationIds(ProjectConfig studioCfg, IntSet out) {
+        if (studioCfg == null || out == null || studioCfg.getScenesMap() == null) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
+            SceneRuntimeAvailabilityData availability = entry.value != null
+                    ? entry.value.runtimeAvailability
+                    : null;
+            if (availability == null || availability.tiledAnimationIds == null) {
+                continue;
+            }
+            for (Integer animationId : availability.tiledAnimationIds) {
+                if (animationId != null && animationId > 0) {
+                    out.add(animationId);
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeSceneTileAnimationIds(FileHandle runtimeScenesDir,
+                                                            RuntimeConfig runtimeCfg,
+                                                            TileAnimationsMetaDatabase tileAnimationsDb,
+                                                            IntSet out) {
+        if (runtimeScenesDir == null || runtimeCfg == null || runtimeCfg.scenes == null || out == null) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMetaRuntime> entry : runtimeCfg.scenes) {
+            SceneMetaRuntime scene = entry.value;
+            String file = scene != null ? RuntimeFs.filenameOnly(scene.file) : null;
+            if (file == null || file.isBlank()) {
+                continue;
+            }
+            FileHandle sceneFile = runtimeScenesDir.child(file);
+            if (!sceneFile.exists()) {
+                throw new GdxRuntimeException("Runtime export missing exported scene file while collecting tiled animations: "
+                        + sceneFile.path());
+            }
+            collectTiledLayerAnimationIds(new JsonReader().parse(sceneFile), tileAnimationsDb, out);
+        }
+    }
+
+    private static void collectTiledLayerAnimationIds(JsonValue root,
+                                                      TileAnimationsMetaDatabase tileAnimationsDb,
+                                                      IntSet out) {
+        JsonValue entities = root != null ? root.get("entities") : null;
+        if (entities == null || !entities.isObject()) {
+            return;
+        }
+
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            JsonValue tiled = components != null ? components.get("TiledLayerComponent") : null;
+            if (tiled == null || !tiled.isObject()) {
+                continue;
+            }
+            collectTileAnimationIds(tiled.get("tileAssetIds"), tileAnimationsDb, out);
+            JsonValue data = tiled.get("data");
+            if (data != null && data.isObject()) {
+                collectTileAnimationIds(data.get("tileAssetIds"), tileAnimationsDb, out);
+            }
+        }
+    }
+
+    private static void collectTileAnimationIds(JsonValue bag,
+                                                TileAnimationsMetaDatabase tileAnimationsDb,
+                                                IntSet out) {
+        JsonValue items = bag != null ? bag.get("items") : null;
+        if (items == null || !items.isArray()) {
+            return;
+        }
+
+        int size = bag.getInt("size", items.size);
+        int index = 0;
+        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
+            int assetId = item.asInt();
+            if (assetId > 0 && isTileAnimationId(tileAnimationsDb, assetId)) {
+                out.add(assetId);
+            }
+        }
+    }
+
+    private static boolean isTileAnimationId(TileAnimationsMetaDatabase db, int animationId) {
+        if (db == null || db.animations == null || animationId <= 0) {
+            return false;
+        }
+        for (TileAnimationProjectDefData def : db.animations) {
+            if (def != null && def.id == animationId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static IntSet collectRuntimeAnimationAssetIds(ProjectConfig studioCfg,
+                                                          FileHandle runtimeScenesDir,
+                                                          FileHandle runtimeGameObjectsDir) {
+        IntSet out = new IntSet();
+        collectRuntimeAvailabilityAnimationAssetIds(studioCfg, out);
+        collectRuntimeSceneAnimationAssetIds(runtimeScenesDir, out);
+        collectRuntimeAvailableGameObjectAnimationAssetIds(studioCfg, runtimeGameObjectsDir, out);
+        return out;
+    }
+
+    private static void collectRuntimeAvailabilityAnimationAssetIds(ProjectConfig studioCfg, IntSet out) {
+        if (studioCfg == null || out == null || studioCfg.getScenesMap() == null) {
+            return;
+        }
+
+        for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
+            SceneRuntimeAvailabilityData availability = entry.value != null
+                    ? entry.value.runtimeAvailability
+                    : null;
+            if (availability == null || availability.animationAssetIds == null) {
+                continue;
+            }
+            for (Integer assetId : availability.animationAssetIds) {
+                if (assetId != null && assetId > 0) {
+                    out.add(assetId);
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeSceneAnimationAssetIds(FileHandle runtimeScenesDir, IntSet out) {
+        if (runtimeScenesDir == null || !runtimeScenesDir.exists() || out == null) {
+            return;
+        }
+
+        for (FileHandle sceneFile : runtimeScenesDir.list()) {
+            if (sceneFile.isDirectory() || !sceneFile.name().endsWith(".json")) {
+                continue;
+            }
+            JsonValue entities = new JsonReader().parse(sceneFile).get("entities");
+            if (entities == null || !entities.isObject()) {
+                continue;
+            }
+            for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+                JsonValue components = entity.get("components");
+                JsonValue animation = components != null ? components.get("AnimationComponent") : null;
+                if (animation != null && animation.isObject()) {
+                    collectIntBagAssetIds(animation.get("animationAssetIds"), out);
+                }
+            }
+        }
+    }
+
+    private static void collectRuntimeAvailableGameObjectAnimationAssetIds(ProjectConfig studioCfg,
+                                                                           FileHandle runtimeGameObjectsDir,
+                                                                           IntSet out) {
+        if (studioCfg == null || runtimeGameObjectsDir == null || !runtimeGameObjectsDir.exists()
+                || out == null || studioCfg.getScenesMap() == null) {
+            return;
+        }
+
+        GameObjectAssetLoader loader = new GameObjectAssetLoader();
+        ObjectSet<String> gameObjectFiles = new ObjectSet<>();
+        for (ObjectMap.Entry<String, SceneMeta> entry : studioCfg.getScenesMap()) {
+            SceneRuntimeAvailabilityData availability = entry.value != null
+                    ? entry.value.runtimeAvailability
+                    : null;
+            if (availability == null || availability.gameObjectIds == null) {
+                continue;
+            }
+            for (String gameObjectId : availability.gameObjectIds) {
+                String fileName = RuntimeFs.filenameOnly(gameObjectId);
+                if (fileName != null && fileName.endsWith(GameObjectAsset.EXTENSION)) {
+                    gameObjectFiles.add(fileName);
+                }
+            }
+        }
+        for (String fileName : gameObjectFiles) {
+            FileHandle file = runtimeGameObjectsDir.child(fileName);
+            if (!file.exists()) {
+                continue;
+            }
+            GameObjectAsset asset = loader.load(file);
+            for (GameObjectAsset.GameObjectEntityData entity : asset.entities) {
+                if (entity.animation == null || entity.animation.animationAssetIds == null) {
+                    continue;
+                }
+                for (int index = 0; index < entity.animation.animationAssetIds.size; index++) {
+                    int animationAssetId = entity.animation.animationAssetIds.get(index);
+                    if (animationAssetId > 0) {
+                        out.add(animationAssetId);
+                    }
+                }
+            }
+        }
+    }
+
+    private static void collectIntBagAssetIds(JsonValue bag, IntSet out) {
+        JsonValue items = bag != null ? bag.get("items") : null;
+        if (items == null || !items.isArray() || out == null) {
+            return;
+        }
+
+        int size = bag.getInt("size", items.size);
+        int index = 0;
+        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
+            int assetId = item.asInt();
+            if (assetId > 0) {
+                out.add(assetId);
+            }
+        }
     }
 
     private static void collectRuntimeAvailabilityTileAssetIds(ProjectConfig studioCfg,
@@ -821,7 +1146,11 @@ public final class RuntimeExport {
                     continue;
                 }
 
-                copyDirIfExists(f, dstAtlasesDir.child(f.name()));
+                // Scene HUD artifacts enter only through SceneHudRuntimeExport's explicit manifest.
+                if (!f.name().equalsIgnoreCase(
+                        games.pixscape.studio.service.runtimeavailability.SceneHudEnvironmentPaths.HUD_DIRECTORY)) {
+                    copyDirIfExists(f, dstAtlasesDir.child(f.name()));
+                }
                 continue;
             }
 

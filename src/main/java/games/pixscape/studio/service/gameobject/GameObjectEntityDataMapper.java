@@ -1,13 +1,8 @@
 package games.pixscape.studio.service.gameobject;
 
 import com.artemis.World;
-import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntMap;
-import games.pixscape.runtime.component.CustomPropertiesComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.PixscapeTagComponent;
-import games.pixscape.runtime.component.RenderRepeatComponent;
-import games.pixscape.runtime.component.ShaderFloatParam;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.gameobject.GameObjectAsset;
@@ -29,6 +24,7 @@ final class GameObjectEntityDataMapper {
                 new GameObjectAsset.GameObjectEntityData();
         data.sourceEntityId = source.sourceEntityId;
         copySnapshotToAsset(source, data);
+        data.surfaceLighting=source.surfaceLighting==null?null:source.surfaceLighting.copy();
 
         int entityId = entry.sourceEntityId();
         if (world.getMapper(GameObjectComponent.class).has(entityId)) {
@@ -62,6 +58,7 @@ final class GameObjectEntityDataMapper {
             data.pointLight.intensity = point.intensity;
             data.pointLight.radius = point.radius;
             data.pointLight.falloff = point.falloff;
+            data.pointLight.height=point.height;data.pointLight.shadowQuality=point.shadowQuality;data.pointLight.shadowResolution=point.shadowResolution;
             data.pointLight.enabled = point.enabled;
         }
         ConeLightComponent cone = world.getMapper(ConeLightComponent.class)
@@ -75,8 +72,10 @@ final class GameObjectEntityDataMapper {
             data.coneLight.radius = cone.radius;
             data.coneLight.coneAngleDeg = cone.coneAngleDeg;
             data.coneLight.rotationDeg = cone.rotationDeg;
+            data.coneLight.inclinationDeg = cone.inclinationDeg;
             data.coneLight.softness = cone.softness;
             data.coneLight.falloff = cone.falloff;
+            data.coneLight.height=cone.height;data.coneLight.shadowQuality=cone.shadowQuality;data.coneLight.shadowResolution=cone.shadowResolution;
             data.coneLight.enabled = cone.enabled;
         }
         return data;
@@ -85,6 +84,7 @@ final class GameObjectEntityDataMapper {
     EntityGraphEntry toGraphEntry(World world, GameObjectAsset.GameObjectEntityData data) {
         GenericEntitySnapshotData snapshot = new GenericEntitySnapshotData();
         snapshot.sourceEntityId = data.sourceEntityId;
+        snapshot.surfaceLighting=data.surfaceLighting==null?null:data.surfaceLighting.copy();
         if (data.transform != null) {
             snapshot.hasTransform = true;
             snapshot.x = data.transform.x;
@@ -196,7 +196,7 @@ final class GameObjectEntityDataMapper {
         if (data.spatialHeight != null) {
             snapshot.hasSpatialHeight = true;
             snapshot.spatialAltitude = data.spatialHeight.altitude;
-            snapshot.spatialHeight = data.spatialHeight.height;
+            snapshot.actorSpatialRectangles = data.spatialHeight.rectangles == null ? null : data.spatialHeight.rectangles.copy();
         }
         GenericEntityInitializer initializer = new GenericEntityInitializer(world)
                 .applySnapshotData(snapshot);
@@ -319,7 +319,7 @@ final class GameObjectEntityDataMapper {
         if (source.hasSpatialHeight) {
             data.spatialHeight = new GameObjectAsset.SpatialHeightData();
             data.spatialHeight.altitude = source.spatialAltitude;
-            data.spatialHeight.height = source.spatialHeight;
+            data.spatialHeight.rectangles = source.actorSpatialRectangles == null ? null : source.actorSpatialRectangles.copy();
         }
     }
 

@@ -18,8 +18,14 @@ public class ToolBarContractTest {
         String update = methodBody(source, "private void updateEditingContextState()");
 
         assertTrue(constructor.contains("EventFlow.i().subscribe(EventFlow.EditorModeChanged.class"));
-        assertTrue(update.contains("selectionService.isTiledMapEditingTargetActive()"));
-        assertTrue(update.contains("setAlignmentButtonsDisabled(tiledMapTarget)"));
+        assertTrue(update.contains("sceneContext.selectionService().isTiledMapEditingTargetActive()"));
+        assertTrue(constructor.contains("EventFlow.i().subscribe(EventFlow.StudioEditingModeChanged.class"));
+        assertTrue(update.contains("editingModeService.allowsWorldEditingActions()"));
+        assertTrue(update.contains("setAlignmentButtonsDisabled(!worldEditingAllowed || tiledMapTarget)"));
+        assertTrue(source.contains("public void bindSceneContext(SceneEditorContext context)"));
+        assertTrue(source.contains("tiledToolBar.bindToolService(app.getCanvas().getTileToolService())"));
+        assertTrue(source.contains("public void suspendSceneContext()"));
+        assertFalse(source.contains("private final SelectionService selectionService"));
         assertFalse(source.contains("LayerService"));
     }
 

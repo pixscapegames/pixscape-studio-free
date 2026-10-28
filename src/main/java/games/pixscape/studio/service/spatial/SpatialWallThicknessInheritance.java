@@ -39,29 +39,25 @@ public final class SpatialWallThicknessInheritance {
         if (touched.size == 0) return new Result(true, null, candidate);
         sortById(touched);
 
-        float inherited = thickness(touched.first());
-        for (int i = 1; i < touched.size; i++) {
-            if (Math.abs(thickness(touched.get(i)) - inherited) > SpatialWallGeometry.GEOMETRY_EPSILON) {
+        SpatialWallAttachments.Axis sourceAxis = gestureAxis != null ? gestureAxis : SpatialWallAttachments.determineAxis(candidate);
+        Array<SpatialBlockData> parallel = new Array<>(SpatialBlockData.class);
+        for (SpatialBlockData wall : touched) if (SpatialWallAttachments.determineAxis(wall) == sourceAxis) parallel.add(wall);
+        if (parallel.size == 0) return new Result(true, null, candidate);
+        float inherited = thickness(parallel.first());
+        for (int i = 1; i < parallel.size; i++) {
+            if (Math.abs(thickness(parallel.get(i)) - inherited) > SpatialWallGeometry.GEOMETRY_EPSILON) {
                 return new Result(false,
                         "Connected neighbors have incompatible precise wall thicknesses.", null);
             }
         }
 
-        SpatialBlockData canonical = touched.first();
+        SpatialBlockData canonical = parallel.first();
         SpatialWallAttachments.Axis neighborAxis = SpatialWallAttachments.determineAxis(canonical);
         SpatialWallGeometry.LinkedCellBounds linked = new SpatialWallGeometry.LinkedCellBounds();
         if (!SpatialWallGeometry.extractLinkedCellBounds(candidate, linked)) {
             return new Result(false, "New wall linked-cell rectangle is invalid.", null);
         }
-        int spanX = linked.maxGxExclusive - linked.minGx;
-        int spanY = linked.maxGyExclusive - linked.minGy;
-        SpatialWallAttachments.Axis candidateAxis;
-        if (spanX > spanY) candidateAxis = SpatialWallAttachments.Axis.HORIZONTAL;
-        else if (spanY > spanX) candidateAxis = SpatialWallAttachments.Axis.VERTICAL;
-        else if (gestureAxis != null) candidateAxis = gestureAxis;
-        else if (touched.size == 1) candidateAxis = neighborAxis == SpatialWallAttachments.Axis.HORIZONTAL
-                ? SpatialWallAttachments.Axis.VERTICAL : SpatialWallAttachments.Axis.HORIZONTAL;
-        else candidateAxis = SpatialWallAttachments.Axis.HORIZONTAL;
+        SpatialWallAttachments.Axis candidateAxis = sourceAxis;
         if (candidateAxis == SpatialWallAttachments.Axis.HORIZONTAL) {
             candidate.depth = inherited;
             float preferred = neighborAxis == candidateAxis ? canonical.y

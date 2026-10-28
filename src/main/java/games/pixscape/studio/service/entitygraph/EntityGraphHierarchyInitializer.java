@@ -32,6 +32,8 @@ final class EntityGraphHierarchyInitializer implements Initializer {
         this.customProperties = customProperties != null ? customProperties.copy() : null;
     }
 
+    @Override public int activeLightCount() { return generic.activeLightCount(); }
+
     @Override
     public void syncFrom(int entityId) {
         generic.syncFrom(entityId);

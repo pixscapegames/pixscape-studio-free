@@ -4,6 +4,8 @@
 
 <module rename-to="htmlplayer">
     <inherits name="games.pixscape.runtime.PixscapeRuntime"/>
+    <inherits name="regexodus.regexodus"/>
+    <inherits name="com.github.tommyettinger.textratypist"/>
 
     <entry-point class="games.pixscape.html.client.GwtLauncher"/>
 

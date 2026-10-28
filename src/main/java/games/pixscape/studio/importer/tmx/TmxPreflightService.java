@@ -670,12 +670,6 @@ public final class TmxPreflightService {
         return ((long) firstGid << 32) ^ (localTileId & 0xffffffffL);
     }
 
-    private PropertySet readProperties(XmlReader.Element owner,
-                                       AnalysisState state,
-                                       String ownerLocation) {
-        return readPropertiesWithPaths(owner, state, ownerLocation).properties();
-    }
-
     private ParsedProperties readPropertiesWithPaths(XmlReader.Element owner,
                                                      AnalysisState state,
                                                      String ownerLocation) {

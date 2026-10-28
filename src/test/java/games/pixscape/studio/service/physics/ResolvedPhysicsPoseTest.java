@@ -4,11 +4,7 @@ import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import games.pixscape.runtime.component.EntityIndexComponent;
-import games.pixscape.runtime.component.GameObjectComponent;
-import games.pixscape.runtime.component.GameObjectMemberComponent;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.component.TransformComponent;
+import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyFlushSystem;
@@ -92,6 +88,12 @@ public class ResolvedPhysicsPoseTest {
         Vector2 local = new Vector2();
         Assert.assertTrue(pose.resolvedWorldToLocal(body, resolved.x, resolved.y, local));
         Assert.assertEquals(0f, local.x, EPSILON);
+        Assert.assertEquals(0f, local.y, EPSILON);
+
+        float clickX = resolved.x + MathUtils.cos(resolved.rotationRad) * 32f;
+        float clickY = resolved.y + MathUtils.sin(resolved.rotationRad) * 32f;
+        Assert.assertTrue(pose.resolvedWorldToLocal(body, clickX, clickY, local));
+        Assert.assertEquals(32f, local.x, EPSILON);
         Assert.assertEquals(0f, local.y, EPSILON);
     }
 

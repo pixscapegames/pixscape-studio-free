@@ -1,17 +1,20 @@
 package games.pixscape.studio.ui.asset;
 
-import games.pixscape.studio.ui.modal.StudioDialog;
-
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
 import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.studio.service.tiled.TiledPaintService;
+import games.pixscape.studio.service.hud.HudScreenAssetAuthoringService;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import games.pixscape.studio.ui.modal.StudioDialog;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 public final class AssetsPanel extends DockablePanel {
 
@@ -19,14 +22,16 @@ public final class AssetsPanel extends DockablePanel {
     private final AssetsThumbsView thumbsView;
     private final RuntimeAvailabilityPanel runtimeAvailabilityPanel;
     private final VisTextButton importButton;
-    private final TiledPaintService tiledPaintService;
     private final StudioApplicationAdapter app;
+    private final HudScreenAssetAuthoringService hudScreenAuthoringService =
+            new HudScreenAssetAuthoringService();
+    private final List<Consumer<AssetNode>> assetSelectionListeners = new ArrayList<>();
 
     public AssetsPanel(StudioApplicationAdapter app) {
         super("Assets");
         this.app = app;
-        tiledPaintService = app.getCanvas().getTiledPaintService();
         treeView = new FolderTreeView(app);
+        treeView.setNewHudScreenListener(this::showCreateHudScreenDialog);
 
         thumbsView = new AssetsThumbsView(app);
         importButton = createImportButton();
@@ -35,8 +40,18 @@ public final class AssetsPanel extends DockablePanel {
 
         runtimeAvailabilityPanel = new RuntimeAvailabilityPanel(app);
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
+        thumbsView.setOpenListener(node -> {
+            if (node.kind == AssetNode.Kind.HUD_SCREEN) {
+                app.openHudScreen(node.path);
+            } else if (node.kind == AssetNode.Kind.GAME_OBJECT) {
+                app.openGameObject(node.path);
+            }
+        });
 
         thumbsView.setTileSelectionListener(node -> {
+            notifyAssetSelection(node);
+            if (app.getCanvas().getAttachedSceneContext() == null) return;
+            var tiledPaintService = app.getCanvas().getTiledPaintService();
             if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
                 tiledPaintService.setActiveTileAssetId(node.tileAnimationId);
                 return;
@@ -126,7 +141,10 @@ public final class AssetsPanel extends DockablePanel {
         });
         thumbsView.setTiledAnimationDeleteListener(this::showDeleteTiledAnimationDialog);
         // selection binding
-        treeView.setSelectionListener(thumbsView::showForNode);
+        treeView.setSelectionListener(node -> {
+            thumbsView.showForNode(node);
+            notifyAssetSelection(null);
+        });
 
         buildLayout();
     }
@@ -245,6 +263,51 @@ public final class AssetsPanel extends DockablePanel {
         if (getStage() != null) {
             getStage().setKeyboardFocus(nameField);
         }
+    }
+
+    public void addAssetSelectionListener(Consumer<AssetNode> listener) {
+        assetSelectionListeners.add(java.util.Objects.requireNonNull(listener, "listener"));
+    }
+
+    private void notifyAssetSelection(AssetNode node) {
+        for (Consumer<AssetNode> listener : List.copyOf(assetSelectionListeners)) {
+            listener.accept(node);
+        }
+    }
+
+    private void showCreateHudScreenDialog() {
+        VisTextField nameField = new VisTextField();
+        nameField.setMessageText("Screen name");
+
+        VisDialog dialog = new StudioDialog("New HUD Screen") {
+            @Override
+            protected void result(Object object) {
+                if (!Boolean.TRUE.equals(object)) return;
+                try {
+                    ProjectConfig cfg = ProjectConfig.getInstance();
+                    String screenId = hudScreenAuthoringService.create(
+                            StudioFs.requireStudioProjectDir(cfg), nameField.getText());
+
+                    treeView.reloadFromProject(cfg);
+                    AssetNode hudRoot = new AssetNode(
+                            AssetNode.Kind.FOLDER, AssetNode.Root.HUD, "", "HUD Screens", null);
+                    treeView.selectFolder(hudRoot);
+                    thumbsView.selectHudScreen(screenId);
+                } catch (IllegalArgumentException | IllegalStateException failure) {
+                    showSimpleErrorDialog(failure.getMessage());
+                }
+            }
+        };
+
+        dialog.getContentTable().add(new VisLabel("Name")).left();
+        dialog.getContentTable().add(nameField).width(280f).growX().row();
+        dialog.button("Create", true);
+        dialog.button("Cancel", false);
+        dialog.setModal(true);
+        dialog.setResizable(false);
+        dialog.pack();
+        dialog.show(getStage());
+        if (getStage() != null) getStage().setKeyboardFocus(nameField);
     }
 
     private void showSimpleErrorDialog(String message) {

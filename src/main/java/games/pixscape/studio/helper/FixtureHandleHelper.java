@@ -1,6 +1,5 @@
 package games.pixscape.studio.helper;
 
-import com.badlogic.gdx.graphics.OrthographicCamera;
 import games.pixscape.studio.input.InputManipulationContext;
 
 public final class FixtureHandleHelper {
@@ -9,7 +8,7 @@ public final class FixtureHandleHelper {
     }
 
     public static InputManipulationContext.Handle detectBoxCornerHover(
-            OrthographicCamera cam,
+            float worldUnitsPerPixel,
             float[] verts,
             float mx,
             float my,
@@ -18,10 +17,7 @@ public final class FixtureHandleHelper {
     ) {
         if (verts == null || verts.length < 8) return InputManipulationContext.Handle.NONE;
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                cam,
-                handleSizePx * 0.5f + hoverTolPx
-        );
+        float halfWidthorld = (handleSizePx * 0.5f + hoverTolPx) * worldUnitsPerPixel;
 
         if (HandleHelper.insideSquare(mx, my, HandleLayout.swX(verts), HandleLayout.swY(verts), halfWidthorld)) {
             return InputManipulationContext.Handle.SW;
@@ -40,7 +36,7 @@ public final class FixtureHandleHelper {
     }
 
     public static int detectPolygonVertexHover(
-            OrthographicCamera cam,
+            float worldUnitsPerPixel,
             float[] verts,
             int vertexCount,
             float mx,
@@ -50,10 +46,7 @@ public final class FixtureHandleHelper {
     ) {
         if (verts == null || vertexCount <= 0) return -1;
 
-        float halfWidthorld = HandleHelper.pxToWorld(
-                cam,
-                handleSizePx * 0.5f + hoverTolPx
-        );
+        float halfWidthorld = (handleSizePx * 0.5f + hoverTolPx) * worldUnitsPerPixel;
 
         for (int i = 0; i < vertexCount; i++) {
             float vx = verts[i * 2];

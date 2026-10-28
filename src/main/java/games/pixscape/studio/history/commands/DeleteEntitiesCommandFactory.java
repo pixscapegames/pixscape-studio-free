@@ -7,8 +7,6 @@ import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.IntConsumer;
 
 /** Builds one failure-atomic history command for a mixed standalone/hierarchy selection. */
@@ -40,17 +38,10 @@ public final class DeleteEntitiesCommandFactory {
             }
         }
 
-        List<Command> commands = new ArrayList<>();
         if (hierarchyEntities.size > 0) {
-            commands.add(new DeleteGameObjectHierarchyCommand(
-                    world, historyIds, hierarchyEntities, onRestoredEntity));
+            return new DeleteGameObjectHierarchyCommand(
+                    world, historyIds, entities, onRestoredEntity);
         }
-        if (standaloneEntities.size > 0) {
-            commands.add(new DeleteEntitiesCommand(
-                    world, historyIds, standaloneEntities, onRestoredEntity));
-        }
-        return commands.size() == 1
-                ? commands.get(0)
-                : new CompositeCommand("Delete Entities", commands);
+        return new DeleteEntitiesCommand(world, historyIds, standaloneEntities, onRestoredEntity);
     }
 }

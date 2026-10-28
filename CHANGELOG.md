@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.4.0] - HUD, Multi-View and 2.5D Lighting
+
+### Breaking changes
+
+* Custom material shaders must use per-entity material parameters instead of per-entity float uniforms.
+* HUD screen assets using the former fixed-resolution format must be recreated.
+
+### Added
+
+* Added visual HUD screen editing with a widget hierarchy, properties, drag-and-drop placement, undo/redo, and interactive test mode.
+* Added simultaneous editing of multiple scenes through document tabs with independent editor contexts.
+* Added scene-to-HUD associations and HUD-aware runtime export using the shared Pixscape Runtime.
+* Added independently editable Game Object assets.
+* Added canvas calibration for actor shadows, including per-animation foot profiles and thickness.
+* Added controls for particle ambient-light exemption and point/cone-light intensity, height and inclination.
+* Added tileset reimport with retained source links, including tile normal-map import and export.
+* Added per-entity material parameters in the Shader Manager.
+
+### Changed
+
+* HUD screens now adapt to the available canvas surface; root Tables can fill it and cells can define maximum dimensions.
+* Spatial actor influence, map-plane altitude and light range previews now use the Runtime projection.
+* Preview lighting now supports tile normal maps, deformed images and actor-to-decor shadows.
+
+### Fixed
+
+* Fixed tile normal-map thumbnails in the Assets panel.
+* Fixed picking and movement of parented lights.
+* Fixed deletion and undo of Game Object hierarchies with dependent Physics joints.
 
 ## 0.3.0 - Universal Layers and Tiled Maps
 

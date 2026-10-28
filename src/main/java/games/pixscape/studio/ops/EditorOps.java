@@ -61,7 +61,7 @@ public interface EditorOps {
 
     void addCircleFixture(int bodyEid, float worldX, float worldY);
 
-    void beginAddPolygonFixture(int bodyEid);
+    void beginAddPolygonFixture(int bodyEid, float worldX, float worldY);
 
     void beginEditPolygonFixture(int bodyEid, int physicsShapeId);
 

@@ -11,11 +11,10 @@ import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
-import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
@@ -173,7 +172,7 @@ public class SpatialBlockPropertiesTest {
     }
 
     @Test
-    public void outOfEnvelopePropertyEditIsRejectedWithoutMutation() {
+    public void linkedTileAnchorsPermitPropertyEditsBeyondTheirCellEnvelope() {
         Fixture fixture = fixture();
         int layerId = tiledLayer(fixture.world);
         fixture.history.historyIds().ensureForEntity(layerId);
@@ -190,8 +189,12 @@ public class SpatialBlockPropertiesTest {
 
         properties.submitFootprintEdit(0.9f, null, null, null);
 
+        SpatialBlockData edited = properties.activeBlock();
+        Assert.assertEquals(0.9f, edited.x, 0f);
+        Assert.assertEquals(1, edited.linkedTileRefs.size);
+        Assert.assertTrue(fixture.history.canUndo());
+        fixture.history.undo();
         Assert.assertEquals(1f, properties.activeBlock().x, 0f);
-        Assert.assertFalse(fixture.history.canUndo());
     }
 
     @Test
@@ -310,6 +313,43 @@ public class SpatialBlockPropertiesTest {
         Assert.assertEquals(8f, walls.blocks.get(1).height, 0f);
     }
 
+    @Test
+    public void silhouetteCasterHasNoProductABToggle() {
+        Fixture fixture = fixture();
+        int layerId = tiledLayer(fixture.world);
+        fixture.history.historyIds().ensureForEntity(layerId);
+        SpatialBlockData barrel = block(1);
+        barrel.structureId = 1;
+        barrel.shadowCaster = true;
+        barrel.beginAuthoredLinkedTileRefs();
+        barrel.addLinkedTileRef(1, 1, 1);
+        fixture.world.getMapper(SpatialBlocksComponent.class).create(layerId).blocks.add(barrel);
+        fixture.selection.selectBlock(layerId, 1);
+        SpatialBlockProperties properties = fixture.properties();
+        properties.setSpatialBlock(layerId, 1);
+
+        VisCheckBox toggle = checkBox(properties, "spatialWallSilhouetteShadowCaster");
+        Assert.assertNull(toggle);
+        Assert.assertTrue(games.pixscape.runtime.render.lighting.MapLightingGeometry.usesSilhouette(barrel));
+        Assert.assertFalse(properties.activeBlock().silhouetteShadowCaster);
+        Assert.assertFalse(fixture.history.canUndo());
+    }
+
+    @Test public void faceShadingIsPerVolumeUndoableAndPersisted() {
+        Fixture fixture=fixture();int layer=tiledLayer(fixture.world);
+        fixture.history.historyIds().ensureForEntity(layer);
+        SpatialBlocksComponent walls=fixture.world.getMapper(SpatialBlocksComponent.class).create(layer);
+        walls.blocks.add(wall(1,4,0,0,2,1));walls.blocks.add(wall(2,4,1,0,1,2));
+        fixture.selection.selectBlock(layer,1);SpatialBlockProperties properties=fixture.properties();properties.setSpatialBlock(layer,1);
+        Assert.assertTrue(checkBox(properties,"spatialWallShadeUnlitFaces").isChecked());
+        setChecked(properties,"spatialWallShadeUnlitFaces",false);
+        Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+        Assert.assertFalse(walls.blocks.get(0).copy().shadeUnlitFaces);
+        com.badlogic.gdx.utils.Json json=new com.badlogic.gdx.utils.Json();
+        Assert.assertFalse(json.fromJson(SpatialBlockData.class,json.toJson(walls.blocks.get(0))).shadeUnlitFaces);
+        fixture.history.undo();Assert.assertTrue(walls.blocks.get(0).shadeUnlitFaces);
+        fixture.history.redo();Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
+    }
     private static VisCheckBox checkBox(SpatialBlockProperties properties, String name) {
         return properties.findActor(name);
     }
