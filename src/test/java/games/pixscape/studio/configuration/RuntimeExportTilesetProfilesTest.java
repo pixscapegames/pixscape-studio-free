@@ -382,6 +382,46 @@ public class RuntimeExportTilesetProfilesTest {
         assertEquals(0, root.get("tilesets").size);
     }
 
+    @Test
+    public void exportRuntimeOmitsUnusedTileAnimationAndItsMissingFrames() throws Exception {
+        Path studioDir = Files.createTempDirectory("pixscape-studio-export-unused-tiled-animation-studio");
+        Path userDir = Files.createTempDirectory("pixscape-studio-export-unused-tiled-animation-user");
+
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Unused Tiled Animation Export";
+        cfg.projectFileName = "unused-tiled-animation-export";
+        cfg.exportRootPathDir = userDir.toString();
+        cfg.createSceneMeta("Main");
+
+        Files.createDirectories(studioDir.resolve(StudioFs.DIR_SCENES));
+        Files.writeString(studioDir.resolve(StudioFs.DIR_SCENES).resolve("scene1.json"), "{}", StandardCharsets.UTF_8);
+        new AssetMetaDatabase().save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
+
+        TileAnimationsMetaDatabase animations = TileAnimationsIO.createEmpty();
+        TileAnimationProjectDefData animation = new TileAnimationProjectDefData();
+        animation.id = 9001;
+        animation.name = "orphaned";
+        animation.frameAssetIds = new int[]{1451};
+        animation.frameDurationsMs = new int[]{100};
+        animations.animations.add(animation);
+        TileAnimationsIO.save(
+                animations,
+                new FileHandle(studioDir.resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON).toFile())
+        );
+
+        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
+
+        Path runtimeDir = userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME);
+        JsonValue exportedAnimations = new JsonReader().parse(
+                new FileHandle(runtimeDir.resolve(RuntimeFs.FILE_TILE_ANIMATIONS_JSON).toFile())
+        );
+        assertEquals(0, exportedAnimations.get("animations").size);
+        JsonValue tilesetProfiles = new JsonReader().parse(
+                new FileHandle(runtimeDir.resolve(TILESET_PROFILES_JSON).toFile())
+        );
+        assertEquals(0, tilesetProfiles.get("tilesets").size);
+    }
+
     private static String tiledSceneJson(int... tileAssetIds) {
         StringBuilder ids = new StringBuilder();
         for (int i = 0; i < tileAssetIds.length; i++) {

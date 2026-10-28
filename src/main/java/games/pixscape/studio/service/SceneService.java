@@ -3859,6 +3859,8 @@ public final class SceneService {
             throw new IllegalStateException("Asset database is not loaded.");
         }
 
+        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
+
         String normalizedPath = relativeTilesPath.replace('\\', '/').trim();
         if (normalizedPath.isEmpty()) {
             throw new IllegalArgumentException("Tileset path is empty.");
@@ -3869,6 +3871,18 @@ public final class SceneService {
 
         if (!(meta instanceof games.pixscape.studio.asset.TilesetAssetMeta tilesetMeta)) {
             throw new IllegalStateException("Tileset not found: " + normalizedPath);
+        }
+
+        TileAnimationsMetaDatabase tileAnimations = tileAnimationsMetaDatabase != null
+                ? tileAnimationsMetaDatabase
+                : TileAnimationsIO.load(projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+        Array<String> tileAnimationNames = findTileAnimationsUsingTileset(
+                assetMetaDatabase,
+                tileAnimations,
+                tilesetMeta.id()
+        );
+        if (tileAnimationNames.size > 0) {
+            throw new IllegalStateException(buildTilesetTileAnimationInUseMessage(normalizedPath, tileAnimationNames));
         }
 
         AssetUsageScanner usageScanner = new AssetUsageScanner(
@@ -3885,7 +3899,6 @@ public final class SceneService {
         boolean runtimeAvailabilityChanged =
                 runtimeAvailabilityService.removeDeletedTileset(cfg, assetMetaDatabase, tilesetMeta.id());
 
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
         FileHandle tilesRoot = projectDir.child(StudioFs.DIR_ORIG_TILES);
         FileHandle tilesetDir = tilesRoot.child(normalizedPath);
 
@@ -4111,6 +4124,56 @@ public final class SceneService {
             sb.append("\n\nOccurrences: ").append(usage.occurrenceCount());
         }
 
+        return sb.toString();
+    }
+
+    static Array<String> findTileAnimationsUsingTileset(AssetMetaDatabase assetDb,
+                                                         TileAnimationsMetaDatabase tileAnimationsDb,
+                                                         int tilesetId) {
+        Array<String> animationNames = new Array<>();
+        if (assetDb == null || tileAnimationsDb == null || tileAnimationsDb.animations == null || tilesetId <= 0) {
+            return animationNames;
+        }
+
+        Set<Integer> tileAssetIds = new HashSet<>();
+        for (int i = 0; i < assetDb.size(); i++) {
+            AssetMeta asset = assetDb.assetAt(i);
+            if (asset instanceof TileAssetMeta tile && tile.tilesetId == tilesetId) {
+                tileAssetIds.add(tile.id());
+            }
+        }
+        if (tileAssetIds.isEmpty()) {
+            return animationNames;
+        }
+
+        for (TileAnimationProjectDefData animation : tileAnimationsDb.animations) {
+            if (animation == null || animation.frameAssetIds == null) {
+                continue;
+            }
+            for (int frameAssetId : animation.frameAssetIds) {
+                if (tileAssetIds.contains(frameAssetId)) {
+                    animationNames.add(animation.name != null && !animation.name.isBlank()
+                            ? animation.name
+                            : "Tile animation " + animation.id);
+                    break;
+                }
+            }
+        }
+        return animationNames;
+    }
+
+    private String buildTilesetTileAnimationInUseMessage(String tilesetPath, Array<String> tileAnimationNames) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Cannot delete tileset '")
+                .append(tilesetPath)
+                .append("' because it is used by tile animation");
+        if (tileAnimationNames.size > 1) {
+            sb.append("s");
+        }
+        sb.append(":");
+        for (String animationName : tileAnimationNames) {
+            sb.append("\n- ").append(animationName);
+        }
         return sb.toString();
     }
 
