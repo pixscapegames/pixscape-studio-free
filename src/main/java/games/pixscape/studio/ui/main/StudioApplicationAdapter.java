@@ -1473,26 +1473,13 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (active && studioEditingModeService != null) studioEditingModeService.setHudTestMode(false);
         this.previewActive = active;
 
-        if (!active) {
-            restoreStudioShadersAfterPreview();
-        }
+        // Desktop Preview owns a separate process and GL context. Keep Studio's live shaders:
+        // prepared HUD sessions borrow them and must remain usable when the editor resumes.
 
         // Optional but convenient: update the button
         if (bottomMenuBar != null) {
             bottomMenuBar.setPreviewRunning(active);
         }
-    }
-
-    private void restoreStudioShadersAfterPreview() {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        FileHandle projectDir = cfg != null
-                && cfg.projectFileName != null
-                && !cfg.projectFileName.isBlank()
-                ? StudioFs.requireStudioProjectDir(cfg)
-                : null;
-        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
-        ShaderRegistry.saveProjectIndices();
-        EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
     }
 
     public boolean isPreviewActive() {
