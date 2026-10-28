@@ -1,80 +1,34 @@
 # Changelog
 
-## Unreleased
-
-* Fixed point/cone light intensity above 1 corrupting packed color channels; intensity now scales RGB through the per-entity GPU parameter table, independently of halo alpha.
-
-* Integrated the Runtime world light composition in the editor, preserving the grid background, standalone texture preview fallback, material parameter batching and overlays. The new Runtime RGBA16F capabilities and blend/material compatibility requirements also apply to previews.
+## [0.4.0] - HUD, Multi-View and 2.5D Lighting
 
 ### Breaking changes
 
-* Custom material shaders must migrate per-entity values from float uniforms to the parameter table in both GLSL targets.
-* HUD screen assets from the fixed-resolution development format must be recreated; there is no automatic migration.
-
-### Added
-
-* Added actor foot calibration directly in the canvas: two freely movable handles on the selected shadow-casting actor, immediate feedback, Escape cancellation and one Undo/Redo action per gesture.
-* Foot profiles and thickness persist per animation asset and clip, including scene reloads, copies and Game Objects. Missing profiles retain their existing fallback support.
-
-* Added "Ignore ambient lighting" for particle instances.
-* Added height and intensity handles to point and cone light gizmos, with fine control and undo/redo.
-* Added continuous cone light inclination, with a dedicated arc handle and Properties control.
-* Added tileset reimport using retained source provenance and relative paths, updating matched images while preserving tile IDs, placements and edited properties.
-* Reimport adds new tiles and deletes absent tiles only when confirmed unused; tiles still in use or with uncertain usage are retained.
-* Added automatic detection of case-sensitive `*_n.png` normal-map companions on initial import and reimport, without excluding color files ending in `_N.png`.
-* Imported tile normal maps now drive desktop preview lighting and are included in Runtime exports; tiles with identical color images can keep different normals.
-* Tileset updates refresh the color and dedicated normal atlases of affected scenes.
-
-### Changed
-
-* Light range guides now follow the source height and Runtime projection, including an ellipse for point lights.
-* Updated the embedded HTML player with the lighting fixes, particle ambient exemption and cone inclination.
-* Studio Free batches compatible material entities across different float values, reuses identical parameter rows, and keeps the standalone texture preview usable during atlas repack.
-* Shader Manager now edits ordered float declarations and defaults (up to 16); entity values remain in Material > Parameters with undo and dirty tracking.
-* HUD creation no longer asks for a fixed resolution; EDIT, TEST, and scene composition use the available canvas surface.
-* HUD authoring exposes root Table fill and cell maximum constraints, and removes HUD canvas pan and zoom controls.
-* HUD previews clip to their canvas bounds while keeping widget scale and native Scene2D layout behavior.
-* Selected eligible actors in Spatial Layers display the Runtime's H×H influence square as a violet outline in Normal mode and during footprint placement in Physics mode.
-* Height typing and paste preview the influence outline immediately; completion creates one Undo/Redo edit, and cancellation restores the authored height.
-* Map properties identify the drawn-plane altitude explicitly. Spatial overlays and inverse placement use the shared Runtime projection without applying altitude or offsets twice.
-
-### Fixed
-
-* Fixed tile normal-map thumbnails missing from the Assets panel: associated resources use the existing preview cache, refresh after reload/reimport, and show an explicit missing-resource state without becoming paintable tile assets.
-* Fixed lighting alignment on deformed images.
-* Fixed light gizmo picking and movement for parented lights.
-* Fixed scene saves remaining stuck while waiting for atlas repack completion.
-* Failed scene atlas packs now retain a restart-safe repack requirement until matching pixels are published; unchanged saves still skip packing.
-* Atlas save completion now requires publication of the requested generation and propagates worker or publication failures to the save and preview flow.
-* Atlas repacks distinguish changed inputs from invalid unchanged output, validate each result once, and reuse coverage checks while input and atlas files remain unchanged.
-* Deleting a Game Object hierarchy now removes its dependent Physics joints in the same undoable operation and restores joint endpoints correctly on undo.
-* Drawn-plane/default-height edits preserve absolute block altitudes and prepare linked Physics fixtures before publishing one atomic Undo/Redo operation; rejected preparation leaves authored data unchanged.
-
-### Tests
-
-* Added actor calibration/history and structure-join regression coverage. Native desktop Studio and Preview were executed with the local Runtime; HTML/GWT compilation is separate from real WebGL/GLES validation. See [actor shadow authoring](docs/actor-shadow-authoring.md) for the workflow and remaining rendering limits.
-
-* Added coverage for drawn-plane projection, linked Physics command rollback/Undo/Redo, live height preview and selected-actor influence overlays, including Physics and HUD editing contexts.
-* Uses the stabilized Runtime's local wall continuity and altitude relations. General multi-map composition is not resolved; prototype B is not integrated and known conflicts remain.
-
-## 0.4.0 - HUD and Multi-Scene Editing
+* Custom material shaders must use per-entity material parameters instead of per-entity float uniforms.
+* HUD screen assets using the former fixed-resolution format must be recreated.
 
 ### Added
 
 * Added visual HUD screen editing with a widget hierarchy, properties, drag-and-drop placement, undo/redo, and interactive test mode.
 * Added simultaneous editing of multiple scenes through document tabs with independent editor contexts.
 * Added scene-to-HUD associations and HUD-aware runtime export using the shared Pixscape Runtime.
-* Added dedicated Game Object asset tabs. Game Object assets can now be edited with the existing
-  scene tools, undo/redo and inspector, then saved independently without changing placed instances.
+* Added independently editable Game Object assets.
+* Added canvas calibration for actor shadows, including per-animation foot profiles and thickness.
+* Added controls for particle ambient-light exemption and point/cone-light intensity, height and inclination.
+* Added tileset reimport with retained source links, including tile normal-map import and export.
+* Added per-entity material parameters in the Shader Manager.
 
-### Improved
+### Changed
 
-* Grouped actor shadow Threshold and Thickness sliders below Cast shadow, aligned Lighting below Spatial, removed obsolete support fields from the inspector and hid ineffective Repeatable controls on animations.
-* Vertical structure joins align height and vertical faces without forcing physical footprints into linked image-anchor cells; subsequent wall editing preserves the joined envelope.
-* Preview uses the finalized Runtime shadow contract: actors cast onto decor and receive decor occlusion, without actor-to-actor shadows or actor self-shadowing; ambient and normal mapping remain available.
+* HUD screens now adapt to the available canvas surface; root Tables can fill it and cells can define maximum dimensions.
+* Spatial actor influence, map-plane altitude and light range previews now use the Runtime projection.
+* Preview lighting now supports tile normal maps, deformed images and actor-to-decor shadows.
 
-* Reduced HUD atlas repacking for composition-only edits.
-* Updated the Pixscape Runtime dependency to 0.2.2.
+### Fixed
+
+* Fixed tile normal-map thumbnails in the Assets panel.
+* Fixed picking and movement of parented lights.
+* Fixed deletion and undo of Game Object hierarchies with dependent Physics joints.
 
 ## 0.3.0 - Universal Layers and Tiled Maps
 
