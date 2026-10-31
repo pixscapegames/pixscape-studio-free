@@ -179,7 +179,16 @@ def isWindows = currentOs.contains("win")
 def isLinux = currentOs.contains("linux")
 def isMac = currentOs.contains("mac")
 
-def macPackageVersion = project.version.toString()
+// jpackage requires a numeric version; retain the full project version in
+// application metadata and distribution names. Only releases and SNAPSHOTs are supported.
+def packageVersionMatch = project.version.toString() =~ /((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))(?:-SNAPSHOT)?/
+if (!packageVersionMatch.matches()) {
+  throw new GradleException("Unsupported project version '${project.version}' for jpackage: " +
+          "expected major.minor.patch or major.minor.patch-SNAPSHOT " +
+          "with non-negative numeric components and no leading zeros.")
+}
+def packageVersion = packageVersionMatch.group(1)
+def macPackageVersion = packageVersion
 
 if (isMac) {
   def parts = macPackageVersion.tokenize('.')
@@ -207,7 +216,7 @@ runtime {
     installerName = appName
     appVersion = isMac
             ? macPackageVersion
-            : project.version.toString()
+            : packageVersion
 
     imageOptions = ['--verbose']
     installerOptions = [
