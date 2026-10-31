@@ -1035,6 +1035,59 @@ public class TmxSceneImportServiceTest {
     }
 
     @Test
+    public void objectLayerNameAndPointRoleSurviveRuntimeExportAndSceneReplacement() throws Exception {
+        Harness h = harness("tmx-layer-name-runtime-export");
+        FileHandle tmx = writeTmx(h.root.resolve("points.tmx"), """
+                <map orientation="orthogonal" width="4" height="4" tilewidth="16" tileheight="16">
+                  <objectgroup name="spawn-points">
+                    <object id="1" x="12" y="20"><point/>
+                      <properties><property name="role" type="int" value="7"/></properties>
+                    </object>
+                  </objectgroup>
+                  <objectgroup name="empty"/>
+                </map>
+                """);
+        TmxSceneImportResult result = h.importer().importScene(request(tmx, "Points"));
+        assertTrue(result.imported());
+        FileHandle exportDir = new FileHandle(h.root.resolve("export").toFile());
+        var runtimeConfig = RuntimeExport.exportRuntime(h.cfg, h.projectDir, exportDir);
+        FileHandle scene = exportDir.child(RuntimeExport.RUNTIME_DIR_NAME)
+                .child(RuntimeFs.DIR_SCENES).child(result.sceneFileName());
+        assertFalse(scene.readString().contains("LayerMetaComponent"));
+        assertTrue(scene.readString().contains("LayerNameComponent"));
+
+        World world = new World(new WorldConfiguration().setSystem(new WorldSerializationManager()));
+        var engine = new games.pixscape.runtime.engine.PixscapeEngine();
+        var worldField = engine.getClass().getDeclaredField("world");
+        worldField.setAccessible(true);
+        worldField.set(engine, world);
+        var meta = runtimeConfig.scenes.get(result.sceneName());
+        engine.getIdentityRegistry().bind(world, meta);
+        try {
+            SceneLoader.loadScene(world, scene, false, meta);
+            world.process();
+            var api = engine.api().entities();
+            var points = api.findAllByLayerName("spawn-points");
+            assertEquals(1, points.length);
+            assertEquals(7, points[0].properties().getInt("role", -1));
+            assertEquals(12f, points[0].transform().x(), 0f);
+            assertEquals(44f, points[0].transform().y(), 0f);
+            assertFalse(world.getMapper(RenderMaterialComponent.class).has(points[0].entityId()));
+            assertFalse(world.getMapper(PixscapeTagComponent.class).has(points[0].entityId()));
+            assertEquals(0, api.findAllByLayerName("empty").length);
+
+            // The existing loader can replace content in the same World.
+            SceneLoader.loadScene(world, scene, true, meta);
+            world.process();
+            assertFalse(points[0].exists());
+            assertEquals(1, api.findAllByLayerName("spawn-points").length);
+        } finally {
+            engine.getIdentityRegistry().bind(null, null);
+            world.dispose();
+        }
+    }
+
+    @Test
     public void importSceneImportsTilesetsWithSpacingAndMargin() throws Exception {
         Harness h = harness("tmx-import-spacing-margin");
         int[] tileColors = {

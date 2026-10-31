@@ -35,7 +35,7 @@ final class GameObjectAssetEntityInitializer implements Initializer {
         this.gameObject = data.gameObject != null;
         this.parentStableId = parentStableId;
         this.sourceAssetId = sourceAssetId != null ? sourceAssetId : "";
-        if (data.tags != null) this.tags = new Array<>(data.tags.values.toArray(new String[0]));
+        if (data.tags != null) this.tags = new Array<>(data.tags.values);
         this.properties = remappedProperties != null ? remappedProperties.copy() : null;
         this.repeat = copy(data.repeat);
         this.pointLight = copy(data.pointLight);

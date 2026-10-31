@@ -126,7 +126,7 @@ public class GameObjectAssetServiceTest {
         GameObjectAsset asset = service.loadGameObjectAsset(file);
         Assert.assertEquals(GameObjectAsset.SCHEMA_VERSION, asset.schemaVersion);
         Assert.assertEquals(1, asset.rootSourceEntityId);
-        Assert.assertEquals(3, asset.entities.size());
+        Assert.assertEquals(3, asset.entities.size);
         Assert.assertEquals(-1, asset.entities.get(0).parentSourceEntityId);
         Assert.assertEquals(1, asset.entities.get(1).parentSourceEntityId);
         Assert.assertEquals(2, asset.entities.get(2).parentSourceEntityId);
@@ -160,7 +160,7 @@ public class GameObjectAssetServiceTest {
 
         GameObjectAsset asset = new GameObjectAssetLoader().load(file);
         Assert.assertNotNull(asset.entities.get(0).physicsBody);
-        Assert.assertEquals(1, asset.entities.get(0).physicsShapes.size());
+        Assert.assertEquals(1, asset.entities.get(0).physicsShapes.size);
         GameObjectAsset.PhysicsShapeData shape = asset.entities.get(0).physicsShapes.get(0);
         Assert.assertEquals(1, shape.localShapeId);
         Assert.assertEquals(2f, shape.geometry.halfWidth, 0f);
@@ -267,7 +267,7 @@ public class GameObjectAssetServiceTest {
                         new IntArray(new int[]{root})));
 
         GameObjectAsset asset = new GameObjectAssetLoader().load(file);
-        Assert.assertEquals(1, asset.joints.size());
+        Assert.assertEquals(1, asset.joints.size);
         GameObjectAsset.GameObjectJointData joint = asset.joints.get(0);
         Assert.assertEquals(PhysicsJointComponent.TYPE_DISTANCE, joint.type);
         Assert.assertEquals(2, joint.bodyALocalEntityId);
@@ -510,7 +510,7 @@ public class GameObjectAssetServiceTest {
         service.saveGameObject(assetFile, new EntityGraphCaptureService(world)
                 .captureForGameObject(new IntArray(new int[]{convertedRoot})));
         GameObjectAsset asset = service.loadGameObjectAsset(assetFile);
-        Assert.assertEquals(2, asset.entities.size());
+        Assert.assertEquals(2, asset.entities.size);
         GameObjectAsset.GameObjectEntityData assetBody = asset.entities.get(1);
         Assert.assertNotNull(assetBody.physicsBody);
         Assert.assertEquals(1, assetBody.physicsShapes.get(0).localShapeId);
@@ -571,7 +571,7 @@ public class GameObjectAssetServiceTest {
             world.process();
             Assert.assertEquals(0, world.getAspectSubscriptionManager()
                     .get(Aspect.all(PhysicsJointComponent.class)).getEntities().size());
-            Assert.assertEquals(2, loader.load(file).joints.size());
+            Assert.assertEquals(2, loader.load(file).joints.size);
         }
     }
 

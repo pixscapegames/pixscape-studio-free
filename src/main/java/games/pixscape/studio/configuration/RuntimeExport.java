@@ -1065,6 +1065,7 @@ public final class RuntimeExport {
             throw new GdxRuntimeException("Invalid scene json (null): " + inFile.path());
         }
 
+        exportLayerNames(root);
         removeStudioOnlyArtemisComponents(root, studioOnlyComponents);
 
         outFile.parent().mkdirs();
@@ -1076,6 +1077,38 @@ public final class RuntimeExport {
             });
         } catch (Exception e) {
             throw new GdxRuntimeException("Failed to write runtime scene json: " + outFile.path(), e);
+        }
+    }
+
+    private static void exportLayerNames(JsonValue root) {
+        // Keep the authored name only; editor description/locking never enter Runtime.
+        JsonValue identifiers = root.get("componentIdentifiers");
+        if (identifiers != null) {
+            for (JsonValue entry = identifiers.child; entry != null; entry = entry.next) {
+                if ("LayerMetaComponent".equals(entry.asString())) {
+                    identifiers.addChild("games.pixscape.runtime.component.LayerNameComponent",
+                            new JsonValue("LayerNameComponent"));
+                    break;
+                }
+            }
+        }
+        JsonValue archetypes = root.get("archetypes");
+        if (archetypes != null) {
+            for (JsonValue archetype = archetypes.child; archetype != null; archetype = archetype.next) {
+                for (JsonValue component = archetype.child; component != null; component = component.next) {
+                    if ("LayerMetaComponent".equals(component.asString())) component.set("LayerNameComponent");
+                }
+            }
+        }
+        JsonValue entities = root.get("entities");
+        if (entities == null) return;
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            JsonValue metadata = components != null ? components.get("LayerMetaComponent") : null;
+            if (metadata == null) continue;
+            JsonValue name = new JsonValue(JsonValue.ValueType.object);
+            name.addChild("name", new JsonValue(metadata.getString("name", "unnamed")));
+            components.addChild("LayerNameComponent", name);
         }
     }
 
