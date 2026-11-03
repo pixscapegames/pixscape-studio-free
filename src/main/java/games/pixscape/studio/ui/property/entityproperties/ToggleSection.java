@@ -2,15 +2,18 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.CollapsibleWidget;
+import com.kotcrab.vis.ui.widget.Tooltip;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.studio.ui.config.CommonLayout;
 
 public final class ToggleSection extends VisTable {
-    private final String title;
+    private String title;
+    private Tooltip titleTooltip;
     private final VisTextButton button;
     private final CollapsibleWidget panel;
 
@@ -57,6 +60,26 @@ public final class ToggleSection extends VisTable {
 
     public void syncButtonText() {
         button.setText((panel.isCollapsed() ? "▸ " : "▾ ") + title);
+    }
+
+    public void setTitle(String title, String tooltipText) {
+        this.title = title;
+        syncButtonText();
+        if (titleTooltip != null) {
+            // Cancel any pending tooltip display before detaching its target.
+            InputEvent exit = new InputEvent();
+            exit.setType(InputEvent.Type.exit);
+            exit.setPointer(-1);
+            exit.setBubbles(false);
+            button.fire(exit);
+            titleTooltip.setTarget(null);
+            titleTooltip.remove();
+            titleTooltip = null;
+        }
+        if (tooltipText != null) {
+            titleTooltip = new Tooltip.Builder(tooltipText).target(button).build();
+            titleTooltip.setAppearDelayTime(0f);
+        }
     }
 
     // >>> IMPORTANT: Table must reserve no height when not applicable

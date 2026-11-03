@@ -99,6 +99,7 @@ public class PropertiesPanel extends DockablePanel {
             new IdentityHashMap<>();
 
     private boolean dirty = true;
+    private boolean transformTitleDirty;
     private PendingView pendingView = PendingView.SCENE;
     private IntArray pendingSelection = null;
     private int pendingLayer = -1;
@@ -163,6 +164,7 @@ public class PropertiesPanel extends DockablePanel {
         });
 
         EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> {
+            transformTitleDirty = true;
             if (boundEntity < 0 || !world.getEntityManager().isActive(boundEntity)) return;
             EntityIndexComponent index = mEntityIndex.getSafe(boundEntity, null);
             if (index != null && index.layerIndex == evt.layerIndex()) {
@@ -636,6 +638,10 @@ public class PropertiesPanel extends DockablePanel {
 
     public void updateIfDirty() {
         if (hudMode) return;
+        if (transformTitleDirty) {
+            transformTitleDirty = false;
+            if (boundEntity >= 0) entityProperties.refreshTransformTitle();
+        }
         if (!dirty) return;
         dirty = false;
 
