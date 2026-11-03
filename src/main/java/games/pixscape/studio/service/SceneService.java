@@ -3363,6 +3363,8 @@ public final class SceneService {
             case TILESET -> importTilesetAtlasAsset(ctx, item);
             case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
+            case ATLAS -> new games.pixscape.studio.service.asset.TextureAtlasAssetImportService(assetMetaDatabase)
+                    .importNew(item.file, ctx.projectDir).size();
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
             case FONT -> importBitmapFontAsset(ctx, item);
             case SKIN -> importScene2dSkinAsset(ctx, item);
@@ -3951,13 +3953,7 @@ public final class SceneService {
                 meta.id(),
                 ctx.animRootRel + "/" + physicalName
         );
-        meta.frameCount = columns * rows;
-        meta.fps = meta.fps > 0f ? meta.fps : 12f;
-        if (meta.clips == null) meta.clips = new ObjectMap<>();
-        if (meta.clips.size == 0) {
-            meta.currentClip = "default";
-            meta.clips.put("default", new AnimationClipMeta(0, meta.frameCount - 1));
-        }
+        StudioAnimationAssets.initializeImportedFrames(meta, columns * rows);
         return 1;
     }
 
@@ -4269,6 +4265,7 @@ public final class SceneService {
     }
 
     private static ImportDialog.ImportType resolveAuto(FileHandle f) {
+        if (f != null && "atlas".equalsIgnoreCase(f.extension())) return ImportDialog.ImportType.ATLAS;
         if (f != null && StudioFs.isParticleFile(f.name())) {
             return ImportDialog.ImportType.PARTICLE_EFFECT;
         }

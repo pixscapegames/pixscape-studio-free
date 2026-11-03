@@ -18,6 +18,16 @@ public final class StudioAnimationAssets {
     private StudioAnimationAssets() {
     }
 
+    public static void initializeImportedFrames(AnimationAssetMeta animation, int frameCount) {
+        animation.frameCount = frameCount;
+        animation.fps = animation.fps > 0f ? animation.fps : 12f;
+        if (animation.clips == null) animation.clips = new ObjectMap<>();
+        if (animation.clips.size == 0) {
+            animation.currentClip = "default";
+            animation.clips.put("default", new AnimationClipMeta(0, frameCount - 1));
+        }
+    }
+
     public static AnimationRegistry buildRegistry(AssetMetaDatabase database) {
         AnimationRegistry registry = new AnimationRegistry();
         reloadRegistry(registry, database);

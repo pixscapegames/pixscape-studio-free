@@ -12,6 +12,14 @@ import static org.junit.Assert.*;
 
 public class ImportDialogValidationTest {
 
+    @Test public void acceptsTextureAtlasAlongsideOrdinaryImages() throws Exception {
+        for (String extension : new String[]{".atlas", ".ATLAS", ".png"}) {
+            File file = File.createTempFile("import", extension);
+            try { assertTrue(ImportDialogValidation.isSupportedImportFile(new FileHandle(file))); }
+            finally { file.delete(); }
+        }
+    }
+
     @Test
     public void importItem_dimensionCaching_resolvesOnlyOnce() {
         ImportDialog.ImportItem item = new ImportDialog.ImportItem(new FileHandle("sheet.png"));

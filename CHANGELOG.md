@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.1-SNAPSHOT]
+
+### Added
+* added LibGDX `.atlas` import with PNG pages: indexed regions become Animation assets grouped by name, including single-frame animations; unindexed regions become Image assets. Supports multiple pages, 90° packing rotation and restoration of trimmed frames.
+
+### Changed
+* Preserved layer names in Runtime exports to support entity lookup by layer name.
+
+### Fixed
+* Updated Game Object handling for the Runtime's GWT-compatible collections.
+* Fixed Windows packaging for SNAPSHOT versions.
+
 ## [0.4.0] - HUD, Multi-View and 2.5D Lighting
 
 ### Breaking changes
@@ -29,6 +41,7 @@
 * Fixed tile normal-map thumbnails in the Assets panel.
 * Fixed picking and movement of parented lights.
 * Fixed deletion and undo of Game Object hierarchies with dependent Physics joints.
+
 
 ## 0.3.0 - Universal Layers and Tiled Maps
 
