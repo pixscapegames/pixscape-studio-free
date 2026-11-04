@@ -56,8 +56,16 @@ public class GameObjectDocumentGlSmokeTest {
                         var manager = studio.getEditorDocumentManager();
                         FileHandle file = directory.child("car.gameobject");
                         String referenceAsset = System.getenv("PIXSCAPE_DOCUMENT_ASSET");
-                        new GameObjectAssetLoader().save(file, referenceAsset != null
-                                ? new GameObjectAssetLoader().load(new FileHandle(referenceAsset)) : asset());
+                        var loader = new GameObjectAssetLoader();
+                        if (referenceAsset != null) {
+                            FileHandle referenceCopy = directory.child("reference.gameobject");
+                            loader.save(referenceCopy, loader.load(new FileHandle(referenceAsset)));
+                            var referenceDocument = studio.openGameObject(referenceCopy.path());
+                            assertNotNull(referenceDocument);
+                            verifyAssetTreeSelection(studio, referenceDocument);
+                            manager.closeNow(referenceDocument.key());
+                        }
+                        loader.save(file, asset());
                         var document = studio.openGameObject(file.path());
                         assertNotNull(studio.getUiStage().getRoot().toString(), document);
                         assertTrue(document.context().isInitialized());
@@ -67,6 +75,7 @@ public class GameObjectDocumentGlSmokeTest {
                         assertNull(document.context().sceneIdentity());
                         assertTrue(config.getSceneNames().isEmpty());
                         studio.render();
+                        verifyAssetTreeSelection(studio, document);
                         studio.getCanvas().detach();
                         studio.getCanvas().attach(document.context());
                         assertSame(document, studio.openGameObject(file.path()));
@@ -211,6 +220,34 @@ public class GameObjectDocumentGlSmokeTest {
             directory.deleteDirectory();
         }
         if (failure[0] != null) throw new AssertionError("Document workflow failed", failure[0]);
+    }
+
+    private static void verifyAssetTreeSelection(StudioApplicationAdapter studio,
+                                                 GameObjectEditorDocument document) throws Exception {
+        var panel = studio.getItemTreePanel();
+        var field = panel.getClass().getDeclaredField("tree");
+        field.setAccessible(true);
+        var tree = (games.pixscape.studio.ui.tree.IdVisTree)field.get(panel);
+        assertEquals(1, tree.getRootNodes().size);
+        var root = tree.getRootNodes().first();
+        assertTrue(root.isEntityNode());
+        assertEquals(document.rootEntityId(), root.getEntityId());
+        var child = (games.pixscape.studio.ui.tree.EntityNode)root.getChildren().first();
+        assertTrue(child.isEntityNode());
+        var propertiesField = StudioApplicationAdapter.class.getDeclaredField("propertiesPanel");
+        propertiesField.setAccessible(true);
+        var properties = propertiesField.get(studio);
+        var boundEntity = properties.getClass().getDeclaredField("boundEntity");
+        boundEntity.setAccessible(true);
+        for (var node : new games.pixscape.studio.ui.tree.EntityNode[]{child, root}) {
+            assertTrue(node.isSelectable());
+            tree.getSelection().set(node);
+            // Pump the same queued selection and inspector refresh as WorldCanvas.draw().
+            games.pixscape.studio.event.EventFlow.i().flush();
+            document.context().world().process();
+            assertEquals(node.getEntityId(), document.context().selectionService().getSelectionSnapshot().first());
+            assertEquals(node.getEntityId(), boundEntity.getInt(properties));
+        }
     }
 
     private static void rename(GameObjectEditorDocument document, String name) {

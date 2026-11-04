@@ -49,26 +49,15 @@ public final class RuntimeShaderResources {
     }
 
     static int copyRuntimeShaderResources(Path target) throws IOException {
-        int copied = 0;
-        for (Resource resource : bundledResources()) {
-            Path destination = target.resolve(resource.path().substring(RUNTIME_SHADER_RESOURCE_PREFIX.length()));
-            if (resource.directory()) {
-                Files.createDirectories(destination);
-            } else {
-                Files.createDirectories(destination.getParent());
-                try (InputStream input = RuntimeShaderResources.class.getClassLoader()
-                        .getResourceAsStream(resource.path())) {
-                    if (input == null) throw new IOException("Missing runtime shader: " + resource.path());
-                    Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
-                }
-                copied++;
-            }
-        }
-        return copied;
+        return (int) readBundledResources(target).stream().filter(resource -> !resource.directory()).count();
     }
 
     /** Enumerates the resolved Runtime dependency, shared by export and HTML preloading. */
     public static List<Resource> bundledResources() throws IOException {
+        return readBundledResources(null);
+    }
+
+    private static List<Resource> readBundledResources(Path target) throws IOException {
         URL sentinel = RuntimeShaderResources.class.getClassLoader().getResource(RUNTIME_SHADER_SENTINEL_RESOURCE);
         if (sentinel == null) {
             throw new IOException("Missing runtime shader sentinel resource on classpath: "
@@ -88,6 +77,8 @@ public final class RuntimeShaderResources {
                                 directory ? 0 : Files.size(path), directory));
                     }
                 }
+                validateBundledResources(resources);
+                if (target != null) copyDirectory(root, target);
             } catch (Exception e) {
                 if (e instanceof IOException io) throw io;
                 throw new IOException("Failed to enumerate runtime shader resources.", e);
@@ -105,10 +96,30 @@ public final class RuntimeShaderResources {
                     if (entry.isDirectory()) name = name.substring(0, name.length() - 1);
                     resources.add(new Resource(name, entry.getSize(), entry.isDirectory()));
                 }
+                validateBundledResources(resources);
+                if (target != null) {
+                    // A local snapshot may have been republished since the class loader opened it.
+                    // Read bytes from the same archive whose entries we just enumerated.
+                    for (Resource resource : resources) {
+                        Path destination = target.resolve(resource.path().substring(RUNTIME_SHADER_RESOURCE_PREFIX.length()));
+                        if (resource.directory()) {
+                            Files.createDirectories(destination);
+                        } else {
+                            Files.createDirectories(destination.getParent());
+                            try (InputStream input = jar.getInputStream(jar.getJarEntry(resource.path()))) {
+                                Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        }
+                    }
+                }
             }
         } else {
             throw new IOException("Unsupported runtime shader resource protocol: " + sentinel.getProtocol());
         }
+        return resources;
+    }
+
+    private static void validateBundledResources(List<Resource> resources) throws IOException {
         for (Resource resource : resources) {
             if (resource.path().endsWith(".class")) {
                 throw new IOException("Runtime shader resources contain compiled classes: " + resource.path());
@@ -121,7 +132,6 @@ public final class RuntimeShaderResources {
                 throw new IOException("Missing runtime shader resource: " + required);
             }
         }
-        return resources;
     }
 
     public record Resource(String path, long size, boolean directory) {

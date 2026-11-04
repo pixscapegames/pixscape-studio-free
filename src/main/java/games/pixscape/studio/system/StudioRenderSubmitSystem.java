@@ -442,12 +442,14 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private void drawAtlasEntry(int index, int texHandle) {
         metricsBatch.draw(
                 texHandle,
-                frameQueue.x1[index], frameQueue.y1[index],
-                frameQueue.x2[index], frameQueue.y2[index],
-                frameQueue.x3[index], frameQueue.y3[index],
-                frameQueue.x4[index], frameQueue.y4[index],
-                frameQueue.u1[index], frameQueue.v1[index],
-                frameQueue.u2[index], frameQueue.v2[index],
+                frameQueue.x1[index], frameQueue.drawY(index, 0),
+                frameQueue.x2[index], frameQueue.drawY(index, 1),
+                frameQueue.x3[index], frameQueue.drawY(index, 2),
+                frameQueue.x4[index], frameQueue.drawY(index, 3),
+                frameQueue.u1[index], frameQueue.atlasTopV(index),
+                frameQueue.u2[index], frameQueue.atlasBottomV(index),
+                frameQueue.drawV(index, 0), frameQueue.drawV(index, 1),
+                frameQueue.drawV(index, 2), frameQueue.drawV(index, 3),
                 stats
         );
 
@@ -474,8 +476,8 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                         frameQueue.x2[index] + dx, frameQueue.y2[index] + dy,
                         frameQueue.x3[index] + dx, frameQueue.y3[index] + dy,
                         frameQueue.x4[index] + dx, frameQueue.y4[index] + dy,
-                        frameQueue.u1[index], frameQueue.v1[index],
-                        frameQueue.u2[index], frameQueue.v2[index],
+                        frameQueue.u1[index], frameQueue.atlasTopV(index),
+                        frameQueue.u2[index], frameQueue.atlasBottomV(index),
                         stats
                 );
 
@@ -487,12 +489,14 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private void drawStandaloneEntry(int index, Texture tex) {
         standaloneBatch.drawTex(
                 tex,
-                frameQueue.x1[index], frameQueue.y1[index],
-                frameQueue.x2[index], frameQueue.y2[index],
-                frameQueue.x3[index], frameQueue.y3[index],
-                frameQueue.x4[index], frameQueue.y4[index],
-                frameQueue.u1[index], frameQueue.v1[index],
-                frameQueue.u2[index], frameQueue.v2[index],
+                frameQueue.x1[index], frameQueue.drawY(index, 0),
+                frameQueue.x2[index], frameQueue.drawY(index, 1),
+                frameQueue.x3[index], frameQueue.drawY(index, 2),
+                frameQueue.x4[index], frameQueue.drawY(index, 3),
+                frameQueue.u1[index], frameQueue.atlasTopV(index),
+                frameQueue.u2[index], frameQueue.atlasBottomV(index),
+                frameQueue.drawV(index, 0), frameQueue.drawV(index, 1),
+                frameQueue.drawV(index, 2), frameQueue.drawV(index, 3),
                 stats
         );
 
@@ -519,8 +523,8 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
                         frameQueue.x2[index] + dx, frameQueue.y2[index] + dy,
                         frameQueue.x3[index] + dx, frameQueue.y3[index] + dy,
                         frameQueue.x4[index] + dx, frameQueue.y4[index] + dy,
-                        frameQueue.u1[index], frameQueue.v1[index],
-                        frameQueue.u2[index], frameQueue.v2[index],
+                        frameQueue.u1[index], frameQueue.atlasTopV(index),
+                        frameQueue.u2[index], frameQueue.atlasBottomV(index),
                         stats
                 );
 

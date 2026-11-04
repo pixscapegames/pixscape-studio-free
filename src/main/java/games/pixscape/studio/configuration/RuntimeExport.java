@@ -14,6 +14,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
+import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
@@ -86,9 +87,18 @@ public final class RuntimeExport {
             }
         }
 
-        // All HUD resolution, source capture and packing must succeed before removing the old export.
+        FileHandle target = userProjectDir.child(RUNTIME_DIR_NAME);
         try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
-            return exportPrepared(studioCfg, studioProjectDir, userProjectDir, hud);
+            FileHandle candidate = AtomicDirectoryPublication.createCandidate(target);
+            try {
+                RuntimeConfig config = exportPrepared(studioCfg, studioProjectDir, candidate, target, hud);
+                try (var publication = AtomicDirectoryPublication.publish(candidate, target)) {
+                    publication.commit();
+                }
+                return config;
+            } finally {
+                AtomicDirectoryPublication.discardCandidate(candidate);
+            }
         }
     }
 
@@ -117,16 +127,8 @@ public final class RuntimeExport {
     }
 
     private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
-                                                 FileHandle userProjectDir, SceneHudRuntimeExport.PreparedExport hud) {
-
-        // 0) runtime root dir = <userProjectDir>/pixscape-project
-        FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
-
-        if (runtimeDir.exists()) {
-            runtimeDir.deleteDirectory();
-        }
-
-        runtimeDir.mkdirs();
+                                                 FileHandle runtimeDir, FileHandle target,
+                                                 SceneHudRuntimeExport.PreparedExport hud) {
 
         // 1) RuntimeConfig
         RuntimeConfig out = new RuntimeConfig();
@@ -137,7 +139,7 @@ public final class RuntimeExport {
         out.projectFileName = studioCfg.projectFileName;
 
         // Optional/informational: it can be filled here once during export
-        out.runtimeRootDir = runtimeDir.path();
+        out.runtimeRootDir = target.path();
 
         out.scenesDir = RuntimeFs.DIR_SCENES;
         out.atlasesDir = RuntimeFs.DIR_ATLASES;

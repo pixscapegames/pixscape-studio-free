@@ -3,20 +3,22 @@
 ## [0.4.1-SNAPSHOT]
 
 ### Added
-* Added Lit/Unlit surface creation, shared surface/mask editing and type badges in the Shader Manager and entity shader selectors. Failed compilation keeps the last working shader.
-* Added scene `Enable lighting`, document-owned undo/redo, disabled lighting settings and contextual light creation menus. New scenes, including TMX imports, start with lighting disabled.
-* added LibGDX `.atlas` import with PNG pages: indexed regions become Animation assets grouped by name, including single-frame animations; unindexed regions become Image assets. Supports multiple pages, 90° packing rotation and restoration of trimmed frames.
+
+* Added LibGDX `.atlas` import with PNG pages. Indexed regions with the same name become an Animation, including single-frame animations. Unindexed regions become Image assets. The importer supports multiple pages, 90° packing rotation and trimmed frames.
+* Added an **Enable lighting** scene setting with undo and redo. New scenes, including TMX imports, start with lighting off. Switching it off preserves the scene’s lights and renderer settings.
+* Added Lit and Unlit materials to the Shader Manager and shader selectors. Authors can edit a surface and its optional cutout mask together. A failed compilation keeps the last working material active.
+* Added a VSync option to Desktop Preview, enabled by default. With VSync off, Preview limits the number of frames queued on the GPU.
 
 ### Changed
 
-* Updated supplied Material examples to the shared surface catalog. Project opening upgrades only fingerprint-verified, unchanged supplied copies, preserving names, IDs and customized sources.
-* Runtime export and HTML Preview include the shared surface contract and optional scene lighting. Existing complete shader descriptors retain their behavior.
-* Preserved layer names in Runtime exports to support entity lookup by layer name.
+* Opening a project upgrades unchanged copies of the supplied materials while preserving customized shaders. Renaming a shader keeps its ID and entity assignments.
+* Runtime exports now preserve layer names for gameplay lookups.
+* The Properties panel labels a Game Object child’s position, rotation and scale as **Local Transform**.
 
 ### Fixed
-* Fixed HTML Preview startup by serving and preloading the Runtime shader catalog and all bundled shader dependencies from the resolved Runtime library.
-* Updated Game Object handling for the Runtime's GWT-compatible collections.
-* Fixed Windows packaging for SNAPSHOT versions.
+
+* Fixed the extra “Game Object” layer shown above the asset root in the Item Tree. The root and its children can now be selected directly in the Game Object editor.
+* Failed Runtime exports now preserve the last complete export.
 
 ## [0.4.0] - HUD, Multi-View and 2.5D Lighting
 

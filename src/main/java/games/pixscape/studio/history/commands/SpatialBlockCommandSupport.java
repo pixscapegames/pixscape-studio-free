@@ -71,39 +71,7 @@ public final class SpatialBlockCommandSupport {
     }
 
     static boolean same(SpatialBlockData a, SpatialBlockData b) {
-        if (a == b) return true;
-        if (a == null || b == null) return false;
-        return a.id == b.id
-                && a.structureId == b.structureId
-                && java.util.Objects.equals(a.name, b.name)
-                && Float.compare(a.x, b.x) == 0
-                && Float.compare(a.y, b.y) == 0
-                && Float.compare(a.width, b.width) == 0
-                && Float.compare(a.depth, b.depth) == 0
-                && Float.compare(a.altitude, b.altitude) == 0
-                && Float.compare(a.height, b.height) == 0
-                && a.actorOccluder == b.actorOccluder
-                && a.lightOccluder == b.lightOccluder
-                && a.shadowCaster == b.shadowCaster
-                && a.shadeUnlitFaces == b.shadeUnlitFaces
-                && a.silhouetteShadowCaster == b.silhouetteShadowCaster
-                && a.particleOccluder == b.particleOccluder
-                && sameLinkedTileRefs(a, b);
-    }
-
-    private static boolean sameLinkedTileRefs(SpatialBlockData a, SpatialBlockData b) {
-        if (a.linkedTileRefsAuthored != b.linkedTileRefsAuthored) return false;
-        int aSize = a.linkedTileRefs != null ? a.linkedTileRefs.size : 0;
-        int bSize = b.linkedTileRefs != null ? b.linkedTileRefs.size : 0;
-        if (aSize != bSize) return false;
-        for (int i = 0; i < aSize; i++) {
-            SpatialBlockData.LinkedTileRef ar = a.linkedTileRefs.get(i);
-            SpatialBlockData.LinkedTileRef br = b.linkedTileRefs.get(i);
-            if (ar == br) continue;
-            if (ar == null || br == null) return false;
-            if (ar.gx != br.gx || ar.gy != br.gy || ar.tileAssetId != br.tileAssetId) return false;
-        }
-        return true;
+        return SpatialBlockData.sameGeometry(a, b) && (a == b || java.util.Objects.equals(a.name, b.name));
     }
 
     static void markChanged(World world, int layerEntityId, Object source) {

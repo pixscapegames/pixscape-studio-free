@@ -16,12 +16,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class RuntimeExportTilesetProfilesTest {
     private static final String TILESET_PROFILES_JSON = "tileset-profiles.json";
 
-    @Test(expected = GdxRuntimeException.class)
+    @Test
     public void exportRuntimeRejectsRuntimeAvailableTileWithoutTilesetProfileMetadata() throws Exception {
         Path studioDir = Files.createTempDirectory("pixscape-studio-export-missing-tileset-profile-studio");
         Path userDir = Files.createTempDirectory("pixscape-studio-export-missing-tileset-profile-user");
@@ -44,9 +45,15 @@ public class RuntimeExportTilesetProfilesTest {
         );
         db.save(new FileHandle(studioDir.resolve(StudioFs.FILE_ASSETS_JSON).toFile()));
 
-        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(notATile.id());
+        FileHandle studio = new FileHandle(studioDir.toFile());
+        FileHandle destination = new FileHandle(userDir.toFile());
+        RuntimeExport.exportRuntime(cfg, studio, destination);
+        Path manifest = userDir.resolve(RuntimeExport.RUNTIME_DIR_NAME).resolve(RuntimeExport.PROJECT_JSON);
+        String previousManifest = Files.readString(manifest);
 
-        RuntimeExport.exportRuntime(cfg, new FileHandle(studioDir.toFile()), new FileHandle(userDir.toFile()));
+        cfg.getCurrentSceneMeta().runtimeAvailability.tiledTileAssetIds.add(notATile.id());
+        assertThrows(GdxRuntimeException.class, () -> RuntimeExport.exportRuntime(cfg, studio, destination));
+        assertEquals(previousManifest, Files.readString(manifest));
     }
 
     @Test

@@ -157,7 +157,7 @@ public final class CornerProfileEditSession {
         LightingSurface previous=state.lightingSurfaces.get(renderRef);
         compiled.receiver.ownerEntity=target.mapId;
         if(previous!=null)compiled.receiver.normalMap=previous.normalMap;
-        preview.show(compiled);state.lightingSurfaces.put(renderRef,compiled.receiver);state.lightingRevision++;
+        preview.show(compiled);state.replacePreviewReceiver(renderRef,quad,compiled.receiver);
     }
     public void release() {
         if(dragVertex<0)return;
@@ -167,7 +167,7 @@ public final class CornerProfileEditSession {
     public void cancelGesture() {
         if(dragVertex<0)return;
         if(preview!=null&&preview.isCurrent()&&state.lightingMaps.get(target.mapId)==geometry&&geometry.publicationRevision()==geometryRevision) {
-            LightingSurface restored=preview.restore();state.lightingSurfaces.put(renderRef,restored);state.lightingRevision++;
+            LightingSurface restored=preview.restore();state.replacePreviewReceiver(renderRef,quad,restored);
         }
         candidate=gestureStart;support=gestureSupport;preview=null;dragVertex=-1;valid=true;message="";
     }

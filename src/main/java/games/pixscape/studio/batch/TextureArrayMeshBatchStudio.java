@@ -256,6 +256,15 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                      float x3, float y3, float x4, float y4,
                      float u, float v, float u2, float v2,
                      RenderStats stats) {
+        draw(textureHandle, x1, y1, x2, y2, x3, y3, x4, y4, u, v, u2, v2, v2, v, v, v2, stats);
+    }
+
+    @Override
+    public void draw(int textureHandle,
+                     float x1, float y1, float x2, float y2,
+                     float x3, float y3, float x4, float y4,
+                     float u, float v, float u2, float v2,
+                     float blV, float tlV, float trV, float brV, RenderStats stats) {
 
         if (!hasBundle() || shader == null) return;
 
@@ -265,7 +274,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         drawTextureArrayQuad(textureHandle, layer,
                 x1, y1, x2, y2, x3, y3, x4, y4,
                 u, v, u2, v2,
-                stats);
+                blV, tlV, trV, brV, stats);
     }
 
     @Override
@@ -417,7 +426,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                                       float x1, float y1, float x2, float y2,
                                       float x3, float y3, float x4, float y4,
                                       float u, float v, float u2, float v2,
-                                      RenderStats stats) {
+                                      float blV, float tlV, float trV, float brV, RenderStats stats) {
         if (quadCount >= maxQuads) {
             if (stats != null) stats.flushCapacity++;
             flush(stats);
@@ -430,8 +439,6 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
         float uu = u;
         float uu2 = u2;
-        float vv = v;
-        float vv2 = v2;
 
         int o = vertCount * VERT_STRIDE;
 
@@ -439,7 +446,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = x1;
         verts[o++] = y1;
         verts[o++] = uu;
-        verts[o++] = vv2;
+        verts[o++] = blV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
@@ -450,7 +457,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = x2;
         verts[o++] = y2;
         verts[o++] = uu;
-        verts[o++] = vv;
+        verts[o++] = tlV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
@@ -461,7 +468,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = x3;
         verts[o++] = y3;
         verts[o++] = uu2;
-        verts[o++] = vv;
+        verts[o++] = trV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
@@ -472,7 +479,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = x4;
         verts[o++] = y4;
         verts[o++] = uu2;
-        verts[o++] = vv2;
+        verts[o++] = brV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;

@@ -212,8 +212,13 @@ public class ItemTreePanel extends DockablePanel {
         hookTreeSelection();
     }
 
+    private int assetRootEntity = -1;
+
     public void bindSceneContext(SceneEditorContext context) {
         if (context == null || context.isDisposed()) return;
+        var document = app.getEditorDocumentManager().activeDocument();
+        assetRootEntity = document instanceof games.pixscape.studio.document.GameObjectEditorDocument asset
+                && asset.context() == context ? asset.rootEntityId() : -1;
         bindServices(context);
         attachAutoRefresh();
         explicitTiledMapEntityId = -1;
@@ -506,6 +511,27 @@ public class ItemTreePanel extends DockablePanel {
         GameObjectCompositionState composition = gameObjectComposition != null
                 ? gameObjectComposition.state() : null;
 
+        if (assetRootEntity >= 0) {
+            if (world.getEntityManager().isActive(assetRootEntity)) {
+                tree.add(createGameObjectHierarchyNode(assetRootEntity, false, topology, composition));
+            }
+        } else {
+            addSceneLayerNodes(topology, composition);
+        }
+
+        ItemTreeJointSupport.attachJointNodes(
+                world,
+                tree,
+                layerIndex -> {
+                    LayerMetaComponent meta = layerService.meta(layerIndex);
+                    return meta != null && meta.locked;
+                });
+        tree.expandAll();
+        suppressTreeSelectionEvents = false;
+        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+    }
+
+    private void addSceneLayerNodes(GameObjectTopologyState topology, GameObjectCompositionState composition) {
         int layerCount = layerService.count();
         for (int li = layerCount - 1; li >= 0; li--) {
             int eLayer = layerService.getLayerEntity(li);
@@ -537,18 +563,6 @@ public class ItemTreePanel extends DockablePanel {
             }
         }
 
-        ItemTreeJointSupport.attachJointNodes(
-                world,
-                tree,
-                layerIndex -> {
-                    LayerMetaComponent meta = layerService.meta(layerIndex);
-                    return meta != null && meta.locked;
-                });
-
-        tree.expandAll();
-
-        suppressTreeSelectionEvents = false;
-        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
 
     private EntityNode createGameObjectHierarchyNode(
