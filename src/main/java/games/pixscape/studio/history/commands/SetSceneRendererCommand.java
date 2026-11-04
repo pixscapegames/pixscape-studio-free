@@ -20,7 +20,7 @@ public final class SetSceneRendererCommand implements Command, HistoryManager.Su
     @Override public void redo(){apply(after);}
     @Override public void undo(){apply(before);}
     private void apply(boolean forward){
-        if(forward && ids.activeLightCount(world)>1)throw new IllegalArgumentException("Forward rendering supports at most one active light.");
+        if(scene.lightingEnabled && forward && ids.activeLightCount(world)>1)throw new IllegalArgumentException("Forward rendering supports at most one active light.");
         games.pixscape.studio.system.StudioRenderSubmitSystem submit=world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
         if(submit!=null)submit.prepareRendererSelection(forward,scene.useNormalMaps);
         scene.forwardLighting=forward;

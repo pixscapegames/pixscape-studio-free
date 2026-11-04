@@ -37,6 +37,8 @@ public final class PreviewWindow extends ApplicationAdapter {
     private final FileHandle userRootDir;
     private final String sceneName;
     private final Boolean forwardLighting;
+    private final PreviewGpuFrames gpuFrames;
+    private float deferredDelta;
     private PixscapeEngine engine;
     private StudioFrameProfiler frameProfiler;
     private FrameSystemProfiler systemProfiler;
@@ -65,12 +67,13 @@ public final class PreviewWindow extends ApplicationAdapter {
     private Box2dWorldService box2d;
 
 
-    public PreviewWindow(FileHandle userRootDir, String sceneName, Boolean forwardLighting) {
+    public PreviewWindow(FileHandle userRootDir, String sceneName, Boolean forwardLighting, boolean vsync) {
         if (userRootDir == null) throw new GdxRuntimeException("userRootDir is null");
         if (sceneName == null || sceneName.isBlank()) throw new GdxRuntimeException("sceneName is blank");
         this.userRootDir = userRootDir;
         this.sceneName = sceneName;
         this.forwardLighting = forwardLighting;
+        gpuFrames = vsync ? null : new PreviewGpuFrames();
     }
 
     @Override
@@ -78,10 +81,10 @@ public final class PreviewWindow extends ApplicationAdapter {
         Gdx.graphics.setForegroundFPS(0);
         Gdx.graphics.setContinuousRendering(true);
         PreviewDiagnosticLog.child("CADENCE_APPLIED",
-                "configurationVsync=" + PreviewDesktopApplication.PREVIEW_VSYNC
+                "configurationVsync=" + (gpuFrames == null)
                         + " requestedForegroundFps=0 continuousRendering="
                         + Gdx.graphics.isContinuousRendering());
-        Gdx.app.log("PreviewCadence", "configurationVsync=" + PreviewDesktopApplication.PREVIEW_VSYNC
+        Gdx.app.log("PreviewCadence", "configurationVsync=" + (gpuFrames == null)
                 + " foregroundFPS=0 continuousRendering=true");
         PreviewProcessProtocol.loading();
         refreshDisplayMetrics();
@@ -137,7 +140,28 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void render() {
-        float dt = Gdx.graphics.getDeltaTime();
+        float delta = Gdx.graphics.getDeltaTime();
+        if (gpuFrames == null) {
+            renderFrame(delta);
+            return;
+        }
+        try {
+            if (!gpuFrames.tryBeginFrame()) {
+                deferredDelta += delta;
+                return;
+            }
+            float elapsed = delta + deferredDelta;
+            deferredDelta = 0f;
+            renderFrame(elapsed);
+            gpuFrames.endFrame();
+        } catch (PreviewGpuFrames.SyncFailure failure) {
+            PreviewProcessProtocol.failed(failure);
+            Gdx.app.error("PreviewCadence", failure.getMessage(), failure);
+            Gdx.app.exit();
+        }
+    }
+
+    private void renderFrame(float dt) {
         if (startupState != StartupState.RUNNING) {
             renderStartup(dt);
             return;
@@ -256,6 +280,7 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void pause() {
+        deferredDelta = 0f;
         if (previewInput != null) previewInput.cancelInput();
         if (dragSystem != null) dragSystem.cancelInput();
         resetFrameStatistics();
@@ -304,6 +329,7 @@ public final class PreviewWindow extends ApplicationAdapter {
 
     @Override
     public void dispose() {
+        if (gpuFrames != null) gpuFrames.dispose();
         sceneLoad = null;
         if (dragSystem != null) dragSystem.cancelInput();
         if (loadingUi != null) {

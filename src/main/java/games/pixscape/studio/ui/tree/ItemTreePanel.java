@@ -718,7 +718,7 @@ public class ItemTreePanel extends DockablePanel {
                 lights.addItem(cone);
                 MenuItem light = new MenuItem("Light");
                 light.setSubMenu(lights);
-                addMenu.addItem(light);
+                if(lightingEnabled())addMenu.addItem(light);
 
                 PopupMenu menu = new PopupMenu();
                 MenuItem add = new MenuItem("Add");
@@ -762,13 +762,18 @@ public class ItemTreePanel extends DockablePanel {
                     public void addGameObject() {
                         editorOps.createGameObjectInGameObject(parentEntityId);
                     }
-                });
+                }, lightingEnabled());
 
         PopupMenu menu = new PopupMenu();
         MenuItem add = new MenuItem("Add");
         add.setSubMenu(addMenu);
         menu.addItem(add);
         menu.showMenu(stage, stageX, stageY);
+    }
+
+    private boolean lightingEnabled() {
+        var submit=world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
+        return submit==null || submit.isLightingEnabled();
     }
 
     interface GameObjectChildMenuActions {
@@ -800,6 +805,9 @@ public class ItemTreePanel extends DockablePanel {
     static PopupMenu buildGameObjectAddMenu(
             AssetNode selectedAsset,
             GameObjectChildMenuActions actions) {
+        return buildGameObjectAddMenu(selectedAsset,actions,true);
+    }
+    static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset,GameObjectChildMenuActions actions,boolean allowLighting) {
         PopupMenu addMenu = new PopupMenu();
 
         MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
@@ -845,7 +853,7 @@ public class ItemTreePanel extends DockablePanel {
         lights.addItem(cone);
         MenuItem light = new MenuItem("Light");
         light.setSubMenu(lights);
-        addMenu.addItem(light);
+        if(allowLighting)addMenu.addItem(light);
 
         MenuItem addGameObject = new MenuItem("Game Object");
         addGameObject.addListener(new ClickListener() {

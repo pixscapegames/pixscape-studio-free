@@ -376,6 +376,13 @@ public class PropertiesPanel extends DockablePanel {
                 world, sceneContext.historyManager(), canvas.getPhysicsService(),
                 selectionService, layerService, sceneContext.physicsSelectionReconciler(),
                 canvas::disposeBox2dAfterPhysicsPurge, markSaveRequired);
+        sceneProperties.bindLighting(sceneContext.sceneMeta(), enabled -> {
+            if(enabled && sceneContext.sceneMeta().useNormalMaps) {
+                if(sceneContext.sceneIdentity()==null)app.getSceneService().prepareGameObjectNormals(world,sceneContext.sceneMeta(),true);
+                else ctx.atlasStudioService.prepareSceneNormalMaps(sceneContext.sceneMeta(),true);
+            }
+            world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class).setLightingEnabled(enabled);
+        });
         tiledMapProperties = new TiledMapProperties(
                 world, sceneContext.historyManager(), canvas.getPhysicsService(), markSaveRequired);
     }

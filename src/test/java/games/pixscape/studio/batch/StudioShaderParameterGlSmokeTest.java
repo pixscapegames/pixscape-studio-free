@@ -28,6 +28,7 @@ import java.nio.file.Files;
 
 /** Opt-in integration check for Studio's distinct vertex layout. */
 public class StudioShaderParameterGlSmokeTest {
+    @Test public void surfaceShaderManagerRoundTripsThroughRuntimeExport(){ games.pixscape.studio.ui.shaders.SurfaceShaderManagerGlCheck.verify(); }
     private static final String FRAGMENT = "#version 330 core\n"
             + "flat in int v_paramId;\n"
             + "uniform sampler2D u_entityParams;\n"

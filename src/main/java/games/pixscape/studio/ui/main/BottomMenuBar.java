@@ -55,6 +55,7 @@ public class BottomMenuBar extends VisTable {
     private final VisTextButton centerCam;
     private boolean sceneControlsBusy;
     private boolean hudCanvasActive;
+    private boolean desktopVsync = true;
 
     public static final float HEIGHT = 32;
     private final int MY_TAG = EventFlow.tag(this);
@@ -260,7 +261,7 @@ public class BottomMenuBar extends VisTable {
                     message -> Dialogs.showOKDialog(getStage(), "Preview failed", message),
                     resolutionSelectBox.getSelected(),
                     landScapeChekBox.isChecked(),
-                    cfg.previewTarget
+                    cfg.previewTarget, desktopVsync
             );
         } catch (HtmlPreviewNotReadyException ex) {
             Dialogs.showOKDialog(
@@ -497,6 +498,8 @@ public class BottomMenuBar extends VisTable {
         private final VisSelectBox<String> orientationSelect = new VisSelectBox<>();
         private final VisSelectBox<String> platformSelect = new VisSelectBox<>();
 
+        private final VisCheckBox vsyncBox = new VisCheckBox("VSync");
+
         private final VisLabel resolutionLabel = new VisLabel("Resolution");
         private final VisLabel orientationLabel = new VisLabel("Orientation");
         private final VisLabel htmlInfoLabel = new VisLabel(
@@ -521,6 +524,7 @@ public class BottomMenuBar extends VisTable {
                             : TARGET_DESKTOP
             );
 
+            vsyncBox.setChecked(desktopVsync);
             htmlInfoLabel.setWrap(true);
             htmlInfoLabel.setColor(Color.LIGHT_GRAY);
 
@@ -544,6 +548,7 @@ public class BottomMenuBar extends VisTable {
             content.add(orientationLabel).left();
             content.add(orientationSelect).width(180).row();
 
+            content.add(vsyncBox).colspan(2).left().row();
             content.add(htmlInfoLabel).left().colspan(2).width(300).row();
 
             updateResolutionControlsVisibility();
@@ -597,6 +602,7 @@ public class BottomMenuBar extends VisTable {
         private void updateResolutionControlsVisibility() {
             boolean html = TARGET_HTML.equals(platformSelect.getSelected());
 
+            vsyncBox.setVisible(!html);
             resolutionLabel.setVisible(!html);
             resolutionBox.setVisible(!html);
             orientationLabel.setVisible(!html);
@@ -616,6 +622,7 @@ public class BottomMenuBar extends VisTable {
             cfg.previewTarget = target;
 
             if (target == PreviewTarget.DESKTOP) {
+                desktopVsync = vsyncBox.isChecked();
                 Resolution selected = resolutionBox.getSelected();
 
                 if (selected != null) {

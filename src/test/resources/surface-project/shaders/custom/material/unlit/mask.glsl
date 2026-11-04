@@ -1,0 +1,1 @@
+return step(pixscapeEntityFloat(PIXSCAPE_PARAM_cut),uv.x);

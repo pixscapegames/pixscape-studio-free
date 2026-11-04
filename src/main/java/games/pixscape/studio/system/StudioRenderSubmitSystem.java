@@ -32,21 +32,30 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     private final MeshBatchStudio standaloneBatch;
     private final RenderStats stats;
     private final RenderStatsSink statsSink;
-    private final WorldLightComposition composition = new WorldLightComposition();
-    private final AmbientContributionRenderer ambientContribution = new AmbientContributionRenderer();
-    private final games.pixscape.runtime.render.lighting.LightingRenderer lighting =
-            new games.pixscape.runtime.render.lighting.LightingRenderer();
+    private WorldLightComposition composition;
+    private AmbientContributionRenderer ambientContribution;
+    private games.pixscape.runtime.render.lighting.LightingRenderer lighting;
     private StudioForwardLightingRenderer forward;
     private DynamicEntityRenderState dynamicDomain;
     private TiledMapRenderState tiledDomain;
     private LightParameterBinding lightParameters;
     private boolean frameSubmissionAllowed;
     private float time = 0f;
-    private boolean rendererReported;
+    private boolean preferForward,forwardEffective;
+    private boolean useNormalMaps=true,preparedNormalMaps;
+    private int preparedSurfaceRevision=-1;
+    private int batchRegistryRevision=-1;
+    private final DirectWorldPass direct=new DirectWorldPass();
+    private final games.pixscape.runtime.system.LightingGeometrySystem.ShadowPreparation framePreparation=this::prepareLightingFrame;
     private SceneMeta sceneSettings;
-    public StudioRenderSubmitSystem setSceneSettings(SceneMeta scene){sceneSettings=scene;return this;}
+    public StudioRenderSubmitSystem setSceneSettings(SceneMeta scene){
+        if(sceneSettings!=scene)preparedSurfaceRevision=-1;
+        sceneSettings=scene;
+        if(scene!=null){frameQueue.setLightingEnabled(scene.lightingEnabled);if(tiledDomain!=null)tiledDomain.lightingEnabled=scene.lightingEnabled;}
+        return this;
+    }
     public StudioRenderSubmitSystem setRenderDomains(DynamicEntityRenderState dynamic,TiledMapRenderState tiled){
-        dynamicDomain=dynamic;tiledDomain=tiled;return this;
+        dynamicDomain=dynamic;tiledDomain=tiled;if(tiled!=null && sceneSettings!=null)tiled.lightingEnabled=sceneSettings.lightingEnabled;return this;
     }
     private SystemProfiler profiler = SystemProfilers.DISABLED;
     private final int[] repeatRange = new int[4];
@@ -62,7 +71,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
     public StudioRenderSubmitSystem(LayerStateSOA layerState,FrameRenderQueue frameQueue,OrthographicCamera cam,
                                     MetricsBatch batch,RenderStats stats,RenderStatsSink statsSink,boolean forwardLighting) {
-        this.forward=forwardLighting?new StudioForwardLightingRenderer():null;
+        this.preferForward=forwardLighting;
         this.layerState = layerState;
         this.frameQueue = frameQueue;
         this.cam = cam;
@@ -73,7 +82,7 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
 
     @Override
-    protected void initialize() { lightParameters = new LightParameterBinding(world); }
+    protected void initialize() { }
 
     @Override
     protected boolean checkProcessing() { return frameSubmissionAllowed; }
@@ -103,32 +112,103 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
         statsSink.accumulate(stats, Gdx.graphics.getDeltaTime());
     }
 
+    /** Existing setup/viewport boundary. Off performs no lighting preparation. */
     public void prepareComposition() {
+        if(batchRegistryRevision!=ShaderRegistry.surfaceRevision()) {
+            metricsBatch.abort();
+            standaloneBatch.abort();
+            batchRegistryRevision=ShaderRegistry.surfaceRevision();
+        }
         SceneMeta meta=sceneSettings;
-        prepareRendererSelection(meta==null?forward!=null:meta.forwardLighting,meta==null || meta.useNormalMaps);
+        prepareRendererSelection(meta==null?preferForward:meta.forwardLighting,meta==null || meta.useNormalMaps);
     }
 
-    /** Command-time validation/preparation also protects UI changes before publishing the choice. */
-    public void prepareRendererSelection(boolean requested,boolean useNormalMaps) {
-        lighting.setUseNormalMaps(useNormalMaps);
-        if(requested){
-            if(!(metricsBatch instanceof TextureArrayMeshBatchStudio arrayBatch))throw new IllegalArgumentException("Forward lighting requires the Studio color texture-array batch");
-            boolean changed=forward==null;
-            StudioForwardLightingRenderer candidate=changed?new StudioForwardLightingRenderer():forward;
-            candidate.setRenderDomains(dynamicDomain,tiledDomain);
-            try {candidate.setUseNormalMaps(useNormalMaps);candidate.prepare(world,arrayBatch.getBundle());lighting.prepareShadows(world);}
-            catch(RuntimeException|Error failure){if(changed)candidate.dispose();throw failure;}
-            forward=candidate;if(changed)rendererReported=false;
-        }else{
-            composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);
-            if(forward!=null){forward.dispose();forward=null;rendererReported=false;}
-        }
-        if (!rendererReported) {
-            Gdx.app.log("Lighting", "renderer=" + (forward != null ? "forward" : "legacy")
-                    + " prepared (Studio; no automatic fallback)");
-            rendererReported = true;
+    /** Command validation uses the requested preference without publishing scene metadata. */
+    public void prepareRendererSelection(boolean requested,boolean normals) {
+        prepareRendererSelection(requested,normals,false);
+    }
+    private void prepareRendererSelection(boolean requested,boolean normals,boolean activation) {
+        boolean oldPreference=preferForward, oldNormals=useNormalMaps;
+        preferForward=requested;useNormalMaps=normals;
+        if(!frameQueue.lightingEnabled)return;
+        try {
+            boolean rebuild=lighting==null || oldPreference!=requested || preparedSurfaceRevision!=ShaderRegistry.surfaceRevision() || preparedNormalMaps!=useNormalMaps;
+            if(rebuild || activation){
+                boolean selected=preferForward && games.pixscape.runtime.render.lighting.ActiveLights.count(world)>0;
+                if(rebuild || selected!=forwardEffective)replaceLightingResources(selected);
+            }
+            prepareSelectedResources();
+        } catch(RuntimeException | Error failure) {
+            preferForward=oldPreference;useNormalMaps=oldNormals;throw failure;
         }
     }
+
+    /** Command-time preparation; scene metadata is published only by the history command. */
+    public void setLightingEnabled(boolean enabled) {
+        if(enabled==frameQueue.lightingEnabled)return;
+        boolean before=frameQueue.lightingEnabled;
+        try {
+            frameQueue.setLightingEnabled(enabled);if(tiledDomain!=null)tiledDomain.lightingEnabled=enabled;
+            if(enabled) {
+                games.pixscape.runtime.system.RenderTiledSyncSystem tiled=world.getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
+                if(tiled!=null){tiled.invalidateLighting();tiled.prepareRuntimeAvailability();}
+                games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+                if(geometry!=null)geometry.prepareRuntimeAvailability();
+                prepareRendererSelection(sceneSettings==null?preferForward:sceneSettings.forwardLighting,sceneSettings==null || sceneSettings.useNormalMaps,true);
+            }
+        } catch(RuntimeException | Error failure) {
+            frameQueue.setLightingEnabled(before);if(tiledDomain!=null)tiledDomain.lightingEnabled=before;throw failure;
+        }
+    }
+    public boolean isLightingEnabled(){return frameQueue.lightingEnabled;}
+    public boolean isForwardEffective(){return frameQueue.lightingEnabled && forwardEffective;}
+
+    private void replaceLightingResources(boolean selectForward) {
+        WorldLightComposition nextComposition=selectForward?null:new WorldLightComposition();
+        AmbientContributionRenderer nextAmbient=selectForward?null:new AmbientContributionRenderer();
+        games.pixscape.runtime.render.lighting.LightingRenderer nextLighting=new games.pixscape.runtime.render.lighting.LightingRenderer();
+        StudioForwardLightingRenderer nextForward=selectForward?new StudioForwardLightingRenderer():null;
+        direct.begin();
+        try {
+            nextLighting.setUseNormalMaps(useNormalMaps);
+            if(selectForward){
+                if(!(metricsBatch instanceof TextureArrayMeshBatchStudio))throw new IllegalArgumentException("Forward lighting requires the color texture-array batch");
+                nextForward.setRenderDomains(dynamicDomain,tiledDomain);nextForward.setUseNormalMaps(useNormalMaps);
+                nextForward.prepare(world,((TextureArrayMeshBatchStudio)metricsBatch).getBundle());nextLighting.prepareShadows(world);
+            }else{nextComposition.prepare();nextAmbient.prepare();nextLighting.prepare(world,nextComposition);}
+        }catch(RuntimeException | Error failure){
+            nextLighting.dispose();if(nextForward!=null)nextForward.dispose();if(nextComposition!=null)nextComposition.dispose();if(nextAmbient!=null)nextAmbient.dispose();
+            games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+            if(geometry!=null)geometry.setShadowPreparation(lighting==null?null:framePreparation);
+            throw failure;
+        }finally{direct.end();}
+        disposeLightingResources();
+        composition=nextComposition;ambientContribution=nextAmbient;lighting=nextLighting;forward=nextForward;
+        forwardEffective=selectForward;preparedNormalMaps=useNormalMaps;preparedSurfaceRevision=ShaderRegistry.surfaceRevision();
+        if(lightParameters==null)lightParameters=new LightParameterBinding(world);
+        games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+    }
+
+    private void prepareSelectedResources(){
+        if(forwardEffective){forward.prepare(world,((TextureArrayMeshBatchStudio)metricsBatch).getBundle());lighting.prepareShadows(world);}
+        else {composition.prepare();ambientContribution.prepare();lighting.prepare(world,composition);}
+        games.pixscape.runtime.system.LightingGeometrySystem geometry=world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+        if(geometry!=null)geometry.setShadowPreparation(framePreparation);
+    }
+
+    /** Uses the already published light set; no second World traversal per frame. */
+    private void prepareLightingFrame(games.pixscape.runtime.render.lighting.LightingFrame frame){
+        boolean selected=preferForward && frame.lights.size>0;
+        if(selected!=forwardEffective)replaceLightingResources(selected);
+        lighting.prepareFrame(frame);
+    }
+
+    private void disposeLightingResources(){
+        if(ambientContribution!=null)ambientContribution.dispose();if(lighting!=null)lighting.dispose();
+        if(composition!=null)composition.dispose();if(forward!=null)forward.dispose();
+    }
+
     public games.pixscape.runtime.render.lighting.ForwardLightingRenderer forwardRenderer(){return forward;}
     public games.pixscape.runtime.render.lighting.LightingRenderer lightingRenderer(){return lighting;}
 
@@ -136,12 +216,18 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     public void beginFrameSubmission() { frameSubmissionAllowed = true; }
     public void endFrameSubmission() { frameSubmissionAllowed = false; }
 
-    @Override protected void dispose() { ambientContribution.dispose(); lighting.dispose(); composition.dispose();if(forward!=null)forward.dispose(); standaloneBatch.close(); }
+    @Override protected void dispose() { disposeLightingResources(); standaloneBatch.close(); }
 
     private void render() {
-        stats.forwardLighting=forward!=null;
         frameSubmissionAllowed = false; // At most one submission inside the canvas scope.
-        if(forward!=null){
+        if(!frameQueue.lightingEnabled){
+            stats.forwardLighting=false;direct.begin();
+            try{renderPass(LightCompositionPass.DIRECT,0);}catch(RuntimeException | Error failure){metricsBatch.abort(failure);standaloneBatch.abort(failure);throw failure;}finally{direct.end();}
+            return;
+        }
+        frameQueue.lighting.time=time;
+        stats.forwardLighting=forwardEffective;
+        if(forwardEffective){
             SceneMeta meta=sceneSettings;
             forward.render(frameQueue,layerState,cam,lighting,meta==null?1:meta.ambientMulR,meta==null?1:meta.ambientMulG,meta==null?1:meta.ambientMulB,stats);return;
         }

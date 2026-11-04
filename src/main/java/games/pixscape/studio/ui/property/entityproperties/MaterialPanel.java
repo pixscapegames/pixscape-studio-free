@@ -19,13 +19,14 @@ import games.pixscape.studio.history.commands.ChangeShaderCommand;
 import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.widget.UiBinders;
+import games.pixscape.studio.ui.widget.ShaderSelectBox;
 
 public final class MaterialPanel extends CollapsibleWidget {
 
     private final EntityPropertiesContext ctx;
     private final VisTable root = new VisTable(true);
 
-    private final VisSelectBox<String> shaderBox = new VisSelectBox<>();
+    private final VisSelectBox<String> shaderBox = new ShaderSelectBox();
     private final VisSelectBox<BlendMode> blendBox = new VisSelectBox<>();
 
     private final ColorPicker picker;

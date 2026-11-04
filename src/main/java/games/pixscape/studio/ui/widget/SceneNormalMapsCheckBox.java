@@ -23,15 +23,17 @@ public final class SceneNormalMapsCheckBox extends VisCheckBox {
         new Tooltip.Builder("Applies to all lights in this scene. Restart an open Preview after changing this setting.")
                 .target(this).build();
         addListener(new ChangeListener(){@Override public void changed(ChangeEvent event,Actor actor){
-            if(scene==null)return;
+            if(scene==null || isDisabled())return;
             try {history.execute(new SetSceneNormalMapsCommand(scene,isChecked(),prepare,markSaveRequired));}
             finally {refresh();}
         }});
+        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class,event->{if(event.scene()==scene)refreshRequired=true;});
         EventFlow.i().subscribe(EventFlow.SceneNormalMapsChanged.class,event->{
             if(event.scene()==scene)refreshRequired=true;
         });
     }
     public void refresh(){
+        setDisabled(scene==null || !scene.lightingEnabled);
         setProgrammaticChangeEvents(false);
         setChecked(scene==null || scene.useNormalMaps);
         setProgrammaticChangeEvents(true);refreshRequired=false;

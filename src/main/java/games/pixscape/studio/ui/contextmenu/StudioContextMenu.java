@@ -411,6 +411,8 @@ public final class StudioContextMenu extends InputListener {
     }
 
     private void showAddLightMenu() {
+        var submit=world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
+        if(submit!=null && !submit.isLightingEnabled())return;
         IntArray selection = selectionService.getSelectionSnapshot();
         boolean hasJointSelected = selection.size == 1 && mJointBase.has(selection.get(0));
         boolean hasActiveLayer = layerService != null

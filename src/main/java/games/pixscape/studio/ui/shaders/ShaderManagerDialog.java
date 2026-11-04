@@ -7,6 +7,8 @@ import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.ui.ButtonGroup;
+import games.pixscape.runtime.render.SurfaceShader;
 import com.badlogic.gdx.utils.*;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
@@ -28,6 +30,7 @@ import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.modal.Dialogs;
 import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
+import games.pixscape.studio.ui.widget.ShaderSelectBox;
 
 public class ShaderManagerDialog extends StudioModalWindow {
 
@@ -49,8 +52,13 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private final VisSelectBox<ShaderKind> typeBox;
     private final VisSelectBox<String> shaderBox;
+    private final VisLabel lightingSummary;
 
     private final TabbedPane targetTabs;
+    private SurfaceShader.Lighting editedLighting;
+    private final ScrollableCodeEditor surfaceEditor = new ScrollableCodeEditor(12, 720f);
+    private final ScrollableCodeEditor maskEditor = new ScrollableCodeEditor(12, 720f);
+    private final VisTable surfaceContent = new VisTable();
     private final VisTable targetContent = new VisTable(true);
     private final VisScrollPane mainScrollPane;
 
@@ -69,7 +77,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private Array<ShaderFloatParam> editedParameters = new Array<>();
 
     private static final int CODE_ROWS = 12;
-    private static final float CODE_AREA_HEIGHT = 220f;
+    private static final float CODE_AREA_HEIGHT = 210f;
     private static final float FORM_LABEL_WIDTH = 100f;
     private static final float FORM_CONTROL_WIDTH = 120f;
     private static final float CODE_CONTENT_MIN_WIDTH = 720f;
@@ -98,12 +106,16 @@ public class ShaderManagerDialog extends StudioModalWindow {
         typeBox = new VisSelectBox<>();
         typeBox.setItems(ShaderKind.MATERIAL, ShaderKind.FX);
         typeBox.setSelected(ShaderKind.MATERIAL);
-        formTable.add(new VisLabel("Shader type:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(new VisLabel("Shader role:")).width(FORM_LABEL_WIDTH).padRight(10f);
         formTable.add(typeBox).width(FORM_CONTROL_WIDTH).row();
 
-        shaderBox = new VisSelectBox<>();
+        shaderBox = new ShaderSelectBox();
         formTable.add(new VisLabel("Shader name:")).width(FORM_LABEL_WIDTH).padRight(10f);
-        formTable.add(shaderBox).width(FORM_CONTROL_WIDTH).row();
+        formTable.add(shaderBox).width(360f).row();
+
+        lightingSummary = new VisLabel("");
+        formTable.add(new VisLabel("Lighting type:")).width(FORM_LABEL_WIDTH).padRight(10f);
+        formTable.add(lightingSummary).left().row();
 
         mainContent.add(formTable).left().row();
 
@@ -134,6 +146,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
             }
         });
 
+        surfaceContent.defaults().left().growX();
+        surfaceContent.add(buildShaderSectionHeader("Surface - return vec4 - inputs: base, uv, time")).row();
+        surfaceContent.add(surfaceEditor).height(CODE_AREA_HEIGHT).row();
+        surfaceContent.add(buildShaderSectionHeader("Optional shared mask - return float - inputs: uv, time - discard below 0.5")).row();
+        surfaceContent.add(maskEditor).height(CODE_AREA_HEIGHT).row();
         VisTable contentFrame = new VisTable();
         contentFrame.setBackground(VisUI.getSkin().getDrawable("tabbed-pane-frame"));
         contentFrame.pad(2f);
@@ -145,8 +162,10 @@ public class ShaderManagerDialog extends StudioModalWindow {
         mainContent.add(targetArea).growX().row();
 
         VisLabel includeHintLabel = new VisLabel(
-                "Material floats: #include \"pixscape_entity_params.glsl\", then pixscapeEntityFloat(PIXSCAPE_PARAM_<name>)."
+                "Material floats: pixscapeEntityFloat(PIXSCAPE_PARAM_<name>). Surface bodies share one source on all targets."
         );
+        new Tooltip.Builder("Sprite sampling: pixscapeSample(pixscapeLocalUV(uv)). Outside the sprite is transparent; atlas neighbours are excluded.")
+                .target(includeHintLabel).build();
         mainContent.add(includeHintLabel).left().padTop(4f).row();
         showTargetContent((VariantTab) targetTabs.getActiveTab());
 
@@ -250,7 +269,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
         selectedVariant = tab.getVariant();
         targetContent.clear();
-        targetContent.add(tab.getContentTable()).grow();
+        targetContent.add(editedLighting == null ? tab.getContentTable() : surfaceContent).grow();
+        targetTabs.getTabsPane().setVisible(editedLighting == null);
     }
 
     private void hookListeners() {
@@ -365,6 +385,13 @@ public class ShaderManagerDialog extends StudioModalWindow {
         } else {
             loadVariantSources(shaderName, typeBox.getSelected());
         }
+        lightingSummary.setText(shaderName == null ? "No shader selected"
+                : typeBox.getSelected() == ShaderKind.FX ? "Not applicable to FX"
+                : editedLighting == SurfaceShader.Lighting.LIT ? "Lit - Affected by scene lighting and received shadows."
+                : editedLighting == SurfaceShader.Lighting.UNLIT ? "Unlit - Unaffected by scene lighting."
+                : "Unspecified - existing rendering behavior is unchanged.");
+        showTargetContent((VariantTab) targetTabs.getActiveTab());
+        testButton.setText(editedLighting == null ? "Test current target" : "Test generated variants");
         updateActionAvailability();
     }
 
@@ -385,8 +412,17 @@ public class ShaderManagerDialog extends StudioModalWindow {
         form.defaults().left();
         form.add(new VisLabel("Shader name:")).width(FORM_LABEL_WIDTH);
         form.add(input).width(320f).row();
-        form.add(new VisLabel("Shader type:")).width(FORM_LABEL_WIDTH);
+        form.add(new VisLabel("Shader role:")).width(FORM_LABEL_WIDTH);
         form.add(kindBox).width(160f).left().row();
+
+        VisTable lightingChoices = buildLightingChoices();
+        form.add(lightingChoices).colspan(2).growX().padTop(8f).row();
+        kindBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                lightingChoices.setVisible(kindBox.getSelected() == ShaderKind.MATERIAL);
+            }
+        });
+        lightingChoices.setVisible(kindBox.getSelected() == ShaderKind.MATERIAL);
 
         VisTextButton create = new VisTextButton("Create");
         VisTextButton cancel = new VisTextButton("Cancel");
@@ -401,7 +437,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
         dialog.pack();
         dialog.centerWindow();
 
-        Runnable createAction = () -> createShaderFromDialog(dialog, input, kindBox);
+        Runnable createAction = () -> createShaderFromDialog(dialog, input, kindBox, ((VisCheckBox) lightingChoices.findActor("shader-lit-choice")).isChecked()
+                ? SurfaceShader.Lighting.LIT : SurfaceShader.Lighting.UNLIT);
         create.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -427,10 +464,27 @@ public class ShaderManagerDialog extends StudioModalWindow {
         getStage().setKeyboardFocus(input);
     }
 
+    private VisTable buildLightingChoices() {
+        VisTable choices = new VisTable(true);
+        choices.defaults().left();
+        choices.add(new VisLabel("Lighting type")).colspan(2).row();
+        VisCheckBox unlit = new VisCheckBox("Unlit");
+        unlit.setName("shader-unlit-choice");
+        VisCheckBox lit = new VisCheckBox("Lit");
+        lit.setName("shader-lit-choice");
+        new ButtonGroup<VisCheckBox>(unlit, lit);
+        unlit.setChecked(true);
+        choices.add(unlit).width(FORM_LABEL_WIDTH);
+        choices.add(new VisLabel("Unaffected by scene lighting.")).row();
+        choices.add(lit).width(FORM_LABEL_WIDTH);
+        choices.add(new VisLabel("Affected by scene lighting and received shadows.")).row();
+        return choices;
+    }
+
     private void createShaderFromDialog(
             StudioModalWindow dialog,
             VisTextField input,
-            VisSelectBox<ShaderKind> kindBox) {
+            VisSelectBox<ShaderKind> kindBox, SurfaceShader.Lighting lighting) {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
             Dialogs.showErrorDialog(dialog.getStage(), "No project loaded. Custom shaders are stored per project.");
@@ -456,11 +510,13 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
 
         try {
-            createNewShaderAsset(name, kind);
+            if (kind == ShaderKind.MATERIAL) writeSurfaceAsset(shaderDir, name, lighting, "return base;\n", null, new Array<>());
+            else createNewShaderAsset(name, kind);
             reloadRegistryAndNotify();
             selectShader(kind, name);
             dialog.remove();
         } catch (Exception ex) {
+            rollbackDuplicatedShader(shaderDir, ex);
             Dialogs.showErrorDialog(
                     dialog.getStage(),
                     "Error while creating shader",
@@ -482,6 +538,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private void writeNewShaderAsset(FileHandle shaderDir, String name, ShaderKind kind) {
+        if (kind != ShaderKind.FX) throw new IllegalArgumentException("New materials require the shared surface contract");
         try {
             shaderDir.mkdirs();
             if (!shaderDir.exists()) {
@@ -490,12 +547,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
             for (ShaderVariant variant : ShaderVariant.values()) {
                 String prefix = variantFilePrefix(variant);
-                String vertex = kind == ShaderKind.FX
-                        ? templateFxVertex(variant)
-                        : templateMaterialVertex(variant);
-                String fragment = kind == ShaderKind.FX
-                        ? templateFxFragment(variant)
-                        : templateMaterialFragment(variant);
+                String vertex = templateFxVertex(variant);
+                String fragment = templateFxFragment(variant);
                 shaderDir.child(prefix + ".vert").writeString(vertex, false, "UTF-8");
                 shaderDir.child(prefix + ".frag").writeString(fragment, false, "UTF-8");
             }
@@ -529,6 +582,11 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private void loadVariantSources(String shaderName, ShaderKind kind) {
         FileHandle shaderDir = getProjectShaderDir(kind, shaderName);
         editedParameters = readParameters(shaderDir.child("shader.json"), shaderName);
+        SurfaceShader surface = SurfaceShader.read(new JsonReader().parse(shaderDir.child("shader.json")), shaderDir,
+                new ShaderParameterLayout(shaderName, editedParameters));
+        editedLighting = surface == null ? null : surface.lighting;
+        surfaceEditor.setText(surface == null ? "" : surface.colorBody);
+        maskEditor.setText(surface == null || surface.maskBody == null ? "" : surface.maskBody);
         updateParametersSummary();
 
         for (ShaderVariant variant : ShaderVariant.values()) {
@@ -543,6 +601,8 @@ public class ShaderManagerDialog extends StudioModalWindow {
     }
 
     private void clearEditors() {
+        editedLighting = null;
+        surfaceEditor.setText(""); maskEditor.setText("");
         editedParameters = new Array<>();
         updateParametersSummary();
         for (ShaderVariant variant : ShaderVariant.values()) {
@@ -569,6 +629,15 @@ public class ShaderManagerDialog extends StudioModalWindow {
             return;
         }
 
+        if (editedLighting != null) {
+            try {
+                ShaderRegistry.testCompileSurface(name, editedSurface(name));
+                Dialogs.showOKDialog(getStage(), "Shader compile", "Direct, Legacy, Forward and shadow variants compiled on this backend.");
+            } catch (Exception ex) {
+                Dialogs.showErrorDialog(getStage(), "Compile error", ex.getMessage());
+            }
+            return;
+        }
         String vertSource = vertEditors.get(selectedVariant).getText();
         String fragSource = fragEditors.get(selectedVariant).getText();
 
@@ -606,6 +675,60 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
     }
 
+    private SurfaceShader editedSurface(String name) {
+        String mask = maskEditor.getText();
+        return new SurfaceShader(editedLighting, surfaceEditor.getText(), mask.trim().isEmpty() ? null : mask,
+                new ShaderParameterLayout(name, editedParameters));
+    }
+
+    private void writeSurfaceAsset(FileHandle directory, String name, SurfaceShader.Lighting lighting,
+                                   String color, String mask, Array<ShaderFloatParam> parameters) {
+        SurfaceShader candidate = new SurfaceShader(lighting, color, mask, new ShaderParameterLayout(name, parameters));
+        ShaderRegistry.testCompileSurface(name, candidate);
+        directory.mkdirs();
+        JsonValue metadata = new JsonValue(JsonValue.ValueType.object);
+        metadata.addChild("type", new JsonValue("pixscape-custom-shader"));
+        metadata.addChild("version", new JsonValue(1));
+        metadata.addChild("name", new JsonValue(name));
+        metadata.addChild("kind", new JsonValue("material"));
+        metadata.addChild("mode", new JsonValue("TEXTURE_ARRAY"));
+        metadata.addChild("contract", new JsonValue(SurfaceShader.CONTRACT));
+        metadata.addChild("lighting", new JsonValue(lighting.name()));
+        metadata.addChild("parameters", parameterJson(parameters));
+        directory.child("surface.glsl").writeString(color, false, "UTF-8");
+        if (mask != null) directory.child("mask.glsl").writeString(mask, false, "UTF-8");
+        else if (directory.child("mask.glsl").exists() && !directory.child("mask.glsl").delete())
+            throw new IllegalStateException("Cannot remove mask.glsl");
+        directory.child("shader.json").writeString(metadata.prettyPrint(JsonWriter.OutputType.json, 120), false, "UTF-8");
+    }
+
+    private static JsonValue parameterJson(Array<ShaderFloatParam> parameters) {
+        JsonValue values = new JsonValue(JsonValue.ValueType.object);
+        for (ShaderFloatParam param : parameters) values.addChild(param.name, new JsonValue(param.value));
+        return values;
+    }
+
+    private void saveSurface(String name) {
+        FileHandle dir = getProjectShaderDir(ShaderKind.MATERIAL, name);
+        String[] files = {"shader.json", "surface.glsl", "mask.glsl"};
+        byte[][] previous = new byte[files.length][];
+        for (int i = 0; i < files.length; i++) if (dir.child(files[i]).exists()) previous[i] = dir.child(files[i]).readBytes();
+        try {
+            validateDeclarationChange(name, dir.child("shader.json"), StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()));
+            SurfaceShader candidate = editedSurface(name);
+            writeSurfaceAsset(dir, name, candidate.lighting, candidate.colorBody, candidate.maskBody, editedParameters);
+            reloadRegistryAndNotify();
+            selectShader(ShaderKind.MATERIAL, name);
+            Dialogs.showOKDialog(getStage(), "Shader saved", "Shader '" + name + "' saved and registered.");
+        } catch (Exception failure) {
+            for (int i = 0; i < files.length; i++) {
+                if (previous[i] != null) dir.child(files[i]).writeBytes(previous[i], false);
+                else dir.child(files[i]).delete();
+            }
+            Dialogs.showErrorDialog(getStage(), "Error while saving shader", failure.getMessage());
+        }
+    }
+
     private void doSaveAndRegister() {
         ShaderKind kind = typeBox.getSelected();
 
@@ -615,6 +738,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
             return;
         }
 
+        if (editedLighting != null) { saveSurface(name); return; }
         for (ShaderVariant variant : ShaderVariant.values()) {
             String vertSource = vertEditors.get(variant).getText();
             String fragSource = fragEditors.get(variant).getText();
@@ -635,6 +759,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
             return;
         }
 
+        ObjectMap<FileHandle,byte[]> previousFiles=new ObjectMap<>();
+        FileHandle savedDir=getProjectShaderDir(kind,name);
+        for(FileHandle file:savedDir.list())if(!file.isDirectory())previousFiles.put(file,file.readBytes());
         try {
             FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
             FileHandle shaderDir = getProjectShaderDir(kind, name);
@@ -670,7 +797,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
             metadata.writeString(metadataText, false, "UTF-8");
             shaderDir.child("includes").mkdirs();
 
-            ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+            ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS, true);
             ShaderRegistry.saveProjectIndices();
 
             Dialogs.showOKDialog(getStage(), "Shader saved", "Shader '" + name + "' saved and registered.");
@@ -680,6 +807,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
             selectShader(kind, name);
 
         } catch (Exception ex) {
+            for(ObjectMap.Entry<FileHandle,byte[]> old:previousFiles)old.key.writeBytes(old.value,false);
             Dialogs.showErrorDialog(
                     getStage(),
                     "Error while saving shader",
@@ -718,7 +846,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
         app.getCanvas().getShaderService().detachShaderFromEcs(name, kind == ShaderKind.FX);
 
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS, true);
         ShaderRegistry.saveProjectIndices();
 
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
@@ -767,8 +895,13 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
             ShaderSources sources = snapshotCurrentEditorSources();
             try {
-                validateShaderSources(sources);
-                writeDuplicatedShaderAsset(sourceDir, targetDir, newName, kind, sources);
+                if (editedLighting != null) {
+                    SurfaceShader surface = editedSurface(newName);
+                    writeSurfaceAsset(targetDir, newName, surface.lighting, surface.colorBody, surface.maskBody, editedParameters);
+                } else {
+                    validateShaderSources(sources);
+                    writeDuplicatedShaderAsset(sourceDir, targetDir, newName, kind, sources);
+                }
                 reloadRegistryAndNotify();
                 selectShader(kind, newName);
                 return true;
@@ -925,6 +1058,7 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 return false;
             }
 
+            byte[] oldMetadata=sourceDir.child("shader.json").readBytes();
             try {
                 sourceDir.moveTo(targetDir);
                 if (!targetDir.exists()) {
@@ -935,10 +1069,15 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 FileHandle metadata = targetDir.child("shader.json");
                 metadata.writeString(buildShaderJson(targetName, kind, metadata), false, "UTF-8");
 
-                reloadRegistryAndNotify();
+                FileHandle project=StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+                ShaderRegistry.renameForProject(project,StudioFs.DIR_ORIG_SHADERS,sourceName,targetName);
+                ShaderRegistry.saveProjectIndices();
+                EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
                 selectShader(kind, targetName);
                 return true;
             } catch (Exception ex) {
+                if(targetDir.exists() && !sourceDir.exists())targetDir.moveTo(sourceDir);
+                sourceDir.child("shader.json").writeBytes(oldMetadata,false);
                 Dialogs.showErrorDialog(
                         getStage(),
                         "Error while renaming shader",
@@ -1051,6 +1190,14 @@ public class ShaderManagerDialog extends StudioModalWindow {
 
     private String buildShaderJson(String name, ShaderKind kind, FileHandle existingMetadata,
                                    Array<ShaderFloatParam> replacement) {
+        if (existingMetadata != null && existingMetadata.exists()) {
+            JsonValue metadata = new JsonReader().parse(existingMetadata);
+            metadata.remove("name"); metadata.addChild("name", new JsonValue(name));
+            if (replacement != null) {
+                metadata.remove("parameters"); metadata.addChild("parameters", parameterJson(replacement));
+            }
+            return metadata.prettyPrint(JsonWriter.OutputType.json, 120);
+        }
         String desktop = variantFilePrefix(ShaderVariant.DESKTOP_GL30);
         String es = variantFilePrefix(ShaderVariant.ES3_WEBGL2);
         String parameters = "";
@@ -1117,6 +1264,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
         }
         if (!changedNamesOrSlots) return;
 
+        if (editedLighting != null && (surfaceEditor.getText() + maskEditor.getText())
+                .matches("(?s).*pixscapeEntityFloat\\s*\\(\\s*[0-9]+\\s*\\).*"))
+            throw new IllegalArgumentException("Use PIXSCAPE_PARAM_<name> before changing parameter declarations.");
         // Numeric access would silently refer to a different name after a removal or insertion.
         for (ShaderVariant variant : ShaderVariant.values()) {
             String source = fragEditors.get(variant).getText();
@@ -1182,53 +1332,9 @@ public class ShaderManagerDialog extends StudioModalWindow {
     private void reloadRegistryAndNotify() {
         ProjectConfig cfg = ProjectConfig.getInstance();
         FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS);
+        ShaderRegistry.reloadForProject(projectDir, StudioFs.DIR_ORIG_SHADERS, true);
         ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
-    }
-
-    private String templateMaterialVertex(ShaderVariant variant) {
-        if (variant == ShaderVariant.ES3_WEBGL2) {
-            return "#version 300 es\n"
-                    + "precision highp float;\n"
-                    + "precision mediump int;\n\n"
-                    + "in vec2  a_position;\n"
-                    + "in vec2  a_texCoord0;\n"
-                    + "in vec4  a_color;\n"
-                    + "in float a_layer;\n"
-                    + "in float a_paramId;\n\n"
-                    + "uniform mat4 u_projTrans;\n\n"
-                    + "out vec2  v_uv;\n"
-                    + "out vec4  v_color;\n"
-                    + "flat out int v_layer;\n"
-                    + "flat out highp int v_paramId;\n\n"
-                    + "void main() {\n"
-                    + "    v_uv = a_texCoord0;\n"
-                    + "    v_color = a_color;\n"
-                    + "    v_layer = int(a_layer + 0.5);\n"
-                    + "    v_paramId = int(a_paramId + 0.5);\n"
-                    + "    gl_Position = u_projTrans * vec4(a_position, 0.0, 1.0);\n"
-                    + "}\n";
-        }
-
-        return "#version 330 core\n\n"
-                + "in vec2  a_position;\n"
-                + "in vec2  a_texCoord0;\n"
-                + "in vec4  a_color;\n"
-                + "in float a_layer;\n"
-                + "in float a_paramId;\n\n"
-                + "uniform mat4 u_projTrans;\n\n"
-                + "out vec2  v_uv;\n"
-                + "out vec4  v_color;\n"
-                + "flat out int v_layer;\n"
-                + "flat out int v_paramId;\n\n"
-                + "void main() {\n"
-                + "    v_uv = a_texCoord0;\n"
-                + "    v_color = a_color;\n"
-                + "    v_layer = int(a_layer + 0.5);\n"
-                + "    v_paramId = int(a_paramId + 0.5);\n"
-                + "    gl_Position = u_projTrans * vec4(a_position, 0.0, 1.0);\n"
-                + "}\n";
     }
 
     private String templateFxVertex(ShaderVariant variant) {
@@ -1259,44 +1365,6 @@ public class ShaderManagerDialog extends StudioModalWindow {
                 + "    v_color = a_color;\n"
                 + "    v_uv = a_texCoord0;\n"
                 + "    gl_Position = u_projTrans * a_position;\n"
-                + "}\n";
-    }
-
-    private String templateMaterialFragment(ShaderVariant variant) {
-        if (variant == ShaderVariant.ES3_WEBGL2) {
-            return "#version 300 es\n"
-                    + "precision highp float;\n"
-                    + "precision mediump int;\n\n"
-                    + "#include \"pixscape_common.glsl\"\n"
-                    + "#include \"pixscape_entity_params.glsl\"\n\n"
-                    + "in vec2  v_uv;\n"
-                    + "in vec4  v_color;\n"
-                    + "flat in int v_layer;\n\n"
-                    + "uniform sampler2DArray u_array;\n"
-                    + "uniform float u_cutoutThreshold;\n"
-                    + "uniform vec3  u_ambientMul;\n\n"
-                    + "out vec4 fragColor;\n\n"
-                    + "void main() {\n"
-                    + "    vec4 tex = texture(u_array, vec3(v_uv, v_layer));\n\n"
-                    + "    if (u_cutoutThreshold >= 0.0 && tex.a < u_cutoutThreshold) discard;\n\n"
-                    + "    fragColor = pixscapeApplyMaterial(tex, v_color, u_ambientMul);\n"
-                    + "}\n";
-        }
-
-        return "#version 330 core\n\n"
-                + "#include \"pixscape_common.glsl\"\n"
-                + "#include \"pixscape_entity_params.glsl\"\n\n"
-                + "in vec2  v_uv;\n"
-                + "in vec4  v_color;\n"
-                + "flat in int v_layer;\n\n"
-                + "uniform sampler2DArray u_array;\n"
-                + "uniform float u_cutoutThreshold;\n"
-                + "uniform vec3  u_ambientMul;\n\n"
-                + "out vec4 fragColor;\n\n"
-                + "void main() {\n"
-                + "    vec4 tex = texture(u_array, vec3(v_uv, v_layer));\n\n"
-                + "    if (u_cutoutThreshold >= 0.0 && tex.a < u_cutoutThreshold) discard;\n\n"
-                + "    fragColor = pixscapeApplyMaterial(tex, v_color, u_ambientMul);\n"
                 + "}\n";
     }
 

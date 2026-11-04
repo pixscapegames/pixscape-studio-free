@@ -158,6 +158,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 ? StudioFs.requireStudioProjectDir(cfg)
                 : null;
 
+        if (projectDir != null) games.pixscape.studio.helper.BundledMaterialUpgrade.upgrade(projectDir.child(StudioFs.DIR_ORIG_SHADERS));
         ShaderRegistry.reloadForProject(
                 projectDir,
                 StudioFs.DIR_ORIG_SHADERS
@@ -726,6 +727,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
             // Stable IDs exist only inside this isolated asset-editing World and are never
             // published to ProjectConfig or a project Scene.
             SceneMeta editingMeta = new SceneMeta();
+            editingMeta.lightingEnabled = false;
             editingMeta.physicsEnabled = true;
             editingMeta.gravityY = 0f;
             candidate = canvas.createSceneContext(null, editingMeta);

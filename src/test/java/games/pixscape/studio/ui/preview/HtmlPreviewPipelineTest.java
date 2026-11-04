@@ -1,6 +1,17 @@
 package games.pixscape.studio.ui.preview;
 
 import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
+import games.pixscape.studio.helper.RuntimeShaderResources;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.Map;
+import java.util.HashMap;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -46,6 +57,69 @@ public class HtmlPreviewPipelineTest {
         assertFalse(Files.exists(first.getParent().resolve("pixscape-project")));
         assertFalse(Files.exists(studio.resolve(".pixscape/preview/html/htmlplayer")));
         assertFalse(Files.exists(first.resolveSibling("assets.txt.tmp")));
+    }
+
+    @Test
+    public void routedPreviewPreloadsAndServesCompleteRuntimeShaderCatalog() throws Exception {
+        Path studio = temp.newFolder("shader-studio").toPath();
+        Path runtime = temp.newFolder("shader-runtime").toPath();
+        write(runtime, "project.json");
+        // A project override must neither hide nor replace the built-in catalog.
+        Files.createDirectories(runtime.resolve("shaders/examples"));
+        Files.writeString(runtime.resolve("shaders/examples/catalog.json"), "[]");
+        Path manifest = HtmlPreviewLauncher.preparePreviewState(studio, runtime);
+        Map<String, String[]> registered = new HashMap<>();
+        for (String line : Files.readAllLines(manifest)) {
+            String[] fields = line.split(":");
+            assertNull("Duplicate manifest path: " + fields[1], registered.put(fields[1], fields));
+        }
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", new HtmlPreviewLauncher.PreviewHttpHandler(runtime, manifest));
+        server.start();
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            String base = "http://127.0.0.1:" + server.getAddress().getPort() + "/assets/";
+            Map<String, String> sources = new HashMap<>();
+            for (RuntimeShaderResources.Resource resource : RuntimeShaderResources.bundledResources()) {
+                if (resource.directory()) continue;
+                String path = resource.path();
+                String[] entry = registered.get(path);
+                assertNotNull("Not registered: " + path, entry);
+                assertEquals("Must preload: " + path, "1", entry[5]);
+                assertEquals("URL case/path: " + path, path, entry[2]);
+                HttpResponse<byte[]> response = client.send(HttpRequest.newBuilder(URI.create(base + path)).build(),
+                        HttpResponse.BodyHandlers.ofByteArray());
+                assertEquals("Not served: " + path, 200, response.statusCode());
+                try (var input = getClass().getClassLoader().getResourceAsStream(path)) {
+                    assertNotNull(input);
+                    assertArrayEquals("Wrong dependency bytes: " + path, input.readAllBytes(), response.body());
+                }
+                assertEquals(response.body().length, Long.parseLong(entry[3]));
+                sources.put(path, new String(response.body(), StandardCharsets.UTF_8));
+            }
+            JsonValue catalog = new JsonReader().parse(sources.get("shaders/examples/catalog.json"));
+            assertTrue(catalog.size > 0);
+            for (JsonValue item : catalog) {
+                String root = "shaders/examples/" + item.getString("path") + "/";
+                if (item.getString("kind").equals("MATERIAL")) {
+                    assertNotNull(root, sources.get(root + "shader.json"));
+                    assertNotNull(root, sources.get(root + "surface.glsl"));
+                } else {
+                    for (String variant : List.of("desktop-gl30", "es3-webgl2")) {
+                        assertNotNull(root, sources.get(root + variant + "/" + item.getString("name") + ".vert"));
+                        assertNotNull(root, sources.get(root + variant + "/" + item.getString("name") + ".frag"));
+                    }
+                }
+            }
+            assertNotNull(sources.get("shaders/examples/material/lit-dissolve/mask.glsl"));
+            assertNotNull(sources.get("shaders/includes/pixscape_common.glsl"));
+            assertNotNull(sources.get("shaders/includes/pixscape_entity_params.glsl"));
+            HttpResponse<String> projectCatalog = client.send(HttpRequest.newBuilder(
+                    URI.create(base + "pixscape-project/shaders/examples/catalog.json")).build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals("[]", projectCatalog.body());
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test

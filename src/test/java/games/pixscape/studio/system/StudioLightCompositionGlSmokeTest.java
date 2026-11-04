@@ -34,7 +34,8 @@ public class StudioLightCompositionGlSmokeTest {
         Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();
         config.setInitialVisible(false);config.setWindowedMode(64,32);config.disableAudio(true);
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
-        new Lwjgl3Application(new ApplicationAdapter(){@Override public void create(){
+        org.lwjgl.glfw.GLFW.nglfwSetErrorCallback(0L);
+ new Lwjgl3Application(new ApplicationAdapter(){@Override public void create(){
             World world=null;games.pixscape.studio.batch.TextureArrayMeshBatchStudio batch=null;
             AtlasRuntimeService.TextureArrayBundle bundle=null;Texture texture=null;
             try {
@@ -46,7 +47,7 @@ public class StudioLightCompositionGlSmokeTest {
                 batch=new games.pixscape.studio.batch.TextureArrayMeshBatchStudio(16);batch.setTextureArrayBundle(bundle);
                 FrameRenderQueue q=new FrameRenderQueue(4);LayerStateSOA layers=new LayerStateSOA(1);layers.enabled[0]=true;
                 OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
-                var meta=new games.pixscape.studio.configuration.SceneMeta();meta.ambientMulR=meta.ambientMulG=meta.ambientMulB=.2f;
+                var meta=new games.pixscape.studio.configuration.SceneMeta();meta.lightingEnabled=true;meta.ambientMulR=meta.ambientMulG=meta.ambientMulB=.2f;
                 RenderStats stats=new RenderStats();
                 StudioRenderSubmitSystem submit=new StudioRenderSubmitSystem(layers,q,camera,batch,stats,new RenderStatsSink(100)).setSceneSettings(meta);
                 world=new World(new WorldConfigurationBuilder().with(submit).build());
@@ -71,7 +72,7 @@ public class StudioLightCompositionGlSmokeTest {
                         ByteBuffer pixels=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixels);
                         byte[] image=new byte[pixels.capacity()];pixels.get(image);int mode=forward?1:0;
                         if(reference[mode]==null)reference[mode]=image;else Assert.assertArrayEquals(reference[mode],image);
-                        if(forward)Assert.assertEquals(6L*(normals?104:76),submit.forwardRenderer().uploadedBytes);
+                        if(forward)Assert.assertEquals(6L*(normals?128:100),submit.forwardRenderer().uploadedBytes);
                         Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
                     }
                 }
@@ -86,7 +87,8 @@ public class StudioLightCompositionGlSmokeTest {
         Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();
         config.setInitialVisible(false);config.setWindowedMode(768,576);config.disableAudio(true);
         config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);
-        new Lwjgl3Application(new ApplicationAdapter(){
+        org.lwjgl.glfw.GLFW.nglfwSetErrorCallback(0L);
+ new Lwjgl3Application(new ApplicationAdapter(){
             boolean interrupt;World world;games.pixscape.runtime.service.AtlasRuntimeService.TextureArrayBundle bundle;games.pixscape.studio.batch.TextureArrayMeshBatchStudio batch;Texture texture;
             @Override public void create(){try{
                 games.pixscape.runtime.component.spatial.SpatialBlocksComponent linkedSnapshot=SpatialLinkGlChecks.run();
@@ -94,7 +96,7 @@ public class StudioLightCompositionGlSmokeTest {
                 ShaderRegistry.initDefaults();
                 games.pixscape.studio.configuration.ProjectConfig project=new games.pixscape.studio.configuration.ProjectConfig();
                 games.pixscape.studio.configuration.SceneMeta meta=new games.pixscape.studio.configuration.SceneMeta("test","test.json");
-                meta.ambientMulR=meta.ambientMulG=meta.ambientMulB=.2f;
+                meta.lightingEnabled=true;meta.ambientMulR=meta.ambientMulG=meta.ambientMulB=.2f;
                 project.getScenesMap().put("test",meta);project.setCurrentSceneByName("test");
                 games.pixscape.studio.configuration.ProjectConfig.setInstance(project);Gdx.gl.glViewport(0,0,64,32);
                 Pixmap pix=new Pixmap(1,1,Pixmap.Format.RGBA8888);pix.setColor(.4f,.2f,.1f,.5f);pix.fill();

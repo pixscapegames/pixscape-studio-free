@@ -3,12 +3,18 @@
 ## [0.4.1-SNAPSHOT]
 
 ### Added
+* Added Lit/Unlit surface creation, shared surface/mask editing and type badges in the Shader Manager and entity shader selectors. Failed compilation keeps the last working shader.
+* Added scene `Enable lighting`, document-owned undo/redo, disabled lighting settings and contextual light creation menus. New scenes, including TMX imports, start with lighting disabled.
 * added LibGDX `.atlas` import with PNG pages: indexed regions become Animation assets grouped by name, including single-frame animations; unindexed regions become Image assets. Supports multiple pages, 90° packing rotation and restoration of trimmed frames.
 
 ### Changed
+
+* Updated supplied Material examples to the shared surface catalog. Project opening upgrades only fingerprint-verified, unchanged supplied copies, preserving names, IDs and customized sources.
+* Runtime export and HTML Preview include the shared surface contract and optional scene lighting. Existing complete shader descriptors retain their behavior.
 * Preserved layer names in Runtime exports to support entity lookup by layer name.
 
 ### Fixed
+* Fixed HTML Preview startup by serving and preloading the Runtime shader catalog and all bundled shader dependencies from the resolved Runtime library.
 * Updated Game Object handling for the Runtime's GWT-compatible collections.
 * Fixed Windows packaging for SNAPSHOT versions.
 

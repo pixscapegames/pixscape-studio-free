@@ -43,7 +43,7 @@ public final class HistoryManager {
 
     /** Ask before a creation reserves persistent identities. The retry publishes one command. */
     public boolean prepareLightCreation(int additional,Runnable retry) {
-        if(confirmedLegacyCreation || lightingScene==null || !lightingScene.forwardLighting
+        if(confirmedLegacyCreation || lightingScene==null || !lightingScene.lightingEnabled || !lightingScene.forwardLighting
                 || additional<=0 || historyIds.activeLightCount(lightingWorld)+additional<=1)return true;
         if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
         long revision=mutationRevision;
@@ -187,7 +187,7 @@ public final class HistoryManager {
             c=new CompositeCommand(c.label(),java.util.Arrays.asList(
                     new games.pixscape.studio.history.commands.SetSceneRendererCommand(lightingWorld,historyIds,lightingScene,false),c));
         }
-        if(lightingScene!=null && lightingScene.forwardLighting && !c.selectsLegacyBeforeLights() && c.additionalActiveLights()>0
+        if(lightingScene!=null && lightingScene.lightingEnabled && lightingScene.forwardLighting && !c.selectsLegacyBeforeLights() && c.additionalActiveLights()>0
                 && historyIds.activeLightCount(lightingWorld)+c.additionalActiveLights()>1){
             if(confirmLegacy==null)throw new IllegalStateException("Forward rendering supports at most one active light. Switch to Legacy to activate another light.");
             long revision=mutationRevision;

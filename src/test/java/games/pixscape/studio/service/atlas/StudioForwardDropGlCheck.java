@@ -44,7 +44,7 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
             // Studio startup may replace the singleton while restoring its empty workspace.
             ProjectConfig.setInstance(cfg);
             field(SceneService.class,"assetMetaDatabase").set(app.getSceneService(),db);
-            cfg.createSceneMeta("Preview");var meta=cfg.getCurrentSceneMeta();meta.forwardLighting=true;
+            cfg.createSceneMeta("Preview");var meta=cfg.getCurrentSceneMeta();meta.lightingEnabled=true;meta.forwardLighting=true;
             meta.ambientMulR=.6f;meta.ambientMulG=.7f;meta.ambientMulB=.8f;
             String tag=cfg.canonicalSceneTagCurrent();WorldCanvas canvas=app.getCanvas();
             var context=canvas.createSceneContext(tag,meta);canvas.attach(context);
@@ -123,7 +123,7 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
             // Cold renderer switching and both layouts must admit the already live previews.
             meta.useNormalMaps=false;frame(canvas);assertPending(canvas,image);
             meta.forwardLighting=false;frame(canvas);assertPending(canvas,image);assertDomain(canvas,FrameRenderQueue.SOURCE_TILED,false);assertDomain(canvas,FrameRenderQueue.SOURCE_VFX,false);
-            meta.forwardLighting=true;meta.useNormalMaps=true;frame(canvas);
+            meta.lightingEnabled=true;meta.forwardLighting=true;meta.useNormalMaps=true;frame(canvas);
 
             int deleted=ops.createStandaloneSprite(imageName(db,"image"),-60,-50);frame(canvas);
             ops.deleteEntities(IntArray.with(deleted));frame(canvas);

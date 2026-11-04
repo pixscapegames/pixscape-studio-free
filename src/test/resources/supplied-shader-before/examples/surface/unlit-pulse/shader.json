@@ -1,0 +1,11 @@
+{
+  "name": "Unlit Pulse",
+  "kind": "MATERIAL",
+  "mode": "TEXTURE_ARRAY",
+  "contract": "surface-v1",
+  "lighting": "UNLIT",
+  "parameters": {
+    "speed": 2.0,
+    "strength": 0.35
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "glow_pulse": {
+    "u_radius": 1.1,
+    "u_speed": 2.0,
+    "u_intensity": 1.2,
+    "u_boost": 0.3
+  },
+
+  "outline_soft": {
+    "u_outlineSize": 0.01,
+    "u_outlineIntensity": 1.0
+  },
+
+  "wave_uv": {
+    "u_amplitude": 0.02,
+    "u_frequency": 8.0,
+    "u_speed": 1.5
+  },
+
+  "camera_postfx": {
+    "u_intensity": 2.0
+  }
+}

@@ -26,12 +26,12 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * 3: a_layer     (float) -> float
  * <p>
  * CPU format (float[]):
- * pos2 + uv2 + colorPacked1 + layer1 + paramId1 = 7 floats / vertex
+ * pos2 + uv2 + colorPacked1 + layer1 + paramId1 + region4 = 11 floats / vertex
  */
 public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
-    // pos2 + uv2 + colorPacked1 + layer1 = 6 floats
-    private static final int VERT_STRIDE = 7;
+    // pos2 + uv2 + colorPacked1 + layer1 + paramId1 + region4 = 11 floats
+    private static final int VERT_STRIDE = 11;
     private static final int REGION_RESOLVE_CACHE_CAPACITY = 64;
 
     private final Mesh mesh;
@@ -92,7 +92,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                         new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
                         VertexAttribute.ColorPacked(),
                         new VertexAttribute(Usage.Generic, 1, "a_layer"),
-                        new VertexAttribute(Usage.Generic, 1, "a_paramId")
+                        new VertexAttribute(Usage.Generic, 1, "a_paramId"),
+                        new VertexAttribute(Usage.Generic, 4, "a_surfaceRegion")
                 )
         );
 
@@ -442,6 +443,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // TL
         verts[o++] = x2;
@@ -451,6 +454,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // TR
         verts[o++] = x3;
@@ -460,6 +465,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // BR
         verts[o++] = x4;
@@ -469,6 +476,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         vertCount += 4;
         quadCount += 1;
