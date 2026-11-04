@@ -2,7 +2,7 @@
 
 # Pixscape Studio Free
 
-[![Version](https://img.shields.io/badge/version-0.4.0-orange.svg)](CHANGELOG.md)<br>
+[![Version](https://img.shields.io/badge/version-0.4.1-orange.svg)](CHANGELOG.md)<br>
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20HTML5-green.svg)](#get-started)<br>
 [![Java](https://img.shields.io/badge/Java-25-blue.svg)](#build-from-source)<br>
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)<br>
@@ -33,7 +33,7 @@ Give your sprites and tiles depth with elevated scenery, characters moving in fr
 
 Studio and Runtime are both open source under Apache 2.0. LibGDX stays available for your own code and ecosystem libraries.
 
-**Studio 0.4.0 uses Runtime 0.2.2.** Legacy rendering supports multiple lights; experimental Forward rendering supports at most one active light. Normal maps are a scene-wide option.
+**Studio 0.4.1 uses Runtime 0.2.3.** Legacy rendering supports multiple lights; experimental Forward rendering supports at most one active light. Normal maps are a scene-wide option.
 
 ## Get started
 
