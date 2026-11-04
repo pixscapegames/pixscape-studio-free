@@ -44,7 +44,7 @@ public final class PreviewLauncher {
             Consumer<String> onFailure,
             Resolution resolution,
             boolean landscape,
-            PreviewTarget target
+            PreviewTarget target, boolean desktopVsync
     ) throws IOException {
         if (target == PreviewTarget.HTML) {
             HtmlPreviewLauncher.open(cfg, null, null);
@@ -91,7 +91,7 @@ public final class PreviewLauncher {
                             games.pixscape.runtime.render.lighting.LightingRenderer.class)
                             + " " + PreviewDiagnosticLog.javaRuntime());
             ProcessBuilder builder = new ProcessBuilder(commandFor(session.sessionId, userRootPath,
-                    sceneName, windowResolution, cfg.glSamples, forwardLighting, session.childLogFile));
+                    sceneName, windowResolution, cfg.glSamples, forwardLighting, desktopVsync, session.childLogFile));
             builder.directory(workingDirectory().toFile());
             builder.redirectErrorStream(true);
             session.process = builder.start();
@@ -130,7 +130,7 @@ public final class PreviewLauncher {
     }
 
     static List<String> commandFor(String sessionId, Path userRoot, String sceneName, Resolution resolution,
-                                   int glSamples, Boolean forwardLighting, Path childLogFile) {
+                                   int glSamples, Boolean forwardLighting, boolean desktopVsync, Path childLogFile) {
         ArrayList<String> command = new ArrayList<>();
         command.add(javaExecutable().toString());
         command.add("-D" + PreviewProcessProtocol.SESSION_PROPERTY + "=" + sessionId);
@@ -153,6 +153,8 @@ public final class PreviewLauncher {
             command.add("--forward-lighting");
             command.add(Boolean.toString(forwardLighting));
         }
+        command.add("--vsync");
+        command.add(Boolean.toString(desktopVsync));
         command.add("--session");
         command.add(sessionId);
         return List.copyOf(command);

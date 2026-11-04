@@ -46,7 +46,7 @@ public final class AtlasStudioService extends AtlasRuntimeService {
     /** Cold per-tag lookup; scene documents can retain independent GPU publications. */
     public static boolean usesNormalMaps(String sceneTag) {
         for(var entry:ProjectConfig.getInstance().getScenesMap())
-            if(sceneTag.equals(ProjectConfig.sceneDirName(entry.value)))return entry.value.useNormalMaps;
+            if(sceneTag.equals(ProjectConfig.sceneDirName(entry.value)))return entry.value.lightingEnabled && entry.value.useNormalMaps;
         return true;
     }
 

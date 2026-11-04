@@ -15,9 +15,6 @@ import static games.pixscape.studio.PixscapeStudioApplication.STUDIO_TITLE;
 
 /** Desktop Preview entry point. It intentionally owns a separate JVM and LibGDX event loop. */
 public final class PreviewDesktopApplication {
-    /** The separate Preview owns its uncapped loop; Studio keeps its own VSync. */
-    static final boolean PREVIEW_VSYNC = false;
-
     private PreviewDesktopApplication() {
     }
 
@@ -35,11 +32,11 @@ public final class PreviewDesktopApplication {
                         + " runtime=" + PreviewDiagnosticLog.codeSource(
                         games.pixscape.runtime.render.lighting.LightingRenderer.class)
                         + " " + PreviewDiagnosticLog.javaRuntime()
-                        + " requestedVsync=" + PREVIEW_VSYNC + " requestedForegroundFps=0");
+                        + " requestedVsync=" + options.vsync() + " requestedForegroundFps=0");
         PreviewProcessProtocol.requestExitOnCloseCommand(options.sessionId());
         exitWhenParentDies();
         new Lwjgl3Application(new PreviewWindow(new FileHandle(options.userRoot().toFile()),
-                options.sceneName(), options.forwardLighting()), configuration(options));
+                options.sceneName(), options.forwardLighting(), options.vsync()), configuration(options));
     }
 
     static Lwjgl3ApplicationConfiguration configuration(Arguments options) {
@@ -49,7 +46,7 @@ public final class PreviewDesktopApplication {
         configuration.setHdpiMode(HdpiMode.Logical);
         configuration.setWindowedMode(options.width(), options.height());
         configuration.setOpenGLEmulation(GL32, 3, 2);
-        configuration.useVsync(PREVIEW_VSYNC);
+        configuration.useVsync(options.vsync());
         configuration.setForegroundFPS(0);
         configuration.setBackBufferConfig(8, 8, 8, 8, 24, 8, options.glSamples());
         return configuration;
@@ -82,7 +79,7 @@ public final class PreviewDesktopApplication {
     }
 
     record Arguments(Path userRoot, String sceneName, int width, int height, int glSamples,
-                     Boolean forwardLighting, String sessionId) {
+                     Boolean forwardLighting, boolean vsync, String sessionId) {
         static Arguments parse(String[] args) {
             Map<String, String> values = new HashMap<>();
             for (int index = 0; index < args.length; index += 2) {
@@ -95,7 +92,15 @@ public final class PreviewDesktopApplication {
             String scene = required(values, "--scene");
             return new Arguments(userRoot, scene, positive(values, "--width"), positive(values, "--height"),
                     nonNegative(values, "--gl-samples"), values.containsKey("--forward-lighting") ? Boolean.valueOf(required(values, "--forward-lighting")) : null,
-                    required(values, "--session"));
+                    vsync(values), required(values, "--session"));
+        }
+
+        private static boolean vsync(Map<String, String> values) {
+            return switch (values.getOrDefault("--vsync", "true")) {
+                case "true" -> true;
+                case "false" -> false;
+                default -> throw new IllegalArgumentException("--vsync must be true or false.");
+            };
         }
 
         private static String required(Map<String, String> values, String key) {

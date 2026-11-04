@@ -127,12 +127,11 @@ public class RegressionContracts013Test {
     public void runtimeExport_rebuildsAndDoesNotExportStudioAnimationSources() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/configuration/RuntimeExport.java");
         String entry = methodBody(source, "public static RuntimeConfig exportRuntime(");
-        assertOrdered(entry, "new SceneHudRuntimeExport().prepare(", "exportPrepared(");
+        assertOrdered(entry, "new SceneHudRuntimeExport().prepare(", "AtomicDirectoryPublication.createCandidate(",
+                "exportPrepared(", "AtomicDirectoryPublication.publish(");
         assertFalse("Previous export must survive HUD preparation failure.", entry.contains("deleteDirectory()"));
         String body = methodBody(source, "private static RuntimeConfig exportPrepared(");
 
-        assertTrue(body.contains("runtimeDir.exists()"));
-        assertTrue(body.contains("runtimeDir.deleteDirectory()"));
         assertTrue(body.contains("copyAtlasesWithoutInput("));
         assertTrue(body.contains("StudioFs.DIR_ORIG_EFFECTS"));
         assertTrue(body.contains("StudioFs.DIR_ORIG_SHADERS"));

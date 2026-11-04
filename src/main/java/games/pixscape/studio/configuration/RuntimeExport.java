@@ -14,6 +14,7 @@ import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.helper.RuntimeShaderResources;
+import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
@@ -86,9 +87,18 @@ public final class RuntimeExport {
             }
         }
 
-        // All HUD resolution, source capture and packing must succeed before removing the old export.
+        FileHandle target = userProjectDir.child(RUNTIME_DIR_NAME);
         try (var hud = new SceneHudRuntimeExport().prepare(studioProjectDir, studioCfg)) {
-            return exportPrepared(studioCfg, studioProjectDir, userProjectDir, hud);
+            FileHandle candidate = AtomicDirectoryPublication.createCandidate(target);
+            try {
+                RuntimeConfig config = exportPrepared(studioCfg, studioProjectDir, candidate, target, hud);
+                try (var publication = AtomicDirectoryPublication.publish(candidate, target)) {
+                    publication.commit();
+                }
+                return config;
+            } finally {
+                AtomicDirectoryPublication.discardCandidate(candidate);
+            }
         }
     }
 
@@ -117,16 +127,8 @@ public final class RuntimeExport {
     }
 
     private static RuntimeConfig exportPrepared(ProjectConfig studioCfg, FileHandle studioProjectDir,
-                                                 FileHandle userProjectDir, SceneHudRuntimeExport.PreparedExport hud) {
-
-        // 0) runtime root dir = <userProjectDir>/pixscape-project
-        FileHandle runtimeDir = userProjectDir.child(RUNTIME_DIR_NAME);
-
-        if (runtimeDir.exists()) {
-            runtimeDir.deleteDirectory();
-        }
-
-        runtimeDir.mkdirs();
+                                                 FileHandle runtimeDir, FileHandle target,
+                                                 SceneHudRuntimeExport.PreparedExport hud) {
 
         // 1) RuntimeConfig
         RuntimeConfig out = new RuntimeConfig();
@@ -137,7 +139,7 @@ public final class RuntimeExport {
         out.projectFileName = studioCfg.projectFileName;
 
         // Optional/informational: it can be filled here once during export
-        out.runtimeRootDir = runtimeDir.path();
+        out.runtimeRootDir = target.path();
 
         out.scenesDir = RuntimeFs.DIR_SCENES;
         out.atlasesDir = RuntimeFs.DIR_ATLASES;
@@ -1065,6 +1067,7 @@ public final class RuntimeExport {
             throw new GdxRuntimeException("Invalid scene json (null): " + inFile.path());
         }
 
+        exportLayerNames(root);
         removeStudioOnlyArtemisComponents(root, studioOnlyComponents);
 
         outFile.parent().mkdirs();
@@ -1076,6 +1079,38 @@ public final class RuntimeExport {
             });
         } catch (Exception e) {
             throw new GdxRuntimeException("Failed to write runtime scene json: " + outFile.path(), e);
+        }
+    }
+
+    private static void exportLayerNames(JsonValue root) {
+        // Keep the authored name only; editor description/locking never enter Runtime.
+        JsonValue identifiers = root.get("componentIdentifiers");
+        if (identifiers != null) {
+            for (JsonValue entry = identifiers.child; entry != null; entry = entry.next) {
+                if ("LayerMetaComponent".equals(entry.asString())) {
+                    identifiers.addChild("games.pixscape.runtime.component.LayerNameComponent",
+                            new JsonValue("LayerNameComponent"));
+                    break;
+                }
+            }
+        }
+        JsonValue archetypes = root.get("archetypes");
+        if (archetypes != null) {
+            for (JsonValue archetype = archetypes.child; archetype != null; archetype = archetype.next) {
+                for (JsonValue component = archetype.child; component != null; component = component.next) {
+                    if ("LayerMetaComponent".equals(component.asString())) component.set("LayerNameComponent");
+                }
+            }
+        }
+        JsonValue entities = root.get("entities");
+        if (entities == null) return;
+        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
+            JsonValue components = entity.get("components");
+            JsonValue metadata = components != null ? components.get("LayerMetaComponent") : null;
+            if (metadata == null) continue;
+            JsonValue name = new JsonValue(JsonValue.ValueType.object);
+            name.addChild("name", new JsonValue(metadata.getString("name", "unnamed")));
+            components.addChild("LayerNameComponent", name);
         }
     }
 

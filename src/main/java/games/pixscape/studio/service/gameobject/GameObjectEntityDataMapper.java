@@ -176,7 +176,7 @@ final class GameObjectEntityDataMapper {
             snapshot.gravityScale = data.physicsBody.gravityScale;
             snapshot.linearDamping = data.physicsBody.linearDamping;
             snapshot.angularDamping = data.physicsBody.angularDamping;
-            for (int i = 0; i < data.physicsShapes.size(); i++) {
+            for (int i = 0; i < data.physicsShapes.size; i++) {
                 GameObjectAsset.PhysicsShapeData source = data.physicsShapes.get(i);
                 PhysicsShapeData target = new PhysicsShapeData();
                 target.physicsShapeId = source.localShapeId;

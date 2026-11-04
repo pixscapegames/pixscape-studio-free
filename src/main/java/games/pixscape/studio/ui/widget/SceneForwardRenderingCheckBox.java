@@ -32,13 +32,15 @@ public final class SceneForwardRenderingCheckBox extends VisCheckBox {
                 com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(),"Forward rendering",failure.getMessage());
             }finally{refresh();}
         }});
+        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class,event->{if(event.scene()==scene)refreshRequired=true;});
         EventFlow.i().subscribe(EventFlow.SceneRendererChanged.class,event->{if(event.scene()==scene)refreshRequired=true;});
     }
     public String explanation(){return explanation.getText().toString();}
     public void refresh(){
+        setDisabled(scene==null || !scene.lightingEnabled);
         setProgrammaticChangeEvents(false);
-        setChecked(scene!=null && scene.forwardLighting);setDisabled(scene==null || history.activeLightCount()>1);
-        explanation.setText(isDisabled()?UNAVAILABLE:AVAILABLE);
+        setChecked(scene!=null && scene.forwardLighting);setDisabled(scene==null || !scene.lightingEnabled || history.activeLightCount()>1);
+        explanation.setText(scene!=null && !scene.lightingEnabled?"Enable lighting in scene properties to use this setting.":isDisabled()?UNAVAILABLE:AVAILABLE);
         setProgrammaticChangeEvents(true);refreshRequired=false;
     }
     @Override public void act(float delta){super.act(delta);if(refreshRequired)refresh();}

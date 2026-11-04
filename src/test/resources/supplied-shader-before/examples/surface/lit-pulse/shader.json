@@ -1,0 +1,11 @@
+{
+  "name": "Lit Pulse",
+  "kind": "MATERIAL",
+  "mode": "TEXTURE_ARRAY",
+  "contract": "surface-v1",
+  "lighting": "LIT",
+  "parameters": {
+    "speed": 2.0,
+    "strength": 0.35
+  }
+}

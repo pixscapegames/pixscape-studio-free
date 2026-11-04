@@ -4,6 +4,7 @@ import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntIntMap;
 import com.badlogic.gdx.utils.IntMap;
@@ -301,7 +302,7 @@ public final class GameObjectAssetService {
         if(!historyManager.prepareLightCreation(activeLights,
                 ()->instantiateGameObject(file,logicalAssetId,destinationLayer,rootWorldX,rootWorldY)))return EntityGraphInstantiationResult.empty();
         String canonicalId = GameObjectAssetId.normalize(logicalAssetId);
-        IntIntMap sourceToStable = new IntIntMap(asset.entities.size());
+        IntIntMap sourceToStable = new IntIntMap(asset.entities.size);
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
             sourceToStable.put(data.sourceEntityId, identityRegistry.allocateStableId());
         }
@@ -309,8 +310,8 @@ public final class GameObjectAssetService {
         List<GameObjectAsset.GameObjectEntityData> ordered = topologicalOrder(asset);
         IntArray createdIds = new IntArray(false, ordered.size());
         IntIntMap sourceToCreated = new IntIntMap(ordered.size());
-        IntIntMap jointToCreated = new IntIntMap(asset.joints.size());
-        List<Command> commands = new ArrayList<>(ordered.size() + asset.joints.size() + 2);
+        IntIntMap jointToCreated = new IntIntMap(asset.joints.size);
+        List<Command> commands = new ArrayList<>(ordered.size() + asset.joints.size + 2);
         for (GameObjectAsset.GameObjectEntityData data : ordered) {
             EntityGraphEntry entry = mapper.toGraphEntry(world, data);
             GenericEntityInitializer generic = entry.initializerFor(world);
@@ -384,12 +385,12 @@ public final class GameObjectAssetService {
 
     /** Runs after all hierarchy Bodies and standalone joint entities have been created. */
     private final class RemapAssetJointsCommand implements Command {
-        private final List<GameObjectAsset.GameObjectJointData> joints;
+        private final Array<GameObjectAsset.GameObjectJointData> joints;
         private final int rootLocalEntityId;
         private final IntIntMap entityMap;
         private final IntIntMap jointMap;
 
-        private RemapAssetJointsCommand(List<GameObjectAsset.GameObjectJointData> joints, int rootLocalEntityId,
+        private RemapAssetJointsCommand(Array<GameObjectAsset.GameObjectJointData> joints, int rootLocalEntityId,
                                         IntIntMap entityMap, IntIntMap jointMap) {
             this.joints = joints; this.rootLocalEntityId = rootLocalEntityId;
             this.entityMap = entityMap; this.jointMap = jointMap;
@@ -455,7 +456,7 @@ public final class GameObjectAssetService {
     /** Produces a flat diagnostic graph. Scene publication uses {@link #instantiateGameObject}. */
     public EntityGraph loadGameObject(FileHandle file) {
         GameObjectAsset asset = loader.load(file);
-        List<EntityGraphEntry> entries = new ArrayList<>(asset.entities.size());
+        List<EntityGraphEntry> entries = new ArrayList<>(asset.entities.size);
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
             entries.add(mapper.toGraphEntry(world, data));
         }
@@ -840,17 +841,19 @@ public final class GameObjectAssetService {
         for (GameObjectAsset.GameObjectEntityData data : asset.entities) {
             byId.put(data.sourceEntityId, data);
         }
-        List<GameObjectAsset.GameObjectEntityData> ordered = new ArrayList<>(asset.entities.size());
+        List<GameObjectAsset.GameObjectEntityData> ordered = new ArrayList<>(asset.entities.size);
         appendChildren(asset.rootSourceEntityId, byId, asset.entities, ordered);
         return ordered;
     }
 
     private static void appendChildren(
             int sourceId, IntMap<GameObjectAsset.GameObjectEntityData> byId,
-            List<GameObjectAsset.GameObjectEntityData> all,
+            Array<GameObjectAsset.GameObjectEntityData> all,
             List<GameObjectAsset.GameObjectEntityData> ordered) {
         ordered.add(byId.get(sourceId));
-        for (GameObjectAsset.GameObjectEntityData candidate : all) {
+        // Recursion must not nest libGDX Array's reused iterator over the same array.
+        for (int i = 0; i < all.size; i++) {
+            GameObjectAsset.GameObjectEntityData candidate = all.get(i);
             if (candidate.parentSourceEntityId == sourceId) {
                 appendChildren(candidate.sourceEntityId, byId, all, ordered);
             }

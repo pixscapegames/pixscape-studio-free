@@ -46,7 +46,7 @@ final class StudioForwardLightingRenderer extends ForwardLightingRenderer {
                     ?"#version 330 core\n":"#version 300 es\nprecision highp float;\nprecision highp int;\nprecision highp sampler2D;\n";
             ShaderProgram candidate=new ShaderProgram(vertexSource(version,normalMaps),
                     LightingShaderSources.forwardReceiver(version,normalMaps,
-                            "uniform sampler2D u_colorTexture;","texture(u_colorTexture,uv)"));
+                            "uniform sampler2D u_colorTexture;vec2 surfaceImageSize(){return vec2(textureSize(u_colorTexture,0));}","texture(u_colorTexture,uv)"));
             if(!candidate.isCompiled()){
                 String log=candidate.getLog();candidate.dispose();
                 throw new IllegalStateException("Studio Forward preview shader: "+log);

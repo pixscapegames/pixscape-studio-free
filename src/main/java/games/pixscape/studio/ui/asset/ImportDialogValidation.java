@@ -21,7 +21,11 @@ final class ImportDialogValidation {
     static boolean isSupportedImportFile(FileHandle file) {
         if (file == null || !file.exists() || file.isDirectory()) return false;
         return isSupportedImage(file) || isParticleFile(file) || isTsxFile(file)
-                || isBitmapFontFile(file) || isSkinJsonFile(file);
+                || isBitmapFontFile(file) || isSkinJsonFile(file) || isAtlasFile(file);
+    }
+
+    static boolean isAtlasFile(FileHandle file) {
+        return file != null && "atlas".equalsIgnoreCase(file.extension());
     }
 
     static boolean isSupportedImage(FileHandle file) {

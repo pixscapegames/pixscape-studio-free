@@ -716,7 +716,10 @@ public final class SceneService {
         return assetMetaDatabase;
     }
     public void prepareGameObjectNormals(World world,SceneMeta editingMeta) {
-        if(!editingMeta.useNormalMaps){
+        prepareGameObjectNormals(world,editingMeta,editingMeta.lightingEnabled);
+    }
+    public void prepareGameObjectNormals(World world,SceneMeta editingMeta,boolean lightingEnabled) {
+        if(!lightingEnabled || !editingMeta.useNormalMaps){
             world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class).publishAuthoringNormals(null);
             return;
         }
@@ -2208,7 +2211,7 @@ public final class SceneService {
 
         java.util.Set<String> normalSources=sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(
                 cfg,sceneContext().world(),cfg.getCurrentSceneMeta(),assetMetaDatabase,tileAnimationsMetaDatabase);
-        if(cfg.getCurrentSceneMeta().useNormalMaps)
+        if(cfg.getCurrentSceneMeta().lightingEnabled && cfg.getCurrentSceneMeta().useNormalMaps)
             atlasStudioService.prepareSceneNormals(projectDir,canonicalTag,normalSources,assetMetaDatabase);
 
         SceneAtlasLoaderService.loadSceneAtlas(cfg, canonicalTag, projectDir, canvas);
@@ -2263,6 +2266,7 @@ public final class SceneService {
 
         // shaders root = project STUDIO directory
         FileHandle shadersRoot = StudioFs.requireStudioProjectDir(cfg);
+        games.pixscape.studio.helper.BundledMaterialUpgrade.upgrade(shadersRoot.child(StudioFs.DIR_ORIG_SHADERS));
         ShaderRegistry.reloadForProject(shadersRoot, StudioFs.DIR_ORIG_SHADERS);
         ShaderRegistry.saveProjectIndices();
         EventFlow.i().publish(new EventFlow.ShaderListChanged(EventFlow.tag(this)));
@@ -3363,6 +3367,8 @@ public final class SceneService {
             case TILESET -> importTilesetAtlasAsset(ctx, item);
             case TILESET_TSX -> importTsxTilesetAsset(ctx, item);
             case SPRITESHEET -> importSpritesheetAsset(ctx, item);
+            case ATLAS -> new games.pixscape.studio.service.asset.TextureAtlasAssetImportService(assetMetaDatabase)
+                    .importNew(item.file, ctx.projectDir).size();
             case PARTICLE_EFFECT -> importParticleEffectAsset(ctx, item);
             case FONT -> importBitmapFontAsset(ctx, item);
             case SKIN -> importScene2dSkinAsset(ctx, item);
@@ -3951,13 +3957,7 @@ public final class SceneService {
                 meta.id(),
                 ctx.animRootRel + "/" + physicalName
         );
-        meta.frameCount = columns * rows;
-        meta.fps = meta.fps > 0f ? meta.fps : 12f;
-        if (meta.clips == null) meta.clips = new ObjectMap<>();
-        if (meta.clips.size == 0) {
-            meta.currentClip = "default";
-            meta.clips.put("default", new AnimationClipMeta(0, meta.frameCount - 1));
-        }
+        StudioAnimationAssets.initializeImportedFrames(meta, columns * rows);
         return 1;
     }
 
@@ -4269,6 +4269,7 @@ public final class SceneService {
     }
 
     private static ImportDialog.ImportType resolveAuto(FileHandle f) {
+        if (f != null && "atlas".equalsIgnoreCase(f.extension())) return ImportDialog.ImportType.ATLAS;
         if (f != null && StudioFs.isParticleFile(f.name())) {
             return ImportDialog.ImportType.PARTICLE_EFFECT;
         }

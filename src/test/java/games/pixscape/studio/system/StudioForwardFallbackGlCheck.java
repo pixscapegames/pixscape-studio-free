@@ -100,6 +100,32 @@ final class StudioForwardFallbackGlCheck {
         }
     }
 
+    static void suppliedMaterials() {
+        ShaderRegistry.initDefaults();
+        Texture image=texture(.12f,.2f,.3f,1);
+        AtlasRuntimeService.TextureArrayBundle packed=AtlasRuntimeService.buildTextureArrayFromTextures(Array.with(image),1,1,GLCaps.detect());
+        try {
+            for(boolean normals:new boolean[]{false,true})for(boolean forward:new boolean[]{false,true})
+                for(String name:new String[]{"glow_pulse","wave_uv","outline_soft"})try(Fixture f=new Fixture(packed,image,forward,normals)) {
+                    int shader=ShaderRegistry.indexOf(name);
+                    f.world.getMapper(RenderMaterialComponent.class).get(f.entity).shaderIdx=shader;
+                    f.q.clear();add(f,image,FrameRenderQueue.SOURCE_ECS,1,8,56,f.entity);f.q.shader[0]=shader;
+                    LightingSurface surface=surface();surface.materialShader=shader;f.q.lighting.entities.put(f.entity,surface);
+                    LightingFrame.Light light=new LightingFrame.Light();light.x=0;light.y=0;light.z=128;
+                    light.radius=512;light.falloff=1;light.intensity=.3f;light.r=1;light.g=.5f;light.b=.3f;light.resolution=256;
+                    f.q.lighting.lights.add(light);
+                    LightingFrame authoredFrame=f.q.lighting;
+                    f.submit.setLightingEnabled(false);f.meta.lightingEnabled=false;byte[] off=f.render(packed);
+                    f.submit.setLightingEnabled(true);f.meta.lightingEnabled=true;f.q.lighting=authoredFrame;byte[] lit=f.render(packed);
+                    int center=(16*64+32)*4;
+                    Assert.assertTrue(name+" draws in Studio",(off[center]&255)>0);
+                    if(name.equals("glow_pulse"))equal(name+" stays emissive",off,lit);
+                    else Assert.assertFalse(name+" receives Studio lighting",java.util.Arrays.equals(off,lit));
+                    if(forward)Assert.assertEquals(1,f.submit.forwardRenderer().presentationDraws);
+                }
+        } finally {packed.textureArray.dispose();image.getTextureData().consumePixmap().dispose();TextureRegistry.release(image);image.dispose();ShaderRegistry.disposeAll();}
+    }
+
     private static void fill(Fixture f,Texture back,Texture preview,Texture front,byte domain,int blend,boolean exempt){
         f.q.clear();add(f,back,FrameRenderQueue.SOURCE_VFX,0,0,64,0);
         add(f,preview,domain,blend,8,56,f.entity);f.q.ignoreAmbientLighting[1]=exempt;
@@ -144,7 +170,7 @@ final class StudioForwardFallbackGlCheck {
         }
         byte[] render(AtlasRuntimeService.TextureArrayBundle bundle){
             stats.reset();batch.setTextureArrayBundle(bundle);Gdx.gl.glViewport(0,0,64,32);submit.prepareComposition();
-            submit.lightingRenderer().prepareFrame(q.lighting);
+            if(meta.lightingEnabled)submit.lightingRenderer().prepareFrame(q.lighting);
             Gdx.gl.glClearColor(.1f,.2f,.3f,.4f);Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
             submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
             var pixels=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixels);

@@ -119,7 +119,7 @@ final class SpatialGestureGlChecks {
                     new space.earlygrey.shapedrawer.ShapeDrawer(batch,VisUI.getSkin().getRegion("white")),camera,viewport),
                     input,coordinates,new TiledMapRenderState(),physics,selection,new SpatialTileSelectionService(),null,null);
             world=new World(new WorldConfigurationBuilder().with(new games.pixscape.runtime.system.DirtyTrackerSystem(32),
-                    new games.pixscape.runtime.system.GameObjectHierarchySystem(),picking,gizmo).build());
+                    new games.pixscape.runtime.system.GameObjectHierarchySystem(),new LightIconOverlaySystem(null,camera),picking,gizmo).build());
             picking.setSelectionService(new SelectionService(world,null));
             map=world.create();tiled=world.getMapper(TiledLayerComponent.class).create(map);
             tiled.defaultTileHeight=128;tiled.data=new TiledMapLayerData(16,8,128,64,4,TiledProjection.ISO);

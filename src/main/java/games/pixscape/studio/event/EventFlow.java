@@ -299,6 +299,8 @@ public final class EventFlow {
     ) {
     }
 
+    public record SceneLightingChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}
+
     public record SceneRendererChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}
 
     public record SceneNormalMapsChanged(

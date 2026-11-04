@@ -1,0 +1,1 @@
+return vec4(base.rgb*pixscapeEntityFloat(PIXSCAPE_PARAM_gain),base.a);

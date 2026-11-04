@@ -26,12 +26,12 @@ import games.pixscape.runtime.service.AtlasRuntimeService;
  * 3: a_layer     (float) -> float
  * <p>
  * CPU format (float[]):
- * pos2 + uv2 + colorPacked1 + layer1 + paramId1 = 7 floats / vertex
+ * pos2 + uv2 + colorPacked1 + layer1 + paramId1 + region4 = 11 floats / vertex
  */
 public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
-    // pos2 + uv2 + colorPacked1 + layer1 = 6 floats
-    private static final int VERT_STRIDE = 7;
+    // pos2 + uv2 + colorPacked1 + layer1 + paramId1 + region4 = 11 floats
+    private static final int VERT_STRIDE = 11;
     private static final int REGION_RESOLVE_CACHE_CAPACITY = 64;
 
     private final Mesh mesh;
@@ -92,7 +92,8 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                         new VertexAttribute(Usage.TextureCoordinates, 2, "a_texCoord0"),
                         VertexAttribute.ColorPacked(),
                         new VertexAttribute(Usage.Generic, 1, "a_layer"),
-                        new VertexAttribute(Usage.Generic, 1, "a_paramId")
+                        new VertexAttribute(Usage.Generic, 1, "a_paramId"),
+                        new VertexAttribute(Usage.Generic, 4, "a_surfaceRegion")
                 )
         );
 
@@ -255,6 +256,15 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                      float x3, float y3, float x4, float y4,
                      float u, float v, float u2, float v2,
                      RenderStats stats) {
+        draw(textureHandle, x1, y1, x2, y2, x3, y3, x4, y4, u, v, u2, v2, v2, v, v, v2, stats);
+    }
+
+    @Override
+    public void draw(int textureHandle,
+                     float x1, float y1, float x2, float y2,
+                     float x3, float y3, float x4, float y4,
+                     float u, float v, float u2, float v2,
+                     float blV, float tlV, float trV, float brV, RenderStats stats) {
 
         if (!hasBundle() || shader == null) return;
 
@@ -264,7 +274,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         drawTextureArrayQuad(textureHandle, layer,
                 x1, y1, x2, y2, x3, y3, x4, y4,
                 u, v, u2, v2,
-                stats);
+                blV, tlV, trV, brV, stats);
     }
 
     @Override
@@ -416,7 +426,7 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
                                       float x1, float y1, float x2, float y2,
                                       float x3, float y3, float x4, float y4,
                                       float u, float v, float u2, float v2,
-                                      RenderStats stats) {
+                                      float blV, float tlV, float trV, float brV, RenderStats stats) {
         if (quadCount >= maxQuads) {
             if (stats != null) stats.flushCapacity++;
             flush(stats);
@@ -429,8 +439,6 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
 
         float uu = u;
         float uu2 = u2;
-        float vv = v;
-        float vv2 = v2;
 
         int o = vertCount * VERT_STRIDE;
 
@@ -438,37 +446,45 @@ public final class TextureArrayMeshBatchStudio implements MetricsBatch {
         verts[o++] = x1;
         verts[o++] = y1;
         verts[o++] = uu;
-        verts[o++] = vv2;
+        verts[o++] = blV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // TL
         verts[o++] = x2;
         verts[o++] = y2;
         verts[o++] = uu;
-        verts[o++] = vv;
+        verts[o++] = tlV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // TR
         verts[o++] = x3;
         verts[o++] = y3;
         verts[o++] = uu2;
-        verts[o++] = vv;
+        verts[o++] = trV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         // BR
         verts[o++] = x4;
         verts[o++] = y4;
         verts[o++] = uu2;
-        verts[o++] = vv2;
+        verts[o++] = brV;
         verts[o++] = colorPacked;
         verts[o++] = fl;
         verts[o++] = paramId;
+        verts[o++] = Math.min(u,u2);verts[o++] = Math.min(v,v2);
+        verts[o++] = Math.max(u,u2);verts[o++] = Math.max(v,v2);
 
         vertCount += 4;
         quadCount += 1;

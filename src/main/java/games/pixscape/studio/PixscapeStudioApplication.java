@@ -6,6 +6,7 @@ import com.badlogic.gdx.graphics.glutils.HdpiMode;
 import games.pixscape.studio.configuration.EditorSettings;
 import games.pixscape.studio.ui.crash.CrashDialog;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
+import org.lwjgl.glfw.GLFW;
 
 import static com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration.GLEmulation.GL32;
 
@@ -31,6 +32,12 @@ public class PixscapeStudioApplication {
     }
 
     private static void createApplication() {
+        // libGDX 1.14.2 skips window icons on native Wayland. Use XWayland for the portable AppImage.
+        String display = System.getenv("DISPLAY");
+        if (System.getenv("APPIMAGE") != null && "wayland".equals(System.getenv("XDG_SESSION_TYPE"))
+                && display != null && !display.isBlank()) {
+            GLFW.glfwInitHint(GLFW.GLFW_PLATFORM, GLFW.GLFW_PLATFORM_X11);
+        }
         new Lwjgl3Application(new StudioApplicationAdapter(), getDefaultConfiguration());
     }
 

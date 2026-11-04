@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.4.1]
+
+### Added
+
+* Added LibGDX `.atlas` import with PNG pages. Indexed regions with the same name become an Animation, including single-frame animations. Unindexed regions become Image assets. The importer supports multiple pages, 90° packing rotation and trimmed frames.
+* Added an **Enable lighting** scene setting with undo and redo. New scenes, including TMX imports, start with lighting off. Switching it off preserves the scene’s lights and renderer settings.
+* Added Lit and Unlit materials to the Shader Manager and shader selectors. Authors can edit a surface and its optional cutout mask together. A failed compilation keeps the last working material active.
+* Added a VSync option to Desktop Preview, enabled by default. With VSync off, Preview limits the number of frames queued on the GPU.
+
+### Changed
+
+* Opening a project upgrades unchanged copies of the supplied materials while preserving customized shaders. Renaming a shader keeps its ID and entity assignments.
+* Runtime exports now preserve layer names for gameplay lookups.
+* The Properties panel labels a Game Object child’s position, rotation and scale as **Local Transform**.
+
+### Fixed
+
+* Fixed the extra “Game Object” layer shown above the asset root in the Item Tree. The root and its children can now be selected directly in the Game Object editor.
+* Failed Runtime exports now preserve the last complete export.
+
 ## [0.4.0] - HUD, Multi-View and 2.5D Lighting
 
 ### Breaking changes
@@ -29,6 +49,7 @@
 * Fixed tile normal-map thumbnails in the Assets panel.
 * Fixed picking and movement of parented lights.
 * Fixed deletion and undo of Game Object hierarchies with dependent Physics joints.
+
 
 ## 0.3.0 - Universal Layers and Tiled Maps
 

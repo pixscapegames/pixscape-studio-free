@@ -116,14 +116,8 @@ public final class SceneHudPackInputMaterializer {
                     normalized = region.rotate();
                     Pixmap crop = new Pixmap(width, height, Pixmap.Format.RGBA8888);
                     try {
-                        crop.setBlending(Pixmap.Blending.None);
-                        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++) {
-                            // TexturePacker stores 90-degree regions counterclockwise:
-                            // canonical(x,y) -> stored(y,width-x-1). TextureAtlas swaps physical crop extents.
-                            int sourceX = region.left() + (region.rotate() ? y : x);
-                            int sourceY = region.top() + (region.rotate() ? width - x - 1 : y);
-                            crop.drawPixel(x, y, pixels.getPixel(sourceX, sourceY));
-                        }
+                        games.pixscape.studio.io.AtlasRegionPixels.copy(pixels, crop,
+                                region.left(), region.top(), width, height, region.rotate(), 0, 0);
                         write(output, crop);
                     } finally { crop.dispose(); }
                     semantic = new SemanticMetadata(region.originalWidth(), region.originalHeight(),

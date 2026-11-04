@@ -12,12 +12,16 @@ public class PreviewLauncherCommandTest {
     @Test
     public void childCommandUsesTheCurrentJvmClasspathAndKeepsArgumentsAtomic() {
         List<String> command = PreviewLauncher.commandFor("session-a",
-                Path.of("C:\\Preview projects\\fixture"), "Scene one", new Resolution(1280, 720), 4, true,
+                Path.of("C:\\Preview projects\\fixture"), "Scene one", new Resolution(1280, 720), 4, true, false,
                 Path.of("C:\\Preview projects\\fixture\\.pixscape\\preview-diagnostics\\child.log"));
 
         assertEquals(PreviewLauncher.javaExecutable().toString(), command.get(0));
         assertFalse(command.stream().anyMatch(argument -> argument.startsWith("-Dpixscape.poc.")));
-        assertEquals("true", command.get(command.indexOf("--forward-lighting") + 1));
+        var player = command.indexOf(PreviewDesktopApplication.class.getName());
+        var options = PreviewDesktopApplication.Arguments.parse(
+                command.subList(player + 1, command.size()).toArray(String[]::new));
+        assertFalse(options.vsync());
+        assertTrue(options.forwardLighting());
         assertTrue(command.contains("-Dpixscape.preview.session=session-a"));
         assertTrue(command.stream().anyMatch(argument -> argument.startsWith(
                 "-Dpixscape.preview.diagnosticLog=C:\\Preview projects\\fixture\\.pixscape")));

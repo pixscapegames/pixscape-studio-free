@@ -26,6 +26,7 @@ import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.modal.StudioModalChrome;
 import games.pixscape.studio.ui.modal.StudioModalWindow;
 import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
+import games.pixscape.studio.ui.widget.ShaderSelectBox;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
@@ -38,6 +39,17 @@ import java.lang.reflect.Proxy;
 
 public class ShaderManagerDialogSkinTest {
 
+    private static void installExistingMaterial(File project, String name, ShaderManagerDialog dialog, Object kind) throws Exception {
+        FileHandle directory=new FileHandle(project).child("orig/shaders/custom/material/"+name);
+        FileHandle fixture=new FileHandle("src/test/resources/supplied-shader-before");
+        for(String variant:new String[]{"desktop-gl30","es3-webgl2"}) {
+            fixture.child("core/"+variant+"/texture-array.vert").copyTo(directory.child(variant+".vert"));
+            fixture.child("examples/material/"+variant+"/wave_uv.frag").copyTo(directory.child(variant+".frag"));
+        }
+        Method metadata=privateMethod("buildShaderJson",String.class,kind.getClass(),FileHandle.class);
+        directory.child("shader.json").writeString((String)metadata.invoke(dialog,name,kind,null),false,"UTF-8");
+    }
+
     @Test
     public void declarationSurvivesSaveAndReopenWithStableOrderAndEditedDefault() throws Exception {
         ProjectConfig previous = ProjectConfig.getInstance();
@@ -49,8 +61,7 @@ public class ShaderManagerDialogSkinTest {
         try {
             ShaderManagerDialog first = new ShaderManagerDialog(null);
             Object material = field(first, "typeBox", VisSelectBox.class).getItems().first();
-            privateMethod("createNewShaderAsset", String.class, material.getClass())
-                    .invoke(first, "pair", material);
+            installExistingMaterial(projectDir, "pair", first, material);
             FileHandle metadata = new FileHandle(new File(projectDir,
                     "orig/shaders/custom/material/pair/shader.json"));
             Array<ShaderFloatParam> declaration = new Array<>();
@@ -183,16 +194,47 @@ public class ShaderManagerDialogSkinTest {
 
         dialog.validate();
         Assert.assertEquals(120f, typeBox.getWidth(), 0.01f);
-        Assert.assertEquals(typeBox.getWidth(), shaderBox.getWidth(), 0.01f);
+        Assert.assertEquals(360f, shaderBox.getWidth(), 0.01f);
 
         dialog.setWidth(1100f);
         dialog.validate();
         Assert.assertEquals(120f, typeBox.getWidth(), 0.01f);
-        Assert.assertEquals(120f, shaderBox.getWidth(), 0.01f);
-        Assert.assertEquals(1, countLabels(dialog, "Shader type:"));
+        Assert.assertEquals(360f, shaderBox.getWidth(), 0.01f);
+        Assert.assertEquals(1, countLabels(dialog, "Shader role:"));
         Assert.assertEquals(1, countLabels(dialog, "Shader name:"));
         Assert.assertEquals(0, countLabels(dialog, "Project shader:"));
         Assert.assertEquals(0, countLabels(dialog, "Name:"));
+    }
+
+    @Test
+    public void creationLightingChoicesAreExclusiveAndLegacyMetadataStaysUnspecified() throws Exception {
+        ShaderManagerDialog dialog = new ShaderManagerDialog(null);
+        VisTable choices = (VisTable) privateMethod("buildLightingChoices").invoke(dialog);
+        VisCheckBox lit = choices.findActor("shader-lit-choice");
+        VisCheckBox unlit = choices.findActor("shader-unlit-choice");
+        Assert.assertFalse(lit.isDisabled());
+        Assert.assertFalse(unlit.isDisabled());
+        Assert.assertFalse(lit.isChecked());
+        Assert.assertTrue(unlit.isChecked());
+        lit.setChecked(true);
+        Assert.assertTrue(lit.isChecked());
+        Assert.assertFalse(unlit.isChecked());
+        Object material = field(dialog, "typeBox", VisSelectBox.class).getItems().first();
+        String metadata = (String) privateMethod("buildShaderJson", String.class, material.getClass(), FileHandle.class)
+                .invoke(dialog, "current_surface", material, null);
+        Assert.assertFalse(metadata.contains("lighting"));
+        Assert.assertTrue(metadata.contains("\"kind\": \"material\""));
+    }
+
+    @Test
+    public void shaderBadgesPreserveRawSelectionNames() {
+        ShaderSelectBox select = new ShaderSelectBox();
+        select.setItems("first_surface", "second_surface");
+        select.setSelected("second_surface");
+        Assert.assertEquals("second_surface", select.getSelected());
+        Assert.assertEquals("second_surface  [Unspecified]", select.getList().toString(select.getSelected()));
+        select.setSelected("first_surface");
+        Assert.assertEquals("first_surface", select.getSelected());
     }
 
     @Test
@@ -268,11 +310,11 @@ public class ShaderManagerDialogSkinTest {
         assertCodeEditors(field(dialog, "vertEditors", ObjectMap.class));
         assertCodeEditors(field(dialog, "fragEditors", ObjectMap.class));
         Assert.assertEquals(1, countLabels(dialog,
-                "Material floats: #include \"pixscape_entity_params.glsl\", then pixscapeEntityFloat(PIXSCAPE_PARAM_<name>)."));
+                "Material floats: pixscapeEntityFloat(PIXSCAPE_PARAM_<name>). Surface bodies share one source on all targets."));
     }
 
     @Test
-    public void createsMaterialAndFxAssetsAndSelectsTheRequestedShader() throws Exception {
+    public void createsFxAssetsAndSelectsTheRequestedShader() throws Exception {
         ProjectConfig previous = ProjectConfig.getInstance();
         File projectDir = temporaryFolder.newFolder("shader-project");
         ProjectConfig config = new ProjectConfig();
@@ -287,9 +329,6 @@ public class ShaderManagerDialogSkinTest {
             Object fx = typeBox.getItems().get(1);
             Method create = privateMethod("createNewShaderAsset", String.class, material.getClass());
             Method select = privateMethod("selectShader", material.getClass(), String.class);
-
-            create.invoke(dialog, "soft_light", material);
-            assertShaderAsset(projectDir, "material", "soft_light", "material", "pixscapeApplyMaterial");
 
             create.invoke(dialog, "screen_pulse", fx);
             assertShaderAsset(projectDir, "fx", "screen_pulse", "fx", "u_intensity");
@@ -362,9 +401,8 @@ public class ShaderManagerDialogSkinTest {
             ShaderManagerDialog dialog = new ShaderManagerDialog(null);
             VisSelectBox<?> typeBox = field(dialog, "typeBox", VisSelectBox.class);
             Object material = typeBox.getItems().first();
-            Method create = privateMethod("createNewShaderAsset", String.class, material.getClass());
             Method select = privateMethod("selectShader", material.getClass(), String.class);
-            create.invoke(dialog, "source_shader", material);
+            installExistingMaterial(projectDir, "source_shader", dialog, material);
             select.invoke(dialog, material, "source_shader");
 
             FileHandle sourceDir = new FileHandle(
@@ -415,8 +453,8 @@ public class ShaderManagerDialogSkinTest {
                     targetDir.child("includes/common/nested.glsl").readString("UTF-8"));
             Assert.assertEquals("root include", targetDir.child("includes/root.glsl").readString("UTF-8"));
             String json = targetDir.child("shader.json").readString("UTF-8");
-            Assert.assertTrue(json.contains("\"name\": \"editor_copy\""));
-            Assert.assertTrue(json.contains("\"kind\": \"material\""));
+            Assert.assertEquals("editor_copy",new com.badlogic.gdx.utils.JsonReader().parse(json).getString("name"));
+            Assert.assertNull("Preserve fields of the original legacy descriptor", new com.badlogic.gdx.utils.JsonReader().parse(json).get("contract"));
             Assert.assertTrue(json.contains("\"u_gain\""));
             Assert.assertTrue(json.contains("\"u_speed\""));
 

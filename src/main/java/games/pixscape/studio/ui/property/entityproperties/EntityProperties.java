@@ -275,6 +275,7 @@ public class EntityProperties extends VisTable {
         visibleBinder.setEntityId(entityId);
 
         transformPanel.setEntityId(entityId);
+        refreshTransformTitle();
         materialPanel.setEntityId(entityId);
         lightingPanel.setEntityId(entityId);
         animationPanel.setEntityId(entityId);
@@ -286,6 +287,13 @@ public class EntityProperties extends VisTable {
         updateSectionsVisibility();
         refreshTagsLabel();
         customPropertiesRow.setEntityId(entityId);
+    }
+
+    public void refreshTransformTitle() {
+        if (currentEntityId < 0 || !ctx.world.getEntityManager().isActive(currentEntityId)) return;
+        boolean member = ctx.world.getMapper(GameObjectMemberComponent.class).has(currentEntityId);
+        transformSection.setTitle(member ? "Local Transform" : "Transform", member
+                ? "Position, rotation and scale are relative to the parent Game Object." : null);
     }
 
     public void refreshZIndex() {

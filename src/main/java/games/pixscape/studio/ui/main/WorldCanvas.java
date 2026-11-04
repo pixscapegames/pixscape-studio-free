@@ -453,7 +453,7 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
         dynamicEntityState = new DynamicEntityRenderState();
         layerState = new LayerStateSOA();
         DrawList drawList = new DrawList();
-        frameQueue = new FrameRenderQueue();
+        frameQueue = new FrameRenderQueue(false);
         vfxState = new VfxRenderState();
         tiledState = new TiledMapRenderState();
         tiledAllocatorService = new TiledAllocatorService(tileAnimationRegistry);

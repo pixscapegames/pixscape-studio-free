@@ -39,6 +39,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     public enum ImportType {
         IMAGE,
         SPRITESHEET,
+        ATLAS,
         TILESET,
         TILESET_TSX,
         PARTICLE_EFFECT,
@@ -396,6 +397,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private static ImportType guessType(FileHandle file) {
+        if (ImportDialogValidation.isAtlasFile(file)) return ImportType.ATLAS;
         if (ImportDialogValidation.isBitmapFontFile(file)) return ImportType.FONT;
         if (ImportDialogValidation.isSkinJsonFile(file)) return ImportType.SKIN;
         if (ImportDialogValidation.isParticleFile(file)) return ImportType.PARTICLE_EFFECT;
@@ -495,6 +497,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private Actor buildTypeActor(ImportItem item) {
+        if (ImportDialogValidation.isAtlasFile(item.file)) return new VisLabel("Texture atlas");
         if (ImportDialogValidation.isBitmapFontFile(item.file)) {
             VisLabel label = new VisLabel("Bitmap font");
             label.setColor(0.85f, 0.85f, 0.85f, 1f);
@@ -536,6 +539,8 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
     }
 
     private Actor buildDetailsActor(ImportItem item) {
+        if (item.type == ImportType.ATLAS)
+            return new VisLabel("Indexed regions: animations. Unindexed regions: images. PNG pages required.");
         String rowError = getRowErrorMessage(item);
         if (rowError != null) {
             VisLabel errorLabel = new VisLabel(rowError);

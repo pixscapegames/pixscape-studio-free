@@ -212,8 +212,13 @@ public class ItemTreePanel extends DockablePanel {
         hookTreeSelection();
     }
 
+    private int assetRootEntity = -1;
+
     public void bindSceneContext(SceneEditorContext context) {
         if (context == null || context.isDisposed()) return;
+        var document = app.getEditorDocumentManager().activeDocument();
+        assetRootEntity = document instanceof games.pixscape.studio.document.GameObjectEditorDocument asset
+                && asset.context() == context ? asset.rootEntityId() : -1;
         bindServices(context);
         attachAutoRefresh();
         explicitTiledMapEntityId = -1;
@@ -506,6 +511,27 @@ public class ItemTreePanel extends DockablePanel {
         GameObjectCompositionState composition = gameObjectComposition != null
                 ? gameObjectComposition.state() : null;
 
+        if (assetRootEntity >= 0) {
+            if (world.getEntityManager().isActive(assetRootEntity)) {
+                tree.add(createGameObjectHierarchyNode(assetRootEntity, false, topology, composition));
+            }
+        } else {
+            addSceneLayerNodes(topology, composition);
+        }
+
+        ItemTreeJointSupport.attachJointNodes(
+                world,
+                tree,
+                layerIndex -> {
+                    LayerMetaComponent meta = layerService.meta(layerIndex);
+                    return meta != null && meta.locked;
+                });
+        tree.expandAll();
+        suppressTreeSelectionEvents = false;
+        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+    }
+
+    private void addSceneLayerNodes(GameObjectTopologyState topology, GameObjectCompositionState composition) {
         int layerCount = layerService.count();
         for (int li = layerCount - 1; li >= 0; li--) {
             int eLayer = layerService.getLayerEntity(li);
@@ -537,18 +563,6 @@ public class ItemTreePanel extends DockablePanel {
             }
         }
 
-        ItemTreeJointSupport.attachJointNodes(
-                world,
-                tree,
-                layerIndex -> {
-                    LayerMetaComponent meta = layerService.meta(layerIndex);
-                    return meta != null && meta.locked;
-                });
-
-        tree.expandAll();
-
-        suppressTreeSelectionEvents = false;
-        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
 
     private EntityNode createGameObjectHierarchyNode(
@@ -718,7 +732,7 @@ public class ItemTreePanel extends DockablePanel {
                 lights.addItem(cone);
                 MenuItem light = new MenuItem("Light");
                 light.setSubMenu(lights);
-                addMenu.addItem(light);
+                if(lightingEnabled())addMenu.addItem(light);
 
                 PopupMenu menu = new PopupMenu();
                 MenuItem add = new MenuItem("Add");
@@ -762,13 +776,18 @@ public class ItemTreePanel extends DockablePanel {
                     public void addGameObject() {
                         editorOps.createGameObjectInGameObject(parentEntityId);
                     }
-                });
+                }, lightingEnabled());
 
         PopupMenu menu = new PopupMenu();
         MenuItem add = new MenuItem("Add");
         add.setSubMenu(addMenu);
         menu.addItem(add);
         menu.showMenu(stage, stageX, stageY);
+    }
+
+    private boolean lightingEnabled() {
+        var submit=world.getSystem(games.pixscape.studio.system.StudioRenderSubmitSystem.class);
+        return submit==null || submit.isLightingEnabled();
     }
 
     interface GameObjectChildMenuActions {
@@ -800,6 +819,9 @@ public class ItemTreePanel extends DockablePanel {
     static PopupMenu buildGameObjectAddMenu(
             AssetNode selectedAsset,
             GameObjectChildMenuActions actions) {
+        return buildGameObjectAddMenu(selectedAsset,actions,true);
+    }
+    static PopupMenu buildGameObjectAddMenu(AssetNode selectedAsset,GameObjectChildMenuActions actions,boolean allowLighting) {
         PopupMenu addMenu = new PopupMenu();
 
         MenuItem addSprite = new MenuItem(addAssetActionLabel("Sprite", selectedAsset));
@@ -845,7 +867,7 @@ public class ItemTreePanel extends DockablePanel {
         lights.addItem(cone);
         MenuItem light = new MenuItem("Light");
         light.setSubMenu(lights);
-        addMenu.addItem(light);
+        if(allowLighting)addMenu.addItem(light);
 
         MenuItem addGameObject = new MenuItem("Game Object");
         addGameObject.addListener(new ClickListener() {

@@ -10,11 +10,17 @@ public class PreviewDesktopApplicationTest {
                 "--user-root","C:\\fixture","--scene","scene","--width","64","--height","32",
                 "--gl-samples","0","--session","test"});
         assertNull(arguments.forwardLighting());
+        assertTrue(arguments.vsync());
     }
     @Test
-    public void separatePreviewIsUncappedWithoutDiagnosticProperties() throws Exception {
+    public void bothModesConfigureTheChildWindow() throws Exception {
+        checkCadence(true);
+        checkCadence(false);
+    }
+
+    private void checkCadence(boolean vsyncEnabled) throws Exception {
         var options = new PreviewDesktopApplication.Arguments(
-                java.nio.file.Path.of("fixture"), "scene", 1280, 720, 0, false, "session");
+                java.nio.file.Path.of("fixture"), "scene", 1280, 720, 0, false, vsyncEnabled, "session");
         var configuration = PreviewDesktopApplication.configuration(options);
         var vsync = com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowConfiguration.class
                 .getDeclaredField("vSyncEnabled");
@@ -22,7 +28,7 @@ public class PreviewDesktopApplicationTest {
                 .getDeclaredField("foregroundFPS");
         vsync.setAccessible(true);
         fps.setAccessible(true);
-        assertFalse(vsync.getBoolean(configuration));
+        assertEquals(vsyncEnabled, vsync.getBoolean(configuration));
         assertEquals(0, fps.getInt(configuration));
     }
 

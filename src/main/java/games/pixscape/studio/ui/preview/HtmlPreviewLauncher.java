@@ -10,6 +10,7 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.helper.RuntimeShaderResources;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -99,6 +100,13 @@ public final class HtmlPreviewLauncher {
     static void writeAssetsManifest(Path manifest, Path runtimeRoot) throws IOException {
         Map<String, ManifestEntry> entries = new HashMap<>();
         addStaticTemplateAssets(entries);
+        // Gdx.files.internal("shaders/...") resolves engine resources outside the
+        // project tree. Register and serve the same Runtime dependency as export.
+        entries.put("shaders", new ManifestEntry("shaders", 0L, true, true));
+        for (RuntimeShaderResources.Resource resource : RuntimeShaderResources.bundledResources()) {
+            entries.put(resource.path(), new ManifestEntry(resource.path(), resource.size(),
+                    resource.directory(), true));
+        }
         entries.put(PixscapeEngine.RUNTIME_DIR_NAME,
                 new ManifestEntry(PixscapeEngine.RUNTIME_DIR_NAME, 0L, true, true));
         addTree(entries, runtimeRoot, PixscapeEngine.RUNTIME_DIR_NAME, false);
@@ -309,6 +317,10 @@ public final class HtmlPreviewLauncher {
                     return;
                 }
                 serveFile(exchange, method, candidate);
+                return;
+            }
+            if (route.startsWith("assets/shaders/")) {
+                serveResource(exchange, method, route.substring("assets/".length()));
                 return;
             }
             serveResource(exchange, method, TEMPLATE_RESOURCE + route);
