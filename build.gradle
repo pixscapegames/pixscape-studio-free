@@ -323,6 +323,9 @@ tasks.register('linuxTarGz', Tar) {
   from(installedDistributionDir) {
     into linuxDistributionRootName
     exclude 'bin/*.bat'
+    filesMatching("bin/${installedStartScriptName}") {
+      permissions { unix('rwxr-xr-x') }
+    }
   }
 }
 
