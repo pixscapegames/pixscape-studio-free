@@ -24,6 +24,63 @@ import java.util.function.Consumer;
 import static org.junit.Assert.*;
 
 public class EditorDocumentHostTest {
+    @Test public void sceneRenameRefreshesOpenTabsBeforeModelBridgeRuns() throws Exception {
+        assertSceneRenameTabs(false);
+    }
+
+    @Test public void sceneRenameRefreshesOpenTabsAfterModelBridgeRuns() throws Exception {
+        assertSceneRenameTabs(true);
+    }
+
+    private void assertSceneRenameTabs(boolean bridgeFirst) throws Exception {
+        var previous = games.pixscape.studio.configuration.ProjectConfig.getInstance();
+        var cfg = new games.pixscape.studio.configuration.ProjectConfig();
+        cfg.createSceneMeta("A"); cfg.createSceneMeta("B"); cfg.setCurrentSceneByName("A");
+        games.pixscape.studio.configuration.ProjectConfig.setInstance(cfg);
+        var manager = new EditorDocumentManager();
+        var host = new EditorDocumentHost(manager, new VisTable());
+        var a = manager.openScene(cfg.canonicalSceneTag("A"), "A", context("a"));
+        var b = manager.openScene(cfg.canonicalSceneTag("B"), "B", context("b"));
+        manager.activate(a.key()); a.context().markExplicitSaveRequired();
+        var aTab = tabFor(host, a.key()); var bTab = tabFor(host, b.key());
+        var hud = new games.pixscape.studio.service.hud.HudEditorSession();
+        var app = new games.pixscape.studio.ui.main.StudioApplicationAdapter();
+        for (var entry : java.util.Map.of("editorDocumentManager", (Object) manager, "hudEditorSession", hud).entrySet()) {
+            var field = app.getClass().getDeclaredField(entry.getKey());
+            field.setAccessible(true); field.set(app, entry.getValue());
+        }
+        var bind = app.getClass().getDeclaredMethod("bindEditorDocumentLifecycle"); bind.setAccessible(true);
+        try (var scope = games.pixscape.studio.event.EventFlow.i().newSubscriptionScope(() -> true)) {
+            scope.run(() -> {
+                if (bridgeFirst) new games.pixscape.studio.service.ProjectConfigSceneMetaBridge();
+                try { bind.invoke(app); } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
+                if (!bridgeFirst) new games.pixscape.studio.service.ProjectConfigSceneMetaBridge();
+            });
+            games.pixscape.studio.event.EventFlow.i().publish(new games.pixscape.studio.event.EventFlow.SceneNameChanged("B", "Renamed B", 0));
+            games.pixscape.studio.event.EventFlow.i().publish(new games.pixscape.studio.event.EventFlow.SceneNameChanged("A", "Renamed A", 0));
+            games.pixscape.studio.event.EventFlow.i().flush();
+            assertEquals("Renamed A", a.title()); assertEquals("Renamed B", b.title());
+            assertTrue(hasLabel(host.tabbedPane().getTable(), "Scene: Renamed A *"));
+            assertTrue(hasLabel(host.tabbedPane().getTable(), "Scene: Renamed B"));
+            assertSame(aTab, tabFor(host, a.key())); assertSame(bTab, tabFor(host, b.key()));
+            assertSame(a, manager.activeDocument()); assertEquals(a.key(), host.selectedKey());
+            assertTrue(a.isDirty()); assertFalse(b.isDirty());
+            assertEquals(0, a.context().historyManager().getCursor());
+            assertEquals(2, host.documentTabCount());
+            assertEquals(a.key().domainId(), cfg.canonicalSceneTag("Renamed A"));
+        } finally {
+            hud.dispose(); a.context().dispose(); b.context().dispose();
+            games.pixscape.studio.configuration.ProjectConfig.setInstance(previous);
+        }
+    }
+
+    private static boolean hasLabel(com.badlogic.gdx.scenes.scene2d.Actor actor, String text) {
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Label label && text.contentEquals(label.getText())) return true;
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.Group group)
+            for (var child : group.getChildren()) if (hasLabel(child, text)) return true;
+        return false;
+    }
+
     @Test public void failedTabActivationRestoresTheSelectionAndManager() {
         EditorDocumentManager manager = new EditorDocumentManager();
         EditorDocumentHost host = new EditorDocumentHost(manager, new VisTable());

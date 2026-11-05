@@ -29,6 +29,107 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 public class StudioLightCompositionGlSmokeTest {
+    @Test public void unlitSpatialEditsRebuildOnActivationAndOrthoRefusalStaysOff() {
+        final Throwable[] failure = {null};
+        Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
+        config.setInitialVisible(false);
+        config.setWindowedMode(64, 32);
+        config.disableAudio(true);
+        config.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 3);
+        org.lwjgl.glfw.GLFW.nglfwSetErrorCallback(0L);
+        new Lwjgl3Application(new ApplicationAdapter() {
+            @Override public void create() {
+                try {
+                    ShaderRegistry.initDefaults();
+                    for (var projection : games.pixscape.runtime.tiled.TiledProjection.values()) {
+                        var meta = new games.pixscape.studio.configuration.SceneMeta("Unlit test", "unlit.json");
+                        meta.lightingEnabled = false;
+                        FrameRenderQueue queue = new FrameRenderQueue(4);
+                        LayerStateSOA layers = new LayerStateSOA(1);
+                        var tiledState = new games.pixscape.runtime.render.TiledMapRenderState();
+                        OrthographicCamera camera = new OrthographicCamera(64, 32);
+                        var batch = new games.pixscape.studio.batch.MeshBatchStudio(16);
+                        var submit = new StudioRenderSubmitSystem(layers, queue, camera, batch,
+                                new RenderStats(), new RenderStatsSink(100))
+                                .setSceneSettings(meta).setRenderDomains(null, tiledState);
+                        var profile = new games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile();
+                        profile.tilesetId = 1; profile.referenceCellWidth = 256; profile.referenceCellHeight = 128;
+                        profile.projection = projection;
+                        profile.anchor = games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor.BOTTOM_CENTER;
+                        profile.tileAssetIds = new int[]{7};
+                        var profiles = games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles.empty();
+                        profiles.add(profile);
+                        var atlas = new AtlasRuntimeService() {
+                            @Override public games.pixscape.runtime.service.AtlasAssetBinding resolveBinding(int id, String tag) {
+                                return games.pixscape.runtime.service.LightingTestBindings.tile(id, 256, 512);
+                            }
+                        };
+                        var sync = new games.pixscape.runtime.system.RenderTiledSyncSystem(camera, tiledState,
+                                atlas, 0, null, profiles);
+                        World world = new World(new com.artemis.WorldConfiguration()
+                                .register(games.pixscape.runtime.loading.SceneMetaRuntime.class.getName(), meta)
+                                .setSystem(sync).setSystem(submit));
+                        try {
+                            int entity = world.create();
+                            world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity);
+                            var tiled = world.getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).create(entity);
+                            tiled.projection = projection;
+                            tiled.tileWidth = 256; tiled.tileHeight = 128;
+                            tiled.chunkSize = tiled.mapWidthCells = tiled.mapHeightCells = 8;
+                            tiled.data = tiled.createMapData();
+                            tiled.data.setTile(1, 1, 7);
+                            var blocks = world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(entity);
+                            var wall = new games.pixscape.runtime.spatial.SpatialBlockData();
+                            wall.id = wall.structureId = 1;
+                            wall.x = wall.y = wall.width = wall.depth = 1; wall.height = 48; wall.shadowCaster = true;
+                            wall.beginAuthoredLinkedTileRefs(); wall.addLinkedTileRef(1, 1, 7);
+                            blocks.blocks.add(wall); blocks.nextSpatialBlockId = 2;
+                            world.process();
+                            var history = new games.pixscape.studio.history.HistoryManager(16);
+                            Runnable enable = () -> history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
+                                    meta, true, submit::setLightingEnabled, null));
+                            if (projection == games.pixscape.runtime.tiled.TiledProjection.ORTHO) {
+                                var edited = wall.copy(); edited.height = 96;
+                                history.execute(new games.pixscape.studio.history.commands.EditSpatialBlockCommand(
+                                        world, history.historyIds(), null, entity, wall.id, wall, edited));
+                                Assert.assertEquals(96, blocks.blocks.first().height, 0);
+                                int cursor = history.getCursor();
+                                IllegalArgumentException refusal = Assert.assertThrows(IllegalArgumentException.class, enable::run);
+                                Assert.assertTrue(refusal.getMessage(), refusal.getMessage().contains("ISO"));
+                                Assert.assertFalse(meta.lightingEnabled);
+                                Assert.assertFalse(submit.isLightingEnabled());
+                                Assert.assertFalse(tiledState.lightingEnabled);
+                                Assert.assertEquals(cursor, history.getCursor());
+                                world.process(); // No failed candidate is consumed by an unlit frame.
+                            } else {
+                                enable.run(); // No lights exist, but geometry is still prepared.
+                                MapLightingGeometry old = tiledState.lightingMaps.get(entity);
+                                Assert.assertNotNull(old);
+                                int previous = old.publicationRevision();
+                                history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
+                                        meta, false, submit::setLightingEnabled, null));
+                                var edited = wall.copy(); edited.height = 96;
+                                history.execute(new games.pixscape.studio.history.commands.EditSpatialBlockCommand(
+                                        world, history.historyIds(), null, entity, wall.id, wall, edited));
+                                Assert.assertEquals(96, blocks.blocks.first().height, 0);
+                                world.process();
+                                Assert.assertEquals(previous, old.publicationRevision());
+                                enable.run();
+                                Assert.assertTrue(meta.lightingEnabled);
+                                Assert.assertTrue(tiledState.lightingEnabled);
+                                Assert.assertTrue(tiledState.lightingMaps.get(entity).publicationRevision() > previous);
+                                history.undo(); Assert.assertFalse(meta.lightingEnabled);
+                                history.redo(); Assert.assertTrue(meta.lightingEnabled);
+                            }
+                        } finally { world.dispose(); batch.close(); }
+                    }
+                } catch (Throwable error) { failure[0] = error; }
+                finally { ShaderRegistry.disposeAll(); Gdx.app.exit(); }
+            }
+        }, config);
+        if (failure[0] != null) throw new AssertionError("Unlit spatial activation failed", failure[0]);
+    }
+
     @Test public void sceneRendererSwitchesAtPreparationWithBothNormalLayouts() {
         final Throwable[] failure={null};
         Lwjgl3ApplicationConfiguration config=new Lwjgl3ApplicationConfiguration();

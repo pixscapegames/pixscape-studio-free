@@ -4,6 +4,7 @@ import com.artemis.World;
 import com.badlogic.gdx.utils.Array;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.lighting.TileSurfaceDescription;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -27,6 +28,10 @@ public final class EditTileLightingDescriptionsCommand implements Command, Outco
     }
     public static void validate(World world,TiledLayerComponent tiled,SpatialBlocksComponent blocks,Array<TileSurfaceDescription> values){
         if(tiled==null||tiled.data==null)throw new IllegalArgumentException("Map must be loaded before editing lighting descriptions");
+        SceneMetaRuntime scene=world.getRegistered(SceneMetaRuntime.class);
+        // Read the owning model on every execution, including undo/redo in an inactive document.
+        // Spatial validation and publication/invalidation remain the caller's responsibility.
+        if(scene!=null&&!scene.lightingEnabled)return;
         games.pixscape.runtime.system.RenderTiledSyncSystem sync=world.getSystem(games.pixscape.runtime.system.RenderTiledSyncSystem.class);
         if(sync==null)throw new IllegalArgumentException("Native tile resources are unavailable; lighting candidate cannot be validated");
         sync.validateLighting(tiled,blocks,values);

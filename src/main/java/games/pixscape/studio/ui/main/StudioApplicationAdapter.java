@@ -1187,7 +1187,9 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         EventFlow.i().subscribe(EventFlow.SceneNameChanged.class, event -> {
             ProjectConfig cfg = ProjectConfig.getInstance();
             if (cfg == null) return;
-            String canonical = cfg.canonicalSceneTag(event.newName());
+            // The model bridge may receive this queued event before or after this listener.
+            String canonical = cfg.canonicalSceneTag(event.oldName());
+            if (canonical == null) canonical = cfg.canonicalSceneTag(event.newName());
             if (canonical == null) return;
             editorDocumentManager.updateTitle(
                     new games.pixscape.studio.document.EditorDocumentKey(
