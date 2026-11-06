@@ -2,8 +2,8 @@ package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
 import games.pixscape.runtime.component.VisibilityComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.lighting.ActiveLights;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;

@@ -1,25 +1,25 @@
 package games.pixscape.studio.ui.preview;
 
-import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
-import games.pixscape.studio.helper.RuntimeShaderResources;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
 import com.sun.net.httpserver.HttpServer;
+import games.pixscape.runtime.hud.HudBuiltInLabelStyle;
+import games.pixscape.studio.helper.RuntimeShaderResources;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Map;
-import java.util.HashMap;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.*;

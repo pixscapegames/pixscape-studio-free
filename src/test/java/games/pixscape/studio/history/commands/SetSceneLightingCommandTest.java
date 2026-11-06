@@ -1,9 +1,11 @@
 package games.pixscape.studio.history.commands;
+
 import com.badlogic.gdx.utils.Json;
+import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.runtime.loading.SceneMetaRuntime;
 import org.junit.Test;
+
 import static org.junit.Assert.*;
 public class SetSceneLightingCommandTest {
  @Test public void oneCommandPreparesThenPublishesOnlyItsDocumentAndRoundTrips() {

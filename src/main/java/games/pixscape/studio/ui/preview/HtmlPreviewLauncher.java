@@ -9,8 +9,8 @@ import games.pixscape.runtime.gameobject.GameObjectAsset;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.RuntimeExportPaths;
 import games.pixscape.studio.exception.HtmlPreviewNotReadyException;
-import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.helper.RuntimeShaderResources;
+import games.pixscape.studio.io.StudioFs;
 
 import java.io.IOException;
 import java.io.InputStream;

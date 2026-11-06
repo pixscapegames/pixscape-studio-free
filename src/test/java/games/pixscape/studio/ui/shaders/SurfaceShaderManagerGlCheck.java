@@ -1,10 +1,42 @@
 package games.pixscape.studio.ui.shaders;
-import com.badlogic.gdx.*;import com.badlogic.gdx.backends.lwjgl3.*;import com.badlogic.gdx.files.FileHandle;
-import com.badlogic.gdx.graphics.*;import com.badlogic.gdx.scenes.scene2d.*;import com.badlogic.gdx.scenes.scene2d.ui.*;import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent;import com.badlogic.gdx.utils.*;import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import com.kotcrab.vis.ui.VisUI;import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.configuration.*;import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
-import games.pixscape.runtime.service.ShaderRegistry;import games.pixscape.runtime.engine.PixscapeEngine;import games.pixscape.runtime.render.SurfaceShader;
-import org.junit.Assert;import java.lang.reflect.*;import java.nio.file.Files;
+
+import com.badlogic.gdx.ApplicationAdapter;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
+import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener.ChangeEvent;
+import com.badlogic.gdx.utils.Json;
+import com.badlogic.gdx.utils.JsonReader;
+import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.JsonWriter;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.kotcrab.vis.ui.VisUI;
+import com.kotcrab.vis.ui.widget.VisCheckBox;
+import com.kotcrab.vis.ui.widget.VisSelectBox;
+import com.kotcrab.vis.ui.widget.VisTextButton;
+import com.kotcrab.vis.ui.widget.VisTextField;
+import games.pixscape.runtime.engine.PixscapeEngine;
+import games.pixscape.runtime.render.SurfaceShader;
+import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.configuration.RuntimeExport;
+import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.ui.widget.ScrollableCodeEditor;
+import org.junit.Assert;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
 /** Actual dialog listeners and GPU compilation, followed by Studio's Runtime export. */
 public final class SurfaceShaderManagerGlCheck {
  public static void verify(){Throwable[] failure={null};Lwjgl3ApplicationConfiguration c=new Lwjgl3ApplicationConfiguration();c.setInitialVisible(false);c.disableAudio(true);c.setWindowedMode(1100,900);c.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30,3,3);

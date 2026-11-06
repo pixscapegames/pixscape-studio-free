@@ -10,7 +10,8 @@ import games.pixscape.runtime.spatial.ActorSpatialRectangles;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
 
 public class ActorShadowRectangleEditingTest {
     @Test public void clipSwitchSelectsItsAuthoredVolumeAndUndoRestoresSelection(){

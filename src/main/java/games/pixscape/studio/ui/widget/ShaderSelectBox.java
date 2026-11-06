@@ -1,7 +1,7 @@
 package games.pixscape.studio.ui.widget;
 
-import com.kotcrab.vis.ui.widget.VisSelectBox;
 import com.kotcrab.vis.ui.widget.Tooltip;
+import com.kotcrab.vis.ui.widget.VisSelectBox;
 import games.pixscape.runtime.render.ShaderOrigin;
 import games.pixscape.runtime.render.ShaderRole;
 import games.pixscape.runtime.service.ShaderRegistry;

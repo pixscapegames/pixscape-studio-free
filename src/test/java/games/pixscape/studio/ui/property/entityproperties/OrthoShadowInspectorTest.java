@@ -2,15 +2,14 @@ package games.pixscape.studio.ui.property.entityproperties;
 
 import com.artemis.Aspect;
 import com.artemis.World;
+import com.artemis.WorldConfiguration;
 import com.artemis.managers.WorldSerializationManager;
 import com.badlogic.gdx.files.FileHandle;
-import games.pixscape.runtime.component.PixscapeIdentityComponent;
-import games.pixscape.runtime.loading.SceneLoader;
-import games.pixscape.studio.service.SceneService;
-import com.artemis.WorldConfiguration;
 import com.badlogic.gdx.utils.Array;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
+import games.pixscape.runtime.loading.SceneLoader;
 import games.pixscape.runtime.loading.SceneMetaRuntime;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
@@ -20,6 +19,7 @@ import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.service.IconResolver;
 import games.pixscape.studio.service.LayerService;
+import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.SelectionService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
@@ -27,6 +27,7 @@ import games.pixscape.studio.service.physics.PhysicsSelectionService;
 import games.pixscape.studio.ui.widget.SimpleSelectBox;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
 import org.junit.Test;
+
 import static org.junit.Assert.assertEquals;
 
 public class OrthoShadowInspectorTest {

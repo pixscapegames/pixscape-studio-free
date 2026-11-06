@@ -1,13 +1,7 @@
 package games.pixscape.studio.service;
 
 import com.badlogic.gdx.utils.Array;
-import games.pixscape.studio.asset.AssetMeta;
-import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.AssetType;
-import games.pixscape.studio.asset.TileAnimationProjectDefData;
-import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
-import games.pixscape.studio.asset.TileAssetMeta;
-import games.pixscape.studio.asset.TilesetAssetMeta;
+import games.pixscape.studio.asset.*;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;

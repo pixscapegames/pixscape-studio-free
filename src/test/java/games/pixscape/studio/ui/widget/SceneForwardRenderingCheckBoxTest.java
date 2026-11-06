@@ -2,13 +2,16 @@ package games.pixscape.studio.ui.widget;
 
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.ChangeLightActivationCommand;
-import org.junit.*;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import static org.junit.Assert.*;
 
 public class SceneForwardRenderingCheckBoxTest {

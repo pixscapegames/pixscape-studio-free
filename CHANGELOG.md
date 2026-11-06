@@ -1,34 +1,45 @@
 # Changelog
 
+
+## [0.4.2]
+
+### Added
+* Point and cone lights on orthographic maps now support the None, Hard and PCF shadow settings. New lights in scenes containing an orthographic map start with shadows off.
+
+### Changed
+* When a painted tile refers to a missing asset or an asset of the wrong type, Runtime Export now reports the scene name, tile ID and asset catalog issue.
+
+### Fixed
+* Deleting a tileset or tile animation now checks saved scenes and unsaved edits in every open tab. If a scene still uses the asset or cannot be read, Studio blocks deletion and identifies the scene.
+* Spatial edits, undo and redo now respect each scene’s lighting setting. Wall volumes and tile lighting settings can be edited with lighting off and take effect when lighting is enabled.
+* Renaming a scene now updates its tab title even when another tab is active.
+
+
 ## [0.4.1]
 
 ### Added
-
 * Added LibGDX `.atlas` import with PNG pages. Indexed regions with the same name become an Animation, including single-frame animations. Unindexed regions become Image assets. The importer supports multiple pages, 90° packing rotation and trimmed frames.
 * Added an **Enable lighting** scene setting with undo and redo. New scenes, including TMX imports, start with lighting off. Switching it off preserves the scene’s lights and renderer settings.
 * Added Lit and Unlit materials to the Shader Manager and shader selectors. Authors can edit a surface and its optional cutout mask together. A failed compilation keeps the last working material active.
 * Added a VSync option to Desktop Preview, enabled by default. With VSync off, Preview limits the number of frames queued on the GPU.
 
 ### Changed
-
 * Opening a project upgrades unchanged copies of the supplied materials while preserving customized shaders. Renaming a shader keeps its ID and entity assignments.
 * Runtime exports now preserve layer names for gameplay lookups.
 * The Properties panel labels a Game Object child’s position, rotation and scale as **Local Transform**.
 
 ### Fixed
-
 * Fixed the extra “Game Object” layer shown above the asset root in the Item Tree. The root and its children can now be selected directly in the Game Object editor.
 * Failed Runtime exports now preserve the last complete export.
+
 
 ## [0.4.0] - HUD, Multi-View and 2.5D Lighting
 
 ### Breaking changes
-
 * Custom material shaders must use per-entity material parameters instead of per-entity float uniforms.
 * HUD screen assets using the former fixed-resolution format must be recreated.
 
 ### Added
-
 * Added visual HUD screen editing with a widget hierarchy, properties, drag-and-drop placement, undo/redo, and interactive test mode.
 * Added simultaneous editing of multiple scenes through document tabs with independent editor contexts.
 * Added scene-to-HUD associations and HUD-aware runtime export using the shared Pixscape Runtime.
@@ -39,22 +50,19 @@
 * Added per-entity material parameters in the Shader Manager.
 
 ### Changed
-
 * HUD screens now adapt to the available canvas surface; root Tables can fill it and cells can define maximum dimensions.
 * Spatial actor influence, map-plane altitude and light range previews now use the Runtime projection.
 * Preview lighting now supports tile normal maps, deformed images and actor-to-decor shadows.
 
 ### Fixed
-
 * Fixed tile normal-map thumbnails in the Assets panel.
 * Fixed picking and movement of parented lights.
 * Fixed deletion and undo of Game Object hierarchies with dependent Physics joints.
 
 
-## 0.3.0 - Universal Layers and Tiled Maps
+## [0.3.0] - Universal Layers and Tiled Maps
 
 ### Breaking changes
-
 * Pixscape Studio Free 0.2.4 requires Pixscape Runtime 0.1.11.
 * Removed the legacy Layer type system. Layers are now universal composition containers instead of Classic, Tiled, Physics, Light or Spatial-specific Layer types.
 * Existing schema 3 scenes using the obsolete typed-Layer representation are no longer supported and must be recreated or migrated with a future migration tool.
@@ -62,7 +70,6 @@
 * Tiled Map configuration is no longer stored at Scene level. Projection, tile size, map size and chunk size belong to each Map.
 
 ### Added
-
 * Added first-class Tiled Map entities that can be selected and edited independently from their owning Layer.
 * Added support for multiple Tiled Maps in the same Scene, including multiple Maps inside the same Layer.
 * Added `Add Tiled Map` to create a Map inside an ordinary Layer with its own projection, grid and dimensions.
@@ -70,7 +77,6 @@
 * Added independent z-ordering for Tiled Maps alongside sprites, animations, lights and other scene entities.
 
 ### Changed
-
 * Layers can now freely contain mixed content such as sprites, animations, lights, physical entities and Tiled Maps.
 * Lights are now ordinary entities and no longer require a dedicated Light Layer.
 * Physics authoring is now based on Scene Physics configuration and entity components instead of dedicated Physics Layers.
@@ -85,7 +91,6 @@
 * Simplified Scene metadata by removing obsolete persisted editor-mode and Physics debug state.
 
 ### Improved
-
 * Simplified Layer Properties around universal Layer behavior, visibility, parallax and optional Spatial Actor participation.
 * Simplified Scene Properties by removing Tiled creation settings and transient editor state.
 * Improved Item Tree handling for Tiled Maps as real selectable scene content.
@@ -94,7 +99,6 @@
 * Simplified scene and Layer creation workflows by removing unnecessary dialogs.
 
 ### Fixed
-
 * Fixed Tiled Map Spatial Depth incorrectly affecting ordinary Layer Spatial Actor state.
 * Fixed Map collision controls so authored Physics state is preserved correctly.
 * Fixed Tiled editing state when switching between Maps or leaving a Map editing context.
@@ -102,7 +106,6 @@
 * Fixed ambient-light normalization so valid zero color channels remain zero.
 
 ### Tests
-
 * Added regression coverage for universal Layers and removal of legacy Layer types.
 * Added coverage for multiple Tiled Maps per Scene and per Layer.
 * Added persistence and history coverage for Tiled Map configuration, creation and deletion.
@@ -112,10 +115,9 @@
 * Added compatibility coverage for the new schema 3 universal-Layer representation.
 
 
-## 0.2.3 - Tiled Objects, Quad Editing and Prefab Instances
+## [0.2.3] - Tiled Objects, Quad Editing and Prefab Instances
 
 ### Added
-
 * Added Tiled Object Layer import for orthogonal and isometric maps.
 * Added import support for Tiled rectangle, point, tile, polygon and polyline objects.
 * Added support for animated Tiled tile objects as regular Pixscape entities.
@@ -126,7 +128,6 @@
 * Added physics joint nodes to the Item Tree, displayed below their owning body with joint-specific labels and selection support.
 
 ### Changed
-
 * Pixscape Studio Free 0.2.3 requires Pixscape Runtime 0.1.10.
 * Prefab instances now participate in Item Tree ordering as logical blocks while their visual entities keep compact, contiguous z-order values.
 * Physics joints remain prefab members but no longer participate in visual z-order.
@@ -134,7 +135,6 @@
 * Tiled Object Layers are materialized as native Pixscape layers and entities instead of introducing a separate Tiled-specific runtime object model.
 
 ### Improved
-
 * Greatly reduced sprite, animation and prefab drop latency when their atlas content is already present in the published GPU texture array.
 * Optimized TMX import and scene-save workflows.
 * Improved Tiled object overlays, picking and authored-geometry gizmos.
@@ -142,7 +142,6 @@
 * Improved Item Tree selection synchronization for prefab instances and physics joints.
 
 ### Fixed
-
 * Fixed complex physics prefabs appearing far from the mouse position when dropped into a scene.
 * Fixed isometric Tiled object placement and rotation.
 * Fixed authored geometry picking and gizmo transforms.
@@ -155,24 +154,21 @@
 * Fixed WebGL2 material shader precision for generated Studio shaders.
 
 ### Tests
-
 * Added extensive regression coverage for Tiled Object Layers, tile objects, animated tile objects, custom properties, polygon/polyline geometry and isometric coordinate conversion.
 * Added regression coverage for direct quad editing, prefab persistence and Runtime export.
 * Added regression coverage for logical prefab ordering, atomic prefab selection, Item Tree joint integration and physics-aware prefab deletion/history.
 * Added a real-world regression based on the tiled-iso-demo chain prefab to verify drop placement, joint remapping and Box2D synchronization.
 
 
-## 0.2.2 - Physics Authoring and Spatial Collisions
+## [0.2.2] - Physics Authoring and Spatial Collisions
 
 ### Breaking changes
-
 * Replaced the legacy Studio physics authoring model with persistent Runtime physics shapes.
 * Existing physics scenes and prefabs using the previous schema must be recreated or re-exported.
 * Pixscape Studio Free 0.2.2 requires Pixscape Runtime 0.1.9.
 * Particle emitters now use `Transform.x/y` directly as their position. Legacy particle local-space and transform-origin behavior is no longer preserved.
 
 ### Added
-
 * Added stable physics shape identities across editing, persistence, duplication and prefab instantiation.
 * Added `Physics collision` to Spatial Blocks, deriving a static polygon fixture from the block footprint.
 * Added a read-only `Linked to Spatial Block #...` indicator for linked fixtures.
@@ -183,7 +179,6 @@
 * Added multi-animation entities, allowing multiple Animation assets to be attached and the active animation to be switched from the Properties panel.
 
 ### Changed
-
 * Unified body, fixture, polygon, joint, clipboard, prefab and scene workflows around the new authored physics model.
 * Tiled layer physics bodies are now always static.
 * Linked fixture geometry is read-only, while material, sensor, filter and enabled properties remain editable.
@@ -199,7 +194,6 @@
 * Animation asset clip and FPS metadata is now authoritative and stays synchronized across entity switching, editing, undo/redo and scene reloads.
 
 ### Improved
-
 * Indexed Studio asset metadata by asset ID, logical path and source ownership.
 * Migrated Studio atlas resolution paths to the Runtime asset binding index instead of repeatedly scanning atlas regions.
 * Centralized atlas and standalone visual resolution for sprites, animations, tiled fallback rendering, tiled ghost previews and render rebinds.
@@ -214,7 +208,6 @@
 * Reduced the packaged HTML Preview player to production GWT assets, removing development-only deployment output.
 
 ### Fixed
-
 * Prevented transient missing-region particle errors while an asynchronous replacement atlas is pending publication.
 * Prevented failed physics and Spatial operations from publishing partial state or incorrectly advancing history.
 * Fixed stale physics selection and picking after fixture or body changes, undo/redo and scene activation.
@@ -237,7 +230,6 @@
 * Fixed HTML Preview/player prefab spawning with the updated Runtime GWT prefab reflection support.
 
 ### Tests
-
 * Expanded regression coverage for physics authoring, persistence, history, prefabs, joints and linked Spatial collisions.
 * Added regression coverage for indexed asset metadata, Runtime atlas bindings, centralized visual resolution, particle fallback readiness and tiled fallback gating.
 * Revalidated the Studio against the Runtime asset index changes with forced GWT compilation.
@@ -246,17 +238,15 @@
 * Added grouped coverage for off-thread atlas and fallback publication, deferred preload classification and progressive HTML loading through forced GWT compilation.
 
 
-## 0.2.1 - TMX Import and Spatial V3
+## [0.2.1] - TMX Import and Spatial V3
 
 ### Breaking changes
-
 * Existing scenes containing legacy tiled map or Spatial tiled data are no longer compatible.
 * Affected tiled and Spatial scenes should be re-imported or recreated with this version.
 * This breaking change is caused by the TMX and tiled-map pipeline changes required to support Tiled transform flags, tile animations, image collection tilesets, repeatable sprites, tileset profiles and improved runtime mapping.
 * Spatial tiled data was also redesigned for Spatial V3, including canonical tile ranks, deterministic ordering, connected wall structures and junction rules.
 
 ### Added
-
 * Added `File > Import > Tiled map (.tmx)...` for importing supported Tiled maps as new Pixscape scenes.
 * Added a TMX import pipeline with preflight validation, import planning, scene materialization and rollback handling.
 * Added TMX diagnostics for unsupported orientations, infinite maps, missing tileset images, invalid GIDs, unsupported encodings, object layers, invalid tile animations and ignored custom properties.
@@ -283,7 +273,6 @@
 * Added Spatial V3 wall authoring with automatic structure merging and precise footprint editing.
 
 ### Changed
-
 * Moved asset import from `Resources > Import assets` to `File > Import > Assets...`.
 * Refactored tileset import materialization out of `SceneService`.
 * TMX import now reuses the improved tileset slicing pipeline for tilesets with margin and spacing.
@@ -307,7 +296,6 @@
 * Deleting a Spatial-generated collision fixture now disables `Use for physics collision` atomically; undo and redo restore the exact fixture and authored state.
 
 ### Fixed
-
 * Fixed Preview startup when a Studio project is opened without its exported runtime project. Pixscape now triggers the normal save/export flow before launching Preview instead of failing on a missing runtime export.
 * Fixed Preview launches using stale runtime exports when the current scene or tileset profile manifest is out of date.
 * Fixed empty `tileset-profiles.json` exports when tiled scenes use tile assets but Runtime Availability has no explicit tiled tiles.
@@ -336,7 +324,6 @@
 * Improved preview reliability for 2.5D tiled spatial scenes.
 
 ### Tests
-
 * Added characterization tests for tile and tileset asset metadata persistence.
 * Added tiled-cell capacity budget tests.
 * Added tileset asset import service tests.
@@ -355,7 +342,6 @@
 * Added regression coverage for Spatial canonical ranks, scene switching, cache invalidation, rejected command history, overlay failure handling and Spatial-owned collision fixtures.
 
 ### Notes
-
 * TMX import currently creates a new scene; importing TMX layers into the current scene is not included yet.
 * TMX reimport and synchronization are not included yet.
 * TMX image layers are imported as editable Pixscape Classic layers containing the referenced image as a normal sprite.
@@ -366,4 +352,5 @@
 * Standalone TSX import currently supports single-image tilesets, including tile animation metadata.
 * Tileset profiles are stored as global tileset metadata; per-tile profile overrides are not included yet.
 
-## 0.2.0 - First Open Source Release
+
+## [0.2.0] - First Open Source Release

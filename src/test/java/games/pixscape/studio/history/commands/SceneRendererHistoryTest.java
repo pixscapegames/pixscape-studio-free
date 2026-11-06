@@ -3,14 +3,16 @@ package games.pixscape.studio.history.commands;
 import com.artemis.World;
 import com.artemis.WorldConfigurationBuilder;
 import games.pixscape.runtime.component.VisibilityComponent;
-import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
+import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.initializer.Initializer;
 import org.junit.Test;
+
 import java.util.Arrays;
+
 import static org.junit.Assert.*;
 
 public class SceneRendererHistoryTest {
