@@ -86,20 +86,23 @@ public class UnlitSpatialCommandsTest {
         }
     }
 
-    @Test public void onWithoutLightsStillRejectsAndKeepsHistoryAndModel() {
+    @Test public void onWithoutLightsAdmitsOrthoReceiversButStillRejectsRoundedGeometry() {
         try (Fixture f = new Fixture()) {
             // Deliberately leave the renderer flag OFF: the model is authoritative.
             f.scene.lightingEnabled = true;
             SpatialBlockData edited = f.block().copy();
             edited.shadowCaster = true;
             f.history.execute(f.edit(edited));
-            assertFalse(f.history.canUndo());
-            assertFalse(f.block().shadowCaster);
+            assertTrue(f.history.canUndo());
+            assertTrue(f.block().shadowCaster);
+            int cursor = f.history.getCursor();
             EditTileLightingDescriptionsCommand command = f.descriptions();
             f.history.execute(command);
             assertTrue(command.rejection(), command.rejection().contains("ISO"));
             assertEquals(0, f.tiled.lightingDescriptions.size);
-            assertFalse(f.history.canUndo());
+            assertEquals(cursor, f.history.getCursor());
+            f.history.undo();assertFalse(f.block().shadowCaster);
+            f.history.redo();assertTrue(f.block().shadowCaster);
         }
     }
 
@@ -116,7 +119,7 @@ public class UnlitSpatialCommandsTest {
         }
     }
 
-    @Test public void brushOffCommitsAndUndoesButAnchorErasureAndOnAdmissionStillReject() {
+    @Test public void brushRoundTripsAcrossLightingActivationButAnchorErasureStillRejects() {
         try (Fixture f = new Fixture()) {
             f.block().shadowCaster = true;
             TiledBrushSession stroke = new TiledBrushSession(f.entity);
@@ -135,11 +138,10 @@ public class UnlitSpatialCommandsTest {
             assertEquals(7, f.tiled.data.getTile(1, 1));
             assertEquals(revision, f.tiled.data.contentRevision());
             f.scene.lightingEnabled = true;
-            TiledMutationRejectedException refusal = assertThrows(TiledMutationRejectedException.class, f.history::undo);
-            assertTrue(refusal.getMessage(), refusal.getMessage().contains("ISO"));
-            assertEquals(1, f.history.getCursor());
-            assertEquals(7, f.tiled.data.getTile(4, 4));
-            assertEquals(revision, f.tiled.data.contentRevision());
+            f.history.undo();
+            assertEquals(0, f.history.getCursor());
+            assertEquals(0, f.tiled.data.getTile(4, 4));
+            f.history.redo();assertEquals(7, f.tiled.data.getTile(4, 4));
             f.scene.lightingEnabled = false;
             f.history.undo();
             assertEquals(0, f.tiled.data.getTile(4, 4));

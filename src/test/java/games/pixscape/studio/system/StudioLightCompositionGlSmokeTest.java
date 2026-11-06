@@ -8,6 +8,20 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration;
 import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
+import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
+import games.pixscape.runtime.render.DynamicEntityRenderState;
+import games.pixscape.runtime.render.TiledMapRenderState;
+import games.pixscape.runtime.render.lighting.ForwardTopology;
+import games.pixscape.runtime.system.RenderTiledSyncSystem;
+import games.pixscape.runtime.system.LightingGeometrySystem;
+import games.pixscape.runtime.tiled.TiledProjection;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetAnchor;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfile;
+import games.pixscape.runtime.tiled.profile.RuntimeTilesetProfiles;
+import games.pixscape.studio.configuration.SceneMeta;
 import com.badlogic.gdx.utils.BufferUtils;
 import games.pixscape.runtime.component.light.PointLightComponent;
 import games.pixscape.runtime.render.FrameRenderQueue;
@@ -29,7 +43,7 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 
 public class StudioLightCompositionGlSmokeTest {
-    @Test public void unlitSpatialEditsRebuildOnActivationAndOrthoRefusalStaysOff() {
+    @Test public void unlitSpatialEditsRebuildOnActivationForIsoAndOrtho() {
         final Throwable[] failure = {null};
         Lwjgl3ApplicationConfiguration config = new Lwjgl3ApplicationConfiguration();
         config.setInitialVisible(false);
@@ -88,20 +102,7 @@ public class StudioLightCompositionGlSmokeTest {
                             var history = new games.pixscape.studio.history.HistoryManager(16);
                             Runnable enable = () -> history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
                                     meta, true, submit::setLightingEnabled, null));
-                            if (projection == games.pixscape.runtime.tiled.TiledProjection.ORTHO) {
-                                var edited = wall.copy(); edited.height = 96;
-                                history.execute(new games.pixscape.studio.history.commands.EditSpatialBlockCommand(
-                                        world, history.historyIds(), null, entity, wall.id, wall, edited));
-                                Assert.assertEquals(96, blocks.blocks.first().height, 0);
-                                int cursor = history.getCursor();
-                                IllegalArgumentException refusal = Assert.assertThrows(IllegalArgumentException.class, enable::run);
-                                Assert.assertTrue(refusal.getMessage(), refusal.getMessage().contains("ISO"));
-                                Assert.assertFalse(meta.lightingEnabled);
-                                Assert.assertFalse(submit.isLightingEnabled());
-                                Assert.assertFalse(tiledState.lightingEnabled);
-                                Assert.assertEquals(cursor, history.getCursor());
-                                world.process(); // No failed candidate is consumed by an unlit frame.
-                            } else {
+                            {
                                 enable.run(); // No lights exist, but geometry is still prepared.
                                 MapLightingGeometry old = tiledState.lightingMaps.get(entity);
                                 Assert.assertNotNull(old);
@@ -120,6 +121,19 @@ public class StudioLightCompositionGlSmokeTest {
                                 Assert.assertTrue(tiledState.lightingMaps.get(entity).publicationRevision() > previous);
                                 history.undo(); Assert.assertFalse(meta.lightingEnabled);
                                 history.redo(); Assert.assertTrue(meta.lightingEnabled);
+                                if (projection == games.pixscape.runtime.tiled.TiledProjection.ORTHO) {
+                                    history.undo();
+                                    int lightEntity=world.create();
+                                    var light=world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(lightEntity);
+                                    light.shadowQuality=2;world.process();
+                                    int cursor=history.getCursor();
+                                    IllegalArgumentException refusal=Assert.assertThrows(IllegalArgumentException.class,history::redo);
+                                    Assert.assertTrue(refusal.getMessage().contains("Shadows to None"));
+                                    Assert.assertFalse(meta.lightingEnabled);Assert.assertFalse(submit.isLightingEnabled());
+                                    Assert.assertFalse(tiledState.lightingEnabled);Assert.assertEquals(cursor,history.getCursor());
+                                    Assert.assertEquals(2,light.shadowQuality);
+                                    light.shadowQuality=0;history.redo();Assert.assertTrue(meta.lightingEnabled);
+                                }
                             }
                         } finally { world.dispose(); batch.close(); }
                     }
@@ -207,7 +221,13 @@ public class StudioLightCompositionGlSmokeTest {
                 OrthographicCamera camera=new OrthographicCamera(64,32);camera.position.set(32,16,0);camera.update();
                 RenderStats stats=new RenderStats();batch=new games.pixscape.studio.batch.TextureArrayMeshBatchStudio(64);
                 com.badlogic.gdx.utils.Array<Texture> textures=new com.badlogic.gdx.utils.Array<>();textures.add(texture);
-                bundle=AtlasRuntimeService.buildTextureArrayFromTextures(textures,1,1,GLCaps.detect());pix.dispose();batch.setTextureArrayBundle(bundle);
+                Pixmap cutoutPixels = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+                cutoutPixels.setColor(.4f, .2f, .1f, .75f);
+                cutoutPixels.fill();
+                Texture cutoutTexture = new Texture(cutoutPixels);
+                textures.add(cutoutTexture);
+                bundle=AtlasRuntimeService.buildTextureArrayFromTextures(textures,1,1,GLCaps.detect());
+                pix.dispose();cutoutPixels.dispose();batch.setTextureArrayBundle(bundle);
                 StudioRenderSubmitSystem submit=new StudioRenderSubmitSystem(layers,q,camera,batch,stats,new RenderStatsSink(100)).setSceneSettings(meta);
                 world=new World(new WorldConfigurationBuilder().with(new BaseSystem(){protected void processSystem(){if(interrupt)throw new IllegalStateException("interrupted");}},submit).build());
                 int entity=world.create();world.getMapper(PointLightComponent.class).create(entity);world.process();
@@ -234,40 +254,29 @@ public class StudioLightCompositionGlSmokeTest {
                 Assert.assertEquals(GL20.GL_NO_ERROR,Gdx.gl.glGetError());
                 Assert.assertEquals(128,pixel.get(3)&255,3);
                 light.quality=0;q.lighting.lights.clear();q.lighting.lights.add(light);
-                // Compare the real shadow of the adjusted junction to one continuous wall.
-                games.pixscape.runtime.tiled.TiledMapLayerData linkMap=new games.pixscape.runtime.tiled.TiledMapLayerData(
-                        12,12,8,4,4,games.pixscape.runtime.tiled.TiledProjection.ISO);
-                for(games.pixscape.runtime.spatial.SpatialBlockData wall:linkedSnapshot.blocks)wall.shadowCaster=true;
-                MapLightingGeometry geometry=new MapLightingGeometry();geometry.ensure(linkMap,linkedSnapshot);
-                light.x=-12;light.y=-12;light.z=120;light.radius=512;light.intensity=3;light.quality=1;
-                Pixmap wallPixmap=new Pixmap(1,1,Pixmap.Format.RGBA8888);wallPixmap.setColor(Color.WHITE);wallPixmap.fill();
-                Texture wallTexture=new Texture(wallPixmap);wallPixmap.dispose();int wallHandle=TextureRegistry.handleOf(wallTexture);
-                fillCasters(q.lighting,geometry,wallHandle);
-                submit.prepareComposition();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-                submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
-                ByteBuffer joined=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,joined);
-                games.pixscape.runtime.component.spatial.SpatialBlocksComponent continuous=new games.pixscape.runtime.component.spatial.SpatialBlocksComponent();
-                games.pixscape.runtime.spatial.SpatialBlockData single=linkedSnapshot.blocks.first().copy();single.width=5;continuous.blocks.add(single);
-                MapLightingGeometry baseline=new MapLightingGeometry();baseline.ensure(linkMap,continuous);fillCasters(q.lighting,baseline,wallHandle);
-                submit.prepareComposition();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
-                ByteBuffer reference=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,reference);
-                for(int i=0;i<joined.capacity();i++)Assert.assertEquals("No shadow seam at byte "+i,reference.get(i)&255,joined.get(i)&255,2);
-                q.lighting.casters.clear();q.lighting.staticCasterCount=0;q.lighting.casterIndex.rebuild(q.lighting,0);
-                submit.prepareComposition();Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}
-                ByteBuffer unshadowed=BufferUtils.newByteBuffer(64*32*4);Gdx.gl.glReadPixels(0,0,64,32,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,unshadowed);
-                int shadowPixels=0;for(int i=0;i<joined.capacity();i+=4)if((unshadowed.get(i)&255)>(joined.get(i)&255)+2)shadowPixels++;
-                Assert.assertTrue("The junction must cast a visible shadow, pixels="+shadowPixels,shadowPixels>5);
-                wallTexture.dispose();
+                q.lighting.entities.get(entity).forwardTopology = ForwardTopology.NATIVE;
+                verifyJunction(world, submit, meta, q, layers, camera, linkedSnapshot, light);
                 light.x=32;light.y=0;light.z=128;light.radius=512;light.intensity=1;light.quality=0;
-                Pixmap cutoutPixmap=new Pixmap(1,1,Pixmap.Format.RGBA8888);cutoutPixmap.setColor(.4f,.2f,.1f,.75f);cutoutPixmap.fill();
-                Texture cutoutTexture=new Texture(cutoutPixmap);cutoutPixmap.dispose();
-                for(int blend:new int[]{1,2,0,7}){
-                    q.textureHandle[0]=blend==7?TextureRegistry.handleOf(cutoutTexture):handle;
-                    q.blend[0]=blend;Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);submit.beginFrameSubmission();try{world.process();}finally{submit.endFrameSubmission();}pixel.clear();
-                    Gdx.gl.glReadPixels(32,16,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,pixel);
-                    Assert.assertEquals("Coverage/color rule for blend "+blend,blend==1?39:78,pixel.get(0)&255,3);
-                    Assert.assertEquals("Alpha rule for blend "+blend,blend==0||blend==7?255:128,pixel.get(3)&255,3);
+                for (boolean forward : new boolean[]{false, true}) {
+                    meta.forwardLighting = forward;
+                    submit.prepareComposition();
+                    Assert.assertEquals(forward, submit.isForwardEffective());
+                    for (int blend : new int[]{1, 2, 0, 7}) {
+                        q.textureHandle[0] = blend == 7 ? TextureRegistry.handleOf(cutoutTexture) : handle;
+                        q.blend[0] = blend;
+                        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                        submit.beginFrameSubmission();
+                        try { world.process(); } finally { submit.endFrameSubmission(); }
+                        pixel.clear();
+                        Gdx.gl.glReadPixels(32, 16, 1, 1, GL20.GL_RGBA, GL20.GL_UNSIGNED_BYTE, pixel);
+                        String mode = "blend=" + blend + ", forward=" + forward;
+                        Assert.assertEquals("Coverage/color rule for " + mode,
+                                blend == 1 ? 39 : 78, pixel.get(0) & 255, 3);
+                        Assert.assertEquals("Alpha rule for " + mode,
+                                blend == 0 || blend == 7 ? 255 : 128, pixel.get(3) & 255, 3);
+                    }
                 }
+                meta.forwardLighting = false;
                 q.blend[0]=1;q.textureHandle[0]=handle;cutoutTexture.dispose();
                 // Unsupported custom coverage fails explicitly, aborts, then permits a new frame.
                 int originalShader=q.shader[0];
@@ -294,8 +303,108 @@ public class StudioLightCompositionGlSmokeTest {
         if(failure[0]!=null)throw new AssertionError("Real GL 2.5D test failed",failure[0]);
     }
 
-    private static void fillCasters(LightingFrame frame,MapLightingGeometry geometry,int texture){
-        frame.casters.clear();for(LightingSurface surface:geometry.casters){LightingFrame.Caster caster=new LightingFrame.Caster();caster.surface=surface;caster.texture=texture;caster.u2=caster.v2=1;caster.bounds();frame.casters.add(caster);}
-        frame.staticCasterCount=frame.casters.size;frame.casterIndex.rebuild(frame,frame.staticCasterCount);
+    private static void verifyJunction(World world, StudioRenderSubmitSystem submit, SceneMeta meta,
+            FrameRenderQueue queue, LayerStateSOA layers, OrthographicCamera camera,
+            SpatialBlocksComponent joined, LightingFrame.Light light) {
+        for (var wall : joined.blocks) wall.shadowCaster = true;
+        SpatialBlocksComponent continuous = new SpatialBlocksComponent();
+        var single = joined.blocks.first().copy();
+        var last = joined.blocks.peek();
+        single.width = last.x + last.width - single.x;
+        for (var cell : last.linkedTileRefs) single.addLinkedTileRef(cell.gx, cell.gy, cell.tileAssetId);
+        Assert.assertEquals(5, single.linkedTileRefs.size);
+        continuous.blocks.add(single);
+
+        // An 8x4 native cell plus a 90-pixel wall, anchored at the foot of the tile.
+        Pixmap pixels = new Pixmap(8, 94, Pixmap.Format.RGBA8888);
+        pixels.setColor(Color.WHITE);
+        pixels.fill();
+        var atlas = new TextureAtlas();
+        atlas.addRegion("wall__a1", new Texture(pixels), 0, 0, 8, 94);
+        pixels.dispose();
+        var assets = new AtlasRuntimeService();
+        assets.loadBorrowed("walls", atlas);
+        var profile = new RuntimeTilesetProfile();
+        profile.tilesetId = 1;
+        profile.tileAssetIds = new int[]{1};
+        profile.referenceCellWidth = 8;
+        profile.referenceCellHeight = 4;
+        profile.anchor = RuntimeTilesetAnchor.BOTTOM_CENTER;
+        profile.projection = TiledProjection.ISO;
+        var profiles = RuntimeTilesetProfiles.empty();
+        profiles.add(profile);
+
+        // Publish the actual tile quads, caster contributions, shadow groups and spatial index.
+        var tiledState = new TiledMapRenderState();
+        var sync = new RenderTiledSyncSystem(camera, tiledState, assets, queue.shader[0], null, profiles);
+        var geometry = new LightingGeometrySystem(new DynamicEntityRenderState(), tiledState, queue, layers);
+        World publisher = new World(new WorldConfigurationBuilder().with(sync, geometry).build());
+        try {
+            int owner = publisher.create();
+            publisher.getMapper(EntityIndexComponent.class).create(owner);
+            var tiled = publisher.getMapper(TiledLayerComponent.class).create(owner);
+            tiled.atlasTag = "walls";
+            tiled.projection = TiledProjection.ISO;
+            tiled.tileWidth = 8;
+            tiled.tileHeight = 4;
+            tiled.chunkSize = 4;
+            tiled.mapWidthCells = tiled.mapHeightCells = 12;
+            tiled.data = tiled.createMapData();
+            for (var cell : single.linkedTileRefs) tiled.data.setTile(cell.gx, cell.gy, cell.tileAssetId);
+            var current = publisher.getMapper(SpatialBlocksComponent.class).create(owner);
+
+            light.x = -12; light.y = -12; light.z = 120;
+            light.intensity = 3; light.quality = 1;
+            var empty = new SpatialBlocksComponent();
+            for (boolean forward : new boolean[]{false, true}) {
+                meta.forwardLighting = forward;
+                byte[] lit = renderWalls(world, submit, publisher, current, empty, queue, light);
+                Assert.assertEquals(forward, submit.isForwardEffective());
+                byte[] shadow = renderWalls(world, submit, publisher, current, joined, queue, light);
+                int shadowPixels = 0;
+                for (int i = 0; i < lit.length; i += 4) {
+                    if ((lit[i] & 255) > (shadow[i] & 255) + 2) shadowPixels++;
+                }
+                Assert.assertTrue("The junction must cast a visible shadow, pixels=" + shadowPixels,
+                        shadowPixels > 5);
+                byte[] reference = renderWalls(world, submit, publisher, current, continuous, queue, light);
+                Assert.assertArrayEquals("No shadow seam, forward=" + forward, reference, shadow);
+            }
+            current.blocks.clear();
+            current.links.clear();
+            current.revision++;
+            publisher.process();
+            queue.lighting.lights.add(light);
+        } finally {
+            publisher.dispose();
+            assets.unload("walls");
+            atlas.dispose();
+            meta.forwardLighting = false;
+        }
+    }
+
+    private static byte[] renderWalls(World world, StudioRenderSubmitSystem submit, World publisher,
+            SpatialBlocksComponent current, SpatialBlocksComponent walls, FrameRenderQueue queue,
+            LightingFrame.Light light) {
+        current.blocks.clear();
+        current.links.clear();
+        current.blocks.addAll(walls.blocks);
+        current.links.addAll(walls.links);
+        current.revision++;
+        publisher.process();
+        queue.lighting.lights.add(light);
+        int expectedCasters = walls.blocks.size == 0 ? 0 : 5;
+        Assert.assertEquals("Published tile casters", expectedCasters, queue.lighting.staticCasterCount);
+        submit.prepareComposition();
+        submit.lightingRenderer().prepareFrame(queue.lighting);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        submit.beginFrameSubmission();
+        try { world.process(); } finally { submit.endFrameSubmission(); }
+        Assert.assertEquals("Selected tile casters", expectedCasters, submit.lightingRenderer().selectedCasters);
+        ByteBuffer pixels = BufferUtils.newByteBuffer(64 * 32 * 4);
+        Gdx.gl.glReadPixels(0, 0, 64, 32, GL20.GL_RGBA, GL20.GL_UNSIGNED_BYTE, pixels);
+        byte[] image = new byte[pixels.capacity()];
+        pixels.get(image);
+        return image;
     }
 }

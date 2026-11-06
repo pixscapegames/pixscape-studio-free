@@ -37,6 +37,12 @@ public final class ChangeLightActivationCommand implements Command, HistoryManag
     @Override public void undo(){apply(before);}
     private void apply(boolean value){
         int e=ids.entityOfHistoryId(id);if(e<0)return;
+        PointLightComponent point=world.getMapper(PointLightComponent.class).getSafe(e,null);
+        ConeLightComponent cone=world.getMapper(ConeLightComponent.class).getSafe(e,null);
+        VisibilityComponent shown=world.getMapper(VisibilityComponent.class).getSafe(e,null);
+        boolean active=ActiveLights.isActive(visibility?value:shown==null||shown.visible,
+                point!=null,point!=null&&(visibility?point.enabled:value),cone!=null,cone!=null&&(visibility?cone.enabled:value));
+        EditLightingCommand.validateShadowChange(world,active,point!=null?point.shadowQuality:cone!=null?cone.shadowQuality:0);
         if(visibility)world.getMapper(VisibilityComponent.class).create(e).visible=value;
         else{
             PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(e,null);

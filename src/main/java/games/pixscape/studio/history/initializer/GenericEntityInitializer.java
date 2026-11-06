@@ -1468,6 +1468,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.hasConeLight = false;
 
         this.pointEnabled = true;
+        this.pointShadowQuality = games.pixscape.runtime.render.lighting.ActiveLights.hasOrthogonalMaps(world) ? 0 : 1;
         this.pointRadius = Math.max(0f, radius);
         this.pointIntensity = Math.max(0f, intensity);
         this.pointFalloff = Math.max(0f, falloff);
@@ -1544,6 +1545,7 @@ public class GenericEntityInitializer extends AbstractCommonInitializer {
         this.hasPointLight = false;
 
         this.coneEnabled = true;
+        this.coneShadowQuality = games.pixscape.runtime.render.lighting.ActiveLights.hasOrthogonalMaps(world) ? 0 : 1;
         this.coneRadius = Math.max(0f, radius);
         this.coneIntensity = Math.max(0f, intensity);
         this.coneAngleDeg = coneAngleDeg;

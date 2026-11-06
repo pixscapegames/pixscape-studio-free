@@ -445,8 +445,11 @@ public final class PointLightProperties extends VisTable {
     }
 
     private void changeActivation(int entity,boolean visibility,boolean enabled){
-        ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
-                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));
+        try {ctx.history.execute(new games.pixscape.studio.history.commands.ChangeLightActivationCommand(
+                ctx.world,ctx.history.historyIds(),entity,visibility,enabled));}
+        catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
+            if(getStage()!=null)games.pixscape.studio.ui.modal.Dialogs.showOKDialog(getStage(),"Lighting",refusal.getMessage());
+        }
         visibleBinder.refresh();enabledBinder.refresh();
     }
 

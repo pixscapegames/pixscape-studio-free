@@ -40,6 +40,8 @@ public final class EditLightingCommand implements Command,HistoryManager.Support
     @Override public void undo(){apply(before,true);}
     private void apply(float value,boolean undo){
         int e=ids.entityOfHistoryId(historyId);if(e<0 || !world.getEntityManager().isActive(e))return;
+        if(property==Property.QUALITY)validateShadowChange(world,
+                games.pixscape.runtime.render.lighting.ActiveLights.isActive(world,e),(int)value);
         PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(e,null);
         ConeLightComponent c=world.getMapper(ConeLightComponent.class).getSafe(e,null);
         if(property==Property.HEIGHT){if(p!=null)p.height=value;if(c!=null)c.height=value;}
@@ -56,6 +58,13 @@ public final class EditLightingCommand implements Command,HistoryManager.Support
         }
         DirtyTrackerSystem dirty=world.getSystem(DirtyTrackerSystem.class);if(dirty!=null){dirty.geometry(e,GeometryDirty.ALL);dirty.material(e);}
         EventFlow.i().publish(new EventFlow.EntityChanged(e,TransformOp.SCALE,tag));
+    }
+    static void validateShadowChange(World world,boolean active,int quality){
+        games.pixscape.runtime.loading.SceneMetaRuntime scene=world.getRegistered(games.pixscape.runtime.loading.SceneMetaRuntime.class);
+        if(active && quality>1 && scene!=null && scene.lightingEnabled
+                && games.pixscape.runtime.render.lighting.ActiveLights.hasOrthogonalMaps(world))
+            throw new games.pixscape.runtime.render.lighting.LightingAdmissionException(
+                    games.pixscape.runtime.render.lighting.ActiveLights.ORTHO_SHADOW_LIMIT);
     }
     public static float read(World world,int e,Property property){
         PointLightComponent p=world.getMapper(PointLightComponent.class).getSafe(e,null);

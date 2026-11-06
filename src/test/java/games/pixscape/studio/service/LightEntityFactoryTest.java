@@ -10,6 +10,21 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class LightEntityFactoryTest {
+    @Test public void newLightsOnOrthoDefaultToNoneWithoutRewritingExistingLights() {
+        World world=new World(new WorldConfiguration());
+        try {
+            createClassicLayer(world,0);
+            world.getMapper(TiledLayerComponent.class).create(world.create()).projection=games.pixscape.runtime.tiled.TiledProjection.ORTHO;
+            PointLightComponent stored=world.getMapper(PointLightComponent.class).create(world.create());stored.shadowQuality=2;
+            world.process();
+            int point=world.create(),cone=world.create();
+            new GenericEntityInitializer(world).configurePointLightProcedural(0,0,0,0,0,0,"Point",80,1,1,1,1,1).init(point);
+            new GenericEntityInitializer(world).configureConeLightProcedural(0,0,0,0,0,0,0,"Cone",80,1,55,.3f,1,1,1,1).init(cone);
+            Assert.assertEquals(0,world.getMapper(PointLightComponent.class).get(point).shadowQuality);
+            Assert.assertEquals(0,world.getMapper(ConeLightComponent.class).get(cone).shadowQuality);
+            Assert.assertEquals(2,stored.shadowQuality);
+        } finally {world.dispose();}
+    }
 
     @Test
     public void createPointLightAddsExpectedComponents() {
