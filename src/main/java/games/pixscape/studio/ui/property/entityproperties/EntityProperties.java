@@ -169,6 +169,7 @@ public class EntityProperties extends VisTable {
         EventFlow.i().subscribe(EventFlow.PhysicsBodyStructureChanged.class, evt -> {
             if (evt.entityId() != currentEntityId) return;
             bodyPanel.setEntityId(currentEntityId);
+            spatialPanel.refreshFromModel(currentEntityId);
             updateSectionsVisibility();
         });
         EventFlow.i().subscribe(EventFlow.SpatialHeightChanged.class, evt -> {

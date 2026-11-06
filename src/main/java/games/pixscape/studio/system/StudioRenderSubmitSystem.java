@@ -82,7 +82,10 @@ public final class StudioRenderSubmitSystem extends BaseSystem implements Profil
     }
 
     @Override
-    protected void initialize() { }
+    protected void initialize() {
+        var geometry = world.getSystem(games.pixscape.runtime.system.LightingGeometrySystem.class);
+        if (geometry != null) geometry.allowIncompleteAuthoringFootprints();
+    }
 
     @Override
     protected boolean checkProcessing() { return frameSubmissionAllowed; }

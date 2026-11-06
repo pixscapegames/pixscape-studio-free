@@ -299,6 +299,10 @@ public final class EventFlow {
     ) {
     }
 
+    public record MaterialBlendResult(com.artemis.World world, int entity, String refusal) {}
+
+    public record SceneLightingRefused(games.pixscape.studio.configuration.SceneMeta scene, String reason) {}
+
     public record SceneLightingChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}
 
     public record SceneRendererChanged(games.pixscape.studio.configuration.SceneMeta scene,int sourceTag) {}

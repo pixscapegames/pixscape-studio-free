@@ -3,6 +3,7 @@ package games.pixscape.studio.ui.property.entityproperties;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.ui.Cell;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Array;
@@ -15,6 +16,8 @@ import games.pixscape.runtime.render.BlendMode;
 import games.pixscape.runtime.render.ShaderMode;
 import games.pixscape.runtime.render.ShaderOrigin;
 import games.pixscape.runtime.service.ShaderRegistry;
+import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.commands.ChangeBlendModeCommand;
 import games.pixscape.studio.history.commands.ChangeShaderCommand;
 import games.pixscape.studio.ui.StudioColorPickerFactory;
 import games.pixscape.studio.ui.config.CommonLayout;
@@ -35,7 +38,8 @@ public final class MaterialPanel extends CollapsibleWidget {
     private final VisCheckBox showExamplesBox;
 
     private final UiBinders.SelectBoxBinder<String> shaderBinder;
-    private final UiBinders.SelectBoxBinder<BlendMode> blendBinder;
+    private final VisLabel blendMessage = new VisLabel("");
+    private final Cell<VisLabel> blendMessageCell;
     private final UiBinders.ColorPickerBinder pickerBinder;
 
     private int entityId = -1;
@@ -94,31 +98,6 @@ public final class MaterialPanel extends CollapsibleWidget {
                 }
         );
 
-        blendBinder = new UiBinders.SelectBoxBinder<>(
-                ctx.world,
-                blendBox,
-                ctx.mMat::has,
-                (int e) -> {
-                    var m = ctx.mMat.get(e);
-                    if (m == null) return BlendMode.ALPHA;
-
-                    BlendMode mode = BlendMode.fromId(m.getBlendModeId());
-                    return (mode != null) ? mode : BlendMode.ALPHA;
-                },
-                (Integer e, BlendMode oldMode, BlendMode newMode) -> {
-                    var m = ctx.mMat.get(e);
-                    if (m == null) return;
-
-                    BlendMode mode = (newMode != null) ? newMode : BlendMode.ALPHA;
-                    int newId = mode.id;
-
-                    if (m.blendModeId != newId) {
-                        m.blendModeId = newId;
-                        if (ctx.dirtyTracker != null) ctx.dirtyTracker.material(e);
-                    }
-                }
-        );
-
         showExamplesBox = new VisCheckBox("Show example shaders");
         showExamplesBox.setChecked(false);
         showExamplesBox.addListener(new ChangeListener() {
@@ -130,6 +109,23 @@ public final class MaterialPanel extends CollapsibleWidget {
         });
 
         blendBox.setItems(BlendMode.values());
+        blendBox.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                if (entityId < 0 || !ctx.mMat.has(entityId)) return;
+                ctx.history.execute(new ChangeBlendModeCommand(ctx.world, ctx.sceneMeta,
+                        ctx.history.historyIds(), entityId, blendBox.getSelected()));
+                refreshBlend();
+            }
+        });
+        EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class, event -> {
+            if (event.scene() == ctx.sceneMeta) showBlendMessage(null);
+        });
+        EventFlow.i().subscribe(EventFlow.MaterialBlendResult.class, result -> {
+            if (result.world() == ctx.world && result.entity() == entityId) {
+                refreshBlend();
+                showBlendMessage(result.refusal());
+            }
+        });
 
         VisTextButton shaderParamsButton = new VisTextButton("Parameters");
         shaderParamsButton.setColor(CommonLayout.BUTTON_COLOR);
@@ -156,6 +152,9 @@ public final class MaterialPanel extends CollapsibleWidget {
 
         root.add(new VisLabel("Blend:")).width(CommonLayout.LABEL_WIDTH).left();
         root.add(blendBox).width(CommonLayout.FIELD_WIDTH).left().colspan(2).growX().row();
+        blendMessage.setWrap(true);
+        blendMessageCell = root.<VisLabel>add().colspan(3).growX();
+        root.row();
         root.add(new VisLabel("Color:")).width(CommonLayout.LABEL_WIDTH).left();
         root.add(buttonPicker).left().colspan(2).row();
 
@@ -163,6 +162,7 @@ public final class MaterialPanel extends CollapsibleWidget {
     }
 
     public void setEntityId(int entityId) {
+        if (this.entityId != entityId) showBlendMessage(null);
         this.entityId = entityId;
         if (entityId < 0) return;
 
@@ -178,8 +178,24 @@ public final class MaterialPanel extends CollapsibleWidget {
         }
 
         shaderBinder.setEntityId(entityId);
-        blendBinder.setEntityId(entityId);
+        refreshBlend();
         pickerBinder.setEntityId(entityId);
+    }
+
+    private void refreshBlend() {
+        var material = ctx.mMat.getSafe(entityId, null);
+        if (material == null) return;
+        blendBox.getSelection().setProgrammaticChangeEvents(false);
+        try {
+            blendBox.setSelected(BlendMode.fromId(material.blendModeId));
+        } finally {
+            blendBox.getSelection().setProgrammaticChangeEvents(true);
+        }
+    }
+
+    private void showBlendMessage(String message) {
+        blendMessage.setText(message == null ? "" : message);
+        blendMessageCell.setActor(message == null ? null : blendMessage);
     }
 
     public void refreshShaderList() {

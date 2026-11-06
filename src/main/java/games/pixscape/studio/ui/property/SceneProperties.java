@@ -274,12 +274,26 @@ public class SceneProperties extends VisTable {
         add(new VisLabel("Lighting")).center().colspan(2).row();
         enableLighting.setName("scene-enable-lighting");
         add(enableLighting).left().colspan(2).row();
+        VisLabel lightingMessage = new VisLabel("");
+        lightingMessage.setWrap(true);
+        var messageCell = this.<VisLabel>add().colspan(2).growX();
+        row();
+        EventFlow.i().subscribe(EventFlow.SceneLightingRefused.class, event -> {
+            if (event.scene() == boundScene) {
+                lightingMessage.setText(event.reason());
+                messageCell.setActor(lightingMessage);
+                refreshLightingFromMeta();
+            }
+        });
+        EventFlow.i().subscribe(EventFlow.MaterialBlendResult.class, result -> {
+            if (result.world() == world && result.refusal() == null) messageCell.clearActor();
+        });
         enableLighting.addListener(new ChangeListener(){
             @Override public void changed(ChangeEvent event,Actor actor) {
                 if(internalLightingRefresh || prepareLighting==null || boundScene==null)return;
                 try {
                     historyManager.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
-                            boundScene,enableLighting.isChecked(),prepareLighting,markCurrentSceneSaveRequired));
+                            world,boundScene,enableLighting.isChecked(),prepareLighting,markCurrentSceneSaveRequired));
                 } catch(RuntimeException failure) {
                     if(getStage()==null)throw failure;
                     com.kotcrab.vis.ui.util.dialog.Dialogs.showOKDialog(getStage(),"Lighting",failure.getMessage());
@@ -287,7 +301,10 @@ public class SceneProperties extends VisTable {
             }
         });
         EventFlow.i().subscribe(EventFlow.SceneLightingChanged.class,event->{
-            if(event.scene()==boundScene)refreshLightingFromMeta();
+            if(event.scene()==boundScene) {
+                messageCell.clearActor();
+                refreshLightingFromMeta();
+            }
         });
 
         lightingBlock = new VisTable(true);

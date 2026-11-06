@@ -6,9 +6,11 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
+import games.pixscape.runtime.component.spatial.SpatialPhysicsFootprintComponent;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.PhysicsSpatialFootprintSyncSystem;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.HistoryManager;
@@ -17,6 +19,26 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class ToggleSpatialActorCommandTest {
+    @Test
+    public void activatingAfterRemovingAnOrdinaryBodyProjectsTheNewCircleOnTheFirstFrame() {
+        Harness h = new Harness();
+        int actor = h.world.create();
+        h.history.execute(new AddPhysicsBodyCommand(h.world, h.historyIds, h.physics,
+                actor, PhysicsBodyComponent.DYNAMIC, true));
+        h.world.process();
+        h.history.execute(new RemovePhysicsBodyCommand(h.world, h.historyIds, h.physics, actor));
+        h.world.process();
+
+        h.history.execute(new ToggleSpatialActorCommand(h.world, h.historyIds, h.physics,
+                actor, true, true, footprint(0.5f, 0.25f, 0f)));
+        h.world.process();
+        SpatialPhysicsFootprintComponent projected =
+                h.world.getMapper(SpatialPhysicsFootprintComponent.class).get(actor);
+        Assert.assertTrue("The replaced body can reuse its predecessor's generation", projected.valid);
+        Assert.assertEquals(marked(h.world, actor).physicsShapeId, projected.sourcePhysicsShapeId);
+        Assert.assertEquals(25f, projected.localOffsetXPx, 0f);
+    }
+
     @Test
     public void enableCreatesOneDedicatedCircleAndUndoRedoPreservesItsIdentity() {
         Harness harness = new Harness();
@@ -187,7 +209,7 @@ public class ToggleSpatialActorCommandTest {
     }
 
     private static final class Harness {
-        final World world = new World(new WorldConfiguration());
+        final World world = new World(new WorldConfiguration().setSystem(new PhysicsSpatialFootprintSyncSystem(100f)));
         final SceneMeta meta = new SceneMeta();
         final PhysicsService physics = new PhysicsService(world, null, meta);
         final HistoryIdRegistry historyIds = new HistoryIdRegistry();

@@ -93,14 +93,14 @@ public class StudioLightCompositionGlSmokeTest {
                             world.process();
                             var history = new games.pixscape.studio.history.HistoryManager(16);
                             Runnable enable = () -> history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
-                                    meta, true, submit::setLightingEnabled, null));
+                                    world, meta, true, submit::setLightingEnabled, null));
                             {
                                 enable.run(); // No lights exist, but geometry is still prepared.
                                 MapLightingGeometry old = tiledState.lightingMaps.get(entity);
                                 Assert.assertNotNull(old);
                                 int previous = old.publicationRevision();
                                 history.execute(new games.pixscape.studio.history.commands.SetSceneLightingCommand(
-                                        meta, false, submit::setLightingEnabled, null));
+                                        world, meta, false, submit::setLightingEnabled, null));
                                 var edited = wall.copy(); edited.height = 96;
                                 history.execute(new games.pixscape.studio.history.commands.EditSpatialBlockCommand(
                                         world, history.historyIds(), null, entity, wall.id, wall, edited));

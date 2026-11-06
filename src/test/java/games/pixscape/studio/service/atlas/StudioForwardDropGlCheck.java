@@ -3,9 +3,13 @@ package games.pixscape.studio.service.atlas;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.PixmapIO;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.BufferUtils;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.SurfaceLightingComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -17,6 +21,7 @@ import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.batch.TextureArrayMeshBatchStudio;
 import games.pixscape.studio.configuration.ProjectConfig;
+import games.pixscape.studio.history.commands.EditLightingCommand;
 import games.pixscape.studio.service.SceneService;
 import games.pixscape.studio.service.StudioGlTestScope;
 import games.pixscape.studio.system.StudioRenderSubmitSystem;
@@ -99,23 +104,30 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
             frame(canvas);assertDomain(canvas,FrameRenderQueue.SOURCE_TILED,false);
 
             int animatedTileId=9001;
+            int purpleTileId=db.findByLogicalPath("tile-frame").id();
+            // The animation is registered directly in this fixture. Include its second image in the pending pack.
+            app.getSceneService().ensureSceneAtlasInputHasAsset(tag,purpleTileId);
             canvas.getTileAnimationRegistry().put(animatedTileId,
-                    new int[]{db.findByLogicalPath("tile").id(),db.findByLogicalPath("tile-frame").id()},
+                    new int[]{db.findByLogicalPath("tile").id(),purpleTileId},
                     new int[]{100,100});
             var animatedBrush=new games.pixscape.studio.service.tiled.TiledBrushSession(map);
-            animatedBrush.apply(component,1,0,animatedTileId);
+            animatedBrush.apply(component,1,1,animatedTileId);
             history.execute(new games.pixscape.studio.history.commands.TiledBrushCommand(canvas.getEcsWorld(),app.getSceneService(),
                     history.historyIds(),history.historyIds().ensureForEntity(map),animatedBrush.toPlan(),new games.pixscape.studio.service.tiled.TiledSpatialMutationPlanner()));
-            var tiledHandles=new java.util.HashSet<Integer>();
-            for(int i=0;i<12;i++){frame(canvas);collectDomainTextures(canvas,FrameRenderQueue.SOURCE_TILED,tiledHandles);}
-            assertTrue("An unpacked tiled animation advances through its standalone frame textures",tiledHandles.size()>=3);
+            assertTilePlayback(canvas,component,false);
+            assertTrue(atlas.hasAsyncPackQueuedOrRunningFor(tag));
+            assertTrue(executor.queued()>0);
+            assertSame(active,bundle(canvas));
 
             int particle=ops.createParticleEffect("spark.p",-25,55);assertTrue(particle>=0);
             for(int i=0;i<5;i++)frame(canvas);
             assertDomain(canvas,FrameRenderQueue.SOURCE_VFX,false);
             assertSame("No publication before releasing the worker",active,bundle(canvas));
             assertPacked(canvas,background);assertPending(canvas,image);assertPending(canvas,animation);
-            ops.createPointLight(-25,45);
+            int light=ops.createPointLight(-25,45);
+            // New orthographic lights start with shadows off. Exercise the shared shadow pass explicitly.
+            history.execute(new EditLightingCommand(canvas.getEcsWorld(),history.historyIds(),light,
+                    EditLightingCommand.Property.QUALITY,1));
             canvas.getEcsWorld().getMapper(SurfaceLightingComponent.class).create(image).shadowCaster=true;
             canvas.getEcsWorld().getMapper(SurfaceLightingComponent.class).create(animation).shadowCaster=true;
             frame(canvas);
@@ -153,6 +165,7 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
             assertFalse(canvas.getEcsWorld().getEntityManager().isActive(undoneAnimation));
             assertFalse(canvas.getEcsWorld().getEntityManager().isActive(deletedParticle));
             assertEquals("No tile resurrected by publication",0,component.data.getTile(1,0));
+            assertTilePlayback(canvas,component,true);
             capture(root,"published.png");
 
             // Real pack failure: corrupt an input after the previous valid publication.
@@ -212,18 +225,50 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
     }
     private static int texture(WorldCanvas c,int entity)throws Exception{FrameRenderQueue q=queue(c);for(int i=0;i<q.size;i++)if(q.sourceEntity[i]==entity&&q.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS)return q.textureHandle[i];throw new AssertionError("Entity missing from canvas queue: "+entity);}
     private static int pixel(WorldCanvas c,int entity)throws Exception{
-        FrameRenderQueue q=queue(c);var camera=(com.badlogic.gdx.graphics.OrthographicCamera)field(WorldCanvas.class,"camera").get(c);
+        FrameRenderQueue q=queue(c);var camera=(OrthographicCamera)field(WorldCanvas.class,"camera").get(c);
         for(int i=0;i<q.size;i++)if(q.sourceEntity[i]==entity&&q.sourceDomain[i]==FrameRenderQueue.SOURCE_ECS){
-            var p=camera.project(new com.badlogic.gdx.math.Vector3((q.x1[i]+q.x3[i])*.5f,(q.y1[i]+q.y3[i])*.5f,0));
-            var bytes=com.badlogic.gdx.utils.BufferUtils.newByteBuffer(4);
-            Gdx.gl.glReadPixels((int)p.x,(int)p.y,1,1,com.badlogic.gdx.graphics.GL20.GL_RGBA,com.badlogic.gdx.graphics.GL20.GL_UNSIGNED_BYTE,bytes);
-            return (bytes.get(0)&255)<<24|(bytes.get(1)&255)<<16|(bytes.get(2)&255)<<8|(bytes.get(3)&255);
+            return readPixel(camera.project(new Vector3((q.x1[i]+q.x3[i])*.5f,(q.y1[i]+q.y3[i])*.5f,0)));
         }throw new AssertionError("Missing entity pixels: "+entity);
+    }
+    private static int readPixel(Vector3 point) {
+        assertTrue("Sample outside framebuffer: "+point,point.x>=0 && point.x<Gdx.graphics.getBackBufferWidth()
+                && point.y>=0 && point.y<Gdx.graphics.getBackBufferHeight());
+        var bytes=BufferUtils.newByteBuffer(4);
+        Gdx.gl.glReadPixels((int)point.x,(int)point.y,1,1,GL20.GL_RGBA,GL20.GL_UNSIGNED_BYTE,bytes);
+        return (bytes.get(0)&255)<<24|(bytes.get(1)&255)<<16|(bytes.get(2)&255)<<8|(bytes.get(3)&255);
     }
     private static void assertPending(WorldCanvas c,int e)throws Exception{int handle=texture(c,e);assertFalse(bundle(c).handle2layer.containsKey(handle));assertNotNull(TextureRegistry.getByHandle(handle));}
     private static void assertPacked(WorldCanvas c,int e)throws Exception{assertTrue(bundle(c).handle2layer.containsKey(texture(c,e)));}
     private static void assertDomain(WorldCanvas c,byte domain,boolean packed)throws Exception{FrameRenderQueue q=queue(c);int count=0;for(int i=0;i<q.size;i++)if(q.sourceDomain[i]==domain){count++;assertEquals(packed,bundle(c).handle2layer.containsKey(q.textureHandle[i]));}assertTrue("Visible domain "+domain,count>0);}
-    private static void collectDomainTextures(WorldCanvas c,byte domain,java.util.Set<Integer> handles)throws Exception{FrameRenderQueue q=queue(c);for(int i=0;i<q.size;i++)if(q.sourceDomain[i]==domain)handles.add(q.textureHandle[i]);}
+    private static void assertTilePlayback(WorldCanvas canvas,TiledLayerComponent layer,boolean packed) throws Exception {
+        var chunk=layer.data.getChunk(0,0);
+        var camera=(OrthographicCamera)field(WorldCanvas.class,"camera").get(canvas);
+        Color previous=null;
+        for(int step=0;step<4;step++) {
+            frame(canvas); // 100 ms of simulation per step, matching the authored frame duration.
+            assertEquals(Color.ORANGE,tileColor(canvas,camera,chunk.renderRefFor(0,0),packed));
+            Color current=tileColor(canvas,camera,chunk.renderRefFor(1,1),packed);
+            if(previous!=null) assertNotEquals("Animated cell must switch color every 100 ms",previous,current);
+            previous=current;
+        }
+    }
+
+    private static Color tileColor(WorldCanvas canvas,OrthographicCamera camera,
+                                   int ref,boolean packed) throws Exception {
+        FrameRenderQueue q=queue(canvas);
+        for(int i=0;i<q.size;i++) {
+            if(q.sourceDomain[i]!=FrameRenderQueue.SOURCE_TILED || q.sourceSlot[i]!=ref) continue;
+            assertEquals("Texture binding for tiled ref "+ref,packed,bundle(canvas).handle2layer.containsKey(q.textureHandle[i]));
+            // Interior of the quad, away from its edges and the centre gizmo.
+            int rgba=readPixel(camera.project(new Vector3(.3f*q.x1[i]+.7f*q.x3[i],.3f*q.y1[i]+.7f*q.y3[i],0)));
+            int red=rgba>>>24, green=(rgba>>>16)&255, blue=(rgba>>>8)&255;
+            // Lighting changes intensity. Both fixture colors retain their distinct channel ordering.
+            if(red>green && green>blue+32) return Color.ORANGE;
+            if(blue>red && red>green+32) return Color.PURPLE;
+            throw new AssertionError("Expected orange or purple at tiled ref "+ref+", got RGB "+red+","+green+","+blue);
+        }
+        throw new AssertionError("Missing tiled ref on canvas: "+ref);
+    }
     private static void publish(ControlledAtlasExecutor executor,AtlasStudioService service)throws Exception{publish(executor,service,true);}
     private static void publish(ControlledAtlasExecutor executor,AtlasStudioService service,boolean success)throws Exception{
         service.updateAsyncPack();while(executor.queued()>0)executor.runNext();service.applyIfPackReady();

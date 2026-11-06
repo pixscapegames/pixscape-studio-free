@@ -10,6 +10,8 @@
 * When a painted tile refers to a missing asset or an asset of the wrong type, Runtime Export now reports the scene name, tile ID and asset catalog issue.
 
 ### Fixed
+* The material inspector and scene lighting switch now explain incompatible blend modes before applying them. Changing a blend supports undo and redo, and correcting an incompatible material resumes the canvas.
+* Enabling Spatial Actor after removing a physics body now draws the actor and its shadow on the first frame. Removing the body from a Spatial actor keeps the canvas editable and shows how to restore the missing footprint in the actor properties.
 * Deleting a tileset or tile animation now checks saved scenes and unsaved edits in every open tab. If a scene still uses the asset or cannot be read, Studio blocks deletion and identifies the scene.
 * Spatial edits, undo and redo now respect each scene’s lighting setting. Wall volumes and tile lighting settings can be edited with lighting off and take effect when lighting is enabled.
 * Renaming a scene now updates its tab title even when another tab is active.

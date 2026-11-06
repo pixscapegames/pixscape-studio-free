@@ -82,17 +82,13 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
                     }
                     command.withRectangles(rectangles);
                 }
-                if (command.isNoop()) {
-                    validationLabel.setText(enable
-                            ? "Spatial Actor requires valid visual bounds and one valid footprint."
-                            : "Spatial Actor state contains conflicting footprints.");
-                    validationBlock.show(true);
-                } else {
-                    validationLabel.setText("");
-                    validationBlock.show(false);
-                }
                 executeCommand(command);
                 refreshFromModel(entityId);
+                if (command.isNoop()) {
+                    showValidation(enable
+                            ? "Spatial Actor requires valid visual bounds and one valid footprint."
+                            : "Spatial Actor state contains conflicting footprints.");
+                }
                 event.handle();
             }
         });
@@ -110,9 +106,10 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
 
         rectanglePanel = new ActorSpatialRectanglePanel(ctx, details);
 
-        validationBlock.content().add(validationLabel).left().row();
+        validationLabel.setWrap(true);
+        validationBlock.content().add(validationLabel).growX().left().row();
         root.add(enabledBox).left().row();
-        root.add(validationBlock).growX().left().row();
+        root.add(validationBlock).width(CommonLayout.LABEL_WIDTH + CommonLayout.FIELD_WIDTH).left().row();
         root.add(detailsBlock).padLeft(CommonLayout.PAD_LEFT_SUBMENU).growX().left().row();
         detailsBlock.show(false);
     }
@@ -131,7 +128,16 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
     public void refreshFromModel(int eid) {
         internalRefresh = true;
         try {
-            boolean actor = isSpatialActor(eid);
+            boolean height = hasSpatialHeight(eid);
+            boolean footprint = hasMarkedFootprint(eid);
+            boolean actor = height || footprint;
+            if (height && !footprint) {
+                String missing = ctx.mPhysBody.has(eid)
+                        ? "Spatial footprint missing." : "Physics body and Spatial footprint missing.";
+                showValidation(missing + " Undo the removal, or turn Spatial Actor off and on to create a footprint.");
+            } else {
+                showValidation("");
+            }
             enabledBox.setChecked(actor);
             enabledBox.setDisabled(!isEligibleForActivation(eid) && !actor);
             detailsBlock.show(actor);
@@ -144,12 +150,13 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         invalidateHierarchy();
     }
 
-    private boolean hasSpatialHeight(int eid) {
-        return eid >= 0 && ctx.mSpatialHeight.has(eid);
+    private void showValidation(String message) {
+        validationLabel.setText(message);
+        validationBlock.show(!message.isEmpty());
     }
 
-    private boolean isSpatialActor(int eid) {
-        return hasSpatialHeight(eid) || hasMarkedFootprint(eid);
+    private boolean hasSpatialHeight(int eid) {
+        return eid >= 0 && ctx.mSpatialHeight.has(eid);
     }
 
     private boolean hasMarkedFootprint(int eid) {
