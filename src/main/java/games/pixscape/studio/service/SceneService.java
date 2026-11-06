@@ -50,6 +50,7 @@ import games.pixscape.studio.importer.tmx.TmxSceneImportSession;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.io.TiledLayerTileIds;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.asset.*;
 import games.pixscape.studio.service.asset.TilesetAssetImportService.TilesetAtlasImportRequest;
@@ -566,54 +567,9 @@ public final class SceneService {
             if (!Files.isRegularFile(sceneFile) || isEmptyFile(sceneFile)) {
                 throw new IOException("Missing runtime scene file: " + sceneFile);
             }
-            collectTiledLayerTileAssetIds(new JsonReader().parse(Files.readString(sceneFile)), out, tileAnimationsDb);
-        }
-    }
-
-    private static void collectTiledLayerTileAssetIds(JsonValue root,
-                                                     Set<Integer> out,
-                                                     TileAnimationsMetaDatabase tileAnimationsDb) {
-        JsonValue entities = root != null ? root.get("entities") : null;
-        if (entities == null || !entities.isObject()) {
-            return;
-        }
-
-        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
-            JsonValue components = entity.get("components");
-            if (components == null || !components.isObject()) {
-                continue;
-            }
-
-            JsonValue tiled = components.get("TiledLayerComponent");
-            if (tiled == null || !tiled.isObject()) {
-                continue;
-            }
-
-            collectIntBagValues(tiled.get("tileAssetIds"), out, tileAnimationsDb);
-            JsonValue data = tiled.get("data");
-            if (data != null && data.isObject()) {
-                collectIntBagValues(data.get("tileAssetIds"), out, tileAnimationsDb);
-            }
-        }
-    }
-
-    private static void collectIntBagValues(JsonValue bag,
-                                            Set<Integer> out,
-                                            TileAnimationsMetaDatabase tileAnimationsDb) {
-        JsonValue items = bag != null ? bag.get("items") : null;
-        if (items == null || !items.isArray()) {
-            return;
-        }
-
-        int size = bag.getInt("size", items.size);
-        int index = 0;
-        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
-            int assetId = item.asInt();
-            if (assetId > 0) {
-                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, assetId, out)) {
-                    out.add(assetId);
-                }
-            }
+            TiledLayerTileIds.forEach(new JsonReader().parse(Files.readString(sceneFile)), id -> {
+                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, id, out)) out.add(id);
+            });
         }
     }
 
@@ -3005,12 +2961,6 @@ public final class SceneService {
             tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
         }
 
-        if (isTileAnimationUsedInCurrentScene(tileAnimationId)) {
-            throw new IllegalStateException(
-                    "Cannot delete this tiled animation because it is still used in the current scene."
-            );
-        }
-
         TileAnimationProjectDefData toRemove = null;
         for (TileAnimationProjectDefData def : tileAnimationsMetaDatabase.animations) {
             if (def != null && def.id == tileAnimationId) {
@@ -3021,6 +2971,12 @@ public final class SceneService {
 
         if (toRemove == null) {
             throw new IllegalStateException("Tiled animation not found.");
+        }
+
+        var usage = AssetUsageScanner.scanTileAnimation(cfg, tileAnimationId, openSceneContexts().values());
+        if (usage.used()) {
+            throw new IllegalStateException("Cannot delete tile animation '" + toRemove.name
+                    + "'. Used in scenes: " + usage.sceneNames().toString(", ") + ".");
         }
 
         tileAnimationsMetaDatabase.animations.removeValue(toRemove, true);
@@ -3149,42 +3105,6 @@ public final class SceneService {
             }
         }
         return null;
-    }
-
-    private boolean isTileAnimationUsedInCurrentScene(int tileAnimationId) {
-        if (tileAnimationId <= 0) {
-            return false;
-        }
-
-        World world = sceneContext().world();
-        ComponentMapper<TiledLayerComponent> mTiled =
-                world.getMapper(TiledLayerComponent.class);
-
-        IntBag tiledLayers = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class))
-                .getEntities();
-
-        int[] data = tiledLayers.getData();
-
-        for (int i = 0; i < tiledLayers.size(); i++) {
-            TiledLayerComponent tiled = mTiled.get(data[i]);
-            if (tiled == null || tiled.data == null) {
-                continue;
-            }
-
-            for (TileChunk chunk : tiled.data.getChunks()) {
-                for (int ly = 0; ly < chunk.chunkHeight; ly++) {
-                    for (int lx = 0; lx < chunk.chunkWidth; lx++) {
-                        int logicalId = chunk.get(lx, ly);
-                        if (logicalId == tileAnimationId) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-
-        return false;
     }
 
     private void markTileAnimationUsersDirty(int tileAnimationId) {
@@ -3644,15 +3564,10 @@ public final class SceneService {
             java.util.Map<String, java.util.Set<String>> requiredPaths,
             java.util.List<SceneEditorContext> contexts, TilesetReimportService.UsageProof usage) {}
 
-    /** Capture authored Worlds on the UI thread; the worker only reads these file/input snapshots. */
-    private TilesetImportInputs captureTilesetImportInputs(TilesetReimportService.Plan plan) {
-        if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(null))
-            throw new IllegalArgumentException("An atlas publication is pending. Finish it before applying the tileset import.");
-        FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        java.util.Map<String, SceneEditorContext> openScenes = new java.util.LinkedHashMap<>();
+    private Map<String, SceneEditorContext> openSceneContexts() {
+        Map<String, SceneEditorContext> openScenes = new LinkedHashMap<>();
         for (OpenEditorDocument document : app.getEditorDocumentManager().documents())
-            if (document instanceof games.pixscape.studio.document.SceneEditorDocument open && !open.isClosed())
+            if (document instanceof SceneEditorDocument open && !open.isClosed())
                 openScenes.put(open.context().sceneIdentity(), open.context());
         SceneEditorContext activeScene = app.getMostRecentSceneEditorContext();
         if (activeScene != null && activeScene.isInitialized()) {
@@ -3660,6 +3575,16 @@ public final class SceneService {
             // Game Object editors also have a World, but no authored Scene identity.
             if (tag != null) openScenes.putIfAbsent(tag, activeScene);
         }
+        return openScenes;
+    }
+
+    /** Capture authored Worlds on the UI thread; the worker only reads these file/input snapshots. */
+    private TilesetImportInputs captureTilesetImportInputs(TilesetReimportService.Plan plan) {
+        if (atlasStudioService.hasAsyncPackQueuedOrRunningFor(null))
+            throw new IllegalArgumentException("An atlas publication is pending. Finish it before applying the tileset import.");
+        FileHandle project = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance());
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        Map<String, SceneEditorContext> openScenes = openSceneContexts();
         java.util.Map<String, java.util.Set<String>> required = new java.util.LinkedHashMap<>();
         for (var entry : openScenes.entrySet()) required.put(entry.getKey(),
                 sceneAtlasInputService.collectRequiredAtlasInputPathsForScene(cfg, entry.getValue().world(),
@@ -3876,19 +3801,12 @@ public final class SceneService {
                 tileAnimations,
                 tilesetMeta.id()
         );
-        if (tileAnimationNames.size > 0) {
-            throw new IllegalStateException(buildTilesetTileAnimationInUseMessage(normalizedPath, tileAnimationNames));
-        }
-
-        AssetUsageScanner usageScanner = new AssetUsageScanner(
-                sceneContext().world(),
-                cfg,
-                assetMetaDatabase
-        );
-
-        AssetUsageScanner.AssetUsageReport usage = usageScanner.scanTileset(tilesetMeta.id());
-        if (usage.used()) {
-            throw new IllegalStateException(buildTilesetInUseMessage(normalizedPath, usage));
+        var usage = AssetUsageScanner.scanTileset(cfg, assetMetaDatabase, tilesetMeta.id(), openSceneContexts().values());
+        if (usage.used() || tileAnimationNames.size > 0) {
+            String message = "Cannot delete tileset '" + normalizedPath + "'.";
+            if (usage.used()) message += " Used in scenes: " + usage.sceneNames().toString(", ") + ".";
+            if (tileAnimationNames.size > 0) message += " Used by tile animations: " + tileAnimationNames.toString(", ") + ".";
+            throw new IllegalStateException(message);
         }
 
         boolean runtimeAvailabilityChanged =
@@ -4086,36 +4004,6 @@ public final class SceneService {
         return null;
     }
 
-    private String buildTilesetInUseMessage(String tilesetPath,
-                                            AssetUsageScanner.AssetUsageReport usage) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Cannot delete tileset '")
-                .append(tilesetPath)
-                .append("' because it is still used in the project.");
-
-        if (usage == null || !usage.used()) {
-            return sb.toString();
-        }
-
-        if (usage.sceneNames() != null && usage.sceneNames().size > 0) {
-            sb.append("\n\nUsed in scene");
-            if (usage.sceneNames().size > 1) {
-                sb.append("s");
-            }
-            sb.append(":");
-
-            for (String sceneName : usage.sceneNames()) {
-                sb.append("\n- ").append(sceneName);
-            }
-        }
-
-        if (usage.occurrenceCount() > 0) {
-            sb.append("\n\nOccurrences: ").append(usage.occurrenceCount());
-        }
-
-        return sb.toString();
-    }
-
     static Array<String> findTileAnimationsUsingTileset(AssetMetaDatabase assetDb,
                                                          TileAnimationsMetaDatabase tileAnimationsDb,
                                                          int tilesetId) {
@@ -4149,21 +4037,6 @@ public final class SceneService {
             }
         }
         return animationNames;
-    }
-
-    private String buildTilesetTileAnimationInUseMessage(String tilesetPath, Array<String> tileAnimationNames) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Cannot delete tileset '")
-                .append(tilesetPath)
-                .append("' because it is used by tile animation");
-        if (tileAnimationNames.size > 1) {
-            sb.append("s");
-        }
-        sb.append(":");
-        for (String animationName : tileAnimationNames) {
-            sb.append("\n- ").append(animationName);
-        }
-        return sb.toString();
     }
 
     private ImageSize readImageSize(FileHandle file) {

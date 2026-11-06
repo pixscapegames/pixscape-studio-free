@@ -18,6 +18,7 @@ import games.pixscape.studio.io.AtomicDirectoryPublication;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.StudioIO;
 import games.pixscape.studio.io.TileAnimationsIO;
+import games.pixscape.studio.io.TiledLayerTileIds;
 import games.pixscape.studio.service.ProjectFileCleanupService;
 import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.runtimeavailability.SceneHudRuntimeExport;
@@ -404,12 +405,9 @@ public final class RuntimeExport {
         }
 
         AssetMetaDatabase assetDb = AssetMetaDatabase.load(assetsFile);
-        IntSet runtimeTileAssetIds = collectRuntimeTileAssetIds(
-                studioCfg,
-                runtimeScenesDir,
-                runtimeCfg,
-                tileAnimationsDb
-        );
+        IntSet runtimeTileAssetIds = new IntSet();
+        collectRuntimeAvailabilityTileAssetIds(studioCfg, runtimeTileAssetIds, tileAnimationsDb);
+        collectRuntimeSceneTileAssetIds(runtimeScenesDir, runtimeCfg, runtimeTileAssetIds, tileAnimationsDb, assetDb);
         FileHandle exportedGameObjects = runtimeFile.parent().child(StudioFs.DIR_GAME_OBJECTS);
         if (exportedGameObjects.exists()) for (FileHandle file : exportedGameObjects.list()) {
             if (!file.name().endsWith(GameObjectAsset.EXTENSION)) continue;
@@ -478,16 +476,6 @@ public final class RuntimeExport {
         StudioIO.writeAtomic(runtimeFile, out -> out.write(pretty.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private static IntSet collectRuntimeTileAssetIds(ProjectConfig studioCfg,
-                                                     FileHandle runtimeScenesDir,
-                                                     RuntimeConfig runtimeCfg,
-                                                     TileAnimationsMetaDatabase tileAnimationsDb) {
-        IntSet out = new IntSet();
-        collectRuntimeAvailabilityTileAssetIds(studioCfg, out, tileAnimationsDb);
-        collectRuntimeSceneTileAssetIds(runtimeScenesDir, runtimeCfg, out, tileAnimationsDb);
-        return out;
-    }
-
     private static IntSet collectRuntimeTileAnimationIds(ProjectConfig studioCfg,
                                                          FileHandle runtimeScenesDir,
                                                          RuntimeConfig runtimeCfg,
@@ -537,47 +525,9 @@ public final class RuntimeExport {
                 throw new GdxRuntimeException("Runtime export missing exported scene file while collecting tiled animations: "
                         + sceneFile.path());
             }
-            collectTiledLayerAnimationIds(new JsonReader().parse(sceneFile), tileAnimationsDb, out);
-        }
-    }
-
-    private static void collectTiledLayerAnimationIds(JsonValue root,
-                                                      TileAnimationsMetaDatabase tileAnimationsDb,
-                                                      IntSet out) {
-        JsonValue entities = root != null ? root.get("entities") : null;
-        if (entities == null || !entities.isObject()) {
-            return;
-        }
-
-        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
-            JsonValue components = entity.get("components");
-            JsonValue tiled = components != null ? components.get("TiledLayerComponent") : null;
-            if (tiled == null || !tiled.isObject()) {
-                continue;
-            }
-            collectTileAnimationIds(tiled.get("tileAssetIds"), tileAnimationsDb, out);
-            JsonValue data = tiled.get("data");
-            if (data != null && data.isObject()) {
-                collectTileAnimationIds(data.get("tileAssetIds"), tileAnimationsDb, out);
-            }
-        }
-    }
-
-    private static void collectTileAnimationIds(JsonValue bag,
-                                                TileAnimationsMetaDatabase tileAnimationsDb,
-                                                IntSet out) {
-        JsonValue items = bag != null ? bag.get("items") : null;
-        if (items == null || !items.isArray()) {
-            return;
-        }
-
-        int size = bag.getInt("size", items.size);
-        int index = 0;
-        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
-            int assetId = item.asInt();
-            if (assetId > 0 && isTileAnimationId(tileAnimationsDb, assetId)) {
-                out.add(assetId);
-            }
+            TiledLayerTileIds.forEach(new JsonReader().parse(sceneFile), id -> {
+                if (isTileAnimationId(tileAnimationsDb, id)) out.add(id);
+            });
         }
     }
 
@@ -740,7 +690,8 @@ public final class RuntimeExport {
     private static void collectRuntimeSceneTileAssetIds(FileHandle runtimeScenesDir,
                                                        RuntimeConfig runtimeCfg,
                                                        IntSet out,
-                                                       TileAnimationsMetaDatabase tileAnimationsDb) {
+                                                       TileAnimationsMetaDatabase tileAnimationsDb,
+                                                       AssetMetaDatabase assetDb) {
         if (runtimeScenesDir == null || runtimeCfg == null || runtimeCfg.scenes == null || runtimeCfg.scenes.size == 0) {
             return;
         }
@@ -758,53 +709,19 @@ public final class RuntimeExport {
                         + sceneFile.path());
             }
 
-            collectTiledLayerTileAssetIds(new JsonReader().parse(sceneFile), out, tileAnimationsDb);
-        }
-    }
-
-    private static void collectTiledLayerTileAssetIds(JsonValue root,
-                                                      IntSet out,
-                                                      TileAnimationsMetaDatabase tileAnimationsDb) {
-        JsonValue entities = root != null ? root.get("entities") : null;
-        if (entities == null || !entities.isObject()) {
-            return;
-        }
-
-        for (JsonValue entity = entities.child; entity != null; entity = entity.next) {
-            JsonValue components = entity.get("components");
-            if (components == null || !components.isObject()) {
-                continue;
-            }
-
-            JsonValue tiled = components.get("TiledLayerComponent");
-            if (tiled == null || !tiled.isObject()) {
-                continue;
-            }
-
-            collectIntBagValues(tiled.get("tileAssetIds"), out, tileAnimationsDb);
-            JsonValue data = tiled.get("data");
-            if (data != null && data.isObject()) {
-                collectIntBagValues(data.get("tileAssetIds"), out, tileAnimationsDb);
-            }
-        }
-    }
-
-    private static void collectIntBagValues(JsonValue bag,
-                                            IntSet out,
-                                            TileAnimationsMetaDatabase tileAnimationsDb) {
-        JsonValue items = bag != null ? bag.get("items") : null;
-        if (items == null || !items.isArray()) {
-            return;
-        }
-
-        int size = bag.getInt("size", items.size);
-        int index = 0;
-        for (JsonValue item = items.child; item != null && index < size; item = item.next, index++) {
-            int assetId = item.asInt();
-            if (assetId > 0) {
-                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, assetId, out)) {
-                    out.add(assetId);
+            IntSet sceneTileIds = new IntSet();
+            TiledLayerTileIds.forEach(new JsonReader().parse(sceneFile), id -> {
+                if (!addTiledAnimationFrameAssetIds(tileAnimationsDb, id, sceneTileIds)) sceneTileIds.add(id);
+            });
+            for (IntSet.IntSetIterator it = sceneTileIds.iterator(); it.hasNext; ) {
+                int id = it.next();
+                AssetMeta asset = assetDb.findById(id);
+                if (!(asset instanceof TileAssetMeta)) {
+                    String reason = asset == null ? "which is missing from the asset catalog"
+                            : "which has type " + asset.type() + " in the asset catalog";
+                    throw new GdxRuntimeException("Scene '" + entry.key + "' references tile ID " + id + ", " + reason + ".");
                 }
+                out.add(id);
             }
         }
     }

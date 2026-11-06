@@ -26,10 +26,13 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.document.HudScreenEditorDocument;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.io.TiledLayerTileIds;
+import games.pixscape.studio.scene.SceneEditorContext;
 
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
@@ -43,7 +46,6 @@ public final class AssetUsageScanner {
     private final ComponentMapper<AssetRefComponent> mAssetRef;
     private final ComponentMapper<AnimationComponent> mAnimation;
     private final ComponentMapper<ParticleEmitterComponent> mParticle;
-    private final ComponentMapper<TiledLayerComponent> mTiled;
 
     public AssetUsageScanner(World world,
                              ProjectConfig projectConfig,
@@ -62,7 +64,6 @@ public final class AssetUsageScanner {
         this.mAssetRef = world != null ? world.getMapper(AssetRefComponent.class) : null;
         this.mAnimation = world != null ? world.getMapper(AnimationComponent.class) : null;
         this.mParticle = world != null ? world.getMapper(ParticleEmitterComponent.class) : null;
-        this.mTiled = world != null ? world.getMapper(TiledLayerComponent.class) : null;
     }
 
     public AssetUsageReport scanAsset(int assetId) {
@@ -271,21 +272,41 @@ public final class AssetUsageScanner {
             collectRetentionReferences(child, reference, uncertain, ids, retained, label);
     }
 
-    public AssetUsageReport scanTileset(int tilesetId) {
-        if (tilesetId <= 0) {
-            return AssetUsageReport.empty();
-        }
+    public static AssetUsageReport scanTileset(ProjectConfig cfg, AssetMetaDatabase assets, int tilesetId,
+                                               Collection<SceneEditorContext> openScenes) {
+        return scanProjectTileCells(cfg, collectTileAssetIdsForTileset(assets, tilesetId), openScenes);
+    }
 
-        IntSet tileAssetIds = collectTileAssetIdsForTileset(tilesetId);
-        if (tileAssetIds.size == 0) {
-            return AssetUsageReport.empty();
-        }
+    public static AssetUsageReport scanTileAnimation(ProjectConfig cfg, int animationId,
+                                                     Collection<SceneEditorContext> openScenes) {
+        IntSet ids = new IntSet();
+        ids.add(animationId);
+        return scanProjectTileCells(cfg, ids, openScenes);
+    }
 
+    private static AssetUsageReport scanProjectTileCells(ProjectConfig cfg, IntSet ids,
+                                                         Collection<SceneEditorContext> openScenes) {
         UsageAccumulator acc = new UsageAccumulator();
-
-        scanCurrentLoadedSceneTiles(tileAssetIds, acc);
-        scanOtherProjectSceneFilesTiles(tileAssetIds, acc);
-
+        FileHandle scenesDir = StudioFs.requireScenesDir(cfg);
+        for (String name : cfg.getSceneNames()) {
+            SceneMeta meta = cfg.getSceneMeta(name);
+            try {
+                if (meta == null || meta.getFile() == null || meta.getFile().isBlank()) {
+                    throw new IllegalStateException("Missing scene file name.");
+                }
+                JsonValue scene = new JsonReader().parse(scenesDir.child(meta.getFile()));
+                scanSavedTileCells(scene, name, ids, acc);
+            } catch (RuntimeException ex) {
+                throw new IllegalStateException("Cannot read scene '" + name + "' to check tile references.", ex);
+            }
+        }
+        // An open tab and its last save can each contain cells absent from the other.
+        for (SceneEditorContext context : openScenes) {
+            String name = context.sceneMeta().getName();
+            if (scanWorldTiles(context.world(), ids, acc, name) && Objects.equals(name, cfg.getCurrentSceneName())) {
+                acc.referencedInCurrentLoadedScene = true;
+            }
+        }
         return acc.toReport();
     }
 
@@ -305,18 +326,6 @@ public final class AssetUsageScanner {
             case SKIN -> false;
         };
 
-        if (found) {
-            acc.referencedInCurrentLoadedScene = true;
-        }
-    }
-
-    private void scanCurrentLoadedSceneTiles(IntSet tileAssetIds, UsageAccumulator acc) {
-        String currentSceneName = projectConfig.getCurrentSceneName();
-        if (currentSceneName == null || currentSceneName.isBlank()) {
-            return;
-        }
-
-        boolean found = scanCurrentWorldTiles(tileAssetIds, acc, currentSceneName);
         if (found) {
             acc.referencedInCurrentLoadedScene = true;
         }
@@ -470,32 +479,6 @@ public final class AssetUsageScanner {
         if (found) acc.addDocument(documentName);
     }
 
-    private void scanOtherProjectSceneFilesTiles(IntSet tileAssetIds, UsageAccumulator acc) {
-        FileHandle scenesDir = resolveScenesDir();
-        if (scenesDir == null || !scenesDir.exists()) {
-            return;
-        }
-
-        String currentSceneName = projectConfig.getCurrentSceneName();
-
-        for (String sceneName : projectConfig.getSceneNames()) {
-            if (sceneName == null || sceneName.isBlank()) continue;
-            if (sceneName.equals(currentSceneName)) continue;
-
-            SceneMeta sceneMeta = projectConfig.getSceneMeta(sceneName);
-            if (sceneMeta == null || sceneMeta.getFile() == null || sceneMeta.getFile().isBlank()) {
-                continue;
-            }
-
-            FileHandle sceneFile = scenesDir.child(sceneMeta.getFile());
-            if (!sceneFile.exists() || sceneFile.isDirectory()) {
-                continue;
-            }
-
-            scanSceneFileTiles(sceneFile, sceneName, tileAssetIds, acc);
-        }
-    }
-
     private boolean scanCurrentWorldByAssetId(int assetId,
                                               UsageAccumulator acc,
                                               String sceneName) {
@@ -574,11 +557,12 @@ public final class AssetUsageScanner {
         return found;
     }
 
-    private boolean scanCurrentWorldTiles(IntSet tileAssetIds,
+    private static boolean scanWorldTiles(World world, IntSet tileAssetIds,
                                           UsageAccumulator acc,
                                           String sceneName) {
         boolean found = false;
 
+        ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
         IntBag bag = world.getAspectSubscriptionManager()
                 .get(Aspect.all(TiledLayerComponent.class))
                 .getEntities();
@@ -631,7 +615,7 @@ public final class AssetUsageScanner {
                                          String sceneName) {
         IntSet ids = new IntSet();
         ids.add(tileAssetId);
-        return scanCurrentWorldTiles(ids, acc, sceneName);
+        return scanWorldTiles(world, ids, acc, sceneName);
     }
 
     private void scanSceneFileByAssetId(FileHandle sceneFile,
@@ -727,53 +711,23 @@ public final class AssetUsageScanner {
         }
     }
 
-    private void scanSceneFileTiles(FileHandle sceneFile,
-                                    String sceneName,
-                                    IntSet tileAssetIds,
-                                    UsageAccumulator acc) {
+    private static void scanSavedTileCells(JsonValue root, String sceneName, IntSet ids, UsageAccumulator acc) {
+        int before = acc.occurrenceCount;
+        TiledLayerTileIds.forEach(root, id -> {
+            if (ids.contains(id)) acc.occurrenceCount++;
+        });
+        if (acc.occurrenceCount > before) acc.addScene(sceneName);
+    }
+
+    private void scanSceneFileTile(FileHandle sceneFile, String sceneName, int tileAssetId, UsageAccumulator acc) {
         JsonValue root = parseScene(sceneFile);
         if (root == null) return;
-
-        JsonValue entities = root.get("entities");
-        if (entities == null || !entities.isObject()) return;
-
-        boolean found = false;
-
-        for (JsonValue ent = entities.child; ent != null; ent = ent.next) {
-            JsonValue components = ent.get("components");
-            if (components == null || !components.isObject()) continue;
-
-            JsonValue tiled = components.get("TiledLayerComponent");
-            if (tiled == null || !tiled.isObject()) continue;
-
-            JsonValue tileAssetIdsJson = tiled.get("tileAssetIds");
-            if (tileAssetIdsJson == null || !tileAssetIdsJson.isArray()) continue;
-
-            for (JsonValue v = tileAssetIdsJson.child; v != null; v = v.next) {
-                int assetId = v.asInt();
-                if (assetId <= 0) continue;
-                if (!tileAssetIds.contains(assetId)) continue;
-
-                acc.occurrenceCount++;
-                found = true;
-            }
-        }
-
-        if (found) {
-            acc.addScene(sceneName);
-        }
-    }
-
-    private void scanSceneFileTile(FileHandle sceneFile,
-                                   String sceneName,
-                                   int tileAssetId,
-                                   UsageAccumulator acc) {
         IntSet ids = new IntSet();
         ids.add(tileAssetId);
-        scanSceneFileTiles(sceneFile, sceneName, ids, acc);
+        scanSavedTileCells(root, sceneName, ids, acc);
     }
 
-    private IntSet collectTileAssetIdsForTileset(int tilesetId) {
+    private static IntSet collectTileAssetIdsForTileset(AssetMetaDatabase assetMetaDatabase, int tilesetId) {
         IntSet ids = new IntSet();
 
         for (int i = 0; i < assetMetaDatabase.size(); i++) {

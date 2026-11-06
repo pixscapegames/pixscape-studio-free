@@ -9,7 +9,9 @@ import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.asset.*;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -21,6 +23,39 @@ import static org.junit.Assert.assertTrue;
 
 public class RuntimeExportTilesetProfilesTest {
     private static final String TILESET_PROFILES_JSON = "tileset-profiles.json";
+
+    @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+    @Test
+    public void exportIdentifiesSceneAndCatalogProblemForPaintedTile() throws Exception {
+        FileHandle studio = new FileHandle(temp.newFolder("studio"));
+        FileHandle destination = new FileHandle(temp.newFolder("export"));
+        ProjectConfig cfg = new ProjectConfig();
+        cfg.projectTitle = "Tile reference diagnostics";
+        cfg.projectFileName = "test";
+        cfg.exportRootPathDir = destination.path();
+        cfg.createSceneMeta("castle");
+        cfg.createSceneMeta("Test2");
+        cfg.setCurrentSceneByName("castle");
+        FileHandle scenes = studio.child(StudioFs.DIR_SCENES);
+        scenes.child(cfg.getSceneMeta("castle").getFile()).writeString("{}", false);
+        FileHandle test2 = scenes.child(cfg.getSceneMeta("Test2").getFile());
+        AssetMetaDatabase db = new AssetMetaDatabase();
+        AssetMeta image = db.registerIfAbsent(AssetType.IMAGE, "images/stone", "orig/images/stone.png",
+                AssetMeta.AssetScope.USER);
+        db.save(studio.child(StudioFs.FILE_ASSETS_JSON));
+
+        test2.writeString(tiledSceneJson(196), false);
+        assertEquals("Scene 'Test2' references tile ID 196, which is missing from the asset catalog.",
+                assertThrows(GdxRuntimeException.class, () -> RuntimeExport.exportRuntime(cfg, studio, destination))
+                        .getMessage());
+        assertEquals(tiledSceneJson(196), test2.readString());
+
+        test2.writeString(tiledSceneJson(image.id()), false);
+        assertEquals("Scene 'Test2' references tile ID " + image.id() + ", which has type IMAGE in the asset catalog.",
+                assertThrows(GdxRuntimeException.class, () -> RuntimeExport.exportRuntime(cfg, studio, destination))
+                        .getMessage());
+    }
 
     @Test
     public void exportRuntimeRejectsRuntimeAvailableTileWithoutTilesetProfileMetadata() throws Exception {
