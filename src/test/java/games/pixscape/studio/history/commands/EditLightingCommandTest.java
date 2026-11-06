@@ -12,7 +12,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class EditLightingCommandTest {
-    @Test public void orthoShadowAdmissionUsesOwnerSceneAndKeepsHistoryAtomic() {
+    @Test public void orthoPcfSurvivesHistoryAndLightActivation() {
         games.pixscape.runtime.loading.SceneMetaRuntime scene=new games.pixscape.runtime.loading.SceneMetaRuntime();
         World world=new World(new WorldConfiguration().register(games.pixscape.runtime.loading.SceneMetaRuntime.class.getName(),scene));
         HistoryManager history=new HistoryManager(16);
@@ -22,21 +22,10 @@ public class EditLightingCommandTest {
             int e=world.create();history.historyIds().ensureForEntity(e);
             PointLightComponent light=world.getMapper(PointLightComponent.class).create(e);light.shadowQuality=0;
             world.process();scene.lightingEnabled=true;
-            Assert.assertThrows(games.pixscape.runtime.render.lighting.LightingAdmissionException.class,()->
-                    history.execute(new EditLightingCommand(world,history.historyIds(),e,EditLightingCommand.Property.QUALITY,2)));
-            Assert.assertEquals(0,light.shadowQuality);
-            scene.lightingEnabled=false;
             history.execute(new EditLightingCommand(world,history.historyIds(),e,EditLightingCommand.Property.QUALITY,2));
             history.undo();Assert.assertEquals(0,light.shadowQuality);history.redo();Assert.assertEquals(2,light.shadowQuality);
             Json json=new Json();Assert.assertEquals(2,json.fromJson(PointLightComponent.class,json.toJson(light)).shadowQuality);
-            light.enabled=false;scene.lightingEnabled=true;
-            Assert.assertThrows(games.pixscape.runtime.render.lighting.LightingAdmissionException.class,()->
-                    history.execute(new ChangeLightActivationCommand(world,history.historyIds(),e,false,true)));
-            Assert.assertFalse(light.enabled);Assert.assertEquals(2,light.shadowQuality);
-            // A failed command did not displace the previous history entry.
-            history.undo();Assert.assertEquals(0,light.shadowQuality);
-            history.redo();Assert.assertEquals(2,light.shadowQuality);
-            map.projection=games.pixscape.runtime.tiled.TiledProjection.ISO;
+            light.enabled=false;
             history.execute(new ChangeLightActivationCommand(world,history.historyIds(),e,false,true));
             Assert.assertTrue(light.enabled);
         } finally {world.dispose();}

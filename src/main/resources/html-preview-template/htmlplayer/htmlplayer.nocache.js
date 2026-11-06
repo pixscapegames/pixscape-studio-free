@@ -367,8 +367,8 @@ function htmlplayer(){
     }
     var strongName;
     try {
-      unflattenKeylistIntoAnswers(['gecko1_8'], '7BE0DC9AC74CF1748F1B0DC446E166EB');
-      unflattenKeylistIntoAnswers(['safari'], '7BE0DC9AC74CF1748F1B0DC446E166EB' + ':1');
+      unflattenKeylistIntoAnswers(['gecko1_8'], '5AA966C39FA5F9D78990D1E4FC7D27DF');
+      unflattenKeylistIntoAnswers(['safari'], '5AA966C39FA5F9D78990D1E4FC7D27DF' + ':1');
       strongName = answers[computePropValue('user.agent')];
       var idx = strongName.indexOf(':');
       if (idx != -1) {

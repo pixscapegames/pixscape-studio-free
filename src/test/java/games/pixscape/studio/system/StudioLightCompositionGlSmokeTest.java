@@ -126,13 +126,11 @@ public class StudioLightCompositionGlSmokeTest {
                                     int lightEntity=world.create();
                                     var light=world.getMapper(games.pixscape.runtime.component.light.PointLightComponent.class).create(lightEntity);
                                     light.shadowQuality=2;world.process();
-                                    int cursor=history.getCursor();
-                                    IllegalArgumentException refusal=Assert.assertThrows(IllegalArgumentException.class,history::redo);
-                                    Assert.assertTrue(refusal.getMessage().contains("Shadows to None"));
-                                    Assert.assertFalse(meta.lightingEnabled);Assert.assertFalse(submit.isLightingEnabled());
-                                    Assert.assertFalse(tiledState.lightingEnabled);Assert.assertEquals(cursor,history.getCursor());
+                                    history.redo();
+                                    Assert.assertTrue(meta.lightingEnabled);
+                                    Assert.assertTrue(submit.isLightingEnabled());
+                                    Assert.assertTrue(tiledState.lightingEnabled);
                                     Assert.assertEquals(2,light.shadowQuality);
-                                    light.shadowQuality=0;history.redo();Assert.assertTrue(meta.lightingEnabled);
                                 }
                             }
                         } finally { world.dispose(); batch.close(); }

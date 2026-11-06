@@ -25,7 +25,6 @@ public final class LightingPanel extends VisTable {
     private final Array<FloatField> fields=new Array<>();private final Array<VisCheckBox> checks=new Array<>();
     private final Array<Property> checkProperties=new Array<>();
     private SimpleSelectBox<String> quality;private SimpleSelectBox<Integer> resolution;
-    private VisLabel shadowLimit;
     private CollapsibleVisTable casterFields;
     private SimpleFloatSlider threshold;
     private VisLabel thresholdValue;
@@ -48,8 +47,6 @@ public final class LightingPanel extends VisTable {
             resolution=new SimpleSelectBox<>();resolution.setItems(256,512,1024);
             resolution.bind(()->(int)read(Property.RESOLUTION),v->edit(Property.RESOLUTION,v));
             add(new VisLabel("Resolution:")).width(120);add(resolution).width(120).left().row();
-            shadowLimit=new VisLabel("ORTHO supports None and Hard shadows.");
-            shadowLimit.setWrap(true);add(shadowLimit).colspan(2).width(240).left().row();
         }else{
             check("Receive light",Property.RECEIVE);check("Cast shadow",Property.CAST);
             casterFields=new CollapsibleVisTable(false,true);casterFields.setName("actor-caster-fields");
@@ -72,11 +69,7 @@ public final class LightingPanel extends VisTable {
     private void edit(Property p,float value){if(refresh || entity<0)return;
         if(p==Property.CAST)cancelThresholdPreview();
         EditLightingCommand command=new EditLightingCommand(ctx.world,ctx.history.historyIds(),entity,p,value);
-        try {if(!command.isNoop())ctx.history.execute(command);}
-        catch(games.pixscape.runtime.render.lighting.LightingAdmissionException refusal){
-            if(getStage()!=null)games.pixscape.studio.ui.modal.Dialogs.showOKDialog(getStage(),"Lighting",refusal.getMessage());
-            if(quality!=null)quality.refresh();
-        }
+        if(!command.isNoop())ctx.history.execute(command);
         if(p==Property.CAST)refreshCasterFields();
     }
     private void field(String label,Property p){field(this,label,p);}
@@ -113,7 +106,6 @@ public final class LightingPanel extends VisTable {
         for(FloatField f:fields)f.setEntityId(e);
         for(int i=0;i<checks.size;i++)checks.get(i).setChecked(read(checkProperties.get(i))!=0);
         if(quality!=null)quality.refresh();if(resolution!=null)resolution.refresh();
-        if(shadowLimit!=null)shadowLimit.setVisible(games.pixscape.runtime.render.lighting.ActiveLights.hasOrthogonalMaps(ctx.world));
         refreshCasterFields();
     }finally{refresh=false;}}
 }
