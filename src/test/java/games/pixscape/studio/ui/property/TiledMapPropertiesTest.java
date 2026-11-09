@@ -2,9 +2,15 @@ package games.pixscape.studio.ui.property;
 
 import com.artemis.World;
 import com.artemis.WorldConfiguration;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Align;
 import com.kotcrab.vis.ui.widget.VisCheckBox;
+import com.kotcrab.vis.ui.widget.VisLabel;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
@@ -18,17 +24,29 @@ import games.pixscape.runtime.tiled.TiledProjection;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.commands.SetSpatialBlockPhysicsCollisionCommand;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
+import games.pixscape.studio.ui.widget.SimpleTextField;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
+import java.lang.reflect.Proxy;
 
 import static org.junit.Assert.*;
 
 public class TiledMapPropertiesTest {
     private static ProjectConfig previousConfig;
+    private final EventFlow.SubscriptionScope subscriptions = EventFlow.i().newSubscriptionScope(() -> true);
+
+    @After
+    public void clearEvents() {
+        subscriptions.close();
+        EventFlow.i().discardPending();
+    }
 
     @BeforeClass
     public static void loadUi() {
@@ -44,6 +62,105 @@ public class TiledMapPropertiesTest {
     public static void unloadUi() {
         VisUiTestBootstrap.unloadSkin();
         ProjectConfig.setInstance(previousConfig);
+    }
+
+    @Test
+    public void nameCommitsThroughKeyboardHistoryWithoutChangingStableId() {
+        Fixture fixture = new Fixture();
+        Batch batch = (Batch) Proxy.newProxyInstance(Batch.class.getClassLoader(), new Class[]{Batch.class},
+                (proxy, method, args) -> null);
+        Stage stage = new Stage(new ScreenViewport(), batch);
+        try {
+            int map = fixture.addMap(0, 16, 100);
+            int other = fixture.addMap(0, 16, 100);
+            PixscapeIdentityComponent identity = fixture.world.getMapper(PixscapeIdentityComponent.class).create(map);
+            identity.name = "";
+            identity.stableId = 123456789;
+            PixscapeIdentityComponent otherIdentity = fixture.world.getMapper(PixscapeIdentityComponent.class).create(other);
+            otherIdentity.name = "Other";
+            otherIdentity.stableId = 42;
+            TiledMapProperties properties = fixture.properties();
+            properties.setMapEntityId(map);
+            stage.addActor(properties);
+            SimpleTextField name = properties.findActor("tiledMapName");
+            VisLabel id = properties.findActor("tiledMapStableId");
+            assertEquals("", name.getText());
+            assertEquals("123456789", id.getText().toString());
+            assertFalse(fixture.history.isDirty());
+            assertEquals(0, fixture.saveRequests);
+            assertFalse(fixture.history.canUndo());
+
+            name.setText("MonSuperNom");
+            stage.setKeyboardFocus(name);
+            assertTrue(stage.keyDown(Input.Keys.ENTER));
+            EventFlow.i().flush();
+            assertEquals("MonSuperNom", identity.name);
+            assertEquals(0, fixture.saveRequests);
+            assertTrue(fixture.history.isDirty());
+            fixture.history.undo();
+            EventFlow.i().flush();
+            assertEquals("", name.getText());
+            assertFalse(fixture.history.isDirty());
+            fixture.history.redo();
+            EventFlow.i().flush();
+            assertEquals("MonSuperNom", name.getText());
+            assertEquals(123456789, identity.stableId);
+            assertEquals("Other", otherIdentity.name);
+            assertEquals(42, otherIdentity.stableId);
+
+            long revision = fixture.history.getMutationRevision();
+            name.commit();
+            assertEquals(revision, fixture.history.getMutationRevision());
+            assertEquals(0, fixture.saveRequests);
+            properties.setMapEntityId(other);
+            assertEquals("Other", name.getText());
+            assertEquals("42", id.getText().toString());
+        } finally {
+            stage.dispose();
+            fixture.world.dispose();
+        }
+    }
+
+    @Test
+    public void absentIdentityAndAbsentStableIdStayAbsentWhenInspectedOrRenamed() {
+        Fixture fixture = new Fixture();
+        try {
+            int map = fixture.addMap(0, 16, 100);
+            var identities = fixture.world.getMapper(PixscapeIdentityComponent.class);
+            TiledMapProperties properties = fixture.properties();
+            properties.setMapEntityId(map);
+            SimpleTextField name = properties.findActor("tiledMapName");
+            VisLabel id = properties.findActor("tiledMapStableId");
+            assertFalse(identities.has(map));
+            assertEquals("", name.getText());
+            assertEquals("Not assigned", id.getText().toString());
+            assertFalse(fixture.history.canUndo());
+
+            name.setText("Named without ID");
+            name.commit();
+            assertEquals("Named without ID", identities.get(map).name);
+            assertEquals(-1, identities.get(map).stableId);
+            fixture.history.undo();
+            EventFlow.i().flush();
+            assertEquals("", name.getText());
+            fixture.history.redo();
+            EventFlow.i().flush();
+            assertEquals("Named without ID", name.getText());
+            assertEquals(-1, identities.get(map).stableId);
+
+            identities.get(map).stableId = 0;
+            identities.get(map).name = null;
+            properties.setMapEntityId(map);
+            assertEquals("", name.getText());
+            assertEquals("Not assigned", id.getText().toString());
+            name.setText("Renamed");
+            name.commit();
+            assertEquals(0, identities.get(map).stableId);
+            properties.setMapEntityId(-1);
+            assertTrue(name.isDisabled());
+        } finally {
+            fixture.world.dispose();
+        }
     }
 
     @Test
@@ -178,7 +295,8 @@ public class TiledMapPropertiesTest {
         box.fire(new ChangeListener.ChangeEvent());
     }
 
-    private static final class Fixture {
+    private final class Fixture {
+        int saveRequests;
         final World world = new World(new WorldConfiguration());
         final HistoryManager history = new HistoryManager(16);
         final PhysicsService physics = new PhysicsService(world, null, new SceneMeta());
@@ -240,8 +358,10 @@ public class TiledMapPropertiesTest {
         }
 
         TiledMapProperties properties() {
-            return new TiledMapProperties(
-                    world, history, physics, () -> { });
+            TiledMapProperties[] result = new TiledMapProperties[1];
+            subscriptions.run(() -> result[0] = new TiledMapProperties(
+                    world, history, physics, () -> saveRequests++));
+            return result[0];
         }
     }
 }

@@ -121,7 +121,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public PropertiesPanel(StudioApplicationAdapter app) {
-        super("Properties");
+        super("Inspector");
 
         this.app = app;
         var sceneContext = app.getSceneEditorContext();

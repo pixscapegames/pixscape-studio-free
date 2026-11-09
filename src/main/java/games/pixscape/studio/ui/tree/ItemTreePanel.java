@@ -183,7 +183,13 @@ public class ItemTreePanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.EntityNameChanged.class, evt -> {
             EntityNode en = tree.findNode(evt.entityId());
-            if (en != null) en.setLabelName(evt.newName());
+            if (en == null) return;
+            if (en.isTiledMapNode()) {
+                TiledLayerComponent tiled = mTiled.getSafe(evt.entityId(), null);
+                if (tiled != null) en.setLabelName(tiledMapLabel(tiled, mIdentity.getSafe(evt.entityId(), null)));
+            } else {
+                en.setLabelName(evt.newName());
+            }
         });
 
         EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> markDirty());
@@ -915,10 +921,8 @@ public class ItemTreePanel extends DockablePanel {
     private EntityNode createTiledMapNode(int mapEntityId, boolean layerLocked) {
         TiledLayerComponent tiled = mTiled.get(mapEntityId);
         PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
-        String mapName = identity != null && identity.name != null && !identity.name.isBlank()
-                ? identity.name : "Map";
         EntityNode mapNode = new EntityNode(
-                mapName + " (" + tiled.mapWidthCells + " x " + tiled.mapHeightCells + ")",
+                tiledMapLabel(tiled, identity),
                 IconResolver.getDrawable(EntityKind.TILED_MAP), mapEntityId, !layerLocked,
                 EntityNode.NodeKind.TILED_MAP);
         mapNode.getLabel().setColor(layerLocked ? Color.DARK_GRAY : Color.WHITE);
@@ -939,6 +943,12 @@ public class ItemTreePanel extends DockablePanel {
             if (!layerLocked) tree.registerNode(spatialNode, mapEntityId);
         }
         return mapNode;
+    }
+
+    static String tiledMapLabel(TiledLayerComponent tiled, PixscapeIdentityComponent identity) {
+        String name = identity != null && identity.name != null && !identity.name.isBlank()
+                ? " " + identity.name : "";
+        return "Map" + name + " (" + tiled.mapWidthCells + "x" + tiled.mapHeightCells + ")";
     }
 
     private EntityNode createEntityNode(int entityId, boolean layerLocked) {

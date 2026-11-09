@@ -11,18 +11,21 @@ import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.spinner.IntSpinnerModel;
 import com.kotcrab.vis.ui.widget.spinner.Spinner;
+import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.configuration.SceneMeta;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager;
 import games.pixscape.studio.history.commands.*;
 import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import games.pixscape.studio.ui.widget.FloatField;
+import games.pixscape.studio.ui.widget.SimpleTextField;
 import games.pixscape.studio.ui.widget.UiBinders;
 
 /** Authoritative property panel for one actual Tiled Map entity. */
@@ -32,8 +35,12 @@ public final class TiledMapProperties extends VisTable {
     private final HistoryManager history;
     private final PhysicsService physicsService;
     private final ComponentMapper<TiledLayerComponent> mTiled;
+    private final ComponentMapper<PixscapeIdentityComponent> mIdentity;
     private final ComponentMapper<PhysicsBodyComponent> mPhysicsBody;
     private final Runnable markCurrentSceneSaveRequired;
+
+    private final SimpleTextField mapName = new SimpleTextField();
+    private final VisLabel stableIdValue = new VisLabel();
 
     private final VisLabel tiledWidthValue = new VisLabel();
     private final VisLabel tiledHeightValue = new VisLabel();
@@ -69,10 +76,18 @@ public final class TiledMapProperties extends VisTable {
         this.physicsService = physicsService;
         this.markCurrentSceneSaveRequired = markCurrentSceneSaveRequired;
         this.mTiled = world.getMapper(TiledLayerComponent.class);
+        this.mIdentity = world.getMapper(PixscapeIdentityComponent.class);
         this.mPhysicsBody = world.getMapper(PhysicsBodyComponent.class);
 
         top().left();
         defaults().left().top().pad(1);
+
+        mapName.setName("tiledMapName");
+        mapName.bind(this::readMapName, this::applyMapName);
+        stableIdValue.setName("tiledMapStableId");
+        EventFlow.i().subscribe(EventFlow.EntityNameChanged.class, event -> {
+            if (event.entityId() == mapEntityId) mapName.refresh();
+        });
 
         tiledOriginXSpinner = new Spinner("", originXModel);
         tiledOriginXSpinner.getTextField().setTouchable(Touchable.disabled);
@@ -157,6 +172,8 @@ public final class TiledMapProperties extends VisTable {
                 .padBottom(CommonLayout.PROPERTY_SECTION_TITLE_BOTTOM_PAD)
                 .row();
 
+        addProperty("Name:", mapName);
+        addProperty("Id:", stableIdValue);
         addProperty("Projection:", tiledProjectionValue);
         addProperty("Cell Width:", tiledTileWidthValue);
         addProperty("Cell Height:", tiledTileHeightValue);
@@ -231,7 +248,7 @@ public final class TiledMapProperties extends VisTable {
     }
 
     private void refreshFromModel() {
-        TiledLayerComponent tiled = mTiled.getSafe(mapEntityId, null);
+        TiledLayerComponent tiled = isValidMap(mapEntityId) ? mTiled.get(mapEntityId) : null;
         internalRefresh = true;
         try {
             if (tiled == null) {
@@ -239,6 +256,11 @@ public final class TiledMapProperties extends VisTable {
                 return;
             }
 
+            mapName.setDisabled(false);
+            mapName.refresh();
+            PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
+            boolean hasStableId = identity != null && identity.stableId > 0;
+            stableIdValue.setText(hasStableId ? Integer.toString(identity.stableId) : "Not assigned");
             tiledWidthValue.setText(String.valueOf(tiled.mapWidthCells));
             tiledHeightValue.setText(String.valueOf(tiled.mapHeightCells));
             tiledProjectionValue.setText(buildTiledProjectionLabel(tiled));
@@ -269,6 +291,9 @@ public final class TiledMapProperties extends VisTable {
     }
 
     private void showUnknownValues() {
+        mapName.refresh();
+        mapName.setDisabled(true);
+        stableIdValue.setText("Not assigned");
         tiledWidthValue.setText("?");
         tiledHeightValue.setText("?");
         tiledProjectionValue.setText("Unknown");
@@ -336,6 +361,19 @@ public final class TiledMapProperties extends VisTable {
         }
         history.execute(command);
         flagPreviewSaveRequired();
+    }
+
+    private String readMapName() {
+        if (!isValidMap(mapEntityId)) return "";
+        PixscapeIdentityComponent identity = mIdentity.getSafe(mapEntityId, null);
+        return identity != null && identity.name != null ? identity.name : "";
+    }
+
+    private void applyMapName(String name) {
+        if (!isValidMap(mapEntityId) || history == null || readMapName().equals(name)) return;
+        history.execute(new ChangeEntityNameCommand(
+                world, history.historyIds(), history.historyIds().ensureForEntity(mapEntityId),
+                readMapName(), name, EventFlow.tag(this)));
     }
 
     private void showRemoveCollisionsDialog(int targetMapEntityId) {
