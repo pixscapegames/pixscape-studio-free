@@ -101,7 +101,7 @@ public final class HudHierarchyPanel extends VisTable {
                 HudTreeNode node = contextNode;
                 contextPointer = -1;
                 contextNode = null;
-                if (node == null) return;
+                if (event.isTouchFocusCancel() || node == null) return;
                 if (node.cellId() != null || node.rowAnchorCellId() != null) {
                     HudTableContextMenu.show(event.getStage(), event.getStageX(), event.getStageY(),
                             session, node.cellId() != null ? node.cellId() : node.rowAnchorCellId(),

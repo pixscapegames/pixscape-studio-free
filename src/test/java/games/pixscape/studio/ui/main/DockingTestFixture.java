@@ -15,6 +15,7 @@ import games.pixscape.studio.ui.docking.DockManager;
 import games.pixscape.studio.ui.docking.DockSlot;
 import games.pixscape.studio.ui.docking.DockablePanel;
 import games.pixscape.studio.ui.document.EditorDocumentHost;
+import games.pixscape.studio.ui.widget.DockSplitPane;
 import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
@@ -38,6 +39,7 @@ public final class DockingTestFixture implements AutoCloseable {
     public final VisTable rightBottom;
     public final VisTable bottom;
     public final VisSplitPane rightSplit;
+    public final DockSplitPane[] splits;
     public final VisTable shell;
     public final Actor menu;
     public final Stage studioStage = stage();
@@ -83,6 +85,10 @@ public final class DockingTestFixture implements AutoCloseable {
         rightBottom = field(manager, "rightBottom", VisTable.class);
         bottom = field(manager, "bottom", VisTable.class);
         rightSplit = field(manager, "rightSplit", VisSplitPane.class);
+        splits = new DockSplitPane[]{field(manager, "topSplit", DockSplitPane.class),
+                field(manager, "centerRightSplit", DockSplitPane.class),
+                field(manager, "rightSplit", DockSplitPane.class),
+                field(manager, "rootSplit", DockSplitPane.class)};
         resize(1200f, 800f);
     }
 

@@ -62,6 +62,10 @@ final class ItemTreeContextMenuInputListener<T> extends InputListener {
 
     @Override
     public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+        if (event.isTouchFocusCancel()) {
+            clearPressedNode();
+            return;
+        }
         if (button != Input.Buttons.RIGHT
                 || pointer != pressedPointer
                 || pressedNode == null) {

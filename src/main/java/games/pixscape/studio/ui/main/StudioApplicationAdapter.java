@@ -2,6 +2,8 @@ package games.pixscape.studio.ui.main;
 
 import com.badlogic.gdx.ApplicationAdapter;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Graphics;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
@@ -341,8 +343,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         uiStage.addActor(root);
 
         // Native HUD touch focus must receive drag/up before Studio can consume those events.
-        inputMultiplexer = new InputMultiplexer(
-                hudTestInputRouter, uiStage, canvas.getGridStage());
+        inputMultiplexer = createInputMultiplexer(
+                dockManager, hudTestInputRouter, uiStage, canvas.getGridStage());
         Gdx.input.setInputProcessor(inputMultiplexer);
         syncHudTestInputSurface();
 
@@ -351,6 +353,11 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         // Keep the Studio as a normal desktop window. OS-level floating/always-on-top
         // breaks Alt+Tab by forcing Pixscape above other applications.
         window.setWindowListener(new Lwjgl3WindowAdapter() {
+            @Override
+            public void focusLost() {
+                dockManager.cancelResize();
+            }
+
             @Override
             public void filesDropped(String[] files) {
                 Gdx.app.postRunnable(() -> onFilesDropped(files));
@@ -1517,6 +1524,16 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         dockManager.setRulersVisible(rulersVisibleBeforeHudTest);
         restoreCanvasModeControls(canvasModeControls);
         hudTestRulerStateCaptured = false;
+    }
+
+    static InputMultiplexer createInputMultiplexer(DockManager docks, HudTestInputRouter hudRouter,
+                                                   Stage studioStage, Stage worldStage) {
+        // Only an active separator claims Escape; all other input keeps the HUD-first route.
+        return new InputMultiplexer(new InputAdapter() {
+            @Override public boolean keyDown(int keycode) {
+                return keycode == Input.Keys.ESCAPE && docks.cancelResize();
+            }
+        }, hudRouter, studioStage, worldStage);
     }
 
     static void setWorldInputEnabled(InputMultiplexer multiplexer, Stage worldStage,

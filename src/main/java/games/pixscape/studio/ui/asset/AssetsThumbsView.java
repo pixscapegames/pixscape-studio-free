@@ -1864,12 +1864,21 @@ public final class AssetsThumbsView extends VisTable {
 
             @Override
             public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
-                if (button == Input.Buttons.LEFT && DragContext.get().active()) {
+                if (button != Input.Buttons.LEFT) return;
+                if (event.isTouchFocusCancel()) {
+                    if (dragging) {
+                        resetCursor(true);
+                        DragContext.get().cancel();
+                    }
+                    dragging = false;
+                    return;
+                }
+                if (dragging && DragContext.get().active()) {
                     DragContext.get().signalRelease();
                     resetCursor(false);
-                    dragging = false;
                     event.stop();
                 }
+                dragging = false;
             }
         });
     }

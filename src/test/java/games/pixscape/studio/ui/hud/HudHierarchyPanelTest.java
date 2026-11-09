@@ -237,6 +237,13 @@ public class HudHierarchyPanelTest {
             assertEquals(0, fixture.document().editSession().historySize());
             stage.touchDown(Math.round(point.x), Math.round(400f - point.y),
                     0, Input.Buttons.RIGHT);
+            stage.cancelTouchFocus(fixture.panel().tree());
+            stage.touchUp(Math.round(point.x), Math.round(400f - point.y),
+                    0, Input.Buttons.RIGHT);
+            assertNull("Cancelling a held HUD context click must not open a menu", HudTableContextMenu.activeMenu());
+            assertEquals(0, fixture.document().editSession().historySize());
+            stage.touchDown(Math.round(point.x), Math.round(400f - point.y),
+                    0, Input.Buttons.RIGHT);
             stage.touchUp(Math.round(point.x), Math.round(400f - point.y),
                     0, Input.Buttons.RIGHT);
             assertEquals(List.of(first, second), fixture.session().selectedCellRange());

@@ -1,0 +1,35 @@
+// Explicit opt-in harnesses. Production run/build configuration is unchanged.
+// From the repository root:
+//   .\gradlew.bat -I scripts/dock-validation.init.gradle :dockSplitDemo
+//   .\gradlew.bat -I scripts/dock-validation.init.gradle :dockWindowsCheck
+//   .\gradlew.bat -I scripts/dock-validation.init.gradle :dockStudioCheck
+// dockStudioCheck uses build/dock-validation/home for settings; select only a disposable
+// project copy when checking edits/transitions. It never uses the normal Studio settings.
+// Add -PautoClose to dockWindowsCheck for an automated run with assertions and process exit.
+// The split demo exposes Esc/F2/F3/F4 for cancellation, resize, collapse and recovery.
+// The native check exercises the production composition with real GLFW windows.
+// Arm Resize/Cancel/OS focus, then drag a separator with the mouse button held.
+// For OS focus, first float both panels to provide another native window.
+gradle.projectsEvaluated {
+    def studio = gradle.rootProject
+    ['dockSplitDemo': 'games.pixscape.studio.ui.widget.DockSplitPaneDemo',
+     'dockWindowsCheck': 'games.pixscape.studio.ui.docking.DockWindowsNativeCheck'].each { taskName, entry ->
+        studio.tasks.register(taskName, JavaExec) {
+            dependsOn studio.tasks.named('testClasses')
+            classpath = studio.sourceSets.test.runtimeClasspath
+            mainClass = entry
+            workingDir = studio.projectDir
+            jvmArgs '--enable-native-access=ALL-UNNAMED'
+            if (taskName == 'dockWindowsCheck' && studio.hasProperty('autoClose')) args '--auto-close'
+        }
+    }
+    studio.tasks.register('dockStudioCheck', JavaExec) {
+        dependsOn studio.tasks.named('classes')
+        classpath = studio.sourceSets.main.runtimeClasspath
+        mainClass = 'games.pixscape.studio.PixscapeStudioApplication'
+        workingDir = studio.projectDir
+        jvmArgs '--enable-native-access=ALL-UNNAMED'
+        // Separate settings and internal assets: never reopen the user's last project.
+        systemProperty 'user.home', new File(studio.buildDir, 'dock-validation/home').absolutePath
+    }
+}

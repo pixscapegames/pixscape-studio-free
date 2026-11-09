@@ -1,6 +1,10 @@
 package games.pixscape.studio.ui.tree;
 
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics;
+import com.badlogic.gdx.backends.headless.mock.graphics.MockGraphics;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
@@ -10,6 +14,7 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.kotcrab.vis.ui.widget.MenuItem;
 import com.kotcrab.vis.ui.widget.PopupMenu;
 import games.pixscape.studio.ui.widget.VisUiTestBootstrap;
+import games.pixscape.studio.ui.main.DockingTestFixture;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -19,6 +24,35 @@ import java.lang.reflect.Proxy;
 import static org.junit.Assert.*;
 
 public class ItemTreeContextMenuInputListenerTest {
+    @Test public void hidingAssetsCancelsHeldItemsContextClickWithoutOpeningMenu() throws Exception {
+        Graphics previous = Gdx.graphics;
+        Gdx.graphics = new MockGraphics() {
+            @Override public int getWidth() { return 1200; }
+            @Override public int getHeight() { return 800; }
+        };
+        try (DockingTestFixture f = DockingTestFixture.create()) {
+            f.studioStage.getViewport().update(1200, 800, true);
+            f.studioStage.addActor(f.shell);
+            StubTree tree = new StubTree(new EntityNode("Layer", null, 17, true, EntityNode.NodeKind.LAYER));
+            f.items.add(tree).grow();
+            int[] presented = {0};
+            tree.addListener(new ItemTreeContextMenuInputListener<>(tree, n -> true, n -> {},
+                    () -> null, (n, context, owner, x, y) -> presented[0]++));
+            f.resize(1200, 800);
+            Vector2 p = f.studioStage.stageToScreenCoordinates(tree.localToStageCoordinates(new Vector2(10, 10)));
+            assertTrue(f.studioStage.touchDown(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT));
+            f.manager.hide(f.assets);
+            assertEquals(0, presented[0]);
+            f.studioStage.touchUp(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT);
+            assertEquals(0, presented[0]);
+            f.resize(1200, 800);
+            p = f.studioStage.stageToScreenCoordinates(tree.localToStageCoordinates(new Vector2(10, 10)));
+            assertTrue(f.studioStage.touchDown(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT));
+            f.studioStage.touchUp(Math.round(p.x), Math.round(p.y), 0, Input.Buttons.RIGHT);
+            assertEquals(1, presented[0]);
+        } finally { Gdx.graphics = previous; }
+    }
+
     @BeforeClass
     public static void loadVisUi() {
         VisUiTestBootstrap.loadSkin();

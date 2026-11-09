@@ -40,11 +40,14 @@ public class StudioSceneInputPipelineContractTest {
     @Test
     public void hudTouchFocusRunsBeforeStudioAndStudioBeforeScene() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/StudioApplicationAdapter.java");
-        int chain = source.indexOf("inputMultiplexer = new InputMultiplexer(");
-        int order = source.indexOf("hudTestInputRouter, uiStage, canvas.getGridStage()", chain);
+        int chain = source.indexOf("inputMultiplexer = createInputMultiplexer(");
+        int order = source.indexOf("dockManager, hudTestInputRouter, uiStage, canvas.getGridStage()", chain);
         int state = source.indexOf("canvas.getInputState()", chain);
 
         assertTrue(chain >= 0 && order > chain);
+        int factory = source.indexOf("static InputMultiplexer createInputMultiplexer(");
+        String body = source.substring(factory, source.indexOf("static void setWorldInputEnabled", factory));
+        assertTrue(body.contains("}, hudRouter, studioStage, worldStage)"));
         assertEquals(-1, state);
         assertFalse(source.contains("StudioCenterInputGate"));
     }

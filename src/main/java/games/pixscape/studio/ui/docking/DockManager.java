@@ -5,11 +5,11 @@ import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Window;
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3WindowConfiguration;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Group;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Stack;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
-import com.kotcrab.vis.ui.widget.VisSplitPane;
 import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.studio.PixscapeStudioApplication;
 import games.pixscape.studio.ui.GenericWindow;
@@ -17,6 +17,7 @@ import games.pixscape.studio.ui.GenericWindowListener;
 import games.pixscape.studio.ui.main.RulerActor;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.widget.CanvasModeIndicator;
+import games.pixscape.studio.ui.widget.DockSplitPane;
 
 public final class DockManager {
 
@@ -39,14 +40,11 @@ public final class DockManager {
     private final VisTable rightBottom = new VisTable();
 
     // splits
-    private final VisSplitPane rightSplit;   // top / bottom
-    private final VisSplitPane topSplit;     // left / center / right
-    private final VisSplitPane rootSplit;    // top / bottom
-
-    // state
-    private boolean hasLeft = false;
-    private boolean hasRight = false;
-    private boolean hasBottom = false;
+    private final DockSplitPane rightSplit;       // right top / right bottom
+    private final DockSplitPane centerRightSplit; // center / right
+    private final DockSplitPane topSplit;         // left / center and right
+    private final DockSplitPane rootSplit;        // top / bottom
+    private int layoutMask = -1;
 
     private final RulerActor rulerLeft;
     private final RulerActor rulerTop;
@@ -80,14 +78,12 @@ public final class DockManager {
         rebuildCenterOverlay();
         centerHost = app.createDockCenterHost(centerStack);
 
-        rightSplit = new VisSplitPane(rightTop, rightBottom, true);
-        topSplit = new VisSplitPane(left, centerHost, false);
-        rootSplit = new VisSplitPane(topSplit, bottom, true);
-
-        rightSplit.setTouchable(Touchable.childrenOnly);
-        topSplit.setTouchable(Touchable.childrenOnly);
-        rootSplit.setTouchable(Touchable.childrenOnly);
-
+        rightSplit = new DockSplitPane(null, null, true);
+        centerRightSplit = new DockSplitPane(null, null, false);
+        topSplit = new DockSplitPane(null, null, false);
+        rootSplit = new DockSplitPane(null, null, true);
+        topSplit.setSplitAmount(0.24f);
+        centerRightSplit.setSplitAmount(0.625f);
         rightSplit.setSplitAmount(0.7f);
         rootSplit.setSplitAmount(0.80f);
 
@@ -159,6 +155,7 @@ public final class DockManager {
     }
 
     public void hide(DockablePanel panel) {
+        cancelInput(panel);
 
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
             Lwjgl3Window w = panelToWindow.get(panel);
@@ -185,7 +182,6 @@ public final class DockManager {
         panel.remove();
         panel.setFillParent(false);
         panel.setVisible(false);
-        updateFlags();
         rebuildLayout();
         notifyVisibilityChanged(panel, false);
     }
@@ -194,6 +190,7 @@ public final class DockManager {
         if (panel.getDockMode() == DockablePanel.DockMode.WINDOW_ONLY) {
             return;
         }
+        cancelInput(panel);
         Lwjgl3Window floatingWindow = panelToWindow.get(panel);
         if (containsPanel(floatingWindow)) {
             floatingWindow.setVisible(false);
@@ -204,26 +201,15 @@ public final class DockManager {
         panel.setVisible(true);
         panel.setHeaderVisible(true);
 
-        switch (slot) {
-            case LEFT -> {
-                left.clearChildren();
-                left.add(panel).grow();
-            }
-            case RIGHT_TOP -> {
-                rightTop.clearChildren();
-                rightTop.add(panel).grow();
-            }
-            case RIGHT_BOTTOM -> {
-                rightBottom.clearChildren();
-                rightBottom.add(panel).grow();
-            }
-            case BOTTOM -> {
-                bottom.clearChildren();
-                bottom.add(panel).grow();
-            }
-        }
-
-        updateFlags();
+        VisTable target = switch (slot) {
+            case LEFT -> left;
+            case RIGHT_TOP -> rightTop;
+            case RIGHT_BOTTOM -> rightBottom;
+            case BOTTOM -> bottom;
+        };
+        cancelInput(target);
+        target.clearChildren();
+        target.add(panel).grow();
         rebuildLayout();
         notifyVisibilityChanged(panel, true);
     }
@@ -237,10 +223,10 @@ public final class DockManager {
     // ------------------------------------------------------------------------
 
     public void undock(DockablePanel panel) {
+        cancelInput(panel);
         Lwjgl3Window existingWindow = panelToWindow.get(panel);
         if (existingWindow != null) {
             panel.remove();
-            updateFlags();
             rebuildLayout();
 
             panel.setVisible(true);
@@ -257,7 +243,6 @@ public final class DockManager {
         }
 
         panel.remove();
-        updateFlags();
         rebuildLayout();
 
         panel.setVisible(true);
@@ -342,37 +327,56 @@ public final class DockManager {
     // Layout rebuild
     // ------------------------------------------------------------------------
 
-    private void updateFlags() {
-        hasLeft = left.hasChildren();
-        hasRight = rightTop.hasChildren() || rightBottom.hasChildren();
-        hasBottom = bottom.hasChildren();
+    private void rebuildLayout() {
+        int mask = (left.hasChildren() ? 1 : 0) | (rightTop.hasChildren() ? 2 : 0)
+                | (rightBottom.hasChildren() ? 4 : 0) | (bottom.hasChildren() ? 8 : 0);
+        if (mask == layoutMask) {
+            root.invalidateHierarchy();
+            return;
+        }
+        // Cancel before detaching: Stage.unfocus(parent) does not cancel descendant listeners.
+        cancelInput(root);
+        root.clearChildren();
+        // Clear through VisUI's setters, not clearChildren(): its private widget references
+        // must be released before any branch is attached elsewhere. Ratios remain untouched.
+        rootSplit.setWidgets(null, null);
+        topSplit.setWidgets(null, null);
+        centerRightSplit.setWidgets(null, null);
+        rightSplit.setWidgets(null, null);
+
+        Actor right = compose(rightSplit, occupied(rightTop), occupied(rightBottom));
+        Actor centerRight = compose(centerRightSplit, centerHost, right);
+        Actor top = compose(topSplit, occupied(left), centerRight);
+        Actor branch = compose(rootSplit, top, occupied(bottom));
+        if (branch != null) root.add(branch).grow().minSize(0, 0);
+        layoutMask = mask;
+        root.invalidateHierarchy();
     }
 
-    private void rebuildLayout() {
-        root.clearChildren();
+    private static Actor occupied(VisTable slot) {
+        return slot.hasChildren() ? slot : null;
+    }
 
-        // --- top area (left / center / right)
-        VisTable topArea = new VisTable(false);
-        topArea.setTouchable(Touchable.childrenOnly);
+    private static Actor compose(DockSplitPane split, Actor first, Actor second) {
+        if (first == null) return second;
+        if (second == null) return first;
+        split.setWidgets(first, second);
+        return split;
+    }
 
-        if (hasLeft) {
-            topArea.add(left).width(280f).growY();
+    private static void cancelInput(Actor actor) {
+        if (actor.getStage() == null) return;
+        actor.getStage().cancelTouchFocus(actor);
+        if (actor instanceof Group group) {
+            for (Actor child : group.getChildren()) cancelInput(child);
         }
-        topArea.add(centerHost).grow().minWidth(0f);
+    }
 
-        if (hasRight) {
-            topArea.add(rightSplit).width(342f).growY();
-        }
-
-        if (hasBottom) {
-            rootSplit.setFirstWidget(topArea);
-            rootSplit.setSecondWidget(bottom);
-            root.add(rootSplit).grow();
-        } else {
-            root.add(topArea).grow();
-        }
-        left.toFront();
-        root.invalidateHierarchy();
+    /** Ends separator gestures on Escape or native-window focus loss. */
+    public boolean cancelResize() {
+        // Non-short-circuit OR cancels every split, including nested simultaneous gestures.
+        return rootSplit.cancelResize() | topSplit.cancelResize()
+                | centerRightSplit.cancelResize() | rightSplit.cancelResize();
     }
 
     public void setRulersVisible(boolean visible) {
