@@ -111,12 +111,20 @@ public final class SpatialBlockSelectionService {
     public void setEditPreview(boolean valid) {
         editPreviewActive = true;
         editPreviewValid = valid;
+        publishPreviewChanged();
     }
 
     public void clearEditPreview() {
+        boolean wasActive = editPreviewActive;
         editPreviewActive = false;
         editPreviewValid = false;
         wallEditSession.cancel();
+        if (wasActive) publishPreviewChanged();
+    }
+
+    private void publishPreviewChanged() {
+        EventFlow.i().publish(new EventFlow.SpatialBlockPreviewChanged(
+                editingMapEntityId, selectedBlockId, eventTag));
     }
 
     public void enterMap(int mapEntityId) {

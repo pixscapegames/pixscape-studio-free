@@ -210,7 +210,10 @@ public final class SpatialBlockProperties extends VisTable {
     }
 
     private Float readFloat(FloatReader reader) {
-        SpatialBlockData block = activeBlock();
+        SpatialWallEditSession preview = selection != null ? selection.wallEditSession() : null;
+        SpatialBlockData block = preview != null && preview.isActive()
+                && preview.layerEntityId() == layerEntityId && preview.wallId() == blockId
+                ? preview.candidate() : activeBlock();
         return block != null ? reader.read(block) : 0f;
     }
 
@@ -371,12 +374,7 @@ public final class SpatialBlockProperties extends VisTable {
 
             nameField.refresh();
             structureIdValue.setText(block != null ? Integer.toString(block.structureId) : "-");
-            xField.refresh();
-            yField.refresh();
-            widthField.refresh();
-            depthField.refresh();
-            altitudeField.refresh();
-            heightField.refresh();
+            refreshGeometry();
             actorOccluderBox.setChecked(block != null && block.actorOccluder);
             physicsCollisionBox.setChecked(
                     active && hasLinkedPhysicsShape(layerEntityId, blockId));
@@ -388,6 +386,16 @@ public final class SpatialBlockProperties extends VisTable {
             internalRefresh = false;
         }
         invalidateHierarchy();
+    }
+
+    /** Refreshes only displayed geometry; does not rebuild constraints or publish authored data. */
+    void refreshGeometry() {
+        xField.refresh();
+        yField.refresh();
+        widthField.refresh();
+        depthField.refresh();
+        altitudeField.refresh();
+        heightField.refresh();
     }
 
     private interface FloatReader {

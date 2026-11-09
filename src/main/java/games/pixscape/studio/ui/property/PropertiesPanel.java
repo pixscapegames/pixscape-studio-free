@@ -100,6 +100,7 @@ public class PropertiesPanel extends DockablePanel {
 
     private boolean dirty = true;
     private boolean transformTitleDirty;
+    private boolean spatialPreviewDirty;
     private PendingView pendingView = PendingView.SCENE;
     private IntArray pendingSelection = null;
     private int pendingLayer = -1;
@@ -202,6 +203,12 @@ public class PropertiesPanel extends DockablePanel {
             pendingSpatialBlockId = evt.blockId();
             pendingView = PendingView.SPATIAL_BLOCK;
             markDirty();
+        });
+
+        EventFlow.i().subscribe(EventFlow.SpatialBlockPreviewChanged.class, evt -> {
+            if (evt.mapEntityId() == boundSpatialBlockMap && evt.blockId() == boundSpatialBlockId) {
+                spatialPreviewDirty = true;
+            }
         });
 
         EventFlow.i().subscribe(EventFlow.SpatialBlocksChanged.class, evt -> {
@@ -648,6 +655,10 @@ public class PropertiesPanel extends DockablePanel {
         if (transformTitleDirty) {
             transformTitleDirty = false;
             if (boundEntity >= 0) entityProperties.refreshTransformTitle();
+        }
+        if (spatialPreviewDirty) {
+            spatialPreviewDirty = false;
+            if (boundSpatialBlockId > 0) spatialBlockProperties.refreshGeometry();
         }
         if (!dirty) return;
         dirty = false;

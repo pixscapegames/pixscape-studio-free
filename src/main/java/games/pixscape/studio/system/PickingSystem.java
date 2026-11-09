@@ -740,8 +740,8 @@ public final class PickingSystem extends BaseSystem {
                 && spatialPointer.crossedDragThreshold(Gdx.input.getX(), Gdx.input.getY())) {
             if (spatialBlockSelectionService.selectedBlockCount() == 1
                     && spatialPointer.target() == SpatialPointerInteraction.Target.SELECTED_HANDLE) {
-                selectionService.clearSelection();
-                physicsSelectionService.clear();
+                // The press already cleared other selections before publishing the spatial target.
+                // Clearing again here would redirect the inspector to the empty entity selection.
                 beginSpatialBlockResize(layerEntityId, pressedSpatialBlockId, pressedSpatialHandle, spatialPressWorld.x, spatialPressWorld.y);
                 if(resizingSpatialBlockActive)onSpatialBlockResizeDragging(mx,my);
                 if (resizingSpatialBlockActive) spatialPointer.beginResize();

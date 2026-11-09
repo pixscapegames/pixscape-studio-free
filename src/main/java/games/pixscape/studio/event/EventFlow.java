@@ -235,6 +235,10 @@ public final class EventFlow {
     ) {
     }
 
+    /** Transient geometry changed or ended; never changes the inspector's selection target. */
+    public record SpatialBlockPreviewChanged(int mapEntityId, int blockId, int sourceTag) {
+    }
+
     public record SpatialBlockSelectionChanged(
             int mapEntityId,
             int blockId,

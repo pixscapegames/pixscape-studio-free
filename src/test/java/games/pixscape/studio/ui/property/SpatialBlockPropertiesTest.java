@@ -350,6 +350,87 @@ public class SpatialBlockPropertiesTest {
         fixture.history.undo();Assert.assertTrue(walls.blocks.get(0).shadeUnlitFaces);
         fixture.history.redo();Assert.assertFalse(walls.blocks.get(0).shadeUnlitFaces);Assert.assertTrue(walls.blocks.get(1).shadeUnlitFaces);
     }
+    @Test
+    public void inspectorReadsDetachedResizeAndHeightPreviewThenRestoresOnCancel() throws Exception {
+        Fixture fixture = fixture();
+        int map = tiledLayer(fixture.world);
+        SpatialBlocksComponent walls = fixture.world.getMapper(SpatialBlocksComponent.class).create(map);
+        walls.blocks.add(wall(1, 1, 1, 1, 1, 1));
+        walls.blocks.first().beginAuthoredLinkedTileRefs();
+        for (int y = 0; y < 3; y++) for (int x = 0; x < 3; x++)
+            walls.blocks.first().addLinkedTileRef(x, y, 1);
+        fixture.selection.selectBlock(map, 1);
+        SpatialBlockProperties properties = fixture.properties();
+        properties.setSpatialBlock(map, 1);
+        var session = fixture.selection.wallEditSession();
+        Assert.assertTrue(session.begin(map, 1, walls,
+                fixture.world.getMapper(TiledLayerComponent.class).get(map).data));
+        Assert.assertTrue(session.updateResize(
+                games.pixscape.studio.service.spatial.SpatialBlockInteractiveEditSupport.ResizeHandle.MAX_X,
+                2.5f, 2f));
+        fixture.selection.setEditPreview(true);
+        properties.refreshGeometry();
+        Assert.assertEquals(1.5f, displayed(properties, "widthField"), 0f);
+        Assert.assertEquals("Preview must remain detached", 1f, properties.activeBlock().width, 0f);
+        Assert.assertTrue(session.updateHeight(18));
+        fixture.selection.setEditPreview(true);
+        properties.refreshGeometry();
+        Assert.assertEquals(18f, displayed(properties, "heightField"), 0f);
+        Assert.assertEquals(8f, properties.activeBlock().height, 0f);
+        fixture.selection.clearEditPreview();
+        properties.refreshGeometry();
+        Assert.assertEquals(1f, displayed(properties, "widthField"), 0f);
+        Assert.assertEquals(8f, displayed(properties, "heightField"), 0f);
+        Assert.assertFalse(fixture.history.canUndo());
+    }
+
+    @Test
+    public void movePreviewCommitUndoRedoAndOtherVolumeKeepCorrectInspectorValues() throws Exception {
+        Fixture fixture = fixture();
+        int map = tiledLayer(fixture.world);
+        fixture.history.historyIds().ensureForEntity(map);
+        SpatialBlocksComponent walls = fixture.world.getMapper(SpatialBlocksComponent.class).create(map);
+        walls.blocks.add(wall(1, 1, 1, 1, 1, 1));
+        walls.blocks.first().beginAuthoredLinkedTileRefs();
+        for (int y = 0; y < 3; y++) for (int x = 0; x < 3; x++)
+            walls.blocks.first().addLinkedTileRef(x, y, 1);
+        walls.blocks.add(wall(2, 2, 3, 3, 1, 1));
+        walls.nextSpatialBlockId = 3;
+        fixture.selection.selectBlock(map, 1);
+        SpatialBlockProperties properties = fixture.properties();
+        properties.setSpatialBlock(map, 1);
+        var session = fixture.selection.wallEditSession();
+        Assert.assertTrue(session.begin(map, 1, walls,
+                fixture.world.getMapper(TiledLayerComponent.class).get(map).data));
+        Assert.assertTrue(session.updateMove(.25f, .5f));
+        fixture.selection.setEditPreview(true);
+        properties.refreshGeometry();
+        Assert.assertEquals(1.25f, displayed(properties, "xField"), 0f);
+        Assert.assertEquals(1.5f, displayed(properties, "yField"), 0f);
+        // A preview for one volume cannot leak into another inspector binding.
+        properties.setSpatialBlock(map, 2);
+        Assert.assertEquals(3f, displayed(properties, "xField"), 0f);
+        properties.setSpatialBlock(map, 1);
+        Assert.assertTrue(session.commit(fixture.world, fixture.history, fixture.selection));
+        fixture.selection.clearEditPreview();
+        properties.refreshGeometry();
+        Assert.assertEquals(1.25f, displayed(properties, "xField"), 0f);
+        for (int i = 0; i < 2; i++) {
+            fixture.history.undo();
+            properties.refreshGeometry();
+            Assert.assertEquals(1f, displayed(properties, "xField"), 0f);
+            fixture.history.redo();
+            properties.refreshGeometry();
+            Assert.assertEquals(1.25f, displayed(properties, "xField"), 0f);
+        }
+    }
+
+    private static float displayed(SpatialBlockProperties properties, String name) throws Exception {
+        var field = SpatialBlockProperties.class.getDeclaredField(name);
+        field.setAccessible(true);
+        return Float.parseFloat(((SimpleFloatField) field.get(properties)).getText());
+    }
+
     private static VisCheckBox checkBox(SpatialBlockProperties properties, String name) {
         return properties.findActor(name);
     }
