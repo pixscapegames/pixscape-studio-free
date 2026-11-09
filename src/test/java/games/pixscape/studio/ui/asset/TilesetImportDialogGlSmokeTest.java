@@ -197,25 +197,25 @@ public class TilesetImportDialogGlSmokeTest {
         item.resolveDimensionsIfNeeded(ImportDialogValidation::readImageDimensions);
         dialog.show(studio.getUiStage()); return dialog;
     }
-    private static TilesetImportReviewDialog review(StudioApplicationAdapter studio) {
+    static TilesetImportReviewDialog review(StudioApplicationAdapter studio) {
         return find(studio.getUiStage().getRoot(),TilesetImportReviewDialog.class,actor->true);
     }
     private static VisDialog lastDialog(StudioApplicationAdapter studio,String title) {
         return find(studio.getUiStage().getRoot(),VisDialog.class,actor->((VisDialog)actor).getTitleLabel().getText().toString().equals(title));
     }
-    private static void click(VisDialog dialog,String text) {
+    static void click(VisDialog dialog,String text) {
         assertNotNull("Dialog for "+text,dialog);
         VisTextButton button=find(dialog,VisTextButton.class,actor->((VisTextButton)actor).getText().toString().equals(text));
         assertNotNull(text,button); assertFalse(text,button.isDisabled()); button.fire(new ChangeListener.ChangeEvent());
     }
-    private static <T extends Actor> T find(Actor root,Class<T> type,java.util.function.Predicate<Actor> predicate) {
+    static <T extends Actor> T find(Actor root,Class<T> type,java.util.function.Predicate<Actor> predicate) {
         if(root instanceof Group group) {
             var children=group.getChildren();
             for(int i=children.size-1;i>=0;i--) { T found=find(children.get(i),type,predicate); if(found!=null)return found; }
         }
         return type.isInstance(root)&&predicate.test(root)?type.cast(root):null;
     }
-    private static void png(FileHandle file,int w,int h,int rgba) {
+    static void png(FileHandle file,int w,int h,int rgba) {
         file.parent().mkdirs(); var pixels=new com.badlogic.gdx.graphics.Pixmap(w,h,com.badlogic.gdx.graphics.Pixmap.Format.RGBA8888);
         try {pixels.setBlending(com.badlogic.gdx.graphics.Pixmap.Blending.None);pixels.setColor(rgba);pixels.fill();com.badlogic.gdx.graphics.PixmapIO.writePNG(file,pixels);}
         finally {pixels.dispose();}

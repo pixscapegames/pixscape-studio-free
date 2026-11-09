@@ -30,6 +30,7 @@ public final class EditPropertiesDialog extends StudioDialog {
     private final PropertySet workingCopy;
     private final Consumer<PropertySet> onApply;
     private final EntityPropertiesContext context;
+    private final boolean tileDefinition;
     private final Array<ObjectChoice> objectChoices = new Array<ObjectChoice>();
     private final Array<PropertyRow> rows = new Array<PropertyRow>();
     private final VisTable rowsTable = new VisTable(true);
@@ -46,7 +47,18 @@ public final class EditPropertiesDialog extends StudioDialog {
                                 PropertySet source,
                                 EntityPropertiesContext context,
                                 Consumer<PropertySet> onApply) {
+        this(title, source, context, onApply, false);
+    }
+
+    /** Tile definitions edit scalar/color values; imported references and classes stay intact. */
+    public EditPropertiesDialog(String title, PropertySet source, Consumer<PropertySet> onApply, boolean tileDefinition) {
+        this(title, source, null, onApply, tileDefinition);
+    }
+
+    private EditPropertiesDialog(String title, PropertySet source, EntityPropertiesContext context,
+                                 Consumer<PropertySet> onApply, boolean tileDefinition) {
         super(title);
+        this.tileDefinition = tileDefinition;
         this.workingCopy = source != null ? source.copy() : new PropertySet();
         this.context = context;
         this.onApply = onApply;
@@ -96,6 +108,10 @@ public final class EditPropertiesDialog extends StudioDialog {
         scroll.setFadeScrollBars(false);
         root.add(scroll).colspan(4).grow().minWidth(540).minHeight(220).row();
         root.add(addButton).colspan(4).left().padTop(4).row();
+        if (tileDefinition) {
+            VisLabel notice = new VisLabel("Imported file, object and custom types are preserved read-only.\nNo file loading, object resolution or class editing is performed here.");
+            root.add(notice).colspan(4).left().padTop(6).row();
+        }
         validationLabel.setColor(1f, 0.4f, 0.4f, 1f);
         root.add(validationLabel).colspan(4).growX().left().padTop(6).row();
         getContentTable().add(root).grow();
@@ -134,6 +150,10 @@ public final class EditPropertiesDialog extends StudioDialog {
             String name = row.nameField.getText();
             String path = propertyPath(parentPath, name);
             PropertyType type = row.typeBox.getSelected();
+            if (row.readOnly) {
+                result.put(name, row.preservedValue);
+                continue;
+            }
             switch (type) {
                 case STRING:
                     result.putString(name, row.stringField.getText());
@@ -220,6 +240,8 @@ public final class EditPropertiesDialog extends StudioDialog {
     }
 
     private final class PropertyRow {
+        final boolean readOnly;
+        final PropertyValue preservedValue;
         final VisTextField nameField;
         final VisSelectBox<PropertyType> typeBox = new VisSelectBox<PropertyType>();
         final VisTextArea stringField = new VisTextArea();
@@ -239,12 +261,19 @@ public final class EditPropertiesDialog extends StudioDialog {
         private PropertyType displayedType;
 
         PropertyRow(String name, PropertyType type, PropertyValue value) {
+            readOnly = type == PropertyType.IMPORTED || (tileDefinition && (type == PropertyType.CLASS || type == PropertyType.OBJECT));
+            preservedValue = readOnly ? value.copy() : null;
             nameField = new VisTextField(name != null ? name : "");
-            typeBox.setItems(PropertyType.values());
+            if (readOnly) typeBox.setItems(type);
+            else if (tileDefinition) typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR);
+            else typeBox.setItems(PropertyType.STRING, PropertyType.BOOLEAN, PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.COLOR, PropertyType.OBJECT, PropertyType.CLASS);
             typeBox.setSelected(type != null ? type : PropertyType.STRING);
             objectBox.setItems(objectChoices);
             loadValue(value);
             displayedType = typeBox.getSelected();
+            nameField.setDisabled(readOnly);
+            typeBox.setDisabled(readOnly);
+            removeButton.setDisabled(readOnly);
 
             typeBox.addListener(new ChangeListener() {
                 @Override
@@ -323,6 +352,17 @@ public final class EditPropertiesDialog extends StudioDialog {
         }
 
         private Actor valueEditor() {
+            if (readOnly) {
+                String description = preservedValue.type() == PropertyType.IMPORTED
+                        ? preservedValue.asImported().typeName() + " " + preservedValue.asImported().customTypeName()
+                        : preservedValue.type().name();
+                VisLabel label = new VisLabel(description + " (read-only)");
+                if (preservedValue.type() == PropertyType.IMPORTED)
+                    new Tooltip.Builder(preservedValue.asImported().sourceXml()).target(label).build();
+                else
+                    new Tooltip.Builder(new com.badlogic.gdx.utils.Json().prettyPrint(preservedValue)).target(label).build();
+                return label;
+            }
             switch (typeBox.getSelected()) {
                 case STRING:
                     return stringField;

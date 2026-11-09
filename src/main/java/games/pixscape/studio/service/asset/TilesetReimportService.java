@@ -29,7 +29,7 @@ public final class TilesetReimportService {
                        int targetId, List<Source> sources, Map<String, Integer> matches,
                        Set<Integer> removed, Map<Integer, String> retained,
                        List<String> notices,
-                       String catalogSnapshot) {
+                       String catalogSnapshot, TsxTilesetDescriptor tsx) {
         public String summary() {
             return "Updated: " + matches.size() + " / added: " + (sources.size() - matches.size())
                     + " / deleted: " + removed.size() + " / absent but retained: " + retained.size()
@@ -75,7 +75,7 @@ public final class TilesetReimportService {
         return prepare(request.tilesRoot(), request.directory(), StudioFs.baseName(request.directory().name()),
                 "collection", request.profileSettings() != null ? request.profileSettings()
                         : TilesetProfileImportSettings.defaults(analysis.referenceTileWidth(), analysis.referenceTileHeight()),
-                null, targetId, sources, usage, notices);
+                null, targetId, sources, usage, notices, null);
     }
 
     public Plan prepareAtlas(TilesetAtlasImportRequest request, int targetId, UsageProof usage) {
@@ -105,13 +105,40 @@ public final class TilesetReimportService {
         String name = request.tilesetName() != null ? StudioFs.baseName(request.tilesetName())
                 : StudioFs.baseName(request.sourceFile().name());
         return prepare(request.tilesRoot(), request.sourceFile(), name, "grid", request.profileSettings(),
-                request, targetId, sources, usage, new ArrayList<>());
+                request, targetId, sources, usage, new ArrayList<>(), null);
+    }
+
+    /** TSX identity is the local tile ID, including sparse collections and shared images. */
+    public Plan prepareTsx(FileHandle file, FileHandle tilesRoot, int targetId, UsageProof usage) {
+        TsxTilesetDescriptor tsx = new TsxTilesetImportParser().parse(file);
+        String name = tsx.name() == null || tsx.name().isBlank() ? StudioFs.baseName(file.name()) : tsx.name();
+        if (!tsx.imageCollection()) {
+            Plan atlas = prepareAtlas(new TilesetAtlasImportRequest(tsx.imageFile(), tilesRoot,
+                    tsx.tileWidth(), tsx.tileHeight(), tsx.spacing(), tsx.margin(), name), targetId, usage);
+            return new Plan(atlas.tilesRoot(), file, atlas.base(), atlas.kind(), atlas.settings(), atlas.grid(),
+                    targetId, atlas.sources(), atlas.matches(), atlas.removed(), atlas.retained(),
+                    atlas.notices(), atlas.catalogSnapshot(), tsx);
+        }
+        if (targetId > 0) validateProvenance(targetId);
+        List<Source> sources = new ArrayList<>();
+        for (var tile : tsx.imageCollectionTiles()) {
+            if (isNormalCompanion(tile.imageFile().name()))
+                throw new IllegalArgumentException("A normal companion cannot be imported as a color tile.");
+            FileHandle normal = companion(tile.imageFile());
+            validateNormal(tile.imageFile(), normal);
+            int[] dimensions = size(tile.imageFile());
+            sources.add(new Source(relative(file.parent(), tile.imageFile()), tile.imageFile(),
+                    normal.exists() ? normal : null, tile.localTileId(), dimensions[0], dimensions[1]));
+        }
+        return prepare(tilesRoot, file, name, "collection",
+                TilesetProfileImportSettings.defaults(tsx.tileWidth(), tsx.tileHeight()), null,
+                targetId, sources, usage, new ArrayList<>(), tsx);
     }
 
     private Plan prepare(FileHandle root, FileHandle source, String base, String kind,
                           TilesetProfileImportSettings settings, TilesetAtlasImportRequest grid,
                           int targetId, List<Source> sources, UsageProof usage,
-                          List<String> notices) {
+                          List<String> notices, TsxTilesetDescriptor tsx) {
         if (base == null || base.isBlank() || base.contains("/") || base.contains("\\")
                 || base.equals(".") || base.equals("..")) throw new IllegalArgumentException("Invalid tileset name.");
         TilesetAssetMeta target = targetId > 0 ? requireSet(targetId) : null;
@@ -131,20 +158,20 @@ public final class TilesetReimportService {
         for (int i = 0; i < db.size(); i++) {
             if (!(db.assetAt(i) instanceof TileAssetMeta tile) || tile.tilesetId != targetId || targetId <= 0) continue;
             oldIds.add(tile.id());
-            String key = tile.importSourceKey;
+            String key = tsx != null ? Integer.toString(tile.sheetIndex) : tile.importSourceKey;
             if (byKey.putIfAbsent(key, tile.id()) != null)
                 throw new IllegalArgumentException("Ambiguous current import: multiple tiles claim source '" + key + "'.");
         }
         Map<String, Integer> matches = new LinkedHashMap<>();
         for (Source item : sources) {
-            Integer id = byKey.get(item.key());
+            Integer id = byKey.get(tsx != null ? Integer.toString(item.index()) : item.key());
             if (id == null) continue;
             TileAssetMeta tile = (TileAssetMeta) db.findById(id);
             int[] oldSize = size(project.child(tile.sourceRelPath()));
             if (oldSize[0] != item.width() || oldSize[1] != item.height())
                 throw new IllegalArgumentException("Dimensions changed for tile " + id + " (" + item.key()
                         + "). Update refused; edited geometry and alignment need an explicit review.");
-            matches.put(item.key(), id);
+            matches.put(tsx != null ? Integer.toString(item.index()) : item.key(), id);
             if (tile.normalSourceRelPath != null && item.normal() == null)
                 notices.add("Normal association will be removed: " + item.key());
         }
@@ -157,10 +184,15 @@ public final class TilesetReimportService {
                 + " (tile " + id + "). " + (retained.containsKey(id) ? "Retained: " + retained.get(id) : "Unused; will be deleted."));
         return new Plan(root, source, base, kind, settings, grid, targetId, List.copyOf(sources),
                 Map.copyOf(matches), Set.copyOf(removed), Map.copyOf(retained),
-                List.copyOf(notices), db.toSnapshotJson());
+                List.copyOf(notices), db.toSnapshotJson(), tsx);
     }
 
     public TilesetImportResult apply(Plan plan, PackingValidation packing, Runnable saveCatalog) {
+        return apply(plan, packing, result -> {}, saveCatalog);
+    }
+
+    public TilesetImportResult apply(Plan plan, PackingValidation packing,
+                                     java.util.function.Consumer<TilesetImportResult> prepareMetadata, Runnable saveCatalog) {
         if (!db.toSnapshotJson().equals(plan.catalogSnapshot()))
             throw new IllegalArgumentException("Asset metadata changed. Review the tileset update again.");
         FileHandle target = plan.tilesRoot().child(plan.base());
@@ -180,8 +212,8 @@ public final class TilesetReimportService {
             for (int i = 0; i < db.size(); i++) if (db.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == set.id())
                 nextIndex = Math.max(nextIndex, tile.sheetIndex + 1);
             if (plan.targetId() <= 0) {
-                set.tileWidth = plan.sources().stream().mapToInt(Source::width).min().orElseThrow();
-                set.tileHeight = plan.sources().stream().mapToInt(Source::height).min().orElseThrow();
+                set.tileWidth = plan.tsx() != null ? plan.tsx().tileWidth() : plan.sources().stream().mapToInt(Source::width).min().orElseThrow();
+                set.tileHeight = plan.tsx() != null ? plan.tsx().tileHeight() : plan.sources().stream().mapToInt(Source::height).min().orElseThrow();
                 set.columns = plan.sources().size(); set.rows = 1;
                 new TilesetAssetImportService(db).applyProfileSettings(set, plan.settings());
             }
@@ -208,11 +240,12 @@ public final class TilesetReimportService {
             for (int i = 0; i < db.size(); i++) if (db.assetAt(i) instanceof TileAssetMeta tile && tile.normalSourceRelPath != null)
                 normalOwners.merge(tile.normalSourceRelPath, 1, Integer::sum);
             for (Source source : plan.sources()) {
-                Integer id = plan.matches().get(source.key());
+                Integer id = plan.matches().get(plan.tsx() != null && plan.grid() == null
+                        ? Integer.toString(source.index()) : source.key());
                 TileAssetMeta tile;
                 if (id != null) tile = (TileAssetMeta) db.findById(id);
                 else {
-                    int index = plan.targetId() <= 0 || plan.grid() != null ? source.index() : nextIndex++;
+                    int index = plan.targetId() <= 0 || plan.grid() != null || plan.tsx() != null ? source.index() : nextIndex++;
                     tile = (TileAssetMeta) db.registerIfAbsent(AssetType.TILE, set.logicalPath() + "/" + index,
                             null, AssetMeta.AssetScope.USER);
                     tile.tilesetId = set.id(); tile.sheetIndex = index;
@@ -241,8 +274,16 @@ public final class TilesetReimportService {
                 }
                 ids.put(source.index(), tile.id());
             }
-            if (plan.grid() == null) set.columns = Math.max(set.columns, nextIndex);
+            if (plan.grid() == null) set.columns = Math.max(set.columns, plan.tsx() == null ? nextIndex
+                    : plan.sources().stream().mapToInt(Source::index).max().orElse(-1) + 1);
             for (int id : plan.removed()) db.removeById(id);
+            TilesetImportResult result = new TilesetImportResult(1, set.id(), set.logicalPath(), ids);
+            if (plan.tsx() != null) {
+                for (int id : ids.values())
+                    ((TileAssetMeta) db.findById(id)).properties = new games.pixscape.runtime.property.PropertySet();
+                TilePropertiesImportSupport.apply(db, ids, plan.tsx().tileProperties());
+            }
+            prepareMetadata.accept(result);
             // Delete only previously owned files that no surviving asset still references.
             Set<String> referenced = new HashSet<>();
             List<String> colors = new ArrayList<>();
@@ -274,7 +315,7 @@ public final class TilesetReimportService {
                 saveCatalog.run();
                 publication.commit();
             }
-            return new TilesetImportResult(1, set.id(), set.logicalPath(), ids);
+            return result;
         } catch (RuntimeException | Error failure) {
             db.restoreAfterFailedImport(before);
             try {
@@ -317,19 +358,26 @@ public final class TilesetReimportService {
         if (set.importKind.equals("grid") && (set.imageWidth <= 0 || set.imageHeight <= 0 || set.columns <= 0 || set.rows <= 0))
             throw missingProvenance(id, "grid dimensions and slicing");
         Set<String> keys = new HashSet<>();
+        Map<String, String> sourcePaths = new HashMap<>();
+        boolean tsxCollection = set.importKind.equals("collection")
+                && new FileHandle(new java.io.File(java.net.URI.create(set.importSourceUri))).extension().equalsIgnoreCase("tsx");
         for (int i = 0; i < db.size(); i++) {
             if (!(db.assetAt(i) instanceof TileAssetMeta tile) || tile.tilesetId != id) continue;
             String key = tile.importSourceKey;
             if (key == null || key.isBlank()) throw missingProvenance(id, "source identity for tile " + tile.id());
+            String previousPath = sourcePaths.putIfAbsent(key.toLowerCase(Locale.ROOT), key);
+            if (previousPath != null && !previousPath.equals(key))
+                throw new IllegalArgumentException("Ambiguous current import: source paths differ only by case: " + key);
             if (set.importKind.equals("collection")) {
                 if (key.startsWith("/") || key.contains("\\") || key.contains(":")
-                        || Arrays.stream(key.split("/", -1)).anyMatch(part -> part.isEmpty() || part.equals(".") || part.equals(".."))
+                        || Arrays.stream(key.split("/", -1)).anyMatch(part -> part.isEmpty() || part.equals(".") || (!tsxCollection && part.equals("..")))
                         || !StudioFs.isImageFile(key) || isNormalCompanion(key))
                     throw new IllegalArgumentException("Invalid current collection source path for tile " + tile.id() + ": " + key);
             } else if (tile.cellX < 0 || tile.cellX >= set.columns || tile.cellY < 0 || tile.cellY >= set.rows
                     || !key.equals("cell:" + tile.cellX + ":" + tile.cellY))
                 throw new IllegalArgumentException("Invalid current grid cell identity for tile " + tile.id());
-            if (!keys.add(key.toLowerCase(Locale.ROOT)))
+            // Distinct local Tiled definitions may share a collection image.
+            if (!keys.add((set.importKind.equals("collection") ? tile.sheetIndex + ":" : "") + key))
                 throw new IllegalArgumentException("Ambiguous current import: multiple tiles claim source '" + key + "'.");
         }
     }

@@ -2060,7 +2060,7 @@ public final class ImportDialog extends StudioDialog implements OsFilesDropTarge
                     String name = games.pixscape.studio.io.StudioFs.baseName(source.name());
                     if (item.type == ImportType.TILESET_TSX) {
                         var descriptor = new TsxTilesetImportParser().parse(item.file);
-                        source = descriptor.imageFile(); name = descriptor.name();
+                        name = descriptor.name();
                     }
                     final int next = index + 1;
                     new TilesetImportReviewDialog(service.tilesetImportCandidates(source, name),

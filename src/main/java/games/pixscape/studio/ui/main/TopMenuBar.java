@@ -304,6 +304,13 @@ public class TopMenuBar extends MenuBar {
         editMenu.addItem(paste);
         editMenu.addItem(undo);
         editMenu.addItem(redo);
+        editMenu.openButton.addListener(new com.badlogic.gdx.scenes.scene2d.InputListener() {
+            @Override public boolean touchDown(com.badlogic.gdx.scenes.scene2d.InputEvent event,
+                                               float x, float y, int pointer, int button) {
+                refreshWorldEditingAvailability();
+                return false;
+            }
+        });
         addMenu(editMenu);
 
         resourcesMenu.addItem(handleShadersItem);
@@ -671,13 +678,14 @@ public class TopMenuBar extends MenuBar {
         boolean hudActive = projectActive && active instanceof HudScreenEditorDocument;
         refreshWidgetsAvailability(widgetsMenuItem, app.getEditorDocumentManager(), projectActive);
         refreshLayersAvailability(layersMenuItem, app.getEditorDocumentManager());
-        editMenu.openButton.setDisabled(!projectActive || active == null);
+        var tileProperties = app.inspectedTileProperties();
+        editMenu.openButton.setDisabled(!projectActive || (active == null && tileProperties == null));
         cut.setDisabled(!worldAllowed);
         copy.setDisabled(!worldAllowed);
         paste.setDisabled(!worldAllowed);
-        undo.setDisabled(hudActive
+        undo.setDisabled(tileProperties != null ? !tileProperties.canUndo() : hudActive
                 ? !((HudScreenEditorDocument) active).editSession().canUndo() : !worldAllowed);
-        redo.setDisabled(hudActive
+        redo.setDisabled(tileProperties != null ? !tileProperties.canRedo() : hudActive
                 ? !((HudScreenEditorDocument) active).editSession().canRedo() : !worldAllowed);
     }
 

@@ -12,6 +12,7 @@ import com.kotcrab.vis.ui.widget.VisTextField;
 import com.kotcrab.vis.ui.widget.color.ColorPickerListener;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.property.PropertyType;
+import games.pixscape.runtime.property.PropertyValue;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.asset.AssetMetaDatabase;
@@ -183,6 +184,43 @@ public class EditPropertiesDialogTest {
 
         invokeResult(dialog, true);
         Assert.assertEquals(original, applied.get().getColorRgba8888("tint", 0));
+    }
+
+    @Test
+    public void tileEditorRetainsUnsupportedValuesAndValidatesNamesAndNumbers() throws Exception {
+        PropertySet source = new PropertySet().putInt("cost", 3).putFloat("speed", 0.5f)
+                .put("file", PropertyValue.ofImported("file", "", "<property type=\"file\" value=\"a.txt\"/>"))
+                .putClass("stats", "Stats", new PropertySet().putInt("hp", 4));
+        AtomicReference<PropertySet> applied = new AtomicReference<>();
+        EditPropertiesDialog dialog = new EditPropertiesDialog("Tile", source, applied::set, true);
+        for (String key : new String[]{"file", "stats"}) {
+            Object row = rowNamed(dialog, key);
+            Assert.assertTrue(field(row, "nameField", VisTextField.class).isDisabled());
+            Assert.assertTrue(field(row, "typeBox", VisSelectBox.class).isDisabled());
+            Assert.assertTrue(field(row, "removeButton", com.badlogic.gdx.scenes.scene2d.ui.Button.class).isDisabled());
+        }
+        Object cost = rowNamed(dialog, "cost");
+        VisTextField name = field(cost, "nameField", VisTextField.class);
+        for (String invalid : new String[]{" ", "file", "speed"}) {
+            name.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+        }
+        name.setText("cost");
+        VisTextField number = field(cost, "numberField", VisTextField.class);
+        for (String invalid : new String[]{"bad", "2147483648", "2.5"}) {
+            number.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+        }
+        number.setText("9");
+        VisTextField speed = field(rowNamed(dialog, "speed"), "numberField", VisTextField.class);
+        for (String invalid : new String[]{"NaN", "Infinity"}) {
+            speed.setText(invalid); invokeResult(dialog, true); Assert.assertNull(applied.get());
+        }
+        speed.setText("1.25");
+        invokeResult(dialog, true);
+        Assert.assertEquals(9, applied.get().getInt("cost", 0));
+        Assert.assertEquals(1.25f, applied.get().getFloat("speed", 0), 0);
+        Assert.assertEquals(source.getImportedValue("file").sourceXml(), applied.get().getImportedValue("file").sourceXml());
+        Assert.assertEquals(4, applied.get().getClassValue("stats").properties().getInt("hp", 0));
+        Assert.assertEquals(3, source.getInt("cost", 0));
     }
 
     private static Object rowNamed(EditPropertiesDialog dialog, String name) throws Exception {

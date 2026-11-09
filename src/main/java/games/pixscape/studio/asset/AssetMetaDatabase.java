@@ -343,6 +343,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
                 && copy instanceof TileAssetMeta copyTile) {
             copyTile.tilesetId = sourceTile.tilesetId;
             copyTile.sheetIndex = sourceTile.sheetIndex;
+            copyTile.properties = sourceTile.properties.copy();
             copyTile.cellX = sourceTile.cellX;
             copyTile.cellY = sourceTile.cellY;
             copyTile.importSourceKey = sourceTile.importSourceKey;
@@ -931,6 +932,7 @@ public final class AssetMetaDatabase implements Json.Serializable {
             } else if (object instanceof TileAssetMeta tile) {
                 json.writeValue("tilesetId", tile.tilesetId);
                 json.writeValue("sheetIndex", tile.sheetIndex);
+                json.writeValue("properties", tile.properties, games.pixscape.runtime.property.PropertySet.class);
                 json.writeValue("cellX", tile.cellX);
                 json.writeValue("cellY", tile.cellY);
                 json.writeValue("importSourceKey", tile.importSourceKey);
@@ -987,6 +989,10 @@ public final class AssetMetaDatabase implements Json.Serializable {
             } else if (meta instanceof TileAssetMeta tile) {
                 tile.tilesetId = jsonData.getInt("tilesetId", -1);
                 tile.sheetIndex = jsonData.getInt("sheetIndex", -1);
+                if (jsonData.has("properties")) {
+                    tile.properties = json.readValue(games.pixscape.runtime.property.PropertySet.class, jsonData.get("properties"));
+                    tile.properties.validate();
+                }
                 tile.cellX = jsonData.getInt("cellX", -1);
                 tile.cellY = jsonData.getInt("cellY", -1);
                 tile.importSourceKey = jsonData.getString("importSourceKey", null);

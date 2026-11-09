@@ -282,6 +282,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
                 editorDocumentManager, dockManager, layersPanel, hudWidgetsPanel, () -> uiStage);
 
         assetsPanel = new AssetsPanel(this);
+        assetsPanel.addAssetSelectionListener(propertiesPanel::inspectAsset);
         assetsPanel.setPreferredWindowSize(900, 500);
         assetsPanel.reloadFromProject(cfg);
         dockManager.register(assetsPanel, DockSlot.BOTTOM, true);
@@ -818,6 +819,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     public boolean undoActiveDocument() {
         if (studioEditingModeService != null && studioEditingModeService.isHudTestMode()) return false;
         try {
+            if (inspectedTileProperties() != null) return inspectedTileProperties().undo();
             return editorCommandRouter.undo();
         } catch (RuntimeException failure) {
             showHudCommandFailure(failure);
@@ -828,6 +830,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
     public boolean redoActiveDocument() {
         if (studioEditingModeService != null && studioEditingModeService.isHudTestMode()) return false;
         try {
+            if (inspectedTileProperties() != null) return inspectedTileProperties().redo();
             return editorCommandRouter.redo();
         } catch (RuntimeException failure) {
             showHudCommandFailure(failure);
@@ -837,6 +840,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     private void showHudCommandFailure(Throwable failure) {
         Dialogs.showOKDialog(uiStage, "HUD edit failed", PreviewLaunchSupport.userMessageFor(failure));
+    }
+
+    public games.pixscape.studio.ui.property.TileAssetProperties inspectedTileProperties() {
+        return propertiesPanel == null ? null : propertiesPanel.inspectedTileProperties();
     }
 
     public Stage getUiStage() {

@@ -117,6 +117,7 @@ public final class SceneAtlasInputService {
                         if (logicalId <= 0) continue;
                         TileAnimationProjectDefData animDef = findTileAnimationProjectDef(tileAnimationsDb, logicalId);
                         if (animDef != null && animDef.frameAssetIds != null) {
+                            if (animDef.baseTileAssetId > 0) used.add(animDef.baseTileAssetId);
                             for (int frameAssetId : animDef.frameAssetIds) if (frameAssetId > 0) used.add(frameAssetId);
                         } else {
                             used.add(logicalId);
@@ -207,6 +208,7 @@ public final class SceneAtlasInputService {
                 if (tileAnimationId == null || tileAnimationId <= 0) continue;
                 TileAnimationProjectDefData def = findTileAnimationProjectDef(tileAnimationsDb, tileAnimationId);
                 if (def == null || def.frameAssetIds == null) continue;
+                if (def.baseTileAssetId > 0) addAssetMetaSourcePath(cfg, assetDb, required, def.baseTileAssetId);
                 for (int frameAssetId : def.frameAssetIds) {
                     addAssetMetaSourcePath(cfg, assetDb, required, frameAssetId);
                 }

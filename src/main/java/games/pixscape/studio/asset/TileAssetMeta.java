@@ -4,6 +4,8 @@ public final class TileAssetMeta extends AssetMeta {
 
     public int tilesetId = -1;
     public int sheetIndex = -1;
+    /** Shared definition properties. sheetIndex is the original local Tiled ID, not a list position. */
+    public games.pixscape.runtime.property.PropertySet properties = new games.pixscape.runtime.property.PropertySet();
     public int cellX = -1;
     public int cellY = -1;
     /** Relative path in the imported collection, or a stable grid cell key. */

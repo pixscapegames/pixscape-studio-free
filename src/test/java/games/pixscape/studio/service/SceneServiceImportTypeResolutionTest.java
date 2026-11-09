@@ -115,22 +115,24 @@ public class SceneServiceImportTypeResolutionTest {
     }
 
     @Test
-    public void tsxTilesetImportRequest_usesTsxDescriptorAndResolvedImage() throws Exception {
+    public void tsxTilesetPlan_usesTsxDescriptorAndResolvedImage() throws Exception {
         Path dir = Files.createTempDirectory("scene-service-tsx-request");
         Path image = dir.resolve("tiles").resolve("terrain.png");
         Files.createDirectories(image.getParent());
-        Files.write(image, new byte[]{1, 2, 3});
+        com.badlogic.gdx.utils.GdxNativesLoader.load();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(20, 28, java.awt.image.BufferedImage.TYPE_INT_ARGB), "png", image.toFile());
         Path tsx = dir.resolve("terrain.tsx");
         Files.writeString(tsx, """
                 <tileset name="Terrain TSX" tilewidth="16" tileheight="24" spacing="3" margin="2" tilecount="1" columns="1">
-                  <image source="tiles/terrain.png" width="16" height="24"/>
+                  <image source="tiles/terrain.png" width="20" height="28"/>
                 </tileset>
                 """, StandardCharsets.UTF_8);
 
-        TilesetAtlasImportRequest request = SceneService.tilesetAtlasImportRequestForTsxImport(
+        TilesetAtlasImportRequest request = new games.pixscape.studio.service.asset.TilesetReimportService(
+                new games.pixscape.studio.asset.AssetMetaDatabase()).prepareTsx(
                 new FileHandle(tsx.toFile()),
-                new FileHandle(dir.resolve("orig").resolve("tiles").toFile())
-        );
+                new FileHandle(dir.resolve("orig").resolve("tiles").toFile()), -1, ids -> java.util.Map.of()
+        ).grid();
 
         assertEquals(image.toFile().getCanonicalFile(), request.sourceFile().file().getCanonicalFile());
         assertEquals(16, request.tileWidth());

@@ -2844,6 +2844,7 @@ public final class SceneService {
             TileAnimationDefData runtimeData = new TileAnimationDefData();
             runtimeData.id = projectDef.id;
             runtimeData.frameAssetIds = projectDef.frameAssetIds;
+            runtimeData.baseTileAssetId = projectDef.baseTileAssetId;
             runtimeData.frameDurationsMs = projectDef.frameDurationsMs;
 
             registry.put(runtimeData);
@@ -3211,13 +3212,24 @@ public final class SceneService {
         AssetImportContext ctx = prepareAssetImportContext(cfg);
 
         int importedCount = 0;
+        boolean pendingCatalog = false;
 
         for (ImportDialog.ImportItem item : items) {
+            if (item == null || item.file == null || !item.file.exists()) continue;
+            boolean transactional = item.tilesetPlan != null || resolveImportType(item) == ImportDialog.ImportType.TILESET_TSX;
+            if (transactional && pendingCatalog) {
+                assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+                canvas.publishAssetMetaDatabase(assetMetaDatabase);
+                pendingCatalog = false;
+            }
             importedCount += importSingleAsset(ctx, item);
+            if (!transactional) pendingCatalog = true;
         }
 
-        assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
-        canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        if (pendingCatalog) {
+            assetMetaDatabase.save(ctx.projectDir.child(StudioFs.FILE_ASSETS_JSON));
+            canvas.publishAssetMetaDatabase(assetMetaDatabase);
+        }
         refreshAssetsPanel();
         app.getHudEditorSession().refreshAssetOptions();
         StudioLog.info("Assets imported: " + importedCount);
@@ -3237,9 +3249,6 @@ public final class SceneService {
                 }
                 applyTilesetImportPlanWithProgress(item.tilesetPlan, stage, result -> {
                     try {
-                        if (item.type == ImportDialog.ImportType.TILESET_TSX && item.tilesetPlan.targetId() <= 0)
-                            importInitialTsxAnimations(prepareAssetImportContext(ProjectConfig.getInstance()),
-                                    new TsxTilesetImportParser().parse(item.file), result);
                         advance();
                     } catch (Throwable error) { failure.accept(error); }
                 }, failure);
@@ -3438,44 +3447,9 @@ public final class SceneService {
     }
 
     private int importTsxTilesetAsset(AssetImportContext ctx, ImportDialog.ImportItem item) {
-        // Reimport preserves authored animations. Initial TSX imports still use their descriptor animations.
-        if (item.tilesetPlan != null && item.tilesetPlan.targetId() > 0)
-            return applyTilesetImportPlan(item.tilesetPlan).importedCount();
-        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(item.file);
-        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
-                ? descriptor.name()
-                : baseName(item.file.name());
-        TilesetImportResult result = item.tilesetPlan != null ? applyTilesetImportPlan(item.tilesetPlan)
-                : new TilesetAssetImportService(assetMetaDatabase).importAtlas(new TilesetAtlasImportRequest(
-                        descriptor.imageFile(),
-                        ctx.tilesRoot,
-                        descriptor.tileWidth(),
-                        descriptor.tileHeight(),
-                        descriptor.spacing(),
-                        descriptor.margin(),
-                        tilesetName
-                ));
-        importInitialTsxAnimations(ctx, descriptor, result);
-        return result.importedCount();
-    }
-
-    private void importInitialTsxAnimations(AssetImportContext ctx, TsxTilesetDescriptor descriptor, TilesetImportResult result) {
-        String tilesetName = result.tilesetLogicalPath().substring(StudioFs.PREFIX_TILES.length());
-        if (result.importedCount() > 0 && descriptor.tileAnimations() != null && !descriptor.tileAnimations().isEmpty()) {
-            FileHandle tileAnimationsFile = ctx.projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
-            if (tileAnimationsMetaDatabase == null) {
-                tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
-            }
-            TiledAnimationImportSupport.importTileAnimations(
-                    assetMetaDatabase,
-                    tileAnimationsMetaDatabase,
-                    tilesetName,
-                    descriptor.tileAnimations(),
-                    result.localTileAssetIds()
-            );
-            TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
-            reloadTileAnimationRegistryFromProjectData();
-        }
+        var plan = item.tilesetPlan != null ? item.tilesetPlan
+                : new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, ctx.tilesRoot, -1, tilesetUsageProof());
+        return applyTilesetImportPlan(plan).importedCount();
     }
 
     static TilesetAtlasImportRequest tilesetAtlasImportRequestForManualImport(ImportDialog.ImportItem item,
@@ -3489,23 +3463,6 @@ public final class SceneService {
                 item.tileMargin,
                 null,
                 item.tilesetProfileSettings()
-        );
-    }
-
-    static TilesetAtlasImportRequest tilesetAtlasImportRequestForTsxImport(FileHandle tsxFile,
-                                                                            FileHandle tilesRoot) {
-        TsxTilesetDescriptor descriptor = new TsxTilesetImportParser().parse(tsxFile);
-        String tilesetName = descriptor.name() != null && !descriptor.name().isBlank()
-                ? descriptor.name()
-                : baseName(tsxFile.name());
-        return new TilesetAtlasImportRequest(
-                descriptor.imageFile(),
-                tilesRoot,
-                descriptor.tileWidth(),
-                descriptor.tileHeight(),
-                descriptor.spacing(),
-                descriptor.margin(),
-                tilesetName
         );
     }
 
@@ -3549,9 +3506,9 @@ public final class SceneService {
 
     public TilesetReimportService.Plan prepareTilesetAtlasImport(ImportDialog.ImportItem item, int targetId) {
         FileHandle tiles = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()).child(StudioFs.DIR_ORIG_TILES);
-        var request = item.type == ImportDialog.ImportType.TILESET_TSX
-                ? tilesetAtlasImportRequestForTsxImport(item.file, tiles)
-                : tilesetAtlasImportRequestForManualImport(item, tiles);
+        if (item.type == ImportDialog.ImportType.TILESET_TSX)
+            return new TilesetReimportService(assetMetaDatabase).prepareTsx(item.file, tiles, targetId, tilesetUsageProof());
+        var request = tilesetAtlasImportRequestForManualImport(item, tiles);
         return new TilesetReimportService(assetMetaDatabase).prepareAtlas(request, targetId, tilesetUsageProof());
     }
 
@@ -3646,7 +3603,8 @@ public final class SceneService {
     private TilesetImportResult applyTilesetImportPlan(TilesetReimportService.Plan plan, TilesetImportInputs inputs,
             java.util.function.Consumer<String> progress, java.util.function.Consumer<Runnable> onUi) {
         var importer = new TilesetReimportService(assetMetaDatabase);
-        var fresh = plan.grid() == null
+        var fresh = plan.tsx() != null ? importer.prepareTsx(plan.source(), plan.tilesRoot(), plan.targetId(), inputs.usage())
+                : plan.grid() == null
                 ? importer.prepareDirectory(new TilesetDirectoryImportRequest(plan.source(), plan.tilesRoot(), plan.settings()),
                     plan.targetId(), inputs.usage())
                 : importer.prepareAtlas(plan.grid(), plan.targetId(), inputs.usage());
@@ -3656,6 +3614,17 @@ public final class SceneService {
             throw new IllegalArgumentException("Source membership or usage changed. Review the tileset update again.");
         final var prepared = fresh;
         FileHandle project = inputs.project(); ProjectConfig cfg = inputs.cfg();
+        // Updating images/properties preserves authored animation edits. New TSX animations are
+        // prepared before saving the allocator/catalog and published together with the assets.
+        boolean importAnimations = prepared.tsx() != null && prepared.targetId() <= 0
+                && !prepared.tsx().tileAnimations().isEmpty();
+        FileHandle animationFile = project.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
+        byte[] animationBytes = importAnimations ? ProjectFileCleanupService.snapshotFile(animationFile) : null;
+        TileAnimationsMetaDatabase previousAnimations = tileAnimationsMetaDatabase;
+        TileAnimationsMetaDatabase candidateAnimations = importAnimations
+                ? new com.badlogic.gdx.utils.Json().fromJson(TileAnimationsMetaDatabase.class,
+                    new com.badlogic.gdx.utils.Json().toJson(previousAnimations != null
+                            ? previousAnimations : TileAnimationsIO.load(animationFile))) : null;
         var openScenes = inputs.openScenes();
         java.util.Set<String> repackTags = new java.util.LinkedHashSet<>();
         java.util.Set<Integer> changed = new java.util.HashSet<>(plan.matches().values());
@@ -3682,6 +3651,9 @@ public final class SceneService {
             result = importer.apply(prepared, (candidate, colors) -> {
                 progress.accept("Validating color packing...");
                 AtlasStudioService.validateTilesetImportCandidate(candidate, colors);
+            }, imported -> {
+                if (importAnimations) TiledAnimationImportSupport.importTileAnimations(assetMetaDatabase,
+                        candidateAnimations, prepared.base(), prepared.tsx().tileAnimations(), imported.localTileAssetIds());
             }, () -> {
                 java.util.Set<String> paths = new java.util.HashSet<>();
                 for (int i = 0; i < assetMetaDatabase.size(); i++) {
@@ -3713,11 +3685,14 @@ public final class SceneService {
                         }
                     }
                 }, () -> {
+                    if (importAnimations) TileAnimationsIO.save(candidateAnimations, animationFile);
                     assetMetaDatabase.save(project.child(StudioFs.FILE_ASSETS_JSON));
                     progress.accept("Uploading and rebinding loaded resources...");
                     onUi.accept(() -> {
                     StandaloneTextureCache.reloadProjectRelative(paths);
+                    if (importAnimations) tileAnimationsMetaDatabase = candidateAnimations;
                     canvas.publishAssetMetaDatabase(assetMetaDatabase);
+                    if (importAnimations) reloadTileAnimationRegistryFromProjectData();
                     // Invalidate the old generations before loading the newly prepared color atlases.
                     if (!previousPaths.isEmpty()) canvas.importedAssetPixelsChanged(changed);
                     for (String tag : repackTags)
@@ -3732,9 +3707,12 @@ public final class SceneService {
         } catch (RuntimeException failure) {
             progress.accept("Restoring previous resources...");
             try {
+                if (importAnimations) ProjectFileCleanupService.restoreFileFromSnapshot(animationFile, animationBytes);
                 onUi.accept(() -> {
+                if (importAnimations) tileAnimationsMetaDatabase = previousAnimations;
                 StandaloneTextureCache.reloadProjectRelative(previousPaths);
                 canvas.publishAssetMetaDatabase(assetMetaDatabase);
+                if (importAnimations) reloadTileAnimationRegistryFromProjectData();
                 canvas.importedAssetPixelsChanged(changed);
                 for (String tag : repackTags) {
                     FileHandle atlas = project.child(StudioFs.DIR_ATLASES).child(tag + ".atlas");
@@ -4024,9 +4002,13 @@ public final class SceneService {
         }
 
         for (TileAnimationProjectDefData animation : tileAnimationsDb.animations) {
-            if (animation == null || animation.frameAssetIds == null) {
+            if (animation == null) continue;
+            if (tileAssetIds.contains(animation.baseTileAssetId)) {
+                animationNames.add((animation.name != null && !animation.name.isBlank()
+                        ? animation.name : "Tile animation " + animation.id) + " (base tile " + animation.baseTileAssetId + ")");
                 continue;
             }
+            if (animation.frameAssetIds == null) continue;
             for (int frameAssetId : animation.frameAssetIds) {
                 if (tileAssetIds.contains(frameAssetId)) {
                     animationNames.add(animation.name != null && !animation.name.isBlank()

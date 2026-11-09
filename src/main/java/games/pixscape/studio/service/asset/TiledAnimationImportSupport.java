@@ -68,6 +68,7 @@ public final class TiledAnimationImportSupport {
             }
             def.name = uniqueName(tileAnimationsDb, desiredName, def);
             def.frameAssetIds = frameAssetIds;
+            def.baseTileAssetId = tileAssetIdsByLocalTileId.get(animation.baseLocalTileId());
             def.frameDurationsMs = frameDurationsMs;
 
             animationIdsByBaseLocalTileId.put(animation.baseLocalTileId(), def.id);

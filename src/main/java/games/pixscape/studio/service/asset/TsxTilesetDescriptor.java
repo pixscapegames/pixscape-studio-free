@@ -18,7 +18,8 @@ public record TsxTilesetDescriptor(String name,
                                    int tileCount,
                                    int columns,
                                    List<ImageCollectionTile> imageCollectionTiles,
-                                   List<TileAnimation> tileAnimations) {
+                                   List<TileAnimation> tileAnimations,
+                                   java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties) {
 
     public TsxTilesetDescriptor {
         imageCollectionTiles = imageCollectionTiles == null
@@ -27,6 +28,7 @@ public record TsxTilesetDescriptor(String name,
         tileAnimations = tileAnimations == null
                 ? List.of()
                 : Collections.unmodifiableList(List.copyOf(tileAnimations));
+        tileProperties = java.util.Map.copyOf(tileProperties);
     }
 
     public boolean imageCollection() {

@@ -28,6 +28,18 @@ public final class TmxPreflightService {
         this.fileResolver = fileResolver;
     }
 
+    /** Shared TSX/TMX definition parser; unsupported source semantics are retained, not coerced. */
+    public static PropertySet readTileProperties(XmlReader.Element tile, String location) {
+        AnalysisState state = new AnalysisState(location);
+        state.preserveTilePropertyTypes = true;
+        ParsedProperties parsed = new TmxPreflightService().readPropertiesWithPaths(tile, state, location);
+        for (TmxDiagnostic diagnostic : state.diagnostics) {
+            if (diagnostic.severity() == TmxDiagnosticSeverity.BLOCKING)
+                throw new IllegalArgumentException(diagnostic.message());
+        }
+        return parsed.properties();
+    }
+
     public TmxPreflightReport analyze(TmxPreflightRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("request is null");
@@ -431,7 +443,12 @@ public final class TmxPreflightService {
                 );
             }
             AnalysisState metadataState = new AnalysisState(state.sourcePath);
+            metadataState.preserveTilePropertyTypes = true;
             ParsedProperties parsed = readPropertiesWithPaths(tile, metadataState, location);
+            // Definitions are now persisted even when no tile object inherits their metadata.
+            // Refuse invalid values instead of silently publishing a partially parsed definition.
+            state.diagnostics.addAll(metadataState.diagnostics);
+            metadataState.diagnostics.clear();
             if (!parsed.objectReferences().isEmpty()) {
                 metadataState.blocking("TMX_OBJECT_PROPERTY_SCOPE_UNSUPPORTED",
                         "OBJECT properties in tile-definition metadata use the Tiled tile-collision "
@@ -729,6 +746,14 @@ public final class TmxPreflightService {
                 ? property.getAttribute("value")
                 : property.getText();
         try {
+            if (state.preserveTilePropertyTypes && (!Set.of("string", "bool", "int", "float", "color", "class").contains(type)
+                    || (!"class".equals(type) && customType != null && !customType.isBlank()))) {
+                properties.put(name, games.pixscape.runtime.property.PropertyValue.ofImported(
+                        type, customType, propertyXml(property)));
+                if ("object".equals(type)) objectReferences.add(new TmxObjectPropertyReference(
+                        path, parsePropertyObjectReference(value, location, state), location));
+                return;
+            }
             switch (type) {
                 case "string" -> properties.putString(name, value != null ? value : "");
                 case "bool" -> properties.putBoolean(name, parsePropertyBoolean(value, location, state));
@@ -783,6 +808,20 @@ public final class TmxPreflightService {
         path.addAll(prefix);
         if (name != null) path.add(name);
         return path;
+    }
+
+    private static String propertyXml(XmlReader.Element element) {
+        StringBuilder out = new StringBuilder("<").append(element.getName());
+        if (element.getAttributes() != null) for (var attribute : element.getAttributes())
+            out.append(' ').append(attribute.key).append("=\"").append(xmlEscape(attribute.value)).append('"');
+        out.append('>');
+        if (element.getText() != null) out.append(xmlEscape(element.getText()));
+        for (int i = 0; i < element.getChildCount(); i++) out.append(propertyXml(element.getChild(i)));
+        return out.append("</").append(element.getName()).append('>').toString();
+    }
+
+    private static String xmlEscape(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
     }
 
     private boolean parsePropertyBoolean(String value,
@@ -1251,7 +1290,8 @@ public final class TmxPreflightService {
             XmlReader.Element image = tile.getChildByName("image");
             if (image == null) continue;
 
-            if (localTileId < 0 || (declaredTileCount > 0 && localTileId >= declaredTileCount)) {
+            // Image collections may contain gaps and IDs above tilecount (a count, not a bound).
+            if (localTileId < 0) {
                 state.blocking(
                         "TMX_IMAGE_COLLECTION_TILE_ID_INVALID",
                         "Image collection tile id is outside the tileset tile range: " + localTileId,
@@ -1348,6 +1388,7 @@ public final class TmxPreflightService {
         private final List<TmxDiagnostic> diagnostics = new ArrayList<>();
         private final Map<Integer, String> objectIdLocations = new HashMap<>();
         private final Map<Long, List<TmxDiagnostic>> pendingTileMetadataDiagnostics = new HashMap<>();
+        private boolean preserveTilePropertyTypes;
         private final Set<Long> emittedTileMetadataDiagnostics = new HashSet<>();
         private int tileLayerCount;
         private long requiredTiledCells;

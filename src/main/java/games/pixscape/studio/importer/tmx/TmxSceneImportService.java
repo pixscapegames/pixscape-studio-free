@@ -168,6 +168,11 @@ public final class TmxSceneImportService {
                 throw new IllegalStateException("Tileset import failed: " + tileset.name());
             }
             importedTilesetCount += result.importedCount();
+            Map<Integer, games.pixscape.runtime.property.PropertySet> tileProperties = new HashMap<>();
+            for (TmxTileDefinitionPlan definition : tileset.tileDefinitions())
+                tileProperties.put(definition.localTileId(), definition.properties());
+            games.pixscape.studio.service.asset.TilePropertiesImportSupport.apply(
+                    assetDb, result.localTileAssetIds(), tileProperties);
             Map<Integer, Integer> cellLogicalIds = new HashMap<>(result.localTileAssetIds());
             staticTileAssetIdsByTileset.put(
                     tileset.planIndex(), Map.copyOf(result.localTileAssetIds()));

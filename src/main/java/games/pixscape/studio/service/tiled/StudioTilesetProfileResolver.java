@@ -104,6 +104,13 @@ public final class StudioTilesetProfileResolver {
             profile.tileAssetIds = tileIds.toArray();
             for (int id : profile.tileAssetIds) {
                 TileAssetMeta tile = (TileAssetMeta) assetDb.findById(id);
+                if (tile.sheetIndex >= 0) {
+                    games.pixscape.runtime.tiled.profile.TileDefinitionData definition = new games.pixscape.runtime.tiled.profile.TileDefinitionData();
+                    definition.assetId = id;
+                    definition.localId = tile.sheetIndex;
+                    definition.properties = tile.properties.copy();
+                    profile.tiles.add(definition);
+                }
                 if (tile.normalSourceRelPath != null) profile.normalMapSources.put(id, tile.normalSourceRelPath);
             }
             profiles.add(profile);

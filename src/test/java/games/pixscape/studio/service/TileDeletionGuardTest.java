@@ -162,6 +162,26 @@ public class TileDeletionGuardTest {
         assertTilesetProtected("terrain", "wave");
     }
 
+    @Test public void animationBaseProtectsItsTilesetAfterAllFramesMoveElsewhere() {
+        var other = assets.registerIfAbsent(AssetType.TILESET, "tiles/other", null, AssetMeta.AssetScope.USER);
+        TileAssetMeta frame = (TileAssetMeta) assets.registerIfAbsent(AssetType.TILE, "tiles/other/7",
+                "orig/tiles/other/7.png", AssetMeta.AssetScope.USER);
+        frame.tilesetId = other.id();
+        wave.baseTileAssetId = grass.id();
+        wave.frameAssetIds = new int[]{frame.id()};
+        wave.frameDurationsMs = new int[]{120};
+        grass.properties.putInt("cost", 3);
+        frame.properties.putInt("cost", 9);
+        assets.save(catalog);
+        TileAnimationsIO.save(animations, definitions);
+        byte[] savedAnimations = definitions.readBytes();
+        assertTilesetProtected("terrain", "wave", "base tile " + grass.id());
+        assertArrayEquals(savedAnimations, definitions.readBytes());
+        assertEquals(grass.id(), wave.baseTileAssetId);
+        assertEquals(3, grass.properties.getInt("cost", -1));
+        assertEquals(9, frame.properties.getInt("cost", -1));
+    }
+
     @Test public void unusedTilesetWithIdOnlyAfterBagSizeCanBeDeleted() {
         painted("Test2", "tileAssetIds: {items: [0," + grass.id() + "], size: 1}");
         service.deleteTilesetDirectory("terrain");

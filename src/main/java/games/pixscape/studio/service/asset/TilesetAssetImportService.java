@@ -75,20 +75,20 @@ public final class TilesetAssetImportService {
             if (!"collection".equals(existing.importKind))
                 throw new IllegalArgumentException("Existing tileset source kind differs. Use the tileset import dialog to import as new.");
             FileHandle originalRoot = new FileHandle(new java.io.File(java.net.URI.create(existing.importSourceUri)));
-            Map<String, Integer> existingBySource = new HashMap<>();
+            Map<Integer, TileAssetMeta> existingByLocalId = new HashMap<>();
             for (int i = 0; i < assetMetaDatabase.size(); i++) {
                 if (assetMetaDatabase.assetAt(i) instanceof TileAssetMeta tile && tile.tilesetId == existing.id()
-                        && tile.importSourceKey != null && existingBySource.putIfAbsent(tile.importSourceKey, tile.id()) != null)
-                    throw new IllegalArgumentException("Ambiguous existing tileset source: " + tile.importSourceKey);
+                        && existingByLocalId.putIfAbsent(tile.sheetIndex, tile) != null)
+                    throw new IllegalArgumentException("Ambiguous existing local tile ID: " + tile.sheetIndex);
             }
             Map<Integer, Integer> localIds = new LinkedHashMap<>();
             for (ImageCollectionTileSource item : sourceTiles) {
                 if (item == null || item.sourceFile() == null || TilesetReimportService.isNormalCompanion(item.sourceFile().name())) continue;
                 String key = TilesetReimportService.relative(originalRoot, item.sourceFile());
-                Integer id = existingBySource.get(key);
-                if (key.startsWith("../") || id == null)
+                TileAssetMeta tile = existingByLocalId.get(item.localTileId());
+                if (key.startsWith("../") || tile == null || !key.equals(tile.importSourceKey))
                     throw new IllegalArgumentException("Existing tileset sources differ. Use the tileset import dialog to update or import as new.");
-                localIds.put(item.localTileId(), id);
+                localIds.put(item.localTileId(), tile.id());
             }
             StudioLog.info("Existing tileset resources reused; use tileset Update to apply source image or normal changes.");
             return new TilesetImportResult(0, existing.id(), existing.logicalPath(), localIds);
@@ -275,7 +275,6 @@ public final class TilesetAssetImportService {
                                                                            List<ImageCollectionTileSource> sourceTiles,
                                                                            TilesetAssetMeta tilesetMeta) {
         Map<Integer, Integer> tileAssetIds = new LinkedHashMap<>();
-        Map<String, Integer> assetIdByCanonicalSource = new LinkedHashMap<>();
         if (sourceTiles == null) return tileAssetIds;
 
         for (ImageCollectionTileSource sourceTile : sourceTiles) {
@@ -285,13 +284,6 @@ public final class TilesetAssetImportService {
             if (src != null && TilesetReimportService.isNormalCompanion(src.name())) continue;
             if (!isImage(src) || !src.exists() || src.isDirectory()) {
                 warnUnsupported(src);
-                continue;
-            }
-
-            String canonicalSource = pathOf(src);
-            Integer existingAssetId = assetIdByCanonicalSource.get(canonicalSource);
-            if (existingAssetId != null && existingAssetId > 0) {
-                tileAssetIds.put(sourceTile.localTileId(), existingAssetId);
                 continue;
             }
 
@@ -332,7 +324,6 @@ public final class TilesetAssetImportService {
             tileMeta.cellX = localTileId;
             tileMeta.cellY = 0;
             tileAssetIds.put(localTileId, tileMeta.id());
-            assetIdByCanonicalSource.put(canonicalSource, tileMeta.id());
         }
         return tileAssetIds;
     }

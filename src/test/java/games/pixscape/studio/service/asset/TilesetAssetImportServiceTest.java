@@ -553,7 +553,7 @@ public class TilesetAssetImportServiceTest {
     }
 
     @Test
-    public void importImageCollectionRegistersLocalTileImageAssetsAndDeduplicatesSources() throws Exception {
+    public void importImageCollectionKeepsDistinctLocalIdsEvenWhenImagesAreShared() throws Exception {
         AssetMetaDatabase db = new AssetMetaDatabase();
         TilesetAssetImportService service = new TilesetAssetImportService(db);
 
@@ -589,7 +589,20 @@ public class TilesetAssetImportServiceTest {
 
         assertEquals(1, result.importedCount());
         assertEquals(3, result.localTileAssetIds().size());
-        assertEquals(result.localTileAssetIds().get(0), result.localTileAssetIds().get(2));
+        assertNotEquals(result.localTileAssetIds().get(0), result.localTileAssetIds().get(2));
+        assertEquals(2, ((TileAssetMeta) db.findById(result.localTileAssetIds().get(2))).sheetIndex);
+        TilePropertiesImportSupport.apply(db, result.localTileAssetIds(), Map.of(
+                0, new games.pixscape.runtime.property.PropertySet().putInt("cost", 1),
+                2, new games.pixscape.runtime.property.PropertySet().putInt("cost", 9)));
+        var reused = service.importImageCollection(new TilesetImageCollectionImportRequest(
+                "props", tilesRoot, 16, 16, 3, List.of(
+                new ImageCollectionTileSource(0, tree, "tree.png", 16, 32),
+                new ImageCollectionTileSource(1, rock, "rock.png", 16, 16),
+                new ImageCollectionTileSource(2, tree, "tree.png", 16, 32)), null));
+        assertEquals(0, reused.importedCount());
+        assertEquals(result.localTileAssetIds(), reused.localTileAssetIds());
+        assertEquals(1, ((TileAssetMeta) db.findById(reused.localTileAssetIds().get(0))).properties.getInt("cost", 0));
+        assertEquals(9, ((TileAssetMeta) db.findById(reused.localTileAssetIds().get(2))).properties.getInt("cost", 0));
 
         TilesetAssetMeta tileset = requireTileset(db.findByLogicalPath("tiles/props"));
         assertEquals(16, tileset.tileWidth);

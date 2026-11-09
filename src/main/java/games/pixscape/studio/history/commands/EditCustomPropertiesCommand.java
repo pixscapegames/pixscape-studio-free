@@ -95,7 +95,7 @@ public final class EditCustomPropertiesCommand implements Command, SupportsNoop 
         return properties.copy();
     }
 
-    private static boolean sameProperties(PropertySet first, PropertySet second) {
+    static boolean sameProperties(PropertySet first, PropertySet second) {
         if (first.size() != second.size()) return false;
         Array<String> names = new Array<String>();
         first.copyNamesTo(names);
@@ -128,6 +128,10 @@ public final class EditCustomPropertiesCommand implements Command, SupportsNoop 
             case CLASS:
                 return first.className().equals(second.className())
                         && sameProperties(first.classPropertiesCopy(), second.classPropertiesCopy());
+            case IMPORTED:
+                return first.asImported().typeName().equals(second.asImported().typeName())
+                        && first.asImported().customTypeName().equals(second.asImported().customTypeName())
+                        && first.asImported().sourceXml().equals(second.asImported().sourceXml());
             default:
                 return false;
         }

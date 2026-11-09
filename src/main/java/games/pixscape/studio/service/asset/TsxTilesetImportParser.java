@@ -75,7 +75,8 @@ public final class TsxTilesetImportParser {
                         effectiveTileCount,
                         columns,
                         imageCollectionTiles,
-                        parseTileAnimationsForStandalone(tileset, effectiveTileCount)
+                        parseTileAnimationsForStandalone(tileset, effectiveTileCount),
+                        parseTileProperties(tileset)
                 );
             }
             throw new IllegalArgumentException("TSX tileset image is missing.");
@@ -108,7 +109,8 @@ public final class TsxTilesetImportParser {
                 effectiveTileCount,
                 columns,
                 imageCollectionTiles,
-                parseTileAnimationsForStandalone(tileset, effectiveTileCount)
+                parseTileAnimationsForStandalone(tileset, effectiveTileCount),
+                parseTileProperties(tileset)
         );
     }
 
@@ -124,6 +126,19 @@ public final class TsxTilesetImportParser {
             throw new IllegalArgumentException(failures.get(0));
         }
         return animations;
+    }
+
+    private static java.util.Map<Integer, games.pixscape.runtime.property.PropertySet> parseTileProperties(XmlReader.Element tileset) {
+        var properties = new java.util.LinkedHashMap<Integer, games.pixscape.runtime.property.PropertySet>();
+        for (int i = 0; i < tileset.getChildCount(); i++) {
+            XmlReader.Element tile = tileset.getChild(i);
+            if (!"tile".equals(tile.getName())) continue;
+            int localId = intAttribute(tile, "id", -1);
+            if (localId < 0 || properties.containsKey(localId))
+                throw new IllegalArgumentException("Invalid or duplicate local tile ID: " + localId);
+            properties.put(localId, games.pixscape.studio.importer.tmx.TmxPreflightService.readTileProperties(tile, "tile " + localId));
+        }
+        return properties;
     }
 
     public static List<TsxTilesetDescriptor.TileAnimation> parseTileAnimations(XmlReader.Element tileset,

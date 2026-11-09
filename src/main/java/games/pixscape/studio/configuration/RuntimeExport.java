@@ -348,6 +348,7 @@ public final class RuntimeExport {
             exported.frameAssetIds = def.frameAssetIds != null
                     ? java.util.Arrays.copyOf(def.frameAssetIds, def.frameAssetIds.length)
                     : new int[0];
+            exported.baseTileAssetId = def.baseTileAssetId;
             exported.frameDurationsMs = def.frameDurationsMs != null
                     ? java.util.Arrays.copyOf(def.frameDurationsMs, def.frameDurationsMs.length)
                     : new int[0];
@@ -438,6 +439,20 @@ public final class RuntimeExport {
                 }
                 tileIds.sort();
                 JsonValue profile = tilesetProfileJson(tileset, tileIds);
+                JsonValue definitions = new JsonValue(JsonValue.ValueType.array);
+                com.badlogic.gdx.utils.Json definitionJson = new com.badlogic.gdx.utils.Json();
+                for (int i = 0; i < tileIds.size; i++) {
+                    TileAssetMeta tile = (TileAssetMeta) assetDb.findById(tileIds.get(i));
+                    // Legacy assets without a local ID remain renderable; never invent an identity.
+                    if (tile.sheetIndex < 0) continue;
+                    games.pixscape.runtime.tiled.profile.TileDefinitionData definition =
+                            new games.pixscape.runtime.tiled.profile.TileDefinitionData();
+                    definition.assetId = tile.id();
+                    definition.localId = tile.sheetIndex;
+                    definition.properties = tile.properties.copy();
+                    definitions.addChild(new com.badlogic.gdx.utils.JsonReader().parse(definitionJson.toJson(definition)));
+                }
+                profile.addChild("tiles", definitions);
                 JsonValue normals = new JsonValue(JsonValue.ValueType.array);
                 for (int i = 0; i < tileIds.size; i++) {
                     TileAssetMeta tile = (TileAssetMeta) assetDb.findById(tileIds.get(i));
@@ -731,6 +746,7 @@ public final class RuntimeExport {
         for (TileAnimationProjectDefData def : db.animations) {
             if (def == null || def.id != tileAnimationId) continue;
             if (def.frameAssetIds != null) {
+                if (def.baseTileAssetId > 0) out.add(def.baseTileAssetId);
                 for (int frameAssetId : def.frameAssetIds) {
                     if (frameAssetId > 0) {
                         out.add(frameAssetId);
