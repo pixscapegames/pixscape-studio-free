@@ -969,6 +969,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         }
 
         // The Studio UI owns the full window and is always the final pass.
+        // HUD/no-document views do not run the post-ECS Inspector refresh.
+        if (!isWorldDocument(activeDocument)) propertiesPanel.updateIfDirty();
         uiStage.getViewport().apply(false);
         uiStage.draw();
     }

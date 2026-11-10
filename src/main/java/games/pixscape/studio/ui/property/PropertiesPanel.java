@@ -102,7 +102,9 @@ public class PropertiesPanel extends DockablePanel {
     private boolean transformTitleDirty;
     private boolean spatialPreviewDirty;
     private final TileAssetProperties tileAssetProperties;
+    private final AnimationAssetProperties animationAssetProperties;
     private int pendingTileAsset = -1;
+    private int pendingAnimationAsset = -1;
     private PendingView pendingView = PendingView.SCENE;
     private IntArray pendingSelection = null;
     private int pendingLayer = -1;
@@ -120,7 +122,8 @@ public class PropertiesPanel extends DockablePanel {
         SPATIAL_BLOCK,
         LAYER,
         TILED_MAP,
-        TILE_ASSET
+        TILE_ASSET,
+        ANIMATION_ASSET
     }
 
     public PropertiesPanel(StudioApplicationAdapter app) {
@@ -137,6 +140,8 @@ public class PropertiesPanel extends DockablePanel {
                         games.pixscape.studio.configuration.ProjectConfig.getInstance())
                         .child(games.pixscape.studio.io.StudioFs.FILE_ASSETS_JSON),
                 database -> app.getCanvas().publishAssetMetaDatabase(database));
+        animationAssetProperties = new AnimationAssetProperties(app.getSceneService()::getAssetMetaDatabase,
+                assetId -> games.pixscape.studio.ui.asset.AnimationAssetClipsEditor.show(app, assetId, getStage()));
 
         VisScrollPane scroller = new VisScrollPane(contentHolder);
         scroller.setFadeScrollBars(false);
@@ -480,7 +485,9 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showDocumentType(EditorDocumentType type) {
-        if (pendingView == PendingView.TILE_ASSET) pendingView = PendingView.SCENE;
+        if (pendingView == PendingView.TILE_ASSET || pendingView == PendingView.ANIMATION_ASSET) {
+            pendingView = PendingView.SCENE;
+        }
         if (type == null) {
             hudMode = false;
             gameObjectMode = false;
@@ -660,7 +667,16 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void updateIfDirty() {
-        if (hudMode && pendingView != PendingView.TILE_ASSET) return;
+        if (inspectedAnimationProperties() != null) {
+            var database = app.getSceneService().getAssetMetaDatabase();
+            if (database == null || !(database.findById(pendingAnimationAsset)
+                    instanceof games.pixscape.studio.asset.AnimationAssetMeta)) {
+                restoreCurrentCanvasProperties();
+            } else {
+                animationAssetProperties.refreshIfChanged();
+            }
+        }
+        if (hudMode && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET) return;
         if (transformTitleDirty) {
             transformTitleDirty = false;
             if (boundEntity >= 0) entityProperties.refreshTransformTitle();
@@ -681,6 +697,7 @@ public class PropertiesPanel extends DockablePanel {
             case SCENE -> showSceneProperties();
             case TILED_MAP -> showTiledMapProperties(pendingTiledMap);
             case TILE_ASSET -> showTileAssetProperties(pendingTileAsset);
+            case ANIMATION_ASSET -> showAnimationAssetProperties(pendingAnimationAsset);
         }
     }
 
@@ -691,6 +708,14 @@ public class PropertiesPanel extends DockablePanel {
             pendingTileAsset = node.assetId;
             pendingView = PendingView.TILE_ASSET;
             showTileAssetProperties(node.assetId);
+        } else if (node != null && database != null
+                && database.findById(node.assetId) instanceof games.pixscape.studio.asset.AnimationAssetMeta) {
+            pendingAnimationAsset = node.assetId;
+            pendingView = PendingView.ANIMATION_ASSET;
+            showAnimationAssetProperties(node.assetId);
+        } else if (inspectedAnimationProperties() != null) {
+            restoreCurrentCanvasProperties();
+            updateIfDirty();
         } else if (inspectedTileProperties() != null) {
             pendingView = PendingView.SELECTION;
             pendingSelection = selectionService.getSelectionSnapshot();
@@ -712,6 +737,34 @@ public class PropertiesPanel extends DockablePanel {
 
     public TileAssetProperties inspectedTileProperties() {
         return tileAssetProperties.getParent() == contentHolder ? tileAssetProperties : null;
+    }
+
+    private void showAnimationAssetProperties(int assetId) {
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
+        contentHolder.clearChildren();
+        animationAssetProperties.select(assetId);
+        contentHolder.add(animationAssetProperties).growX().top().left().row();
+        dirty = false;
+    }
+
+    public AnimationAssetProperties inspectedAnimationProperties() {
+        return animationAssetProperties.getParent() == contentHolder ? animationAssetProperties : null;
+    }
+
+    private void restoreCurrentCanvasProperties() {
+        // Read the live selection only. Inspecting/deleting an asset never edits canvas selection.
+        pendingSelection = selectionService.getSelectionSnapshot();
+        pendingLayer = selectionService.getActivelayerId();
+        pendingView = pendingSelection.size > 0 ? PendingView.SELECTION
+                : pendingLayer >= 0 ? PendingView.LAYER : PendingView.SCENE;
+        contentHolder.clearChildren();
+        if (hudMode) {
+            hudInspectorView.rebuild();
+            contentHolder.add(hudInspectorView).growX().top().left().row();
+        }
+        markDirty();
     }
 
     public void onActiveLayerChanged(int newLayerEntityId) {

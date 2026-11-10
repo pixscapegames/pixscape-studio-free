@@ -15,7 +15,6 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ObjectMap;
 import com.badlogic.gdx.utils.Scaling;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.*;
@@ -33,7 +32,6 @@ import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
-import games.pixscape.studio.service.asset.StudioAnimationAssets;
 import games.pixscape.studio.service.gameobject.GameObjectAssetItem;
 import games.pixscape.studio.service.gameobject.GameObjectBrowserService;
 import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
@@ -45,7 +43,6 @@ import games.pixscape.studio.ui.config.CommonLayout;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.modal.StudioDialog;
 import games.pixscape.studio.ui.modal.StudioFileChooser;
-import games.pixscape.studio.ui.property.entityproperties.AnimationClipsDialog;
 
 import java.util.function.Consumer;
 
@@ -1376,73 +1373,9 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showEditAnimationClipsDialog(AssetNode node) {
-        if (node == null || node.kind != AssetNode.Kind.ANIMATION) return;
-
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null || app == null || app.getSceneService() == null) return;
-
-        String sourceRelPath = buildSourceRelPath(node);
-        if (sourceRelPath == null || sourceRelPath.isBlank()) return;
-
-        int frameCount = countAnimationFrames(node);
-        int frameMax = Math.max(0, frameCount - 1);
-
-        AnimationAssetMeta meta = app.getSceneService().findAnimationAssetMetaBySourceRelPath(sourceRelPath);
-        if (meta == null) {
-            showSimpleErrorDialog("Animation asset metadata not found.");
-            return;
+        if (node != null && node.kind == AssetNode.Kind.ANIMATION) {
+            AnimationAssetClipsEditor.show(app, node.assetId, getStage());
         }
-
-        AnimationAssetMeta edited = StudioAnimationAssets.copyOf(meta);
-        ensureAnimationAssetClips(edited, frameMax);
-        AnimationClipsDialog dialog = new AnimationClipsDialog(edited, () -> {
-            app.getSceneService().saveAnimationAssetClips(
-                    sourceRelPath,
-                    edited,
-                    frameCount
-            );
-        }, frameMax);
-        dialog.show(getStage());
-    }
-
-    private void ensureAnimationAssetClips(AnimationAssetMeta meta, int frameMax) {
-        if (meta.clips == null) meta.clips = new ObjectMap<>();
-        if (meta.clips.size == 0) {
-            meta.currentClip = "default";
-            meta.clips.put("default", new AnimationClipMeta(0, frameMax));
-            return;
-        }
-        if (meta.currentClip == null
-                || meta.currentClip.isBlank()
-                || !meta.clips.containsKey(meta.currentClip)) {
-            Array<String> names = new Array<>();
-            for (String name : meta.clips.keys()) names.add(name);
-            names.sort();
-            meta.currentClip = names.first();
-        }
-    }
-
-    private int countAnimationFrames(AssetNode node) {
-        if (node == null || node.path == null || node.path.isBlank()) return 0;
-
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        if (cfg == null) return 0;
-
-        FileHandle animDir = StudioFs.requireStudioProjectDir(cfg)
-                .child(StudioFs.DIR_ORIG_ANIMATIONS)
-                .child(node.path);
-
-        if (!animDir.exists() || !animDir.isDirectory()) return 0;
-
-        int count = 0;
-        for (FileHandle child : animDir.list()) {
-            if (child != null
-                    && !child.isDirectory()
-                    && "png".equalsIgnoreCase(child.extension())) {
-                count++;
-            }
-        }
-        return count;
     }
 
     private void showSimpleErrorDialog(String message) {
@@ -1796,6 +1729,18 @@ public final class AssetsThumbsView extends VisTable {
         selectedNode = null;
         clearMultiSelection();
         refreshSelectionVisuals();
+    }
+
+    void restoreAnimationSelection(int assetId) {
+        for (AssetNode node : currentAssets) {
+            if (node.kind == AssetNode.Kind.ANIMATION && node.assetId == assetId) {
+                selectedNode = node;
+                addToSelection(node);
+                selectionAnchorIndex = indexOfCurrentAsset(node);
+                refreshSelectionVisuals();
+                return;
+            }
+        }
     }
 
     public AssetNode getSelectedNode() {

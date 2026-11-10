@@ -8,6 +8,7 @@ import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
+import games.pixscape.studio.service.StandaloneTextureCache;
 
 public final class AssetPreviewCache {
 
@@ -41,6 +42,36 @@ public final class AssetPreviewCache {
             t.dispose();
         }
         cache.clear();
+    }
+
+    /** Resolves source frames once at selection/reload time, in the browser's filename order. */
+    public static Array<FileHandle> animationFrameFiles(FileHandle source) {
+        Array<FileHandle> files = new Array<>();
+        if (source == null || !source.exists()) return files;
+        if (!source.isDirectory()) {
+            if ("png".equalsIgnoreCase(source.extension())) files.add(source);
+        } else {
+            for (FileHandle child : source.list()) {
+                if (!child.isDirectory() && "png".equalsIgnoreCase(child.extension())) files.add(child);
+            }
+            files.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
+        }
+        return files;
+    }
+
+    /** Returned textures are borrowed, never disposed by an Inspector or thumbnail. */
+    public static Array<Texture> animationFrames(String sourceRelPath) {
+        Array<Texture> frames = new Array<>();
+        ProjectConfig cfg = ProjectConfig.getInstance();
+        if (sourceRelPath == null || cfg == null || cfg.projectFileName == null) return frames;
+        FileHandle source = StudioFs.requireStudioProjectDir(cfg).child(sourceRelPath);
+        for (FileHandle file : animationFrameFiles(source)) {
+            String path = source.isDirectory() ? sourceRelPath + "/" + file.name() : sourceRelPath;
+            Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(path);
+            if (texture == null) return new Array<>();
+            frames.add(texture);
+        }
+        return frames;
     }
 
     // ------------------------------------------------------------------------
@@ -137,17 +168,9 @@ public final class AssetPreviewCache {
             return ext != null && ext.equalsIgnoreCase("png") ? animationHandle : null;
         }
 
-        Array<FileHandle> pngFrames = new Array<>();
-        for (FileHandle child : animationHandle.list()) {
-            if (child == null || child.isDirectory()) continue;
-            String ext = child.extension();
-            if (ext != null && ext.equalsIgnoreCase("png")) {
-                pngFrames.add(child);
-            }
-        }
+        Array<FileHandle> pngFrames = animationFrameFiles(animationHandle);
 
         if (pngFrames.size == 0) return null;
-        pngFrames.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
         return pngFrames.first();
     }
 }

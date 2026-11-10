@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 
 public final class AssetsPanel extends DockablePanel {
 
+    private boolean reloadingAnimationSelection;
     private final FolderTreeView treeView;
     private final AssetsThumbsView thumbsView;
     private final RuntimeAvailabilityPanel runtimeAvailabilityPanel;
@@ -41,7 +42,9 @@ public final class AssetsPanel extends DockablePanel {
         runtimeAvailabilityPanel = new RuntimeAvailabilityPanel(app);
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
         thumbsView.setOpenListener(node -> {
-            if (node.kind == AssetNode.Kind.HUD_SCREEN) {
+            if (node.kind == AssetNode.Kind.ANIMATION) {
+                AnimationAssetClipsEditor.show(app, node.assetId, getStage());
+            } else if (node.kind == AssetNode.Kind.HUD_SCREEN) {
                 app.openHudScreen(node.path);
             } else if (node.kind == AssetNode.Kind.GAME_OBJECT) {
                 app.openGameObject(node.path);
@@ -143,7 +146,7 @@ public final class AssetsPanel extends DockablePanel {
         // selection binding
         treeView.setSelectionListener(node -> {
             thumbsView.showForNode(node);
-            notifyAssetSelection(null);
+            if (!reloadingAnimationSelection) notifyAssetSelection(null);
         });
 
         buildLayout();
@@ -178,6 +181,17 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     public void reloadFromProject(ProjectConfig cfg) {
+        AssetNode selected = thumbsView.getSelectedNode();
+        reloadingAnimationSelection = selected != null && selected.kind == AssetNode.Kind.ANIMATION;
+        try {
+            reloadBrowser(cfg);
+            if (reloadingAnimationSelection) thumbsView.restoreAnimationSelection(selected.assetId);
+        } finally {
+            reloadingAnimationSelection = false;
+        }
+    }
+
+    private void reloadBrowser(ProjectConfig cfg) {
         AssetNode selected = treeView.getSelectedFolder();
         importButton.setVisible(cfg != null && cfg.getCurrentSceneName() != null);
 
