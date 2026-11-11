@@ -807,6 +807,8 @@ public final class SceneService {
 
         app.onHudRuntimeProjectChanging();
         app.getEditorDocumentManager().clear();
+        app.clearProjectInspection();
+        StandaloneTextureCache.clear(true);
         ProjectConfig.setInstance(cfg);
         assetMetaDatabase = AssetMetaDatabase.load(context.assetsMetaFile());
         app.bindHudRuntimeProject(projectDir);
@@ -814,10 +816,10 @@ public final class SceneService {
         reloadTileAnimationsFromProject(projectDir);
 
         applyProjectFixedSettings(cfg);
-        refreshParticleEffectsRoot(cfg);
         clipboardService().clear();
 
         try {
+            // The new context initializes its particle systems from this project's roots.
             loadScene(cfg, sceneName, projectDir);
             sceneMetaBridge.pushCurrentSceneMetaToUI();
         } catch (Exception ex) {
@@ -865,13 +867,22 @@ public final class SceneService {
     }
 
     public void unloadProjectToEmptyEditor() {
+        SceneEditorContext previous = canvas.getAttachedSceneContext();
         app.onHudRuntimeProjectChanging();
         app.getEditorDocumentManager().clear();
         resetProjectConfigToEmptyState();
+        assetMetaDatabase = null;
+        tileAnimationsMetaDatabase = TileAnimationsIO.createEmpty();
+        app.clearProjectInspection();
         SceneEditorContext empty = canvas.createSceneContext(null, null);
         canvas.attach(empty);
+        if (previous != null && !previous.isDisposed()) {
+            canvas.releaseSceneContext(previous);
+            previous.dispose();
+        }
         bindSceneIdentityAuthorities(null);
         refreshAssetsPanel();
+        StandaloneTextureCache.clear(true);
         sceneMetaBridge.pushCurrentSceneMetaToUI();
         app.getBottomBar().refreshSelectBox();
         clearCurrentSceneSaveRequired();

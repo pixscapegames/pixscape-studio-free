@@ -866,6 +866,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return assetsPanel;
     }
 
+    public void clearProjectInspection() {
+        if (propertiesPanel != null) propertiesPanel.clearProject();
+    }
+
     public SceneService getSceneService() {
         return sceneService;
     }

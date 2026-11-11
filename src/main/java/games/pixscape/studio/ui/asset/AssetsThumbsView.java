@@ -258,6 +258,7 @@ public final class AssetsThumbsView extends VisTable {
 
     public void clear() {
         selectedNode = null;
+        clearMultiSelection();
         currentFolder = null;
         currentAssets.clear();
         tileWidgets.clear();

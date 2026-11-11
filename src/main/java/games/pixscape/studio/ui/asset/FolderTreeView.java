@@ -84,6 +84,10 @@ public final class FolderTreeView extends VisTable {
     }
 
     public void reloadFromProject(ProjectConfig cfg) {
+        if (cfg != currentCfg) {
+            lastTileFolderSelection = null;
+            lastNonTileFolderSelection = null;
+        }
         this.currentCfg = cfg;
         rebuildTree();
         restoreBestSelection();

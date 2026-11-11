@@ -181,6 +181,15 @@ public final class AssetsPanel extends DockablePanel {
     }
 
     public void reloadFromProject(ProjectConfig cfg) {
+        if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
+            thumbsView.clear();
+            treeView.reloadFromProject(null);
+            runtimeAvailabilityPanel.refreshForCurrentScene();
+            importButton.setVisible(false);
+            notifyAssetSelection(null);
+            AssetPreviewCache.clear();
+            return;
+        }
         AssetNode selected = thumbsView.getSelectedNode();
         reloadingAnimationSelection = selected != null && selected.kind == AssetNode.Kind.ANIMATION;
         try {
@@ -202,8 +211,6 @@ public final class AssetsPanel extends DockablePanel {
 
         if (selected != null) {
             treeView.selectFolder(selected);
-            thumbsView.showForNode(selected);
-            return;
         }
 
         AssetNode current = treeView.getSelectedFolder();

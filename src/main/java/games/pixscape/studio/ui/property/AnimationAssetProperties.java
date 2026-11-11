@@ -97,6 +97,14 @@ public final class AnimationAssetProperties extends VisTable {
         refresh();
     }
 
+    void clearProject() {
+        stopPreview();
+        database = null;
+        animation = null;
+        assetId = -1;
+        selectedClip = null;
+    }
+
     /** O(1) check at the Inspector's post-ECS refresh boundary; no per-frame source scans. */
     public void refreshIfChanged() {
         AssetMetaDatabase next = databaseSource.get();

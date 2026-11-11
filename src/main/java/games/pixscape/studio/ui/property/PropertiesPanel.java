@@ -165,7 +165,7 @@ public class PropertiesPanel extends DockablePanel {
         bindRefresh(sceneContext);
 
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
-            if (evt.sourceTag() == MY_TAG) return;
+            if (evt.sourceTag() == MY_TAG || selectionService == null) return;
             pendingSelection = evt.ids() != null ? new IntArray(evt.ids()) : null;
             int focusedBody = physicsSelectionService.getFocusedBodyEid();
             if (selectionIsFocusedBody(pendingSelection, focusedBody)) {
@@ -249,7 +249,7 @@ public class PropertiesPanel extends DockablePanel {
         EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             int mapEntityId = evt.mapEntityId();
-            if (mapEntityId >= 0 && mTiled.has(mapEntityId)) {
+            if (mapEntityId >= 0 && mTiled != null && mTiled.has(mapEntityId)) {
                 tiledMapContextEntityId = mapEntityId;
                 pendingTiledMap = mapEntityId;
                 pendingView = PendingView.TILED_MAP;
@@ -308,7 +308,7 @@ public class PropertiesPanel extends DockablePanel {
 
         EventFlow.i().subscribe(EventFlow.JointParametersChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
-            if (evt.jointEntityId() == boundJoint) {
+            if (jointProperties != null && evt.jointEntityId() == boundJoint) {
                 jointProperties.markDirty();
             }
         });
@@ -331,6 +331,39 @@ public class PropertiesPanel extends DockablePanel {
         if (context == null || !context.isInitialized()) return;
         refreshBoundWorlds.remove(context.world());
         editorsByContext.remove(context);
+        if (world == context.world()) clearSceneContext();
+    }
+
+    /** Releases project inspection even when there is no document activation to observe. */
+    public void clearProject() {
+        showDocumentType(null);
+        clearSceneContext();
+        animationAssetProperties.clearProject();
+        tileAssetProperties.clearProject();
+        pendingAnimationAsset = -1;
+        pendingTileAsset = -1;
+        editorsByContext.clear();
+        refreshBoundWorlds.clear();
+    }
+
+    private void clearSceneContext() {
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
+        world = null;
+        selectionService = null;
+        layerService = null;
+        physicsSelectionService = null;
+        mJointBase = null;
+        mPhysBody = null;
+        mPhysFixtures = null;
+        mPointLight = null;
+        mConeLight = null;
+        mEntityIndex = null;
+        mTiled = null;
+        // Release context-owned panels; create replacements only when binding a live context.
+        new ContextEditors().apply(this);
+        pendingSelection = null;
     }
 
     private void initializeContextEditors(SceneEditorContext sceneContext) {
@@ -677,6 +710,12 @@ public class PropertiesPanel extends DockablePanel {
             }
         }
         if (hudMode && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET) return;
+        if (app.getEditorDocumentManager().activeDocument() == null
+                && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET) {
+            contentHolder.clearChildren();
+            dirty = transformTitleDirty = spatialPreviewDirty = false;
+            return;
+        }
         if (transformTitleDirty) {
             transformTitleDirty = false;
             if (boundEntity >= 0) entityProperties.refreshTransformTitle();
@@ -702,26 +741,29 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void inspectAsset(games.pixscape.studio.ui.asset.AssetNode node) {
+        if (node == null) {
+            leaveAssetInspection();
+            return;
+        }
         var database = app.getSceneService().getAssetMetaDatabase();
-        if (node != null && database != null
+        if (database != null
                 && database.findById(node.assetId) instanceof games.pixscape.studio.asset.TileAssetMeta) {
             pendingTileAsset = node.assetId;
             pendingView = PendingView.TILE_ASSET;
             showTileAssetProperties(node.assetId);
-        } else if (node != null && database != null
+        } else if (database != null
                 && database.findById(node.assetId) instanceof games.pixscape.studio.asset.AnimationAssetMeta) {
             pendingAnimationAsset = node.assetId;
             pendingView = PendingView.ANIMATION_ASSET;
             showAnimationAssetProperties(node.assetId);
-        } else if (inspectedAnimationProperties() != null) {
+        } else {
+            leaveAssetInspection();
+        }
+    }
+
+    private void leaveAssetInspection() {
+        if (inspectedAnimationProperties() != null || inspectedTileProperties() != null) {
             restoreCurrentCanvasProperties();
-            updateIfDirty();
-        } else if (inspectedTileProperties() != null) {
-            pendingView = PendingView.SELECTION;
-            pendingSelection = selectionService.getSelectionSnapshot();
-            showDocumentType(app.getEditorDocumentManager().activeDocument() != null
-                    ? app.getEditorDocumentManager().activeDocument().type() : null);
-            markDirty();
             updateIfDirty();
         }
     }
@@ -754,9 +796,13 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void restoreCurrentCanvasProperties() {
+        if (app.getEditorDocumentManager().activeDocument() == null) {
+            showDocumentType(null);
+            return;
+        }
         // Read the live selection only. Inspecting/deleting an asset never edits canvas selection.
-        pendingSelection = selectionService.getSelectionSnapshot();
-        pendingLayer = selectionService.getActivelayerId();
+        pendingSelection = selectionService != null ? selectionService.getSelectionSnapshot() : new IntArray();
+        pendingLayer = selectionService != null ? selectionService.getActivelayerId() : -1;
         pendingView = pendingSelection.size > 0 ? PendingView.SELECTION
                 : pendingLayer >= 0 ? PendingView.LAYER : PendingView.SCENE;
         contentHolder.clearChildren();

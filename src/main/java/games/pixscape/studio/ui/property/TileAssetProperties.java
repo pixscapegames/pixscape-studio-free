@@ -97,6 +97,13 @@ public final class TileAssetProperties extends VisTable {
         refresh();
     }
 
+    void clearProject() {
+        database = null;
+        assetId = -1;
+        history.clear();
+        refresh();
+    }
+
     void apply(int target, PropertySet after) {
         history.execute(new EditTilePropertiesCommand(database, target, after, assetsFile, publisher));
     }
