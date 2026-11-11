@@ -10,6 +10,8 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.StudioEditingModeService;
+import games.pixscape.studio.system.AfterEcsStep;
+import games.pixscape.studio.system.UiRefreshDispatchSystem;
 
 public class ToolBar extends VisTable {
     public static final float HEIGHT = 32f;
@@ -17,6 +19,8 @@ public class ToolBar extends VisTable {
     private final StudioApplicationAdapter app;
     private final StudioEditingModeService editingModeService;
     private SceneEditorContext sceneContext;
+    private UiRefreshDispatchSystem refreshDispatch;
+    private final AfterEcsStep placementRefresh = this::refreshPlacement;
 
     private final TiledToolBar tiledToolBar;
 
@@ -77,17 +81,20 @@ public class ToolBar extends VisTable {
             updateEditingContextState();
         });
 
+        bindPlacementRefresh();
         updateEditingContextState();
     }
 
     public void bindSceneContext(SceneEditorContext context) {
         sceneContext = context;
+        bindPlacementRefresh();
         tiledToolBar.bindToolService(app.getCanvas().getTileToolService());
         updateEditingContextState();
     }
 
     public void suspendSceneContext() {
         sceneContext = null;
+        bindPlacementRefresh();
         updateEditingContextState();
     }
 
@@ -116,8 +123,20 @@ public class ToolBar extends VisTable {
                 && sceneContext.selectionService().isTiledMapEditingTargetActive();
         tiledToolBar.setDisabled(!worldEditingAllowed || !tiledMapTarget
                 || isSpatialBlockEditingActive());
-        setAlignmentButtonsDisabled(!worldEditingAllowed || tiledMapTarget);
+        setAlignmentButtonsDisabled(true);
         invalidateHierarchy();
+    }
+
+    private void bindPlacementRefresh() {
+        if (refreshDispatch != null) refreshDispatch.remove(placementRefresh);
+        refreshDispatch = sceneContext != null
+                ? sceneContext.world().getSystem(UiRefreshDispatchSystem.class) : null;
+        if (refreshDispatch != null) refreshDispatch.add(placementRefresh);
+    }
+
+    private void refreshPlacement() {
+        if (sceneContext == null || !sceneContext.isActive() || !app.getCanvas().isAttached(sceneContext)) return;
+        setAlignmentButtonsDisabled(!app.getCanvas().getAlignService().isPlacementAvailableAfterEcsStep());
     }
 
     private boolean isSpatialBlockEditingActive() {

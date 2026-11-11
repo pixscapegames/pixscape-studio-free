@@ -497,7 +497,7 @@ public final class SelectionService {
         return -1;
     }
 
-    private boolean isLayerLocked(int e) {
+    boolean isLayerLocked(int e) {
         if (layerService == null) return false;
 
         // JOINT: locked if A or B is in a locked layer

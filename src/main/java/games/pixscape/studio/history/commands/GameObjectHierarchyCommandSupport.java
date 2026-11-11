@@ -1,6 +1,9 @@
 package games.pixscape.studio.history.commands;
 
 import com.artemis.World;
+import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.*;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.spatial.SpatialBlocksComponent;
@@ -8,6 +11,7 @@ import games.pixscape.runtime.component.spatial.SpatialShapesComponent;
 import games.pixscape.runtime.hierarchy.GameObjectTransformMath;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 
 public final class GameObjectHierarchyCommandSupport {
     private static final int MAX_DEPTH = 1024;
@@ -22,8 +26,8 @@ public final class GameObjectHierarchyCommandSupport {
         if (childEntityId == parentEntityId) {
             throw new IllegalArgumentException("A Game Object cannot contain itself.");
         }
-        requireCore(world, childEntityId, "child");
-        requireCore(world, parentEntityId, "parent");
+        requireIndexedCore(world, identities, childEntityId, "child");
+        requireIndexedCore(world, identities, parentEntityId, "parent");
         if (!world.getMapper(GameObjectComponent.class).has(parentEntityId)) {
             throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
         }
@@ -137,29 +141,44 @@ public final class GameObjectHierarchyCommandSupport {
         throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
     }
 
-    static boolean subtreeContainsPhysics(
+    /** Cold attachment validation: one identity-index scan, then O(subtree size); returns Physics presence. */
+    private static boolean validateCurrentSubtree(
             World world, IdentityRegistry identities, int entityId) {
-        GameObjectHierarchySystem hierarchy = world.getSystem(GameObjectHierarchySystem.class);
-        if (hierarchy != null) {
-            return hierarchy.containsPhysicsInSubtree(entityId);
-        }
-        if (world.getMapper(PhysicsBodyComponent.class).has(entityId)) return true;
-
-        com.artemis.utils.IntBag bodies = world.getAspectSubscriptionManager()
-                .get(com.artemis.Aspect.all(PhysicsBodyComponent.class)).getEntities();
-        int[] data = bodies.getData();
-        for (int i = 0, n = bodies.size(); i < n; i++) {
-            int current = data[i];
-            for (int depth = 0; depth < MAX_DEPTH; depth++) {
-                if (current == entityId) return true;
-                GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
-                        .getSafe(current, null);
-                if (member == null) break;
-                current = identities.findByStableId(member.parentStableId);
-                if (current < 0) break;
+        // Cold prospective validation: subscriptions and published topology can lag behind commands.
+        IntMap<IntArray> childrenByParent = CurrentGameObjectRelations
+                .collectCurrentChildrenByParentStableId(world, identities);
+        IntSet visited = new IntSet();
+        IntArray pending = new IntArray();
+        // Each entry is (entity ID, depth, whether its current ancestors have unit scale).
+        pending.add(entityId, 0, 1);
+        boolean containsPhysics = false;
+        for (int i = 0; i < pending.size; i += 3) {
+            int current = pending.get(i), depth = pending.get(i + 1);
+            boolean unitAncestors = pending.get(i + 2) != 0;
+            if (depth >= MAX_DEPTH || !visited.add(current)) {
+                throw new IllegalArgumentException("Hierarchy requires an acyclic subtree within the depth limit.");
+            }
+            requireActive(world, current, "subtree member");
+            PixscapeIdentityComponent identity = requireIndexedCore(world, identities, current, "subtree member");
+            requireSupportedMember(world, current);
+            if (world.getMapper(PhysicsBodyComponent.class).has(current)) {
+                if (!unitAncestors) {
+                    throw new IllegalArgumentException("Physics hierarchy requires unit-scale Game Object ancestors.");
+                }
+                containsPhysics = true;
+            }
+            boolean root = world.getMapper(GameObjectComponent.class).has(current);
+            TransformComponent local = world.getMapper(TransformComponent.class).get(current);
+            if (root) GameObjectTransformMath.requirePositiveUniformParentScale(local);
+            IntArray children = childrenByParent.get(identity.stableId);
+            if (children == null) continue;
+            if (!root) throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
+            boolean unit = unitAncestors && GameObjectTransformMath.isUnitParentScale(local);
+            for (int j = 0; j < children.size; j++) {
+                pending.add(children.get(j), depth + 1, unit ? 1 : 0);
             }
         }
-        return false;
+        return containsPhysics;
     }
 
     /** Returns whether a strict hierarchy descendant, not the entity itself, has Physics. */
@@ -214,7 +233,7 @@ public final class GameObjectHierarchyCommandSupport {
 
     private static void requireProspectivePhysicsAncestry(
             World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
-        if (!subtreeContainsPhysics(world, identities, childEntityId)) return;
+        if (!validateCurrentSubtree(world, identities, childEntityId)) return;
         int current = parentEntityId;
         for (int depth = 0; depth < MAX_DEPTH; depth++) {
             TransformComponent transform = world.getMapper(TransformComponent.class).get(current);
@@ -240,6 +259,12 @@ public final class GameObjectHierarchyCommandSupport {
             if (current == childEntityId) {
                 throw new IllegalArgumentException("Game Object hierarchy cycle rejected.");
             }
+            requireIndexedCore(world, identities, current, "ancestor");
+            if (!world.getMapper(GameObjectComponent.class).has(current)) {
+                throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
+            }
+            GameObjectTransformMath.requirePositiveUniformParentScale(
+                    world.getMapper(TransformComponent.class).get(current));
             GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
                     .getSafe(current, null);
             if (member == null) return;
@@ -247,6 +272,15 @@ public final class GameObjectHierarchyCommandSupport {
             requireActive(world, current, "ancestor");
         }
         throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
+    }
+
+    private static PixscapeIdentityComponent requireIndexedCore(
+            World world, IdentityRegistry identities, int entityId, String role) {
+        PixscapeIdentityComponent identity = requireCore(world, entityId, role);
+        if (identities == null || identities.findByStableId(identity.stableId) != entityId) {
+            throw new IllegalArgumentException("Game Object " + role + " requires an indexed stable identity.");
+        }
+        return identity;
     }
 
     static PixscapeIdentityComponent requireCore(World world, int entityId, String role) {
