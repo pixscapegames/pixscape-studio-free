@@ -34,13 +34,14 @@ public class RemovePhysicsBodyCommandTest {
             int wheelA = harness.body(100f, PhysicsBodyComponent.DYNAMIC);
             int wheelB = harness.body(200f, PhysicsBodyComponent.DYNAMIC);
             harness.world.getMapper(GameObjectComponent.class).create(root).sourceAssetId = "car";
-            for (int[] member : new int[][]{{root, 10}, {chassis, 11}, {wheelA, 12}, {wheelB, 13}}) {
-                harness.world.getMapper(PixscapeIdentityComponent.class).create(member[0]).stableId = member[1];
-                harness.world.getMapper(EntityIndexComponent.class).create(member[0]).layerIndex = 0;
+            for (int member : new int[]{root, chassis, wheelA, wheelB}) {
+                harness.identities.ensureStableId(member);
+                harness.world.getMapper(EntityIndexComponent.class).create(member).layerIndex = 0;
             }
-            harness.world.getMapper(GameObjectMemberComponent.class).create(chassis).parentStableId = 10;
-            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelA).parentStableId = 10;
-            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelB).parentStableId = 10;
+            int rootStable = harness.identities.getStableId(root);
+            harness.world.getMapper(GameObjectMemberComponent.class).create(chassis).parentStableId = rootStable;
+            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelA).parentStableId = rootStable;
+            harness.world.getMapper(GameObjectMemberComponent.class).create(wheelB).parentStableId = rootStable;
             int jointA = harness.physics.createWheelJoint(chassis, wheelA, 50f, 0f);
             int jointB = harness.physics.createWheelJoint(chassis, wheelB, 150f, 0f);
             Assert.assertTrue(jointA >= 0 && jointB >= 0);
@@ -314,6 +315,7 @@ public class RemovePhysicsBodyCommandTest {
     }
 
     private static final class GearHarness {
+        final games.pixscape.runtime.service.IdentityRegistry identities = new games.pixscape.runtime.service.IdentityRegistry();
         final DirtyTrackerSystem dirty = new DirtyTrackerSystem(32);
         final Box2dWorldService box2d =
                 new Box2dWorldService(100f, new Vector2(0f, -9.8f));
@@ -326,6 +328,7 @@ public class RemovePhysicsBodyCommandTest {
         final HistoryManager history = new HistoryManager(16);
 
         GearHarness() {
+            identities.bind(world, meta);
             history.setListener((undoSize, redoSize, undoLabel, redoLabel, dirty) -> {
             });
         }

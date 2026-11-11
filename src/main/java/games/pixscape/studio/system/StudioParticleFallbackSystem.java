@@ -31,6 +31,7 @@ import games.pixscape.runtime.render.VfxRenderState;
 import games.pixscape.runtime.service.AtlasRuntimeService;
 import games.pixscape.runtime.service.TextureRegistry;
 import games.pixscape.runtime.system.RenderParticleSyncSystem;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.service.atlas.AtlasStudioService;
 
 public final class StudioParticleFallbackSystem extends BaseSystem implements ProfiledSystem {
@@ -498,9 +499,7 @@ public final class StudioParticleFallbackSystem extends BaseSystem implements Pr
     }
 
     private int resolveLayerIndex(int entityId) {
-        EntityIndexComponent index =
-                mEntityIndex != null ? mEntityIndex.getSafe(entityId, null) : null;
-        return index != null ? index.getLayerIndex() : 0;
+        return CurrentGameObjectRelations.publishedLayerIndex(world, entityId);
     }
 
     private int resolveZIndex(int entityId) {

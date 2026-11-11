@@ -1188,7 +1188,7 @@ public class ResourceAssetInspectorGlTest {
         });
     }
 
-    private static games.pixscape.runtime.gameobject.GameObjectAsset gameObjectAsset() {
+    static games.pixscape.runtime.gameobject.GameObjectAsset gameObjectAsset() {
         var asset = new games.pixscape.runtime.gameobject.GameObjectAsset();
         asset.rootSourceEntityId = 1;
         for (int i = 1; i <= 3; i++) {

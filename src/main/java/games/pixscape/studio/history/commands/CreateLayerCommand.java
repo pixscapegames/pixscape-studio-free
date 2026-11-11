@@ -82,8 +82,7 @@ public final class CreateLayerCommand implements Command {
         }
 
         snapshot = layerService.snapshotLayer(index);
-        layerService.removeLayerCascade(index);
-        unbindSnapshotHistoryIds(snapshot);
+        layerService.removeLayerSnapshot(snapshot);
 
         if (onLayerSelected != null) {
             int previousSelection = undoSelectionHistoryId > 0L
@@ -101,14 +100,4 @@ public final class CreateLayerCommand implements Command {
         }
     }
 
-    private void unbindSnapshotHistoryIds(LayerService.LayerSnapshot snap) {
-        if (snap == null) return;
-        historyIds.unbindHistoryId(snap.layerHistoryId());
-        for (LayerService.TiledMapSnapshot map : snap.tiledMaps()) {
-            historyIds.unbindHistoryId(map.historyId());
-        }
-        for (LayerService.DrawableSnapshot drawable : snap.drawables()) {
-            historyIds.unbindHistoryId(drawable.historyId);
-        }
-    }
 }

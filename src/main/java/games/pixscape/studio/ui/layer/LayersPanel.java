@@ -211,14 +211,17 @@ public class LayersPanel extends DockablePanel {
                         : -1;
 
                 if (activeLayerId == -1) return;
+                var owner = sceneContext;
+                var canvas = app.getCanvas();
+                var resolver = canvas.getAssetVisualResolver();
                 historyManager.execute(new DeleteLayerCommand(
                         layerService,
                         activeLayerId,
                         newActiveId -> {
-                            if (selectionService != null) {
-                                selectionService.setActivelayerId(newActiveId);
-                            }
-                        }
+                            owner.selectionService().setActivelayerId(newActiveId);
+                        },
+                        entity -> games.pixscape.studio.helper.RenderRebindHelper.rebindHistoryEntityRenderAssets(
+                                canvas, owner.sceneIdentity(), resolver, entity, owner.world())
                 ));
                 markDirty();
             }

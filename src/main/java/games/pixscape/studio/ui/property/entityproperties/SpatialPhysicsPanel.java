@@ -12,10 +12,8 @@ import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TransformComponent;
 import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.runtime.component.spatial.SpatialHeightComponent;
-import games.pixscape.runtime.hierarchy.GameObjectTopologyState;
 import games.pixscape.runtime.physics.PhysicsGeometryData;
 import games.pixscape.runtime.physics.PhysicsShapeData;
-import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.studio.component.EntityMetaComponent;
 import games.pixscape.studio.configuration.SceneMeta;
 import games.pixscape.studio.history.HistoryManager;
@@ -169,31 +167,23 @@ public final class SpatialPhysicsPanel extends CollapsibleWidget {
         return false;
     }
 
+    public void refreshLayerEligibility() {
+        if (entityId < 0) return;
+        boolean actor = hasSpatialHeight(entityId) || hasMarkedFootprint(entityId);
+        enabledBox.setDisabled(!isEligibleForActivation(entityId) && !actor);
+    }
+
     private boolean isEligibleForActivation(int eid) {
         if (eid < 0 || ctx.layerService == null) return false;
         EntityMetaComponent meta = ctx.mMeta.getSafe(eid, null);
         EntityKind kind = meta != null ? meta.kind : EntityKind.UNKNOWN;
-        int effectiveLayerEntity = effectiveLayerEntity(eid);
-        EntityIndexComponent index = ctx.world.getMapper(EntityIndexComponent.class)
-                .getSafe(effectiveLayerEntity, null);
-        int layerEntityId = index != null
-                ? ctx.layerService.getLayerEntity(index.getLayerIndex())
-                : -1;
+        int layerEntityId = ctx.layerService.getEffectiveLayerEntity(eid);
+        EntityIndexComponent index = ctx.mEntityIndex.getSafe(eid, null);
         LayerComponent layer = layerEntityId >= 0
                 ? ctx.world.getMapper(LayerComponent.class).getSafe(layerEntityId, null)
                 : null;
         SceneMeta scene = ctx.sceneMeta;
         return canActivateSpatialPhysics(scene, kind, index, layer);
-    }
-
-    /** Game Object members inherit the root Layer; their own EntityIndex is authored-local. */
-    private int effectiveLayerEntity(int eid) {
-        GameObjectHierarchySystem hierarchy = ctx.world.getSystem(GameObjectHierarchySystem.class);
-        if (hierarchy == null) return eid;
-        GameObjectTopologyState topology = hierarchy.topology();
-        return eid < topology.getEntityCapacity() && topology.parented[eid]
-                ? topology.rootEntityId[eid]
-                : eid;
     }
 
     static boolean canActivateSpatialPhysics(

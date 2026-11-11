@@ -559,7 +559,9 @@ public class ItemTreePanel extends DockablePanel {
         ItemTreeJointSupport.attachJointNodes(
                 world,
                 tree,
-                layerIndex -> {
+                bodyEntityId -> {
+                    int layerIndex = layerService.getEffectiveLayerIndex(bodyEntityId);
+                    if (layerIndex < 0) return true;
                     LayerMetaComponent meta = layerService.meta(layerIndex);
                     return meta != null && meta.locked;
                 });
@@ -1185,7 +1187,7 @@ public class ItemTreePanel extends DockablePanel {
         EntityIndexComponent idx = mEntityIndex.getSafe(eid, null);
         if (idx == null) return;
 
-        int layerEntity = layerService.getLayerEntity(idx.getLayerIndex());
+        int layerEntity = layerService.getEffectiveLayerEntity(eid);
         if (layerEntity != -1) {
             selectionService.setActivelayerId(layerEntity, source);
         }

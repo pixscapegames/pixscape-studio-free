@@ -8,6 +8,7 @@ import games.pixscape.runtime.render.GeometryDirty;
 import games.pixscape.runtime.render.SortKey64;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
 
@@ -118,6 +119,6 @@ public final class RemoveEntityFromGameObjectCommand implements Command {
             dirty.order(entityId);
         }
         EventFlow.i().publish(new EventFlow.EntityZOrderChanged(
-                world.getMapper(EntityIndexComponent.class).get(entityId).layerIndex, sourceTag));
+                CurrentGameObjectRelations.layerIndex(world, entityId), sourceTag));
     }
 }

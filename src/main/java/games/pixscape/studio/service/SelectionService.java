@@ -483,65 +483,59 @@ public final class SelectionService {
 
     private boolean isLayerVisible(int e) {
         int layerEntityId = resolveLayerEntityId(e);
-        if (layerEntityId == -1) return true;
+        if (layerEntityId == -1) return !world.getMapper(GameObjectMemberComponent.class).has(e);
 
         VisibilityComponent layerVis = mVis.getSafe(layerEntityId, null);
         return layerVis == null || layerVis.isVisible();
     }
 
     private int resolveLayerEntityId(int e) {
-        if (mEntityIndex.has(e)) {
-            int layerIndex = mEntityIndex.get(e).getLayerIndex();
-            if (layerService != null) return layerService.getLayerEntity(layerIndex);
-        }
-        return -1;
+        return layerService != null ? layerService.getEffectiveLayerEntity(e) : -1;
     }
 
     boolean isLayerLocked(int e) {
         if (layerService == null) return false;
-
-        // JOINT: locked if A or B is in a locked layer
         if (mJointBase.has(e)) {
-            PhysicsJointComponent j = mJointBase.getSafe(e, null);
-            if (j == null) return false;
-
-            int a = j.aEid;
-            int b = j.bEid;
-
-            return isBodyLayerLocked(a) || isBodyLayerLocked(b);
+            PhysicsJointComponent joint = mJointBase.get(e);
+            return isBodyLayerLocked(joint.aEid) || isBodyLayerLocked(joint.bEid);
         }
+        return isEntityLayerLocked(e);
+    }
 
-        // original entity rules
-        if (mEntityIndex.has(e)) {
-            int layerIndex = mEntityIndex.get(e).getLayerIndex();
-            LayerMetaComponent meta = layerService.meta(layerIndex);
-            return meta != null && meta.locked;
-        }
-
-        if (mLayer.has(e)) {
-            int layerIndex = mLayer.get(e).layerIndex;
-            LayerMetaComponent meta = layerService.meta(layerIndex);
-            return meta != null && meta.locked;
-        }
-
-        return false;
+    private boolean isEntityLayerLocked(int e) {
+        if (!mEntityIndex.has(e) && !mLayer.has(e)
+                && !world.getMapper(GameObjectMemberComponent.class).has(e)) return false;
+        int index = layerService.getEffectiveLayerIndex(e);
+        if (index < 0) return true; // Invalid ownership cannot authorize an edit.
+        LayerMetaComponent meta = layerService.meta(index);
+        return meta != null && meta.locked;
     }
 
     private boolean isBodyLayerLocked(int e) {
-        if (!isEntityActive(e)) return false;
+        return isEntityActive(e) && isEntityLayerLocked(e);
+    }
 
-        if (mEntityIndex.has(e)) {
-            int layerIndex = mEntityIndex.get(e).getLayerIndex();
-            LayerMetaComponent meta = layerService.meta(layerIndex);
-            return meta != null && meta.locked;
+    /** Picking works against the last rendered ECS publication; no ancestry walks per hit. */
+    public boolean isSelectableInPublishedViewport(int e) {
+        if (mJointBase.has(e)) {
+            var joint = mJointBase.get(e);
+            return isEntityActive(joint.aEid) && isEntityActive(joint.bEid)
+                    && (isPublishedBodyVisible(joint.aEid) || isPublishedBodyVisible(joint.bEid));
         }
+        return (!mVis.has(e) || mVis.get(e).isVisible()) && isPublishedLayerVisible(e);
+    }
 
-        if (mLayer.has(e)) {
-            int layerIndex = mLayer.get(e).layerIndex;
-            LayerMetaComponent meta = layerService.meta(layerIndex);
-            return meta != null && meta.locked;
-        }
-        return false;
+    private boolean isPublishedBodyVisible(int e) {
+        return mVis.has(e) && mVis.get(e).isVisible() && isPublishedLayerVisible(e);
+    }
+
+    private boolean isPublishedLayerVisible(int e) {
+        if (layerService == null) return true;
+        int index = layerService.getPublishedEffectiveLayerIndex(e);
+        if (index < 0) return !world.getMapper(GameObjectMemberComponent.class).has(e);
+        int layer = layerService.getLayerEntity(index);
+        VisibilityComponent visibility = layer >= 0 ? mVis.getSafe(layer, null) : null;
+        return visibility == null || visibility.isVisible();
     }
 
     private boolean isEntityActive(int e) {

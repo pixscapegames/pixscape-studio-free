@@ -1,21 +1,24 @@
 package games.pixscape.studio.history.commands;
 
-import com.artemis.Aspect;
-import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
+import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.CustomPropertiesComponent;
+import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.GameObjectComponent;
 import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.PixscapeIdentityComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.history.initializer.AbstractCommonInitializer;
+import games.pixscape.studio.history.initializer.Initializer;
+import games.pixscape.studio.history.initializer.TiledMapInitializer;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
+import games.pixscape.studio.service.tiled.TiledAllocatorService;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 
 import java.util.ArrayList;
@@ -30,6 +33,9 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
     private static final int MAX_DEPTH = 1024;
 
     private final World world;
+    private final IdentityRegistry identities;
+    private final TiledAllocatorService tiledAllocator;
+    private IntMap<IntArray> children;
     private final HistoryIdRegistry historyIds;
     private final List<Snapshot> snapshots = new ArrayList<>();
     private final List<JointEntry> jointSnapshots = new ArrayList<>();
@@ -40,7 +46,16 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
             HistoryIdRegistry historyIds,
             IntArray requestedEntities,
             IntConsumer onRestoredEntity) {
+        this(world, historyIds, requestedEntities, onRestoredEntity, null);
+    }
+
+    public DeleteGameObjectHierarchyCommand(
+            World world, HistoryIdRegistry historyIds, IntArray requestedEntities,
+            IntConsumer onRestoredEntity, TiledAllocatorService tiledAllocator) {
         this.world = world;
+        this.identities = IdentityRegistry.boundTo(world);
+        this.tiledAllocator = tiledAllocator;
+        this.children = CurrentGameObjectRelations.collectCurrentChildrenByParentStableId(world, identities);
         this.historyIds = historyIds;
         this.onRestoredEntity = onRestoredEntity;
 
@@ -95,14 +110,22 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         for (int i = 0; i < standalone.size; i++) {
             int entityId = standalone.get(i);
             if (!captured.add(entityId)) continue;
-            GenericEntityInitializer initializer = new GenericEntityInitializer(world);
+            Initializer initializer;
+            if (world.getMapper(TiledLayerComponent.class).has(entityId)) {
+                initializer = new TiledMapInitializer(world, tiledAllocator);
+            } else {
+                initializer = new GenericEntityInitializer(world);
+            }
             initializer.syncFrom(entityId);
+            if (initializer instanceof GenericEntityInitializer generic) generic.preparePhysicsCandidate();
             snapshots.add(new Snapshot(historyIds.ensureForEntity(entityId), initializer, -1,
-                    false, "", null));
+                    false, "", captureProperties(entityId)));
             removedEntities.add(entityId);
         }
 
         IntSet capturedJoints = new IntSet();
+        // The existing dependency collector requires initially published joints. Keep this
+        // capture for all later undo/redo cycles, including cycles without ECS publication.
         IntArray affectedJoints = PhysicsService.collectJointsAffectedByEntityRemoval(
                 world, removedEntities, new IntArray(false, 8));
         for (int i = 0; i < explicitlySelectedJoints.size; i++) {
@@ -111,6 +134,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         for (int i = 0; i < affectedJoints.size; i++) {
             captureJoint(affectedJoints.get(i), capturedJoints);
         }
+        children = null; // Preparation-only adjacency, never retained as a scene cache.
     }
 
     @Override
@@ -136,13 +160,16 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
             if (snapshot.gameObject) {
                 world.getMapper(GameObjectComponent.class).create(entityId)
                         .sourceAssetId = snapshot.sourceAssetId;
+            }
+            if (snapshot.properties != null) {
                 world.getMapper(CustomPropertiesComponent.class).create(entityId)
-                        .properties.copyFrom(snapshot.rootProperties);
+                        .properties.copyFrom(snapshot.properties);
             }
             if (snapshot.parentStableId > 0) {
                 world.getMapper(GameObjectMemberComponent.class)
                         .create(entityId).parentStableId = snapshot.parentStableId;
             }
+            identities.indexEntityImmediately(entityId);
             historyIds.bind(entityId, snapshot.historyId);
             if (onRestoredEntity != null) onRestoredEntity.accept(entityId);
         }
@@ -150,6 +177,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         for (JointEntry joint : jointSnapshots) {
             int entityId = world.create();
             joint.initializer.init(entityId);
+            identities.indexEntityImmediately(entityId);
             historyIds.bind(entityId, joint.historyId);
             restoredJointIds.add(entityId);
             if (onRestoredEntity != null) onRestoredEntity.accept(entityId);
@@ -162,18 +190,37 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
     private void delete(long historyId) {
         int entityId = historyIds.entityOfHistoryId(historyId);
         if (entityId >= 0 && world.getEntityManager().isActive(entityId)) {
+            TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
+            if (tiled != null && tiledAllocator != null) tiledAllocator.freeLayer(tiled);
             IdentityRegistry.unindexEntityImmediately(world, entityId);
             world.delete(entityId);
         }
         historyIds.unbindHistoryId(historyId);
     }
 
+    private PropertySet captureProperties(int entityId) {
+        var properties = world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null);
+        if (properties == null) return null;
+        if (properties.properties == null) throw new IllegalArgumentException("Custom properties require a PropertySet.");
+        return properties.properties.copy();
+    }
+
     private void captureJoint(int entityId, IntSet captured) {
         if (!captured.add(entityId)) return;
+        var joint = world.getMapper(PhysicsJointComponent.class).get(entityId);
+        requireBody(joint.aEid);
+        requireBody(joint.bEid);
         GenericEntityInitializer initializer = new GenericEntityInitializer(world);
         initializer.syncFrom(entityId);
         jointSnapshots.add(new JointEntry(historyIds.ensureForEntity(entityId), initializer,
                 JointHistorySnapshot.capture(world, historyIds, entityId)));
+    }
+
+    private void requireBody(int entityId) {
+        if (entityId < 0 || !world.getEntityManager().isActive(entityId)
+                || !world.getMapper(PhysicsBodyComponent.class).has(entityId)) {
+            throw new IllegalArgumentException("Joint deletion requires two existing bodies.");
+        }
     }
 
     private void collectPreOrder(
@@ -190,31 +237,14 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         if (identity == null || identity.stableId <= 0) {
             throw new IllegalArgumentException("Game Object hierarchy delete requires stable identity.");
         }
-        IntBag members = world.getAspectSubscriptionManager()
-                .get(Aspect.all(GameObjectMemberComponent.class)).getEntities();
-        ComponentMapper<GameObjectMemberComponent> memberMapper =
-                world.getMapper(GameObjectMemberComponent.class);
-        int[] data = members.getData();
-        for (int i = 0; i < members.size(); i++) {
-            GameObjectMemberComponent member = memberMapper.get(data[i]);
-            if (member != null && member.parentStableId == identity.stableId) {
-                collectPreOrder(data[i], included, collected, depth + 1);
-            }
+        IntArray currentChildren = children.get(identity.stableId);
+        if (currentChildren != null) for (int i = 0; i < currentChildren.size; i++) {
+            collectPreOrder(currentChildren.get(i), included, collected, depth + 1);
         }
     }
 
     private int findByStableId(int stableId) {
-        if (stableId <= 0) return -1;
-        IntBag identities = world.getAspectSubscriptionManager()
-                .get(Aspect.all(PixscapeIdentityComponent.class)).getEntities();
-        ComponentMapper<PixscapeIdentityComponent> mapper =
-                world.getMapper(PixscapeIdentityComponent.class);
-        int[] data = identities.getData();
-        for (int i = 0; i < identities.size(); i++) {
-            PixscapeIdentityComponent identity = mapper.get(data[i]);
-            if (identity != null && identity.stableId == stableId) return data[i];
-        }
-        return -1;
+        return identities.findByStableId(stableId);
     }
 
     private void capturePreOrder(int entityId, IntSet included, IntSet captured, int depth) {
@@ -224,48 +254,35 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         if (!included.contains(entityId) || !captured.add(entityId)) return;
 
         boolean gameObject = world.getMapper(GameObjectComponent.class).has(entityId);
-        AbstractCommonInitializer initializer = new GenericEntityInitializer(world);
+        GenericEntityInitializer initializer = new GenericEntityInitializer(world);
         initializer.syncFrom(entityId);
+        initializer.preparePhysicsCandidate();
         GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
                 .getSafe(entityId, null);
         GameObjectComponent root = gameObject
                 ? world.getMapper(GameObjectComponent.class).get(entityId) : null;
-        CustomPropertiesComponent properties = gameObject
-                ? world.getMapper(CustomPropertiesComponent.class).getSafe(entityId, null) : null;
-        PropertySet rootProperties = null;
-        if (gameObject) {
-            rootProperties = properties != null && properties.properties != null
-                    ? properties.properties.copy() : new PropertySet();
-        }
         snapshots.add(new Snapshot(
                 historyIds.ensureForEntity(entityId), initializer,
                 member != null ? member.parentStableId : -1, gameObject,
                 root != null && root.sourceAssetId != null ? root.sourceAssetId : "",
-                rootProperties));
+                captureProperties(entityId)));
 
         if (!gameObject) return;
         PixscapeIdentityComponent identity = world.getMapper(PixscapeIdentityComponent.class)
                 .get(entityId);
-        IntBag members = world.getAspectSubscriptionManager()
-                .get(Aspect.all(GameObjectMemberComponent.class)).getEntities();
-        ComponentMapper<GameObjectMemberComponent> memberMapper =
-                world.getMapper(GameObjectMemberComponent.class);
-        int[] data = members.getData();
-        for (int i = 0; i < members.size(); i++) {
-            GameObjectMemberComponent child = memberMapper.get(data[i]);
-            if (child != null && child.parentStableId == identity.stableId) {
-                capturePreOrder(data[i], included, captured, depth + 1);
-            }
+        IntArray currentChildren = children.get(identity.stableId);
+        if (currentChildren != null) for (int i = 0; i < currentChildren.size; i++) {
+            capturePreOrder(currentChildren.get(i), included, captured, depth + 1);
         }
     }
 
     private record Snapshot(
             long historyId,
-            AbstractCommonInitializer initializer,
+            Initializer initializer,
             int parentStableId,
             boolean gameObject,
             String sourceAssetId,
-            PropertySet rootProperties) {
+            PropertySet properties) {
     }
 
     private record JointEntry(long historyId, GenericEntityInitializer initializer,

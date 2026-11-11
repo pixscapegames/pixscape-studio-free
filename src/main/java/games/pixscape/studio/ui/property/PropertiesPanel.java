@@ -6,7 +6,6 @@ import com.badlogic.gdx.utils.IntArray;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
 import com.kotcrab.vis.ui.widget.VisTable;
-import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.light.ConeLightComponent;
 import games.pixscape.runtime.component.light.PointLightComponent;
@@ -91,7 +90,6 @@ public class PropertiesPanel extends DockablePanel {
     private ComponentMapper<PhysicsShapesComponent> mPhysFixtures;
     private ComponentMapper<PointLightComponent> mPointLight;
     private ComponentMapper<ConeLightComponent> mConeLight;
-    private ComponentMapper<EntityIndexComponent> mEntityIndex;
     private ComponentMapper<TiledLayerComponent> mTiled;
     private final StudioApplicationAdapter app;
     private final Set<World> refreshBoundWorlds =
@@ -193,11 +191,13 @@ public class PropertiesPanel extends DockablePanel {
         EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class, evt -> {
             transformTitleDirty = true;
             if (boundEntity < 0 || !world.getEntityManager().isActive(boundEntity)) return;
-            EntityIndexComponent index = mEntityIndex.getSafe(boundEntity, null);
-            if (index != null && index.layerIndex == evt.layerIndex()) {
+            if (layerService.getEffectiveLayerIndex(boundEntity) == evt.layerIndex()) {
                 entityProperties.refreshZIndex();
             }
         });
+
+        EventFlow.i().subscribe(EventFlow.LayerOrderChanged.class, evt -> transformTitleDirty = true);
+        EventFlow.i().subscribe(EventFlow.LayerNameChanged.class, evt -> transformTitleDirty = true);
 
         EventFlow.i().subscribe(EventFlow.FixtureSelectionChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
@@ -391,7 +391,6 @@ public class PropertiesPanel extends DockablePanel {
         mPhysFixtures = null;
         mPointLight = null;
         mConeLight = null;
-        mEntityIndex = null;
         mTiled = null;
         // Release context-owned panels; create replacements only when binding a live context.
         new ContextEditors().apply(this);
@@ -408,7 +407,6 @@ public class PropertiesPanel extends DockablePanel {
         mPhysFixtures = world.getMapper(PhysicsShapesComponent.class);
         mPointLight = world.getMapper(PointLightComponent.class);
         mConeLight = world.getMapper(ConeLightComponent.class);
-        mEntityIndex = world.getMapper(EntityIndexComponent.class);
         mTiled = world.getMapper(TiledLayerComponent.class);
         physicsSelectionService = sceneContext.physicsSelectionService();
 
@@ -774,7 +772,14 @@ public class PropertiesPanel extends DockablePanel {
         }
         if (transformTitleDirty) {
             transformTitleDirty = false;
-            if (boundEntity >= 0) entityProperties.refreshTransformTitle();
+            if (boundEntity >= 0) {
+                entityProperties.refreshTransformTitle();
+                entityProperties.refreshLayerInfo();
+            }
+            if (boundLight >= 0 && world.getEntityManager().isActive(boundLight)) {
+                if (mPointLight.has(boundLight)) pointLightProperties.refreshLayerInfo();
+                else if (mConeLight.has(boundLight)) coneLightProperties.refreshLayerInfo();
+            }
         }
         if (spatialPreviewDirty) {
             spatialPreviewDirty = false;

@@ -259,6 +259,8 @@ public final class PointLightProperties extends VisTable {
         header.add(customPropertiesRow).colspan(2).growX().left().row();
 
         header.add(new VisLabel("Layer:")).left();
+        new Tooltip.Builder("Members inherit the layer of their top-level Game Object.")
+                .target(layerValueLabel).build();
         header.add(layerValueLabel).colspan(2).left().row();
 
         header.add(new VisLabel("Zindex:")).left();
@@ -268,6 +270,11 @@ public final class PointLightProperties extends VisTable {
 
         header.pack();
         return header;
+    }
+
+    public void refreshLayerInfo() {
+        if (currentEntityId < 0 || !ctx.world.getEntityManager().isActive(currentEntityId)) return;
+        layerValueLabel.setText(ctx.layerService.describeEffectiveLayer(currentEntityId));
     }
 
     public void setEntityId(int entityId) {
@@ -290,9 +297,7 @@ public final class PointLightProperties extends VisTable {
         int zIndex = (entityIndex != null) ? entityIndex.getZIndex() : 0;
         zIndexValueLabel.setText(String.valueOf(zIndex));
 
-        int layerIndex = (entityIndex != null) ? entityIndex.getLayerIndex() : 0;
-        String layerName = (ctx.layerService != null) ? ctx.layerService.getNameByIndex(layerIndex) : "";
-        layerValueLabel.setText(layerName != null ? layerName : "");
+        refreshLayerInfo();
 
         visibleBinder.setEntityId(entityId);
 

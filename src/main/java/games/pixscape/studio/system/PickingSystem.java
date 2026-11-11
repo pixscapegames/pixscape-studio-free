@@ -33,6 +33,7 @@ import games.pixscape.runtime.spatial.SpatialBlockData;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.runtime.system.GameObjectHierarchySystem;
 import games.pixscape.runtime.tiled.TiledMapLayerData;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.helper.*;
 import games.pixscape.studio.history.HistoryIdRegistry;
@@ -1329,7 +1330,7 @@ public final class PickingSystem extends BaseSystem {
         EntityIndexComponent idx = mEntityIndex.getSafe(eid, null);
         if (idx == null) return;
 
-        int layerEntity = layerService.getLayerEntity(idx.getLayerIndex());
+        int layerEntity = layerService.getEffectiveLayerEntity(eid);
         if (layerEntity != -1 && layerEntity != selectionService.getActivelayerId()) {
             selectionService.setActivelayerId(layerEntity);
         }
@@ -3168,7 +3169,7 @@ public final class PickingSystem extends BaseSystem {
 
     private boolean isSelectableInViewport(int e) {
         if (selectionService != null) {
-            return selectionService.isSelectableInViewport(e);
+            return selectionService.isSelectableInPublishedViewport(e);
         }
         return !mVis.has(e) || mVis.get(e).isVisible();
     }
@@ -3179,7 +3180,7 @@ public final class PickingSystem extends BaseSystem {
         IntArray filtered = new IntArray(selection.size);
         for (int i = 0, n = selection.size; i < n; i++) {
             int e = selection.get(i);
-            if (selectionService.isSelectableInViewport(e)) {
+            if (selectionService.isSelectableInPublishedViewport(e)) {
                 filtered.add(e);
             }
         }
@@ -3496,7 +3497,7 @@ public final class PickingSystem extends BaseSystem {
                 if (!isPreciseAuthoredGeometryHit(e, mouseX, mouseY, tolWorld)) continue;
             }
 
-            int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
+            int layerIndex = layerOf(e);
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
 
             if (isBetterHit(bestEntity, bestLayerIndex, bestZIndex, e, layerIndex, z)) {
@@ -3517,8 +3518,7 @@ public final class PickingSystem extends BaseSystem {
             if (transform == null || !isParticleMarkerHit(
                     mouseX, mouseY, transform.x, transform.y, particleRadius2)) continue;
 
-            int layerIndex = mEntityIndex != null && mEntityIndex.has(e)
-                    ? mEntityIndex.get(e).getLayerIndex() : 0;
+            int layerIndex = layerOf(e);
             int z = mEntityIndex != null && mEntityIndex.has(e)
                     ? mEntityIndex.get(e).getZIndex() : 0;
             if (isBetterHit(bestEntity, bestLayerIndex, bestZIndex, e, layerIndex, z)) {
@@ -3868,7 +3868,7 @@ public final class PickingSystem extends BaseSystem {
 
             if (!HandleHelper.insideSquare(mouseX, mouseY, cx, cy, halfWidthorld)) continue;
 
-            int layerIndex = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
+            int layerIndex = layerOf(e);
             int z = (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getZIndex() : 0;
 
             if (isBetterHit(bestEntity, bestLayerIndex, bestZIndex, e, layerIndex, z)) {
@@ -3889,7 +3889,7 @@ public final class PickingSystem extends BaseSystem {
     }
 
     private int layerOf(int e) {
-        return (mEntityIndex != null && mEntityIndex.has(e)) ? mEntityIndex.get(e).getLayerIndex() : 0;
+        return CurrentGameObjectRelations.publishedLayerIndex(world, e);
     }
 
     private int zOf(int e) {

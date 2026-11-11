@@ -64,6 +64,7 @@ public final class TiledMapInitializer implements Initializer {
     private int nextSpatialBlockId = 1;
     private final Array<SpatialBlockData> spatialBlocks = new Array<>(SpatialBlockData[]::new);
 
+    private PreparedPhysicsBodyCandidate preparedPhysics;
     private boolean hasPhysicsBody;
     private int bodyType = PhysicsBodyComponent.STATIC;
     private boolean fixedRotation;
@@ -150,11 +151,15 @@ public final class TiledMapInitializer implements Initializer {
         defaultTileAltitude = tiled.defaultTileAltitude;
         defaultTileHeight = tiled.defaultTileHeight;
         copyDescriptions(lightingDescriptions,tiled.lightingDescriptions);
-        tiled.ensureSparseTileStorageConsistency();
+        if (tiled.tileXs == null || tiled.tileYs == null || tiled.tileAssetIds == null
+                || tiled.tileXs.size != tiled.tileAssetIds.size || tiled.tileYs.size != tiled.tileAssetIds.size) {
+            throw new IllegalArgumentException("Tiled map snapshot requires consistent sparse coordinates.");
+        }
         copy(tileXs, tiled.tileXs);
         copy(tileYs, tiled.tileYs);
         copy(tileAssetIds, tiled.tileAssetIds);
         copy(tileTransformFlags, tiled.tileTransformFlags);
+        while (tileTransformFlags.size < tileAssetIds.size) tileTransformFlags.add((byte) 0);
         tileAltitudes = copy(tiled.tileAltitudes);
         tileHeights = copy(tiled.tileHeights);
         tileSpatialFlags = tiled.tileSpatialFlags != null ? new IntArray(tiled.tileSpatialFlags) : null;
@@ -190,6 +195,11 @@ public final class TiledMapInitializer implements Initializer {
         if (shapes != null && shapes.shapes != null) {
             for (int i = 0; i < shapes.shapes.size; i++) physicsShapes.add(shapes.shapes.get(i).copy());
         }
+        // Validate/compile while the original Map and its Spatial sources still exist.
+        SceneMeta metaForPhysics = currentSceneMeta();
+        if (hasPhysicsBody && metaForPhysics == null) throw new IllegalStateException("SceneMeta required for Map physics capture.");
+        preparedPhysics = hasPhysicsBody
+                ? PhysicsService.prepareBodyCandidate(world, entityId, physicsShapes, metaForPhysics.pixelsPerMeter) : null;
     }
 
     @Override
@@ -303,8 +313,9 @@ public final class TiledMapInitializer implements Initializer {
         if (hasPhysicsShapes) {
             for (int i = 0; i < physicsShapes.size; i++) sources.add(physicsShapes.get(i).copy());
         }
-        PreparedPhysicsBodyCandidate prepared = PhysicsService.prepareBodyCandidate(
-                world, entityId, sources, pixelsPerMeter);
+        PreparedPhysicsBodyCandidate prepared = preparedPhysics != null ? preparedPhysics
+                : PhysicsService.prepareBodyCandidate(world, entityId, sources, pixelsPerMeter);
+        preparedPhysics = null; // Candidates transfer ownership once; subsequent undo recompiles the snapshot.
         PhysicsShapesComponent shapes = world.getMapper(PhysicsShapesComponent.class).create(entityId);
         PhysicsCompiledFixturesComponent compiled = world.getMapper(PhysicsCompiledFixturesComponent.class)
                 .create(entityId);
@@ -318,10 +329,6 @@ public final class TiledMapInitializer implements Initializer {
 
     public int stableId() {
         return stableId;
-    }
-
-    public void overrideLayerIndex(int value) {
-        layerIndex = value;
     }
 
     public void overrideZIndex(int value) {

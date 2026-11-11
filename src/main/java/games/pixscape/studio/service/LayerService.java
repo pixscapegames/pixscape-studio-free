@@ -5,23 +5,24 @@ import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.EntityIndexComponent;
+import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.LayerComponent;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.VisibilityComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
+import games.pixscape.studio.service.entitygraph.CurrentGameObjectRelations;
 import games.pixscape.studio.component.LayerMetaComponent;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryIdRegistry;
-import games.pixscape.studio.history.initializer.GenericEntityInitializer;
+import games.pixscape.studio.history.commands.DeleteGameObjectHierarchyCommand;
 import games.pixscape.studio.history.initializer.LayerInitializer;
 import games.pixscape.studio.history.initializer.TiledMapInitializer;
 import games.pixscape.studio.service.tiled.TiledAllocatorService;
 
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
+import java.util.function.IntConsumer;
 
 /**
  * Single source of truth for layers.
@@ -80,6 +81,34 @@ public final class LayerService {
 
     public World getWorld() {
         return world;
+    }
+
+    /** Current authored ownership for UI actions/commands, O(ancestry depth), never a scene scan.
+     * -1 explicitly means unavailable (including a broken hierarchy), not the child's stored index.
+     */
+    public int getEffectiveLayerIndex(int entityId) {
+        try {
+            return CurrentGameObjectRelations.layerIndex(world, entityId);
+        } catch (IllegalArgumentException unavailable) {
+            return -1;
+        }
+    }
+
+    public int getEffectiveLayerEntity(int entityId) {
+        return getLayerEntity(getEffectiveLayerIndex(entityId));
+    }
+
+    /** O(1) ownership for picking/render readers of the last ECS publication. No topology refresh. */
+    public int getPublishedEffectiveLayerIndex(int entityId) {
+        return CurrentGameObjectRelations.publishedLayerIndex(world, entityId);
+    }
+
+    public String describeEffectiveLayer(int entityId) {
+        int layer = getEffectiveLayerEntity(entityId);
+        if (layer < 0) return "Unavailable (invalid layer ownership)";
+        String name = getName(layer);
+        return world.getMapper(GameObjectMemberComponent.class).has(entityId)
+                ? name + "\n(inherited)" : name;
     }
 
     public HistoryIdRegistry historyIds() {
@@ -294,131 +323,61 @@ public final class LayerService {
 
 
     public int insertLayerSnapshot(int index, LayerSnapshot snapshot) {
-        if (snapshot == null) {
-            return -1;
-        }
+        Objects.requireNonNull(snapshot, "snapshot");
         int layerEntityId = insertLayerAt(index, snapshot.layerInitializer);
         historyIds.bind(layerEntityId, snapshot.layerHistoryId);
-        for (TiledMapSnapshot map : snapshot.tiledMaps) {
-            map.initializer.overrideLayerIndex(index);
-            insertTiledMap(map.initializer, map.historyId);
-        }
-
-        for (DrawableSnapshot drawable : snapshot.drawables) {
-            GenericEntityInitializer init = drawable.initializer;
-            init.overrideLayerIndex(index);
-
-            int e = world.create();
-            init.init(e);
-            historyIds.bind(e, drawable.historyId);
-        }
-
+        if (snapshot.contents != null) snapshot.contents.undo();
         return layerEntityId;
     }
 
     public LayerSnapshot snapshotLayer(int index) {
-        if (index < 0 || index >= layerEntities.size) {
-            return null;
-        }
-
-        int layerEntityId = layerEntities.get(index);
-        long layerHistoryId = historyIds.ensureForEntity(layerEntityId);
-
-        LayerInitializer initializer = new LayerInitializer(world);
-        initializer.syncFrom(layerEntityId);
-        List<TiledMapSnapshot> tiledMaps = new ArrayList<>();
-
-        List<DrawableSnapshot> drawables = new ArrayList<>();
-
-        // micro-opt: if layerSub or a dedicated LayerIndex subscription already exists, reuse it.
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(EntityIndexComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        int n = bag.size();
-
-        for (int i = 0; i < n; i++) {
-            int e = data[i];
-
-            EntityIndexComponent ei = mEntityIndex.getSafe(e, null);
-            if (ei == null || ei.getLayerIndex() != index) {
-                continue;
-            }
-            if (mTiled.has(e)) {
-                TiledMapInitializer mapInitializer = new TiledMapInitializer(world, tiledAllocatorService);
-                mapInitializer.syncFrom(e);
-                tiledMaps.add(new TiledMapSnapshot(historyIds.ensureForEntity(e), mapInitializer));
-                continue;
-            }
-
-            long drawableHistoryId = historyIds.ensureForEntity(e); // ✅ e, not layerEntityId
-
-            GenericEntityInitializer init = new GenericEntityInitializer(world);
-            init.syncFrom(e);
-
-            int z = ei.getZIndex();
-            drawables.add(new DrawableSnapshot(drawableHistoryId, init, z, e));
-        }
-
-        drawables.sort(Comparator
-                .comparingInt((DrawableSnapshot d) -> d.z)
-                .thenComparingLong(d -> d.historyId)
-                .thenComparingInt(d -> d.entityId));
-
-        return new LayerSnapshot(index, layerHistoryId, initializer, tiledMaps, drawables);
+        return snapshotLayer(index, null);
     }
 
-
-    /**
-     * Supprime le layer (cascade) :
-     * 1) deletes all entities that reference this layer through EntityIndexComponent,
-     * 2) deletes the layer entity,
-     * 3) recalcule les indices des layers restants (LayerComponent + tableau).
-     */
-    public void removeLayerCascade(int index) {
-        if (index < 0 || index >= layerEntities.size) return;
-
-        int eLayer = layerEntities.get(index);
-
-        // 0) Release every map owned by the layer before cascading its entities.
-        IntBag owned = world.getAspectSubscriptionManager()
-                .get(Aspect.all(EntityIndexComponent.class, TiledLayerComponent.class)).getEntities();
-        int[] ownedData = owned.getData();
-        for (int i = 0; i < owned.size(); i++) {
-            int mapEntityId = ownedData[i];
-            EntityIndexComponent mapIndex = mEntityIndex.get(mapEntityId);
-            if (mapIndex.layerIndex == index && tiledAllocatorService != null) {
-                tiledAllocatorService.freeLayer(mTiled.get(mapEntityId));
-            }
+    /** Cold command preparation; current identities include creations before ECS publication. */
+    public LayerSnapshot snapshotLayer(int index, IntConsumer onRestoredEntity) {
+        int layerEntity = getLayerEntity(index);
+        if (layerEntity < 0) throw new IllegalArgumentException("Layer deletion requires an existing scene layer.");
+        IntArray entities = new IntArray();
+        identityRegistry.collectIndexedEntityIds(entities);
+        IntBag validationEntities = new IntBag(entities.size);
+        for (int i = 0; i < entities.size; i++) validationEntities.add(entities.get(i));
+        new games.pixscape.runtime.hierarchy.GameObjectHierarchyValidator(world, identityRegistry)
+                .validateEntities(validationEntities);
+        IntArray roots = new IntArray();
+        var members = world.getMapper(GameObjectMemberComponent.class);
+        for (int i = 0; i < entities.size; i++) {
+            int entity = entities.get(i);
+            if (!mEntityIndex.has(entity) || members.has(entity)) continue;
+            // Roots determine membership; the hierarchy command captures their descendants once.
+            if (CurrentGameObjectRelations.layerIndex(world, entity) == index) roots.add(entity);
         }
+        LayerInitializer initializer = new LayerInitializer(world);
+        initializer.syncFrom(layerEntity);
+        var contents = roots.isEmpty() ? null : new DeleteGameObjectHierarchyCommand(
+                world, historyIds, roots, onRestoredEntity, tiledAllocatorService);
+        return new LayerSnapshot(index, historyIds.ensureForEntity(layerEntity), initializer, contents);
+    }
 
-        // 1) Delete all entities drawables de ce layer
-        deleteDrawablesAtLayerIndex(index);
+    public void removeLayerCascade(int index) {
+        removeLayerSnapshot(snapshotLayer(index));
+    }
 
-        // 2) Delete the layer entity
-        IdentityRegistry.unindexEntityImmediately(world, eLayer);
-        world.delete(eLayer);
-        historyIds.unbindEntity(eLayer);
-
-        // 3) Compacter
+    /** Applies exactly the prepared set, including dependent joints, without recapturing on redo. */
+    public void removeLayerSnapshot(LayerSnapshot snapshot) {
+        int entity = historyIds.entityOfHistoryId(snapshot.layerHistoryId);
+        int index = indexOfLayerEntity(entity);
+        if (index != snapshot.index || entity < 0) {
+            throw new IllegalStateException("Layer deletion target changed since capture.");
+        }
+        if (snapshot.contents != null) snapshot.contents.redo();
+        IdentityRegistry.unindexEntityImmediately(world, entity);
+        historyIds.unbindEntity(entity);
+        world.delete(entity);
         layerEntities.removeIndex(index);
         shiftItemsForRemove(index);
         renumberLayerIndices();
-
-        // 4) Force the GPU rebuild of the other Tiled Maps.
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(TiledLayerComponent.class))
-                .getEntities();
-
-        int[] data = bag.getData();
-        for (int i = 0; i < bag.size(); i++) {
-            TiledLayerComponent t = mTiled.get(data[i]);
-            if (t != null && t.data != null) {
-                t.data.markAllChunksContentDirty();
-            }
-        }
-
+        dirty = false; // The explicit cache is already current before the next ECS publication.
         EventFlow.i().publish(new EventFlow.LayerOrderChanged(MY_TAG));
     }
 
@@ -514,39 +473,31 @@ public final class LayerService {
         }
     }
 
-    private void shiftItemsForInsert(int insertIndex) {
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(EntityIndexComponent.class))
-                .getEntities();
-        int[] data = bag.getData();
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int e = data[i];
-            EntityIndexComponent index = mEntityIndex.getSafe(e, null);
-            if (index != null && index.getLayerIndex() >= insertIndex) {
-                index.layerIndex = index.getLayerIndex() + 1;
-                if (dirtyTracker != null) {
-                    dirtyTracker.layer(e);
-                    dirtyTracker.order(e);
-                }
-            }
-        }
+    private void shiftItemsForInsert(int index) {
+        shiftRootLayerIndices(index, 1);
     }
 
-    private void shiftItemsForRemove(int removedIndex) {
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(EntityIndexComponent.class))
-                .getEntities();
-        int[] data = bag.getData();
-        for (int i = 0, n = bag.size(); i < n; i++) {
-            int e = data[i];
-            EntityIndexComponent index = mEntityIndex.getSafe(e, null);
-            if (index != null && index.getLayerIndex() > removedIndex) {
-                index.layerIndex = index.getLayerIndex() - 1;
-                if (dirtyTracker != null) {
-                    dirtyTracker.layer(e);
-                    dirtyTracker.order(e);
-                }
+    private void shiftItemsForRemove(int index) {
+        shiftRootLayerIndices(index + 1, -1);
+    }
+
+    private void shiftRootLayerIndices(int firstIndex, int delta) {
+        IntArray entities = new IntArray();
+        identityRegistry.collectIndexedEntityIds(entities);
+        var members = world.getMapper(GameObjectMemberComponent.class);
+        for (int i = 0; i < entities.size; i++) {
+            int entity = entities.get(i);
+            // Descendant indices are historical data, not scene-layer references.
+            if (members.has(entity)) continue;
+            EntityIndexComponent index = mEntityIndex.getSafe(entity, null);
+            if (index == null || index.layerIndex < firstIndex) continue;
+            index.layerIndex += delta;
+            if (dirtyTracker != null) {
+                dirtyTracker.layer(entity);
+                dirtyTracker.order(entity);
             }
+            TiledLayerComponent tiled = mTiled.getSafe(entity, null);
+            if (tiled != null && tiled.data != null) tiled.data.markAllChunksContentDirty();
         }
     }
 
@@ -601,30 +552,6 @@ public final class LayerService {
 // ------------------------------------------------------------
 
     // ---------- Helpers drawables ----------
-
-    /**
-     * Deletes all entities that reference this layer through EntityIndexComponent.
-     * Cascade semantics: layer content is destroyed with the layer.
-     */
-    private void deleteDrawablesAtLayerIndex(int layerIndex) {
-        if (layerIndex < 0) return;
-
-        IntBag bag = world.getAspectSubscriptionManager()
-                .get(Aspect.all(EntityIndexComponent.class))
-                .getEntities();
-        int[] data = bag.getData();
-        int n = bag.size();
-
-        for (int i = 0; i < n; i++) {
-            int e = data[i];
-            EntityIndexComponent index = mEntityIndex.getSafe(e, null);
-            if (index != null && index.getLayerIndex() == layerIndex) {
-                IdentityRegistry.unindexEntityImmediately(world, e);
-                historyIds.unbindEntity(e);
-                world.delete(e);
-            }
-        }
-    }
 
     // ---------- UI bridge (for LayersPanel, etc.) ----------
 
@@ -733,33 +660,6 @@ public final class LayerService {
                              int widthCells, int heightCells) {
     }
 
-    public record TiledMapSnapshot(long historyId, TiledMapInitializer initializer) {}
-
     public record LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
-                                List<TiledMapSnapshot> tiledMaps,
-                                List<DrawableSnapshot> drawables) {
-        public LayerSnapshot(int index, long layerHistoryId, LayerInitializer layerInitializer,
-                             List<TiledMapSnapshot> tiledMaps,
-                             List<DrawableSnapshot> drawables) {
-            this.index = index;
-            this.layerHistoryId = layerHistoryId;
-            this.layerInitializer = layerInitializer;
-            this.tiledMaps = List.copyOf(tiledMaps);
-            this.drawables = List.copyOf(drawables);
-        }
-    }
-
-    public static final class DrawableSnapshot {
-        public final long historyId;
-        final GenericEntityInitializer initializer;
-        final int z;
-        final int entityId;
-
-        DrawableSnapshot(long historyId, GenericEntityInitializer initializer, int z, int entityId) {
-            this.historyId = historyId;
-            this.initializer = initializer;
-            this.z = z;
-            this.entityId = entityId;
-        }
-    }
+                                DeleteGameObjectHierarchyCommand contents) {}
 }

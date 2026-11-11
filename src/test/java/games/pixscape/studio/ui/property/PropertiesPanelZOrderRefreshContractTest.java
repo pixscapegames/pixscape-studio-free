@@ -16,7 +16,7 @@ public class PropertiesPanelZOrderRefreshContractTest {
         assertTrue(source.contains(
                 "EventFlow.i().subscribe(EventFlow.EntityZOrderChanged.class"));
         assertTrue(source.contains("boundEntity < 0"));
-        assertTrue(source.contains("index.layerIndex == evt.layerIndex()"));
+        assertTrue(source.contains("layerService.getEffectiveLayerIndex(boundEntity) == evt.layerIndex()"));
         assertTrue(source.contains("entityProperties.refreshZIndex();"));
     }
 }

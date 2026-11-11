@@ -6,7 +6,6 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.studio.service.physics.PhysicsJointUiNames;
@@ -21,13 +20,11 @@ final class ItemTreeJointSupport {
     static void attachJointNodes(
             World world,
             IdVisTree tree,
-            IntPredicate layerLocked) {
+            IntPredicate bodyLayerLocked) {
         ComponentMapper<PhysicsJointComponent> joints =
                 world.getMapper(PhysicsJointComponent.class);
         ComponentMapper<PhysicsBodyComponent> bodies =
                 world.getMapper(PhysicsBodyComponent.class);
-        ComponentMapper<EntityIndexComponent> indexes =
-                world.getMapper(EntityIndexComponent.class);
         IntBag jointEntities = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PhysicsJointComponent.class)).getEntities();
         int[] data = jointEntities.getData();
@@ -43,8 +40,7 @@ final class ItemTreeJointSupport {
             EntityNode bodyNode = tree.findBodyNode(joint.aEid);
             if (bodyNode == null) continue;
 
-            EntityIndexComponent index = indexes.getSafe(joint.aEid, null);
-            boolean locked = index != null && layerLocked.test(index.layerIndex);
+            boolean locked = bodyLayerLocked.test(joint.aEid);
             EntityNode jointNode = new EntityNode(
                     PhysicsJointUiNames.typeName(joint.type),
                     VisUI.getSkin().getDrawable("joint"),

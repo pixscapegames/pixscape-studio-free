@@ -308,6 +308,71 @@ public class AddTiledMapCommandTest {
     }
 
     @Test
+    public void deletingLayerRestoresSpatialMapAndLinkedPhysicsWithoutPublication() {
+        AtomicInteger selected = new AtomicInteger(-1);
+        command(8, 6, TiledProjection.ORTHO, 16, 16, selected).redo();
+        int map = selected.get();
+        TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).get(map);
+        TiledPaintService paint = new TiledPaintService();
+        paint.setActiveTileAssetId(404);
+        paint.paintTile(tiled, 2, 3);
+        tiled.setSparseSpatialOverride(0, 6f, 11f, 3);
+        var blocks = world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).create(map);
+        var block = new games.pixscape.runtime.spatial.SpatialBlockData();
+        block.id = blocks.allocateNextSpatialBlockId();
+        block.x = 2; block.y = 3; block.width = 1; block.depth = 1;
+        block.beginAuthoredLinkedTileRefs(); block.addLinkedTileRef(2, 3, 404);
+        blocks.blocks.add(block);
+        var physics = new games.pixscape.runtime.service.PhysicsService(world, null, ProjectConfig.getInstance().getCurrentSceneMeta());
+        var shape = new games.pixscape.runtime.physics.PhysicsShapeData();
+        shape.physicsShapeId = physics.allocateNewPhysicsShapeId(); shape.spatialBlockId = block.id;
+        world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).create(map).shapes.add(shape);
+        world.getMapper(PhysicsBodyComponent.class).create(map).type = PhysicsBodyComponent.STATIC;
+        int stable = stableId(map);
+        long mapHistory = history.historyIds().ensureForEntity(map);
+        history.execute(new DeleteLayerCommand(layers, layerEntity, null));
+        for (int i = 0; i < 3; i++) {
+            assertEquals(-1, identities.findByStableId(stable));
+            history.undo();
+            int restored = history.historyIds().entityOfHistoryId(mapHistory);
+            assertEquals(stable, stableId(restored));
+            var restoredMap = world.getMapper(TiledLayerComponent.class).get(restored);
+            assertEquals(404, restoredMap.data.getTile(2, 3));
+            assertEquals(6f, restoredMap.sparseTileAltitude(0), 0);
+            var restoredBlocks = world.getMapper(games.pixscape.runtime.component.spatial.SpatialBlocksComponent.class).get(restored);
+            assertEquals(block.id, restoredBlocks.blocks.first().id);
+            assertEquals(block.id + 1, restoredBlocks.nextSpatialBlockId);
+            assertEquals(2f, restoredBlocks.blocks.first().x, 0);
+            var restoredShapes = world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).get(restored);
+            assertTrue(shape.contentEquals(restoredShapes.shapes.first()));
+            assertTrue(world.getMapper(games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent.class).get(restored).valid);
+            history.redo();
+        }
+        history.undo(); world.process();
+        assertEquals(1, mapCount());
+    }
+
+    @Test
+    public void invalidMapPhysicsRefusesLayerDeletionBeforeMutation() {
+        AtomicInteger selected = new AtomicInteger(-1);
+        command(8, 6, TiledProjection.ORTHO, 16, 16, selected).redo();
+        int map = selected.get();
+        var physics = new games.pixscape.runtime.service.PhysicsService(world, null, ProjectConfig.getInstance().getCurrentSceneMeta());
+        var shape = new games.pixscape.runtime.physics.PhysicsShapeData();
+        shape.physicsShapeId = physics.allocateNewPhysicsShapeId();
+        shape.spatialBlockId = Integer.MAX_VALUE;
+        world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).create(map).shapes.add(shape);
+        world.getMapper(PhysicsBodyComponent.class).create(map);
+        int stable = stableId(map);
+        assertThrows(IllegalArgumentException.class, () -> history.execute(new DeleteLayerCommand(layers, layerEntity, null)));
+        assertEquals(0, history.getCursor());
+        assertEquals(1, layers.count());
+        assertEquals(map, identities.findByStableId(stable));
+        assertEquals(0, world.getMapper(EntityIndexComponent.class).get(map).layerIndex);
+        assertSame(shape, world.getMapper(games.pixscape.runtime.component.physics.PhysicsShapesComponent.class).get(map).shapes.first());
+    }
+
+    @Test
     public void genericLayerMoveChangesOnlyMapOwnershipAndIsUndoable() {
         AtomicInteger selected = new AtomicInteger(-1);
         command(13, 9, TiledProjection.ISO, 40, 20, selected).redo();

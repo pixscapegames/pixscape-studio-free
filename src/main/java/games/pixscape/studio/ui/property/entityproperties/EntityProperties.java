@@ -226,6 +226,8 @@ public class EntityProperties extends VisTable {
         header.add(customPropertiesRow).row();
 
         header.add(new VisLabel("Layer:")).width(CommonLayout.LABEL_WIDTH).left();
+        new Tooltip.Builder("Members inherit the layer of their top-level Game Object.")
+                .target(layerValueLabel).build();
         header.add(layerValueLabel).colspan(2).left().row();
 
         header.add(new VisLabel("Zindex:")).width(CommonLayout.LABEL_WIDTH).left();
@@ -261,10 +263,7 @@ public class EntityProperties extends VisTable {
 
         refreshZIndex();
 
-        int layerIndex = (entityIndex != null) ? entityIndex.getLayerIndex() : 0;
-        String layerName = (ctx.layerService != null) ? ctx.layerService.getNameByIndex(layerIndex) : "";
-        layerValueLabel.setText(member ? "Inherited from Game Object"
-                : layerName != null ? layerName : "");
+        refreshLayerInfo();
         if (member) {
             zIndexValueLabel.setText("Local: " + (entityIndex != null ? entityIndex.zIndex : 0));
         }
@@ -288,6 +287,13 @@ public class EntityProperties extends VisTable {
         updateSectionsVisibility();
         refreshTagsLabel();
         customPropertiesRow.setEntityId(entityId);
+    }
+
+    public void refreshLayerInfo() {
+        if (currentEntityId < 0 || !ctx.world.getEntityManager().isActive(currentEntityId)) return;
+        layerValueLabel.setText(ctx.layerService.describeEffectiveLayer(currentEntityId));
+        spatialPanel.refreshLayerEligibility();
+        updateSectionsVisibility();
     }
 
     public void refreshTransformTitle() {
@@ -426,12 +432,7 @@ public class EntityProperties extends VisTable {
         if (currentEntityId < 0 || ctx.layerService == null || mEntityIndex == null) {
             return false;
         }
-        EntityIndexComponent entityIndex = mEntityIndex.getSafe(currentEntityId, null);
-        if (entityIndex == null) {
-            return false;
-        }
-        int layerIndex = entityIndex.getLayerIndex();
-        int layerEntityId = ctx.layerService.getLayerEntity(layerIndex);
+        int layerEntityId = ctx.layerService.getEffectiveLayerEntity(currentEntityId);
         if (layerEntityId < 0) {
             return false;
         }

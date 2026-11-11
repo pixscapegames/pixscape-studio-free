@@ -93,14 +93,13 @@ public final class StudioAnimationPreviewRefresher {
         int textureHandle = visual.textureHandle();
         material.textureHandle = textureHandle;
         material.debugAtlasTag = atlasTag;
-        applyFrameToDynamicState(world, state, entityId, material, textureHandle, u1, v1, u2, v2);
+        applyFrameToDynamicState(state, entityId, material, textureHandle, u1, v1, u2, v2);
 
         DirtyTrackerSystem dirty = world.getSystem(DirtyTrackerSystem.class);
         if (dirty != null) dirty.mark(entityId, DirtyBits.MATERIAL);
     }
 
-    private static void applyFrameToDynamicState(World world,
-                                                 DynamicEntityRenderState state,
+    private static void applyFrameToDynamicState(DynamicEntityRenderState state,
                                                  int entityId,
                                                  RenderMaterialComponent material,
                                                  int textureHandle,
@@ -117,10 +116,10 @@ public final class StudioAnimationPreviewRefresher {
         state.u2[renderSlot] = u2;
         state.v2[renderSlot] = v2;
 
-        EntityIndexComponent index = world.getMapper(EntityIndexComponent.class)
-                .getSafe(entityId, null);
-        int layerIndex = index != null ? index.getLayerIndex() : state.layerIndex[renderSlot];
-        int z = index != null ? index.getZIndex() : state.z[renderSlot];
+        // A frame-only preview preserves the published composition order. A member
+        // may still serialize a historical layer and a parent-relative Z index.
+        int layerIndex = state.layerIndex[renderSlot];
+        int z = state.z[renderSlot];
         state.sortKey[renderSlot] = SortKey64.packForBlend(
                 material.getShaderIdx(), material.getBlendModeId(), textureHandle,
                 layerIndex, z, state.runtimeOrder[renderSlot]);

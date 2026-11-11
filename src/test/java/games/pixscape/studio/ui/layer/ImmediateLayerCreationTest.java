@@ -181,6 +181,7 @@ public class ImmediateLayerCreationTest {
             EntityIndexComponent index = world.getMapper(EntityIndexComponent.class).create(entity);
             index.layerIndex = layerIndex;
             index.zIndex = zIndex;
+            IdentityRegistry.boundTo(world).ensureStableId(entity);
             world.process();
             return entity;
         }

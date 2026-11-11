@@ -5,6 +5,7 @@ import com.artemis.World;
 import games.pixscape.runtime.component.EntityIndexComponent;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
+import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.history.HistoryManager.SupportsNoop;
 
 import java.util.ArrayList;
@@ -66,6 +67,7 @@ public final class ChangeLayerIndexCommand implements Command, SupportsNoop {
             int value = toBefore ? entry.beforeLayerIndex : entry.afterLayerIndex;
             if (layerIndex.layerIndex != value) {
                 layerIndex.layerIndex = value;
+                EventFlow.i().publish(new EventFlow.EntityZOrderChanged(value, EventFlow.tag(this)));
                 if (dirtyTracker != null) {
                     dirtyTracker.layer(entityId);
                     dirtyTracker.order(entityId);

@@ -90,15 +90,7 @@ public final class GameObjectHierarchyCommandSupport {
     }
 
     static int topLevelRoot(World world, IdentityRegistry identities, int entityId) {
-        int current = entityId;
-        for (int depth = 0; depth < MAX_DEPTH; depth++) {
-            GameObjectMemberComponent member = world.getMapper(GameObjectMemberComponent.class)
-                    .getSafe(current, null);
-            if (member == null) return current;
-            current = identities.findByStableId(member.parentStableId);
-            requireActive(world, current, "parent");
-        }
-        throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
+        return CurrentGameObjectRelations.rootEntityId(world, identities, entityId);
     }
 
     static void apply(TransformComponent target, TransformComponent source) {

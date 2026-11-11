@@ -146,12 +146,25 @@ public class AnimationFallbackSystemVisualResolverTest {
             animation.currentClip = "second";
             animation.playing = false;
             animation.frame = -1;
+            var state = new DynamicEntityRenderState();
+            int slot = state.acquireSlotForEntity(entityId);
+            state.layerIndex[slot] = 3;
+            state.z[slot] = 17;
+            state.runtimeOrder[slot] = 2;
+            var index = world.getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entityId);
+            index.layerIndex = 0; // Historical member data must not replace published composition order.
+            index.zIndex = 1;
             StudioAnimationPreviewRefresher refresher = new StudioAnimationPreviewRefresher(
-                    new DynamicEntityRenderState(), resolver, id -> meta);
+                    state, resolver, id -> meta);
             refresher.bindWorld(world);
 
             refresher.refreshSelectedFrame(entityId);
 
+            var material = world.getMapper(RenderMaterialComponent.class).get(entityId);
+            assertEquals(games.pixscape.runtime.render.SortKey64.packForBlend(
+                    material.getShaderIdx(), material.getBlendModeId(), material.textureHandle,
+                    3, 17, 2), state.sortKey[slot]);
+            assertEquals(0, index.layerIndex);
             assertEquals(1, animation.frame);
             assertEquals(TextureRegistry.handleOf(second),
                     world.getMapper(RenderMaterialComponent.class).get(entityId).textureHandle);
