@@ -265,6 +265,16 @@ public final class RenderRebindHelper {
             return "unbound";
         }
 
+        applyVisual(tr, mat, visual, atlasTag);
+        if (dirty != null) dirty.material(e);
+        return visual.source() == StudioAssetVisual.Source.ATLAS
+                ? "atlas"
+                : "standalone";
+    }
+
+    /** Binds borrowed pixels to an entity in either an editing or isolated capture World. */
+    public static void applyVisual(TextureRegionComponent tr, RenderMaterialComponent mat,
+                                   StudioAssetVisual visual, String atlasTag) {
         tr.u1 = visual.u1();
         tr.v1 = visual.v1();
         tr.u2 = visual.u2();
@@ -275,10 +285,6 @@ public final class RenderRebindHelper {
 
         mat.textureHandle = visual.textureHandle();
         mat.debugAtlasTag = atlasTag;
-        if (dirty != null) dirty.material(e);
-        return visual.source() == StudioAssetVisual.Source.ATLAS
-                ? "atlas"
-                : "standalone";
     }
 
 }

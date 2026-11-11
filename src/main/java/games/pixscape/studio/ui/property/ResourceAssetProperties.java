@@ -23,17 +23,21 @@ import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
 import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.hud.HudScreenAssetId;
+import games.pixscape.runtime.gameobject.GameObjectAssetId;
+import games.pixscape.runtime.gameobject.GameObjectAssetLoader;
 import games.pixscape.studio.asset.AssetDisplayInfo;
 import games.pixscape.studio.asset.AssetMeta;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.document.EditorDocumentKey;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.GameObjectEditorDocument;
 import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 import games.pixscape.studio.service.hud.HudInspectorProjection;
 import games.pixscape.studio.service.asset.StudioAssetVisual;
+import games.pixscape.studio.service.gameobject.GameObjectPreviewCapture;
 import games.pixscape.studio.ui.asset.AssetNode;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -69,6 +73,14 @@ public final class ResourceAssetProperties extends VisTable {
     private int imageAtlasRevision;
     private Texture.TextureFilter imageMin, imageMag;
     private VisLabel imageMinLabel, imageMagLabel;
+    private String gameObjectId;
+    private EditorDocumentKey gameObjectKey;
+    private boolean gameObjectReloadRequested;
+    private VisLabel gameObjectDocumentLabel;
+    private GameObjectEditorDocument displayedGameObject;
+    private boolean gameObjectDirty;
+    private GameObjectPreviewCapture gameObjectPreview;
+    private VisImage gameObjectImage;
 
     ResourceAssetProperties(StudioApplicationAdapter app, Runnable leaveInspection) {
         super(true);
@@ -85,6 +97,8 @@ public final class ResourceAssetProperties extends VisTable {
         if (node.kind == AssetNode.Kind.HUD_SCREEN) return selectHud(node.path);
         kind = node.kind;
         assetId = node.assetId;
+        gameObjectId = kind == AssetNode.Kind.GAME_OBJECT ? GameObjectAssetId.normalize(new FileHandle(node.path).name()) : null;
+        gameObjectKey = gameObjectId != null ? new EditorDocumentKey(EditorDocumentType.GAME_OBJECT, gameObjectId) : null;
         screenId = null;
         return reload();
     }
@@ -103,8 +117,10 @@ public final class ResourceAssetProperties extends VisTable {
         releasePreview();
         details.clearChildren();
         details.add(new VisLabel(kind == AssetNode.Kind.HUD_SCREEN ? HudInspectorProjection.SCREEN_TITLE
+                : kind == AssetNode.Kind.GAME_OBJECT ? "GAME OBJECT"
                 : kind == AssetNode.Kind.PARTICLE ? "PARTICLE EFFECT" : kind.name()))
                 .colspan(2).center().padBottom(8).row();
+        if (kind == AssetNode.Kind.GAME_OBJECT) return showGameObject();
         if (kind == AssetNode.Kind.HUD_SCREEN) {
             displayedHud = null;
             if (screenId == null || screenId.isBlank()) {
@@ -178,6 +194,11 @@ public final class ResourceAssetProperties extends VisTable {
 
     /** O(1) identity/revision checks. Open HUD documents are authoritative, including unsaved edits. */
     boolean refreshIfChanged() {
+        if (kind == AssetNode.Kind.GAME_OBJECT) {
+            if (gameObjectReloadRequested) return reload();
+            refreshGameObjectDocument();
+            return true;
+        }
         if (kind == AssetNode.Kind.HUD_SCREEN) {
             HudScreenEditorDocument hud = openHud();
             if (hud != displayedHud || (hud != null && (hud.editSession().currentRevision() != displayedRevision
@@ -195,6 +216,66 @@ public final class ResourceAssetProperties extends VisTable {
             if (imageVisual != null) refreshImageFilters();
         }
         return true;
+    }
+
+    void gameObjectsChanged() {
+        if (kind == AssetNode.Kind.GAME_OBJECT) gameObjectReloadRequested = true;
+    }
+
+    private boolean showGameObject() {
+        gameObjectReloadRequested = false;
+        FileHandle source = StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()).child(gameObjectId);
+        if (!source.exists()) return false;
+        row("Name", GameObjectAssetId.assetName(gameObjectId));
+        row("Source", gameObjectId);
+        gameObjectDocumentLabel = row("Document", "Saved version");
+        displayedGameObject = null;
+        gameObjectDirty = false;
+        refreshGameObjectDocument();
+        try {
+            var asset = new GameObjectAssetLoader().load(source);
+            gameObjectPreview = GameObjectPreviewCapture.capture(asset, source.parent().parent(),
+                    app.getSceneService().getAssetMetaDatabase(), app.getCanvas().getAtlasService(),
+                    app.getCanvas().getAssetVisualResolver());
+            if (gameObjectPreview.region() == null) {
+                row("Preview", asset.entities.size == 1 ? "Empty composition" : "No visual content");
+            } else {
+                gameObjectImage = new VisImage(gameObjectPreview.region());
+                gameObjectImage.setName("gameObjectAssetPreview");
+                gameObjectImage.setScaling(Scaling.fit);
+                Container<VisImage> frame = new Container<>(gameObjectImage);
+                frame.fill().minWidth(0).minHeight(0).prefWidth(0).prefHeight(0)
+                        .maxWidth(gameObjectPreview.width()).maxHeight(gameObjectPreview.height());
+                frame.setClip(true);
+                details.add(frame).colspan(2).growX().height(Math.min(240, gameObjectPreview.height())).padTop(8).row();
+            }
+        } catch (RuntimeException failure) {
+            row("Preview", "Unavailable: invalid source or missing composition resource");
+        }
+        VisTextButton open = new VisTextButton("Open GameObject editor");
+        open.setName("openGameObjectAssetEditor");
+        open.getLabel().setWrap(true);
+        open.addListener(new ChangeListener() {
+            @Override public void changed(ChangeEvent event, Actor actor) {
+                String target = source.path();
+                leaveInspection.run();
+                app.openGameObject(target);
+            }
+        });
+        details.add(open).colspan(2).growX().minWidth(0).padTop(8).row();
+        return true;
+    }
+
+    private void refreshGameObjectDocument() {
+        var document = app.getEditorDocumentManager().find(gameObjectKey);
+        GameObjectEditorDocument opened = document instanceof GameObjectEditorDocument gameObject ? gameObject : null;
+        boolean modified = opened != null && opened.isDirty();
+        if (opened != displayedGameObject || modified != gameObjectDirty) {
+            displayedGameObject = opened;
+            gameObjectDirty = modified;
+            gameObjectDocumentLabel.setText(modified ? "Saved version - editor has unsaved changes"
+                    : opened != null ? "Saved version - editor open" : "Saved version");
+        }
     }
 
     private String activeImageAtlasTag() {
@@ -340,9 +421,19 @@ public final class ResourceAssetProperties extends VisTable {
         imageAtlasTag = null;
         imageAtlas = null;
         imageAtlasRevision = 0;
+        gameObjectId = null;
+        gameObjectKey = null;
+        gameObjectReloadRequested = false;
+        gameObjectDocumentLabel = null;
+        displayedGameObject = null;
+        gameObjectDirty = false;
     }
 
     private void releasePreview() {
+        if (gameObjectImage != null) gameObjectImage.setDrawable((com.badlogic.gdx.scenes.scene2d.utils.Drawable) null);
+        gameObjectImage = null;
+        if (gameObjectPreview != null) gameObjectPreview.dispose();
+        gameObjectPreview = null;
         if (imagePreview != null) imagePreview.setDrawable((com.badlogic.gdx.scenes.scene2d.utils.Drawable) null);
         imagePreview = null;
         imageVisual = null;

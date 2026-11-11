@@ -34,7 +34,6 @@ import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.asset.AssetUsageScanner;
 import games.pixscape.studio.service.gameobject.GameObjectAssetItem;
 import games.pixscape.studio.service.gameobject.GameObjectBrowserService;
-import games.pixscape.studio.service.gameobject.GameObjectPreviewWriter;
 import games.pixscape.studio.service.hud.HudScreenDeletionService;
 import games.pixscape.studio.ui.asset.dnd.DragContext;
 import games.pixscape.studio.ui.asset.dnd.DragCursors;
@@ -1657,7 +1656,8 @@ public final class AssetsThumbsView extends VisTable {
         FileHandle previewFile = StudioFs.requireGameObjectPreviewFile(cfg, node.name);
 
         if (!previewFile.exists()) {
-            GameObjectPreviewWriter.writePlaceholder(previewFile);
+            // Browsing must not create or repair project resources.
+            return new VisLabel("Game Object");
         }
 
         Texture texture = new Texture(previewFile);
@@ -1694,6 +1694,7 @@ public final class AssetsThumbsView extends VisTable {
                 if (currentFolder != null) {
                     showForNode(currentFolder);
                 }
+                if (app != null) app.reloadAssetInspection();
             }
         };
         dialog.text(deleteGameObjectDialogText(targets));

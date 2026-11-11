@@ -40,6 +40,376 @@ import static org.junit.Assume.assumeTrue;
 
 /** Real Assets/Inspector wiring, with isolated projects and owned preview resources. */
 public class ResourceAssetInspectorGlTest {
+    @Test public void gameObjectCaptureUsesSavedGeometryAndRestoresGraphicsState() throws Exception {
+        var closingTexture = new com.badlogic.gdx.graphics.Texture[1];
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("saved-capture"));
+            int id = addImage(project.parent(), "white", 8, 8);
+            Pixmap white = new Pixmap(8, 8, Pixmap.Format.RGBA8888); white.setColor(1, 1, 1, 1); white.fill();
+            PixmapIO.writePNG(project.parent().child("orig/images/white.png"), white); white.dispose();
+            var asset = gameObjectAsset(); asset.entities.truncate(1);
+            var red = gameObjectSprite(2, 1, id, 0, 0, 80, 40);
+            red.tint = new games.pixscape.runtime.gameobject.GameObjectAsset.TintData(); red.tint.rgba = 0xff0000ff;
+            var blue = gameObjectSprite(3, 1, id, 20, 0, 40, 40);
+            blue.tint = new games.pixscape.runtime.gameobject.GameObjectAsset.TintData(); blue.tint.rgba = 0x0000ffff;
+            // Authored physics is present but must not participate in capture.
+            red.physicsBody = new games.pixscape.runtime.gameobject.GameObjectAsset.PhysicsBodyData();
+            red.physicsBody.type = games.pixscape.runtime.component.physics.PhysicsBodyComponent.DYNAMIC;
+            asset.entities.add(red); asset.entities.add(blue);
+            var file = project.parent().child("gameobjects/Assembly.gameobject");
+            var loader = new games.pixscape.runtime.gameobject.GameObjectAssetLoader(); loader.save(file, asset);
+            open(studio, project);
+            var document = studio.openGameObject(file.path()); assertNotNull(document);
+            int sprite = document.context().world().getAspectSubscriptionManager().get(com.artemis.Aspect.all(
+                    games.pixscape.runtime.component.AssetRefComponent.class)).getEntities().get(0);
+            var transform = document.context().world().getMapper(TransformComponent.class).get(sprite);
+            transform.x = 150;
+            var history = document.context().historyManager();
+            history.execute(new games.pixscape.studio.history.commands.ChangeEntityNameCommand(document.context().world(),
+                    history.historyIds(), history.historyIds().ensureForEntity(document.rootEntityId()), "Root", "Modified", 0));
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            var panel = inspector(studio);
+            assertEquals("Saved version - editor has unsaved changes", label(panel, "Document"));
+            var capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            assertEquals(88f, capture.width(), .01f);
+            assertEquals(150, transform.x, 0);
+            assertTrue(document.isDirty());
+            var framebuffer = (com.badlogic.gdx.graphics.glutils.FrameBuffer) field(capture, "framebuffer");
+            framebuffer.begin();
+            Pixmap pixels = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixmap(0, 0, framebuffer.getWidth(), framebuffer.getHeight());
+            framebuffer.end();
+            try {
+                // Packed vertex colors reserve one alpha bit; allow the resulting one-unit blend error.
+                assertRgb(0x0000ff, pixels.getPixel(34, 24)); // Higher local z overlays red.
+                assertRgb(0xff0000, pixels.getPixel(8, 24)); // Uncovered area stays red.
+            } finally { pixels.dispose(); }
+            var outer = new com.badlogic.gdx.graphics.glutils.FrameBuffer(Pixmap.Format.RGBA8888, 128, 128, false);
+            var previous = capture.region().getTexture();
+            try {
+                outer.begin(); Gdx.gl.glViewport(3, 4, 81, 63);
+                Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST); Gdx.gl.glScissor(5, 7, 20, 30);
+                Gdx.gl.glEnable(com.badlogic.gdx.graphics.GL20.GL_BLEND);
+                Gdx.gl.glBlendFuncSeparate(com.badlogic.gdx.graphics.GL20.GL_ONE, com.badlogic.gdx.graphics.GL20.GL_ZERO,
+                        com.badlogic.gdx.graphics.GL20.GL_ZERO, com.badlogic.gdx.graphics.GL20.GL_ONE);
+                int fbo = glInt(com.badlogic.gdx.graphics.GL20.GL_FRAMEBUFFER_BINDING);
+                studio.reloadAssetInspection();
+                assertEquals(fbo, glInt(com.badlogic.gdx.graphics.GL20.GL_FRAMEBUFFER_BINDING));
+                var values = com.badlogic.gdx.utils.BufferUtils.newIntBuffer(4);
+                Gdx.gl.glGetIntegerv(com.badlogic.gdx.graphics.GL20.GL_VIEWPORT, values);
+                assertEquals(3, values.get(0)); assertEquals(4, values.get(1)); assertEquals(81, values.get(2)); assertEquals(63, values.get(3));
+                assertTrue(Gdx.gl.glIsEnabled(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST));
+                assertTrue(Gdx.gl.glIsEnabled(com.badlogic.gdx.graphics.GL20.GL_BLEND));
+                assertEquals(com.badlogic.gdx.graphics.GL20.GL_ZERO, glInt(com.badlogic.gdx.graphics.GL20.GL_BLEND_SRC_ALPHA));
+                assertEquals(com.badlogic.gdx.graphics.GL20.GL_ONE, glInt(com.badlogic.gdx.graphics.GL20.GL_BLEND_DST_ALPHA));
+                assertEquals(0, previous.getTextureObjectHandle());
+            } finally { Gdx.gl.glDisable(com.badlogic.gdx.graphics.GL20.GL_SCISSOR_TEST); outer.end(); outer.dispose(); }
+            var save = StudioApplicationAdapter.class.getDeclaredMethod("saveGameObjectDocument", document.getClass());
+            save.setAccessible(true); save.invoke(studio, document); flush(panel);
+            capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            assertEquals("Saving refreshes the geometry while still inspected", 218, capture.width(), .01f);
+            assertEquals("Saved version - editor open", label(panel, "Document"));
+            closingTexture[0] = capture.region().getTexture();
+        });
+        assertEquals("Studio shutdown disposes the last capture", 0, closingTexture[0].getTextureObjectHandle());
+    }
+
+    private static int glInt(int name) {
+        var value = com.badlogic.gdx.utils.BufferUtils.newIntBuffer(1); Gdx.gl.glGetIntegerv(name, value); return value.get(0);
+    }
+
+    private static void assertRgb(int expected, int rgba) {
+        for (int shift : new int[]{0, 8, 16})
+            assertEquals((expected >>> shift) & 255, (rgba >>> (shift + 8)) & 255, 2);
+    }
+
+    @Test public void gameObjectCaptureFitsCompositionsAndReleasesOnlyOwnedPixels() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("capture"));
+            int imageId = addImage(project.parent(), "composition", 64, 32);
+            var asset = gameObjectAsset(); asset.entities.truncate(1);
+            asset.entities.add(gameObjectSprite(2, 1, imageId, 0, 0, 960, 180));
+            asset.entities.add(gameObjectSprite(3, 1, imageId, 200, 30, 90, 70));
+            var file = project.parent().child("gameobjects/Assembly.gameobject");
+            var loader = new games.pixscape.runtime.gameobject.GameObjectAssetLoader(); loader.save(file, asset);
+            open(studio, project);
+            var context = studio.getSceneEditorContext();
+            var borrowed = studio.getCanvas().getAssetVisualResolver().resolveFirst(imageId, null).texture();
+            var filterMin = borrowed.getMinFilter(); var filterMag = borrowed.getMagFilter();
+            var files = snapshot(project.parent());
+            int worlds = studio.getEditorDocumentManager().documents().size();
+            long frames = context.processedFrameCount();
+            int entityCount = context.world().getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities().size();
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            PropertiesPanel panel = inspector(studio);
+            var capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            assertNotNull("Capture must be available", capture);
+            assertNotNull(capture.region());
+            assertEquals(968f, capture.width(), .01f); assertEquals(188f, capture.height(), .01f);
+            var owned = capture.region().getTexture();
+            var image = (com.kotcrab.vis.ui.widget.VisImage) panel.findActor("gameObjectAssetPreview");
+            var frame = (com.badlogic.gdx.scenes.scene2d.ui.Container<?>) image.getParent();
+            assertEquals(worlds, studio.getEditorDocumentManager().documents().size());
+            assertSame(context, studio.getCanvas().getAttachedSceneContext());
+            assertEquals(frames, context.processedFrameCount());
+            assertEquals(entityCount, context.world().getAspectSubscriptionManager().get(com.artemis.Aspect.all()).getEntities().size());
+            assertEquals(files, snapshot(project.parent()));
+            assertEquals(filterMin, borrowed.getMinFilter()); assertEquals(filterMag, borrowed.getMagFilter());
+            for (int width : new int[]{500, 170, 340}) {
+                frame.setSize(width, 240); frame.validate(); image.validate(); assertFitted(image, 968, 188);
+                assertEquals(Math.min(width, 968), image.getImageWidth(), .01f);
+            }
+            screenshotGameObjectWidths(studio, "wide");
+            studio.getDockManager().hide(panel); studio.getDockManager().show(panel);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_BOTTOM);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_TOP);
+            assertSame(capture, field(panel.inspectedResourceProperties(), "gameObjectPreview"));
+            assertTrue(owned.getTextureObjectHandle() != 0);
+            asset.entities.get(1).dimensions.width = 8192;
+            loader.save(file, asset); studio.reloadAssetInspection();
+            var large = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            assertEquals(1024, large.region().getTexture().getWidth());
+            assertTrue(large.region().getTexture().getHeight() <= 1024);
+            // Nested transform: translation (36, 0), 90-degree rotation and uniform scale .75.
+            asset = gameObjectAsset(); asset.entities.truncate(2);
+            asset.entities.get(1).transform.rotationRad = com.badlogic.gdx.math.MathUtils.PI / 2;
+            asset.entities.add(gameObjectSprite(3, 2, imageId, 8, 0, 120, 40));
+            loader.save(file, asset); studio.reloadAssetInspection();
+            assertEquals(0, owned.getTextureObjectHandle()); assertNull(image.getDrawable());
+            capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            assertEquals(38, capture.width(), .01f); assertEquals(98, capture.height(), .01f);
+            screenshotGameObjectWidths(studio, "nested");
+            image = panel.findActor("gameObjectAssetPreview");
+            image.validate(); assertFitted(image, 38, 98);
+            assertEquals("Small compositions are not enlarged", 38, image.getImageWidth(), .01f);
+            owned = capture.region().getTexture();
+            // Missing source must invalidate even a previously cached texture; no old image survives.
+            project.parent().child("orig/images/composition.png").delete(); studio.reloadAssetInspection();
+            assertNull(panel.findActor("gameObjectAssetPreview"));
+            assertTrue(label(panel, "Preview").contains("missing"));
+            assertEquals(0, owned.getTextureObjectHandle());
+            assertTrue(borrowed.getTextureObjectHandle() != 0);
+            assertFalse(project.parent().child("orig/images/composition.png").exists());
+            writeImage(project.parent().child("orig/images/composition.png"), 64, 32);
+            studio.reloadAssetInspection();
+            capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            owned = capture.region().getTexture();
+            inspect(studio, AssetNode.Kind.HUD_SCREEN);
+            assertEquals("Changing targets disposes captured pixels", 0, owned.getTextureObjectHandle());
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            capture = (games.pixscape.studio.service.gameobject.GameObjectPreviewCapture)
+                    field(panel.inspectedResourceProperties(), "gameObjectPreview");
+            owned = capture.region().getTexture();
+            FileHandle next = project(studio, root.child("next"));
+            open(studio, next);
+            assertEquals("Changing projects disposes captured pixels", 0, owned.getTextureObjectHandle());
+        });
+    }
+
+    private static void screenshotGameObjectWidths(StudioApplicationAdapter studio, String name) throws Exception {
+        var split = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "centerRightSplit");
+        var vertical = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit");
+        vertical.setSplitAmount(.95f);
+        for (float amount : new float[]{.32f, .76f}) {
+            split.setSplitAmount(amount);
+            screenshot(studio, "gameobject-" + name + (amount < .5 ? "-large-panel" : "-narrow-panel"));
+            var image = (com.kotcrab.vis.ui.widget.VisImage) inspector(studio).findActor("gameObjectAssetPreview");
+            assertTrue(image.getImageWidth() <= inspector(studio).getWidth());
+            assertTrue(((com.badlogic.gdx.scenes.scene2d.ui.Container<?>) image.getParent()).getClip());
+        }
+    }
+
+    private static games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectEntityData gameObjectSprite(
+            int id, int parent, int image, float x, float y, float width, float height) {
+        var data = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectEntityData();
+        data.sourceEntityId = id; data.parentSourceEntityId = parent;
+        data.transform = new games.pixscape.runtime.gameobject.GameObjectAsset.TransformData();
+        data.transform.x = x; data.transform.y = y; data.transform.scaleX = data.transform.scaleY = 1;
+        data.entityIndex = new games.pixscape.runtime.gameobject.GameObjectAsset.EntityIndexData(); data.entityIndex.zIndex = id;
+        data.meta = new games.pixscape.runtime.gameobject.GameObjectAsset.MetaData(); data.meta.kind = "SPRITE";
+        data.visibility = new games.pixscape.runtime.gameobject.GameObjectAsset.VisibilityData(); data.visibility.visible = true;
+        data.boundsFlags = new games.pixscape.runtime.gameobject.GameObjectAsset.BoundsFlagsData();
+        data.boundsFlags.hasAabb = data.boundsFlags.hasObb = true;
+        data.dimensions = new games.pixscape.runtime.gameobject.GameObjectAsset.DimensionsData();
+        data.dimensions.width = width; data.dimensions.height = height;
+        data.renderMaterial = new games.pixscape.runtime.gameobject.GameObjectAsset.RenderMaterialData();
+        data.renderMaterial.blendModeId = games.pixscape.runtime.render.BlendMode.ALPHA.id;
+        data.renderMaterial.shaderIdx = games.pixscape.runtime.service.ShaderRegistry.indexOf(
+                games.pixscape.runtime.render.ShaderMode.TEXTURE_ARRAY.defaultShaderName());
+        data.assetRef = new games.pixscape.runtime.gameobject.GameObjectAsset.AssetRefData(); data.assetRef.assetId = image;
+        return data;
+    }
+
+    @Test public void gameObjectInspectionKeepsCanvasAndReusesItsEditor() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("gameobjects"));
+            FileHandle source = project.parent().child("gameobjects/Assembly.gameobject");
+            var loader = new games.pixscape.runtime.gameobject.GameObjectAssetLoader();
+            loader.save(source, gameObjectAsset());
+            open(studio, project);
+            var context = studio.getSceneEditorContext();
+            var scene = studio.getEditorDocumentManager().activeDocument();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity).x = 73f;
+            context.world().getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity);
+            context.identityRegistry().ensureStableId(entity);
+            context.world().process(); context.selectionService().selectOnly(entity);
+            studio.render(); studio.render();
+            var before = snapshot(project.parent());
+            boolean dirty = context.isDirty(), undo = context.historyManager().canUndo();
+            PropertiesPanel panel = inspector(studio);
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            assertEquals("Assembly", label(panel, "Name"));
+            assertEquals("gameobjects/Assembly.gameobject", label(panel, "Source"));
+            assertEquals("Saved version", label(panel, "Document"));
+            assertNull(panel.findActor("resourceAssetID"));
+            var texts = new java.util.ArrayList<String>(); collectLabels(panel.inspectedResourceProperties(), texts);
+            assertTrue(texts.contains("GAME OBJECT"));
+            assertEquals(entity, context.selectionService().getSelectionSnapshot().first());
+            assertEquals(73f, context.world().getMapper(TransformComponent.class).get(entity).x, 0f);
+            assertEquals(dirty, context.isDirty()); assertEquals(undo, context.historyManager().canUndo());
+            assertEquals("Inspection must not generate a thumbnail or rewrite the asset", before, snapshot(project.parent()));
+            panel.findActor("openGameObjectAssetEditor").fire(new ChangeListener.ChangeEvent());
+            var document = (games.pixscape.studio.document.GameObjectEditorDocument) studio.getEditorDocumentManager().activeDocument();
+            assertEquals("gameobjects/Assembly.gameobject", document.assetId());
+            assertNull(panel.inspectedResourceProperties());
+            var history = document.context().historyManager();
+            history.execute(new games.pixscape.studio.history.commands.ChangeEntityNameCommand(document.context().world(),
+                    history.historyIds(), history.historyIds().ensureForEntity(document.rootEntityId()), "Root", "Unsaved root", 0));
+            assertTrue(document.isDirty());
+            studio.getEditorDocumentManager().activate(scene.key());
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            assertEquals("Saved version - editor has unsaved changes", label(panel, "Document"));
+            studio.reloadAssetInspection();
+            assertEquals("Saved version - editor has unsaved changes", label(panel, "Document"));
+            assertEquals("Root", loader.load(source).entities.first().identity.name);
+            int count = studio.getEditorDocumentManager().documents().size();
+            panel.findActor("openGameObjectAssetEditor").fire(new ChangeListener.ChangeEvent());
+            assertSame(document, studio.getEditorDocumentManager().activeDocument());
+            assertEquals(count, studio.getEditorDocumentManager().documents().size());
+            assertTrue(document.isDirty());
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            var save = StudioApplicationAdapter.class.getDeclaredMethod("saveGameObjectDocument", document.getClass());
+            save.setAccessible(true); save.invoke(studio, document); flush(panel);
+            assertEquals("Unsaved root", loader.load(source).entities.first().identity.name);
+            assertEquals("Saved version - editor open", label(panel, "Document"));
+            document.context().selectionService().clearSelection();
+            document.context().selectionService().selectOnly(document.rootEntityId()); flush(panel);
+            assertNull(panel.inspectedResourceProperties());
+            EventFlow.i().publish(new EventFlow.GameObjectsChanged(-151)); flush(panel);
+            assertNull("Save notification must not reclaim Inspector", panel.inspectedResourceProperties());
+            assertEquals(73f, context.world().getMapper(TransformComponent.class).get(entity).x, 0f);
+        });
+    }
+
+    @Test public void gameObjectInspectionRetainsTargetThroughDockingAndOnlyLeavesAfterDeletion() throws Exception {
+        var closingView = new ResourceAssetProperties[1];
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("gameobjects"));
+            FileHandle source = project.parent().child("gameobjects/Assembly.gameobject");
+            var loader = new games.pixscape.runtime.gameobject.GameObjectAssetLoader();
+            loader.save(source, gameObjectAsset());
+            FileHandle next = project(studio, root.child("next"));
+            loader.save(next.parent().child("gameobjects/Assembly.gameobject"), gameObjectAsset());
+            open(studio, project);
+            PropertiesPanel panel = inspector(studio);
+            var context = studio.getSceneEditorContext();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity);
+            context.world().getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity);
+            context.identityRegistry().ensureStableId(entity);
+            context.world().process(); context.selectionService().selectOnly(entity); flush(panel);
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            var view = panel.inspectedResourceProperties();
+            studio.getDockManager().hide(panel); studio.getDockManager().show(panel);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_BOTTOM);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_TOP);
+            assertSame(view, panel.inspectedResourceProperties());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertEquals("Assembly", label(panel, "Name"));
+            var target = studio.getAssetsPanel().getSelectedAssetNode();
+            showDelete(studio, target); respond(lastDialog(studio), false);
+            assertSame(view, panel.inspectedResourceProperties()); assertTrue(source.exists());
+            var other = source.sibling("Other.gameobject"); loader.save(other, gameObjectAsset());
+            showDelete(studio, new AssetNode(AssetNode.Kind.GAME_OBJECT, AssetNode.Root.GAME_OBJECTS, other.path(), "Other", null));
+            respond(lastDialog(studio), true); flush(panel);
+            assertSame(view, panel.inspectedResourceProperties()); assertFalse(other.exists());
+            showDelete(studio, target); respond(lastDialog(studio), true); flush(panel);
+            assertFalse(source.exists()); assertNull(panel.inspectedResourceProperties());
+            assertEquals(entity, field(panel, "boundEntity"));
+            loader.save(source, gameObjectAsset());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertNull("Restoring a target must not reclaim focus", panel.inspectedResourceProperties());
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            context.selectionService().clearSelection(); flush(panel);
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            source.delete(); studio.reloadAssetInspection(); flush(panel);
+            assertEquals(context.layerService().getFirstLayerEntity(), field(panel, "boundLayer"));
+            loader.save(source, gameObjectAsset());
+            studio.getEditorDocumentManager().clear();
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            source.delete(); studio.reloadAssetInspection(); flush(panel);
+            assertTrue(((Group) field(panel, "contentHolder")).getChildren().isEmpty());
+            loader.save(source, gameObjectAsset());
+            inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            open(studio, next);
+            assertNull(panel.inspectedResourceProperties()); assertNull(field(view, "gameObjectId"));
+            assertNull(field(view, "displayedGameObject"));
+            inspect(studio, AssetNode.Kind.GAME_OBJECT); closingView[0] = panel.inspectedResourceProperties();
+        });
+        assertNull(field(closingView[0], "gameObjectId"));
+        assertNull(field(closingView[0], "displayedGameObject"));
+    }
+
+    @Test public void gameObjectInspectionRefreshesSavedDiagnosticsWithoutRepair() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("gameobjects"));
+            FileHandle source = project.parent().child("gameobjects/Assembly.gameobject");
+            var loader = new games.pixscape.runtime.gameobject.GameObjectAssetLoader();
+            var asset = gameObjectAsset(); asset.entities.truncate(1); loader.save(source, asset);
+            open(studio, project); inspect(studio, AssetNode.Kind.GAME_OBJECT);
+            PropertiesPanel panel = inspector(studio);
+            assertEquals("Empty composition", label(panel, "Preview"));
+            loader.save(source, gameObjectAsset());
+            EventFlow.i().publish(new EventFlow.GameObjectsChanged(-151)); flush(panel);
+            assertEquals("No visual content", label(panel, "Preview"));
+            screenshot(studio, "gameobject-card");
+            source.writeString("invalid", false);
+            // No file polling during ordinary frames; refresh happens only on notification/reload.
+            flush(panel); assertEquals("No visual content", label(panel, "Preview"));
+            studio.reloadAssetInspection();
+            assertEquals("Unavailable: invalid source or missing composition resource", label(panel, "Preview"));
+            assertEquals("invalid", source.readString());
+            assertNotNull(panel.findActor("openGameObjectAssetEditor"));
+            screenshot(studio, "gameobject-unavailable");
+        });
+    }
+
+    private static games.pixscape.runtime.gameobject.GameObjectAsset gameObjectAsset() {
+        var asset = new games.pixscape.runtime.gameobject.GameObjectAsset();
+        asset.rootSourceEntityId = 1;
+        for (int i = 1; i <= 3; i++) {
+            var entity = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectEntityData();
+            entity.sourceEntityId = i; entity.parentSourceEntityId = i == 1 ? -1 : i - 1;
+            entity.gameObject = new games.pixscape.runtime.gameobject.GameObjectAsset.GameObjectData();
+            entity.transform = new games.pixscape.runtime.gameobject.GameObjectAsset.TransformData();
+            entity.transform.x = i == 1 ? 0 : i * 18f;
+            entity.transform.scaleX = entity.transform.scaleY = i == 1 ? 1f : .75f;
+            entity.transform.rotationRad = i == 1 ? 0 : .4f;
+            entity.entityIndex = new games.pixscape.runtime.gameobject.GameObjectAsset.EntityIndexData();
+            entity.entityIndex.zIndex = i == 1 ? 0 : i;
+            entity.meta = new games.pixscape.runtime.gameobject.GameObjectAsset.MetaData(); entity.meta.kind = "GAME_OBJECT";
+            entity.identity = new games.pixscape.runtime.gameobject.GameObjectAsset.IdentityData(); entity.identity.name = "Root";
+            asset.entities.add(entity);
+        }
+        return asset;
+    }
+
     @Test public void imageInspectionFitsNativePixelsAndReadsRendererFilters() throws Exception {
         withStudio((studio, root) -> {
             FileHandle project = project(studio, root.child("images"));
@@ -1345,6 +1715,7 @@ public class ResourceAssetInspectorGlTest {
     private static void inspect(StudioApplicationAdapter studio, AssetNode.Kind kind) throws Exception {
         flush(inspector(studio));
         AssetNode.Root root = kind == AssetNode.Kind.FONT ? AssetNode.Root.FONTS
+                : kind == AssetNode.Kind.GAME_OBJECT ? AssetNode.Root.GAME_OBJECTS
                 : kind == AssetNode.Kind.PARTICLE ? AssetNode.Root.PARTICLES
                 : kind == AssetNode.Kind.SKIN ? AssetNode.Root.SKINS : AssetNode.Root.HUD;
         var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
@@ -1386,7 +1757,8 @@ public class ResourceAssetInspectorGlTest {
     private static void showDelete(StudioApplicationAdapter studio, AssetNode node) throws Exception {
         Object thumbs = field(studio.getAssetsPanel(), "thumbsView");
         boolean hud = node.kind == AssetNode.Kind.HUD_SCREEN;
-        var method = AssetsThumbsView.class.getDeclaredMethod(hud ? "showDeleteHudScreenDialog" : "showDeleteAssetDialog",
+        var method = AssetsThumbsView.class.getDeclaredMethod(hud ? "showDeleteHudScreenDialog"
+                : node.kind == AssetNode.Kind.GAME_OBJECT ? "showDeleteGameObjectDialog" : "showDeleteAssetDialog",
                 hud ? AssetNode.class : Array.class);
         method.setAccessible(true); method.invoke(thumbs, hud ? node : Array.with(node));
     }

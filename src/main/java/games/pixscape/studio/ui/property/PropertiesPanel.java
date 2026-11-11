@@ -172,6 +172,8 @@ public class PropertiesPanel extends DockablePanel {
 
         bindRefresh(sceneContext);
 
+        EventFlow.i().subscribe(EventFlow.GameObjectsChanged.class, evt -> resourceAssetProperties.gameObjectsChanged());
+
         EventFlow.i().subscribe(EventFlow.SelectionChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG || selectionService == null) return;
             pendingSelection = evt.ids() != null ? new IntArray(evt.ids()) : null;
@@ -798,6 +800,7 @@ public class PropertiesPanel extends DockablePanel {
         }
         var database = app.getSceneService().getAssetMetaDatabase();
         if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.HUD_SCREEN
+                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.GAME_OBJECT
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.PARTICLE
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.FONT
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN
