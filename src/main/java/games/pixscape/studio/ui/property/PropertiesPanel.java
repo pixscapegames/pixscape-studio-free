@@ -797,6 +797,7 @@ public class PropertiesPanel extends DockablePanel {
             return;
         }
         if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.HUD_SCREEN
+                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.PARTICLE
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.FONT
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN) {
             clearBindings();

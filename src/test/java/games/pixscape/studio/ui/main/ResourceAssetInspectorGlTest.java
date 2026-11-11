@@ -40,6 +40,219 @@ import static org.junit.Assume.assumeTrue;
 
 /** Real Assets/Inspector wiring, with isolated projects and owned preview resources. */
 public class ResourceAssetInspectorGlTest {
+    @Test public void particlePreviewPlaybackAndRenderingAreIndependent() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("particles"));
+            addParticle(project.parent(), "continuous", true);
+            open(studio, project);
+            inspect(studio, AssetNode.Kind.PARTICLE);
+            PropertiesPanel panel = inspector(studio);
+            assertNull(panel.findActor("resourceAssetID"));
+            Object preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            var effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            var emitter = effect.getEmitters().first();
+            var thumbnail = findParticle((AssetsThumbsView) field(studio.getAssetsPanel(), "thumbsView"));
+            var thumbnailEffect = (games.pixscape.runtime.particle.ParticleEffect) field(thumbnail, "effect");
+            assertNotSame(effect, thumbnailEffect);
+            assertNotSame(emitter.getSprites().first().getTexture(), particleTexture(thumbnail));
+            var sceneEffect = new games.pixscape.runtime.particle.ParticleEffect();
+            sceneEffect.load(project.parent().child("orig/effects/continuous.p"), project.parent().child("orig/images"));
+            sceneEffect.start(); sceneEffect.update(0.02f);
+            float sceneTime = sceneEffect.getEmitters().first().durationTimer;
+            var before = snapshot(project.parent());
+            String catalog = studio.getSceneService().getAssetMetaDatabase().toSnapshotJson();
+            var history = studio.getSceneEditorContext().historyManager();
+            boolean undo = history.canUndo(), dirty = history.isDirty();
+            var slider = (games.pixscape.studio.ui.widget.SimpleFloatSlider) panel.findActor("particlePreviewSpeed");
+            assertNull(panel.findActor("particlePreviewMax"));
+            try {
+                assertEquals(1f, slider.getValue(), 0f);
+                assertEquals(16f, slider.getMaxValue(), 0f);
+                assertEquals("1.00x", ((VisLabel) panel.findActor("particlePreviewSpeedValue")).getText().toString());
+                invokePreview(preview, "restart");
+                studio.getUiStage().draw();
+                Actor canvas = panel.findActor("particleAssetPreview");
+                canvas.act(0.05f);
+                assertEquals("Visible frames advance the preview", 50f, emitter.durationTimer, 0f);
+                studio.getUiStage().draw(); studio.getUiStage().draw();
+                assertEquals("Drawing alone never advances it", 50f, emitter.durationTimer, 0f);
+                for (float speed : new float[]{0.01f, 0.25f, 1f, 4f, 16f}) {
+                    slider.setValue(speed);
+                    assertEquals(java.lang.String.format(java.util.Locale.ROOT, "%.2fx", speed),
+                            ((VisLabel) panel.findActor("particlePreviewSpeedValue")).getText().toString());
+                    invokePreview(preview, "restart");
+                    for (int i = 0; i < 100; i++) advancePreview(preview, 0.01f);
+                    // Continuous cycles still run; low speeds accumulate rather than losing motion.
+                    assertFalse(effect.isComplete());
+                    if (speed <= 1) assertEquals(speed * 1000, emitter.durationTimer, 11f);
+                    assertTrue(emitter.getActiveCount() > 0);
+                    assertEquals(100f, emitter.getVelocity().getHighMin(), 0f);
+                }
+                slider.setValue(1f); invokePreview(preview, "restart"); advancePreview(preview, 0.05f);
+                float time = emitter.durationTimer;
+                float x = emitter.getParticles()[0].getX();
+                float y = emitter.getParticles()[0].getY();
+                slider.setValue(0f);
+                advancePreview(preview, 1000f);
+                studio.getUiStage().draw(); studio.getUiStage().draw();
+                assertEquals(time, emitter.durationTimer, 0f);
+                assertEquals(x, emitter.getParticles()[0].getX(), 0f);
+                slider.setValue(0.5f); advancePreview(preview, 0.04f);
+                assertEquals(time + 20, emitter.durationTimer, 0f);
+                assertEquals(2f, com.badlogic.gdx.math.Vector2.dst(x, y,
+                        emitter.getParticles()[0].getX(), emitter.getParticles()[0].getY()), 0.001f);
+                slider.setValue(0.25f);
+                assertEquals(0.25f, slider.getValue(), 0f);
+                ((com.kotcrab.vis.ui.widget.VisTextButton) panel.findActor("particlePreviewRestart"))
+                        .fire(new ChangeListener.ChangeEvent());
+                assertEquals(0, emitter.getActiveCount());
+                assertEquals(0.25f, slider.getValue(), 0f);
+                slider.setValue(16);
+                advancePreview(preview, 1000f);
+                assertEquals("A stalled frame simulates at most 800 ms", 800f, emitter.durationTimer, 0f);
+                slider.setValue(0f);
+                var batch = studio.getUiStage().getBatch();
+                int src = batch.getBlendSrcFunc(), dst = batch.getBlendDstFunc();
+                int srcAlpha = batch.getBlendSrcFuncAlpha(), dstAlpha = batch.getBlendDstFuncAlpha();
+                batch.setBlendFunctionSeparate(1, 1, 0, 1);
+                batch.begin();
+                ((Actor) panel.findActor("particleAssetPreview")).draw(batch, 1f);
+                batch.end();
+                assertEquals(1, batch.getBlendSrcFunc()); assertEquals(1, batch.getBlendDstFunc());
+                assertEquals(0, batch.getBlendSrcFuncAlpha()); assertEquals(1, batch.getBlendDstFuncAlpha());
+                batch.setBlendFunctionSeparate(src, dst, srcAlpha, dstAlpha);
+                studio.getDockManager().hide((games.pixscape.studio.ui.docking.DockablePanel) field(studio, "layersPanel"));
+                screenshot(studio, "particle-continuous-additive");
+                screenshotBottom(studio, "particle-continuous-controls");
+                assertEquals(sceneTime, sceneEffect.getEmitters().first().durationTimer, 0f);
+                assertEquals(0, thumbnailEffect.getEmitters().first().getActiveCount());
+                assertEquals(catalog, studio.getSceneService().getAssetMetaDatabase().toSnapshotJson());
+                assertEquals(undo, history.canUndo()); assertEquals(dirty, history.isDirty());
+                assertEquals(before, snapshot(project.parent()));
+            } finally { sceneEffect.dispose(); }
+        });
+    }
+
+    @Test public void particleInspectionRetainsSettingsAndReleasesOwnedResources() throws Exception {
+        var closingTexture = new com.badlogic.gdx.graphics.Texture[1];
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("particles"));
+            int id = addParticle(project.parent(), "burst", false);
+            open(studio, project);
+            var context = studio.getSceneEditorContext();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity);
+            context.world().process(); context.selectionService().selectOnly(entity);
+            inspect(studio, AssetNode.Kind.PARTICLE);
+            PropertiesPanel panel = inspector(studio);
+            assertEquals(entity, context.selectionService().getSelectionSnapshot().first());
+            Object preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            var effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            var texture = effect.getEmitters().first().getSprites().first().getTexture();
+            var slider = (games.pixscape.studio.ui.widget.SimpleFloatSlider) panel.findActor("particlePreviewSpeed");
+            slider.setValue(2f);
+            for (int i = 0; i < 30; i++) advancePreview(preview, 0.05f);
+            assertTrue("One-shot effects finish without auto-restart", effect.isComplete());
+            invokePreview(preview, "restart"); advancePreview(preview, 0.05f);
+            assertFalse(effect.isComplete());
+            assertEquals(2f, slider.getValue(), 0f);
+            slider.setValue(0f);
+            studio.getDockManager().hide((games.pixscape.studio.ui.docking.DockablePanel) field(studio, "layersPanel"));
+            screenshot(studio, "particle-burst-additive");
+            screenshotBottom(studio, "particle-burst-controls");
+            slider.setValue(2f);
+            float time = effect.getEmitters().first().durationTimer;
+            studio.getDockManager().hide(panel);
+            ((Actor) preview).act(20f);
+            assertEquals(time, effect.getEmitters().first().durationTimer, 0f);
+            assertTrue(texture.getTextureObjectHandle() != 0);
+            studio.getDockManager().show(panel);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_TOP);
+            assertSame(preview, field(panel.inspectedResourceProperties(), "particlePreview"));
+            assertEquals(2f, slider.getValue(), 0f);
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertNotNull(panel.inspectedResourceProperties());
+            assertEquals(0, texture.getTextureObjectHandle());
+            assertEquals(2f, ((games.pixscape.studio.ui.widget.SimpleFloatSlider) panel.findActor("particlePreviewSpeed")).getValue(), 0f);
+            showDelete(studio, studio.getAssetsPanel().getSelectedAssetNode());
+            respond(lastDialog(studio), false);
+            assertNotNull(panel.inspectedResourceProperties());
+            // A second missing sprite must also release the first texture allocated by the failed load.
+            preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            effect.getEmitters().first().setImagePaths(Array.with("spark.png", "missing.png"));
+            try (var writer = project.parent().child("orig/effects/burst.p").writer(false)) { effect.save(writer); }
+            int managedTextures = com.badlogic.gdx.graphics.Texture.getNumManagedTextures();
+            studio.reloadAssetInspection();
+            assertNull(panel.findActor("particleAssetPreview"));
+            assertEquals(managedTextures - 1, com.badlogic.gdx.graphics.Texture.getNumManagedTextures());
+            assertTrue(label(panel, "Preview unavailable").contains("missing.png"));
+            project.parent().child("orig/images/spark.png").delete();
+            studio.reloadAssetInspection();
+            assertNull(panel.findActor("particleAssetPreview"));
+            assertTrue(label(panel, "Preview unavailable").contains("missing"));
+            project.parent().child("orig/effects/burst.p").delete();
+            studio.reloadAssetInspection();
+            assertTrue(label(panel, "Preview unavailable").contains("file is missing"));
+            studio.getSceneService().deleteProjectAssets(Array.with(id)); flush(panel);
+            assertNull(panel.inspectedResourceProperties());
+            assertEquals(entity, field(panel, "boundEntity"));
+            FileHandle next = project(studio, root.child("next"));
+            addParticle(next.parent(), "next", true); open(studio, next);
+            inspect(studio, AssetNode.Kind.PARTICLE);
+            preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            texture = effect.getEmitters().first().getSprites().first().getTexture();
+            studio.render(); studio.render();
+            open(studio, project);
+            assertEquals(0, texture.getTextureObjectHandle());
+            assertNull(panel.inspectedResourceProperties());
+            open(studio, next);
+            inspect(studio, AssetNode.Kind.PARTICLE);
+            preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            texture = effect.getEmitters().first().getSprites().first().getTexture();
+            studio.getDockManager().show((games.pixscape.studio.ui.docking.DockablePanel) field(studio, "layersPanel"));
+            clickLayer(studio, studio.getSceneEditorContext().layerService().getFirstLayerEntity(), 1);
+            assertNull(panel.inspectedResourceProperties());
+            assertEquals(0, texture.getTextureObjectHandle());
+            inspect(studio, AssetNode.Kind.PARTICLE);
+            preview = field(panel.inspectedResourceProperties(), "particlePreview");
+            effect = (games.pixscape.runtime.particle.ParticleEffect) field(preview, "effect");
+            closingTexture[0] = effect.getEmitters().first().getSprites().first().getTexture();
+        });
+        assertEquals("Closing Studio releases the active preview", 0, closingTexture[0].getTextureObjectHandle());
+    }
+
+    private static int addParticle(FileHandle dir, String name, boolean continuous) throws Exception {
+        Pixmap pixels = new Pixmap(16, 16, Pixmap.Format.RGBA8888);
+        pixels.setColor(1f, 0.45f, 0.05f, 0.8f); pixels.fillCircle(8, 8, 7);
+        PixmapIO.writePNG(dir.child("orig/images/spark.png"), pixels); pixels.dispose();
+        var emitter = new games.pixscape.runtime.particle.ParticleEmitter();
+        emitter.setName(name); emitter.setMaxParticleCount(100); emitter.setContinuous(continuous); emitter.setAdditive(true);
+        emitter.setImagePaths(Array.with("spark.png"));
+        emitter.getDuration().setLow(1000); emitter.getLife().setHigh(800);
+        emitter.getEmission().setHigh(50); emitter.getXScale().setHigh(12);
+        emitter.getVelocity().setActive(true); emitter.getVelocity().setHigh(100);
+        emitter.getAngle().setActive(true); emitter.getAngle().setHigh(0, 360);
+        emitter.getTransparency().setHigh(1); emitter.getTint().setColors(new float[]{1f, 0.6f, 0.1f});
+        var effect = new games.pixscape.runtime.particle.ParticleEffect(); effect.getEmitters().add(emitter);
+        try (var writer = dir.child("orig/effects/" + name + ".p").writer(false)) { effect.save(writer); }
+        var db = AssetMetaDatabase.load(dir.child("assets.json"));
+        int id = db.registerIfAbsent(AssetType.PARTICLE, "particles/" + name, "orig/effects/" + name + ".p", AssetMeta.AssetScope.USER).id();
+        db.save(dir.child("assets.json")); return id;
+    }
+
+    private static void advancePreview(Object preview, float delta) throws Exception {
+        var method = preview.getClass().getDeclaredMethod("advance", float.class);
+        method.setAccessible(true); method.invoke(preview, delta);
+    }
+
+    private static void invokePreview(Object preview, String name) throws Exception {
+        var method = preview.getClass().getDeclaredMethod(name);
+        method.setAccessible(true); method.invoke(preview);
+    }
+
     @Test public void resourceInspectionSurvivesVisualDetachAndRefresh() throws Exception {
         withStudio((studio, root) -> {
             open(studio, project(studio, root.child("first")));
@@ -906,6 +1119,7 @@ public class ResourceAssetInspectorGlTest {
     private static void inspect(StudioApplicationAdapter studio, AssetNode.Kind kind) throws Exception {
         flush(inspector(studio));
         AssetNode.Root root = kind == AssetNode.Kind.FONT ? AssetNode.Root.FONTS
+                : kind == AssetNode.Kind.PARTICLE ? AssetNode.Root.PARTICLES
                 : kind == AssetNode.Kind.SKIN ? AssetNode.Root.SKINS : AssetNode.Root.HUD;
         var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
         tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, root, "", "", null));

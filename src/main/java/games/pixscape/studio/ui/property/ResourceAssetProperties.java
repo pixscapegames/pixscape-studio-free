@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Read-only HUD/Font/Skin details with owned static previews. Docking retains the target
+ * Read-only resource details with owned previews. Docking retains the target
  * and previews; PropertiesPanel explicitly clears them when inspection ends.
  */
 public final class ResourceAssetProperties extends VisTable {
@@ -50,6 +50,8 @@ public final class ResourceAssetProperties extends VisTable {
     private boolean displayedDirty;
     private BitmapFont previewFont;
     private Skin previewSkin;
+    private ParticleAssetPreview particlePreview;
+    private float previewSpeed = 1f;
 
     ResourceAssetProperties(StudioApplicationAdapter app, Runnable leaveInspection) {
         super(true);
@@ -83,7 +85,8 @@ public final class ResourceAssetProperties extends VisTable {
     boolean reload() {
         releasePreview();
         details.clearChildren();
-        details.add(new VisLabel(kind == AssetNode.Kind.HUD_SCREEN ? HudInspectorProjection.SCREEN_TITLE : kind.name()))
+        details.add(new VisLabel(kind == AssetNode.Kind.HUD_SCREEN ? HudInspectorProjection.SCREEN_TITLE
+                : kind == AssetNode.Kind.PARTICLE ? "PARTICLE EFFECT" : kind.name()))
                 .colspan(2).center().padBottom(8).row();
         if (kind == AssetNode.Kind.HUD_SCREEN) {
             displayedHud = null;
@@ -126,11 +129,15 @@ public final class ResourceAssetProperties extends VisTable {
         displayedMeta = app.getSceneService().getAssetMetaDatabase().findById(assetId);
         if (displayedMeta == null) return false;
         row("Name", AssetDisplayInfo.from(displayedMeta).displayName());
-        row("ID", Integer.toString(assetId));
+        if (kind != AssetNode.Kind.PARTICLE) row("ID", Integer.toString(assetId));
         row("Source", displayedMeta.sourceRelPath());
         try {
             FileHandle source = project.child(displayedMeta.sourceRelPath());
-            if (kind == AssetNode.Kind.FONT) showFont(source);
+            if (kind == AssetNode.Kind.PARTICLE) {
+                particlePreview = new ParticleAssetPreview(source, project.child(StudioFs.DIR_ORIG_IMAGES),
+                        previewSpeed);
+                details.add(particlePreview).colspan(2).growX().padTop(8).row();
+            } else if (kind == AssetNode.Kind.FONT) showFont(source);
             else showSkin(source);
         } catch (RuntimeException failure) {
             releasePreview();
@@ -238,9 +245,15 @@ public final class ResourceAssetProperties extends VisTable {
         screenId = null;
         displayedMeta = null;
         displayedHud = null;
+        previewSpeed = 1f;
     }
 
     private void releasePreview() {
+        if (particlePreview != null) {
+            previewSpeed = particlePreview.speed();
+            particlePreview.dispose();
+            particlePreview = null;
+        }
         if (previewFont != null) previewFont.dispose();
         if (previewSkin != null) previewSkin.dispose();
         previewFont = null;
