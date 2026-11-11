@@ -40,6 +40,804 @@ import static org.junit.Assume.assumeTrue;
 
 /** Real Assets/Inspector wiring, with isolated projects and owned preview resources. */
 public class ResourceAssetInspectorGlTest {
+    @Test public void tileAnimationInternalMovesAreAtomicAndPreserveOccurrences() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            var file = project(studio, root.child("internal-moves")); int[] tiles = tileFixtures(file.parent());
+            open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Move occurrences");
+            int[] frames = {tiles[0], tiles[1], tiles[0], tiles[1], tiles[0]};
+            service.insertTileAnimationFrames(id, 0, frames);
+            for (int i = 0; i < 5; i++) service.updateTileAnimationFrameDuration(id, i, 100 + i);
+            int[] originalDurations = {100, 101, 102, 103, 104};
+            studio.editTileAnimation(id);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            var split = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "centerRightSplit");
+            for (float width : new float[]{.45f, .72f}) {
+                split.setSplitAmount(width);
+                for (int[] scenario : new int[][]{{0, 4}, {4, 0}, {3, 1, 3}, {3, 1, 0}, {2, 1, 2}}) {
+                    int[] moving = java.util.Arrays.copyOf(scenario, scenario.length - 1);
+                    int destination = scenario[scenario.length - 1];
+                    frameClick(studio, moving[0], false);
+                    for (int i = 1; i < moving.length; i++) {
+                        int occurrence = moving[i];
+                        withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> frameClick(studio, occurrence, false));
+                    }
+                    java.util.Arrays.sort(moving);
+                    int cursor = service.tileAnimationHistory().getCursor();
+                    internalMove(studio, moving[0], destination, false, null, "move-" + width + "-" + destination);
+                    int[] expected = new int[5]; int rest = 0, moved = 0;
+                    for (int i = 0; i < 5; i++) {
+                        if (java.util.Arrays.binarySearch(moving, i) >= 0) expected[destination + moved++] = originalDurations[i];
+                        else { expected[rest + (rest >= destination ? moving.length : 0)] = originalDurations[i]; rest++; }
+                    }
+                    assertArrayEquals(expected, service.findTileAnimationProjectDef(id).frameDurationsMs);
+                    assertEquals(cursor + 1, service.tileAnimationHistory().getCursor());
+                    int[] selection = new int[moving.length]; for (int i = 0; i < selection.length; i++) selection[i] = destination + i;
+                    assertArrayEquals(selection, frameSelection(panel));
+                    var saved = games.pixscape.studio.io.TileAnimationsIO.load(file.parent().child(games.pixscape.runtime.helper.RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+                    assertArrayEquals(expected, saved.animations.first().frameDurationsMs);
+                    assertTrue(studio.undoActiveDocument()); flush(panel);
+                    assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+                    assertArrayEquals(originalDurations, service.findTileAnimationProjectDef(id).frameDurationsMs);
+                    assertTrue(studio.redoActiveDocument()); flush(panel);
+                    assertArrayEquals(expected, service.findTileAnimationProjectDef(id).frameDurationsMs);
+                    assertTrue(studio.undoActiveDocument()); flush(panel);
+                }
+            }
+            // Dragging an unselected occurrence replaces the old selection only when the drag starts.
+            frameClick(studio, 0, false); internalMove(studio, 4, 0, false, null, null);
+            assertArrayEquals(new int[]{104, 100, 101, 102, 103}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            assertArrayEquals(new int[]{0}, frameSelection(panel));
+            assertTrue(studio.undoActiveDocument()); flush(panel);
+            int before = service.tileAnimationHistory().getCursor();
+            frameClick(studio, 1, false);
+            withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> frameClick(studio, 2, false));
+            internalMove(studio, 1, 1, false, null, null); // Same order.
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            assertArrayEquals(originalDurations, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            internalMove(studio, 1, 3, true, null, null);
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            internalMove(studio, 1, 3, false, () -> studio.getUiStage().touchUp(-10, -10, 0, 0), null);
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            internalMove(studio, 1, 3, false, () -> studio.getUiStage().keyDown(com.badlogic.gdx.Input.Keys.ESCAPE), null);
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            // The numeric field owns its drag (text selection), never a frame move.
+            var duration = panel.findActor("tileAnimationDuration0"); clickActor(studio, duration);
+            var stage = studio.getUiStage();
+            var p = stage.stageToScreenCoordinates(duration.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(8, 8)));
+            stage.touchDown((int)p.x, (int)p.y, 0, 0); stage.touchDragged((int)p.x + 70, (int)p.y, 0);
+            assertNull(field(panel.inspectedTileAnimationProperties(), "movingSource")); stage.cancelTouchFocus();
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            // Any intervening publication invalidates captured occurrence indices.
+            frameClick(studio, 1, false);
+            internalMove(studio, 1, 3, false, () -> service.updateTileAnimationFrameDuration(id, 0, 777), null);
+            assertEquals(before + 1, service.tileAnimationHistory().getCursor());
+            assertArrayEquals(new int[]{777, 101, 102, 103, 104}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            // Project replacement tears down the gesture before a late source release can commit.
+            var savedBefore = snapshot(file.parent());
+            frameClick(studio, 1, false);
+            internalMove(studio, 1, 3, false, () -> open(studio, project(studio, root.child("after-move"))), null);
+            assertEquals(savedBefore, snapshot(file.parent()));
+            assertNull(panel.inspectedTileAnimationProperties());
+        });
+    }
+
+    private static void internalMove(StudioApplicationAdapter studio, int sourceIndex, int destination,
+                                     boolean cancel, InputAction duringHover, String capture) throws Exception {
+        var panel = inspector(studio); var card = panel.inspectedTileAnimationProperties();
+        var sequence = (games.pixscape.studio.ui.widget.InsertionPreviewGrid) panel.findActor("tileAnimationSequence");
+        studio.render(); studio.render();
+        var stage = studio.getUiStage(); var def = studio.getSceneService().findTileAnimationProjectDef(card.assetId());
+        int[] selection = frameSelection(panel);
+        if (java.util.Arrays.binarySearch(selection, sourceIndex) < 0) selection = new int[]{sourceIndex};
+        Actor source = panel.findActor("tileAnimationFrame" + sourceIndex);
+        var start = stage.stageToScreenCoordinates(source.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(20, source.getHeight() - 20)));
+        int[] beforePress = frameSelection(panel);
+        assertTrue(stage.touchDown((int)start.x, (int)start.y, 0, 0));
+        assertArrayEquals(beforePress, frameSelection(panel));
+        stage.touchDragged((int)start.x + 8, (int)start.y, 0);
+        studio.render(); studio.render();
+        assertArrayEquals(selection, frameSelection(panel));
+        assertNotNull(field(card, "movingSource"));
+        var remaining = new java.util.ArrayList<Actor>();
+        for (int i = 0; i < def.frameAssetIds.length; i++) {
+            Actor cell = panel.findActor("tileAnimationFrame" + i);
+            if (java.util.Arrays.binarySearch(selection, i) < 0) { remaining.add(cell); assertTrue(cell.isVisible()); }
+            else assertFalse(cell.isVisible());
+        }
+        boolean end = destination == remaining.size();
+        Actor targetCell = end ? remaining.get(remaining.size() - 1) : remaining.get(destination);
+        var target = stage.stageToScreenCoordinates(targetCell.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(
+                end ? targetCell.getWidth() - 4 : 4, targetCell.getHeight() - 20)));
+        stage.touchDragged((int)target.x, (int)target.y, 0);
+        for (int i = 0; i < 5; i++) { studio.render(); assertEquals(destination, sequence.insertionIndex()); }
+        assertSame(def, studio.getSceneService().findTileAnimationProjectDef(card.assetId()));
+        if (capture != null) screenshot(studio, capture);
+        if (duringHover != null) duringHover.run();
+        if (cancel) stage.cancelTouchFocus(); else stage.touchUp((int)target.x, (int)target.y, 0, 0);
+        studio.render(); flush(panel);
+        assertNull(field(card, "movingSource")); assertEquals(-1, sequence.insertionIndex());
+        if (panel.inspectedTileAnimationProperties() == card)
+            for (int i = 0; i < def.frameAssetIds.length; i++) assertTrue(panel.findActor("tileAnimationFrame" + i).isVisible());
+    }
+
+    @Test public void tileAnimationBrowserShowsTerminalAssetsAndExplicitlyOpensInspectorEditing() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            var file = project(studio, root.child("terminal-animation")); int[] tiles = tileFixtures(file.parent());
+            open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Water"); service.insertTileAnimationFrames(id, 0, new int[]{tiles[0], tiles[1], tiles[0]});
+            service.updateTileAnimationFrameDuration(id, 1, 123);
+            studio.getAssetsPanel().selectTiledAnimationById(id); studio.render(); studio.render();
+            var thumbs = field(studio.getAssetsPanel(), "thumbsView");
+            var assets = (Array<AssetNode>) field(thumbs, "currentAssets");
+            assertEquals(1, assets.size); assertEquals(AssetNode.Kind.TILED_ANIMATION, assets.first().kind);
+            assertEquals(id, studio.getAssetsPanel().getSelectedAssetNode().tileAnimationId);
+            assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            var widget = (com.kotcrab.vis.ui.widget.VisTree) field(tree, "tree");
+            var node = animationTreeNode(widget.getRootNodes(), id); assertNotNull(node);
+            assertEquals(0, node.getChildren().size); node.getParent().setExpanded(true);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rootSplit")).setSplitAmount(.6f);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            screenshot(studio, "terminal-animation-browser");
+            Actor tile = selectedTile(studio, AssetNode.Kind.TILED_ANIMATION);
+            clickActor(studio, tile); assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            clickActor(studio, tile); assertTrue(panel.inspectedTileAnimationProperties().isEditing());
+            assertArrayEquals(new int[]{300, 123, 300}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            screenshot(studio, "terminal-animation-edit");
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId());
+            assertArrayEquals(new int[]{300, 123, 300}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            var loaded = games.pixscape.studio.io.TileAnimationsIO.load(file.parent().child(games.pixscape.runtime.helper.RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+            assertArrayEquals(new int[]{tiles[0], tiles[1], tiles[0]}, loaded.animations.first().frameAssetIds);
+            assertArrayEquals(new int[]{300, 123, 300}, loaded.animations.first().frameDurationsMs);
+        });
+    }
+
+    private static com.kotcrab.vis.ui.widget.VisTree.Node animationTreeNode(Array<com.kotcrab.vis.ui.widget.VisTree.Node> nodes, int id) {
+        for (var node : nodes) {
+            if (node.getActor().getUserObject() instanceof AssetNode asset && asset.kind == AssetNode.Kind.TILED_ANIMATION && asset.tileAnimationId == id) return node;
+            var found = animationTreeNode(node.getChildren(), id); if (found != null) return found;
+        }
+        return null;
+    }
+
+    @Test public void tileAnimationBrowserStillDropsTheAnimationIntoTheSelectedMap() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            var file = project(studio, root.child("animation-scene-drop")); int[] tiles = tileFixtures(file.parent());
+            open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); int id = service.createEmptyTileAnimation("Water");
+            service.insertTileAnimationFrames(id, 0, tiles);
+            var canvas = studio.getCanvas(); var context = canvas.getAttachedSceneContext();
+            int mapId = canvas.getEditorOps().addTiledMap(context.selectionService().getActivelayerId(), 32, 32,
+                    games.pixscape.runtime.tiled.TiledProjection.ORTHO, 16, 16, 8);
+            studio.render(); studio.render(); canvas.focusCameraAt(128, 128);
+            var map = context.world().getMapper(games.pixscape.runtime.component.TiledLayerComponent.class).get(mapId);
+            studio.getAssetsPanel().selectTiledAnimationById(id); studio.render(); studio.render();
+            Actor source = selectedTile(studio, AssetNode.Kind.TILED_ANIMATION); var stage = studio.getUiStage();
+            var from = stage.stageToScreenCoordinates(source.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(20, 20)));
+            var coordinates = (games.pixscape.studio.service.CoordSpaces) field(canvas, "coordSpaces");
+            var to = coordinates.worldToScreen(map.data.tileToWorldX(2, 2) + 4, map.data.tileToWorldY(2, 2) + 4, new com.badlogic.gdx.math.Vector2());
+            to.y = Gdx.graphics.getHeight() - to.y;
+            assertEquals(mapId, context.selectionService().getTiledMapEditingTargetEntityId());
+            var targetStage = stage.screenToStageCoordinates(new com.badlogic.gdx.math.Vector2(to));
+            assertNull("Canvas drop must not hit a UI overlay", stage.hit(targetStage.x, targetStage.y, true));
+            var worldPoint = coordinates.screenToWorldLogical(to.x, to.y, context.selectionService().getActiveLayerIndex(), context.layerService(), new com.badlogic.gdx.math.Vector2());
+            assertTrue("Drop world position " + worldPoint, map.data.isInside(map.data.worldToTileX(worldPoint.x, worldPoint.y), map.data.worldToTileY(worldPoint.x, worldPoint.y)));
+            assertTrue(context.selectionService().isTiledMapEditingTargetActive());
+            int cursor = context.historyManager().getCursor(); var input = Gdx.input;
+            Gdx.input = (com.badlogic.gdx.Input) java.lang.reflect.Proxy.newProxyInstance(com.badlogic.gdx.Input.class.getClassLoader(),
+                    new Class<?>[]{com.badlogic.gdx.Input.class}, (proxy, method, args) -> switch (method.getName()) {
+                        case "getX" -> Math.round(to.x); case "getY" -> Math.round(to.y);
+                        default -> method.invoke(input, args);
+                    });
+            try {
+                stage.touchDown((int)from.x, (int)from.y, 0, 0); stage.touchDragged((int)to.x, (int)to.y, 0);
+                var payload = games.pixscape.studio.ui.asset.dnd.DragContext.get().peek();
+                assertNotNull(payload); assertEquals("tiled-animation", payload.type); assertEquals(id, payload.tileAnimationId);
+                stage.touchUp((int)to.x, (int)to.y, 0, 0); studio.render(); studio.render();
+                assertFalse(games.pixscape.studio.ui.asset.dnd.DragContext.get().active());
+                assertEquals(cursor + 1, context.historyManager().getCursor());
+                int found = 0;
+                for (int y = 0; y < 32; y++) for (int x = 0; x < 32; x++) if (map.data.getTile(x, y) == id) found++;
+                assertEquals(1, found); assertArrayEquals(tiles, service.findTileAnimationProjectDef(id).frameAssetIds);
+            } finally { Gdx.input = input; stage.cancelTouchFocus(); }
+        });
+    }
+
+    @Test public void tileAnimationGridSelectionDeletionAndResizeUseRealInput() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("grid-selection"));
+            int[] tiles = tileFixtures(file.parent()); open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Occurrences");
+            int[] frames = {tiles[0], tiles[1], tiles[0], tiles[1], tiles[0], tiles[1], tiles[0]};
+            service.insertTileAnimationFrames(id, 0, frames);
+            for (int i = 0; i < frames.length; i++) service.updateTileAnimationFrameDuration(id, i, 100 + i);
+            int[] durations = service.findTileAnimationProjectDef(id).frameDurationsMs.clone();
+            studio.inspectTileAnimation(id);
+            var width = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "centerRightSplit");
+            width.setSplitAmount(.45f);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            studio.render(); studio.render();
+            var readonly = (games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0");
+            assertTrue(readonly.isDisabled());
+            frameClick(studio, 0, false); assertEquals(0, frameSelection(panel).length);
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            var sequence = (games.pixscape.studio.ui.widget.InsertionPreviewGrid) panel.findActor("tileAnimationSequence");
+            frameClick(studio, 0, false);
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> frameClick(studio, 2, false));
+            assertArrayEquals(new int[]{0, 2}, frameSelection(panel));
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> frameClick(studio, 2, false));
+            assertArrayEquals(new int[]{0}, frameSelection(panel));
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> frameClick(studio, 2, false));
+            frameClick(studio, 0, true); assertArrayEquals(new int[]{0, 2}, frameSelection(panel));
+            screenshot(studio, "tile-animation-grid-wide-menu");
+            int before = service.tileAnimationHistory().getCursor();
+            clickActor(studio, studio.getUiStage().getRoot().findActor("tileAnimationDelete")); flush(panel);
+            assertEquals(before + 1, service.tileAnimationHistory().getCursor());
+            assertArrayEquals(new int[]{tiles[1], tiles[1], tiles[0], tiles[1], tiles[0]}, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertArrayEquals(new int[]{101, 103, 104, 105, 106}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            assertTrue(studio.undoActiveDocument()); flush(panel);
+            assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertArrayEquals(durations, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            assertTrue(studio.redoActiveDocument()); flush(panel);
+            assertEquals(5, service.findTileAnimationProjectDef(id).frameAssetIds.length);
+            assertTrue(studio.undoActiveDocument()); flush(panel);
+            frameClick(studio, 1, false);
+            withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> frameClick(studio, 4, false));
+            assertArrayEquals(new int[]{1, 2, 3, 4}, frameSelection(panel));
+            var duration = (games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0");
+            withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> clickActor(studio, duration));
+            assertArrayEquals(new int[]{1, 2, 3, 4}, frameSelection(panel));
+            duration.setText("234"); duration.setCursorPosition(0);
+            before = service.tileAnimationHistory().getCursor();
+            Gdx.input.getInputProcessor().keyDown(com.badlogic.gdx.Input.Keys.FORWARD_DEL);
+            Gdx.input.getInputProcessor().keyTyped((char) 127);
+            Gdx.input.getInputProcessor().keyUp(com.badlogic.gdx.Input.Keys.FORWARD_DEL);
+            assertEquals("34", duration.getText());
+            assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertEquals(before, service.tileAnimationHistory().getCursor());
+            int wideColumns = sequence.columns();
+            width.setSplitAmount(.72f); studio.render(); studio.render();
+            assertTrue("Columns " + wideColumns + " -> " + sequence.columns() + ", width=" + sequence.getWidth()
+                    , sequence.columns() < wideColumns);
+            assertSame(duration, panel.findActor("tileAnimationDuration0"));
+            assertSame(duration, studio.getUiStage().getKeyboardFocus()); assertEquals("34", duration.getText());
+            assertArrayEquals(new int[]{1, 2, 3, 4}, frameSelection(panel));
+            assertTrue(panel.findActor("tileAnimationFrame3").getY() < panel.findActor("tileAnimationFrame0").getY());
+            screenshot(studio, "tile-animation-grid-narrow");
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.65f);
+            studio.render(); studio.render();
+            Actor scrollParent = sequence.getParent();
+            while (!(scrollParent instanceof com.badlogic.gdx.scenes.scene2d.ui.ScrollPane)) scrollParent = scrollParent.getParent();
+            var scroller = (com.badlogic.gdx.scenes.scene2d.ui.ScrollPane) scrollParent;
+            var scrollPoint = studio.getUiStage().stageToScreenCoordinates(scroller.localToStageCoordinates(
+                    new com.badlogic.gdx.math.Vector2(scroller.getWidth() / 2, scroller.getHeight() / 2)));
+            studio.getUiStage().mouseMoved(Math.round(scrollPoint.x), Math.round(scrollPoint.y)); studio.getUiStage().act(.01f);
+            assertTrue(studio.getUiStage().scrolled(0, 4)); studio.getUiStage().act(.5f);
+            assertTrue(scroller.getScrollY() > 0);
+            assertSame(duration, panel.findActor("tileAnimationDuration0"));
+            assertArrayEquals(new int[]{1, 2, 3, 4}, frameSelection(panel));
+            screenshot(studio, "tile-animation-grid-scrolled");
+            studio.getUiStage().scrolled(0, -100); studio.getUiStage().act(.5f);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            studio.render(); studio.render();
+            duration.setText("100"); // Unchanged value: moving focus must not add a command.
+            frameClick(studio, 6, true); assertArrayEquals(new int[]{6}, frameSelection(panel));
+            clickActor(studio, studio.getUiStage().getRoot().findActor("tileAnimationDelete")); flush(panel);
+            assertEquals(before + 1, service.tileAnimationHistory().getCursor());
+            assertEquals(6, service.findTileAnimationProjectDef(id).frameAssetIds.length);
+            assertTrue(studio.undoActiveDocument()); flush(panel);
+            before = service.tileAnimationHistory().getCursor();
+            studio.getUiStage().setKeyboardFocus(sequence); deleteKey(studio);
+            assertEquals(before, service.tileAnimationHistory().getCursor()); // No selection.
+            frameClick(studio, 0, false);
+            withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> frameClick(studio, 6, false));
+            deleteKey(studio);
+            assertEquals(before + 1, service.tileAnimationHistory().getCursor());
+            assertNotNull(service.findTileAnimationProjectDef(id)); // DEL did not reach Assets.
+            assertEquals(0, service.findTileAnimationProjectDef(id).frameAssetIds.length);
+            assertNotNull(panel.findActor("tileAnimationEmptyDrop"));
+            assertFalse(studio.getCanvas().getTileAnimationRegistry().contains(id));
+            assertTrue(studio.undoActiveDocument()); flush(panel);
+            assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertArrayEquals(durations, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            assertTrue(((games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0")).isDisabled());
+        });
+    }
+
+    private static int[] frameSelection(PropertiesPanel panel) throws Exception {
+        int[] indices = ((com.badlogic.gdx.utils.IntSet) field(panel.inspectedTileAnimationProperties(), "selected")).iterator().toArray().toArray();
+        java.util.Arrays.sort(indices); return indices;
+    }
+
+    @Test public void tileAnimationGridDropsCrossRowsWithoutHoverMutation() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("grid-drops"));
+            int[] tiles = tileFixtures(file.parent()); open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Wrapped drops");
+            int[] frames = {tiles[0], tiles[1], tiles[0], tiles[1], tiles[0]};
+            service.insertTileAnimationFrames(id, 0, frames); studio.editTileAnimation(id);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "centerRightSplit")).setSplitAmount(.72f);
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.TILES, "water", "water", null));
+            studio.render(); studio.render();
+            var sequence = (games.pixscape.studio.ui.widget.InsertionPreviewGrid) panel.findActor("tileAnimationSequence");
+            assertEquals(2, sequence.columns());
+            for (int position : new int[]{0, 1, 2, 4, 5}) {
+                Actor source = tileActor(studio, tiles[0]);
+                clickActor(studio, tileActor(studio, tiles[1]));
+                withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> clickActor(studio, source));
+                int before = service.tileAnimationHistory().getCursor();
+                tileDrop(studio, source, position, false, true);
+                int[] expected = new int[frames.length + tiles.length];
+                System.arraycopy(frames, 0, expected, 0, position);
+                System.arraycopy(tiles, 0, expected, position, tiles.length);
+                System.arraycopy(frames, position, expected, position + tiles.length, frames.length - position);
+                assertArrayEquals(expected, service.findTileAnimationProjectDef(id).frameAssetIds);
+                assertEquals(before + 1, service.tileAnimationHistory().getCursor());
+                assertTrue(studio.undoActiveDocument()); flush(panel);
+                assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+            }
+            Actor source = tileActor(studio, tiles[0]); clickActor(studio, source);
+            tileDrop(studio, source, 2, true, false);
+            assertArrayEquals(frames, service.findTileAnimationProjectDef(id).frameAssetIds);
+        });
+    }
+
+    private static void frameClick(StudioApplicationAdapter studio, int index, boolean right) throws Exception {
+        studio.render(); studio.render();
+        Actor cell = inspector(studio).findActor("tileAnimationFrame" + index);
+        var point = studio.getUiStage().stageToScreenCoordinates(cell.localToStageCoordinates(
+                new com.badlogic.gdx.math.Vector2(cell.getWidth() / 2, cell.getHeight() - 20)));
+        int button = right ? com.badlogic.gdx.Input.Buttons.RIGHT : com.badlogic.gdx.Input.Buttons.LEFT;
+        studio.getUiStage().touchDown(Math.round(point.x), Math.round(point.y), 0, button);
+        studio.getUiStage().touchUp(Math.round(point.x), Math.round(point.y), 0, button);
+        flush(inspector(studio));
+    }
+
+    private static void deleteKey(StudioApplicationAdapter studio) throws Exception {
+        assertTrue(Gdx.input.getInputProcessor().keyDown(com.badlogic.gdx.Input.Keys.FORWARD_DEL));
+        assertTrue(Gdx.input.getInputProcessor().keyUp(com.badlogic.gdx.Input.Keys.FORWARD_DEL));
+        flush(inspector(studio));
+    }
+
+    @Test public void tileAnimationDurationsCommitOnEnterTabAndUserFocusLoss() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("duration-focus"));
+            int[] tiles = tileFixtures(file.parent()); open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Focus"); service.insertTileAnimationFrames(id, 0, tiles);
+            studio.getAssetsPanel().selectTiledAnimationById(id); studio.editTileAnimation(id);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            var history = service.tileAnimationHistory();
+            {
+                String prefix = "tileAnimationDuration";
+                Group owner = panel;
+                for (int gesture = 0; gesture < 3; gesture++) {
+                    studio.render(); studio.render();
+                    var duration = (games.pixscape.studio.ui.widget.SimpleTextField) owner.findActor(prefix + "0");
+                    clickActor(studio, duration);
+                    int before = history.getCursor(); int value = 400 + gesture;
+                    var preview = panel.findActor("tileAnimationPreview");
+                    duration.setText(Integer.toString(value));
+                    if (gesture == 0) {
+                        studio.getUiStage().keyDown(com.badlogic.gdx.Input.Keys.ENTER);
+                        studio.getUiStage().keyUp(com.badlogic.gdx.Input.Keys.ENTER);
+                        studio.getUiStage().setKeyboardFocus(null);
+                    } else if (gesture == 1) {
+                        studio.getUiStage().keyDown(com.badlogic.gdx.Input.Keys.TAB);
+                        studio.getUiStage().keyTyped('\t'); studio.getUiStage().keyUp(com.badlogic.gdx.Input.Keys.TAB);
+                    } else {
+                        clickActor(studio, owner.findActor(prefix + "1"));
+                    }
+                    flush(panel);
+                    if (studio.getUiStage().getKeyboardFocus() != null)
+                        assertSame("Focus must not remain on a destroyed duration field", studio.getUiStage(), studio.getUiStage().getKeyboardFocus().getStage());
+                    assertEquals(prefix + " gesture=" + gesture, value, service.findTileAnimationProjectDef(id).frameDurationsMs[0]);
+                    assertEquals(before + 1, history.getCursor()); assertNotSame(preview, panel.findActor("tileAnimationPreview"));
+                    studio.getUiStage().setKeyboardFocus(null); assertEquals(before + 1, history.getCursor());
+                    assertTrue(studio.undoActiveDocument()); assertTrue(studio.redoActiveDocument());
+                }
+                for (String invalid : new String[]{"", "0", "-5", "NaN", "999999999999999999999", "2147483647"}) {
+                    studio.render(); studio.render();
+                    var duration = (games.pixscape.studio.ui.widget.SimpleTextField) owner.findActor(prefix + "0");
+                    clickActor(studio, duration); int before = history.getCursor();
+                    duration.setText(invalid);
+                    clickActor(studio, owner.findActor(prefix + "1")); flush(panel);
+                    assertEquals(before, history.getCursor());
+                    assertEquals(Integer.toString(service.findTileAnimationProjectDef(id).frameDurationsMs[0]), duration.getText());
+                }
+                studio.render(); studio.render();
+                var unchanged = (games.pixscape.studio.ui.widget.SimpleTextField) owner.findActor(prefix + "0");
+                clickActor(studio, unchanged); int before = history.getCursor();
+                studio.getUiStage().keyDown(com.badlogic.gdx.Input.Keys.ENTER);
+                studio.getUiStage().setKeyboardFocus(null); assertEquals(before, history.getCursor());
+            }
+            assertNull(panel.findActor("tileAnimationRemove0"));
+            var pending = (games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0");
+            clickActor(studio, pending); pending.setText("250"); int beforeDone = history.getCursor();
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            assertEquals(250, service.findTileAnimationProjectDef(id).frameDurationsMs[0]);
+            assertEquals(beforeDone + 1, history.getCursor());
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            var edit = (com.kotcrab.vis.ui.widget.VisTextButton) panel.findActor("tileAnimationEdit");
+            assertEquals(edit.getPrefWidth(), edit.getWidth(), .01f);
+        });
+    }
+
+    @Test public void tileAnimationDurationTeardownCannotCommitOldBindings() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("duration-teardown"));
+            int[] tiles = tileFixtures(file.parent()); open(studio, file); studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Old"); service.insertTileAnimationFrames(id, 0, tiles);
+            int other = service.createEmptyTileAnimation("New"); service.insertTileAnimationFrames(other, 0, tiles);
+            var history = service.tileAnimationHistory();
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
+            {
+                studio.getAssetsPanel().selectTiledAnimationById(id); studio.editTileAnimation(id); studio.render(); studio.render();
+                Group owner = panel;
+                String prefix = "tileAnimationDuration";
+                var stale = (games.pixscape.studio.ui.widget.SimpleTextField) owner.findActor(prefix + "0");
+                clickActor(studio, stale); stale.setText("777"); int before = history.getCursor();
+                // An external structural replacement abandons the pending duration before removing the occurrence.
+                service.removeFrameFromTileAnimation(id, 0); flush(panel);
+                assertEquals(before + 1, history.getCursor()); assertArrayEquals(new int[]{300}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+                stale.commit(); assertEquals(before + 1, history.getCursor());
+                history.undo(); flush(panel);
+                studio.render(); studio.render();
+                stale = (games.pixscape.studio.ui.widget.SimpleTextField) owner.findActor(prefix + "0");
+                clickActor(studio, stale); stale.setText("888"); before = history.getCursor();
+                studio.editTileAnimation(other);
+                stale.commit(); studio.getUiStage().setKeyboardFocus(null);
+                assertEquals(before, history.getCursor()); assertEquals(300, service.findTileAnimationProjectDef(id).frameDurationsMs[0]);
+                assertEquals(300, service.findTileAnimationProjectDef(other).frameDurationsMs[0]);
+            }
+            int deleted = service.createEmptyTileAnimation("Deleted while focused"); service.insertTileAnimationFrames(deleted, 0, tiles);
+            studio.editTileAnimation(deleted); studio.render(); studio.render();
+            var deletedField = (games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0");
+            clickActor(studio, deletedField); deletedField.setText("666");
+            service.deleteTileAnimation(deleted); deletedField.commit(); studio.getUiStage().setKeyboardFocus(null);
+            assertNull(service.findTileAnimationProjectDef(deleted)); assertFalse(history.canUndo());
+            studio.getAssetsPanel().selectTiledAnimationById(id); studio.editTileAnimation(id); studio.render(); studio.render();
+            var inspectorField = (games.pixscape.studio.ui.widget.SimpleTextField) panel.findActor("tileAnimationDuration0");
+            clickActor(studio, inspectorField); inspectorField.setText("999");
+            var persisted = snapshot(file.parent());
+            open(studio, project(studio, root.child("duration-next-project")));
+            inspectorField.commit(); studio.getUiStage().setKeyboardFocus(null);
+            assertEquals(persisted, snapshot(file.parent())); assertFalse(service.tileAnimationHistory().canUndo());
+        });
+    }
+
+    @Test public void tileAnimationIndexRejectsCollisionsAndRebuildsAtPublication() throws Exception {
+        withStudio((studio, root) -> {
+            open(studio, project(studio, root.child("tile-index")));
+            var service = studio.getSceneService(); int id = service.createEmptyTileAnimation("Indexed");
+            var definition = service.findTileAnimationProjectDef(id);
+            var database = (games.pixscape.studio.asset.TileAnimationsMetaDatabase) field(service, "tileAnimationsMetaDatabase");
+            var source = database.animations;
+            database.animations = new Array<>() {
+                @Override public Array.ArrayIterator<games.pixscape.studio.asset.TileAnimationProjectDefData> iterator() {
+                    throw new AssertionError("A direct lookup must not scan the source collection");
+                }
+            };
+            try {
+                for (int i = 0; i < 100; i++) { assertSame(definition, service.findTileAnimationProjectDef(id)); assertNull(service.findTileAnimationProjectDef(-10)); }
+            } finally { database.animations = source; }
+            var reload = SceneService.class.getDeclaredMethod("reloadTileAnimationRegistryFromProjectData"); reload.setAccessible(true);
+            source.add(definition);
+            try {
+                var failure = assertThrows(java.lang.reflect.InvocationTargetException.class, () -> reload.invoke(service));
+                assertTrue(failure.getCause().getMessage().contains("Duplicate"));
+            } finally { source.pop(); reload.invoke(service); }
+            assertSame(definition, service.findTileAnimationProjectDef(id));
+            service.unloadProjectToEmptyEditor();
+            assertNull(service.findTileAnimationProjectDef(id)); assertFalse(service.tileAnimationHistory().canUndo());
+        });
+    }
+
+    @Test public void tileAnimationCreationAndEditingUseRealBrowserDropsAndHistory() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("tile-edit"));
+            int[] tiles = tileFixtures(file.parent());
+            open(studio, file);
+            studio.render(); studio.render();
+            var panel = inspector(studio);
+            var vertical = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit");
+            vertical.setSplitAmount(.95f);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "centerRightSplit")).setSplitAmount(.72f);
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.TILED_ANIMATIONS_FOLDER, AssetNode.Root.TILES,
+                    AssetNode.TILED_ANIMATIONS_NODE_PATH, "Animations", null));
+            var thumbs = field(studio.getAssetsPanel(), "thumbsView");
+            screenshot(studio, "tile-create-before");
+            clickActor(studio, (Actor) field(thumbs, "newAnimationBtn"));
+            var dialog = lastDialog(studio);
+            var name = (com.kotcrab.vis.ui.widget.VisTextField) studio.getUiStage().getKeyboardFocus();
+            name.setText("Water");
+            clickActor(studio, buttonWithText(dialog, "Create"));
+            studio.getUiStage().act(1); // Finish the existing dialog fade-out.
+            var properties = panel.inspectedTileAnimationProperties();
+            assertNotNull(properties); assertFalse(properties.isEditing());
+            int id = properties.assetId();
+            assertEquals(AssetNode.Kind.TILED_ANIMATION, tree.getSelectedFolder().kind);
+            assertEquals(id, tree.getSelectedFolder().tileAnimationId);
+            assertEquals("Water", ((VisLabel) panel.findActor("tileAnimationName")).getText().toString());
+            assertEquals("0 frames, 0 ms", ((VisLabel) panel.findActor("tileAnimationSummary")).getText().toString());
+            assertNull(panel.findActor("tileAnimationEmptyDrop"));
+            assertNull(panel.findActor("tileAnimationSequence"));
+            assertNotNull(buttonWithText(panel, "Edit"));
+            screenshot(studio, "tile-animation-empty-consultation");
+            assertEquals(id, tree.getSelectedFolder().tileAnimationId);
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.TILES, "water", "water", null));
+            clickActor(studio, tileActor(studio, tiles[0]));
+            assertNotNull(panel.inspectedTileProperties());
+            var service = studio.getSceneService();
+            var history = service.tileAnimationHistory();
+            assertEquals("Create tile animation", history.peekUndoLabel());
+            assertFalse(studio.getCanvas().getTileAnimationRegistry().contains(id));
+            history.undo(); flush(panel); assertNull(service.findTileAnimationProjectDef(id));
+            history.redo(); flush(panel); assertNotNull(service.findTileAnimationProjectDef(id));
+            studio.getAssetsPanel().selectTiledAnimationById(id); flush(panel);
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            assertNotNull(panel.findActor("tileAnimationEmptyDrop"));
+            screenshot(studio, "tile-animation-empty-edit");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.TILES, "water", "water", null));
+            Actor first = tileActor(studio, tiles[0]), second = tileActor(studio, tiles[1]);
+            clickActor(studio, second);
+            Actor multiSource = first;
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> clickActor(studio, multiSource));
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId());
+            int cursor = history.getCursor();
+            tileDrop(studio, first, 0, false, true);
+            assertArrayEquals(tiles, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertArrayEquals(new int[]{300, 300}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            assertEquals(cursor + 1, history.getCursor());
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> {
+                studio.getUiStage().setKeyboardFocus(null);
+                Gdx.input.getInputProcessor().keyDown(com.badlogic.gdx.Input.Keys.Z);
+                Gdx.input.getInputProcessor().keyUp(com.badlogic.gdx.Input.Keys.Z);
+            });
+            flush(panel); assertEquals(0, service.findTileAnimationProjectDef(id).frameAssetIds.length);
+            withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> {
+                Gdx.input.getInputProcessor().keyDown(com.badlogic.gdx.Input.Keys.Y);
+                Gdx.input.getInputProcessor().keyUp(com.badlogic.gdx.Input.Keys.Y);
+            });
+            flush(panel); assertArrayEquals(tiles, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertTrue(studio.getCanvas().getTileAnimationRegistry().contains(id));
+            // The browser was rebuilt at publication: use its current actors, not stale touch targets.
+            first = tileActor(studio, tiles[0]); clickActor(studio, first);
+            tileDrop(studio, first, 0, false, false);
+            assertArrayEquals(new int[]{tiles[0], tiles[0], tiles[1]}, service.findTileAnimationProjectDef(id).frameAssetIds);
+            history.undo(); flush(panel);
+            first = tileActor(studio, tiles[0]); clickActor(studio, first);
+            tileDrop(studio, first, 1, false, true);
+            assertArrayEquals(new int[]{tiles[0], tiles[0], tiles[1]}, service.findTileAnimationProjectDef(id).frameAssetIds);
+            history.undo(); flush(panel);
+            first = tileActor(studio, tiles[0]); clickActor(studio, first);
+            tileDrop(studio, first, 2, false, false);
+            assertArrayEquals(new int[]{tiles[0], tiles[1], tiles[0]}, service.findTileAnimationProjectDef(id).frameAssetIds);
+            int before = history.getCursor();
+            var oldPreview = panel.findActor("tileAnimationPreview");
+            enterDuration(studio, 2, "125");
+            assertArrayEquals(new int[]{300, 300, 125}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            assertNotSame(oldPreview, panel.findActor("tileAnimationPreview"));
+            assertEquals(before + 1, history.getCursor());
+            for (String invalid : new String[]{"", "-5", "0", "NaN", "2147483647"}) {
+                enterDuration(studio, 2, invalid);
+                assertArrayEquals(new int[]{300, 300, 125}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+                assertEquals(before + 1, history.getCursor());
+            }
+            history.undo(); flush(panel); assertEquals(300, service.findTileAnimationProjectDef(id).frameDurationsMs[2]);
+            history.redo(); flush(panel); assertEquals(125, service.findTileAnimationProjectDef(id).frameDurationsMs[2]);
+            // Preview uses occurrence durations and loops; drawing is independent of advancement.
+            var preview = (games.pixscape.studio.ui.asset.AnimatedThumbnail) panel.findActor("tileAnimationPreview");
+            preview.startPreview(); for (int i = 0; i < 6; i++) preview.act(.1f);
+            assertEquals(2, field(preview, "currentFrame"));
+            preview.act(.1f); preview.act(.03f); assertEquals(0, field(preview, "currentFrame"));
+            first = tileActor(studio, tiles[0]); clickActor(studio, first);
+            tileDrop(studio, first, 1, true, false);
+            assertEquals(before + 1, history.getCursor());
+            screenshot(studio, "tile-animation-edited");
+            frameClick(studio, 0, false);
+            withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> frameClick(studio, 2, false));
+            deleteKey(studio);
+            assertEquals(0, service.findTileAnimationProjectDef(id).frameAssetIds.length);
+            assertNull(panel.findActor("tileAnimationPreview"));
+            assertNotNull(panel.findActor("tileAnimationEmptyDrop"));
+            history.undo(); flush(panel);
+            assertArrayEquals(new int[]{300, 300, 125}, service.findTileAnimationProjectDef(id).frameDurationsMs);
+            var persisted = games.pixscape.studio.io.TileAnimationsIO.load(file.parent().child(games.pixscape.runtime.helper.RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+            assertArrayEquals(service.findTileAnimationProjectDef(id).frameAssetIds, persisted.animations.first().frameAssetIds);
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+            clickActor(studio, tileActor(studio, tiles[0]));
+            assertNotNull(panel.inspectedTileProperties());
+            studio.getAssetsPanel().selectTiledAnimationById(id); flush(panel);
+            clickActor(studio, panel.findActor("tileAnimationEdit"));
+            enterDuration(studio, 0, "80");
+            assertEquals("3 frames, 505 ms", ((VisLabel) panel.findActor("tileAnimationSummary")).getText().toString());
+            open(studio, file); flush(panel);
+            assertEquals(80, service.findTileAnimationProjectDef(id).frameDurationsMs[0]);
+            studio.render(); studio.render();
+            tree.selectFolder(new AssetNode(AssetNode.Kind.TILED_ANIMATIONS_FOLDER, AssetNode.Root.TILES,
+                    AssetNode.TILED_ANIMATIONS_NODE_PATH, "Animations", null));
+            studio.render(); studio.render();
+            clickActor(studio, selectedTile(studio, AssetNode.Kind.TILED_ANIMATION));
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId()); assertFalse(panel.inspectedTileAnimationProperties().isEditing());
+        });
+    }
+
+    @Test public void tileAnimationPinnedTargetSurvivesReloadAndRejectsOtherPayloads() throws Exception {
+        withStudio(1000, (studio, root) -> {
+            FileHandle file = project(studio, root.child("tile-lifecycle"));
+            int[] tiles = tileFixtures(file.parent()); addImage(file.parent(), "other", 16, 16);
+            open(studio, file);
+            studio.render(); studio.render();
+            var service = studio.getSceneService(); var panel = inspector(studio);
+            int id = service.createEmptyTileAnimation("Loop");
+            service.insertTileAnimationFrames(id, 0, tiles); studio.editTileAnimation(id);
+            var properties = panel.inspectedTileAnimationProperties();
+            var history = service.tileAnimationHistory();
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.IMAGES, "", "", null));
+            screenshot(studio, "tile-source-before"); Actor source = selectedTile(studio, AssetNode.Kind.IMAGE); clickActor(studio, source);
+            assertSame(properties, panel.inspectedTileAnimationProperties());
+            int before = history.getCursor();
+            tileDrop(studio, source, 0, false, false);
+            assertArrayEquals(tiles, service.findTileAnimationProjectDef(id).frameAssetIds);
+            assertEquals(before, history.getCursor());
+            assertTrue(((VisLabel) panel.findActor("tileAnimationStatus")).getText().toString().contains("Only tile"));
+            assertThrows(IllegalArgumentException.class, () -> service.insertTileAnimationFrames(id, 1, new int[]{tiles[0], -10}));
+            assertEquals(before, history.getCursor()); assertArrayEquals(tiles, service.findTileAnimationProjectDef(id).frameAssetIds);
+            var preview = (games.pixscape.studio.ui.asset.AnimatedThumbnail) panel.findActor("tileAnimationPreview");
+            var textures = (Array<com.badlogic.gdx.graphics.Texture>) field(preview, "frames");
+            var borrowed = textures.first();
+            panel.setVisible(false); preview.startPreview(); preview.act(.1f);
+            assertEquals(0, field(preview, "currentFrame"));
+            panel.setVisible(true);
+            studio.getDockManager().hide(panel); assertTrue(properties.isEditing());
+            studio.getDockManager().show(panel); assertSame(properties, panel.inspectedTileAnimationProperties());
+            var parent = panel.getParent(); int index = panel.getZIndex(); panel.remove();
+            assertTrue(properties.isEditing()); parent.addActorAt(index, panel);
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); panel.reloadAssetInspection(); flush(panel);
+            assertSame(properties, panel.inspectedTileAnimationProperties()); assertTrue(properties.isEditing());
+            assertTrue(borrowed.getTextureObjectHandle() != 0);
+            ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.7f);
+            clickLayer(studio, studio.getCanvas().getAttachedSceneContext().selectionService().getActivelayerId(), 1);
+            flush(panel); assertNull(panel.inspectedTileAnimationProperties());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); panel.reloadAssetInspection(); flush(panel); assertNull(panel.inspectedTileAnimationProperties());
+            studio.editTileAnimation(id);
+            var deletion = studio.getAssetsPanel().getClass().getDeclaredMethod("showDeleteTiledAnimationDialog", int.class, String.class);
+            deletion.setAccessible(true); deletion.invoke(studio.getAssetsPanel(), id, "Loop");
+            clickActor(studio, buttonWithText(lastDialog(studio), "Cancel")); studio.getUiStage().act(1);
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId()); assertTrue(properties.isEditing());
+            // The existing usage guard also refuses deletion when scene data cannot be safely checked.
+            var sceneFile = file.parent().child("scenes/scene1.json"); String savedScene = sceneFile.readString();
+            sceneFile.writeString("invalid scene", false);
+            deletion.invoke(studio.getAssetsPanel(), id, "Loop");
+            clickActor(studio, buttonWithText(lastDialog(studio), "Delete")); studio.getUiStage().act(1);
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId()); assertNotNull(service.findTileAnimationProjectDef(id));
+            clickActor(studio, buttonWithText(lastDialog(studio), "OK")); studio.getUiStage().act(1);
+            sceneFile.writeString(savedScene, false);
+            int other = service.createEmptyTileAnimation("Other"); service.deleteTileAnimation(other); flush(panel);
+            assertEquals(id, panel.inspectedTileAnimationProperties().assetId());
+            deletion.invoke(studio.getAssetsPanel(), id, "Loop");
+            clickActor(studio, buttonWithText(lastDialog(studio), "Delete")); studio.getUiStage().act(1);
+            flush(panel); assertNull(panel.inspectedTileAnimationProperties());
+            assertNull(service.findTileAnimationProjectDef(id));
+            int next = service.createEmptyTileAnimation("Next"); studio.editTileAnimation(next);
+            FileHandle secondProject = project(studio, root.child("second-project")); open(studio, secondProject); flush(panel);
+            assertNull(panel.inspectedTileAnimationProperties()); assertNull(service.findTileAnimationProjectDef(next));
+            assertEquals(-1, properties.assetId()); assertFalse(properties.isEditing());
+        });
+    }
+
+    private static int[] tileFixtures(FileHandle project) {
+        var db = AssetMetaDatabase.load(project.child("assets.json")); int[] ids = new int[2];
+        for (int i = 0; i < ids.length; i++) {
+            String path = "orig/tiles/water/" + i + ".png";
+            var meta = db.registerIfAbsent(AssetType.TILE, "tiles/water/" + i, path, AssetMeta.AssetScope.USER);
+            ids[i] = meta.id();
+            Pixmap pixmap = new Pixmap(16, 16, Pixmap.Format.RGBA8888);
+            pixmap.setColor(.1f, .4f + .2f * i, .9f, 1); pixmap.fill();
+            pixmap.setColor(.4f, .8f, 1, 1); pixmap.fillRectangle(i * 3, 3, 10, 2);
+            PixmapIO.writePNG(project.child(path), pixmap); pixmap.dispose();
+        }
+        db.save(project.child("assets.json")); return ids;
+    }
+
+    private static Actor tileActor(StudioApplicationAdapter studio, int id) throws Exception {
+        studio.render(); studio.render();
+        for (Object item : (Array<?>) field(field(studio.getAssetsPanel(), "thumbsView"), "tileWidgets")) {
+            Actor actor = (Actor) item;
+            if (actor.getUserObject() instanceof AssetNode node && node.assetId == id) return actor;
+        }
+        throw new AssertionError("Missing tile " + id);
+    }
+
+    private static Actor buttonWithText(Actor actor, String text) {
+        if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextButton button && button.getText().toString().equals(text)) return actor;
+        if (actor instanceof Group group) for (Actor child : group.getChildren()) {
+            Actor found = buttonWithText(child, text); if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static void enterDuration(StudioApplicationAdapter studio, int frame, String value) throws Exception {
+        var duration = (games.pixscape.studio.ui.widget.SimpleTextField) inspector(studio).findActor("tileAnimationDuration" + frame);
+        clickActor(studio, duration); duration.setText(value);
+        studio.getUiStage().keyDown(com.badlogic.gdx.Input.Keys.ENTER); studio.getUiStage().keyUp(com.badlogic.gdx.Input.Keys.ENTER);
+        flush(inspector(studio));
+    }
+
+    /** Real source capture, ordered browser payload, hover hit testing, release/cancel and target act. */
+    private static void tileDrop(StudioApplicationAdapter studio, Actor source, int position, boolean cancel, boolean capture) throws Exception {
+        var panel = inspector(studio);
+        var vertical = (games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit");
+        vertical.setSplitAmount(.95f);
+        studio.render(); studio.render();
+        var stage = studio.getUiStage();
+        var sequence = (games.pixscape.studio.ui.widget.InsertionPreviewGrid) panel.findActor("tileAnimationSequence");
+        Actor row = panel.findActor("tileAnimationFrame" + position);
+        Actor last = panel.findActor("tileAnimationFrame" + (position - 1));
+        var local = row != null ? row.localToActorCoordinates(sequence, new com.badlogic.gdx.math.Vector2(4, row.getHeight() - 20))
+                : last != null ? last.localToActorCoordinates(sequence, new com.badlogic.gdx.math.Vector2(last.getWidth() - 4, last.getHeight() - 20))
+                : new com.badlogic.gdx.math.Vector2(sequence.getWidth() / 2, sequence.getHeight() - 20);
+        var target = stage.stageToScreenCoordinates(sequence.localToStageCoordinates(local));
+        var start = stage.stageToScreenCoordinates(source.localToStageCoordinates(new com.badlogic.gdx.math.Vector2(source.getWidth() / 2, source.getHeight() / 2)));
+        var originalInput = Gdx.input;
+        Gdx.input = (com.badlogic.gdx.Input) java.lang.reflect.Proxy.newProxyInstance(com.badlogic.gdx.Input.class.getClassLoader(),
+                new Class<?>[]{com.badlogic.gdx.Input.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getX" -> Math.round(target.x); case "getY" -> Math.round(target.y);
+                    default -> method.invoke(originalInput, args);
+                });
+        try {
+            int id = panel.inspectedTileAnimationProperties().assetId();
+            var before = studio.getSceneService().findTileAnimationProjectDef(id).frameAssetIds.clone();
+            var files = snapshot(StudioFs.requireStudioProjectDir(ProjectConfig.getInstance()));
+            assertTrue(stage.touchDown(Math.round(start.x), Math.round(start.y), 0, 0));
+            stage.touchDragged(Math.round(target.x), Math.round(target.y), 0);
+            assertTrue(games.pixscape.studio.ui.asset.dnd.DragContext.get().active());
+            boolean accepted = "tile-asset".equals(games.pixscape.studio.ui.asset.dnd.DragContext.get().peek().type);
+            stage.act(.01f); sequence.validate();
+            assertArrayEquals(before, studio.getSceneService().findTileAnimationProjectDef(id).frameAssetIds);
+            assertEquals(files, snapshot(StudioFs.requireStudioProjectDir(ProjectConfig.getInstance())));
+            assertEquals(accepted ? position : -1, sequence.insertionIndex());
+            // Repeated real layout/act cycles must not move the destination as ghosts wrap.
+            for (int i = 0; i < 5; i++) {
+                studio.render();
+                assertEquals(accepted ? position : -1, sequence.insertionIndex());
+            }
+            if (capture) screenshot(studio, "tile-animation-ghosts-" + position);
+            if (cancel) {
+                float insideX = target.x; target.x = -20;
+                stage.touchDragged(-20, Math.round(target.y), 0); stage.act(.01f);
+                assertEquals(-1, sequence.insertionIndex());
+                assertArrayEquals(before, studio.getSceneService().findTileAnimationProjectDef(id).frameAssetIds);
+                target.x = insideX; stage.touchDragged(Math.round(target.x), Math.round(target.y), 0); stage.act(.01f);
+                assertEquals(position, sequence.insertionIndex());
+                panel.setVisible(false); stage.act(.01f); assertEquals(-1, sequence.insertionIndex());
+                panel.setVisible(true);
+            }
+            if (cancel) stage.cancelTouchFocus(); else stage.touchUp(Math.round(target.x), Math.round(target.y), 0, 0);
+            stage.act(.01f); flush(panel);
+            assertFalse(games.pixscape.studio.ui.asset.dnd.DragContext.get().active());
+            assertEquals(-1, sequence.insertionIndex());
+            if (cancel) assertArrayEquals(before, studio.getSceneService().findTileAnimationProjectDef(id).frameAssetIds);
+        } finally { Gdx.input = originalInput; stage.cancelTouchFocus(); }
+    }
+
     @Test public void gameObjectCaptureUsesSavedGeometryAndRestoresGraphicsState() throws Exception {
         var closingTexture = new com.badlogic.gdx.graphics.Texture[1];
         withStudio((studio, root) -> {
@@ -1082,6 +1880,7 @@ public class ResourceAssetInspectorGlTest {
 
     private static void clickActor(StudioApplicationAdapter studio, Actor actor) throws Exception {
         studio.render(); studio.render();
+        assertSame("Click target was rebuilt/detached: " + actor, studio.getUiStage(), actor.getStage());
         var point = studio.getUiStage().stageToScreenCoordinates(actor.localToStageCoordinates(
                 new com.badlogic.gdx.math.Vector2(actor.getWidth() / 2, actor.getHeight() / 2)));
         assertTrue(studio.getUiStage().touchDown(Math.round(point.x), Math.round(point.y), 0, 0));
@@ -1618,6 +2417,10 @@ public class ResourceAssetInspectorGlTest {
     }
 
     private static void withStudio(Scenario scenario) throws Exception {
+        withStudio(700, scenario);
+    }
+
+    private static void withStudio(int height, Scenario scenario) throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_DOCUMENT_GL_TEST")));
         String previousHome = System.getProperty("user.home");
         ProjectConfig previous = ProjectConfig.getInstance();
@@ -1628,7 +2431,7 @@ public class ResourceAssetInspectorGlTest {
         Lwjgl3ApplicationConfiguration gl = new Lwjgl3ApplicationConfiguration();
         gl.setTitle("Resource asset inspection regression");
         gl.setInitialVisible(false);
-        gl.setWindowedMode(1000, 700);
+        gl.setWindowedMode(1000, height);
         gl.setOpenGLEmulation(Lwjgl3ApplicationConfiguration.GLEmulation.GL30, 3, 2);
         gl.disableAudio(true);
         try (var globals = new StudioGlTestScope()) {

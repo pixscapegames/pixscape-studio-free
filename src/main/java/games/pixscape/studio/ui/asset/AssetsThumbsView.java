@@ -84,28 +84,10 @@ public final class AssetsThumbsView extends VisTable {
     private final GameObjectBrowserService gameObjectBrowserService = new GameObjectBrowserService();
     private final HudScreenDeletionService hudScreenDeletionService = new HudScreenDeletionService();
 
-    private TiledAnimationFrameRemoveListener tiledAnimationFrameRemoveListener;
-    private TiledAnimationFrameDurationChangeListener tiledAnimationFrameDurationChangeListener;
-    private TiledAnimationFrameMoveListener tiledAnimationFrameMoveListener;
     private TiledAnimationDeleteListener tiledAnimationDeleteListener;
 
     private final Array<Texture> ownedGameObjectThumbTextures = new Array<>();
     private final Array<ParticleThumbnail> ownedParticleThumbnails = new Array<>();
-
-    @FunctionalInterface
-    public interface TiledAnimationFrameRemoveListener {
-        void accept(int tileAnimationId, int frameIndex);
-    }
-
-    @FunctionalInterface
-    public interface TiledAnimationFrameDurationChangeListener {
-        void accept(int tileAnimationId, int frameIndex, int durationMs);
-    }
-
-    @FunctionalInterface
-    public interface TiledAnimationFrameMoveListener {
-        void accept(int tileAnimationId, int fromIndex, int toIndex);
-    }
 
     @FunctionalInterface
     public interface TiledAnimationDeleteListener {
@@ -171,20 +153,6 @@ public final class AssetsThumbsView extends VisTable {
 
         headerLeftActions.add(action);
         refreshHeaderActions();
-    }
-
-    public void setTiledAnimationFrameRemoveListener(TiledAnimationFrameRemoveListener listener) {
-        this.tiledAnimationFrameRemoveListener = listener;
-    }
-
-    public void setTiledAnimationFrameDurationChangeListener(
-            TiledAnimationFrameDurationChangeListener listener
-    ) {
-        this.tiledAnimationFrameDurationChangeListener = listener;
-    }
-
-    public void setTiledAnimationFrameMoveListener(TiledAnimationFrameMoveListener listener) {
-        this.tiledAnimationFrameMoveListener = listener;
     }
 
     public void setTiledAnimationDeleteListener(TiledAnimationDeleteListener listener) {
@@ -298,9 +266,10 @@ public final class AssetsThumbsView extends VisTable {
         if (folder.kind == AssetNode.Kind.TILED_ANIMATION) {
             currentLayoutStrategy = galleryLayoutStrategy;
             currentLayoutStrategy.configureScrollPane(scroll);
-            loadTiledAnimationFrames(folder);
+            loadTiledAnimations();
             layoutDirty = true;
             rebuildGrid();
+            restoreAssetSelection(folder);
             return;
         }
 
@@ -387,42 +356,6 @@ public final class AssetsThumbsView extends VisTable {
         }
     }
 
-    private void loadTiledAnimationFrames(AssetNode animationNode) {
-        TileAnimationsMetaDatabase animDb = loadTileAnimationsMetaDatabase();
-        AssetMetaDatabase assetDb = loadAssetMetaDatabase();
-
-        if (animDb == null || assetDb == null) {
-            return;
-        }
-
-        TileAnimationProjectDefData def = findTiledAnimationDef(animDb, animationNode.tileAnimationId);
-        if (def == null || def.frameAssetIds == null || def.frameDurationsMs == null) {
-            return;
-        }
-
-        for (int i = 0; i < def.frameAssetIds.length; i++) {
-            int frameAssetId = def.frameAssetIds[i];
-            int durationMs = def.frameDurationsMs[i];
-
-            AssetMeta meta = assetDb.findById(frameAssetId);
-            if (meta == null) {
-                continue;
-            }
-
-            AssetNode node = AssetNode.fromAssetMeta(
-                    AssetNode.Kind.TILED_ANIMATION_FRAME,
-                    AssetNode.Root.TILES,
-                    meta.sourceRelPath(),
-                    meta
-            );
-            node.tileAnimationId = animationNode.tileAnimationId;
-            node.durationMs = durationMs;
-            node.frameIndex = i;
-
-            currentAssets.add(node);
-        }
-    }
-
     private TileAnimationsMetaDatabase loadTileAnimationsMetaDatabase() {
         ProjectConfig cfg = ProjectConfig.getInstance();
         if (cfg == null) return null;
@@ -496,6 +429,7 @@ public final class AssetsThumbsView extends VisTable {
                 this::addThumb
         );
 
+        refreshSelectionVisuals();
         grid.invalidateHierarchy();
         content.invalidateHierarchy();
     }
@@ -644,12 +578,6 @@ public final class AssetsThumbsView extends VisTable {
             public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
                 if (button != Input.Buttons.RIGHT) return false;
 
-                if (node.kind == AssetNode.Kind.TILED_ANIMATION_FRAME) {
-                    showTiledAnimationFrameContextMenu(node, event.getStageX(), event.getStageY());
-                    event.stop();
-                    return true;
-                }
-
                 if (!supportsAssetContextMenu(node)) return false;
 
                 showAssetContextMenu(node, event.getStageX(), event.getStageY());
@@ -779,10 +707,6 @@ public final class AssetsThumbsView extends VisTable {
                 contentActor = actor != null ? actor : new VisImage();
             }
 
-            case TILED_ANIMATION_FRAME -> {
-                contentActor = buildEditableTiledAnimationFrameThumb(node);
-            }
-
             case GAME_OBJECT -> {
                 contentActor = buildGameObjectThumb(node);
             }
@@ -828,11 +752,7 @@ public final class AssetsThumbsView extends VisTable {
             }
         }
 
-        if (node.kind == AssetNode.Kind.TILED_ANIMATION_FRAME) {
-            tile.add(contentActor).width(tileSize).top().left();
-        } else {
-            tile.add(contentActor).size(tileSize, tileSize).top().left();
-        }
+        tile.add(contentActor).size(tileSize, tileSize).top().left();
 
         Tooltip tip = new Tooltip.Builder(node.tooltipText(), Align.left)
                 .target(tile)
@@ -842,60 +762,6 @@ public final class AssetsThumbsView extends VisTable {
         grid.add(tile).pad(TILE_PAD).top().left();
 
         attachDnD(tile, node);
-    }
-
-    private void showTiledAnimationFrameContextMenu(AssetNode node, float stageX, float stageY) {
-        if (activeAssetMenu != null) {
-            activeAssetMenu.remove();
-            activeAssetMenu = null;
-        }
-
-        PopupMenu menu = new PopupMenu();
-
-        MenuItem remove = new MenuItem("Remove from animation");
-        remove.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (tiledAnimationFrameRemoveListener != null) {
-                    tiledAnimationFrameRemoveListener.accept(node.tileAnimationId, node.frameIndex);
-                }
-            }
-        });
-
-        MenuItem moveLeft = new MenuItem("Move left");
-        moveLeft.setDisabled(node.frameIndex <= 0);
-        moveLeft.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (tiledAnimationFrameMoveListener != null && node.frameIndex > 0) {
-                    tiledAnimationFrameMoveListener.accept(
-                            node.tileAnimationId,
-                            node.frameIndex,
-                            node.frameIndex - 1
-                    );
-                }
-            }
-        });
-
-        MenuItem moveRight = new MenuItem("Move right");
-        moveRight.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                if (tiledAnimationFrameMoveListener != null) {
-                    tiledAnimationFrameMoveListener.accept(
-                            node.tileAnimationId,
-                            node.frameIndex,
-                            node.frameIndex + 1
-                    );
-                }
-            }
-        });
-
-        menu.addItem(remove);
-        menu.addItem(moveLeft);
-        menu.addItem(moveRight);
-        menu.showMenu(getStage(), stageX, stageY);
-        activeAssetMenu = menu;
     }
 
     private Actor buildTiledAnimationThumb(AssetNode node) {
@@ -968,78 +834,6 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         return stack;
-    }
-
-    private Actor buildTiledAnimationFrameThumb(AssetNode node) {
-        if (node == null || node.assetId <= 0) {
-            return new VisImage();
-        }
-
-        AssetMetaDatabase assetDb = loadAssetMetaDatabase();
-        if (assetDb == null) {
-            return new VisImage();
-        }
-
-        AssetMeta meta = assetDb.findById(node.assetId);
-        if (meta == null || meta.sourceRelPath() == null || meta.sourceRelPath().isBlank()) {
-            return new VisImage();
-        }
-
-        Texture texture = StandaloneTextureCache.getOrLoadProjectRelative(meta.sourceRelPath());
-        if (texture == null) {
-            return new VisImage();
-        }
-
-        VisImage image = new VisImage(new TextureRegion(texture));
-        image.setScaling(Scaling.fit);
-        return image;
-    }
-
-    private Actor buildEditableTiledAnimationFrameThumb(AssetNode node) {
-        VisTable table = new VisTable(true);
-        table.top();
-
-        Actor imageActor = buildTiledAnimationFrameThumb(node);
-        table.add(imageActor).size(tileSize, tileSize).row();
-
-        VisTextField durationField = new VisTextField(
-                node.durationMs > 0 ? Integer.toString(node.durationMs) : "300"
-        );
-        durationField.setMessageText("ms");
-        durationField.setTextFieldFilter(new VisTextField.TextFieldFilter.DigitsOnlyFilter());
-        durationField.setAlignment(Align.center);
-
-        durationField.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (durationField.getText() == null || durationField.getText().isBlank()) {
-                    return;
-                }
-
-                int durationMs;
-                try {
-                    durationMs = Integer.parseInt(durationField.getText());
-                } catch (NumberFormatException ex) {
-                    return;
-                }
-
-                if (durationMs <= 0) {
-                    return;
-                }
-
-                if (tiledAnimationFrameDurationChangeListener != null) {
-                    tiledAnimationFrameDurationChangeListener.accept(
-                            node.tileAnimationId,
-                            node.frameIndex,
-                            durationMs
-                    );
-                }
-            }
-        });
-
-        table.add(durationField).width(tileSize).row();
-
-        return table;
     }
 
     private TileAnimationProjectDefData findTiledAnimationDef(TileAnimationsMetaDatabase db, int tileAnimationId) {
@@ -1195,6 +989,16 @@ public final class AssetsThumbsView extends VisTable {
         }
 
         PopupMenu menu = new PopupMenu();
+
+        if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
+            MenuItem edit = new MenuItem("Edit animation");
+            edit.addListener(new ClickListener() {
+                @Override public void clicked(InputEvent event, float x, float y) {
+                    if (openListener != null) openListener.accept(node);
+                }
+            });
+            menu.addItem(edit);
+        }
 
         if (node.kind == AssetNode.Kind.ANIMATION) {
             MenuItem editClips = new MenuItem("Edit clips");
@@ -1729,7 +1533,7 @@ public final class AssetsThumbsView extends VisTable {
     void restoreAssetSelection(AssetNode previous) {
         for (AssetNode node : currentAssets) {
             if (node.kind == previous.kind && node.root == previous.root
-                    && node.tileAnimationId == previous.tileAnimationId && node.frameIndex == previous.frameIndex
+                    && node.tileAnimationId == previous.tileAnimationId
                     && (previous.assetId > 0 ? node.assetId == previous.assetId
                     : java.util.Objects.equals(node.path, previous.path))) {
                 selectedNode = node;

@@ -89,6 +89,18 @@ public final class SceneService {
     private final RecentProjectsService recentProjectsService;
     private AssetMetaDatabase assetMetaDatabase;
     private TileAnimationsMetaDatabase tileAnimationsMetaDatabase;
+    private final com.badlogic.gdx.utils.IntMap<TileAnimationProjectDefData> tileAnimationsById = new com.badlogic.gdx.utils.IntMap<>();
+    private final games.pixscape.studio.history.HistoryManager tileAnimationHistory = new games.pixscape.studio.history.HistoryManager(128);
+    private ProjectConfig tileAnimationHistoryProject;
+
+    /** Like shared tile properties, these commands belong to the project catalog, not an ECS document. */
+    public games.pixscape.studio.history.HistoryManager tileAnimationHistory() {
+        if (tileAnimationHistoryProject != ProjectConfig.getInstance()) {
+            tileAnimationHistory.clear();
+            tileAnimationHistoryProject = ProjectConfig.getInstance();
+        }
+        return tileAnimationHistory;
+    }
 
     /**
      * Single panel for the global library (orig/images).
@@ -745,6 +757,8 @@ public final class SceneService {
             assetMetaDatabase.save(projectDir.child(StudioFs.FILE_ASSETS_JSON));
 
             tileAnimationsMetaDatabase = TileAnimationsIO.createEmpty();
+            tileAnimationHistory().clear();
+            reloadTileAnimationRegistryFromProjectData();
             TileAnimationsIO.save(
                     tileAnimationsMetaDatabase,
                     projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
@@ -873,6 +887,8 @@ public final class SceneService {
         resetProjectConfigToEmptyState();
         assetMetaDatabase = null;
         tileAnimationsMetaDatabase = TileAnimationsIO.createEmpty();
+        tileAnimationHistory().clear();
+        tileAnimationsById.clear();
         app.clearProjectInspection();
         SceneEditorContext empty = canvas.createSceneContext(null, null);
         canvas.attach(empty);
@@ -2832,6 +2848,7 @@ public final class SceneService {
     // ---------------------------------------------------------------------
 
     private void reloadTileAnimationsFromProject(FileHandle projectDir) {
+        tileAnimationHistory(); // Release prior-project command snapshots at the load boundary.
         tileAnimationsMetaDatabase = TileAnimationsIO.load(
                 projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON)
         );
@@ -2839,6 +2856,7 @@ public final class SceneService {
     }
 
     private void reloadTileAnimationRegistryFromProjectData() {
+        tileAnimationsById.clear();
         TileAnimationRegistry registry = canvas.getTileAnimationRegistry();
         registry.clear();
 
@@ -2848,6 +2866,8 @@ public final class SceneService {
         }
 
         for (TileAnimationProjectDefData projectDef : tileAnimationsMetaDatabase.animations) {
+            if (tileAnimationsById.containsKey(projectDef.id)) throw new IllegalStateException("Duplicate tile animation ID.");
+            tileAnimationsById.put(projectDef.id, projectDef);
             if (!isRuntimeReadyTileAnimation(projectDef)) {
                 continue;
             }
@@ -2890,6 +2910,7 @@ public final class SceneService {
 
         if (tileAnimationsMetaDatabase == null) {
             tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
+            reloadTileAnimationRegistryFromProjectData();
         }
 
         if (assetMetaDatabase == null) {
@@ -2913,11 +2934,24 @@ public final class SceneService {
         def.frameAssetIds = new int[0];
         def.frameDurationsMs = new int[0];
 
-        tileAnimationsMetaDatabase.animations.add(def);
-        TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
-
-        reloadTileAnimationRegistryFromProjectData();
-        markCurrentSceneSaveRequired();
+        tileAnimationHistory().execute(new games.pixscape.studio.history.commands.Command() {
+            @Override public String label() { return "Create tile animation"; }
+            @Override public void redo() { apply(true); }
+            @Override public void undo() { apply(false); }
+            private void apply(boolean present) {
+                if (ProjectConfig.getInstance() != cfg) throw new IllegalStateException("The project has changed.");
+                if (!present && AssetUsageScanner.scanTileAnimation(cfg, id, openSceneContexts().values()).used())
+                    throw new IllegalStateException("This animation is used by a scene.");
+                TileAnimationsMetaDatabase candidate = TileAnimationsIO.createEmpty();
+                for (var existing : tileAnimationsMetaDatabase.animations) if (existing.id != id) candidate.animations.add(existing);
+                if (present) candidate.animations.add(copyTileAnimation(def, def.frameAssetIds, def.frameDurationsMs));
+                TileAnimationsIO.save(candidate, tileAnimationsFile);
+                tileAnimationsMetaDatabase = candidate;
+                reloadTileAnimationRegistryFromProjectData();
+                markTileAnimationSaveRequired();
+                refreshAssetsPanel();
+            }
+        });
 
         return def.id;
     }
@@ -2940,6 +2974,7 @@ public final class SceneService {
 
         if (tileAnimationsMetaDatabase == null) {
             tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
+            reloadTileAnimationRegistryFromProjectData();
         }
 
         TileAnimationProjectDefData def = findTileAnimationProjectDef(tileAnimationId);
@@ -2947,13 +2982,7 @@ public final class SceneService {
             throw new IllegalStateException("Tiled animation not found.");
         }
 
-        def.frameAssetIds = appendInt(def.frameAssetIds, tileAssetId);
-        def.frameDurationsMs = appendInt(def.frameDurationsMs, DEFAULT_TILE_ANIMATION_FRAME_DURATION_MS);
-
-        TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
-        reloadTileAnimationRegistryFromProjectData();
-        markTileAnimationUsersDirty(tileAnimationId);
-        markCurrentSceneSaveRequired();
+        insertTileAnimationFrames(tileAnimationId, def.frameAssetIds.length, new int[]{tileAssetId});
     }
 
     public void deleteTileAnimation(int tileAnimationId) {
@@ -2971,6 +3000,7 @@ public final class SceneService {
 
         if (tileAnimationsMetaDatabase == null) {
             tileAnimationsMetaDatabase = TileAnimationsIO.load(tileAnimationsFile);
+            reloadTileAnimationRegistryFromProjectData();
         }
 
         TileAnimationProjectDefData toRemove = null;
@@ -3003,6 +3033,7 @@ public final class SceneService {
         }
 
         persistRuntimeAvailabilityChange(cfg, runtimeAvailabilityChanged);
+        tileAnimationHistory().resetAfterIrreversibleChange();
         refreshAssetsPanel();
     }
 
@@ -3022,6 +3053,11 @@ public final class SceneService {
     }
 
     public void removeFrameFromTileAnimation(int tileAnimationId, int frameIndex) {
+        removeFramesFromTileAnimation(tileAnimationId, new int[]{frameIndex});
+    }
+
+    /** Occurrence indices, not tile IDs: duplicates retain independent positions and durations. */
+    public void removeFramesFromTileAnimation(int tileAnimationId, int[] indices) {
         if (tileAnimationId <= 0) {
             throw new IllegalArgumentException("Invalid tiled animation id.");
         }
@@ -3035,43 +3071,45 @@ public final class SceneService {
             throw new IllegalStateException("Tiled animation data is invalid.");
         }
 
-        if (frameIndex < 0 || frameIndex >= def.frameAssetIds.length) {
-            throw new IllegalArgumentException("Invalid frame index.");
+        if (indices == null || indices.length == 0) return;
+        boolean[] removed = new boolean[def.frameAssetIds.length];
+        int count = 0;
+        for (int index : indices) {
+            if (index < 0 || index >= removed.length) throw new IllegalArgumentException("Invalid frame index.");
+            if (!removed[index]) { removed[index] = true; count++; }
         }
-
-        def.frameAssetIds = removeIntAt(def.frameAssetIds, frameIndex);
-        def.frameDurationsMs = removeIntAt(def.frameDurationsMs, frameIndex);
-
-        persistTileAnimationsAndRefresh(tileAnimationId);
+        int[] frames = new int[removed.length - count], durations = new int[frames.length];
+        for (int i = 0, next = 0; i < removed.length; i++) if (!removed[i]) {
+            frames[next] = def.frameAssetIds[i]; durations[next++] = def.frameDurationsMs[i];
+        }
+        editTileAnimationFrames(def, frames, durations, "Remove tile animation frames");
     }
 
-    public void moveFrameInTileAnimation(int tileAnimationId, int fromIndex, int toIndex) {
-        if (tileAnimationId <= 0) {
-            throw new IllegalArgumentException("Invalid tiled animation id.");
+    /** Destination is a gap in the sequence AFTER removing the selected occurrences. One atomic history entry. */
+    public void moveFramesInTileAnimation(int id, int[] indices, int destination, TileAnimationProjectDefData expected) {
+        var def = findTileAnimationProjectDef(id);
+        if (def == null || expected == null || def != expected)
+            throw new IllegalStateException("Animation changed during the drag. Move cancelled.");
+        if (indices == null || indices.length == 0) return;
+        int length = def.frameAssetIds.length;
+        boolean[] moving = new boolean[length];
+        for (int index : indices) {
+            if (index < 0 || index >= length || moving[index]) throw new IllegalArgumentException("Invalid frame selection.");
+            moving[index] = true;
         }
-
-        TileAnimationProjectDefData def = findTileAnimationProjectDef(tileAnimationId);
-        if (def == null) {
-            throw new IllegalStateException("Tiled animation not found.");
+        if (destination < 0 || destination > length - indices.length) throw new IllegalArgumentException("Invalid move destination.");
+        int[] order = new int[length];
+        for (int i = 0, remaining = 0, moved = 0; i < length; i++) {
+            if (moving[i]) order[destination + moved++] = i;
+            else { order[remaining + (remaining >= destination ? indices.length : 0)] = i; remaining++; }
         }
-
-        if (def.frameAssetIds == null || def.frameDurationsMs == null) {
-            throw new IllegalStateException("Tiled animation data is invalid.");
+        int[] frames = new int[length], durations = new int[length];
+        for (int i = 0; i < length; i++) {
+            frames[i] = def.frameAssetIds[order[i]]; durations[i] = def.frameDurationsMs[order[i]];
         }
-
-        if (fromIndex < 0 || fromIndex >= def.frameAssetIds.length) {
-            throw new IllegalArgumentException("Invalid source frame index.");
-        }
-
-        if (toIndex < 0 || toIndex >= def.frameAssetIds.length) {
-            throw new IllegalArgumentException("Invalid target frame index.");
-        }
-
-        def.frameAssetIds = moveInt(def.frameAssetIds, fromIndex, toIndex);
-        def.frameDurationsMs = moveInt(def.frameDurationsMs, fromIndex, toIndex);
-
-        persistTileAnimationsAndRefresh(tileAnimationId);
+        editTileAnimationFrames(def, frames, durations, "Move tile animation frames");
     }
+
 
     public void updateTileAnimationFrameDuration(int tileAnimationId, int frameIndex, int durationMs) {
         if (tileAnimationId <= 0) {
@@ -3090,41 +3128,102 @@ public final class SceneService {
             throw new IllegalArgumentException("Invalid frame index.");
         }
 
-        def.frameDurationsMs[frameIndex] = durationMs;
-
-        persistTileAnimationsAndRefresh(tileAnimationId);
+        int[] durations = def.frameDurationsMs.clone();
+        durations[frameIndex] = durationMs;
+        editTileAnimationFrames(def, def.frameAssetIds, durations, "Edit tile animation duration");
     }
 
-    private void persistTileAnimationsAndRefresh(int tileAnimationId) {
-        ProjectConfig cfg = ProjectConfig.getInstance();
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(cfg);
-        FileHandle tileAnimationsFile = projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
-
-        TileAnimationsIO.save(tileAnimationsMetaDatabase, tileAnimationsFile);
-        reloadTileAnimationRegistryFromProjectData();
-        markCurrentSceneSaveRequired();
-        markTileAnimationUsersDirty(tileAnimationId);
+    public void insertTileAnimationFrames(int id, int index, int[] tiles) {
+        TileAnimationProjectDefData def = findTileAnimationProjectDef(id);
+        if (def == null) throw new IllegalArgumentException("Tile animation is unavailable.");
+        validateTileAnimationFrames(id, tiles);
+        if (index < 0 || index > def.frameAssetIds.length) throw new IllegalArgumentException("Invalid insertion position.");
+        int[] frames = new int[def.frameAssetIds.length + tiles.length];
+        int[] durations = new int[frames.length];
+        System.arraycopy(def.frameAssetIds, 0, frames, 0, index);
+        System.arraycopy(def.frameDurationsMs, 0, durations, 0, index);
+        System.arraycopy(tiles, 0, frames, index, tiles.length);
+        java.util.Arrays.fill(durations, index, index + tiles.length, DEFAULT_TILE_ANIMATION_FRAME_DURATION_MS);
+        System.arraycopy(def.frameAssetIds, index, frames, index + tiles.length, def.frameAssetIds.length - index);
+        System.arraycopy(def.frameDurationsMs, index, durations, index + tiles.length, def.frameDurationsMs.length - index);
+        editTileAnimationFrames(def, frames, durations, "Add tile animation frames");
     }
 
-    private TileAnimationProjectDefData findTileAnimationProjectDef(int tileAnimationId) {
-        if (tileAnimationsMetaDatabase == null || tileAnimationsMetaDatabase.animations == null) {
-            return null;
-        }
+    /** The existing Studio model permits mixed tilesets; imported TSX ownership remains on baseTileAssetId. */
+    public void validateTileAnimationFrames(int id, int[] tiles) {
+        if (findTileAnimationProjectDef(id) == null) throw new IllegalArgumentException("Tile animation is unavailable.");
+        if (tiles == null || tiles.length == 0) throw new IllegalArgumentException("Drop one or more tiles.");
+        for (int tile : tiles) if (!(assetMetaDatabase.findById(tile) instanceof TileAssetMeta))
+            throw new IllegalArgumentException("Only tile assets can be added.");
+    }
 
-        for (TileAnimationProjectDefData def : tileAnimationsMetaDatabase.animations) {
-            if (def != null && def.id == tileAnimationId) {
-                return def;
+    /** Indexed at load/publication, including empty Studio definitions. No filesystem polling. */
+    public TileAnimationProjectDefData findTileAnimationProjectDef(int tileAnimationId) {
+        return tileAnimationsById.get(tileAnimationId);
+    }
+
+    private void editTileAnimationFrames(TileAnimationProjectDefData before, int[] frames, int[] durations, String label) {
+        if (java.util.Arrays.equals(before.frameAssetIds, frames) && java.util.Arrays.equals(before.frameDurationsMs, durations)) return;
+        TileAnimationProjectDefData after = copyTileAnimation(before, frames, durations);
+        TileAnimationsMetaDatabase validation = TileAnimationsIO.createEmpty(); validation.animations.add(after);
+        long total = 0;
+        for (int duration : durations) total += duration;
+        if (total > Integer.MAX_VALUE) throw new IllegalArgumentException("Animation cycle is too long.");
+        TileAnimationsIO.validateOrThrow(validation, "tile animation edit");
+        TileAnimationProjectDefData original = copyTileAnimation(before, before.frameAssetIds, before.frameDurationsMs);
+        boolean durationsOnly = java.util.Arrays.equals(original.frameAssetIds, after.frameAssetIds);
+        ProjectConfig project = ProjectConfig.getInstance();
+        tileAnimationHistory().execute(new games.pixscape.studio.history.commands.Command() {
+            @Override public String label() { return label; }
+            @Override public void redo() { apply(original, after); }
+            @Override public void undo() { apply(after, original); }
+            private void apply(TileAnimationProjectDefData expected, TileAnimationProjectDefData value) {
+                if (ProjectConfig.getInstance() != project) throw new IllegalStateException("The project has changed.");
+                TileAnimationProjectDefData current = findTileAnimationProjectDef(value.id);
+                if (current == null) throw new IllegalStateException("Tile animation was deleted.");
+                if (!java.util.Arrays.equals(current.frameAssetIds, expected.frameAssetIds)
+                        || !java.util.Arrays.equals(current.frameDurationsMs, expected.frameDurationsMs))
+                    throw new IllegalStateException("Tile animation changed since this edit. Its newer sequence was preserved.");
+                TileAnimationsMetaDatabase candidate = TileAnimationsIO.createEmpty();
+                for (var def : tileAnimationsMetaDatabase.animations)
+                    candidate.animations.add(def.id == value.id ? copyTileAnimation(current, value.frameAssetIds, value.frameDurationsMs) : def);
+                // Validate and persist before publishing. A failed write leaves the live definition unchanged.
+                TileAnimationsIO.save(candidate, StudioFs.requireStudioProjectDir(project).child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON));
+                tileAnimationsMetaDatabase = candidate;
+                reloadTileAnimationRegistryFromProjectData();
+                markTileAnimationSaveRequired();
+                markTileAnimationUsersDirty(value.id);
+                if (durationsOnly) {
+                    var inspector = app.inspectedTileAnimationProperties();
+                    if (inspector != null && inspector.assetId() == value.id) inspector.refresh();
+                } else refreshAssetsPanel();
             }
-        }
-        return null;
+        });
+    }
+
+    private static TileAnimationProjectDefData copyTileAnimation(TileAnimationProjectDefData def, int[] frames, int[] durations) {
+        TileAnimationProjectDefData copy = new TileAnimationProjectDefData();
+        copy.id = def.id; copy.name = def.name; copy.baseTileAssetId = def.baseTileAssetId;
+        copy.frameAssetIds = frames.clone(); copy.frameDurationsMs = durations.clone();
+        return copy;
     }
 
     private void markTileAnimationUsersDirty(int tileAnimationId) {
+        for (var context : openSceneContexts().values()) markTileAnimationUsersDirty(context, tileAnimationId);
+    }
+
+    private void markTileAnimationSaveRequired() {
+        var context = canvas.getAttachedSceneContext();
+        if (context == null) context = app.getMostRecentSceneEditorContext();
+        if (context != null && !context.isDisposed()) context.markExplicitSaveRequired();
+    }
+
+    private void markTileAnimationUsersDirty(SceneEditorContext context, int tileAnimationId) {
         if (tileAnimationId <= 0) {
             return;
         }
 
-        World world = sceneContext().world();
+        World world = context.world();
         ComponentMapper<TiledLayerComponent> mTiled = world.getMapper(TiledLayerComponent.class);
 
         IntBag tiledLayers = world.getAspectSubscriptionManager()
@@ -3160,55 +3259,16 @@ public final class SceneService {
                 }
             }
             if(changed){
+                context.markExplicitSaveRequired();
                 // Definition edits are cold authored mutations, unlike playback frame changes.
                 DirtyTrackerSystem dirty=world.getSystem(DirtyTrackerSystem.class);
                 if(dirty!=null)dirty.geometry(data[i],games.pixscape.runtime.render.GeometryDirty.ALL);
-                EventFlow.i().publish(new EventFlow.EntityChanged(data[i],
+                if (context == canvas.getAttachedSceneContext()) EventFlow.i().publish(new EventFlow.EntityChanged(data[i],
                         games.pixscape.studio.history.commands.TransformOp.SCALE,EventFlow.tag(this)));
             }
         }
     }
 
-    private static int[] removeIntAt(int[] source, int index) {
-        if (source == null || index < 0 || index >= source.length) {
-            return source != null ? source : new int[0];
-        }
-
-        int[] out = new int[source.length - 1];
-        if (index > 0) {
-            System.arraycopy(source, 0, out, 0, index);
-        }
-        if (index < source.length - 1) {
-            System.arraycopy(source, index + 1, out, index, source.length - index - 1);
-        }
-        return out;
-    }
-
-    private static int[] moveInt(int[] source, int fromIndex, int toIndex) {
-        if (source == null) return new int[0];
-        if (fromIndex < 0 || fromIndex >= source.length) return source;
-        if (toIndex < 0 || toIndex >= source.length) return source;
-        if (fromIndex == toIndex) return source;
-
-        int[] out = java.util.Arrays.copyOf(source, source.length);
-        int value = out[fromIndex];
-
-        if (fromIndex < toIndex) {
-            System.arraycopy(out, fromIndex + 1, out, fromIndex, toIndex - fromIndex);
-        } else {
-            System.arraycopy(out, toIndex, out, toIndex + 1, fromIndex - toIndex);
-        }
-
-        out[toIndex] = value;
-        return out;
-    }
-
-    private static int[] appendInt(int[] source, int value) {
-        int[] in = source != null ? source : new int[0];
-        int[] out = java.util.Arrays.copyOf(in, in.length + 1);
-        out[in.length] = value;
-        return out;
-    }
 
     // ---------------------------------------------------------------------
     // IMPORT ASSETS

@@ -104,6 +104,7 @@ public class PropertiesPanel extends DockablePanel {
     private boolean spatialPreviewDirty;
     private final TileAssetProperties tileAssetProperties;
     private final AnimationAssetProperties animationAssetProperties;
+    private final TileAnimationProperties tileAnimationProperties;
     private final ResourceAssetProperties resourceAssetProperties;
     private final ResourceAssetProperties hudLayerAssetProperties;
     private int pendingTileAsset = -1;
@@ -128,6 +129,7 @@ public class PropertiesPanel extends DockablePanel {
         TILED_MAP,
         TILE_ASSET,
         ANIMATION_ASSET,
+        TILE_ANIMATION,
         RESOURCE_ASSET
     }
 
@@ -149,6 +151,7 @@ public class PropertiesPanel extends DockablePanel {
                 assetId -> games.pixscape.studio.ui.asset.AnimationAssetClipsEditor.show(app, assetId, getStage()));
 
         resourceAssetProperties = new ResourceAssetProperties(app, this::leaveAssetInspection);
+        tileAnimationProperties = new TileAnimationProperties(app);
         hudLayerAssetProperties = new ResourceAssetProperties(app, this::restoreCurrentCanvasProperties);
 
         VisScrollPane scroller = new VisScrollPane(contentHolder);
@@ -368,6 +371,7 @@ public class PropertiesPanel extends DockablePanel {
         clearSceneContext();
         animationAssetProperties.clearProject();
         tileAssetProperties.clearProject();
+        tileAnimationProperties.clearProject();
         pendingAnimationAsset = -1;
         pendingTileAsset = -1;
         editorsByContext.clear();
@@ -745,6 +749,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void updateIfDirty() {
+        if (inspectedTileAnimationProperties() != null && !tileAnimationProperties.refresh()) restoreCurrentCanvasProperties();
         if (hudLayerAssetProperties.getStage() != null) hudLayerAssetProperties.refreshIfChanged();
         if (inspectedResourceProperties() != null && !resourceAssetProperties.refreshIfChanged()) {
             restoreCurrentCanvasProperties();
@@ -759,10 +764,10 @@ public class PropertiesPanel extends DockablePanel {
             }
         }
         if (hudMode && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET
-                && pendingView != PendingView.RESOURCE_ASSET) return;
+                && pendingView != PendingView.RESOURCE_ASSET && pendingView != PendingView.TILE_ANIMATION) return;
         if (app.getEditorDocumentManager().activeDocument() == null
                 && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET
-                && pendingView != PendingView.RESOURCE_ASSET) {
+                && pendingView != PendingView.RESOURCE_ASSET && pendingView != PendingView.TILE_ANIMATION) {
             clearContent();
             dirty = transformTitleDirty = spatialPreviewDirty = false;
             return;
@@ -789,16 +794,22 @@ public class PropertiesPanel extends DockablePanel {
             case TILED_MAP -> showTiledMapProperties(pendingTiledMap);
             case TILE_ASSET -> showTileAssetProperties(pendingTileAsset);
             case ANIMATION_ASSET -> showAnimationAssetProperties(pendingAnimationAsset);
-            case RESOURCE_ASSET -> { } // The view is already prepared at selection/reload boundaries.
+            case RESOURCE_ASSET, TILE_ANIMATION -> { } // Prepared at selection/reload boundaries.
         }
     }
 
     public void inspectAsset(games.pixscape.studio.ui.asset.AssetNode node) {
+        // One arbitration rule for all browser selections, including folder navigation.
+        if (inspectedTileAnimationProperties() != null && tileAnimationProperties.isEditing()) return;
         if (node == null) {
             leaveAssetInspection();
             return;
         }
         var database = app.getSceneService().getAssetMetaDatabase();
+        if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.TILED_ANIMATION) {
+            inspectTileAnimation(node.tileAnimationId, false);
+            return;
+        }
         if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.HUD_SCREEN
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.GAME_OBJECT
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.PARTICLE
@@ -838,7 +849,7 @@ public class PropertiesPanel extends DockablePanel {
 
     private void leaveAssetInspection() {
         if (inspectedAnimationProperties() != null || inspectedTileProperties() != null
-                || inspectedResourceProperties() != null) {
+                || inspectedResourceProperties() != null || inspectedTileAnimationProperties() != null) {
             restoreCurrentCanvasProperties();
             updateIfDirty();
         }
@@ -850,6 +861,7 @@ public class PropertiesPanel extends DockablePanel {
 
     /** Abandon a target explicitly; visual docking detaches the panel without calling this. */
     private void clearContent() {
+        if (inspectedTileAnimationProperties() != null) tileAnimationProperties.clearProject();
         if (inspectedResourceProperties() != null) resourceAssetProperties.clearProject();
         if (hudLayerAssetProperties.getParent() == contentHolder) hudLayerAssetProperties.clearProject();
         contentHolder.clearChildren();
@@ -858,7 +870,9 @@ public class PropertiesPanel extends DockablePanel {
     public void reloadAssetInspection() {
         if (hudLayerAssetProperties.getParent() == contentHolder) hudLayerAssetProperties.reload();
         boolean available = true;
-        if (inspectedResourceProperties() != null) {
+        if (inspectedTileAnimationProperties() != null) {
+            available = tileAnimationProperties.reload();
+        } else if (inspectedResourceProperties() != null) {
             available = resourceAssetProperties.reload();
         } else if (inspectedTileProperties() != null) {
             var database = app.getSceneService().getAssetMetaDatabase();
@@ -902,6 +916,17 @@ public class PropertiesPanel extends DockablePanel {
 
     public AnimationAssetProperties inspectedAnimationProperties() {
         return animationAssetProperties.getParent() == contentHolder ? animationAssetProperties : null;
+    }
+
+    public TileAnimationProperties inspectedTileAnimationProperties() {
+        return tileAnimationProperties.getParent() == contentHolder ? tileAnimationProperties : null;
+    }
+
+    public void inspectTileAnimation(int id, boolean edit) {
+        clearBindings(); clearPhysicsContext(); clearTiledMapContext(); clearContent();
+        if (!tileAnimationProperties.select(id, edit)) { tileAnimationProperties.clearProject(); restoreCurrentCanvasProperties(); return; }
+        pendingView = PendingView.TILE_ANIMATION;
+        contentHolder.add(tileAnimationProperties).growX().top().left().row(); dirty = false;
     }
 
     private void restoreCurrentCanvasProperties() {

@@ -18,7 +18,6 @@ public final class AssetNode {
         GAME_OBJECT,
         TILED_ANIMATIONS_FOLDER,
         TILED_ANIMATION,
-        TILED_ANIMATION_FRAME,
         HUD_SCREEN,
         FONT,
         SKIN
@@ -49,8 +48,6 @@ public final class AssetNode {
 
     public int assetId = -1;
     public int tileAnimationId = -1;
-    public int frameIndex = -1;
-    public int durationMs = -1;
 
     /** Present only when this user-visible node is backed by AssetMeta. */
     public AssetDisplayInfo assetInfo;

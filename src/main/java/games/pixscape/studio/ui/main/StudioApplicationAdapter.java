@@ -820,6 +820,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (studioEditingModeService != null && studioEditingModeService.isHudTestMode()) return false;
         try {
             if (inspectedTileProperties() != null) return inspectedTileProperties().undo();
+            if (inspectedTileAnimationProperties() != null) return inspectedTileAnimationProperties().undo();
             return editorCommandRouter.undo();
         } catch (RuntimeException failure) {
             showHudCommandFailure(failure);
@@ -831,6 +832,7 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (studioEditingModeService != null && studioEditingModeService.isHudTestMode()) return false;
         try {
             if (inspectedTileProperties() != null) return inspectedTileProperties().redo();
+            if (inspectedTileAnimationProperties() != null) return inspectedTileAnimationProperties().redo();
             return editorCommandRouter.redo();
         } catch (RuntimeException failure) {
             showHudCommandFailure(failure);
@@ -844,6 +846,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public games.pixscape.studio.ui.property.TileAssetProperties inspectedTileProperties() {
         return propertiesPanel == null ? null : propertiesPanel.inspectedTileProperties();
+    }
+
+    public games.pixscape.studio.ui.property.TileAnimationProperties inspectedTileAnimationProperties() {
+        return propertiesPanel == null ? null : propertiesPanel.inspectedTileAnimationProperties();
     }
 
     public Stage getUiStage() {
@@ -868,6 +874,14 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
 
     public void reloadAssetInspection() {
         if (propertiesPanel != null) propertiesPanel.reloadAssetInspection();
+    }
+
+    public void editTileAnimation(int id) {
+        if (propertiesPanel != null) propertiesPanel.inspectTileAnimation(id, true);
+    }
+
+    public void inspectTileAnimation(int id) {
+        if (propertiesPanel != null) propertiesPanel.inspectTileAnimation(id, false);
     }
 
     public void clearProjectInspection() {

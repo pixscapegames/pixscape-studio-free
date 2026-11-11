@@ -14,11 +14,12 @@ public final class AnimatedThumbnail extends Actor {
     private final int frameCount;
     private final int direction;
     private final boolean flipX;
-    private Scaling scaling = Scaling.stretch;
+    private Scaling scaling = Scaling.fit;
 
     private int currentFrame;
     private float time;
     private boolean playing = false;
+    private int[] frameEndsMs;
 
     public AnimatedThumbnail(Array<Texture> frames, float fps) {
         this(frames, fps, 0, Math.max(0, frames.size - 1), false);
@@ -40,6 +41,19 @@ public final class AnimatedThumbnail extends Actor {
         this.scaling = scaling;
     }
 
+    /** Variable durations preserve each occurrence, including repeated textures. */
+    public AnimatedThumbnail(Array<Texture> frames, int[] durationsMs) {
+        this(frames, 12f);
+        if (durationsMs.length != frames.size) throw new IllegalArgumentException("Frame/duration count mismatch.");
+        frameEndsMs = new int[durationsMs.length];
+        int total = 0;
+        for (int i = 0; i < durationsMs.length; i++) {
+            if (durationsMs[i] <= 0 || (long) total + durationsMs[i] > Integer.MAX_VALUE)
+                throw new IllegalArgumentException("Invalid frame duration.");
+            total += durationsMs[i]; frameEndsMs[i] = total;
+        }
+    }
+
     public void startPreview() {
         playing = true;
         time = 0f;
@@ -58,6 +72,12 @@ public final class AnimatedThumbnail extends Actor {
             if (!ancestor.isVisible()) return;
         }
 
+        if (frameEndsMs != null) {
+            time = (time + Math.min(.1f, Math.max(0, delta)) * 1000) % frameEndsMs[frameEndsMs.length - 1];
+            int found = java.util.Arrays.binarySearch(frameEndsMs, (int) time);
+            currentFrame = found >= 0 ? found + 1 : -found - 1;
+            return;
+        }
         time += delta;
         currentFrame = firstFrame + direction * ((int) (time * fps) % frameCount);
     }

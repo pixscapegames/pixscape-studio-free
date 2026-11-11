@@ -30,33 +30,14 @@ public class AssetNodeIdentityTest {
         AssetNode gameObject = synthetic(AssetNode.Kind.GAME_OBJECT, AssetNode.Root.GAME_OBJECTS, "gameObject");
         AssetNode tiledAnimation = synthetic(AssetNode.Kind.TILED_ANIMATION, AssetNode.Root.TILES, "walk");
         tiledAnimation.tileAnimationId = 71;
-        AssetNode frame = synthetic(AssetNode.Kind.TILED_ANIMATION_FRAME, AssetNode.Root.TILES, "frame");
-        frame.tileAnimationId = 71;
         AssetNode folder = synthetic(AssetNode.Kind.FOLDER, AssetNode.Root.IMAGES, "folder");
         AssetNode virtualRoot = synthetic(AssetNode.Kind.TILED_ANIMATIONS_FOLDER, AssetNode.Root.TILES, "Animations");
 
         assertEquals(-1, gameObject.assetId);
         assertEquals(-1, tiledAnimation.assetId);
-        assertEquals(-1, frame.assetId);
         assertEquals(-1, folder.assetId);
         assertEquals(-1, virtualRoot.assetId);
         assertEquals(71, tiledAnimation.tileAnimationId);
-        assertEquals(71, frame.tileAnimationId);
-    }
-
-    @Test
-    public void metadataBackedTiledAnimationFrameUsesFrameAssetIdNotAnimationId() {
-        AssetNode frame = synthetic(AssetNode.Kind.TILED_ANIMATION_FRAME, AssetNode.Root.TILES, "frame")
-                .applyAssetMeta(new TileAssetMeta(
-                        44,
-                        "tiles/water",
-                        "orig/tiles/water__a44.png",
-                        AssetMeta.AssetScope.USER
-                ));
-        frame.tileAnimationId = 91;
-
-        assertEquals(44, frame.assetId);
-        assertEquals(91, frame.tileAnimationId);
     }
 
     @Test

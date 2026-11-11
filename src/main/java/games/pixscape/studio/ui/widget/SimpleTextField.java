@@ -7,6 +7,7 @@ import com.kotcrab.vis.ui.widget.VisTextField;
 
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -19,6 +20,9 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
 
     private String lastSyncedValue = "";
     private boolean internalUpdate = false;
+    private boolean committing;
+    private BooleanSupplier commitAllowed = () -> true;
+    private boolean focusCommitInstalled;
 
     private VisTextField.TextFieldFilter activeFilter;
 
@@ -50,6 +54,23 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
         return this;
     }
 
+    /** Opt-in non-ECS binding: Tab uses VisUI's normal focus traversal. */
+    public SimpleTextField onFocusLostCommit(BooleanSupplier commitAllowed) {
+        this.commitAllowed = Objects.requireNonNull(commitAllowed);
+        if (!focusCommitInstalled) {
+            ValidationHooks.installFocusLostValidation(this, this::commit);
+            focusCommitInstalled = true;
+        }
+        return this;
+    }
+
+    /** Call before removing/replacing authored controls, so teardown is not a user commit. */
+    public void unbind() {
+        reader = null;
+        applier = null;
+        commitAllowed = () -> false;
+    }
+
     public void refresh() {
         String value = readCurrentValue();
         if (value == null) value = lastSyncedValue != null ? lastSyncedValue : "";
@@ -58,7 +79,7 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
     }
 
     public void commit() {
-        if (internalUpdate) return;
+        if (internalUpdate || committing || !commitAllowed.getAsBoolean()) return;
 
         String value = currentText();
 
@@ -73,8 +94,13 @@ public final class SimpleTextField extends VisTextField implements TextInputWidg
             return;
         }
 
-        applier.accept(value);
-        syncFromSourceOr(value);
+        committing = true;
+        try {
+            applier.accept(value);
+            syncFromSourceOr(value);
+        } finally {
+            committing = false;
+        }
     }
 
     public void rollback() {

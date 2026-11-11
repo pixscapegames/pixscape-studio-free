@@ -4,7 +4,6 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.InputListener;
@@ -20,8 +19,6 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.io.TileAnimationsIO;
-import games.pixscape.studio.ui.asset.dnd.DragContext;
-import games.pixscape.studio.ui.asset.dnd.DragPayload;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
@@ -43,11 +40,6 @@ public final class FolderTreeView extends VisTable {
 
     private AssetNode lastTileFolderSelection;
     private AssetNode lastNonTileFolderSelection;
-
-    private final Vector2 tmpStageCoords = new Vector2();
-
-    private TileDroppedOnTiledAnimationListener tileDroppedOnTiledAnimationListener;
-    private final Vector2 tmpLocalCoords = new Vector2();
 
     private static final String TILED_ANIMATIONS_NODE_PATH = "__tile_animations__";
 
@@ -72,15 +64,6 @@ public final class FolderTreeView extends VisTable {
             updateSelectableNodes();
             restoreBestSelection();
         });
-    }
-
-    @FunctionalInterface
-    public interface TileDroppedOnTiledAnimationListener {
-        void accept(int tileAnimationId, Array<String> tilePaths);
-    }
-
-    public void setTileDroppedOnTiledAnimationListener(TileDroppedOnTiledAnimationListener listener) {
-        this.tileDroppedOnTiledAnimationListener = listener;
     }
 
     boolean isShowingProject(ProjectConfig cfg) {
@@ -153,7 +136,6 @@ public final class FolderTreeView extends VisTable {
         tree.expandAll();
         updateSelectableNodes();
     }
-
 
     private void addGameObjectsNode() {
         AssetNode data = new AssetNode(
@@ -572,47 +554,6 @@ public final class FolderTreeView extends VisTable {
         }
     }
 
-    private void updateTileAnimationDrop() {
-        DragPayload peek = DragContext.get().peek();
-        if (peek == null || !"tile-asset".equals(peek.type)) {
-            return;
-        }
-
-        AssetNode hovered = assetNodeUnderPointer();
-        if (hovered == null || hovered.kind != AssetNode.Kind.TILED_ANIMATION) {
-            return;
-        }
-
-        DragPayload released = DragContext.get().consumeIfReleasedInside(true);
-        if (released == null) {
-            return;
-        }
-
-        if (tileDroppedOnTiledAnimationListener != null) {
-            Array<String> paths = (released.paths != null && released.paths.size > 0)
-                    ? new Array<>(released.paths)
-                    : new Array<>();
-
-            if (paths.size == 0 && released.path != null && !released.path.isBlank()) {
-                paths.add(released.path);
-            }
-
-            tileDroppedOnTiledAnimationListener.accept(
-                    hovered.tileAnimationId,
-                    paths
-            );
-        }
-
-        cleanupPayload(released);
-    }
-
-    private void cleanupPayload(DragPayload payload) {
-        if (payload != null && payload.ghostPixmap != null) {
-            payload.ghostPixmap.dispose();
-            payload.ghostPixmap = null;
-        }
-    }
-
     private VisTree.Node nodeAt(float y) {
         return tree.getNodeAt(y);
     }
@@ -634,36 +575,4 @@ public final class FolderTreeView extends VisTable {
         }
     }
 
-    private AssetNode assetNodeUnderPointer() {
-        if (getStage() == null) {
-            return null;
-        }
-
-        tmpStageCoords.set(Gdx.input.getX(), Gdx.input.getY());
-        getStage().screenToStageCoordinates(tmpStageCoords);
-
-        tmpLocalCoords.set(tmpStageCoords);
-        tree.stageToLocalCoordinates(tmpLocalCoords);
-
-        if (tmpLocalCoords.x < 0f
-                || tmpLocalCoords.x > tree.getWidth()
-                || tmpLocalCoords.y < 0f
-                || tmpLocalCoords.y > tree.getHeight()) {
-            return null;
-        }
-
-        VisTree.Node node = nodeAt(tmpLocalCoords.y);
-        if (node == null || node.getActor() == null) {
-            return null;
-        }
-
-        Object uo = node.getActor().getUserObject();
-        return (uo instanceof AssetNode assetNode) ? assetNode : null;
-    }
-
-    @Override
-    public void act(float delta) {
-        super.act(delta);
-        updateTileAnimationDrop();
-    }
 }

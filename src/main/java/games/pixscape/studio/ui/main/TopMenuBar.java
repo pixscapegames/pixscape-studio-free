@@ -679,13 +679,14 @@ public class TopMenuBar extends MenuBar {
         refreshWidgetsAvailability(widgetsMenuItem, app.getEditorDocumentManager(), projectActive);
         refreshLayersAvailability(layersMenuItem, app.getEditorDocumentManager());
         var tileProperties = app.inspectedTileProperties();
-        editMenu.openButton.setDisabled(!projectActive || (active == null && tileProperties == null));
+        var tileAnimation = app.inspectedTileAnimationProperties();
+        editMenu.openButton.setDisabled(!projectActive || (active == null && tileProperties == null && tileAnimation == null));
         cut.setDisabled(!worldAllowed);
         copy.setDisabled(!worldAllowed);
         paste.setDisabled(!worldAllowed);
-        undo.setDisabled(tileProperties != null ? !tileProperties.canUndo() : hudActive
+        undo.setDisabled(tileProperties != null ? !tileProperties.canUndo() : tileAnimation != null ? !tileAnimation.canUndo() : hudActive
                 ? !((HudScreenEditorDocument) active).editSession().canUndo() : !worldAllowed);
-        redo.setDisabled(tileProperties != null ? !tileProperties.canRedo() : hudActive
+        redo.setDisabled(tileProperties != null ? !tileProperties.canRedo() : tileAnimation != null ? !tileAnimation.canRedo() : hudActive
                 ? !((HudScreenEditorDocument) active).editSession().canRedo() : !worldAllowed);
     }
 

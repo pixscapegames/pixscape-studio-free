@@ -3,7 +3,6 @@ package games.pixscape.studio.ui.asset;
 import com.badlogic.gdx.scenes.scene2d.Actor;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.studio.asset.AssetType;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.hud.HudScreenAssetAuthoringService;
@@ -42,7 +41,9 @@ public final class AssetsPanel extends DockablePanel {
         runtimeAvailabilityPanel = new RuntimeAvailabilityPanel(app);
         thumbsView.setCreateTiledAnimationListener(this::showCreateTiledAnimationDialog);
         thumbsView.setOpenListener(node -> {
-            if (node.kind == AssetNode.Kind.ANIMATION) {
+            if (node.kind == AssetNode.Kind.TILED_ANIMATION) {
+                app.editTileAnimation(node.tileAnimationId);
+            } else if (node.kind == AssetNode.Kind.ANIMATION) {
                 AnimationAssetClipsEditor.show(app, node.assetId, getStage());
             } else if (node.kind == AssetNode.Kind.HUD_SCREEN) {
                 notifyAssetSelection(null);
@@ -61,94 +62,18 @@ public final class AssetsPanel extends DockablePanel {
                 return;
             }
 
-            if (node.kind == AssetNode.Kind.TILED_ANIMATION_FRAME) {
-                return;
-            }
-
             int tileAssetId = tileAssetIdForSelection(node);
             if (tileAssetId > 0) {
                 tiledPaintService.setActiveTileAssetId(tileAssetId);
             }
         });
 
-        treeView.setTileDroppedOnTiledAnimationListener((tileAnimationId, tilePaths) -> {
-            try {
-                if (tilePaths == null || tilePaths.size == 0) {
-                    return;
-                }
-
-                for (String tilePath : tilePaths) {
-                    String sourceRelPath = StudioFs.DIR_ORIG_TILES + "/" + tilePath;
-                    int tileAssetId = app.getSceneService()
-                            .resolveAssetIdBySourceRelPath(sourceRelPath, AssetType.TILE);
-
-                    if (tileAssetId <= 0) {
-                        throw new IllegalStateException("Tile asset id could not be resolved.");
-                    }
-
-                    app.getSceneService().addTileToTileAnimation(tileAnimationId, tileAssetId);
-                }
-
-                ProjectConfig cfg = ProjectConfig.getInstance();
-                reloadFromProject(cfg);
-                selectTiledAnimationById(tileAnimationId);
-
-                AssetNode selected = treeView.getSelectedFolder();
-                thumbsView.clear();
-                if (selected != null) {
-                    thumbsView.showForNode(selected);
-                }
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                showSimpleErrorDialog(ex.getMessage());
-            }
-        });
-        thumbsView.setTiledAnimationFrameRemoveListener((tileAnimationId, frameIndex) -> {
-            try {
-                app.getSceneService().removeFrameFromTileAnimation(tileAnimationId, frameIndex);
-
-                ProjectConfig cfg = ProjectConfig.getInstance();
-                reloadFromProject(cfg);
-                selectTiledAnimationById(tileAnimationId);
-
-                AssetNode selected = treeView.getSelectedFolder();
-                thumbsView.clear();
-                if (selected != null) {
-                    thumbsView.showForNode(selected);
-                }
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                showSimpleErrorDialog(ex.getMessage());
-            }
-        });
-        thumbsView.setTiledAnimationFrameDurationChangeListener((tileAnimationId, frameIndex, durationMs) -> {
-            try {
-                app.getSceneService().updateTileAnimationFrameDuration(tileAnimationId, frameIndex, durationMs);
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                showSimpleErrorDialog(ex.getMessage());
-            }
-        });
-        thumbsView.setTiledAnimationFrameMoveListener((tileAnimationId, fromIndex, toIndex) -> {
-            try {
-                app.getSceneService().moveFrameInTileAnimation(tileAnimationId, fromIndex, toIndex);
-
-                ProjectConfig cfg = ProjectConfig.getInstance();
-                reloadFromProject(cfg);
-                selectTiledAnimationById(tileAnimationId);
-
-                AssetNode selected = treeView.getSelectedFolder();
-                thumbsView.clear();
-                if (selected != null) {
-                    thumbsView.showForNode(selected);
-                }
-            } catch (IllegalArgumentException | IllegalStateException ex) {
-                showSimpleErrorDialog(ex.getMessage());
-            }
-        });
         thumbsView.setTiledAnimationDeleteListener(this::showDeleteTiledAnimationDialog);
         // selection binding
         treeView.setSelectionListener(node -> {
             if (reloadingAssetSelection) return;
             thumbsView.showForNode(node);
-            notifyAssetSelection(null);
+            notifyAssetSelection(node != null && node.kind == AssetNode.Kind.TILED_ANIMATION ? node : null);
         });
 
         buildLayout();
@@ -274,6 +199,7 @@ public final class AssetsPanel extends DockablePanel {
                     if (selected != null) {
                         thumbsView.showForNode(selected);
                     }
+                    app.inspectTileAnimation(tileAnimationId);
                 } catch (IllegalArgumentException | IllegalStateException ex) {
                     showSimpleErrorDialog(ex.getMessage());
                 }

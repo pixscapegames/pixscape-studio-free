@@ -27,6 +27,12 @@ public final class ValidationHooks {
             }
         });
 
+        installFocusLostValidation(field, validatorAction);
+    }
+
+    public static void installFocusLostValidation(Actor field, Runnable validatorAction) {
+        Objects.requireNonNull(field, "field");
+        Objects.requireNonNull(validatorAction, "validatorAction");
         field.addListener(new FocusListener() {
             @Override
             public void keyboardFocusChanged(FocusEvent event, Actor actor, boolean focused) {

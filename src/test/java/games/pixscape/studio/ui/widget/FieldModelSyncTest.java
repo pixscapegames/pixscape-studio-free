@@ -13,6 +13,42 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class FieldModelSyncTest {
 
+    @Test public void simpleFieldFocusCommitIsOptInAndReentrantSafe() {
+        AtomicReference<String> model = new AtomicReference<>("300");
+        AtomicInteger commits = new AtomicInteger();
+        SimpleTextField field = new SimpleTextField();
+        field.bind(model::get, value -> {
+            commits.incrementAndGet();
+            loseFocus(field); // An applier can remove or refresh the focused control synchronously.
+            model.set(value);
+        });
+        field.setText("100"); loseFocus(field);
+        Assert.assertEquals(0, commits.get());
+        field.onFocusLostCommit(() -> true);
+        var enter = new com.badlogic.gdx.scenes.scene2d.InputEvent();
+        enter.setType(com.badlogic.gdx.scenes.scene2d.InputEvent.Type.keyDown);
+        enter.setKeyCode(com.badlogic.gdx.Input.Keys.ENTER); field.fire(enter);
+        loseFocus(field); field.commit();
+        Assert.assertEquals(1, commits.get()); Assert.assertEquals("100", model.get());
+        field.setText("200"); field.unbind(); loseFocus(field); field.commit();
+        Assert.assertEquals(1, commits.get()); Assert.assertEquals("100", model.get());
+    }
+
+    @Test public void simpleFieldCommitGuardRejectsObsoleteBinding() {
+        AtomicReference<String> model = new AtomicReference<>("300");
+        var current = new java.util.concurrent.atomic.AtomicBoolean(true);
+        SimpleTextField field = new SimpleTextField().onFocusLostCommit(current::get).bind(model::get, model::set);
+        field.setText("123"); current.set(false);
+        loseFocus(field); field.commit();
+        Assert.assertEquals("300", model.get());
+    }
+
+    private static void loseFocus(SimpleTextField field) {
+        var event = new com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent();
+        event.setType(com.badlogic.gdx.scenes.scene2d.utils.FocusListener.FocusEvent.Type.keyboard);
+        event.setFocused(false); field.fire(event);
+    }
+
     @BeforeClass
     public static void loadVisUiSkin() {
         VisUiTestBootstrap.loadSkin();
