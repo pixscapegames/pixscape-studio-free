@@ -1103,6 +1103,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (disposing) return;
         disposing = true;
         dumpLiveNonDaemonThreads("dispose:start");
+        if (propertiesPanel != null) propertiesPanel.clearProject();
+        if (assetsPanel != null) assetsPanel.dispose();
         PreviewLauncher.close();
         HtmlPreviewLauncher.stop();
         if (sceneHudCompositionRenderer != null) {

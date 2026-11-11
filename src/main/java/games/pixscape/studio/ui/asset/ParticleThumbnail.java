@@ -3,12 +3,14 @@ package games.pixscape.studio.ui.asset;
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import games.pixscape.runtime.particle.ParticleEffect;
 
 public final class ParticleThumbnail extends Actor {
 
     private final ParticleEffect effect;
     private boolean playing = false;
+    private boolean disposed;
 
     public ParticleThumbnail(FileHandle particleFile, FileHandle imagesDir) {
         effect = new ParticleEffect();
@@ -17,6 +19,7 @@ public final class ParticleThumbnail extends Actor {
     }
 
     public void startPreview() {
+        if (disposed) return;
         effect.reset();
         playing = true;
     }
@@ -43,6 +46,14 @@ public final class ParticleThumbnail extends Actor {
     }
 
     public void dispose() {
+        if (disposed) return;
+        stopPreview();
+        disposed = true;
         effect.dispose();
+    }
+
+    @Override protected void setStage(Stage stage) {
+        if (stage == null) stopPreview();
+        super.setStage(stage);
     }
 }

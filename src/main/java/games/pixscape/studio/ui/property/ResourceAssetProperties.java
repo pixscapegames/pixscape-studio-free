@@ -5,7 +5,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
 import com.badlogic.gdx.scenes.scene2d.Actor;
-import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
@@ -34,7 +33,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Read-only HUD/Font/Skin details. Native preview resources are owned by this view only. */
+/**
+ * Read-only HUD/Font/Skin details with owned static previews. Docking retains the target
+ * and previews; PropertiesPanel explicitly clears them when inspection ends.
+ */
 public final class ResourceAssetProperties extends VisTable {
     private final StudioApplicationAdapter app;
     private final Runnable leaveInspection;
@@ -245,8 +247,4 @@ public final class ResourceAssetProperties extends VisTable {
         previewSkin = null;
     }
 
-    @Override protected void setStage(Stage stage) {
-        if (stage == null) clearProject();
-        super.setStage(stage);
-    }
 }

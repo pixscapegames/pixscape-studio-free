@@ -91,6 +91,7 @@ public final class AssetsThumbsView extends VisTable {
     private TiledAnimationDeleteListener tiledAnimationDeleteListener;
 
     private final Array<Texture> ownedGameObjectThumbTextures = new Array<>();
+    private final Array<ParticleThumbnail> ownedParticleThumbnails = new Array<>();
 
     @FunctionalInterface
     public interface TiledAnimationFrameRemoveListener {
@@ -261,9 +262,7 @@ public final class AssetsThumbsView extends VisTable {
         clearMultiSelection();
         currentFolder = null;
         currentAssets.clear();
-        tileWidgets.clear();
-        grid.clear();
-        disposeOwnedGameObjectThumbTextures();
+        clearGrid();
 
         currentLayoutStrategy = galleryLayoutStrategy;
         currentLayoutStrategy.configureScrollPane(scroll);
@@ -275,14 +274,12 @@ public final class AssetsThumbsView extends VisTable {
 
     public void showForNode(AssetNode folder) {
         currentFolder = folder;
-        disposeOwnedGameObjectThumbTextures();
         refreshHeaderActions();
 
         selectedNode = null;
         clearMultiSelection();
         currentAssets.clear();
-        tileWidgets.clear();
-        grid.clear();
+        clearGrid();
 
         if (folder == null) {
             currentLayoutStrategy = galleryLayoutStrategy;
@@ -439,8 +436,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showEmptyTiledAnimationsPlaceholder() {
-        grid.clear();
-        tileWidgets.clear();
+        clearGrid();
 
         VisLabel label = new VisLabel(
                 "No tiled animations yet.\n\n" +
@@ -460,8 +456,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void showTilesRootPlaceholder() {
-        grid.clear();
-        tileWidgets.clear();
+        clearGrid();
 
         VisLabel label = new VisLabel(
                 "Select a tileset folder to view its tiles.\n\n" +
@@ -481,8 +476,7 @@ public final class AssetsThumbsView extends VisTable {
     }
 
     private void rebuildGrid() {
-        grid.clear();
-        tileWidgets.clear();
+        clearGrid();
 
         if (currentAssets.size == 0) {
             grid.invalidateHierarchy();
@@ -751,6 +745,7 @@ public final class AssetsThumbsView extends VisTable {
                         .child(StudioFs.DIR_ORIG_IMAGES);
 
                 ParticleThumbnail effectThumb = new ParticleThumbnail(particleFile, imagesDir);
+                ownedParticleThumbnails.add(effectThumb);
                 effectThumb.setSize(tileSize, tileSize);
                 effectThumb.setVisible(false);
 
@@ -1732,8 +1727,10 @@ public final class AssetsThumbsView extends VisTable {
 
     void restoreAssetSelection(AssetNode previous) {
         for (AssetNode node : currentAssets) {
-            if (node.kind == previous.kind && (node.kind == AssetNode.Kind.HUD_SCREEN
-                    ? java.util.Objects.equals(node.path, previous.path) : node.assetId == previous.assetId)) {
+            if (node.kind == previous.kind && node.root == previous.root
+                    && node.tileAnimationId == previous.tileAnimationId && node.frameIndex == previous.frameIndex
+                    && (previous.assetId > 0 ? node.assetId == previous.assetId
+                    : java.util.Objects.equals(node.path, previous.path))) {
                 selectedNode = node;
                 if (isMultiSelectableAsset(node)) addToSelection(node);
                 selectionAnchorIndex = indexOfCurrentAsset(node);
@@ -2212,6 +2209,15 @@ public final class AssetsThumbsView extends VisTable {
         layoutDirty = true;
         invalidateHierarchy();
         layout();
+    }
+
+    /** Grid replacement abandons owned previews; stage detachment alone does not. */
+    private void clearGrid() {
+        grid.clear();
+        tileWidgets.clear();
+        for (ParticleThumbnail thumbnail : ownedParticleThumbnails) thumbnail.dispose();
+        ownedParticleThumbnails.clear();
+        disposeOwnedGameObjectThumbTextures();
     }
 
     private void disposeOwnedGameObjectThumbTextures() {

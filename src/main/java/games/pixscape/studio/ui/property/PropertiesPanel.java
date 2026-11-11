@@ -358,7 +358,7 @@ public class PropertiesPanel extends DockablePanel {
 
     /** Releases project inspection even when there is no document activation to observe. */
     public void clearProject() {
-        if (inspectedResourceProperties() != null) contentHolder.clearChildren();
+        if (inspectedResourceProperties() != null) clearContent();
         resourceAssetProperties.clearProject();
         hudLayerAssetProperties.remove();
         hudLayerAssetProperties.clearProject();
@@ -536,7 +536,7 @@ public class PropertiesPanel extends DockablePanel {
             showGameObjectHint();
             return;
         }
-        contentHolder.clearChildren();
+        clearContent();
         contentHolder.add(sceneProperties).growX().top().left().row();
         clearBindings();
         clearPhysicsContext();
@@ -556,7 +556,7 @@ public class PropertiesPanel extends DockablePanel {
         if (type == null) {
             hudMode = false;
             gameObjectMode = false;
-            contentHolder.clearChildren();
+            clearContent();
             clearBindings();
             clearPhysicsContext();
             clearTiledMapContext();
@@ -565,7 +565,7 @@ public class PropertiesPanel extends DockablePanel {
         hudMode = type == EditorDocumentType.HUD_SCREEN;
         gameObjectMode = type == EditorDocumentType.GAME_OBJECT;
         if (hudMode) {
-            contentHolder.clearChildren();
+            clearContent();
             hudInspectorView.rebuild();
             contentHolder.add(hudInspectorView).growX().top().left().row();
         } else {
@@ -575,7 +575,7 @@ public class PropertiesPanel extends DockablePanel {
 
     /** Game Object tabs edit an isolated hierarchy and deliberately expose no project Scene metadata. */
     private void showGameObjectHint() {
-        contentHolder.clearChildren();
+        clearContent();
         contentHolder.add(new VisLabel("Select a Game Object element to edit its properties."))
                 .growX().top().left().row();
         clearBindings();
@@ -584,7 +584,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showLayerProperties(int layerEntity) {
-        contentHolder.clearChildren();
+        clearContent();
         layerProperties.setLayerEntityId(layerEntity);
         contentHolder.add(layerProperties).growX().top().left().row();
         clearBindings();
@@ -596,7 +596,7 @@ public class PropertiesPanel extends DockablePanel {
     private void showSceneHudLayerProperties() {
         if (!(app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene)) return;
         String screenId = scene.context().sceneMeta().defaultHudScreenId;
-        contentHolder.clearChildren();
+        clearContent();
         clearBindings();
         clearPhysicsContext();
         clearTiledMapContext();
@@ -605,7 +605,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showEntityProperties(int entityId) {
-        contentHolder.clearChildren();
+        clearContent();
         entityProperties.setEntityId(entityId);
         contentHolder.add(entityProperties).growX().top().left().row();
         clearBindings();
@@ -615,7 +615,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showBodyProperties(int bodyEntityId) {
-        contentHolder.clearChildren();
+        clearContent();
         bodyProperties.setEntityId(bodyEntityId);
         contentHolder.add(bodyProperties).growX().top().left().row();
         clearBindings();
@@ -625,7 +625,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showFixtureProperties(int bodyEntityId, int physicsShapeId) {
-        contentHolder.clearChildren();
+        clearContent();
         fixtureProperties.setEntityId(bodyEntityId);
         fixtureProperties.refreshNow();
         contentHolder.add(fixtureProperties).growX().top().left().row();
@@ -637,7 +637,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showLightPointProperties(int entityId) {
-        contentHolder.clearChildren();
+        clearContent();
         pointLightProperties.setEntityId(entityId);
         contentHolder.add(pointLightProperties).growX().top().left().row();
         clearBindings();
@@ -647,7 +647,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showLightConeProperties(int entityId) {
-        contentHolder.clearChildren();
+        clearContent();
         coneLightProperties.setEntityId(entityId);
         contentHolder.add(coneLightProperties).growX().top().left().row();
         clearBindings();
@@ -657,7 +657,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showJointProperties(int jointEid) {
-        contentHolder.clearChildren();
+        clearContent();
         jointProperties.setJointEntityId(jointEid);
         contentHolder.add(jointProperties).growX().top().left().row();
         clearBindings();
@@ -666,7 +666,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showSpatialBlockProperties(int mapEntityId, int blockId) {
-        contentHolder.clearChildren();
+        clearContent();
         spatialBlockProperties.setSpatialBlock(mapEntityId, blockId);
         contentHolder.add(spatialBlockProperties).growX().top().left().row();
         clearBindings();
@@ -677,7 +677,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showMultiSelection(int count) {
-        contentHolder.clearChildren();
+        clearContent();
         contentHolder.add(new VisLabel("Multiple selection (" + count + " entities)"))
                 .growX().top().left().row();
         clearBindings();
@@ -686,7 +686,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showTiledMapProperties(int mapEntityId) {
-        contentHolder.clearChildren();
+        clearContent();
         tiledMapProperties.setMapEntityId(mapEntityId);
         contentHolder.add(tiledMapProperties).growX().top().left().row();
         clearBindings();
@@ -761,7 +761,7 @@ public class PropertiesPanel extends DockablePanel {
         if (app.getEditorDocumentManager().activeDocument() == null
                 && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET
                 && pendingView != PendingView.RESOURCE_ASSET) {
-            contentHolder.clearChildren();
+            clearContent();
             dirty = transformTitleDirty = spatialPreviewDirty = false;
             return;
         }
@@ -802,8 +802,9 @@ public class PropertiesPanel extends DockablePanel {
             clearBindings();
             clearPhysicsContext();
             clearTiledMapContext();
-            contentHolder.clearChildren();
+            clearContent();
             if (!resourceAssetProperties.select(node)) {
+                resourceAssetProperties.clearProject();
                 restoreCurrentCanvasProperties();
                 updateIfDirty();
                 return;
@@ -841,9 +842,30 @@ public class PropertiesPanel extends DockablePanel {
         return resourceAssetProperties.getParent() == contentHolder ? resourceAssetProperties : null;
     }
 
+    /** Abandon a target explicitly; visual docking detaches the panel without calling this. */
+    private void clearContent() {
+        if (inspectedResourceProperties() != null) resourceAssetProperties.clearProject();
+        if (hudLayerAssetProperties.getParent() == contentHolder) hudLayerAssetProperties.clearProject();
+        contentHolder.clearChildren();
+    }
+
     public void reloadAssetInspection() {
-        if (hudLayerAssetProperties.getStage() != null) hudLayerAssetProperties.reload();
-        if (inspectedResourceProperties() != null && !resourceAssetProperties.reload()) {
+        if (hudLayerAssetProperties.getParent() == contentHolder) hudLayerAssetProperties.reload();
+        boolean available = true;
+        if (inspectedResourceProperties() != null) {
+            available = resourceAssetProperties.reload();
+        } else if (inspectedTileProperties() != null) {
+            var database = app.getSceneService().getAssetMetaDatabase();
+            available = database != null && database.findById(pendingTileAsset)
+                    instanceof games.pixscape.studio.asset.TileAssetMeta;
+            if (available) tileAssetProperties.select(pendingTileAsset);
+        } else if (inspectedAnimationProperties() != null) {
+            var database = app.getSceneService().getAssetMetaDatabase();
+            available = database != null && database.findById(pendingAnimationAsset)
+                    instanceof games.pixscape.studio.asset.AnimationAssetMeta;
+            if (available) animationAssetProperties.select(pendingAnimationAsset);
+        }
+        if (!available) {
             restoreCurrentCanvasProperties();
             updateIfDirty();
         }
@@ -852,7 +874,7 @@ public class PropertiesPanel extends DockablePanel {
     private void showTileAssetProperties(int assetId) {
         clearBindings();
         clearPhysicsContext();
-        contentHolder.clearChildren();
+        clearContent();
         tileAssetProperties.select(assetId);
         contentHolder.add(tileAssetProperties).growX().top().left().row();
         dirty = false;
@@ -866,7 +888,7 @@ public class PropertiesPanel extends DockablePanel {
         clearBindings();
         clearPhysicsContext();
         clearTiledMapContext();
-        contentHolder.clearChildren();
+        clearContent();
         animationAssetProperties.select(assetId);
         contentHolder.add(animationAssetProperties).growX().top().left().row();
         dirty = false;
@@ -877,7 +899,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void restoreCurrentCanvasProperties() {
-        contentHolder.clearChildren();
+        clearContent();
         if (app.getEditorDocumentManager().activeDocument() == null) {
             showDocumentType(null);
             return;

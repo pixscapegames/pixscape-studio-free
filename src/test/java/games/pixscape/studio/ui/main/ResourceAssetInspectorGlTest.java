@@ -40,6 +40,257 @@ import static org.junit.Assume.assumeTrue;
 
 /** Real Assets/Inspector wiring, with isolated projects and owned preview resources. */
 public class ResourceAssetInspectorGlTest {
+    @Test public void resourceInspectionSurvivesVisualDetachAndRefresh() throws Exception {
+        withStudio((studio, root) -> {
+            open(studio, project(studio, root.child("first")));
+            PropertiesPanel panel = inspector(studio);
+            for (AssetNode.Kind kind : kinds()) {
+                inspect(studio, kind);
+                String identity = label(panel, kind == AssetNode.Kind.HUD_SCREEN ? "Screen ID" : "ID");
+                for (int pass = 0; pass < 2; pass++) {
+                    var preview = (com.badlogic.gdx.scenes.scene2d.ui.Label) panel.findActor(
+                            kind == AssetNode.Kind.FONT ? "fontAssetPreview" : "skinAssetPreview");
+                    var texture = preview != null ? preview.getStyle().font.getRegion().getTexture() : null;
+                    studio.getDockManager().hide(panel);
+                    if (texture != null) assertTrue(texture.getTextureObjectHandle() != 0);
+                    studio.reloadAssetInspection();
+                    if (texture != null) assertEquals("Refresh releases the superseded preview", 0, texture.getTextureObjectHandle());
+                    flush(panel);
+                    studio.getDockManager().show(panel);
+                    studio.render();
+                    assertEquals(identity, label(panel, kind == AssetNode.Kind.HUD_SCREEN ? "Screen ID" : "ID"));
+                    studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_TOP);
+                    studio.reloadAssetInspection();
+                    studio.render();
+                    assertEquals(identity, label(panel, kind == AssetNode.Kind.HUD_SCREEN ? "Screen ID" : "ID"));
+                    if (kind != AssetNode.Kind.HUD_SCREEN) {
+                        assertNotNull(panel.findActor(kind == AssetNode.Kind.FONT ? "fontAssetPreview" : "skinAssetPreview"));
+                    }
+                }
+            }
+        });
+    }
+
+    @Test public void clickingAlreadySelectedItemRetakesInspector() throws Exception {
+        withStudio((studio, root) -> {
+            open(studio, project(studio, root.child("first")));
+            var context = studio.getSceneEditorContext();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity);
+            context.world().getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity);
+            context.identityRegistry().ensureStableId(entity);
+            int other = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(other);
+            context.world().getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(other);
+            context.identityRegistry().ensureStableId(other);
+            context.selectionService().selectOnly(entity);
+            studio.render(); studio.render();
+            var tree = (games.pixscape.studio.ui.tree.IdVisTree) field(studio.getItemTreePanel(), "tree");
+            assertNotNull(tree.findNode(entity));
+            inspect(studio, AssetNode.Kind.FONT);
+            var snapshots = new java.util.ArrayList<com.badlogic.gdx.utils.IntArray>();
+            EventFlow.Listener<EventFlow.SelectionChanged> observer = event -> {
+                if (event.source() == games.pixscape.studio.service.SelectionService.SelectionSource.TREE)
+                    snapshots.add(new com.badlogic.gdx.utils.IntArray(context.selectionService().getSelectionSnapshot()));
+            };
+            EventFlow.i().subscribe(EventFlow.SelectionChanged.class, observer);
+            try {
+                clickActor(studio, tree.findNode(entity).getLabel());
+                assertNull(inspector(studio).inspectedResourceProperties());
+                assertEquals(entity, context.selectionService().getSelectionSnapshot().first());
+                assertEquals(entity, field(inspector(studio), "boundEntity"));
+                assertEquals("One activation, without an empty intermediate selection", 1, snapshots.size());
+                assertEquals(entity, snapshots.getFirst().first());
+                snapshots.clear();
+                clickActor(studio, tree.findNode(other).getLabel());
+                assertEquals("An ordinary click is handled once", 1, snapshots.size());
+                assertEquals(other, context.selectionService().getSelectionSnapshot().first());
+                snapshots.clear();
+                clickActor(studio, tree.findNode(other).getLabel());
+                clickActor(studio, tree.findNode(other).getLabel());
+                assertEquals("Both clicks remain independent activations", 2, snapshots.size());
+
+                withKey(com.badlogic.gdx.Input.Keys.CONTROL_LEFT, () -> clickActor(studio, tree.findNode(entity).getLabel()));
+                assertEquals(2, context.selectionService().getSelectionSnapshot().size);
+                context.selectionService().selectOnly(entity);
+                studio.render();
+                withKey(com.badlogic.gdx.Input.Keys.SHIFT_LEFT, () -> clickActor(studio, tree.findNode(other).getLabel()));
+                assertEquals(2, context.selectionService().getSelectionSnapshot().size);
+
+                context.selectionService().selectOnly(entity);
+                studio.render();
+                inspect(studio, AssetNode.Kind.FONT);
+                snapshots.clear();
+                Actor row = tree.findNode(entity).getLabel();
+                var point = studio.getUiStage().stageToScreenCoordinates(row.localToStageCoordinates(
+                        new com.badlogic.gdx.math.Vector2(row.getWidth() / 2, row.getHeight() / 2)));
+                studio.getUiStage().touchDown(Math.round(point.x), Math.round(point.y), 0, 0);
+                studio.getUiStage().touchDragged(Math.round(point.x), Math.round(point.y + 70), 0);
+                studio.getUiStage().touchUp(Math.round(point.x), Math.round(point.y + 70), 0, 0);
+                assertTrue("A drag is not an explicit row activation", snapshots.isEmpty());
+                assertNotNull(inspector(studio).inspectedResourceProperties());
+
+                var layerNode = tree.findNode(context.layerService().getFirstLayerEntity());
+                tree.getSelection().set(layerNode);
+                inspect(studio, AssetNode.Kind.FONT);
+                boolean expanded = layerNode.isExpanded();
+                point = studio.getUiStage().stageToScreenCoordinates(tree.localToStageCoordinates(
+                        new com.badlogic.gdx.math.Vector2(layerNode.getActor().getX() - 5,
+                                layerNode.getActor().getY() + layerNode.getActor().getHeight() / 2)));
+                studio.getUiStage().touchDown(Math.round(point.x), Math.round(point.y), 0, 0);
+                studio.getUiStage().touchUp(Math.round(point.x), Math.round(point.y), 0, 0);
+                assertEquals(!expanded, layerNode.isExpanded());
+                assertNotNull("Expanding a node does not reclaim the Inspector", inspector(studio).inspectedResourceProperties());
+            } finally {
+                EventFlow.i().unsubscribe(EventFlow.SelectionChanged.class, observer);
+            }
+        });
+    }
+
+    @Test public void tileInspectionSurvivesUnrelatedBrowserReloadAndDeletion() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("first"));
+            AssetMetaDatabase db = AssetMetaDatabase.load(project.parent().child("assets.json"));
+            var set = db.registerIfAbsent(AssetType.TILESET, "tiles/set", null, AssetMeta.AssetScope.USER);
+            var tile = (games.pixscape.studio.asset.TileAssetMeta) db.registerIfAbsent(
+                    AssetType.TILE, "tiles/set/0", "orig/tiles/set/0.png", AssetMeta.AssetScope.USER);
+            tile.tilesetId = set.id(); tile.sheetIndex = 7;
+            Pixmap pixels = new Pixmap(4, 4, Pixmap.Format.RGBA8888);
+            PixmapIO.writePNG(project.parent().child(tile.sourceRelPath()), pixels); pixels.dispose();
+            db.save(project.parent().child("assets.json"));
+            open(studio, project);
+            studio.render(); studio.render();
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.TILES, "set", "set", null));
+            studio.render(); studio.render();
+            AssetsThumbsView thumbs = (AssetsThumbsView) field(studio.getAssetsPanel(), "thumbsView");
+            Array<?> widgets = (Array<?>) field(thumbs, "tileWidgets");
+            for (int i = 0; i < widgets.size; i++) {
+                Actor actor = (Actor) widgets.get(i);
+                if (actor.getUserObject() instanceof AssetNode node && node.assetId == tile.id()) {
+                    click(actor, 1);
+                    break;
+                }
+            }
+            assertNotNull(inspector(studio).inspectedTileProperties());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance());
+            flush(inspector(studio));
+            assertNotNull("Technical reload preserves the inspected tile", inspector(studio).inspectedTileProperties());
+            studio.getSceneService().deleteProjectAssets(Array.with(1)); // Unrelated Font.
+            flush(inspector(studio));
+            assertNotNull("Deleting another asset preserves the inspected tile", inspector(studio).inspectedTileProperties());
+            assertEquals("7", ((VisLabel) inspector(studio).findActor("tileLocalId")).getText().toString());
+            var context = studio.getSceneEditorContext();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity);
+            context.world().process();
+            context.selectionService().selectOnly(entity);
+            flush(inspector(studio));
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance());
+            flush(inspector(studio));
+            assertNull("A browser reload cannot reclaim canvas focus", inspector(studio).inspectedTileProperties());
+            assertEquals(entity, field(inspector(studio), "boundEntity"));
+            click(selectedTile(studio, AssetNode.Kind.IMAGE), 1);
+            assertNotNull(inspector(studio).inspectedTileProperties());
+            assertEquals(entity, context.selectionService().getSelectionSnapshot().first());
+            showDelete(studio, studio.getAssetsPanel().getSelectedAssetNode());
+            respond(lastDialog(studio), false);
+            assertNotNull(inspector(studio).inspectedTileProperties());
+            studio.getSceneService().deleteProjectAssets(Array.with(tile.id()));
+            flush(inspector(studio));
+            assertNull(inspector(studio).inspectedTileProperties());
+            assertEquals(entity, field(inspector(studio), "boundEntity"));
+        });
+    }
+
+    @Test public void rebuildingParticleGridDisposesOnlyAbandonedOwnedTextures() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("first"));
+            FileHandle dir = project.parent();
+            Gdx.files.classpath("com/badlogic/gdx/utils/lsans-15.png").copyTo(dir.child("orig/images/particle.png"));
+            var emitter = new games.pixscape.runtime.particle.ParticleEmitter();
+            emitter.setName("Preview"); emitter.setMaxParticleCount(2);
+            emitter.setImagePaths(Array.with("particle.png"));
+            var effect = new games.pixscape.runtime.particle.ParticleEffect();
+            effect.getEmitters().add(emitter);
+            try (var writer = dir.child("orig/effects/preview.p").writer(false)) { effect.save(writer); }
+            AssetMetaDatabase db = AssetMetaDatabase.load(dir.child("assets.json"));
+            db.registerIfAbsent(AssetType.PARTICLE, "particles/preview", "orig/effects/preview.p", AssetMeta.AssetScope.USER);
+            db.save(dir.child("assets.json"));
+            open(studio, project);
+            studio.render(); studio.render();
+            var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.PARTICLES, "", "", null));
+            studio.render(); studio.render();
+            AssetsThumbsView thumbs = (AssetsThumbsView) field(studio.getAssetsPanel(), "thumbsView");
+            var shared = com.kotcrab.vis.ui.VisUI.getSkin().getFont("default-font").getRegion().getTexture();
+            for (int i = 0; i < 3; i++) {
+                var thumbnail = findParticle(thumbs);
+                assertNotNull("Particle thumbnail in " + tree.getSelectedFolder() + ": " + field(thumbs, "currentAssets"), thumbnail);
+                var owned = particleTexture(thumbnail);
+                assertTrue(owned.getTextureObjectHandle() != 0);
+                studio.getDockManager().hide(studio.getAssetsPanel());
+                assertTrue("Temporary detach must retain reusable previews", owned.getTextureObjectHandle() != 0);
+                studio.getDockManager().show(studio.getAssetsPanel());
+                thumbs.setTileSize(64 + i * 8);
+                studio.render(); studio.render();
+                assertEquals("Replaced thumbnail releases its owned texture", 0, owned.getTextureObjectHandle());
+                thumbnail.startPreview(); thumbnail.act(1); thumbnail.stopPreview(); thumbnail.dispose();
+                assertTrue(shared.getTextureObjectHandle() != 0);
+            }
+            var owned = particleTexture(findParticle(thumbs));
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.HUD, "", "", null));
+            assertEquals(0, owned.getTextureObjectHandle());
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.PARTICLES, "", "", null));
+            studio.render(); studio.render();
+            owned = particleTexture(findParticle(thumbs));
+            open(studio, project(studio, root.child("next")));
+            assertEquals("Changing project abandons its particles", 0, owned.getTextureObjectHandle());
+            open(studio, project);
+            studio.render(); studio.render();
+            tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.PARTICLES, "", "", null));
+            studio.render(); studio.render();
+            owned = particleTexture(findParticle(thumbs));
+            studio.getSceneService().unloadProjectToEmptyEditor();
+            assertEquals(0, owned.getTextureObjectHandle());
+            assertTrue(shared.getTextureObjectHandle() != 0);
+        });
+    }
+
+    private static games.pixscape.studio.ui.asset.ParticleThumbnail findParticle(Actor actor) {
+        if (actor instanceof games.pixscape.studio.ui.asset.ParticleThumbnail particle) return particle;
+        if (actor instanceof Group group) for (Actor child : group.getChildren()) {
+            var found = findParticle(child); if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static com.badlogic.gdx.graphics.Texture particleTexture(
+            games.pixscape.studio.ui.asset.ParticleThumbnail thumbnail) throws Exception {
+        var effect = (games.pixscape.runtime.particle.ParticleEffect) field(thumbnail, "effect");
+        return effect.getEmitters().first().getSprites().first().getTexture();
+    }
+
+    private static void clickActor(StudioApplicationAdapter studio, Actor actor) throws Exception {
+        studio.render(); studio.render();
+        var point = studio.getUiStage().stageToScreenCoordinates(actor.localToStageCoordinates(
+                new com.badlogic.gdx.math.Vector2(actor.getWidth() / 2, actor.getHeight() / 2)));
+        assertTrue(studio.getUiStage().touchDown(Math.round(point.x), Math.round(point.y), 0, 0));
+        studio.getUiStage().touchUp(Math.round(point.x), Math.round(point.y), 0, 0);
+        flush(inspector(studio));
+    }
+
+    @FunctionalInterface private interface InputAction { void run() throws Exception; }
+
+    private static void withKey(int key, InputAction action) throws Exception {
+        var input = Gdx.input;
+        Gdx.input = (com.badlogic.gdx.Input) java.lang.reflect.Proxy.newProxyInstance(
+                com.badlogic.gdx.Input.class.getClassLoader(), new Class<?>[]{com.badlogic.gdx.Input.class},
+                (proxy, method, args) -> method.getName().equals("isKeyPressed")
+                        ? (Integer) args[0] == key : method.invoke(input, args));
+        try { action.run(); } finally { Gdx.input = input; }
+    }
+
     @Test public void assetLayerAndEditorShareOneHudScreenDescription() throws Exception {
         withStudio((studio, root) -> {
             FileHandle project = project(studio, root.child("shared-hud"));
@@ -54,7 +305,7 @@ public class ResourceAssetInspectorGlTest {
             var other = studio.openHudScreen("hud/Other");
             studio.getEditorDocumentManager().activate(scene.key());
             flush(panel);
-            var files = authoredSnapshot(project.parent());
+            var files = snapshot(project.parent());
 
             panel.inspectAsset(new AssetNode(AssetNode.Kind.HUD_SCREEN, AssetNode.Root.HUD, "hud/Screen", "Screen", null));
             var assetDescription = hudDescription(panel);
@@ -99,7 +350,7 @@ public class ResourceAssetInspectorGlTest {
             assertEquals("hud/Other", hudDescription(panel).get("Screen ID"));
             panel.findActor("openHudAssetEditor").fire(new ChangeListener.ChangeEvent());
             assertSame(other, studio.getEditorDocumentManager().activeDocument());
-            assertEquals(files, authoredSnapshot(project.parent()));
+            assertEquals(files, snapshot(project.parent()));
         });
     }
 
@@ -434,6 +685,9 @@ public class ResourceAssetInspectorGlTest {
                 assertNull(panel.inspectedResourceProperties());
                 assertNull(field(view, "previewFont"));
                 assertNull(field(view, "previewSkin"));
+                studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance());
+                flush(panel);
+                assertNull("Technical restoration cannot reclaim canvas focus", panel.inspectedResourceProperties());
                 inspect(studio, kind);
                 EventFlow.i().publish(new EventFlow.CurrentLayerChanged(layer,
                         games.pixscape.studio.service.SelectionService.SelectionSource.TREE, -555));
@@ -523,6 +777,7 @@ public class ResourceAssetInspectorGlTest {
                 ResourceAssetProperties view = inspector(studio).inspectedResourceProperties();
                 open(studio, next);
                 assertNull(inspector(studio).inspectedResourceProperties());
+                assertNull("Identical IDs in another project are not browser selections", studio.getAssetsPanel().getSelectedAssetNode());
                 assertReleased(view);
                 inspect(studio, kind);
                 ProjectConfig cfg = ProjectConfig.getInstance();
@@ -730,17 +985,12 @@ public class ResourceAssetInspectorGlTest {
     private static java.util.Map<String, String> snapshot(FileHandle directory) throws Exception {
         var root = directory.file().toPath(); var result = new java.util.TreeMap<String, String>();
         try (var paths = Files.walk(root)) {
-            for (var path : paths.filter(Files::isRegularFile).toList())
+            // Background HUD rendering owns these transient atlas files and may remove them at any time.
+            for (var path : paths.filter(path -> !root.relativize(path).toString().replace('\\', '/')
+                    .startsWith("atlases/.tmp/")).filter(Files::isRegularFile).toList())
                 result.put(root.relativize(path).toString(), java.util.Base64.getEncoder().encodeToString(Files.readAllBytes(path)));
         }
         return result;
-    }
-
-    private static java.util.Map<String, String> authoredSnapshot(FileHandle directory) throws Exception {
-        var files = snapshot(directory);
-        // Rendering an open HUD may prepare its atlas in this disposable work directory.
-        files.keySet().removeIf(path -> path.replace('\\', '/').startsWith("atlases/.tmp/"));
-        return files;
     }
 
     private static void restore(FileHandle dir, java.util.Map<String, String> saved) {

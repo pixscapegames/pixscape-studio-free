@@ -83,6 +83,10 @@ public final class FolderTreeView extends VisTable {
         this.tileDroppedOnTiledAnimationListener = listener;
     }
 
+    boolean isShowingProject(ProjectConfig cfg) {
+        return currentCfg == cfg;
+    }
+
     public void reloadFromProject(ProjectConfig cfg) {
         if (cfg != currentCfg) {
             lastTileFolderSelection = null;

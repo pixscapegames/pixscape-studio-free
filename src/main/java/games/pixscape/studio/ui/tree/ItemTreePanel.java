@@ -9,6 +9,7 @@ import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.UIUtils;
 import com.badlogic.gdx.utils.IntArray;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.MenuItem;
@@ -391,63 +392,93 @@ public class ItemTreePanel extends DockablePanel {
         tree.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
-                if (suppressTreeSelectionEvents) return;
-
-                var nodes = tree.getSelection().toArray();
-
-                handlingTreeSelection = true;
-                try {
-                    EntityNode mapNode = findFirstTiledMapNode(nodes);
-                    EntityNode bodyNode = findFirstBodyNode(nodes);
-                    EntityNode jointNode = findFirstJointNode(nodes);
-                    EntityNode spatialNode = findFirstSpatialBlocksNode(nodes);
-                    if (jointNode != null && nodes.size == 1) {
-                        handleJointNodeSelection(jointNode);
-                    } else if (mapNode != null && nodes.size == 1) {
-                        handleTiledMapNodeSelection(mapNode);
-                    } else if (bodyNode != null && nodes.size == 1) {
-                        handleBodyNodeSelection(bodyNode);
-                    } else if (spatialNode != null && nodes.size == 1) {
-                        handleSpatialBlocksNodeSelection(spatialNode);
-                    } else {
-                        explicitTiledMapEntityId = -1;
-                        if (propertiesPanel != null) {
-                            propertiesPanel.clearTiledMapMode();
-                        }
-
-                        exitExplicitPhysicsEditMode();
-                        exitExplicitSpatialBlockMode();
-                        selectionService.clearSelection(SelectionService.SelectionSource.TREE);
-
-                        boolean layerSwitched = false;
-                        for (EntityNode en : nodes) {
-                            if (en == null) continue;
-
-                            int eid = en.getEntityId();
-                            if (eid < 0) continue;
-
-                            if (en.isLayerNode()) {
-                                selectionService.setActivelayerId(eid, SelectionService.SelectionSource.TREE);
-                                continue;
-                            }
-
-                            if (!en.isEntityNode()) continue;
-
-                            if (!layerSwitched) {
-                                activateLayerForEntity(eid, SelectionService.SelectionSource.TREE);
-                                layerSwitched = true;
-                            }
-
-                            selectionService.selectFromTree(eid);
-                        }
-                    }
-                } finally {
-                    handlingTreeSelection = false;
-                }
-
-                syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
+                routeTreeSelection();
             }
         });
+        // Tree emits no ChangeEvent when its only selected row is clicked again.
+        tree.addListener(new ClickListener() {
+            private EntityNode activated;
+
+            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                activated = null;
+                if (!super.touchDown(event, x, y, pointer, button)) return false;
+                EntityNode node = tree.getNodeAt(y);
+                if (!UIUtils.ctrl() && !UIUtils.shift() && node != null
+                        && x >= node.getActor().getX() && tree.getSelection().size() == 1
+                        && tree.getSelection().contains(node)) activated = node;
+                return true;
+            }
+
+            @Override public void clicked(InputEvent event, float x, float y) {
+                if (activated != null && !UIUtils.ctrl() && !UIUtils.shift()
+                        && tree.getNodeAt(y) == activated && x >= activated.getActor().getX()
+                        && tree.getSelection().size() == 1 && tree.getSelection().contains(activated)) {
+                    routeTreeSelection();
+                }
+                activated = null;
+            }
+        });
+    }
+
+    private void routeTreeSelection() {
+        if (suppressTreeSelectionEvents) return;
+
+        var nodes = tree.getSelection().toArray();
+
+        handlingTreeSelection = true;
+        try {
+            EntityNode mapNode = findFirstTiledMapNode(nodes);
+            EntityNode bodyNode = findFirstBodyNode(nodes);
+            EntityNode jointNode = findFirstJointNode(nodes);
+            EntityNode spatialNode = findFirstSpatialBlocksNode(nodes);
+            if (jointNode != null && nodes.size == 1) {
+                handleJointNodeSelection(jointNode);
+            } else if (mapNode != null && nodes.size == 1) {
+                handleTiledMapNodeSelection(mapNode);
+            } else if (bodyNode != null && nodes.size == 1) {
+                handleBodyNodeSelection(bodyNode);
+            } else if (spatialNode != null && nodes.size == 1) {
+                handleSpatialBlocksNodeSelection(spatialNode);
+            } else {
+                explicitTiledMapEntityId = -1;
+                if (propertiesPanel != null) {
+                    propertiesPanel.clearTiledMapMode();
+                }
+
+                exitExplicitPhysicsEditMode();
+                exitExplicitSpatialBlockMode();
+                // A single explicit activation republishes the current entity without a fake deselection.
+                boolean singleEntity = nodes.size == 1 && nodes.first().isEntityNode();
+                if (!singleEntity) selectionService.clearSelection(SelectionService.SelectionSource.TREE);
+
+                boolean layerSwitched = false;
+                for (EntityNode en : nodes) {
+                    if (en == null) continue;
+
+                    int eid = en.getEntityId();
+                    if (eid < 0) continue;
+
+                    if (en.isLayerNode()) {
+                        selectionService.setActivelayerId(eid, SelectionService.SelectionSource.TREE);
+                        continue;
+                    }
+
+                    if (!en.isEntityNode()) continue;
+
+                    if (!layerSwitched) {
+                        activateLayerForEntity(eid, SelectionService.SelectionSource.TREE);
+                        layerSwitched = true;
+                    }
+
+                    if (singleEntity) selectionService.selectOnly(eid, SelectionService.SelectionSource.TREE);
+                    else selectionService.selectFromTree(eid);
+                }
+            }
+        } finally {
+            handlingTreeSelection = false;
+        }
+
+        syncTreeSelectionFromModel(selectionService.getSelectionSnapshot(), false);
     }
 
     private EntityNode findFirstTiledMapNode(com.badlogic.gdx.utils.Array<EntityNode> nodes) {

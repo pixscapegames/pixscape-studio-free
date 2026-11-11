@@ -146,8 +146,9 @@ public final class AssetsPanel extends DockablePanel {
         thumbsView.setTiledAnimationDeleteListener(this::showDeleteTiledAnimationDialog);
         // selection binding
         treeView.setSelectionListener(node -> {
+            if (reloadingAssetSelection) return;
             thumbsView.showForNode(node);
-            if (!reloadingAssetSelection) notifyAssetSelection(null);
+            notifyAssetSelection(null);
         });
 
         buildLayout();
@@ -181,6 +182,10 @@ public final class AssetsPanel extends DockablePanel {
         add(browserSplit).grow();
     }
 
+    public void dispose() {
+        thumbsView.clear();
+    }
+
     public void reloadFromProject(ProjectConfig cfg) {
         if (cfg == null || cfg.projectFileName == null || cfg.projectFileName.isBlank()) {
             thumbsView.clear();
@@ -191,22 +196,21 @@ public final class AssetsPanel extends DockablePanel {
             AssetPreviewCache.clear();
             return;
         }
-        AssetNode selected = thumbsView.getSelectedNode();
-        reloadingAssetSelection = selected != null && switch (selected.kind) {
-            case ANIMATION, HUD_SCREEN, FONT, SKIN -> true;
-            default -> false;
-        };
+        boolean sameProject = treeView.isShowingProject(cfg);
+        AssetNode selected = sameProject ? thumbsView.getSelectedNode() : null;
+        AssetNode folder = sameProject ? treeView.getSelectedFolder() : null;
+        // Rebuilding browser state is not an explicit Inspector selection.
+        reloadingAssetSelection = true;
         try {
-            reloadBrowser(cfg);
-            if (reloadingAssetSelection) thumbsView.restoreAssetSelection(selected);
+            reloadBrowser(cfg, folder);
+            if (selected != null) thumbsView.restoreAssetSelection(selected);
         } finally {
             reloadingAssetSelection = false;
         }
         if (app != null) app.reloadAssetInspection();
     }
 
-    private void reloadBrowser(ProjectConfig cfg) {
-        AssetNode selected = treeView.getSelectedFolder();
+    private void reloadBrowser(ProjectConfig cfg, AssetNode selected) {
         importButton.setVisible(cfg != null && cfg.getCurrentSceneName() != null);
 
         AssetPreviewCache.clear();
