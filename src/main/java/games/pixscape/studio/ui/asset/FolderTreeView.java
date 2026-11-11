@@ -11,14 +11,10 @@ import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.widget.*;
-import games.pixscape.runtime.helper.RuntimeFs;
 import games.pixscape.studio.asset.AssetMetaDatabase;
-import games.pixscape.studio.asset.TileAnimationProjectDefData;
-import games.pixscape.studio.asset.TileAnimationsMetaDatabase;
 import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.io.StudioFs;
-import games.pixscape.studio.io.TileAnimationsIO;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.modal.StudioDialog;
 
@@ -176,45 +172,6 @@ public final class FolderTreeView extends VisTable {
         };
         tree.add(folderNode);
 
-        TileAnimationsMetaDatabase db = loadTileAnimationsMetaDatabase();
-        if (db == null || db.animations == null) {
-            return;
-        }
-
-        for (TileAnimationProjectDefData def : db.animations) {
-            if (def == null) {
-                continue;
-            }
-
-            AssetNode childData = new AssetNode(
-                    AssetNode.Kind.TILED_ANIMATION,
-                    AssetNode.Root.TILES,
-                    TILED_ANIMATIONS_NODE_PATH + "/" + def.id,
-                    def.name,
-                    null
-            );
-            childData.tileAnimationId = def.id;
-
-            VisLabel childLabel = new VisLabel(def.name);
-            childLabel.setUserObject(childData);
-
-            folderNode.add(new VisTree.Node(childLabel) {
-            });
-        }
-    }
-
-    private TileAnimationsMetaDatabase loadTileAnimationsMetaDatabase() {
-        if (currentCfg == null || currentCfg.projectFileName == null) {
-            return null;
-        }
-
-        FileHandle projectDir = StudioFs.requireStudioProjectDir(currentCfg);
-        FileHandle file = projectDir.child(RuntimeFs.FILE_TILE_ANIMATIONS_JSON);
-        if (!file.exists()) {
-            return null;
-        }
-
-        return TileAnimationsIO.load(file);
     }
 
     private void hookSelection() {
@@ -238,8 +195,7 @@ public final class FolderTreeView extends VisTable {
 
                 // NEW: remember last folder per mode
                 if (assetNode.kind == AssetNode.Kind.FOLDER
-                        || assetNode.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER
-                        || assetNode.kind == AssetNode.Kind.TILED_ANIMATION) {
+                        || assetNode.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER) {
                     if (assetNode.root == AssetNode.Root.TILES) {
                         lastTileFolderSelection = assetNode;
                     } else {
@@ -329,8 +285,7 @@ public final class FolderTreeView extends VisTable {
         Object uo = node.getActor().getUserObject();
         return (uo instanceof AssetNode an
                 && (an.kind == AssetNode.Kind.FOLDER
-                || an.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER
-                || an.kind == AssetNode.Kind.TILED_ANIMATION))
+                || an.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER))
                 ? an
                 : null;
     }
@@ -352,13 +307,11 @@ public final class FolderTreeView extends VisTable {
             if (uo instanceof AssetNode an) {
                 boolean restorableKind =
                         an.kind == AssetNode.Kind.FOLDER
-                                || an.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER
-                                || an.kind == AssetNode.Kind.TILED_ANIMATION;
+                                || an.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER;
 
                 boolean targetRestorableKind =
                         target.kind == AssetNode.Kind.FOLDER
-                                || target.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER
-                                || target.kind == AssetNode.Kind.TILED_ANIMATION;
+                                || target.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER;
 
                 if (restorableKind
                         && targetRestorableKind

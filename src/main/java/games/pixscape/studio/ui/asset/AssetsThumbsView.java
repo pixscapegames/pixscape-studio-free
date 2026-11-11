@@ -263,16 +263,6 @@ public final class AssetsThumbsView extends VisTable {
             return;
         }
 
-        if (folder.kind == AssetNode.Kind.TILED_ANIMATION) {
-            currentLayoutStrategy = galleryLayoutStrategy;
-            currentLayoutStrategy.configureScrollPane(scroll);
-            loadTiledAnimations();
-            layoutDirty = true;
-            rebuildGrid();
-            restoreAssetSelection(folder);
-            return;
-        }
-
         if (folder.root == AssetNode.Root.GAME_OBJECTS) {
             currentLayoutStrategy = galleryLayoutStrategy;
             currentLayoutStrategy.configureScrollPane(scroll);
@@ -1547,6 +1537,16 @@ public final class AssetsThumbsView extends VisTable {
 
     public AssetNode getSelectedNode() {
         return selectedNode;
+    }
+
+    void selectTiledAnimation(int id) {
+        for (AssetNode node : currentAssets) {
+            if (node.kind == AssetNode.Kind.TILED_ANIMATION && node.tileAnimationId == id) {
+                clearMultiSelection();
+                setSelectedNode(node);
+                return;
+            }
+        }
     }
 
     void selectHudScreen(String screenId) {

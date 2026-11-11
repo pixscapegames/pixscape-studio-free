@@ -73,7 +73,7 @@ public final class AssetsPanel extends DockablePanel {
         treeView.setSelectionListener(node -> {
             if (reloadingAssetSelection) return;
             thumbsView.showForNode(node);
-            notifyAssetSelection(node != null && node.kind == AssetNode.Kind.TILED_ANIMATION ? node : null);
+            notifyAssetSelection(null);
         });
 
         buildLayout();
@@ -194,11 +194,6 @@ public final class AssetsPanel extends DockablePanel {
                     treeView.reloadFromProject(cfg);
                     selectTiledAnimationById(tileAnimationId);
 
-                    AssetNode selected = treeView.getSelectedFolder();
-                    thumbsView.clear();
-                    if (selected != null) {
-                        thumbsView.showForNode(selected);
-                    }
                     app.inspectTileAnimation(tileAnimationId);
                 } catch (IllegalArgumentException | IllegalStateException ex) {
                     showSimpleErrorDialog(ex.getMessage());
@@ -321,14 +316,13 @@ public final class AssetsPanel extends DockablePanel {
         }
 
         AssetNode target = new AssetNode(
-                AssetNode.Kind.TILED_ANIMATION,
+                AssetNode.Kind.TILED_ANIMATIONS_FOLDER,
                 AssetNode.Root.TILES,
-                AssetNode.TILED_ANIMATIONS_NODE_PATH + "/" + tileAnimationId,
+                AssetNode.TILED_ANIMATIONS_NODE_PATH,
                 "",
                 null
         );
-        target.tileAnimationId = tileAnimationId;
-
         treeView.selectFolder(target);
+        thumbsView.selectTiledAnimation(tileAnimationId);
     }
 }

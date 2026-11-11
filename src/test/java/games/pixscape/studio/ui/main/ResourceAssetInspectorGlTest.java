@@ -177,8 +177,8 @@ public class ResourceAssetInspectorGlTest {
             assertFalse(panel.inspectedTileAnimationProperties().isEditing());
             var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
             var widget = (com.kotcrab.vis.ui.widget.VisTree) field(tree, "tree");
-            var node = animationTreeNode(widget.getRootNodes(), id); assertNotNull(node);
-            assertEquals(0, node.getChildren().size); node.getParent().setExpanded(true);
+            var node = tileAnimationsRoot(widget.getRootNodes()); assertNotNull(node);
+            assertEquals("Individual animations only belong in the gallery", 0, node.getChildren().size);
             ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rootSplit")).setSplitAmount(.6f);
             ((games.pixscape.studio.ui.widget.DockSplitPane) field(studio.getDockManager(), "rightSplit")).setSplitAmount(.95f);
             screenshot(studio, "terminal-animation-browser");
@@ -198,10 +198,10 @@ public class ResourceAssetInspectorGlTest {
         });
     }
 
-    private static com.kotcrab.vis.ui.widget.VisTree.Node animationTreeNode(Array<com.kotcrab.vis.ui.widget.VisTree.Node> nodes, int id) {
+    private static com.kotcrab.vis.ui.widget.VisTree.Node tileAnimationsRoot(Array<com.kotcrab.vis.ui.widget.VisTree.Node> nodes) {
         for (var node : nodes) {
-            if (node.getActor().getUserObject() instanceof AssetNode asset && asset.kind == AssetNode.Kind.TILED_ANIMATION && asset.tileAnimationId == id) return node;
-            var found = animationTreeNode(node.getChildren(), id); if (found != null) return found;
+            if (node.getActor().getUserObject() instanceof AssetNode asset && asset.kind == AssetNode.Kind.TILED_ANIMATIONS_FOLDER) return node;
+            var found = tileAnimationsRoot(node.getChildren()); if (found != null) return found;
         }
         return null;
     }
@@ -570,15 +570,15 @@ public class ResourceAssetInspectorGlTest {
             var properties = panel.inspectedTileAnimationProperties();
             assertNotNull(properties); assertFalse(properties.isEditing());
             int id = properties.assetId();
-            assertEquals(AssetNode.Kind.TILED_ANIMATION, tree.getSelectedFolder().kind);
-            assertEquals(id, tree.getSelectedFolder().tileAnimationId);
+            assertEquals(AssetNode.Kind.TILED_ANIMATIONS_FOLDER, tree.getSelectedFolder().kind);
+            assertEquals(id, studio.getAssetsPanel().getSelectedAssetNode().tileAnimationId);
             assertEquals("Water", ((VisLabel) panel.findActor("tileAnimationName")).getText().toString());
             assertEquals("0 frames, 0 ms", ((VisLabel) panel.findActor("tileAnimationSummary")).getText().toString());
             assertNull(panel.findActor("tileAnimationEmptyDrop"));
             assertNull(panel.findActor("tileAnimationSequence"));
             assertNotNull(buttonWithText(panel, "Edit"));
             screenshot(studio, "tile-animation-empty-consultation");
-            assertEquals(id, tree.getSelectedFolder().tileAnimationId);
+            assertEquals(id, studio.getAssetsPanel().getSelectedAssetNode().tileAnimationId);
             tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.TILES, "water", "water", null));
             clickActor(studio, tileActor(studio, tiles[0]));
             assertNotNull(panel.inspectedTileProperties());
