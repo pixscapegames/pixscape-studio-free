@@ -14,6 +14,7 @@ import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.property.PropertySet;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.Initializer;
 import games.pixscape.studio.history.initializer.TiledMapInitializer;
@@ -124,8 +125,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         }
 
         IntSet capturedJoints = new IntSet();
-        // The existing dependency collector requires initially published joints. Keep this
-        // capture for all later undo/redo cycles, including cycles without ECS publication.
+        // Capture the current dependency index once; redo never recaptures restored entities.
         IntArray affectedJoints = PhysicsService.collectJointsAffectedByEntityRemoval(
                 world, removedEntities, new IntArray(false, 8));
         for (int i = 0; i < explicitlySelectedJoints.size; i++) {
@@ -185,11 +185,18 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
         for (int i = 0; i < jointSnapshots.size(); i++) {
             jointSnapshots.get(i).references.restore(world, historyIds, restoredJointIds.get(i));
         }
+        // Gear sources and endpoints must all be remapped before publishing any relation.
+        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
+        if (physics != null) for (int i = 0; i < restoredJointIds.size; i++) {
+            physics.publishJointRelations(restoredJointIds.get(i));
+        }
     }
 
     private void delete(long historyId) {
         int entityId = historyIds.entityOfHistoryId(historyId);
         if (entityId >= 0 && world.getEntityManager().isActive(entityId)) {
+            Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
+            if (physics != null) physics.jointDependencies().remove(entityId);
             TiledLayerComponent tiled = world.getMapper(TiledLayerComponent.class).getSafe(entityId, null);
             if (tiled != null && tiledAllocator != null) tiledAllocator.freeLayer(tiled);
             IdentityRegistry.unindexEntityImmediately(world, entityId);

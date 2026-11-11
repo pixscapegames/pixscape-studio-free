@@ -17,6 +17,34 @@ import static games.pixscape.studio.ui.main.ResourceAssetInspectorGlTest.*;
 import static org.junit.Assert.*;
 
 public class DeleteLayerCompositionGlTest {
+    @Test public void editorRestoreCallbackDoesNotHideMissingImmediateIdentityRegistration() throws Exception {
+        withStudio(900, (studio, directory) -> {
+            var file = project(studio, directory.child("ordinary-restore"));
+            addImage(file.parent(), "sprite", 80, 40);
+            open(studio, file); settle(studio);
+            var context = studio.getSceneEditorContext();
+            var layers = context.layerService();
+            layers.addLayerTop("B");
+            context.selectionService().setActivelayerId(layers.getLayerEntity(0));
+            var ops = studio.getCanvas().getEditorOps();
+            int sprite = ops.createStandaloneSprite("sprite.png", -160, 20);
+            settle(studio);
+            int stable = context.identityRegistry().getStableId(sprite);
+            long historyId = context.historyManager().historyIds().ensureForEntity(sprite);
+            ops.deleteEntities(com.badlogic.gdx.utils.IntArray.with(sprite));
+            settle(studio);
+            context.historyManager().undo(); // Executes the actual render-rebind callback, without another frame.
+            context.historyManager().execute(new games.pixscape.studio.history.commands.DeleteLayerCommand(
+                    layers, layers.getLayerEntity(0), null));
+            assertEquals(-1, context.historyManager().historyIds().entityOfHistoryId(historyId));
+            context.historyManager().undo();
+            int restored = context.historyManager().historyIds().entityOfHistoryId(historyId);
+            assertEquals(restored, context.identityRegistry().findByStableId(stable));
+            settle(studio);
+            assertEquals(restored, context.identityRegistry().findByStableId(stable));
+        });
+    }
+
     @Test public void deleteButtonsAndUndoRedoKeepHierarchyInspectorAndRenderingCoherent() throws Exception {
         withStudio(900, (studio, directory) -> {
             var file = project(studio, directory.child("delete-layer"));

@@ -9,6 +9,7 @@ import games.pixscape.runtime.component.GameObjectMemberComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
 import games.pixscape.runtime.service.IdentityRegistry;
 import games.pixscape.runtime.service.PhysicsService;
+import games.pixscape.runtime.system.Box2dSyncSystem;
 import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.history.initializer.GenericEntityInitializer;
 
@@ -93,10 +94,12 @@ public final class DeleteEntitiesCommand implements Command {
     @Override
     public void redo() {
         var em = world.getEntityManager();
+        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
         for (int i = 0; i < historyIdsToDelete.size; i++) {
             long historyId = historyIdsToDelete.get(i);
             int e = historyIds.entityOfHistoryId(historyId);
             if (e != -1 && em.isActive(e)) {
+                if (physics != null) physics.jointDependencies().remove(e);
                 IdentityRegistry.unindexEntityImmediately(world, e);
                 world.delete(e);
             }
@@ -107,6 +110,7 @@ public final class DeleteEntitiesCommand implements Command {
     @Override
     public void undo() {
         IntArray recreated = new IntArray(false, inits.size());
+        IdentityRegistry identities = IdentityRegistry.boundTo(world);
 
         for (int i = 0; i < inits.size(); i++) {
             GenericEntityInitializer init = inits.get(i);
@@ -116,6 +120,7 @@ public final class DeleteEntitiesCommand implements Command {
 
             // Reconstruit tous les composants via l'initializer
             init.init(e);
+            if (identities != null) identities.indexEntityImmediately(e);
             historyIds.bind(e, historyId);
 
             if (onRestoredEntity != null) {
@@ -130,6 +135,11 @@ public final class DeleteEntitiesCommand implements Command {
 
             int jointEid = recreated.get(i);
             snap.restore(world, historyIds, jointEid);
+        }
+        // Publish only after every body and gear source has its current references.
+        Box2dSyncSystem physics = world.getSystem(Box2dSyncSystem.class);
+        if (physics != null) for (int i = 0; i < jointSnapshots.size(); i++) {
+            if (jointSnapshots.get(i) != null) physics.publishJointRelations(recreated.get(i));
         }
     }
 
