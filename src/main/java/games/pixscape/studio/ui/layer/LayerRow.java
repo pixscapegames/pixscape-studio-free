@@ -32,6 +32,7 @@ public class LayerRow extends VisTable {
     private Listener listener;
     private int entityId = -1;
     private int layerIndex = -1;
+    private final ClickListener activation;
 
     public LayerRow() {
         super(false);
@@ -69,7 +70,7 @@ public class LayerRow extends VisTable {
             }
         });
 
-        addListener(new ClickListener() {
+        activation = new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 if (listener != null) {
@@ -80,8 +81,20 @@ public class LayerRow extends VisTable {
                 }
                 super.clicked(event, x, y);
             }
-        });
+        };
+        addListener(activation);
     }
+
+    /** Row buttons keep their own gestures; only the row body can initiate reordering. */
+    boolean isDragHandle(Actor target) {
+        for (Actor actor = target; actor != null && actor != this; actor = actor.getParent()) {
+            if (actor instanceof com.badlogic.gdx.scenes.scene2d.ui.Button
+                    || actor instanceof com.badlogic.gdx.scenes.scene2d.ui.TextField) return false;
+        }
+        return target == this || target.isDescendantOf(this);
+    }
+
+    void cancelActivation() { activation.cancel(); }
 
     public void setListener(Listener listener) {
         this.listener = listener;

@@ -1404,7 +1404,7 @@ public class ResourceAssetInspectorGlTest {
         assertTrue(((com.badlogic.gdx.scenes.scene2d.ui.Container<?>) image.getParent()).getClip());
     }
 
-    private static int addImage(FileHandle dir, String name, int width, int height) {
+    static int addImage(FileHandle dir, String name, int width, int height) {
         String source = "orig/images/" + name + ".png";
         writeImage(dir.child(source), width, height);
         var db = AssetMetaDatabase.load(dir.child("assets.json"));
@@ -2412,7 +2412,7 @@ public class ResourceAssetInspectorGlTest {
         return new AssetNode.Kind[]{AssetNode.Kind.HUD_SCREEN, AssetNode.Kind.FONT, AssetNode.Kind.SKIN};
     }
 
-    @FunctionalInterface private interface Scenario {
+    @FunctionalInterface interface Scenario {
         void run(StudioApplicationAdapter studio, FileHandle root) throws Exception;
     }
 
@@ -2420,7 +2420,7 @@ public class ResourceAssetInspectorGlTest {
         withStudio(700, scenario);
     }
 
-    private static void withStudio(int height, Scenario scenario) throws Exception {
+    static void withStudio(int height, Scenario scenario) throws Exception {
         assumeTrue("1".equals(System.getenv("PIXSCAPE_DOCUMENT_GL_TEST")));
         String previousHome = System.getProperty("user.home");
         ProjectConfig previous = ProjectConfig.getInstance();
@@ -2479,7 +2479,7 @@ public class ResourceAssetInspectorGlTest {
     }
 
 
-    private static FileHandle project(StudioApplicationAdapter studio, FileHandle dir) {
+    static FileHandle project(StudioApplicationAdapter studio, FileHandle dir) {
         ProjectConfig cfg = new ProjectConfig();
         cfg.projectDirectoryPath = dir.path(); cfg.projectFileName = "project"; cfg.projectTitle = "Resources";
         cfg.exportRootPathDir = dir.child("export").path(); cfg.createSceneMeta("Scene");
@@ -2509,7 +2509,7 @@ public class ResourceAssetInspectorGlTest {
                 + "\":{\"font\":\"default-font\"}}}", false);
     }
 
-    private static void open(StudioApplicationAdapter studio, FileHandle file) {
+    static void open(StudioApplicationAdapter studio, FileHandle file) {
         studio.getSceneService().tryOpenProject(file, "resource test").ifPresent(failure -> {
             throw new AssertionError(failure.message(), failure.cause());
         });
@@ -2577,7 +2577,7 @@ public class ResourceAssetInspectorGlTest {
         method.setAccessible(true); method.invoke(dialog, yes); dialog.remove();
     }
 
-    private static void screenshot(StudioApplicationAdapter studio, String name) {
+    static void screenshot(StudioApplicationAdapter studio, String name) {
         studio.render(); studio.render();
         int width = Gdx.graphics.getBackBufferWidth(), height = Gdx.graphics.getBackBufferHeight();
         byte[] pixels = com.badlogic.gdx.utils.ScreenUtils.getFrameBufferPixels(0, 0, width, height, true);
@@ -2619,7 +2619,7 @@ public class ResourceAssetInspectorGlTest {
         return ((VisLabel) panel.inspectedResourceProperties().findActor("resourceAsset" + label.replace(" ", ""))).getText().toString();
     }
     private static void flush(PropertiesPanel panel) { EventFlow.i().flush(); panel.updateIfDirty(); }
-    private static Object field(Object object, String name) throws Exception {
+    static Object field(Object object, String name) throws Exception {
         for (Class<?> type = object.getClass(); type != null; type = type.getSuperclass()) {
             try {
                 var f = type.getDeclaredField(name); f.setAccessible(true); return f.get(object);

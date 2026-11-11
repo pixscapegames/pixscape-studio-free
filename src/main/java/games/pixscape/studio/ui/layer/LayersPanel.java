@@ -1,11 +1,17 @@
 package games.pixscape.studio.ui.layer;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.InputEvent;
+import com.badlogic.gdx.scenes.scene2d.InputListener;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.Touchable;
 import com.badlogic.gdx.scenes.scene2d.ui.Button;
 import com.badlogic.gdx.scenes.scene2d.ui.CheckBox;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
+import com.badlogic.gdx.scenes.scene2d.utils.DragListener;
 import com.badlogic.gdx.utils.Array;
 import com.kotcrab.vis.ui.VisUI;
 import com.kotcrab.vis.ui.widget.VisScrollPane;
@@ -17,7 +23,6 @@ import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
 import games.pixscape.studio.history.HistoryManager;
-import games.pixscape.studio.history.HistoryManager.SupportsNoop;
 import games.pixscape.studio.history.commands.ChangeLayerOrderCommand;
 import games.pixscape.studio.history.commands.CreateLayerCommand;
 import games.pixscape.studio.history.commands.DeleteLayerCommand;
@@ -52,13 +57,27 @@ public class LayersPanel extends DockablePanel {
     private final Runnable markCurrentSceneSaveRequired;
     private final StudioEditingModeService editingModeService;
 
-    private final VisTable listTable;
+    private final LayerInsertionPreview listTable;
     private final VisScrollPane scroller;
+
+    private LayerRow movingRow, movingGhost;
+    private SceneEditorContext movingContext;
+    private int[] movingOrder;
+    private long movingRevision;
+    private int destination = -1;
+    private final Vector2 dragPointer = new Vector2(), localPointer = new Vector2();
+    private Stage dragStage;
+    private final InputListener cancelDragKey = new InputListener() {
+        @Override public boolean keyDown(InputEvent event, int keycode) {
+            if (movingRow == null || keycode != Input.Keys.ESCAPE) return false;
+            cancelMove();
+            event.stop();
+            return true;
+        }
+    };
 
     private final Button btnAdd;
     private final Button btnDelete;
-    private final Button btnUp;
-    private final Button btnDown;
 
     private final CheckBox cbAllVisible;
     private final CheckBox cbAllLocked;
@@ -91,18 +110,17 @@ public class LayersPanel extends DockablePanel {
         this.markCurrentSceneSaveRequired = app.getSceneService()::markCurrentSceneSaveRequired;
         bindRefresh(sceneContext);
 
-        listTable = new VisTable(false);
-        listTable.top().pad(5).left();
+        listTable = new LayerInsertionPreview();
 
         scroller = new VisScrollPane(listTable);
         scroller.setFadeScrollBars(false);
+        scroller.setFlickScroll(false);
+        scroller.setScrollingDisabled(true, false);
         scroller.addListener(new GetScrollListener(scroller));
         scroller.addListener(new LoseScroolListener());
 
         btnAdd = new Button(VisUI.getSkin(), "add");
         btnDelete = new Button(VisUI.getSkin(), "delete");
-        btnUp = new Button(VisUI.getSkin(), "up");
-        btnDown = new Button(VisUI.getSkin(), "down");
 
         cbAllVisible = new CheckBox("", VisUI.getSkin(), "eye");
         cbAllLocked = new CheckBox("", VisUI.getSkin(), "padlock");
@@ -150,16 +168,11 @@ public class LayersPanel extends DockablePanel {
 
         VisTable buttons = new VisTable();
 
-        VisTable center = new VisTable();
-        center.add(btnUp).padLeft(50);
-        center.add(btnDown);
-
         VisTable right = new VisTable();
         right.add(btnAdd);
         right.add(btnDelete).padLeft(4);
 
-        buttons.add(center).expandX().center();
-        buttons.add(right).right();
+        buttons.add(right).expandX().right();
 
         sceneContent.add(bulkControls).growX().padBottom(4).row();
         sceneContent.add(scroller).grow().row();
@@ -211,36 +224,6 @@ public class LayersPanel extends DockablePanel {
             }
         });
 
-        btnUp.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (!editingModeService.allowsWorldEditingActions()) return;
-                if (selectedEntryKind != EntryKind.WORLD) return;
-                if (selectionService == null) return;
-                int activeLayerId = selectionService.getActivelayerId();
-                int idx = layerService.indexOfLayerEntity(activeLayerId);
-                if (idx < 0) return;
-
-                executeIfMeaningful(new ChangeLayerOrderCommand(layerService, activeLayerId, idx + 1));
-                markDirty();
-            }
-        });
-
-        btnDown.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                if (!editingModeService.allowsWorldEditingActions()) return;
-                if (selectedEntryKind != EntryKind.WORLD) return;
-                if (selectionService == null) return;
-                int activeLayerId = selectionService.getActivelayerId();
-                int idx = layerService.indexOfLayerEntity(activeLayerId);
-                if (idx < 0) return;
-
-                executeIfMeaningful(new ChangeLayerOrderCommand(layerService, activeLayerId, idx - 1));
-                markDirty();
-            }
-        });
-
         cbAllVisible.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeEvent event, Actor actor) {
@@ -278,11 +261,8 @@ public class LayersPanel extends DockablePanel {
 
     private void refreshActionAvailability() {
         boolean allowed = editingModeService.allowsWorldEditingActions();
-        boolean hudSelected = selectedEntryKind == EntryKind.HUD;
         btnAdd.setDisabled(!allowed);
         btnDelete.setDisabled(!allowed);
-        btnUp.setDisabled(!allowed || hudSelected);
-        btnDown.setDisabled(!allowed || hudSelected);
         cbAllVisible.setDisabled(!allowed);
         cbAllLocked.setDisabled(!allowed);
         listTable.setTouchable(allowed ? Touchable.childrenOnly : Touchable.disabled);
@@ -356,14 +336,8 @@ public class LayersPanel extends DockablePanel {
         scroller.updateVisualScroll();
     }
 
-    private void executeIfMeaningful(games.pixscape.studio.history.commands.Command command) {
-        if (command instanceof SupportsNoop supportsNoop && supportsNoop.isNoop()) {
-            return;
-        }
-        historyManager.execute(command);
-    }
-
     private void markDirty() {
+        cancelMove();
         dirty = true;
     }
 
@@ -404,6 +378,7 @@ public class LayersPanel extends DockablePanel {
     }
 
     public void bindSceneContext(SceneEditorContext context) {
+        cancelMove();
         if (context == null || context.isDisposed()) return;
         bindServices(context);
         bindRefresh(context);
@@ -432,7 +407,8 @@ public class LayersPanel extends DockablePanel {
      * Rebuilds the full list from LayerService.getLayerUIs().
      */
     private void reloadFromService() {
-        listTable.clearChildren();
+        cancelMove();
+        listTable.resetRows();
 
         Array<LayerUI> layers = layerService.getLayerUIs();
         String hudScreenId = currentHudScreenId();
@@ -472,7 +448,7 @@ public class LayersPanel extends DockablePanel {
                 boolean isSelected = selectedEntryKind == EntryKind.HUD;
                 row.setSelected(isSelected);
                 if (isSelected) selectedRow = row;
-                listTable.add(row).growX().padBottom(6).row();
+                listTable.addRow(row, true);
                 continue;
             }
 
@@ -531,7 +507,8 @@ public class LayersPanel extends DockablePanel {
                 }
             });
 
-            listTable.add(row).growX().padBottom(2).row();
+            installReorder(row, ui);
+            listTable.addRow(row, false);
 
         }
 
@@ -579,6 +556,127 @@ public class LayersPanel extends DockablePanel {
             }
         });
         return row;
+    }
+
+    private void installReorder(LayerRow row, LayerUI ui) {
+        row.addCaptureListener(new DragListener() {
+            { setTapSquareSize(4); } // Same threshold as the tile animation sequence.
+
+            @Override public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                return button == Input.Buttons.LEFT && pointer == 0 && !dirty
+                        && editingModeService.allowsWorldEditingActions()
+                        && row.isDragHandle(event.getTarget())
+                        && super.touchDown(event, x, y, pointer, button);
+            }
+
+            @Override public void dragStart(InputEvent event, float x, float y, int pointer) {
+                row.cancelActivation(); // Including cancelled drags: release must never become a click.
+                if (dirty || row.getParent() != listTable || !editingModeService.allowsWorldEditingActions()) return;
+                cancelMove();
+                movingRow = row;
+                movingContext = sceneContext;
+                movingRevision = historyManager.getMutationRevision();
+                movingOrder = new int[layerService.count()];
+                for (int i = 0; i < movingOrder.length; i++) movingOrder[i] = layerService.getLayerEntity(i);
+                movingGhost = new LayerRow();
+                movingGhost.setData(ui.layerEntityId(), ui.index(), ui.name(), ui.spatialEnabled(), ui.visible(), ui.locked());
+                movingGhost.setSelected(true);
+                dragStage = getStage();
+                dragStage.addCaptureListener(cancelDragKey);
+                dragPointer.set(event.getStageX(), event.getStageY());
+                updateMove(0);
+            }
+
+            @Override public void drag(InputEvent event, float x, float y, int pointer) {
+                if (movingRow != row) return;
+                dragPointer.set(event.getStageX(), event.getStageY());
+                updateMove(0);
+            }
+
+            @Override public void dragStop(InputEvent event, float x, float y, int pointer) {
+                if (movingRow != row) return;
+                dragPointer.set(event.getStageX(), event.getStageY());
+                updateMove(0);
+                int target = destination;
+                boolean valid = !event.isTouchFocusCancel() && target >= 0 && moveContextValid() && orderUnchanged();
+                int entity = row.getEntityId();
+                cancelMove();
+                if (!valid) return;
+                // Display order is reversed; destination is a gap AFTER removing the source.
+                var command = new ChangeLayerOrderCommand(layerService, entity, layerService.count() - 1 - target);
+                if (command.isNoop()) return;
+                focusSelectedRowOnReload = false;
+                historyManager.execute(command);
+                markDirty();
+            }
+        });
+    }
+
+    private boolean moveContextValid() {
+        if (movingRow == null || movingContext != sceneContext || sceneContext.isDisposed()
+                || getStage() != dragStage || dirty || historyManager.getMutationRevision() != movingRevision
+                || !editingModeService.allowsWorldEditingActions()) return false;
+        for (Actor actor = this; actor != null; actor = actor.getParent()) if (!actor.isVisible()) return false;
+        return true;
+    }
+
+    /** Cold release validation also covers mutations whose queued notifications have not flushed yet. */
+    private boolean orderUnchanged() {
+        if (movingOrder.length != layerService.count()) return false;
+        for (int i = 0; i < movingOrder.length; i++) if (movingOrder[i] != layerService.getLayerEntity(i)) return false;
+        return true;
+    }
+
+    private void updateMove(float delta) {
+        if (!moveContextValid()) { cancelMove(); return; }
+        scroller.validate();
+        Actor hit = dragStage.hit(dragPointer.x, dragPointer.y, true);
+        scroller.stageToLocalCoordinates(localPointer.set(dragPointer));
+        float bottom = scroller.getStyle().background == null ? 0 : scroller.getStyle().background.getBottomHeight();
+        float height = scroller.getScrollHeight();
+        boolean inside = height > 0 && hit != null && (hit == scroller || hit.isDescendantOf(scroller))
+                && localPointer.x >= 0 && localPointer.x < scroller.getScrollWidth()
+                && localPointer.y >= bottom && localPointer.y <= bottom + height;
+        if (!inside) {
+            destination = -1;
+            listTable.clearPreview();
+            return;
+        }
+        // Bound elapsed time after stalls. Constant scroll extent prevents ghost-induced jumps.
+        float edge = Math.min(28, height / 3);
+        float fromBottom = localPointer.y - bottom;
+        float scroll = fromBottom < edge ? 1 - fromBottom / edge
+                : fromBottom > height - edge ? -(fromBottom - height + edge) / edge : 0;
+        if (scroll != 0 && delta > 0) {
+            scroller.setScrollY(Math.max(0, Math.min(scroller.getMaxY(),
+                    scroller.getScrollY() + scroll * 240 * Math.min(delta, .05f))));
+            scroller.updateVisualScroll();
+            scroller.layout();
+        }
+        listTable.stageToLocalCoordinates(localPointer.set(dragPointer));
+        destination = listTable.insertionAt(localPointer.y, movingRow);
+        if (destination < 0) listTable.clearPreview();
+        else listTable.showInsertion(movingRow, movingGhost, destination);
+    }
+
+    private void cancelMove() {
+        if (dragStage != null) dragStage.removeCaptureListener(cancelDragKey);
+        if (listTable != null) listTable.clearPreview();
+        movingRow = movingGhost = null;
+        movingContext = null;
+        movingOrder = null;
+        dragStage = null;
+        destination = -1;
+    }
+
+    @Override public void act(float delta) {
+        super.act(delta);
+        if (movingRow != null) updateMove(delta);
+    }
+
+    @Override protected void setStage(Stage stage) {
+        if (stage != getStage()) cancelMove();
+        super.setStage(stage);
     }
 
     static Array<PanelEntry> entriesFor(String hudScreenId, Array<LayerUI> layers) {
