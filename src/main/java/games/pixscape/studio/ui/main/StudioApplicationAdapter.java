@@ -866,6 +866,10 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         return assetsPanel;
     }
 
+    public void reloadAssetInspection() {
+        if (propertiesPanel != null) propertiesPanel.reloadAssetInspection();
+    }
+
     public void clearProjectInspection() {
         if (propertiesPanel != null) propertiesPanel.clearProject();
     }

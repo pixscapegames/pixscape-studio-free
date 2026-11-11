@@ -49,6 +49,10 @@ public final class EventFlow {
     ) {
     }
 
+    /** Explicit Layers selection of a Scene HUD association, which has no ECS layer entity. */
+    public record SceneHudLayerSelected(String sceneTag, int sourceTag) {
+    }
+
     /** Transient Studio target used by Tiled and map-owned Spatial/Physics tools. */
     public record TiledMapEditingTargetChanged(
             int mapEntityId,

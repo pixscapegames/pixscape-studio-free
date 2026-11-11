@@ -1,6 +1,7 @@
 package games.pixscape.studio.service.hud;
 
 import games.pixscape.runtime.hud.HudScreenAsset;
+import games.pixscape.runtime.hud.HudScreenAssetId;
 import games.pixscape.runtime.hud.document.*;
 
 import java.util.ArrayList;
@@ -10,21 +11,31 @@ import java.util.Locale;
 
 /** Read-only inspector rows derived directly from Runtime DTOs. */
 public final class HudInspectorProjection {
+    public static final String SCREEN_TITLE = "HUD SCREEN";
     public record Field(String label, String value) {}
 
     private HudInspectorProjection() {}
 
     public static List<Field> screen(HudEditorSession session) {
+        return screen(session.screenId(), session.asset(), session.isDirty(), true);
+    }
+
+    /** Common document description; preview diagnostics and editable controls belong to their views. */
+    public static List<Field> screen(String screenId, HudScreenAsset asset, boolean dirty, boolean openDocument) {
         List<Field> rows = new ArrayList<>();
-        rows.add(new Field("Screen ID", text(session.screenId())));
-        HudScreenAsset asset = session.asset();
+        rows.add(new Field("Screen ID", text(screenId)));
         if (asset != null) {
+            rows.add(new Field("Name", HudScreenAssetId.assetName(screenId)));
+            rows.add(new Field("Dimensions", "Adapts to the HUD viewport (no fixed asset size)"));
             rows.add(new Field("Document", text(asset.documentId)));
-            rows.add(new Field("Skin", text(asset.skinId)));
-            rows.add(new Field("Atlas", text(asset.atlasId)));
-            rows.add(new Field("Texture profile", text(asset.textureProfileId)));
+            rows.add(new Field("Skin", asset.skinId != null ? asset.skinId : "None"));
+            rows.add(new Field("Atlas", asset.atlasId != null ? asset.atlasId : "None"));
+            rows.add(new Field("Texture profile", asset.textureProfileId != null ? asset.textureProfileId : "None"));
         }
-        rows.add(new Field("Status", session.status().name()));
+        rows.add(new Field("Status", asset == null ? "No HUD document loaded"
+                : dirty ? "Document loaded (unsaved changes)" : "Document loaded"));
+        if (asset != null) rows.add(new Field("Source", openDocument
+                ? "Open document (including unsaved changes)" : "Project file"));
         return Collections.unmodifiableList(rows);
     }
 

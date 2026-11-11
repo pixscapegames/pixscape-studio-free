@@ -1854,6 +1854,7 @@ public final class HudEditorSession implements Disposable {
     public Status status() { return status; }
     public String screenId() { return screenId; }
     public HudScreenAsset asset() { return asset; }
+    public boolean isDirty() { return editorDocument != null && editorDocument.isDirty(); }
     public HudDocumentV1 document() { return document; }
     public HudValidationResult validation() { return validation; }
     public String selectedNodeId() { return selectedNodeId; }

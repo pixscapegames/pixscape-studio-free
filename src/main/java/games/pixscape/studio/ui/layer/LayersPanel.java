@@ -562,6 +562,7 @@ public class LayersPanel extends DockablePanel {
                 if (!editingModeService.allowsWorldEditingActions()) return;
                 selectedEntryKind = EntryKind.HUD;
                 selectedHudScreenId = hudScreenId;
+                EventFlow.i().publish(new EventFlow.SceneHudLayerSelected(sceneContext.sceneIdentity(), MY_TAG));
                 focusSelectedRowOnReload = false;
                 for (Actor child : listTable.getChildren()) {
                     if (child instanceof LayerRow layerRow) {

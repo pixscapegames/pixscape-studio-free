@@ -124,7 +124,7 @@ public final class HudInspectorView extends VisTable {
     }
 
     static String titleFor(HudNode node) {
-        if (node == null) return "HUD SCREEN";
+        if (node == null) return HudInspectorProjection.SCREEN_TITLE;
         return node.kind == HudNodeKind.TEXT_BUTTON
                 ? "TEXTBUTTON" : node.kind == HudNodeKind.IMAGE_BUTTON
                 ? "IMAGEBUTTON" : node.kind == HudNodeKind.TEXT_FIELD
@@ -136,7 +136,7 @@ public final class HudInspectorView extends VisTable {
     private void addScreenProperties() {
         for (HudInspectorProjection.Field field : HudInspectorProjection.screen(session)) {
             if ("Skin".equals(field.label())) addSkinChoice();
-            else addReadOnly(field.label(), field.value());
+            else addReadOnly(field.label(), field.value()).setName("hudScreen" + field.label().replace(" ", ""));
         }
     }
 
@@ -2126,10 +2126,11 @@ public final class HudInspectorView extends VisTable {
         return pair;
     }
 
-    private void addReadOnly(String label, String value) {
+    private VisLabel addReadOnly(String label, String value) {
         addFormLabel(label);
         VisLabel display = new VisLabel(text(value)); display.setWrap(true);
         add(display).growX().left().row();
+        return display;
     }
 
     private Cell<VisLabel> addFormLabel(String label) {

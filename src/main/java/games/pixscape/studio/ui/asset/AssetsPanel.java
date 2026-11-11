@@ -18,7 +18,7 @@ import java.util.function.Consumer;
 
 public final class AssetsPanel extends DockablePanel {
 
-    private boolean reloadingAnimationSelection;
+    private boolean reloadingAssetSelection;
     private final FolderTreeView treeView;
     private final AssetsThumbsView thumbsView;
     private final RuntimeAvailabilityPanel runtimeAvailabilityPanel;
@@ -45,6 +45,7 @@ public final class AssetsPanel extends DockablePanel {
             if (node.kind == AssetNode.Kind.ANIMATION) {
                 AnimationAssetClipsEditor.show(app, node.assetId, getStage());
             } else if (node.kind == AssetNode.Kind.HUD_SCREEN) {
+                notifyAssetSelection(null);
                 app.openHudScreen(node.path);
             } else if (node.kind == AssetNode.Kind.GAME_OBJECT) {
                 app.openGameObject(node.path);
@@ -146,7 +147,7 @@ public final class AssetsPanel extends DockablePanel {
         // selection binding
         treeView.setSelectionListener(node -> {
             thumbsView.showForNode(node);
-            if (!reloadingAnimationSelection) notifyAssetSelection(null);
+            if (!reloadingAssetSelection) notifyAssetSelection(null);
         });
 
         buildLayout();
@@ -191,13 +192,17 @@ public final class AssetsPanel extends DockablePanel {
             return;
         }
         AssetNode selected = thumbsView.getSelectedNode();
-        reloadingAnimationSelection = selected != null && selected.kind == AssetNode.Kind.ANIMATION;
+        reloadingAssetSelection = selected != null && switch (selected.kind) {
+            case ANIMATION, HUD_SCREEN, FONT, SKIN -> true;
+            default -> false;
+        };
         try {
             reloadBrowser(cfg);
-            if (reloadingAnimationSelection) thumbsView.restoreAnimationSelection(selected.assetId);
+            if (reloadingAssetSelection) thumbsView.restoreAssetSelection(selected);
         } finally {
-            reloadingAnimationSelection = false;
+            reloadingAssetSelection = false;
         }
+        if (app != null) app.reloadAssetInspection();
     }
 
     private void reloadBrowser(ProjectConfig cfg) {

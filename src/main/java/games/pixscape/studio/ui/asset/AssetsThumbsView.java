@@ -1461,9 +1461,7 @@ public final class AssetsThumbsView extends VisTable {
                             hudScreenDeletionService.delete(projectDir, cfg, node.path);
                     completeHudScreenDeletion(deletion,
                             () -> closeDeletedHudDocument(node.path),
-                            () -> {
-                                if (currentFolder != null) showForNode(currentFolder);
-                            },
+                            () -> app.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()),
                             AssetsThumbsView.this::showHudScreenCleanupWarning);
                 } catch (HudScreenDeletionService.HudScreenInUseException inUse) {
                     showHudScreenInUseDialog(node, inUse.usage());
@@ -1732,11 +1730,12 @@ public final class AssetsThumbsView extends VisTable {
         refreshSelectionVisuals();
     }
 
-    void restoreAnimationSelection(int assetId) {
+    void restoreAssetSelection(AssetNode previous) {
         for (AssetNode node : currentAssets) {
-            if (node.kind == AssetNode.Kind.ANIMATION && node.assetId == assetId) {
+            if (node.kind == previous.kind && (node.kind == AssetNode.Kind.HUD_SCREEN
+                    ? java.util.Objects.equals(node.path, previous.path) : node.assetId == previous.assetId)) {
                 selectedNode = node;
-                addToSelection(node);
+                if (isMultiSelectableAsset(node)) addToSelection(node);
                 selectionAnchorIndex = indexOfCurrentAsset(node);
                 refreshSelectionVisuals();
                 return;

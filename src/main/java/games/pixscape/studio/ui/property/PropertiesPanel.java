@@ -16,6 +16,7 @@ import games.pixscape.runtime.component.physics.PhysicsShapesComponent;
 import games.pixscape.studio.document.EditorDocumentManager;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.OpenEditorDocument;
+import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.event.EventFlow;
 import games.pixscape.studio.event.GetScrollListener;
 import games.pixscape.studio.event.LoseScroolListener;
@@ -103,6 +104,8 @@ public class PropertiesPanel extends DockablePanel {
     private boolean spatialPreviewDirty;
     private final TileAssetProperties tileAssetProperties;
     private final AnimationAssetProperties animationAssetProperties;
+    private final ResourceAssetProperties resourceAssetProperties;
+    private final ResourceAssetProperties hudLayerAssetProperties;
     private int pendingTileAsset = -1;
     private int pendingAnimationAsset = -1;
     private PendingView pendingView = PendingView.SCENE;
@@ -121,9 +124,11 @@ public class PropertiesPanel extends DockablePanel {
         FIXTURE,
         SPATIAL_BLOCK,
         LAYER,
+        HUD_LAYER,
         TILED_MAP,
         TILE_ASSET,
-        ANIMATION_ASSET
+        ANIMATION_ASSET,
+        RESOURCE_ASSET
     }
 
     public PropertiesPanel(StudioApplicationAdapter app) {
@@ -142,6 +147,9 @@ public class PropertiesPanel extends DockablePanel {
                 database -> app.getCanvas().publishAssetMetaDatabase(database));
         animationAssetProperties = new AnimationAssetProperties(app.getSceneService()::getAssetMetaDatabase,
                 assetId -> games.pixscape.studio.ui.asset.AnimationAssetClipsEditor.show(app, assetId, getStage()));
+
+        resourceAssetProperties = new ResourceAssetProperties(app, this::leaveAssetInspection);
+        hudLayerAssetProperties = new ResourceAssetProperties(app, this::restoreCurrentCanvasProperties);
 
         VisScrollPane scroller = new VisScrollPane(contentHolder);
         scroller.setFadeScrollBars(false);
@@ -246,6 +254,19 @@ public class PropertiesPanel extends DockablePanel {
             markDirty();
         });
 
+        EventFlow.i().subscribe(EventFlow.SceneHudLayerSelected.class, evt -> {
+            if (app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene
+                    && java.util.Objects.equals(scene.context().sceneIdentity(), evt.sceneTag())) {
+                pendingView = PendingView.HUD_LAYER;
+                markDirty();
+            }
+        });
+        EventFlow.i().subscribe(EventFlow.SceneHudAssociationChanged.class, evt -> {
+            if (pendingView == PendingView.HUD_LAYER
+                    && app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene
+                    && java.util.Objects.equals(scene.context().sceneIdentity(), evt.sceneTag())) markDirty();
+        });
+
         EventFlow.i().subscribe(EventFlow.TiledMapEditingTargetChanged.class, evt -> {
             if (evt.sourceTag() == MY_TAG) return;
             int mapEntityId = evt.mapEntityId();
@@ -319,7 +340,8 @@ public class PropertiesPanel extends DockablePanel {
         initializeContextEditors(context);
         bindRefresh(context);
         pendingSelection = context.selectionService().getSelectionSnapshot();
-        pendingView = pendingSelection.size > 0 ? PendingView.SELECTION : PendingView.SCENE;
+        if (inspectedResourceProperties() == null)
+            pendingView = pendingSelection.size > 0 ? PendingView.SELECTION : PendingView.SCENE;
         clearBindings();
         clearPhysicsContext();
         clearTiledMapContext();
@@ -336,6 +358,10 @@ public class PropertiesPanel extends DockablePanel {
 
     /** Releases project inspection even when there is no document activation to observe. */
     public void clearProject() {
+        if (inspectedResourceProperties() != null) contentHolder.clearChildren();
+        resourceAssetProperties.clearProject();
+        hudLayerAssetProperties.remove();
+        hudLayerAssetProperties.clearProject();
         showDocumentType(null);
         clearSceneContext();
         animationAssetProperties.clearProject();
@@ -518,7 +544,13 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void showDocumentType(EditorDocumentType type) {
-        if (pendingView == PendingView.TILE_ASSET || pendingView == PendingView.ANIMATION_ASSET) {
+        if (inspectedResourceProperties() != null) {
+            hudMode = type == EditorDocumentType.HUD_SCREEN;
+            gameObjectMode = type == EditorDocumentType.GAME_OBJECT;
+            return;
+        }
+        if (pendingView == PendingView.TILE_ASSET || pendingView == PendingView.ANIMATION_ASSET
+                || pendingView == PendingView.RESOURCE_ASSET) {
             pendingView = PendingView.SCENE;
         }
         if (type == null) {
@@ -559,6 +591,17 @@ public class PropertiesPanel extends DockablePanel {
         clearPhysicsContext();
         clearTiledMapContext();
         boundLayer = layerEntity;
+    }
+
+    private void showSceneHudLayerProperties() {
+        if (!(app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene)) return;
+        String screenId = scene.context().sceneMeta().defaultHudScreenId;
+        contentHolder.clearChildren();
+        clearBindings();
+        clearPhysicsContext();
+        clearTiledMapContext();
+        hudLayerAssetProperties.selectHud(screenId);
+        contentHolder.add(hudLayerAssetProperties).growX().top().left().row();
     }
 
     private void showEntityProperties(int entityId) {
@@ -700,6 +743,10 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     public void updateIfDirty() {
+        if (hudLayerAssetProperties.getStage() != null) hudLayerAssetProperties.refreshIfChanged();
+        if (inspectedResourceProperties() != null && !resourceAssetProperties.refreshIfChanged()) {
+            restoreCurrentCanvasProperties();
+        }
         if (inspectedAnimationProperties() != null) {
             var database = app.getSceneService().getAssetMetaDatabase();
             if (database == null || !(database.findById(pendingAnimationAsset)
@@ -709,9 +756,11 @@ public class PropertiesPanel extends DockablePanel {
                 animationAssetProperties.refreshIfChanged();
             }
         }
-        if (hudMode && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET) return;
+        if (hudMode && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET
+                && pendingView != PendingView.RESOURCE_ASSET) return;
         if (app.getEditorDocumentManager().activeDocument() == null
-                && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET) {
+                && pendingView != PendingView.TILE_ASSET && pendingView != PendingView.ANIMATION_ASSET
+                && pendingView != PendingView.RESOURCE_ASSET) {
             contentHolder.clearChildren();
             dirty = transformTitleDirty = spatialPreviewDirty = false;
             return;
@@ -733,16 +782,35 @@ public class PropertiesPanel extends DockablePanel {
             case FIXTURE -> onFixtureSelectionChanged(pendingFixtureBody, pendingFixtureId);
             case SPATIAL_BLOCK -> onSpatialBlockSelectionChanged(pendingSpatialBlockMap, pendingSpatialBlockId);
             case LAYER -> onActiveLayerChanged(pendingLayer);
+            case HUD_LAYER -> showSceneHudLayerProperties();
             case SCENE -> showSceneProperties();
             case TILED_MAP -> showTiledMapProperties(pendingTiledMap);
             case TILE_ASSET -> showTileAssetProperties(pendingTileAsset);
             case ANIMATION_ASSET -> showAnimationAssetProperties(pendingAnimationAsset);
+            case RESOURCE_ASSET -> { } // The view is already prepared at selection/reload boundaries.
         }
     }
 
     public void inspectAsset(games.pixscape.studio.ui.asset.AssetNode node) {
         if (node == null) {
             leaveAssetInspection();
+            return;
+        }
+        if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.HUD_SCREEN
+                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.FONT
+                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN) {
+            clearBindings();
+            clearPhysicsContext();
+            clearTiledMapContext();
+            contentHolder.clearChildren();
+            if (!resourceAssetProperties.select(node)) {
+                restoreCurrentCanvasProperties();
+                updateIfDirty();
+                return;
+            }
+            pendingView = PendingView.RESOURCE_ASSET;
+            contentHolder.add(resourceAssetProperties).growX().top().left().row();
+            dirty = false;
             return;
         }
         var database = app.getSceneService().getAssetMetaDatabase();
@@ -762,7 +830,20 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void leaveAssetInspection() {
-        if (inspectedAnimationProperties() != null || inspectedTileProperties() != null) {
+        if (inspectedAnimationProperties() != null || inspectedTileProperties() != null
+                || inspectedResourceProperties() != null) {
+            restoreCurrentCanvasProperties();
+            updateIfDirty();
+        }
+    }
+
+    public ResourceAssetProperties inspectedResourceProperties() {
+        return resourceAssetProperties.getParent() == contentHolder ? resourceAssetProperties : null;
+    }
+
+    public void reloadAssetInspection() {
+        if (hudLayerAssetProperties.getStage() != null) hudLayerAssetProperties.reload();
+        if (inspectedResourceProperties() != null && !resourceAssetProperties.reload()) {
             restoreCurrentCanvasProperties();
             updateIfDirty();
         }
@@ -796,6 +877,7 @@ public class PropertiesPanel extends DockablePanel {
     }
 
     private void restoreCurrentCanvasProperties() {
+        contentHolder.clearChildren();
         if (app.getEditorDocumentManager().activeDocument() == null) {
             showDocumentType(null);
             return;
@@ -805,7 +887,6 @@ public class PropertiesPanel extends DockablePanel {
         pendingLayer = selectionService != null ? selectionService.getActivelayerId() : -1;
         pendingView = pendingSelection.size > 0 ? PendingView.SELECTION
                 : pendingLayer >= 0 ? PendingView.LAYER : PendingView.SCENE;
-        contentHolder.clearChildren();
         if (hudMode) {
             hudInspectorView.rebuild();
             contentHolder.add(hudInspectorView).growX().top().left().row();
