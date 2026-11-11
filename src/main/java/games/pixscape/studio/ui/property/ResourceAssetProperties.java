@@ -2,15 +2,22 @@ package games.pixscape.studio.ui.property;
 
 import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.TextureAtlas;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.FileTextureData;
 import com.badlogic.gdx.scenes.scene2d.Actor;
+import com.badlogic.gdx.scenes.scene2d.ui.Container;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
+import com.badlogic.gdx.utils.Scaling;
+import com.kotcrab.vis.ui.widget.VisImage;
 import com.kotcrab.vis.ui.widget.VisLabel;
 import com.kotcrab.vis.ui.widget.VisTable;
 import com.kotcrab.vis.ui.widget.VisTextButton;
@@ -22,9 +29,11 @@ import games.pixscape.studio.configuration.ProjectConfig;
 import games.pixscape.studio.document.EditorDocumentKey;
 import games.pixscape.studio.document.EditorDocumentType;
 import games.pixscape.studio.document.HudScreenEditorDocument;
+import games.pixscape.studio.document.SceneEditorDocument;
 import games.pixscape.studio.io.StudioFs;
 import games.pixscape.studio.service.hud.HudDocumentPersistenceService;
 import games.pixscape.studio.service.hud.HudInspectorProjection;
+import games.pixscape.studio.service.asset.StudioAssetVisual;
 import games.pixscape.studio.ui.asset.AssetNode;
 import games.pixscape.studio.ui.main.StudioApplicationAdapter;
 import games.pixscape.studio.ui.widget.CollapsibleVisTable;
@@ -32,9 +41,10 @@ import games.pixscape.studio.ui.widget.CollapsibleVisTable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
- * Read-only resource details with owned previews. Docking retains the target
+ * Read-only resource details with owned font/skin/particle previews and borrowed image textures. Docking retains the target
  * and previews; PropertiesPanel explicitly clears them when inspection ends.
  */
 public final class ResourceAssetProperties extends VisTable {
@@ -52,6 +62,13 @@ public final class ResourceAssetProperties extends VisTable {
     private Skin previewSkin;
     private ParticleAssetPreview particlePreview;
     private float previewSpeed = 1f;
+    private VisImage imagePreview;
+    private StudioAssetVisual imageVisual;
+    private String imageAtlasTag;
+    private TextureAtlas imageAtlas;
+    private int imageAtlasRevision;
+    private Texture.TextureFilter imageMin, imageMag;
+    private VisLabel imageMinLabel, imageMagLabel;
 
     ResourceAssetProperties(StudioApplicationAdapter app, Runnable leaveInspection) {
         super(true);
@@ -129,11 +146,19 @@ public final class ResourceAssetProperties extends VisTable {
         displayedMeta = app.getSceneService().getAssetMetaDatabase().findById(assetId);
         if (displayedMeta == null) return false;
         row("Name", AssetDisplayInfo.from(displayedMeta).displayName());
-        if (kind != AssetNode.Kind.PARTICLE) row("ID", Integer.toString(assetId));
+        if (kind != AssetNode.Kind.PARTICLE && kind != AssetNode.Kind.IMAGE) row("ID", Integer.toString(assetId));
         row("Source", displayedMeta.sourceRelPath());
+        if (kind == AssetNode.Kind.IMAGE) {
+            imageAtlasTag = activeImageAtlasTag();
+            imageAtlas = imageAtlasTag != null ? app.getCanvas().getAtlasService().getAtlas(imageAtlasTag) : null;
+            imageAtlasRevision = app.getCanvas().getAtlasService().publicationRevision(imageAtlasTag);
+        }
         try {
+            if (kind == AssetNode.Kind.IMAGE && (displayedMeta.sourceRelPath() == null || displayedMeta.sourceRelPath().isBlank()))
+                throw new IllegalArgumentException("Image source is not configured");
             FileHandle source = project.child(displayedMeta.sourceRelPath());
-            if (kind == AssetNode.Kind.PARTICLE) {
+            if (kind == AssetNode.Kind.IMAGE) showImage(source);
+            else if (kind == AssetNode.Kind.PARTICLE) {
                 particlePreview = new ParticleAssetPreview(source, project.child(StudioFs.DIR_ORIG_IMAGES),
                         previewSpeed);
                 details.add(particlePreview).colspan(2).growX().padTop(8).row();
@@ -161,7 +186,72 @@ public final class ResourceAssetProperties extends VisTable {
         } else if (app.getSceneService().getAssetMetaDatabase().findById(assetId) != displayedMeta) {
             return reload();
         }
+        if (kind == AssetNode.Kind.IMAGE) {
+            String tag = activeImageAtlasTag();
+            if (!Objects.equals(tag, imageAtlasTag)
+                    || (tag != null ? app.getCanvas().getAtlasService().getAtlas(tag) : null) != imageAtlas
+                    || app.getCanvas().getAtlasService().publicationRevision(tag) != imageAtlasRevision) return reload();
+            // Only read the published texture; never load, repack, or change its filtering here.
+            if (imageVisual != null) refreshImageFilters();
+        }
         return true;
+    }
+
+    private String activeImageAtlasTag() {
+        return app.getEditorDocumentManager().activeDocument() instanceof SceneEditorDocument scene
+                ? scene.context().sceneIdentity() : null;
+    }
+
+    private void showImage(FileHandle source) {
+        if (!source.exists() || source.isDirectory())
+            throw new IllegalArgumentException("Image source is missing: " + source.name());
+        // Validate even when the renderer still has cached pixels. A broken source must not look healthy.
+        Pixmap pixels;
+        try { pixels = new Pixmap(source); }
+        catch (RuntimeException failure) { throw new IllegalArgumentException("Invalid image source: " + source.name(), failure); }
+        pixels.dispose();
+        imageVisual = app.getCanvas().getAssetVisualResolver().resolveFirst(assetId, imageAtlasTag);
+        if (imageVisual == null || imageVisual.texture().getTextureObjectHandle() == 0)
+            throw new IllegalStateException("Image texture is unavailable");
+
+        row("Dimensions", imageVisual.pixelWidth() + " x " + imageVisual.pixelHeight() + " px");
+        if (imageVisual.source() == StudioAssetVisual.Source.ATLAS) {
+            String page = imageVisual.texture().getTextureData() instanceof FileTextureData data
+                    ? data.getFileHandle().name() : "Shared texture";
+            row("Atlas page", page + " (" + imageAtlasTag + ")");
+            row("Filtering", "Effective - shared scene atlas texture");
+        } else {
+            row("Filtering", "Effective - Studio standalone texture");
+        }
+        // IMAGE metadata has no texture profile. Do not infer one from HUD settings or thumbnail filters.
+        imageMinLabel = row("Min", imageVisual.texture().getMinFilter().name());
+        imageMagLabel = row("Mag", imageVisual.texture().getMagFilter().name());
+        imageMin = imageVisual.texture().getMinFilter();
+        imageMag = imageVisual.texture().getMagFilter();
+        TextureRegion region = new TextureRegion(imageVisual.texture(), imageVisual.u1(), imageVisual.v1(),
+                imageVisual.u2(), imageVisual.v2());
+        imagePreview = new VisImage(region);
+        imagePreview.setName("imageAssetPreview");
+        imagePreview.setScaling(Scaling.fit);
+        // Scene2D already handles fitting, centering, resize and clipping. Limiting the actor to native
+        // dimensions prevents Scaling.fit from ever upscaling, without touching the shared texture.
+        Container<VisImage> frame = new Container<>(imagePreview);
+        frame.fill().minWidth(0).minHeight(0).prefWidth(0).prefHeight(0)
+                .maxWidth(imageVisual.pixelWidth()).maxHeight(imageVisual.pixelHeight());
+        frame.setClip(true);
+        details.add(frame).colspan(2).growX().height(240).padTop(8).row();
+    }
+
+    private void refreshImageFilters() {
+        Texture texture = imageVisual.texture();
+        if (imageMin != texture.getMinFilter()) {
+            imageMin = texture.getMinFilter();
+            imageMinLabel.setText(imageMin.name());
+        }
+        if (imageMag != texture.getMagFilter()) {
+            imageMag = texture.getMagFilter();
+            imageMagLabel.setText(imageMag.name());
+        }
     }
 
     private HudScreenEditorDocument openHud() {
@@ -229,12 +319,13 @@ public final class ResourceAssetProperties extends VisTable {
         } else row("Preview", "No label or text button style available");
     }
 
-    private void row(String label, String value) {
+    private VisLabel row(String label, String value) {
         VisLabel content = new VisLabel(value != null ? value : "Unavailable");
         content.setName("resourceAsset" + label.replace(" ", ""));
         content.setWrap(true);
         details.add(new VisLabel(label + ":")).left().top();
         details.add(content).growX().left().row();
+        return content;
     }
 
     void clearProject() {
@@ -246,9 +337,17 @@ public final class ResourceAssetProperties extends VisTable {
         displayedMeta = null;
         displayedHud = null;
         previewSpeed = 1f;
+        imageAtlasTag = null;
+        imageAtlas = null;
+        imageAtlasRevision = 0;
     }
 
     private void releasePreview() {
+        if (imagePreview != null) imagePreview.setDrawable((com.badlogic.gdx.scenes.scene2d.utils.Drawable) null);
+        imagePreview = null;
+        imageVisual = null;
+        imageMinLabel = imageMagLabel = null;
+        imageMin = imageMag = null;
         if (particlePreview != null) {
             previewSpeed = particlePreview.speed();
             particlePreview.dispose();

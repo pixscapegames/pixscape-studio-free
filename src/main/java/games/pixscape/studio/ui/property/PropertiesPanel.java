@@ -796,10 +796,13 @@ public class PropertiesPanel extends DockablePanel {
             leaveAssetInspection();
             return;
         }
+        var database = app.getSceneService().getAssetMetaDatabase();
         if (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.HUD_SCREEN
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.PARTICLE
                 || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.FONT
-                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN) {
+                || node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.SKIN
+                || (node.kind == games.pixscape.studio.ui.asset.AssetNode.Kind.IMAGE && database != null
+                    && database.findById(node.assetId) instanceof games.pixscape.studio.asset.ImageAssetMeta)) {
             clearBindings();
             clearPhysicsContext();
             clearTiledMapContext();
@@ -815,7 +818,6 @@ public class PropertiesPanel extends DockablePanel {
             dirty = false;
             return;
         }
-        var database = app.getSceneService().getAssetMetaDatabase();
         if (database != null
                 && database.findById(node.assetId) instanceof games.pixscape.studio.asset.TileAssetMeta) {
             pendingTileAsset = node.assetId;

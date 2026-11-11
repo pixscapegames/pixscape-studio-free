@@ -40,6 +40,232 @@ import static org.junit.Assume.assumeTrue;
 
 /** Real Assets/Inspector wiring, with isolated projects and owned preview resources. */
 public class ResourceAssetInspectorGlTest {
+    @Test public void imageInspectionFitsNativePixelsAndReadsRendererFilters() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("images"));
+            int small = addImage(project.parent(), "pixel", 16, 16);
+            int large = addImage(project.parent(), "wide", 640, 192);
+            open(studio, project);
+            PropertiesPanel panel = inspector(studio);
+            var context = studio.getSceneEditorContext();
+            var texture = studio.getCanvas().getAssetVisualResolver().resolveFirst(small, context.sceneIdentity()).texture();
+            texture.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest,
+                    com.badlogic.gdx.graphics.Texture.TextureFilter.Linear);
+            String catalog = studio.getSceneService().getAssetMetaDatabase().toSnapshotJson();
+            var files = snapshot(project.parent());
+            boolean dirty = context.historyManager().isDirty(), undo = context.historyManager().canUndo();
+            inspectImage(studio, small);
+            assertEquals("pixel", label(panel, "Name"));
+            assertEquals("16 x 16 px", label(panel, "Dimensions"));
+            assertEquals("orig/images/pixel.png", label(panel, "Source"));
+            assertEquals("Effective - Studio standalone texture", label(panel, "Filtering"));
+            assertEquals("Nearest", label(panel, "Min")); assertEquals("Linear", label(panel, "Mag"));
+            assertNull(panel.findActor("resourceAssetID"));
+            assertNull(panel.findActor("resourceAssetTextureprofile"));
+            var node = studio.getAssetsPanel().getSelectedAssetNode();
+            var thumb = games.pixscape.studio.ui.asset.AssetPreviewCache.get(node).getTexture();
+            assertNotSame(texture, thumb);
+            assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Linear, thumb.getMinFilter());
+            var image = (com.kotcrab.vis.ui.widget.VisImage) panel.findActor("imageAssetPreview");
+            studio.render(); studio.render();
+            assertFitted(image, 16, 16);
+            assertEquals(16, image.getImageWidth(), 0.001f);
+            assertSame(texture, ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable) image.getDrawable()).getRegion().getTexture());
+            studio.getDockManager().hide((games.pixscape.studio.ui.docking.DockablePanel) field(studio, "layersPanel"));
+            screenshot(studio, "image-pixel-art");
+
+            inspectImage(studio, large);
+            assertNull("Abandoned UI actors release borrowed references", image.getDrawable());
+            assertTrue("The Inspector does not dispose cache textures", texture.getTextureObjectHandle() != 0);
+            assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest, texture.getMinFilter());
+            assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Linear, texture.getMagFilter());
+            image = panel.findActor("imageAssetPreview");
+            studio.render(); studio.render();
+            assertEquals("640 x 192 px", label(panel, "Dimensions"));
+            assertFitted(image, 640, 192);
+            assertTrue(image.getImageWidth() < 640);
+            screenshot(studio, "image-wide-transparent");
+            var frame = (com.badlogic.gdx.scenes.scene2d.ui.Container<?>) image.getParent();
+            for (float[] size : new float[][]{{110, 240}, {200, 40}, {900, 240}}) {
+                frame.setSize(size[0], size[1]); frame.validate(); image.validate();
+                assertFitted(image, 640, 192);
+                assertEquals(Math.min(1f, Math.min(size[0] / 640, size[1] / 192)) * 640,
+                        image.getImageWidth(), 0.01f);
+            }
+            assertEquals("640 x 192 px", label(panel, "Dimensions"));
+            assertEquals(catalog, studio.getSceneService().getAssetMetaDatabase().toSnapshotJson());
+            assertEquals(files, snapshot(project.parent()));
+            assertEquals(dirty, context.historyManager().isDirty()); assertEquals(undo, context.historyManager().canUndo());
+        });
+    }
+
+    @Test public void imageAtlasRegionsReadSharedEffectiveFiltersAndFollowPublication() throws Exception {
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("images"));
+            int first = addImage(project.parent(), "first", 64, 32);
+            int second = addImage(project.parent(), "second", 12, 12);
+            open(studio, project);
+            FileHandle pageFile = root.child("fixture/page.png");
+            writeImage(pageFile, 128, 64);
+            FileHandle descriptor = pageFile.sibling("fixture.atlas");
+            descriptor.writeString("page.png\nsize: 128,64\nformat: RGBA8888\nfilter: Nearest,Nearest\nrepeat: none\n"
+                    + "first__a" + first + "\n  rotate: false\n  xy: 0,0\n  size: 64,32\n  orig: 64,32\n  offset: 0,0\n  index: -1\n"
+                    + "second__a" + second + "\n  rotate: false\n  xy: 64,0\n  size: 12,12\n  orig: 12,12\n  offset: 0,0\n  index: -1\n", false);
+            var atlas = new com.badlogic.gdx.graphics.g2d.TextureAtlas(descriptor);
+            var replacement = new com.badlogic.gdx.graphics.g2d.TextureAtlas(descriptor);
+            var service = studio.getCanvas().getAtlasService();
+            String tag = studio.getSceneEditorContext().sceneIdentity();
+            try {
+                var texture = atlas.getRegions().first().getTexture();
+                assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest, texture.getMinFilter());
+                service.loadBorrowed(tag, atlas); // Runtime publication applies its actual Linear policy.
+                inspectImage(studio, first);
+                PropertiesPanel panel = inspector(studio);
+                assertEquals("64 x 32 px", label(panel, "Dimensions"));
+                assertEquals("page.png (" + tag + ")", label(panel, "Atlas page"));
+                assertEquals("Effective - shared scene atlas texture", label(panel, "Filtering"));
+                assertEquals("Linear", label(panel, "Min")); assertEquals("Linear", label(panel, "Mag"));
+                assertTrue(descriptor.readString().contains("filter: Nearest,Nearest"));
+                assertSame(texture, studio.getCanvas().getAssetVisualResolver().resolveFirst(second, tag).texture());
+                var image = (com.kotcrab.vis.ui.widget.VisImage) panel.findActor("imageAssetPreview");
+                var region = ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable) image.getDrawable()).getRegion();
+                assertEquals(64, region.getRegionWidth()); assertEquals(32, region.getRegionHeight());
+                texture.setFilter(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest,
+                        com.badlogic.gdx.graphics.Texture.TextureFilter.Linear);
+                flush(panel);
+                assertEquals("Nearest", label(panel, "Min")); assertEquals("Linear", label(panel, "Mag"));
+                studio.reloadAssetInspection();
+                assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Nearest, texture.getMinFilter());
+                assertEquals(com.badlogic.gdx.graphics.Texture.TextureFilter.Linear, texture.getMagFilter());
+                assertTrue(texture.getTextureObjectHandle() != 0);
+                image = panel.findActor("imageAssetPreview");
+                service.loadBorrowed(tag, replacement);
+                flush(panel);
+                assertNull(image.getDrawable());
+                image = panel.findActor("imageAssetPreview");
+                assertSame(replacement.getRegions().first().getTexture(),
+                        ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable) image.getDrawable()).getRegion().getTexture());
+                assertEquals("Linear", label(panel, "Min"));
+                service.unload(tag); flush(panel);
+                assertEquals("Effective - Studio standalone texture", label(panel, "Filtering"));
+                assertNull(panel.findActor("resourceAssetAtlaspage"));
+            } finally { service.unload(tag); atlas.dispose(); replacement.dispose(); }
+        });
+    }
+
+    @Test public void imageInspectionLifecycleMissingSourceAndDeletionPreserveCanvas() throws Exception {
+        var closingImage = new com.kotcrab.vis.ui.widget.VisImage[1];
+        withStudio((studio, root) -> {
+            FileHandle project = project(studio, root.child("images"));
+            int id = addImage(project.parent(), "target", 24, 12);
+            int other = addImage(project.parent(), "other", 12, 12);
+            FileHandle next = project(studio, root.child("next"));
+            int nextId = addImage(next.parent(), "next", 8, 8);
+            open(studio, project);
+            var context = studio.getSceneEditorContext();
+            int entity = context.world().create();
+            context.world().getMapper(TransformComponent.class).create(entity);
+            context.world().getMapper(games.pixscape.runtime.component.EntityIndexComponent.class).create(entity);
+            context.identityRegistry().ensureStableId(entity);
+            context.world().process(); context.selectionService().selectOnly(entity);
+            studio.render(); studio.render();
+            inspectImage(studio, id);
+            PropertiesPanel panel = inspector(studio);
+            assertEquals(entity, context.selectionService().getSelectionSnapshot().first());
+            var image = (com.kotcrab.vis.ui.widget.VisImage) panel.findActor("imageAssetPreview");
+            var texture = ((com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable) image.getDrawable()).getRegion().getTexture();
+            studio.getDockManager().hide(panel);
+            assertNotNull(image.getDrawable());
+            studio.getDockManager().show(panel);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_BOTTOM);
+            studio.getDockManager().dock(panel, games.pixscape.studio.ui.docking.DockSlot.RIGHT_TOP);
+            assertSame(image, panel.findActor("imageAssetPreview"));
+            assertTrue(texture.getTextureObjectHandle() != 0);
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertEquals("target", label(panel, "Name"));
+            assertNull(image.getDrawable());
+            assertTrue(texture.getTextureObjectHandle() != 0);
+            showDelete(studio, studio.getAssetsPanel().getSelectedAssetNode()); respond(lastDialog(studio), false);
+            assertNotNull(panel.findActor("imageAssetPreview"));
+            var reference = context.world().getMapper(games.pixscape.runtime.component.AssetRefComponent.class);
+            reference.create(entity).assetId = id; context.world().process();
+            assertThrows(IllegalStateException.class, () -> studio.getSceneService().deleteProjectAssets(Array.with(id)));
+            flush(panel); assertNotNull(panel.findActor("imageAssetPreview"));
+            reference.remove(entity); context.world().process();
+            studio.getSceneService().deleteProjectAssets(Array.with(other)); flush(panel);
+            assertEquals("target", label(panel, "Name"));
+            var tree = (games.pixscape.studio.ui.tree.IdVisTree) field(studio.getItemTreePanel(), "tree");
+            clickActor(studio, tree.findNode(entity).getLabel());
+            assertNull(panel.inspectedResourceProperties());
+            studio.getAssetsPanel().reloadFromProject(ProjectConfig.getInstance()); flush(panel);
+            assertNull("Reload must not reclaim focus", panel.inspectedResourceProperties());
+            assertEquals(entity, field(panel, "boundEntity"));
+            inspectImage(studio, id);
+            FileHandle source = project.parent().child("orig/images/target.png");
+            source.writeString("invalid pixels", false); studio.reloadAssetInspection();
+            assertNull(panel.findActor("imageAssetPreview"));
+            assertTrue(label(panel, "Preview unavailable").contains("Invalid image source"));
+            assertEquals("invalid pixels", source.readString());
+            source.delete(); studio.reloadAssetInspection();
+            assertTrue(label(panel, "Preview unavailable").contains("missing"));
+            assertNull(panel.findActor("resourceAssetMin"));
+            studio.getSceneService().deleteProjectAssets(Array.with(id)); flush(panel);
+            assertNull(panel.inspectedResourceProperties()); assertEquals(entity, field(panel, "boundEntity"));
+            open(studio, next); inspectImage(studio, nextId);
+            image = panel.findActor("imageAssetPreview");
+            studio.render(); studio.render();
+            open(studio, project);
+            assertNull(image.getDrawable()); assertNull(panel.inspectedResourceProperties());
+            open(studio, next); inspectImage(studio, nextId);
+            closingImage[0] = panel.findActor("imageAssetPreview");
+        });
+        assertNull("Closing Studio releases references before cache disposal", closingImage[0].getDrawable());
+    }
+
+    private static void assertFitted(com.kotcrab.vis.ui.widget.VisImage image, int width, int height) {
+        assertTrue(image.getImageWidth() > 0 && image.getImageHeight() > 0);
+        assertTrue(image.getImageWidth() <= width && image.getImageHeight() <= height);
+        assertTrue(image.getImageWidth() <= image.getWidth() + 0.001f);
+        assertTrue(image.getImageHeight() <= image.getHeight() + 0.001f);
+        assertEquals((float) width / height, image.getImageWidth() / image.getImageHeight(), 0.001f);
+        // Scene2D snaps the centered offsets to whole pixels.
+        assertEquals((image.getWidth() - image.getImageWidth()) / 2, image.getImageX(), 1f);
+        assertEquals((image.getHeight() - image.getImageHeight()) / 2, image.getImageY(), 1f);
+        assertEquals((image.getParent().getWidth() - image.getWidth()) / 2, image.getX(), 1f);
+        assertEquals((image.getParent().getHeight() - image.getHeight()) / 2, image.getY(), 1f);
+        assertTrue(((com.badlogic.gdx.scenes.scene2d.ui.Container<?>) image.getParent()).getClip());
+    }
+
+    private static int addImage(FileHandle dir, String name, int width, int height) {
+        String source = "orig/images/" + name + ".png";
+        writeImage(dir.child(source), width, height);
+        var db = AssetMetaDatabase.load(dir.child("assets.json"));
+        int id = db.registerIfAbsent(AssetType.IMAGE, "images/" + name, source, AssetMeta.AssetScope.USER).id();
+        db.save(dir.child("assets.json")); return id;
+    }
+
+    private static void writeImage(FileHandle file, int width, int height) {
+        Pixmap pixels = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        pixels.setColor(0.1f, 0.8f, 0.4f, 0.45f); pixels.fillRectangle(width / 8, height / 8, width * 3 / 4, height * 3 / 4);
+        pixels.setColor(1f, 0.6f, 0.1f, 1f); pixels.fillRectangle(width / 4, height / 4, width / 4, height / 2);
+        pixels.setColor(0.2f, 0.4f, 1f, 1f); pixels.fillCircle(width * 3 / 4, height / 2, height / 4);
+        PixmapIO.writePNG(file, pixels); pixels.dispose();
+    }
+
+    private static void inspectImage(StudioApplicationAdapter studio, int id) throws Exception {
+        flush(inspector(studio));
+        var tree = (FolderTreeView) field(studio.getAssetsPanel(), "treeView");
+        tree.selectFolder(new AssetNode(AssetNode.Kind.FOLDER, AssetNode.Root.IMAGES, "", "", null));
+        var thumbs = field(studio.getAssetsPanel(), "thumbsView");
+        for (Object object : (Array<?>) field(thumbs, "tileWidgets")) {
+            Actor actor = (Actor) object;
+            if (actor.getUserObject() instanceof AssetNode node && node.assetId == id) {
+                click(actor, 1); flush(inspector(studio)); return;
+            }
+        }
+        fail("Missing image " + id);
+    }
+
     @Test public void particlePreviewPlaybackAndRenderingAreIndependent() throws Exception {
         withStudio((studio, root) -> {
             FileHandle project = project(studio, root.child("particles"));
