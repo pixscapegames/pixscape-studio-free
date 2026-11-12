@@ -278,8 +278,10 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
         anim.clips.put("all", new AnimationClipMeta(0, 1));
         var set = (TilesetAssetMeta) db.registerIfAbsent(AssetType.TILESET, "set", null, AssetMeta.AssetScope.USER);
         set.tileWidth = set.tileHeight = set.referenceCellWidth = set.referenceCellHeight = 32;
-        set.columns = set.rows = 1;
-        set.imageWidth = set.imageHeight = 32;
+        set.columns = 2;
+        set.rows = 1;
+        set.imageWidth = 64;
+        set.imageHeight = 32;
         var tile = (TileAssetMeta) db.registerIfAbsent(AssetType.TILE, "tile", null, AssetMeta.AssetScope.USER);
         String tilePath = "orig/tiles/tile__a" + tile.id() + ".png";
         db.updateSourceRelPath(tile.id(), tilePath);
@@ -292,8 +294,9 @@ public final class StudioForwardDropGlCheck implements AutoCloseable {
         db.updateSourceRelPath(tileFrame.id(), tileFramePath);
         png(root.child(tileFramePath), Color.PURPLE);
         tileFrame.tilesetId = set.id();
-        tileFrame.sheetIndex = 0;
-        tileFrame.cellX = tileFrame.cellY = 0;
+        tileFrame.sheetIndex = 1;
+        tileFrame.cellX = 1;
+        tileFrame.cellY = 0;
         ParticleEmitter emitter = new ParticleEmitter();
         emitter.setName("spark");
         emitter.setContinuous(true);

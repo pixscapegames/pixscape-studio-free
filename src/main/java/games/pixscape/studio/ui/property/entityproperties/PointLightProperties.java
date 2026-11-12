@@ -498,4 +498,10 @@ public final class PointLightProperties extends VisTable {
             ctx.history.execute(command);
         }
     }
+    /** Releases the color picker owned by this scene editor. */
+    public void dispose() {
+        picker.remove();
+        picker.dispose();
+    }
+
 }

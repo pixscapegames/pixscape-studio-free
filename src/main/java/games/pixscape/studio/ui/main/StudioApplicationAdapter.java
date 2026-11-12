@@ -47,6 +47,7 @@ import games.pixscape.studio.logging.StudioLogLevel;
 import games.pixscape.studio.scene.SceneEditorContext;
 import games.pixscape.studio.service.ProjectOpenFailure;
 import games.pixscape.studio.service.SceneService;
+import games.pixscape.studio.service.StandaloneTextureCache;
 import games.pixscape.studio.service.StudioEditingModeService;
 import games.pixscape.studio.service.asset.AnimationAssetAuthoringService;
 import games.pixscape.studio.service.entitygraph.EntityGraphCaptureService;
@@ -1219,6 +1220,8 @@ public class StudioApplicationAdapter extends ApplicationAdapter {
         if (VisUI.isLoaded()) {
             VisUI.dispose();
         }
+        StandaloneTextureCache.clear(true);
+        ShaderRegistry.disposeAll();
         dumpLiveNonDaemonThreads("dispose:end");
         StudioLogCapture.restorePreviousLogger();
     }

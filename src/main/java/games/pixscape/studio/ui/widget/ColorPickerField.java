@@ -89,15 +89,14 @@ public final class ColorPickerField extends VisTable {
     }
 
     private void showPicker() {
+        if (getStage() == null) return;
         captureColorBeforePicker();
-        ColorPicker picker = StudioColorPickerFactory.create(title);
+        ColorPicker picker = StudioColorPickerFactory.createSingleUse(title);
         picker.setColor(current);
         picker.setAllowAlphaEdit(allowAlpha);
         picker.setListener(createPickerListener());
 
-        if (getStage() != null) {
-            getStage().addActor(picker.fadeIn());
-        }
+        getStage().addActor(picker.fadeIn());
     }
 
     private void captureColorBeforePicker() {

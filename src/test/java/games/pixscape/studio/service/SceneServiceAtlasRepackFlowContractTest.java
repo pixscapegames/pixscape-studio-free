@@ -124,7 +124,7 @@ public class SceneServiceAtlasRepackFlowContractTest {
         );
         String applyBody = methodBody(source, "public void applyIfPackReady()");
 
-        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas(),uploadedNormals)"));
+        assertTrue(applyBody.contains("publishPreparedAtlas(tag, uploaded.takeAtlas(), uploadedNormals)"));
         assertFalse(applyBody.contains("load(tag, finalAtlasFile);"));
         assertTrue(applyBody.contains("snapshotManager.publishPreparedSnapshot("));
         assertTrue(applyBody.contains("RenderRebindHelper.rebindAfterPreparedSnapshot("));

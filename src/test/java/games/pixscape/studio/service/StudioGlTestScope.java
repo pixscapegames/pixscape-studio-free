@@ -1,6 +1,11 @@
 package games.pixscape.studio.service;
 
+import com.badlogic.gdx.Application;
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application;
+import com.badlogic.gdx.graphics.*;
+import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.ObjectMap;
 import games.pixscape.studio.event.EventFlow;
@@ -41,10 +46,40 @@ public final class StudioGlTestScope implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
+        // LibGDX keeps the application key even after its last resource is disposed.
+        // Release only empty registrations: live resources remain visible to leak regressions.
+        if (Gdx.app instanceof Lwjgl3Application) {
+            Application application = Gdx.app;
+            releaseEmptyRegistration(ShaderProgram.class, "shaders", application);
+            releaseEmptyRegistration(Mesh.class, "meshes", application);
+            releaseEmptyRegistration(Texture.class, "managedTextures", application);
+            releaseEmptyRegistration(TextureArray.class, "managedTextureArrays", application);
+            releaseEmptyRegistration(Texture3D.class, "managedTexture3Ds", application);
+            releaseEmptyRegistration(Cubemap.class, "managedCubemaps", application);
+            releaseEmptyRegistration(GLFrameBuffer.class, "buffers", application);
+        }
         listeners.clear();
         listeners.putAll(savedListeners);
         pending.clear();
         pending.addAll(savedPending);
         for (var entry : gdx.entrySet()) entry.getKey().set(null, entry.getValue());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void releaseEmptyRegistration(Class<?> type, String name, Application application)
+            throws ReflectiveOperationException {
+        Field field = type.getDeclaredField(name);
+        field.setAccessible(true);
+        Object registrations = field.get(null);
+        if (registrations instanceof ObjectMap<?, ?>) {
+            // Do not use ObjectMap's cached iterator: its Entry retains the last application key.
+            var map = (ObjectMap<Application, Array<?>>) registrations;
+            Array<?> resources = map.get(application);
+            if (resources != null && resources.isEmpty()) map.remove(application);
+        } else {
+            var map = (Map<Application, Array<?>>) registrations;
+            Array<?> resources = map.get(application);
+            if (resources != null && resources.isEmpty()) map.remove(application);
+        }
     }
 }

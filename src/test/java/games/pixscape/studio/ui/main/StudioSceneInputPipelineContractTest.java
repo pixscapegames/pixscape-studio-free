@@ -15,26 +15,26 @@ public class StudioSceneInputPipelineContractTest {
         assertTrue(menu.contains("\"Edit corner profile\""));
         assertTrue(menu.contains("edit::removeProfile"));
         String picking = read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
-        assertFalse(picking.contains("showLightValueHint(corner.hint())"));
+        assertFalse(containsCode(picking, "showLightValueHint(corner.hint())"));
         String gizmos = read("src/main/java/games/pixscape/studio/system/GizmoSystem.java");
-        assertFalse(gizmos.contains("{drawCornerProfile();return;}"));
-        assertTrue(gizmos.contains("if(edit.isEditingOccurrence(corner.target()))continue;"));
-        assertTrue(gizmos.contains("if(edit.active())drawCornerProfile();"));
+        assertFalse(containsCode(gizmos, "{drawCornerProfile();return;}"));
+        assertTrue(containsCode(gizmos, "if(edit.isEditingOccurrence(corner.target()))continue;"));
+        assertTrue(containsCode(gizmos, "if(edit.active())drawCornerProfile();"));
         String overview = gizmos.substring(gizmos.indexOf("private void drawCornerOverview()"), gizmos.indexOf("private void drawCornerSupport("));
         assertFalse(overview.contains("filledRectangle"));
-        assertFalse(picking.contains("if(target==null)return corner.active()"));
+        assertFalse(containsCode(picking, "if(target==null)return corner.active()"));
     }
 
     @Test
     public void cornerPressUsesQueuedStagePointNotAlreadyAdvancedGlobalCursor() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/main/WorldCanvas.java");
-        assertTrue(source.contains("cornerProfilePointerDown(event.getStageX(),event.getStageY())"));
-        assertFalse(source.contains("cornerProfilePointerDown(rawX,rawY)"));
+        assertTrue(containsCode(source, "cornerProfilePointerDown(event.getStageX(),event.getStageY())"));
+        assertFalse(containsCode(source, "cornerProfilePointerDown(rawX,rawY)"));
         String picking = read("src/main/java/games/pixscape/studio/system/PickingSystem.java");
         int start = picking.indexOf("public boolean cornerProfilePointerDown(");
         String body = picking.substring(start, picking.indexOf("public void exitCornerProfile()", start));
         assertFalse(body.contains("Gdx.input"));
-        assertTrue(body.contains("corner.press(vertex,worldX,worldY)"));
+        assertTrue(containsCode(body, "corner.press(vertex,worldX,worldY)"));
     }
 
     @Test
@@ -88,6 +88,10 @@ public class StudioSceneInputPipelineContractTest {
     public void emptyDocumentContentFrameDoesNotClaimSceneBackgroundClicks() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/ui/document/EditorDocumentHost.java");
         assertTrue(source.contains("contentFrame.setTouchable(Touchable.childrenOnly);"));
+    }
+
+    private static boolean containsCode(String source, String fragment) {
+        return source.replaceAll("\\s+", "").contains(fragment.replaceAll("\\s+", ""));
     }
 
     private static String read(String path) throws Exception {

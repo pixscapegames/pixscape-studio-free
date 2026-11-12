@@ -1,6 +1,7 @@
 package games.pixscape.studio.ui;
 
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.kotcrab.vis.ui.widget.color.ColorPicker;
 
 import java.util.function.Supplier;
@@ -28,6 +29,18 @@ public final class StudioColorPickerFactory {
 
     public static ColorPicker create(String title) {
         return withGl3Prefixes(() -> new ColorPicker(title));
+    }
+
+    /** A transient picker is owned by its stage until removal (including stage disposal). */
+    public static ColorPicker createSingleUse(String title) {
+        return withGl3Prefixes(() -> new ColorPicker(title) {
+            @Override
+            protected void setStage(Stage stage) {
+                Stage previous = getStage();
+                super.setStage(stage);
+                if (previous != null && stage == null) dispose();
+            }
+        });
     }
 
     static <T> T withGl3Prefixes(Supplier<T> operation) {

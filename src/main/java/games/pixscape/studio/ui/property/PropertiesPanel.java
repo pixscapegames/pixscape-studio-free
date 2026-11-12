@@ -358,7 +358,8 @@ public class PropertiesPanel extends DockablePanel {
     public void releaseSceneContext(SceneEditorContext context) {
         if (context == null || !context.isInitialized()) return;
         refreshBoundWorlds.remove(context.world());
-        editorsByContext.remove(context);
+        ContextEditors released = editorsByContext.remove(context);
+        if (released != null) released.dispose();
         if (world == context.world()) clearSceneContext();
     }
 
@@ -377,6 +378,7 @@ public class PropertiesPanel extends DockablePanel {
         tileAnimationProperties.clearProject();
         pendingAnimationAsset = -1;
         pendingTileAsset = -1;
+        for (ContextEditors editors : editorsByContext.values()) editors.dispose();
         editorsByContext.clear();
         refreshBoundWorlds.clear();
     }
@@ -499,6 +501,12 @@ public class PropertiesPanel extends DockablePanel {
             out.sceneProperties = panel.sceneProperties;
             out.tiledMapProperties = panel.tiledMapProperties;
             return out;
+        }
+
+        void dispose() {
+            entityProperties.dispose();
+            pointLightProperties.dispose();
+            coneLightProperties.dispose();
         }
 
         void apply(PropertiesPanel panel) {

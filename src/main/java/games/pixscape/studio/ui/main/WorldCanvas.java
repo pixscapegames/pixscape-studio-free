@@ -466,6 +466,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
     }
 
     private void createWorld(SceneEditorContext targetContext, SceneMeta targetSceneMeta) {
+        targetContext.collectActiveUiSubscriptions(() -> assembleWorld(targetContext, targetSceneMeta));
+    }
+
+    private void assembleWorld(SceneEditorContext targetContext, SceneMeta targetSceneMeta) {
         sceneEditorContext = Objects.requireNonNull(targetContext, "targetContext");
         ProjectConfig cfg = ProjectConfig.getInstance();
         box2dWorldService = null;
@@ -3080,6 +3084,10 @@ public class WorldCanvas implements SpatialPreviewInvariantBoundary.FrameProcess
 
         if (gpuSnapshotManager != null) {
             gpuSnapshotManager.disposeAll();
+        }
+        if (metricsBatch != null) {
+            metricsBatch.close();
+            metricsBatch = null;
         }
 
         if (box2dWorldService != null) {

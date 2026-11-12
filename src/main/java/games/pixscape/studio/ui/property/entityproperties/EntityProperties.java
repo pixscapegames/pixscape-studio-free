@@ -454,4 +454,8 @@ public class EntityProperties extends VisTable {
         return false;
     }
 
+    public void dispose() {
+        materialPanel.dispose();
+    }
+
 }

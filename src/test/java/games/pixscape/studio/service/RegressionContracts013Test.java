@@ -32,7 +32,7 @@ public class RegressionContracts013Test {
     public void sceneAtlasInput_sync_cleansUnusedInput_andKeepsWhitePixel() throws Exception {
         String source = read("src/main/java/games/pixscape/studio/service/atlas/SceneAtlasInputService.java");
         String body = methodBody(source,
-                "public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg,String sceneTag,FileHandle projectDir,");
+                "public AtlasInputSyncResult syncSceneAtlasInput(ProjectConfig cfg, String sceneTag, FileHandle projectDir,");
 
         assertTrue(body.contains("AtlasInputFileSync.sync("));
         String shared = read("src/main/java/games/pixscape/studio/service/atlas/AtlasInputFileSync.java");

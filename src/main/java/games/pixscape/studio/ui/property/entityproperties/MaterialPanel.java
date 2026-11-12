@@ -242,4 +242,10 @@ public final class MaterialPanel extends CollapsibleWidget {
     private boolean isExampleShader(String name) {
         return name != null && ShaderRegistry.getOrigin(name) == ShaderOrigin.EXAMPLE;
     }
+    /** Releases the color picker owned by this scene editor. */
+    public void dispose() {
+        picker.remove();
+        picker.dispose();
+    }
+
 }
