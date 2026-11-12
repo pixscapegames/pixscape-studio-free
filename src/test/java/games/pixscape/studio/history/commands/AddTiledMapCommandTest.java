@@ -58,6 +58,40 @@ public class AddTiledMapCommandTest {
     }
 
     @Test
+    public void deletingMapRemovesAndRestoresItsJointWithRemappedEndpoint() {
+        AtomicInteger selected = new AtomicInteger(-1);
+        command(8, 8, TiledProjection.ORTHO, 16, 16, selected).redo();
+        int map = selected.get();
+        world.getMapper(PhysicsBodyComponent.class).create(map);
+        int other = world.create();
+        world.getMapper(PhysicsBodyComponent.class).create(other);
+        int joint = world.create();
+        var base = world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(joint);
+        base.aEid = map;
+        base.bEid = other;
+        world.getMapper(games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent.class).create(joint);
+        identities.ensureStableId(other);
+        identities.ensureStableId(joint);
+        long jointHistory = history.historyIds().ensureForEntity(joint);
+        world.process();
+        DeleteTiledMapCommand delete = new DeleteTiledMapCommand(layers, map, selected::set);
+        for (int cycle = 0; cycle < 3; cycle++) {
+            delete.redo();
+            world.process();
+            assertEquals(0, world.getAspectSubscriptionManager().get(Aspect.all(
+                    games.pixscape.runtime.component.physics.PhysicsJointComponent.class)).getEntities().size());
+            assertTrue(world.getEntityManager().isActive(other));
+            delete.undo();
+            world.process();
+            int restoredJoint = history.historyIds().entityOfHistoryId(jointHistory);
+            base = world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).get(restoredJoint);
+            assertEquals(selected.get(), base.aEid);
+            assertEquals(other, base.bEid);
+            assertTrue(world.getMapper(PhysicsBodyComponent.class).has(base.aEid));
+        }
+    }
+
+    @Test
     public void addsTwoIndependentConfigurationsWithoutChangingOwningLayerType() {
         AtomicInteger selected = new AtomicInteger(-1);
         AddTiledMapCommand iso = command(64, 32, TiledProjection.ISO, 64, 32, selected);

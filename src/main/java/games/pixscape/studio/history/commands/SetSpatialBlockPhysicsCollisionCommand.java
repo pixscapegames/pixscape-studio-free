@@ -28,6 +28,8 @@ public final class SetSpatialBlockPhysicsCollisionCommand
     private final boolean after;
     private final int originalShapeIndex;
     private PhysicsShapeData linkedShapeSnapshot;
+    private DeleteEntitiesCommand jointDeletion;
+    private boolean jointsDeleted;
 
     public SetSpatialBlockPhysicsCollisionCommand(
             World world,
@@ -158,8 +160,21 @@ public final class SetSpatialBlockPhysicsCollisionCommand
             return CommandOutcome.REJECTED;
         }
 
+        // Preparation succeeded: remove dependencies in the same history operation.
+        if (candidate.size == 0) {
+            if (jointDeletion == null) {
+                jointDeletion = SpatialBlockCommandSupport.captureJointsForBodyRemoval(
+                        world, historyIds, layerEntityId);
+            }
+            jointDeletion.redo();
+            jointsDeleted = true;
+        }
         SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(
                 world, layerEntityId, candidate, prepared);
+        if (candidate.size > 0 && jointsDeleted) {
+            jointDeletion.undo();
+            jointsDeleted = false;
+        }
         if (selection != null) selection.selectBlock(layerEntityId, spatialBlockId);
         EventFlow.i().publish(new EventFlow.PhysicsBodyStructureChanged(
                 layerEntityId, EventFlow.tag(this)));

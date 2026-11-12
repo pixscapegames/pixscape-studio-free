@@ -84,8 +84,7 @@ public class TiledFallbackValidationLifecycleTest {
         TileAnimationRegistry registry = new TileAnimationRegistry();
         registry.put(100, new int[]{7}, new int[]{100});
         WorldCanvas canvas = canvas(system, registry);
-        SceneService sceneService = allocate(SceneService.class);
-        setField(sceneService, SceneService.class, "canvas", canvas);
+        SceneService sceneService = new SceneService(null, canvas);
 
         Method reload = SceneService.class.getDeclaredMethod(
                 "reloadTileAnimationRegistryFromProjectData"
@@ -119,8 +118,7 @@ public class TiledFallbackValidationLifecycleTest {
         TileAnimationRegistry registry = new TileAnimationRegistry();
         registry.put(100, new int[]{7}, new int[]{100});
         WorldCanvas canvas = canvas(system, registry);
-        SceneService sceneService = allocate(SceneService.class);
-        setField(sceneService, SceneService.class, "canvas", canvas);
+        SceneService sceneService = new SceneService(null, canvas);
 
         Method reload = SceneService.class.getDeclaredMethod(
                 "reloadTileAnimationsFromProject",

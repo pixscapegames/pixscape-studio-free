@@ -27,6 +27,7 @@ import games.pixscape.runtime.hud.HudScreenAsset;
 import games.pixscape.runtime.particle.ParticleEffect;
 import games.pixscape.runtime.particle.ParticleEmitter;
 import games.pixscape.runtime.physics.CompiledFixtureData;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.runtime.service.ShaderRegistry;
 import games.pixscape.runtime.service.TileAnimationRegistry;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
@@ -1335,6 +1336,7 @@ public final class SceneService {
 
         games.pixscape.runtime.loading.ContentLayerValidator.validateWorld(
                 world, "Scene '" + outFile.path() + "'");
+        PhysicsService.requireJointBodies(world, entitiesToSave, "Scene '" + outFile.path() + "'");
 
         SaveFileFormat format = new SaveFileFormat(entitiesToSave);
         SceneVolatileStateSnapshot volatileState = clearVolatileSceneStateForSave(world, entitiesToSave);

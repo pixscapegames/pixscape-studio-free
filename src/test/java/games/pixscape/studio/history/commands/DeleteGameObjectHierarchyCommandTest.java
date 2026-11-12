@@ -132,6 +132,15 @@ public class DeleteGameObjectHierarchyCommandTest {
 
     @Test
     public void dependentGearJointRestoresItsSourceJointReferences() {
+        checkGearDeletion(false);
+    }
+
+    @Test
+    public void mixedSelectionOfRootAndSourceJointAlsoDeletesDependentGear() {
+        checkGearDeletion(true);
+    }
+
+    private void checkGearDeletion(boolean explicitlySelectedJoint) {
         Fixture f = new Fixture();
         try {
             int root = f.root(10, -1);
@@ -152,10 +161,12 @@ public class DeleteGameObjectHierarchyCommandTest {
             long sourceAHistory = f.history.historyIds().ensureForEntity(sourceA);
             long sourceBHistory = f.history.historyIds().ensureForEntity(sourceB);
             long gearHistory = f.history.historyIds().ensureForEntity(gearId);
+            IntArray targets = explicitlySelectedJoint
+                    ? IntArray.with(f.root(20, -1), sourceA) : IntArray.with(root);
             f.history.execute(DeleteEntitiesCommandFactory.create(f.world, f.history.historyIds(),
-                    new IntArray(new int[]{root}), null));
+                    targets, null));
             f.process();
-            assertEquals(0, f.jointCount());
+            assertEquals(explicitlySelectedJoint ? 1 : 0, f.jointCount());
             f.history.undo();
             f.process();
             assertEquals(3, f.jointCount());
@@ -165,7 +176,7 @@ public class DeleteGameObjectHierarchyCommandTest {
             assertEquals(f.history.historyIds().entityOfHistoryId(sourceBHistory), restoredGear.joint2Eid);
             f.history.redo();
             f.process();
-            assertEquals(0, f.jointCount());
+            assertEquals(explicitlySelectedJoint ? 1 : 0, f.jointCount());
         } finally {
             f.close();
         }

@@ -4,6 +4,7 @@ import com.artemis.ComponentMapper;
 import com.artemis.World;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.IntArray;
 import games.pixscape.runtime.component.TiledLayerComponent;
 import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsCompiledFixturesComponent;
@@ -19,6 +20,7 @@ import games.pixscape.runtime.spatial.SpatialBlockLink;
 import games.pixscape.runtime.spatial.SpatialBlockLinks;
 import games.pixscape.runtime.system.DirtyTrackerSystem;
 import games.pixscape.studio.event.EventFlow;
+import games.pixscape.studio.history.HistoryIdRegistry;
 import games.pixscape.studio.service.spatial.SpatialStructureCompilation;
 import games.pixscape.studio.service.spatial.SpatialStructureTopology;
 
@@ -187,6 +189,14 @@ public final class SpatialBlockCommandSupport {
         } finally {
             component.blocks = originalBlocks;
         }
+    }
+
+    static DeleteEntitiesCommand captureJointsForBodyRemoval(
+            World world, HistoryIdRegistry historyIds, int bodyEntityId) {
+        IntArray targets = new IntArray(1);
+        targets.add(bodyEntityId);
+        return new DeleteEntitiesCommand(world, historyIds,
+                PhysicsService.collectJointsAffectedByEntityRemoval(world, targets, new IntArray()));
     }
 
     static void publishStaticTiledPhysicsCandidate(

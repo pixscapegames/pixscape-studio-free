@@ -126,6 +126,7 @@ public final class DeleteGameObjectHierarchyCommand implements Command {
 
         IntSet capturedJoints = new IntSet();
         // Capture the current dependency index once; redo never recaptures restored entities.
+        removedEntities.addAll(explicitlySelectedJoints);
         IntArray affectedJoints = PhysicsService.collectJointsAffectedByEntityRemoval(
                 world, removedEntities, new IntArray(false, 8));
         for (int i = 0; i < explicitlySelectedJoints.size; i++) {

@@ -415,16 +415,6 @@ public final class SelectionService {
         selectAdd(e, SelectionSource.TREE);
     }
 
-    public void deleteSelection() {
-        exitQuadEdit();
-        for (IntSet.IntSetIterator it = selection.iterator(); it.hasNext; ) {
-            world.delete(it.next());
-        }
-        selection.clear();
-        firstSelectedEntityId = -1;
-        publish(SelectionSource.VIEWPORT);
-    }
-
     // ------------------------------------------------------------------------
     // Viewport gates
     // ------------------------------------------------------------------------

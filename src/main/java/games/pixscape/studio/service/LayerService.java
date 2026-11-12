@@ -174,17 +174,6 @@ public final class LayerService {
         }
     }
 
-    /** Deletes one map without affecting its owning Pixscape layer or sibling maps. */
-    public void removeTiledMap(int mapEntityId) {
-        if (mapEntityId < 0 || !world.getEntityManager().isActive(mapEntityId) || !mTiled.has(mapEntityId)) return;
-        TiledLayerComponent tiled = mTiled.get(mapEntityId);
-        if (tiledAllocatorService != null) tiledAllocatorService.freeLayer(tiled);
-        IdentityRegistry.unindexEntityImmediately(world, mapEntityId);
-        historyIds.unbindEntity(mapEntityId);
-        world.delete(mapEntityId);
-        EventFlow.i().publish(new EventFlow.TiledMapContentChanged(mapEntityId, MY_TAG));
-    }
-
     void rebuildFromWorld() {
         dirty = true;
         rebuildIfDirty();

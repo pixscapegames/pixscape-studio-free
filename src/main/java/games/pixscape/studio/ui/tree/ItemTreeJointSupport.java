@@ -6,8 +6,8 @@ import com.artemis.World;
 import com.artemis.utils.IntBag;
 import com.badlogic.gdx.graphics.Color;
 import com.kotcrab.vis.ui.VisUI;
-import games.pixscape.runtime.component.physics.PhysicsBodyComponent;
 import games.pixscape.runtime.component.physics.PhysicsJointComponent;
+import games.pixscape.runtime.service.PhysicsService;
 import games.pixscape.studio.service.physics.PhysicsJointUiNames;
 import games.pixscape.studio.service.physics.PhysicsSelectionService;
 
@@ -23,20 +23,14 @@ final class ItemTreeJointSupport {
             IntPredicate bodyLayerLocked) {
         ComponentMapper<PhysicsJointComponent> joints =
                 world.getMapper(PhysicsJointComponent.class);
-        ComponentMapper<PhysicsBodyComponent> bodies =
-                world.getMapper(PhysicsBodyComponent.class);
         IntBag jointEntities = world.getAspectSubscriptionManager()
                 .get(Aspect.all(PhysicsJointComponent.class)).getEntities();
         int[] data = jointEntities.getData();
         for (int i = 0; i < jointEntities.size(); i++) {
             int jointEntityId = data[i];
             PhysicsJointComponent joint = joints.getSafe(jointEntityId, null);
-            if (joint == null
-                    || joint.aEid < 0
-                    || !world.getEntityManager().isActive(joint.aEid)
-                    || bodies.getSafe(joint.aEid, null) == null) {
-                continue;
-            }
+            if (joint == null) continue;
+            PhysicsService.requireJointBodies(world, jointEntityId, "Item tree");
             EntityNode bodyNode = tree.findBodyNode(joint.aEid);
             if (bodyNode == null) continue;
 
@@ -62,12 +56,8 @@ final class ItemTreeJointSupport {
         }
         PhysicsJointComponent joint = world.getMapper(PhysicsJointComponent.class)
                 .getSafe(jointEntityId, null);
-        if (joint == null
-                || joint.aEid < 0
-                || !world.getEntityManager().isActive(joint.aEid)
-                || world.getMapper(PhysicsBodyComponent.class).getSafe(joint.aEid, null) == null) {
-            return false;
-        }
+        if (joint == null) return false;
+        PhysicsService.requireJointBodies(world, jointEntityId, "Joint selection");
         selection.setSelectedJoint(joint.aEid, jointEntityId);
         return true;
     }

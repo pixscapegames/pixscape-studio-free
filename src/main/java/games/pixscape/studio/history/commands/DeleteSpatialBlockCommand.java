@@ -29,6 +29,8 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
     private final Array<PhysicsShapeData> physicsAfter;
     private final boolean removesLinkedCollision;
     private final CommandOutcome initialOutcome;
+    private DeleteEntitiesCommand jointDeletion;
+    private boolean jointsDeleted;
 
     public DeleteSpatialBlockCommand(World world, HistoryIdRegistry historyIds,
                                      SpatialBlockSelectionService selection,
@@ -146,6 +148,14 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
             return CommandOutcome.REJECTED;
         }
 
+        if (candidateShapes.size == 0) {
+            if (jointDeletion == null) {
+                jointDeletion = SpatialBlockCommandSupport.captureJointsForBodyRemoval(
+                        world, historyIds, layerEntityId);
+            }
+            jointDeletion.redo();
+            jointsDeleted = true;
+        }
         SpatialBlocksComponent component =
                 SpatialBlockCommandSupport.getOrCreate(world, layerEntityId);
         component.blocks = replacement;
@@ -153,6 +163,10 @@ public final class DeleteSpatialBlockCommand implements Command, HistoryManager.
         component.revision++;
         SpatialBlockCommandSupport.publishStaticTiledPhysicsCandidate(
                 world, layerEntityId, candidateShapes, prepared);
+        if (candidateShapes.size > 0 && jointsDeleted) {
+            jointDeletion.undo();
+            jointsDeleted = false;
+        }
         games.pixscape.studio.event.EventFlow.i().publish(
                 new games.pixscape.studio.event.EventFlow.PhysicsBodyStructureChanged(
                         layerEntityId,

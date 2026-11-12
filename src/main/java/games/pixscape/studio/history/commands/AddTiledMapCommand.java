@@ -21,6 +21,7 @@ public final class AddTiledMapCommand implements Command {
     private final IntConsumer onMapSelected;
     private long historyId = -1L;
     private boolean capturedAuthoredState;
+    private DeleteTiledMapCommand undoDeletion;
 
     public AddTiledMapCommand(LayerService layerService, int targetLayerEntityId,
                               int mapWidth, int mapHeight, TiledProjection projection,
@@ -47,6 +48,10 @@ public final class AddTiledMapCommand implements Command {
 
     @Override
     public void redo() {
+        if (undoDeletion != null) {
+            undoDeletion.undo();
+            return;
+        }
         int mapEntityId = layerService.insertTiledMap(initializer, historyId);
         if (historyId <= 0L) historyId = historyIds.ensureForEntity(mapEntityId);
         if (!capturedAuthoredState) {
@@ -61,8 +66,9 @@ public final class AddTiledMapCommand implements Command {
     public void undo() {
         int mapEntityId = historyIds.entityOfHistoryId(historyId);
         if (mapEntityId < 0) return;
-        initializer.syncFrom(mapEntityId);
-        layerService.removeTiledMap(mapEntityId);
-        if (onMapSelected != null) onMapSelected.accept(-1);
+        if (undoDeletion == null) {
+            undoDeletion = new DeleteTiledMapCommand(layerService, mapEntityId, onMapSelected);
+        }
+        undoDeletion.redo();
     }
 }

@@ -157,6 +157,49 @@ public class SpatialBlockPhysicsCollisionCommandTest {
                 harness.selection.getSelectedBlockId());
     }
 
+    @Test
+    public void removingLastLinkedCollisionDeletesAndRestoresDependentJoint() {
+        checkJointRemoval(false);
+    }
+
+    @Test
+    public void deletingLastLinkedBlockDeletesAndRestoresDependentJoint() {
+        checkJointRemoval(true);
+    }
+
+    private void checkJointRemoval(boolean deleteBlock) {
+        Harness h = new Harness();
+        try {
+            h.execute(7, true);
+            int other = h.world.create();
+            h.world.getMapper(PhysicsBodyComponent.class).create(other);
+            int joint = h.world.create();
+            var base = h.world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).create(joint);
+            base.aEid = h.owner;
+            base.bEid = other;
+            h.world.getMapper(games.pixscape.runtime.component.physics.PhysicsDistanceJointComponent.class).create(joint);
+            long jointHistory = h.history.historyIds().ensureForEntity(joint);
+            h.world.process();
+            Command command = deleteBlock
+                    ? new DeleteSpatialBlockCommand(h.world, h.history.historyIds(), h.selection, h.owner, 7)
+                    : h.command(7, false);
+            for (int cycle = 0; cycle < 3; cycle++) {
+                command.redo();
+                h.world.process();
+                Assert.assertFalse(h.hasBody());
+                Assert.assertEquals(0, h.world.getAspectSubscriptionManager().get(com.artemis.Aspect.all(
+                        games.pixscape.runtime.component.physics.PhysicsJointComponent.class)).getEntities().size());
+                command.undo();
+                h.world.process();
+                Assert.assertTrue(h.hasBody());
+                int restored = h.history.historyIds().entityOfHistoryId(jointHistory);
+                base = h.world.getMapper(games.pixscape.runtime.component.physics.PhysicsJointComponent.class).get(restored);
+                Assert.assertEquals(h.owner, base.aEid);
+                Assert.assertEquals(other, base.bEid);
+            }
+        } finally { h.world.dispose(); }
+    }
+
     private static final class Harness {
         final World world = new World();
         final int owner = world.create();
