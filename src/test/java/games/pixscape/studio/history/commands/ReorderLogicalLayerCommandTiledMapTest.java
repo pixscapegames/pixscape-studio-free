@@ -16,6 +16,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
     @Test
     public void movesTiledMapAsATopLevelPeerAndRestoresItOnUndo() {
         World world = new World(new WorldConfiguration());
+        bindHistoricalIdentities(world);
         try {
             int layer = world.create();
             world.getMapper(LayerComponent.class).create(layer).layerIndex = 2;
@@ -46,6 +47,7 @@ public class ReorderLogicalLayerCommandTiledMapTest {
     @Test
     public void mapsMoveAcrossGameObjectRootsAndSwapWithOtherMapsAsAtomicPeers() {
         World world = new World(new WorldConfiguration());
+        bindHistoricalIdentities(world);
         try {
             int layer = world.create();
             world.getMapper(LayerComponent.class).create(layer).layerIndex = 4;
@@ -81,6 +83,11 @@ public class ReorderLogicalLayerCommandTiledMapTest {
         }
     }
 
+    private static void bindHistoricalIdentities(World world) {
+        var meta = new games.pixscape.runtime.loading.SceneMetaRuntime();
+        meta.nextEntityStableId = 100; // Fixture identities below are restored authored IDs.
+        new games.pixscape.runtime.service.IdentityRegistry().bind(world, meta);
+    }
     private static int orderedEntity(World world, int stableId, int layerIndex, int zIndex) {
         int entity = world.create();
         world.getMapper(PixscapeIdentityComponent.class).create(entity).stableId = stableId;

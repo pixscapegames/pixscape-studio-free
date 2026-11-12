@@ -22,6 +22,22 @@ public final class GameObjectHierarchyCommandSupport {
     static void requireAttachCandidate(
             World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
         requireActive(world, childEntityId, "child");
+        if (world.getMapper(GameObjectMemberComponent.class).has(childEntityId)) {
+            throw new IllegalArgumentException("Child is already a Game Object member.");
+        }
+        requireReparentCandidate(world, identities, childEntityId, parentEntityId);
+    }
+
+    /** Validates the prospective final relationship without temporarily detaching a member. */
+    static void requireReparentCandidate(
+            World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
+        requireReparentCandidate(world, identities, childEntityId, parentEntityId,
+                CurrentGameObjectRelations.collectCurrentChildrenByParentStableId(world, identities));
+    }
+
+    static void requireReparentCandidate(World world, IdentityRegistry identities, int childEntityId,
+                                         int parentEntityId, IntMap<IntArray> children) {
+        requireActive(world, childEntityId, "child");
         requireActive(world, parentEntityId, "parent");
         if (childEntityId == parentEntityId) {
             throw new IllegalArgumentException("A Game Object cannot contain itself.");
@@ -31,9 +47,6 @@ public final class GameObjectHierarchyCommandSupport {
         if (!world.getMapper(GameObjectComponent.class).has(parentEntityId)) {
             throw new IllegalArgumentException("Hierarchy parent must be a Game Object root.");
         }
-        if (world.getMapper(GameObjectMemberComponent.class).has(childEntityId)) {
-            throw new IllegalArgumentException("Child is already a Game Object member.");
-        }
         requireSupportedMember(world, childEntityId);
         if (world.getMapper(GameObjectComponent.class).has(childEntityId)) {
             GameObjectTransformMath.requirePositiveUniformParentScale(
@@ -42,7 +55,7 @@ public final class GameObjectHierarchyCommandSupport {
         GameObjectTransformMath.requirePositiveUniformParentScale(
                 world.getMapper(TransformComponent.class).get(parentEntityId));
         rejectCycle(world, identities, childEntityId, parentEntityId);
-        requireProspectivePhysicsAncestry(world, identities, childEntityId, parentEntityId);
+        requireProspectivePhysicsAncestry(world, identities, childEntityId, parentEntityId, children);
     }
 
     static void requireSupportedMember(World world, int entityId) {
@@ -133,12 +146,9 @@ public final class GameObjectHierarchyCommandSupport {
         throw new IllegalArgumentException("Hierarchy depth limit exceeded.");
     }
 
-    /** Cold attachment validation: one identity-index scan, then O(subtree size); returns Physics presence. */
-    private static boolean validateCurrentSubtree(
-            World world, IdentityRegistry identities, int entityId) {
-        // Cold prospective validation: subscriptions and published topology can lag behind commands.
-        IntMap<IntArray> childrenByParent = CurrentGameObjectRelations
-                .collectCurrentChildrenByParentStableId(world, identities);
+    /** Cold attachment validation over current children; returns Physics presence. */
+    static boolean validateCurrentSubtree(World world, IdentityRegistry identities, int entityId,
+                                          IntMap<IntArray> childrenByParent) {
         IntSet visited = new IntSet();
         IntArray pending = new IntArray();
         // Each entry is (entity ID, depth, whether its current ancestors have unit scale).
@@ -224,8 +234,9 @@ public final class GameObjectHierarchyCommandSupport {
     }
 
     private static void requireProspectivePhysicsAncestry(
-            World world, IdentityRegistry identities, int childEntityId, int parentEntityId) {
-        if (!validateCurrentSubtree(world, identities, childEntityId)) return;
+            World world, IdentityRegistry identities, int childEntityId, int parentEntityId,
+            IntMap<IntArray> children) {
+        if (!validateCurrentSubtree(world, identities, childEntityId, children)) return;
         int current = parentEntityId;
         for (int depth = 0; depth < MAX_DEPTH; depth++) {
             TransformComponent transform = world.getMapper(TransformComponent.class).get(current);

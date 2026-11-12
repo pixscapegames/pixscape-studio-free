@@ -1,9 +1,7 @@
 package games.pixscape.studio.service.zorder;
 
-import com.artemis.Aspect;
 import com.artemis.ComponentMapper;
 import com.artemis.World;
-import com.artemis.utils.IntBag;
 import com.badlogic.gdx.utils.IntArray;
 import com.badlogic.gdx.utils.IntSet;
 import games.pixscape.runtime.component.EntityIndexComponent;
@@ -32,44 +30,32 @@ public final class LayerLogicalOrderService {
     public LayerOrder derive(int layerIndex) { return derive(layerIndex, null); }
 
     public LayerOrder derive(int layerIndex, IntArray additionalEntityIds) {
-        IntBag bag = world.getAspectSubscriptionManager().get(
-                Aspect.all(EntityIndexComponent.class, PixscapeIdentityComponent.class)
-                        .exclude(LayerComponent.class, PhysicsJointComponent.class,
-                                GameObjectMemberComponent.class)).getEntities();
-        IntArray candidates = new IntArray(false,
-                bag.size() + (additionalEntityIds != null ? additionalEntityIds.size : 0));
-        IntSet included = new IntSet(Math.max(1, candidates.items.length));
-        for (int i = 0; i < bag.size(); i++) {
-            int entityId = bag.get(i);
-            if (world.getEntityManager().isActive(entityId) && included.add(entityId)) {
-                candidates.add(entityId);
-            }
-        }
-        if (additionalEntityIds != null) {
-            ComponentMapper<PixscapeIdentityComponent> identities =
-                    world.getMapper(PixscapeIdentityComponent.class);
-            ComponentMapper<LayerComponent> layers = world.getMapper(LayerComponent.class);
-            for (int i = 0; i < additionalEntityIds.size; i++) {
-                int entityId = additionalEntityIds.get(i);
-                if (world.getEntityManager().isActive(entityId)
-                        && indexes.has(entityId) && identities.has(entityId)
-                        && !layers.has(entityId) && !joints.has(entityId)
-                        && !members.has(entityId) && included.add(entityId)) {
-                    candidates.add(entityId);
-                }
-            }
-        }
-
+        // Cold Studio query: current identity/component state, never published membership.
+        var registry = games.pixscape.runtime.service.IdentityRegistry.boundTo(world);
+        if (registry == null) throw new IllegalStateException("Logical order requires scene identities.");
+        IntArray candidates = new IntArray();
+        registry.collectIndexedEntityIds(candidates);
+        // Asset instantiation can supply freshly materialized entities inside a composite command.
+        if (additionalEntityIds != null) candidates.addAll(additionalEntityIds);
+        IntSet included = new IntSet();
+        var identities = world.getMapper(PixscapeIdentityComponent.class);
+        var layers = world.getMapper(LayerComponent.class);
         List<LogicalItem> items = new ArrayList<>();
         for (int i = 0; i < candidates.size; i++) {
             int entityId = candidates.get(i);
+            if (entityId < 0 || !world.getEntityManager().isActive(entityId)
+                    || !included.add(entityId) || !indexes.has(entityId) || !identities.has(entityId)
+                    || layers.has(entityId) || joints.has(entityId) || members.has(entityId)) continue;
             EntityIndexComponent index = indexes.get(entityId);
             if (index.layerIndex == layerIndex) items.add(new LogicalItem(entityId, index.zIndex));
         }
-        items.sort((first, second) -> first.effectiveZ != second.effectiveZ
-                ? Integer.compare(second.effectiveZ, first.effectiveZ)
-                : Integer.compare(second.entityId, first.entityId));
+        items.sort((first, second) -> compareTopToBottom(first.entityId, first.effectiveZ,
+                second.entityId, second.effectiveZ));
         return new LayerOrder(layerIndex, items);
+    }
+
+    public static int compareTopToBottom(int firstEntity, int firstZ, int secondEntity, int secondZ) {
+        return firstZ != secondZ ? Integer.compare(secondZ, firstZ) : Integer.compare(secondEntity, firstEntity);
     }
 
     public static final class LayerOrder {

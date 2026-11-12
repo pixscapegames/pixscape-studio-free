@@ -658,6 +658,8 @@ public class GameObjectAssetServiceTest {
     @Test
     public void classifiesSelectionOnceAndNormalizesSelectedGameObjectDescendants() {
         World world = new World(new WorldConfiguration());
+        var meta = new SceneMetaRuntime(); meta.nextEntityStableId = 100;
+        new IdentityRegistry().bind(world, meta);
         int root = entity(world, 1, -1, true, 0f, 0);
         int child = entity(world, 2, 1, false, 2f, 0);
         int nested = entity(world, 3, 1, true, 4f, 0);
@@ -690,6 +692,8 @@ public class GameObjectAssetServiceTest {
     @Test
     public void classifiesMultipleGameObjectRootsAsConversion() {
         World world = new World(new WorldConfiguration());
+        var meta = new SceneMetaRuntime(); meta.nextEntityStableId = 100;
+        new IdentityRegistry().bind(world, meta);
         int first = entity(world, 1, -1, true, 0f, 0);
         int second = entity(world, 2, -1, true, 4f, 1);
         int firstChild = entity(world, 3, 1, false, 1f, 0);
