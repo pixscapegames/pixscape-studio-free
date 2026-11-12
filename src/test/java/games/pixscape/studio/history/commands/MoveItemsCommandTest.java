@@ -35,6 +35,86 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.Assert.*;
 
 public class MoveItemsCommandTest {
+    @Test public void detachmentMeasuresPositionAgainstResolvedRuntimeInsteadOfPreparationHelper() {
+        for (float distance : new float[]{1000f, 10000f}) try (F f = new F()) {
+            int outer = f.root(0, 2), inner = f.root(0, 1), child = f.sprite(0, 0);
+            f.attach(inner, outer, 1); f.attach(child, inner, 0);
+            for (int entity : new int[]{outer, inner, child}) {
+                f.t(entity).x = f.t(entity).y = f.t(entity).originX = f.t(entity).originY = 0;
+            }
+            f.t(outer).rotationRad = f.t(inner).rotationRad = .3f;
+            f.t(child).x = distance;
+            f.publish();
+            Vector2 before = f.resolvedPosition(child);
+            assertEquals(.825239563f * distance, before.x, .002f);
+            assertEquals(.564782776f * distance, before.y, .002f);
+            var authoredBefore = ItemMovePreparation.Pose.read(f.t(child));
+            int stable = f.stable(child), next = f.meta.nextEntityStableId;
+            var plan = f.prepare(1, 0, 0, child);
+            for (int i = 0; i < 8; i++) {
+                assertTrue(plan.isCurrent());
+                assertEquals(authoredBefore, ItemMovePreparation.Pose.read(f.t(child)));
+                assertEquals(next, f.meta.nextEntityStableId);
+            }
+            f.execute(plan);
+            var authoredAfter = ItemMovePreparation.Pose.read(f.t(child));
+            assertEquals(before, f.resolvedPosition(child)); // No publication is forced by preparation/command.
+            f.publish();
+            Vector2 after = f.resolvedPosition(child);
+            assertEquals(1, f.context.historyManager().getCursor());
+            // Characterizes these two .3-radian fixtures, not a general world/pixel error bound.
+            // Measured drift: .19170812 at 1000 units; 1.917622 at 10000 units.
+            assertTrue("Runtime position drift: " + before.dst(after), before.dst(after) <= distance * .0002f);
+            for (int i = 0; i < 4; i++) {
+                f.context.historyManager().undo();
+                assertEquals(authoredBefore, ItemMovePreparation.Pose.read(f.t(child)));
+                assertEquals(f.stable(inner), f.parent(child));
+                if (i % 2 == 0) { f.publish(); assertEquals(before, f.resolvedPosition(child)); }
+                f.context.historyManager().redo();
+                assertEquals(authoredAfter, ItemMovePreparation.Pose.read(f.t(child)));
+                assertEquals(0, f.parent(child));
+                if (i % 2 == 0) { f.publish(); assertEquals(after, f.resolvedPosition(child)); }
+            }
+            f.publish(); assertEquals(after, f.resolvedPosition(child));
+            assertEquals(stable, f.stable(child)); assertEquals(next, f.meta.nextEntityStableId);
+        }
+    }
+
+    @Test public void detachedGroupMeasuresDescendantPositionAgainstResolvedRuntime() {
+        try (F f = new F()) {
+            int outer = f.root(0, 2), group = f.root(0, 1), left = f.sprite(0, 1), right = f.sprite(0, 0);
+            f.attach(group, outer, 1); f.attach(left, group, 1); f.attach(right, group, 0);
+            for (int entity : new int[]{outer, group, left, right}) {
+                f.t(entity).x = f.t(entity).y = f.t(entity).originX = f.t(entity).originY = 0;
+            }
+            f.t(outer).rotationRad = f.t(group).rotationRad = .3f;
+            f.t(left).x = -1000; f.t(right).x = 1000;
+            f.publish();
+            Vector2 beforeLeft = f.resolvedPosition(left), beforeRight = f.resolvedPosition(right);
+            var localLeft = ItemMovePreparation.Pose.read(f.t(left));
+            var localRight = ItemMovePreparation.Pose.read(f.t(right));
+            f.execute(f.prepare(1, 0, 0, group));
+            f.publish();
+            Vector2 afterLeft = f.resolvedPosition(left), afterRight = f.resolvedPosition(right);
+            assertEquals(new Vector2(), f.resolvedPosition(group));
+            // The unchanged pivot does not imply unchanged descendant positions: the two ends
+            // drift in opposite directions. Translating only the group cannot correct both.
+            assertTrue(beforeLeft.dst(afterLeft) <= .2f);
+            assertTrue("Runtime descendant drift: " + beforeRight.dst(afterRight), beforeRight.dst(afterRight) <= .2f);
+            assertEquals(localLeft, ItemMovePreparation.Pose.read(f.t(left)));
+            assertEquals(localRight, ItemMovePreparation.Pose.read(f.t(right)));
+            assertEquals(0, f.index(left).layerIndex); assertEquals(0, f.index(right).layerIndex);
+            assertEquals(1f, f.t(group).scaleX, 0f); assertEquals(1f, f.t(group).scaleY, 0f);
+            for (int i = 0; i < 3; i++) {
+                f.context.historyManager().undo(); f.context.historyManager().redo(); // No intermediate publication.
+            }
+            f.publish();
+            assertEquals(afterLeft, f.resolvedPosition(left)); assertEquals(afterRight, f.resolvedPosition(right));
+            f.context.historyManager().undo(); f.publish();
+            assertEquals(beforeLeft, f.resolvedPosition(left)); assertEquals(beforeRight, f.resolvedPosition(right));
+        }
+    }
+
     @Test public void nontrivialPreparationAndCommandConstructionAreReadOnly() {
         try (F f = new F()) {
             int p = f.root(0, 10), a = f.sprite(0, 25), q = f.root(1, 50);
@@ -106,6 +186,8 @@ public class MoveItemsCommandTest {
             f.t(p).x = 21; f.t(p).originX = 3; f.t(p).rotationRad = .3f; f.t(p).scaleX = f.t(p).scaleY = 2;
             f.t(q).y = -23; f.t(q).originY = 5; f.t(q).rotationRad = -.4f; f.t(q).scaleX = f.t(q).scaleY = 1.5f;
             f.t(a).originX = 7; f.t(a).scaleX = -2; f.t(a).scaleY = 3;
+            f.publish();
+            Vector2 runtimeA = f.resolvedPosition(a), runtimeB = f.resolvedPosition(b);
             var aw = f.pose(a); var bw = f.pose(b);
             var plan = f.prepare(1, q, 1, b, a);
             assertEquals(List.of(f.stable(a), f.stable(b)), plan.sources());
@@ -115,6 +197,9 @@ public class MoveItemsCommandTest {
             assertEquals(0, f.index(a).layerIndex); assertEquals(0, f.index(b).layerIndex);
             assertTrue(f.z(existing) > f.z(a)); assertTrue(f.z(a) > f.z(b));
             f.publish(); assertTrue(aw.closeTo(f.pose(a)));
+            // Independent Runtime oracle, with a fixture-specific world-unit drift allowance.
+            assertTrue(runtimeA.dst(f.resolvedPosition(a)) <= .05f);
+            assertTrue(runtimeB.dst(f.resolvedPosition(b)) <= .05f);
             f.context.historyManager().undo();
             assertEquals(f.stable(p), f.parent(a)); assertEquals(f.stable(nested), f.parent(b));
             assertEquals(8, f.z(a)); assertEquals(2, f.z(b));
@@ -325,6 +410,11 @@ public class MoveItemsCommandTest {
         void execute(ItemMovePreparation.Prepared plan) { context.historyManager().execute(plan.command()); }
         List<Integer> order(int layer) { return new LayerLogicalOrderService(world).derive(layer).items().stream().map(LayerLogicalOrderService.LogicalItem::entityId).toList(); }
         void publish() { world.process(); world.process(); }
+        Vector2 resolvedPosition(int entity) {
+            var resolved = world.getSystem(GameObjectHierarchySystem.class).worldTransforms();
+            assertTrue(resolved.isResolved(entity));
+            return new Vector2(resolved.x[entity], resolved.y[entity]);
+        }
         @Override public void close() { document.close(); box2d.dispose(); }
     }
 }

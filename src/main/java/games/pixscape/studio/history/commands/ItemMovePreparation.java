@@ -22,7 +22,15 @@ import java.util.*;
  * rows are not sources: the UI supplies the owning item only for actual item rows.
  */
 public final class ItemMovePreparation {
-    /** Absolute/relative tolerance used to check the world pose after parent-space conversion. */
+    /**
+     * Absolute/relative tolerance for the authored-TRS conversion round trip, not a bound on
+     * Runtime matrix positions or displayed pixels. Runtime multiplies each ancestor's frame;
+     * recomposing accumulated angles uses different quantized trigonometric samples.
+     * Small positional drift is accepted, including on descendants of a moved group, rather
+     * than decomposing matrices or compensating descendant transforms during drag preparation.
+     * Its world-space magnitude depends on offsets/scales/depth; screen-space drift also depends
+     * on zoom. Undo/redo restores the captured authored poses exactly, without recomputation.
+     */
     public static final float WORLD_POSE_EPSILON = 0.0001f;
 
     /** insertionIndex counts siblings AFTER removing the normalized sources, frontmost first.
